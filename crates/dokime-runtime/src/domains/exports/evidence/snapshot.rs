@@ -18,7 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::storage::{ObjectVersion, ObjectVersionToken, StorageCursor};
+use harmos::storage::{ObjectRevision, ObjectVersion, ReadBatch};
 use serde::Serialize;
 
 // Local Imports
@@ -50,11 +50,8 @@ pub(super) struct Snapshot {
     storage: Manager,
 }
 
-#[derive(Serialize)]
 pub(super) struct CycleRevision {
-    pub cycle_id: TestCycleId,
-    pub position: StorageCursor,
-    pub version: ObjectVersionToken,
+    source: ReadBatch<ObjectRevision<dokime_domain::model::execution::result::TestCycle>>,
 }
 
 /* === Enums === */
@@ -63,8 +60,20 @@ pub(super) struct CycleRevision {
 
 /* === Implementations === */
 
+impl Serialize for CycleRevision {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut revision = serializer.serialize_struct("CycleRevision", 3)?;
+        revision.serialize_field("cycle_id", &self.source.value.test_cycle_id)?;
+        revision.serialize_field("position", &self.source.position)?;
+        revision.serialize_field("version", &self.source.version)?;
+        revision.end()
+    }
+}
+
 impl Snapshot {
     pub async fn open(storage: &Manager, subject: EvidenceSubject) -> Result<Self> {
+        let session = storage.clone();
         match &subject {
             EvidenceSubject::Execution(value) => {
                 let id = TestExecutionId::from_uuid(value).map_err(|_| Error::Invalid("execution identity must be a UUID"))?;
@@ -93,7 +102,7 @@ impl Snapshot {
             }
             EvidenceSubject::Cycle(value) => {
                 let id = TestCycleId::from_uuid(value).map_err(|_| Error::Invalid("cycle identity must be a UUID"))?;
-                let source = crate::storage::objects::cycle::read(storage, &id, ObjectVersion::Latest)
+                let source = crate::storage::objects::cycle::read(&session, &id, ObjectVersion::Latest)
                     .await?
                     .ok_or_else(|| Error::Missing { kind: "cycle", id: id.to_string() })?;
                 if source.value.phase != CyclePhase::Sealed {
@@ -103,13 +112,12 @@ impl Snapshot {
                 crate::runtime::storage::execution::check_seal_position(&source.position, &seal.dependencies_saved)?;
                 let executions = seal.executions.clone();
                 let cycle_report = Some(seal.report.clone());
-                let revision = CycleRevision { cycle_id: id.clone(), position: source.position, version: source.version };
                 Ok(Self {
                     subject: EvidenceSubject::Cycle(id.to_string()),
                     node_id: seal.owner_node_id.clone(),
                     cycle_id: id.clone(),
                     cycle: serde_json::to_value(&source.value)?,
-                    cycle_revision: Some(revision),
+                    cycle_revision: Some(CycleRevision { source }),
                     cycle_report,
                     executions,
                     filename: format!("cycle-{id}.zip"),

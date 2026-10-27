@@ -35,8 +35,13 @@ import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
 /* === Constants === */
 
+const GUI_CAPTURED_DOCUMENTS = 16;
+const GUI_EVIDENCE_GC_MS = 30_000;
+const GUI_PAGE_ITEMS = 500;
+const GUI_RECONNECT_MS = 1_000;
+
 /** How long an unobserved evidence read stays cached; records and documents are large. */
-const EVIDENCE_GC_MS = 30_000;
+const EVIDENCE_GC_MS = GUI_EVIDENCE_GC_MS;
 
 /* === Types === */
 
@@ -65,7 +70,7 @@ export const workflowQueryKeys = {
   cycleDetail: (cycleId: string | null = null) => [...workflowQueryKeys.all, "cycles", "detail", cycleId ?? "current"] as const,
   cycleHistory: () => [...workflowQueryKeys.all, "cycles", "history"] as const,
   diagnostics: () => [...workflowQueryKeys.all, "diagnostics"] as const,
-  records: (limit = 500) => [...workflowQueryKeys.all, "records", { limit }] as const,
+  records: (limit = GUI_PAGE_ITEMS) => [...workflowQueryKeys.all, "records", { limit }] as const,
   executionDocument: ({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) =>
     [...workflowQueryKeys.all, "documents", "execution", cycleId ?? "", executionId ?? ""] as const,
   executionDetails: () => [...workflowQueryKeys.all, "execution-detail"] as const,
@@ -102,12 +107,12 @@ function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
 export function useDiagnosticsQuery() {
   const session = useNativeSession();
   // Diagnostics only feeds slow-moving facts (server version, process
-  // stats, startup doctor); live health arrives over the runtime stream.
+  // stats, startup doctor); live health arrives over the runtime stream. A
+  // fresh read on mount or window focus is enough.
   return useQuery({
     queryFn: () => fetchNativeDiagnostics(session.identity),
     queryKey: [...workflowQueryKeys.diagnostics(), session.identity.generation],
-    refetchInterval: 30_000,
-    staleTime: 25_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -154,7 +159,6 @@ export function useNotesQuery(enabled: boolean, scope: RecordScope) {
     enabled: enabled && session !== null && !!scope.test_cycle_id,
     queryFn: () => fetchNativeNotes(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.notes(), generationOf(session), scope],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.notes) : query;
 }
@@ -166,7 +170,6 @@ export function useHealthQuery(enabled: boolean, scope: RecordScope) {
     enabled: enabled && session !== null && !!scope.test_cycle_id,
     queryFn: () => fetchNativeHealth(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.health(), generationOf(session), scope],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.health) : query;
 }
@@ -178,7 +181,6 @@ export function useArtifactsQuery(enabled: boolean) {
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeArtifacts(identityOf(session)),
     queryKey: [...workflowQueryKeys.artifacts(), generationOf(session)],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.artifacts) : query;
 }
@@ -191,7 +193,6 @@ export function useTraceabilityQuery(enabled: boolean, scope: RecordScope | null
     queryFn: () => fetchNativeTraceability(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.traceability(scope), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.traceability(scope?.test_execution_id ?? null)) : query;
 }
@@ -201,7 +202,6 @@ export function useCycleHistoryQuery() {
   return useQuery({
     queryFn: () => fetchNativeCycleHistory(session.identity),
     queryKey: [...workflowQueryKeys.cycleHistory(), session.identity.generation],
-    staleTime: 15_000,
   });
 }
 
@@ -212,7 +212,6 @@ export function useExecutionDetailQuery(executionId: string | null, enabled: boo
     enabled: Boolean(executionId) && enabled && session !== null,
     queryFn: () => fetchNativeTestExecutionDetail(identityOf(session), executionId ?? ""),
     queryKey: [...workflowQueryKeys.executionDetail(executionId), generationOf(session)],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.executions.find((item) => item.test_execution_id === executionId) ?? undefined) : query;
 }
@@ -253,7 +252,6 @@ export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: s
     gcTime: EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
-    staleTime: 1_000,
   });
   return snapshot && executionId ? frozenQuery(snapshot.document(executionId) ?? undefined) : query;
 }
@@ -286,7 +284,6 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
     gcTime: EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
-    staleTime: 1_000,
   });
   return snapshot && enabled ? frozenQuery(snapshot.document(null) ?? undefined) : query;
 }
@@ -406,7 +403,7 @@ function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
 const capturedDocuments = new Map<string, { completed: CompletedDocument; mapped: DocumentViewPayload }>();
 
 /** The most open documents remembered at once; the oldest is forgotten first. */
-const CAPTURED_DOCUMENT_LIMIT = 16;
+const CAPTURED_DOCUMENT_LIMIT = GUI_CAPTURED_DOCUMENTS;
 
 /**
  * Capture a document, handing the capture the one held for this query: an
@@ -479,7 +476,7 @@ function holdRecordTail(
       stream = undefined;
       if (stopped || !session.isCurrent()) return;
       await queryClient.invalidateQueries({ queryKey, exact: true });
-      await new Promise((resume) => window.setTimeout(resume, 1_000));
+      await new Promise((resume) => window.setTimeout(resume, GUI_RECONNECT_MS));
     }
   };
   recordTails.set(key, {

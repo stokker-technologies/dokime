@@ -44,8 +44,8 @@ pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
         dev_control: false,
         network: dokime_server::host::NetworkArgs {
             host: std::net::Ipv4Addr::LOCALHOST.into(),
-            port: 0,
-            message_limit_mib: 2,
+            port: Some(0),
+            message_limit_mib: None,
             grpc_web: false,
             allowed_origins: Vec::new(),
         },

@@ -147,6 +147,7 @@ class BackendFixture:
         self.suite_page: Any = None
         self.catalog_finished = asyncio.Event()
         self.sent_cursors: list[dict[str, int]] = []
+        self.interrupt_sample_watch = False
         self.methods = {
             "Backend": ["GetIdentity", "GetHealth", "GetAvailability"],
             "Catalog": ["ListSuites", "GetSuite"],
@@ -165,7 +166,7 @@ class BackendFixture:
                 "StopExecution",
             ],
             "Evidence": ["WatchRecords", "ListRecords"],
-            "Telemetry": ["ListSamples"],
+            "Telemetry": ["ListSamples", "WatchSamples"],
             "History": ["GetExecutionCheckpoint", "GetCheckpointDocument"],
         }
 
@@ -330,7 +331,7 @@ class BackendFixture:
         assert request.selection.suite_id == SUITE_ID
         assert request.selection.template_id == TEMPLATE_ID
         self.overrides = {entry.key: entry.value for entry in request.selection.parameters}
-        parameters = {key: _wire.decode(value.values[0]) for key, value in self.overrides.items()}
+        parameters = {key: _wire.decode(value.values[0], 64) for key, value in self.overrides.items()}
         return _message(
             "Planning",
             "MaterializeTemplate",
@@ -340,7 +341,7 @@ class BackendFixture:
                     "suite_id": SUITE_ID,
                     "template_id": TEMPLATE_ID,
                     "metadata": {"identifier": "probe.1", "label": "Probe #1"},
-                    "parameters": _wire.encode(parameters),
+                    "parameters": _wire.encode(parameters, 64),
                     "definition_revision": "a" * 64,
                     "provider": "fixture.plugin",
                     "ordinal": 0,
@@ -751,6 +752,39 @@ class BackendFixture:
             through_stream_cursors={"voltage": through},
             complete=len(samples) < limit,
         )
+
+    async def WatchSamples(self, request: Any, context: Any) -> Any:
+        selection = _wire.request("Telemetry", "ListSamples")
+        _wire.copy(selection, request.selection)
+        frontier = len(self.samples)
+        while True:
+            self.changed.clear()
+            page = await self.ListSamples(selection, context)
+            position = next((entry.value for entry in page.through_stream_cursors if entry.key == "voltage"), 0)
+            if not request.follow:
+                after = next((entry.value for entry in selection.after_stream_cursors if entry.key == "voltage"), 0)
+                del page.samples[max(0, frontier - after) :]
+                position = min(position, frontier)
+                page.through_stream_cursors[0].value = position
+                page.complete = position == frontier
+            yield page
+            if self.interrupt_sample_watch and page.samples:
+                self.interrupt_sample_watch = False
+                await context.abort(grpc.StatusCode.UNAVAILABLE, "fixture interrupted sample stream")
+            del selection.after_stream_cursors[:]
+            selection.after_stream_cursors.add(key="voltage", value=position)
+            if not page.complete:
+                continue
+            if not request.follow or self.sealed.is_set():
+                return
+            changed = asyncio.create_task(self.changed.wait())
+            sealed = asyncio.create_task(self.sealed.wait())
+            try:
+                await asyncio.wait((changed, sealed), return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                changed.cancel()
+                sealed.cancel()
+                await asyncio.gather(changed, sealed, return_exceptions=True)
 
 
 # === Public Functions === #

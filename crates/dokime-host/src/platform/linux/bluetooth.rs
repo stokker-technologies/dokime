@@ -40,8 +40,8 @@ use dokime_domain::model::values::Value;
 /* === Public Functions === */
 
 #[cfg(not(windows))]
-pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions) -> Result<BTreeMap<String, Value>, String> {
-    let show_output = bluetoothctl_output(&["show"])?;
+pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions, timeout: Duration) -> Result<BTreeMap<String, Value>, String> {
+    let show_output = bluetoothctl_output(&["show"], timeout)?;
     let controller = parse_linux_controller(&show_output);
     if let Some(filter) = options.bluetooth_adapter_name.as_deref().map(str::trim).filter(|filter| !filter.is_empty()) {
         let matches_filter = controller.iter().any(|value| value.eq_ignore_ascii_case(filter));
@@ -55,9 +55,9 @@ pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions) -> Result<BTreeMap
         }
     }
 
-    let devices = bluetoothctl_output(&["devices"]).map(|output| parse_linux_device_names(&output)).unwrap_or_default();
+    let devices = bluetoothctl_output(&["devices"], timeout).map(|output| parse_linux_device_names(&output)).unwrap_or_default();
     let connected_devices =
-        bluetoothctl_output(&["devices", "Connected"]).map(|output| parse_linux_device_names(&output)).unwrap_or_default();
+        bluetoothctl_output(&["devices", "Connected"], timeout).map(|output| parse_linux_device_names(&output)).unwrap_or_default();
     let mut values = BTreeMap::new();
     maybe_insert(&mut values, "bluetooth_adapter", controller.first().cloned().map(Value::from));
     values.insert("bluetooth_adapter_count".to_owned(), Value::Integer(if controller.is_empty() { 0 } else { 1 }));
@@ -71,11 +71,11 @@ pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions) -> Result<BTreeMap
 /* === Private Functions === */
 
 #[cfg(not(windows))]
-fn bluetoothctl_output(args: &[&str]) -> Result<String, String> {
+fn bluetoothctl_output(args: &[&str], timeout: Duration) -> Result<String, String> {
     let mut command = Command::new("bluetoothctl");
     command.args(args);
-    let output = crate::collectors::run_command_bounded(command, Duration::from_secs(5))
-        .map_err(|error| format!("bluetoothctl could not be started: {error}"))?;
+    let output =
+        crate::collectors::run_command_bounded(command, timeout).map_err(|error| format!("bluetoothctl could not be started: {error}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
         return Err(if stderr.is_empty() { format!("bluetoothctl exited with status {}", output.status) } else { stderr });

@@ -40,8 +40,8 @@ impl RuntimeHandle {
         &self, cycle_id: TestCycleId,
         executions: Vec<(dokime_domain::model::identity::TestExecutionId, dokime_domain::model::identity::CaseId)>,
     ) -> Result<(), Error> {
-        if executions.is_empty() || executions.len() > 1000 {
-            return Err(Error::conflict("invalid_append", "append requires 1 to 1000 executions"));
+        if executions.is_empty() {
+            return Err(Error::conflict("invalid_append", "append requires at least one execution"));
         }
         let sources = {
             let state = self.state_read();
@@ -53,9 +53,10 @@ impl RuntimeHandle {
                 .collect::<Vec<_>>()
         };
         let transaction = crate::transactions::AppendExecutions {
+            max_executions: 10_000,
             cycle_id: cycle_id.clone(),
             executions,
-            settings: super::settings(self, sources)?,
+            settings: super::settings(self, sources).await?,
             occurred_at: crate::model::time::now_utc(),
         };
         let permit = self.admit_owned_work().ok_or(Error::ShuttingDown)?;

@@ -87,6 +87,12 @@ impl From<std::io::Error> for RuntimePluginManagementError {
     }
 }
 
+impl From<crate::storage::Error> for RuntimePluginManagementError {
+    fn from(error: crate::storage::Error) -> Self {
+        Self::Store(error.to_string())
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */

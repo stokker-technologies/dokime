@@ -23,8 +23,8 @@ use crate::{
     queries::RuntimeOverviewSnapshot,
     queries::{
         RuntimeArtifactFrame, RuntimeCursor, RuntimeDocumentFrame, RuntimeExecutionFileRead, RuntimeHealthFrame,
-        RuntimeInstalledPluginFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeRecordFrame, RuntimeResolvedDocumentFrame,
-        RuntimeResourceFrame, RuntimeTelemetryFrame, RuntimeTraceabilityFrame, RuntimeWindow,
+        RuntimeInstalledPluginFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeRecordFrame, RuntimeResolvedDocumentRead,
+        RuntimeResourceFrame, RuntimeTelemetryRead, RuntimeTraceabilityRead, RuntimeWindow,
     },
 };
 
@@ -86,14 +86,14 @@ pub enum RuntimeViewPayload {
     RecordDefinitions { frame: RuntimeListFrame },
     Records { frame: Box<RuntimeRecordFrame> },
     TelemetryDefinitions { frame: RuntimeListFrame },
-    Telemetry { frame: Box<RuntimeTelemetryFrame> },
-    Document { frame: Box<RuntimeResolvedDocumentFrame> },
+    Telemetry { frame: RuntimeTelemetryRead },
+    Document { frame: RuntimeResolvedDocumentRead },
     Documents { frame: Box<RuntimeDocumentFrame> },
     Artifacts { frame: Box<RuntimeArtifactFrame> },
     Resources { frame: Box<RuntimeResourceFrame> },
     Prompts { frame: Box<RuntimePromptFrame> },
     Health { frame: Box<RuntimeHealthFrame> },
-    Traceability { frame: Box<RuntimeTraceabilityFrame> },
+    Traceability { frame: RuntimeTraceabilityRead },
     Notes { frame: Box<RuntimeNoteFrame> },
 }
 

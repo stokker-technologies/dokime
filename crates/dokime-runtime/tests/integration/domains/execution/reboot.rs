@@ -73,43 +73,53 @@ async fn native_history_index() {
 }
 
 #[tokio::test]
-async fn live_telemetry_state() {
+async fn stored_telemetry_reboot() {
     const FIRST: u64 = 30;
     const SECOND: u64 = 20;
 
     let root = tempdir().unwrap();
     let (mut runtime, handle) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
 
-    // No execution owns these samples; they are process-local live telemetry.
+    // Unscoped Originals Belong To Durable Primary Storage.
     register_python_suite(&handle, fixture_suite(&["passed"])).await;
 
     let before = handle.publish_telemetry_batch(unscoped_tracking_batch(FIRST)).await.unwrap();
     assert_eq!(before.stream_cursors.len(), 1);
     assert_eq!(before.stream_cursors.values().copied().next(), Some(FIRST));
+    handle.storage().flush().await.unwrap();
 
     let selection = TelemetrySelection { streams: vec![Identifier::new("tracking").unwrap().into()], ..TelemetrySelection::default() };
 
-    // Graceful shutdown seals the durable streams; reboot on the same root.
+    let first_positions =
+        handle.selected_telemetry(selection.clone()).await.unwrap().iter().map(|sample| sample.sequence).collect::<Vec<_>>();
+    assert_eq!(first_positions.len(), FIRST as usize);
+
+    // Reopen The Same Durable History.
     drop(handle);
     runtime.shutdown().await.unwrap();
 
     let (mut rebooted, handle) = booted(root.path()).await;
 
-    assert!(handle.selected_telemetry(selection.clone()).await.is_empty());
+    assert_eq!(
+        handle.selected_telemetry(selection.clone()).await.unwrap().iter().map(|sample| sample.sequence).collect::<Vec<_>>(),
+        first_positions
+    );
     register_python_suite(&handle, fixture_suite(&["passed"])).await;
     let after = handle.publish_telemetry_batch(unscoped_tracking_batch(SECOND)).await.unwrap();
+    handle.storage().flush().await.unwrap();
     assert_eq!(after.stream_cursors.len(), 1);
     assert_eq!(after.stream_cursors.values().copied().next(), Some(SECOND), "the second process starts a fresh stream cursor",);
 
     // The full run of sequences the two sessions claimed is strictly increasing
     // with no collision.
-    let mut claimed: Vec<u64> = handle.selected_telemetry(selection).await.iter().map(|sample| sample.sequence).collect();
+    let mut claimed: Vec<u64> = handle.selected_telemetry(selection).await.unwrap().iter().map(|sample| sample.sequence).collect();
     claimed.sort_unstable();
     assert!(
         claimed.windows(2).all(|pair| pair[1] > pair[0]),
         "sequences claimed across the reboot are strictly increasing, no collision: {claimed:?}",
     );
-    assert_eq!(claimed, (1..=SECOND).collect::<Vec<_>>(), "only the current process appears in live telemetry",);
+    assert_eq!(claimed.len(), (FIRST + SECOND) as usize);
+    assert_eq!(&claimed[..FIRST as usize], first_positions.as_slice());
     drop(handle);
     rebooted.shutdown().await.unwrap();
 }

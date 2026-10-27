@@ -54,7 +54,7 @@ async def poll(handle: TestExecutionHandle, interval: float) -> dict[str, object
     print("Reading Evidence...", file=sys.stderr, flush=True)
 
     async with asyncio.TaskGroup() as tasks:
-        tasks.create_task(count_samples(handle, samples, interval))
+        tasks.create_task(count_samples(handle, samples))
         tasks.create_task(count_records(handle, events))
         outcome = await handle.wait(poll_interval=interval)
 
@@ -92,8 +92,8 @@ async def main() -> None:
 
 
 # Keep one iterator alive to retain cursors.
-async def count_samples(handle: TestExecutionHandle, counts: Counter[str], interval: float) -> None:
-    async for sample in handle.samples(follow=True, poll_interval=interval):
+async def count_samples(handle: TestExecutionHandle, counts: Counter[str]) -> None:
+    async for sample in handle.samples(follow=True):
         counts[sample.stream] += 1
 
 

@@ -24,7 +24,9 @@ use dokime_server::host;
 
 /* === Constants === */
 
-const READY_TIMEOUT: Duration = Duration::from_secs(60);
+const DESKTOP_READINESS_TIMEOUT_MS: u64 = 60_000;
+const DESKTOP_STARTUP_DIAGNOSTIC_BYTES: u64 = 65_536;
+
 const REDACTED: &str = "<redacted>";
 const BEARER: &str = "bearer";
 const AUTHORIZATION: &str = "authorization";
@@ -68,11 +70,11 @@ pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Resu
         let network = backend.arguments.network.config()?;
         host::Session::start(&backend.arguments, config, network, on_phase).await
     };
-    let started = tokio::time::timeout(READY_TIMEOUT, launch).await;
+    let started = tokio::time::timeout(Duration::from_millis(DESKTOP_READINESS_TIMEOUT_MS), launch).await;
     let result = match started {
         Ok(result) => result.map_err(|error| {
             let message = error.to_string();
-            redact(&message[..message.floor_char_boundary(64 * 1024)])
+            redact(&message[..message.floor_char_boundary(DESKTOP_STARTUP_DIAGNOSTIC_BYTES as usize)])
         }),
         Err(_) => Err("The local server did not report readiness in time.".to_owned()),
     };

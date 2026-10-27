@@ -57,7 +57,8 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
+pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
     let id = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let mode = if args.mode == "interactive" { ExecutionMode::Interactive } else { ExecutionMode::Automatic };
     let recovery = args.recovery.prepare(&id)?;

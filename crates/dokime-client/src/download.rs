@@ -95,9 +95,7 @@ impl Client {
     pub async fn download_evidence(
         &self, request: contracts::content::DownloadEvidence, destination: PathBuf, overwrite: bool,
     ) -> Result<Download<dokime_domain::model::exports::EvidenceExportMetadata>, Error> {
-        use dokime_domain::model::exports::{
-            EVIDENCE_EXPORT_MAX_BYTES, EVIDENCE_EXPORT_SCHEMA_VERSION, EvidenceExportPayload, EvidenceSubject,
-        };
+        use dokime_domain::model::exports::{EVIDENCE_EXPORT_SCHEMA_VERSION, EvidenceExportPayload, EvidenceSubject};
         validate_destination(&destination, overwrite)?;
         let subject = match request.subject.ok_or(Error::Invalid("evidence subject is required"))? {
             EvidenceSubject::Execution(id) => EvidenceSubject::Execution(
@@ -114,8 +112,7 @@ impl Client {
             .limits
             .max_evidence_bytes
             .filter(|limit| *limit > 0)
-            .ok_or(Error::Invalid("backend did not declare evidence export capacity"))?
-            .min(EVIDENCE_EXPORT_MAX_BYTES);
+            .ok_or(Error::Invalid("backend did not declare evidence export capacity"))?;
         let stream = self
             .content_download_evidence(contracts::content::DownloadEvidence { subject: Some(subject.clone()) })
             .await

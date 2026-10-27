@@ -29,7 +29,6 @@ export type TelemetryStreamSpec = {
   label?: string | null;
   columns: TelemetryColumnSpec[];
   default_x?: string | null;
-  plot_window_s?: number | null;
   allow_extra_fields: boolean;
 };
 

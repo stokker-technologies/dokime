@@ -107,7 +107,7 @@ def test_explicit_cycle() -> None:
             await cycle.append([execution])
             assert cycle.executions == (execution,)
             assert server.created == server.append_calls == 1
-            assert _wire.decode(server.overrides["flag"].values[0]) is True
+            assert _wire.decode(server.overrides["flag"].values[0], 64) is True
 
             with pytest.raises(ValueError):
                 await client.create_cycle(label=" ")

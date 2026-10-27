@@ -34,6 +34,9 @@ use dokime::domains::exports::storage::DiagnosticPathKey;
 
 /* === Constants === */
 
+const SERVER_BUNDLE_BYTES: u64 = 16_777_216;
+const SERVER_BUNDLE_LOG_TAIL_BYTES: u64 = 2_097_152;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -43,6 +46,18 @@ use dokime::domains::exports::storage::DiagnosticPathKey;
 struct Collector<'a> {
     runtime: &'a RuntimeHandle,
     identity: &'a dokime::domain::model::backend::wire::BackendIdentity,
+}
+
+#[derive(serde::Serialize)]
+struct SnapshotDocument<'a> {
+    server: SnapshotServer<'a>,
+    runtime: &'a DiagnosticsSnapshot,
+}
+
+#[derive(serde::Serialize)]
+struct SnapshotServer<'a> {
+    version: &'static str,
+    process: &'a dokime::domain::model::backend::wire::ProcessDiagnostics,
 }
 
 /* === Enums === */
@@ -78,43 +93,37 @@ impl Collector<'_> {
             &self.runtime.application_root(),
         );
         let generated_at = diagnostics.captured_at.clone();
-        let conventions = diagnostics.path_conventions.clone();
         let source = |key: DiagnosticPathKey| {
-            conventions
+            diagnostics
+                .path_conventions
                 .iter()
                 .find(|convention| convention.key == key)
                 .and_then(|convention| convention.absolute_path.clone())
                 .map(std::path::PathBuf::from)
         };
 
-        let mut parts = vec![
-            bundle::Part::json("backend/identity.json", identity_json(self.identity)),
-            bundle::Part::json("backend/health.json", health_json(&self.health().await?)),
-            bundle::Part::json(
-                "diagnostics/snapshot.json",
-                json!({
-                    "server": {
-                        "version": env!("CARGO_PKG_VERSION"),
-                        "process": process_json(&diagnostics::process_diagnostics()),
-                    },
-                    "runtime": encoded(&diagnostics)?,
-                }),
-            ),
-            bundle::Part::json("settings/settings-frame.json", encoded(&self.runtime.settings_frame().await)?),
-        ];
+        let mut parts = bundle::Parts::new(self.runtime.storage().clone())?;
+        parts = parts.push(bundle::Part::json("backend/identity.json", identity_json(self.identity))).await?;
+        parts = parts.push(bundle::Part::json("backend/health.json", health_json(&self.health().await?))).await?;
+        let process = diagnostics::process_diagnostics();
+        let snapshot =
+            SnapshotDocument { server: SnapshotServer { version: env!("CARGO_PKG_VERSION"), process: &process }, runtime: &diagnostics };
+        parts = parts.push(bundle::Part::json("diagnostics/snapshot.json", encoded(&snapshot)?)).await?;
+        parts = parts.push(bundle::Part::json("settings/settings-frame.json", encoded(&self.runtime.settings_frame().await)?)).await?;
         if let Some(path) = source(DiagnosticPathKey::StartupDoctor) {
-            parts.push(bundle::Part::file("diagnostics/startup-doctor.json", path, bundle::MAX_LOG_TAIL_BYTES));
+            parts = parts.push(bundle::Part::file("diagnostics/startup-doctor.json", path, SERVER_BUNDLE_LOG_TAIL_BYTES)).await?;
         }
         if let Some(path) = source(DiagnosticPathKey::HubLog) {
-            parts.push(bundle::Part::tail("logs/dokime.jsonl", path, log_tail_bytes));
+            parts = parts.push(bundle::Part::tail("logs/dokime.jsonl", path, log_tail_bytes)).await?;
         }
+        drop(diagnostics);
         for artifact_id in self.artifact_ids() {
             // `plugin_settings` is the settings surface's own read: its
             // secret bindings arrive already reduced to an identifier, a
             // backend kind and whether it is configured. Nothing here consults
             // the secret store, so no secret exists to leak.
             let settings = self.runtime.plugin_settings(&artifact_id).await.map_err(|error| Status::internal(error.to_string()))?;
-            parts.push(bundle::Part::json(format!("settings/artifacts/{artifact_id}.json"), encoded(&settings)?));
+            parts = parts.push(bundle::Part::json(format!("settings/artifacts/{artifact_id}.json"), encoded(&settings)?)).await?;
         }
 
         bundle::build(
@@ -127,7 +136,9 @@ impl Collector<'_> {
                 "log_tail_ceiling_bytes": log_tail_bytes,
             }),
             generated_at,
+            usize::try_from(SERVER_BUNDLE_BYTES).expect("validated diagnostics bundle size"),
         )
+        .await
     }
 
     fn artifact_ids(&self) -> Vec<dokime::domain::model::identity::Identifier> {
@@ -188,15 +199,6 @@ fn health_json(health: &dokime::domain::model::backend::wire::BackendHealth) -> 
         "readiness": match health.readiness { dokime::domain::model::backend::wire::Readiness::Unspecified => "READINESS_UNSPECIFIED", dokime::domain::model::backend::wire::Readiness::Starting => "READINESS_STARTING", dokime::domain::model::backend::wire::Readiness::Ready => "READINESS_READY", dokime::domain::model::backend::wire::Readiness::Degraded => "READINESS_DEGRADED", dokime::domain::model::backend::wire::Readiness::Stopping => "READINESS_STOPPING" },
         "observed_at": health.observed_at.as_ref().and_then(|time| time.to_datetime().ok()).and_then(|time| time.format(&time::format_description::well_known::Rfc3339).ok()),
         "message": health.message,
-    })
-}
-
-fn process_json(process: &dokime::domain::model::backend::wire::ProcessDiagnostics) -> Json {
-    json!({
-        "pid": process.pid,
-        "cpu_percent": process.cpu_percent,
-        "memory_bytes": process.memory_bytes,
-        "virtual_memory_bytes": process.virtual_memory_bytes,
     })
 }
 

@@ -24,7 +24,7 @@ use harmos::{
 
 // Local Imports
 use super::{annotations, metadata};
-use crate::storage::{Error, Manager, Result};
+use crate::storage::{Error, Result};
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ResultStatus;
@@ -198,10 +198,6 @@ impl Cycle {
         Ok(())
     }
 
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        Ok(<Self as harmos::Message>::decoding_memory(bytes)?)
-    }
-
     pub fn encoding_memory(source: &TestCycle) -> Result<usize> {
         Self::encoding_input(&Input::from(source))
     }
@@ -284,9 +280,6 @@ impl Cycle {
         execution_ids
             .try_reserve_exact(source.execution_ids.len())
             .map_err(|_| Error::Invalid("cycle membership encoding allocation failed"))?;
-        if execution_ids.capacity() > source.execution_ids.len() {
-            return Err(Error::Invalid("cycle membership slots exceed admission"));
-        }
         for id in source.execution_ids {
             execution_ids.push(id.as_str().to_owned());
         }
@@ -529,11 +522,15 @@ impl Cycle {
 
 /* === Public Functions === */
 
-pub async fn read(storage: &Manager, id: &TestCycleId, version: ObjectVersion) -> Result<Option<ObjectRevision<TestCycle>>> {
+pub async fn read(
+    storage: &crate::storage::Manager, id: &TestCycleId, version: ObjectVersion,
+) -> Result<Option<harmos::storage::ReadBatch<ObjectRevision<TestCycle>>>> {
     let Some(stored) = storage.read_object::<Cycle>(id.as_str(), version).await? else {
         return Ok(None);
     };
-    Ok(Some(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version }))
+    Ok(Some(stored.try_map(|stored| -> Result<_> {
+        Ok(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version })
+    })?))
 }
 
 /* === Private Functions === */

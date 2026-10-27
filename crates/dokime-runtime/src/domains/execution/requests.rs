@@ -11,7 +11,7 @@
 
 /* === Re-Exports === */
 
-pub use crate::runtime::storage::requests::{AttemptClaim, RunReceipt};
+pub use crate::runtime::storage::requests::{AttemptClaim, Receipt, RunReceipt, StepReceipt};
 pub use crate::transactions::provider::request::{RunPhase, RunSummary};
 pub use dokime_domain::model::execution::request::StepCommand;
 pub use dokime_domain::model::execution::request::StepCommandPhase;
@@ -34,22 +34,33 @@ use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
 /* === Structs === */
 
+struct CommandWake<'a> {
+    runtime: &'a crate::RuntimeHandle,
+    execution: String,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl Drop for CommandWake<'_> {
+    fn drop(&mut self) {
+        self.runtime.execution_sessions.signal_change(&self.execution);
+    }
+}
+
 impl crate::RuntimeHandle {
     pub async fn admit_execution_command(
         &self, request_id: &dokime_domain::model::identity::CommandId, command_id: dokime_domain::model::identity::CommandId,
         execution_id: dokime_domain::model::identity::TestExecutionId, action: dokime_domain::model::execution::request::StepCommand,
-    ) -> crate::runtime::Result<dokime_domain::model::execution::request::StepCommandReceipt> {
+    ) -> crate::runtime::Result<StepReceipt> {
         let at = crate::model::time::now_utc();
         let saved = self.run_request(request_id).await?.ok_or_else(|| command_refused("run request not found"))?;
         let known = saved.known_step_command(&command_id, &execution_id, &action).map_err(command_refused)?;
-        if let Some(known) = known {
-            return Ok(known.clone());
+        if known.is_some() {
+            return saved.command(&command_id).ok_or_else(|| command_refused("known command receipt is absent"));
         }
         if self.is_shutting_down() {
             return Err(command_refused("runtime is shutting down"));
@@ -62,7 +73,10 @@ impl crate::RuntimeHandle {
             }
         }
         let selected = command_id.clone();
+        // A Cancelled Caller May Leave A Durable Pending Receipt To Reconcile.
+        let _changed = CommandWake { runtime: self, execution: execution_id.to_string() };
         let mut decision = None;
+
         self.request_storage
             .update(request_id, |receipt| {
                 decision = Some(receipt.admit_step_command(command_id, execution_id, action, at).map(|_| ()));
@@ -75,9 +89,7 @@ impl crate::RuntimeHandle {
             .ok_or_else(|| crate::runtime::Error::Operation("admitted command receipt is absent".into()))
     }
 
-    pub async fn run_request(
-        &self, id: &dokime_domain::model::identity::CommandId,
-    ) -> crate::runtime::Result<Option<std::sync::Arc<RunReceipt>>> {
+    pub async fn run_request(&self, id: &dokime_domain::model::identity::CommandId) -> crate::runtime::Result<Option<Receipt>> {
         self.request_storage.get(id).await
     }
 }

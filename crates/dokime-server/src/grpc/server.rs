@@ -59,7 +59,7 @@ impl Service {
         config.validate()?;
         appearance::register(&runtime, config.max_message_bytes())?;
         catalog::register(&runtime, config.max_message_bytes())?;
-        planning::register(&runtime)?;
+        planning::register(&runtime, config.max_message_bytes())?;
         execution::register(&runtime, config.max_message_bytes())?;
         observation::register(&runtime, config.max_message_bytes())?;
         history::register(&runtime, config.max_message_bytes())?;
@@ -77,7 +77,8 @@ impl Service {
         super::documents::register(&runtime, config.max_message_bytes())?;
         super::settings::register(&runtime, config.max_message_bytes())?;
         super::backend::register(&runtime, config.max_message_bytes()).await?;
-        super::trace::register(&runtime, config.max_message_bytes())?;
+        let journal = config.trace_journal.clone().unwrap_or_else(|| crate::trace::Journal::new(crate::trace::Limits::default()));
+        super::trace::register(&runtime, config.max_message_bytes(), journal)?;
         let listeners = authorization::register(&runtime)?;
         let mut service = Self { runtime: runtime.clone(), config, listeners, remote: None };
         service.remote = Some(super::remote::register(&runtime, service.clone()).await?);

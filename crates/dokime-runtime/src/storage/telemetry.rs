@@ -15,7 +15,8 @@ mod typed;
 /* === Re-Exports === */
 
 pub use sample::Sample;
-pub use typed::{CodecCache, TypedCodec, codec, decode_batch, decode_stream_values, decode_values, encode_batch};
+pub(crate) use typed::selected_schema;
+pub use typed::{CodecCache, TypedCodec, codec, decode_positioned, decode_stream_values, decode_values, stored_codecs_where};
 
 /* === Imports === */
 

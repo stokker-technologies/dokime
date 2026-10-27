@@ -37,6 +37,8 @@ use super::{Client, Error, Result};
 
 /* === Constants === */
 
+const STREAM_BUFFER_ITEMS: u64 = 1;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -65,7 +67,8 @@ pub struct RequestStream<T, R> {
 
 struct Upload<T, R> {
     max_frame_bytes: usize,
-    sender: Mutex<Option<mpsc::Sender<T>>>,
+    prepare: fn(&T, usize) -> std::result::Result<harmos::grpc::PreparedFrame, tonic::Status>,
+    sender: Mutex<Option<mpsc::Sender<harmos::grpc::PreparedFrame>>>,
     cancellation: CancellationToken,
     worker: Mutex<Option<JoinHandle<Result<R>>>>,
 }
@@ -124,7 +127,7 @@ impl<T: Send + 'static> ResponseStream<T> {
         }
         let cancellation = client.inner.cancellation.child_token();
         let stopped = cancellation.clone();
-        let (sender, receiver) = mpsc::channel(1);
+        let (sender, receiver) = mpsc::channel(STREAM_BUFFER_ITEMS as usize);
         let worker = client.inner.readers.spawn(async move {
             tokio::select! {
                 biased;
@@ -202,9 +205,11 @@ impl<T> Drop for Response<T> {
 }
 
 impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStream<T, R> {
-    pub(super) fn new<F, Fut>(client: &Client, operation: F) -> Result<Self>
+    pub(super) fn new<F, Fut>(
+        client: &Client, prepare: fn(&T, usize) -> std::result::Result<harmos::grpc::PreparedFrame, tonic::Status>, operation: F,
+    ) -> Result<Self>
     where
-        F: FnOnce(tokio_stream::wrappers::ReceiverStream<T>) -> Fut + Send + 'static,
+        F: FnOnce(tokio_stream::wrappers::ReceiverStream<harmos::grpc::PreparedFrame>) -> Fut + Send + 'static,
         Fut: Future<Output = Result<R>> + Send + 'static,
     {
         // Registration and client close share the same fence as response readers.
@@ -214,7 +219,7 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
         }
         let cancellation = client.inner.cancellation.child_token();
         let stopped = cancellation.clone();
-        let (sender, receiver) = mpsc::channel(1);
+        let (sender, receiver) = mpsc::channel(STREAM_BUFFER_ITEMS as usize);
         let worker = client.inner.readers.spawn(async move {
             tokio::select! {
                 biased;
@@ -226,6 +231,7 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
         Ok(Self {
             inner: Arc::new(Upload {
                 max_frame_bytes: client.request_limit(),
+                prepare,
                 sender: Mutex::new(Some(sender)),
                 cancellation,
                 worker: Mutex::new(Some(worker)),
@@ -234,12 +240,14 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
     }
 
     pub async fn send(&self, frame: T) -> Result<()> {
-        let mut encoded = Vec::new();
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::encode(&frame, &mut encoded)
-            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
-        if encoded.len() > self.inner.max_frame_bytes {
-            return Err(Error::Rpc(tonic::Status::out_of_range("upload frame exceeds the negotiated request limit")));
-        }
+        let encoded = (self.inner.prepare)(&frame, self.inner.max_frame_bytes).map_err(|error| {
+            if error.code() == tonic::Code::ResourceExhausted {
+                Error::Rpc(tonic::Status::out_of_range("upload frame exceeds the negotiated request limit"))
+            } else {
+                Error::Rpc(tonic::Status::invalid_argument(error.to_string()))
+            }
+        })?;
+        drop(frame);
 
         let sender = tokio::select! {
             biased;
@@ -250,7 +258,7 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
         tokio::select! {
             biased;
             _ = self.inner.cancellation.cancelled() => Err(Error::Closed),
-            sent = sender.send(frame) => sent.map_err(|_| Error::Closed),
+            sent = sender.send(encoded) => sent.map_err(|_| Error::Closed),
         }
     }
 

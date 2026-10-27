@@ -34,11 +34,10 @@ use crate::model::values::Value;
 use crate::model::values::ValueFormat;
 use crate::model::values::ValueType;
 use crate::model::values::format::ValueFormatKind;
-use crate::model::values::validate_value_format;
+use crate::model::values::format::validate_value_format_with;
 
 /* === Constants === */
 
-pub const DEFAULT_PLOT_MAX_POINTS: usize = 2_000;
 pub const DURATION_UNIT_SYMBOLS: &[&str] = &["s", "ms", "us", "\u{b5}s", "min", "h"];
 
 /* === Macros === */
@@ -1198,23 +1197,44 @@ impl DocumentDefinition {
     }
 
     pub fn normalized_parts(&self) -> (Vec<DocumentCardDefinition>, DocumentLayout) {
-        let mut cards = self.cards.clone();
-        let mut layout = self.layout.clone();
+        let card_capacity = self
+            .sections
+            .iter()
+            .try_fold(self.cards.len(), |count, section| count.checked_add(section.cards.len()))
+            .expect("normalized card capacity overflows");
+        let node_capacity = self.layout.nodes.len().checked_add(self.sections.len()).expect("normalized node capacity overflows");
+        let mut cards = Vec::with_capacity(card_capacity);
+        cards.extend(self.cards.iter().cloned());
+        let mut layout = DocumentLayout { nodes: Vec::with_capacity(node_capacity) };
+        layout.nodes.extend(self.layout.nodes.iter().cloned());
 
-        if !self.sections.is_empty() {
-            merge_authored_sections_into_layout(&mut cards, &mut layout, &self.sections);
+        for section in &self.sections {
+            for card in &section.cards {
+                upsert_card_definition(&mut cards, DocumentCardDefinition::from(card.clone()));
+            }
+            let mut children = Vec::with_capacity(section.cards.len());
+            for card in &section.cards {
+                children.push(DocumentNode::Card(DocumentCardPlacement {
+                    card_id: card.metadata.identifier.clone(),
+                    layout: card.layout.clone(),
+                }));
+            }
+            layout.nodes.push(DocumentNode::Section(Box::new(DocumentSectionNode {
+                node_id: section.metadata.identifier.clone(),
+                metadata: section.metadata.clone(),
+                repeat: section.repeat.clone(),
+                children,
+            })));
         }
 
         if layout.nodes.is_empty() && !cards.is_empty() {
-            layout.nodes = cards
-                .iter()
-                .map(|card| {
-                    DocumentNode::Card(DocumentCardPlacement {
-                        card_id: card.metadata.identifier.clone(),
-                        layout: DocumentCardLayout::default(),
-                    })
-                })
-                .collect();
+            layout.nodes = Vec::with_capacity(cards.len());
+            for card in &cards {
+                layout.nodes.push(DocumentNode::Card(DocumentCardPlacement {
+                    card_id: card.metadata.identifier.clone(),
+                    layout: DocumentCardLayout::default(),
+                }));
+            }
         }
 
         (cards, layout)
@@ -1857,117 +1877,130 @@ pub fn resolve_document_plot_axes(document: &mut DocumentDefinition, contracts: 
 }
 
 pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
-    if plot.display_points.is_some_and(|points| points > 100_000) {
-        return Err("plot display points must not exceed 100000".to_owned());
-    }
+    validate_plot_definition_with(plot, &crate::model::validation::diagnostic::text)
+}
 
+pub(crate) fn plot_validation_issue_bytes(plot: &PlotDefinition) -> Option<usize> {
+    validate_plot_definition_with(plot, &crate::model::validation::diagnostic::size).err()
+}
+
+fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if matches!(
         plot.plot_type,
         PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pie | PlotType::Donut | PlotType::Pareto | PlotType::AggregateTable
     ) {
-        return Err(format!("unsupported document plot type {}", plot_type_label(&plot.plot_type)));
+        return Err(error(format_args!("unsupported document plot type {}", plot_type_label(&plot.plot_type))));
     }
 
     if plot.plot_type == PlotType::TimeSeries
         && (plot.x_expression.is_some() || plot.x.as_deref().is_some_and(|field| field != "timestamp"))
     {
-        return Err("`time_series` plots draw against the row timestamp; remove `.x(…)`, or use \
+        return Err(error(format_args!(
+            "`time_series` plots draw against the row timestamp; remove `.x(…)`, or use \
              `Plot::xy_line` to choose both axes"
-            .to_owned());
+        )));
     }
 
     if plot.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
-        return Err("z expressions must select a row value without transforms".to_owned());
+        return Err(error(format_args!("z expressions must select a row value without transforms")));
     }
 
     if let Some(x_format) = &plot.x_format {
-        validate_value_format(x_format)?;
+        validate_value_format_with(x_format, error)?;
         if plot.plot_type == PlotType::TimeSeries && x_format.kind() == ValueFormatKind::Number {
-            return Err("`x_format` on a time_series plot takes a time format: format::clock(…), \
+            return Err(error(format_args!(
+                "`x_format` on a time_series plot takes a time format: format::clock(…), \
                  format::elapsed_seconds(), format::elapsed_ms()"
-                .to_owned());
+            )));
         }
         if plot_has_number_x_axis(&plot.plot_type) && x_format.kind() == ValueFormatKind::Time {
-            return Err(format!(
+            return Err(error(format_args!(
                 "`x_format` on a {} plot takes a number format: format::normal(), \
                  format::fixed(…), format::engineering()",
                 plot_type_label(&plot.plot_type)
-            ));
+            )));
         }
     }
 
     if let Some(y_format) = &plot.y_format {
         if plot.plot_type == PlotType::Histogram {
-            return Err("`y_format` on a histogram plot has nothing to format: its y axis is the count \
+            return Err(error(format_args!(
+                "`y_format` on a histogram plot has nothing to format: its y axis is the count \
                  the host computes; format the binned value with `x_format`"
-                .to_owned());
+            )));
         }
-        validate_value_format(y_format)?;
+        validate_value_format_with(y_format, error)?;
         if y_format.kind() == ValueFormatKind::Time {
-            return Err("`y_format` takes a number format".to_owned());
+            return Err(error(format_args!("`y_format` takes a number format")));
         }
     }
 
     match plot.plot_type {
         PlotType::Bar => {
             if plot.x.is_none() && plot.x_expression.is_none() {
-                return Err("bar plots must declare an x field or x expression".to_owned());
+                return Err(error(format_args!("bar plots must declare an x field or x expression")));
             }
             if plot.y.is_empty() && plot.y_expressions.is_empty() {
-                return Err("bar plots must declare at least one y field or y expression".to_owned());
+                return Err(error(format_args!("bar plots must declare at least one y field or y expression")));
             }
         }
         PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pareto | PlotType::XyScatter | PlotType::XyLine | PlotType::XyInterval => {
-            validate_xy_axes(plot)?
+            validate_xy_axes(plot, error)?
         }
-        PlotType::Trajectory => validate_xy_axes(plot)?,
+        PlotType::Trajectory => validate_xy_axes(plot, error)?,
         PlotType::Heatmap | PlotType::XyValueHeatmap => {
-            validate_xy_axes(plot)?;
+            validate_xy_axes(plot, error)?;
             if plot.z_field.as_ref().is_none_or(|field| field.is_empty()) && plot.z_expression.is_none() {
-                return Err(format!("{} plots must declare a z field or z expression", plot_type_label(&plot.plot_type)));
+                return Err(error(format_args!("{} plots must declare a z field or z expression", plot_type_label(&plot.plot_type))));
             }
         }
-        PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot)?,
-        PlotType::Histogram => validate_histogram_axes(plot)?,
+        PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot, error)?,
+        PlotType::Histogram => validate_histogram_axes(plot, error)?,
         PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
             if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
-                return Err(format!("{} plots must declare exactly one y field or y expression", plot_type_label(&plot.plot_type)));
+                return Err(error(format_args!(
+                    "{} plots must declare exactly one y field or y expression",
+                    plot_type_label(&plot.plot_type)
+                )));
             }
         }
         PlotType::TimeSeries | PlotType::FrequencySeries => {
             if plot.y.is_empty() && plot.y_expressions.is_empty() {
-                return Err(format!("{} plots must declare at least one y field or y expression", plot_type_label(&plot.plot_type)));
+                return Err(error(format_args!(
+                    "{} plots must declare at least one y field or y expression",
+                    plot_type_label(&plot.plot_type)
+                )));
             }
         }
         PlotType::AggregateTable => {}
     }
     if plot.histogram.bins < 2 {
-        return Err("histograms must declare at least two bins".to_owned());
+        return Err(error(format_args!("histograms must declare at least two bins")));
     }
     if !plot.interval.bin_width.is_finite() || plot.interval.bin_width <= 0.0 {
-        return Err("interval bin_width must be greater than zero".to_owned());
+        return Err(error(format_args!("interval bin_width must be greater than zero")));
     }
     if !plot.interval.sigma.is_finite() || plot.interval.sigma <= 0.0 {
-        return Err("interval sigma must be greater than zero".to_owned());
+        return Err(error(format_args!("interval sigma must be greater than zero")));
     }
     if plot.fft.sample_rate_hz.is_some_and(|value| !value.is_finite() || value <= 0.0) {
-        return Err("FFT sample_rate_hz must be greater than zero".to_owned());
+        return Err(error(format_args!("FFT sample_rate_hz must be greater than zero")));
     }
     if plot.fft.min_frequency_hz.is_some_and(|value| !value.is_finite() || value < 0.0)
         || plot.fft.max_frequency_hz.is_some_and(|value| !value.is_finite() || value < 0.0)
     {
-        return Err("FFT frequency bounds must be greater than or equal to zero".to_owned());
+        return Err(error(format_args!("FFT frequency bounds must be greater than or equal to zero")));
     }
     if let (Some(min), Some(max)) = (plot.fft.min_frequency_hz, plot.fft.max_frequency_hz)
         && min > max
     {
-        return Err("FFT min_frequency_hz must be less than or equal to max_frequency_hz".to_owned());
+        return Err(error(format_args!("FFT min_frequency_hz must be less than or equal to max_frequency_hz")));
     }
     for band in &plot.reference_bands {
         if let (Some(min), Some(max)) = (band.min, band.max)
             && min > max
         {
-            return Err("reference band min must be less than or equal to max".to_owned());
+            return Err(error(format_args!("reference band min must be less than or equal to max")));
         }
     }
 
@@ -2073,15 +2106,6 @@ fn plot_has_number_x_axis(plot_type: &PlotType) -> bool {
 
 fn metadata(identifier_value: &str, label: String, description: Option<String>) -> Metadata {
     Metadata::new(Identifier::new(identifier_value).unwrap_or_else(|_| identifier_from_label(identifier_value)), label, description)
-}
-
-fn merge_authored_sections_into_layout(cards: &mut Vec<DocumentCardDefinition>, layout: &mut DocumentLayout, sections: &[DocumentSection]) {
-    for section in sections {
-        for card in &section.cards {
-            upsert_card_definition(cards, DocumentCardDefinition::from(card.clone()));
-        }
-        layout.nodes.push(DocumentNode::Section(Box::new(DocumentSectionNode::from(section.clone()))));
-    }
 }
 
 fn upsert_card_definition(cards: &mut Vec<DocumentCardDefinition>, card: DocumentCardDefinition) {
@@ -2229,47 +2253,48 @@ fn default_true() -> bool {
     true
 }
 
-fn validate_xy_axes(plot: &PlotDefinition) -> Result<(), String> {
+fn validate_xy_axes<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if plot.x.is_none() && plot.x_expression.is_none() {
-        return Err("XY plots must declare an x field or x expression".to_owned());
+        return Err(error(format_args!("XY plots must declare an x field or x expression")));
     }
     if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
-        return Err("XY plots must declare exactly one y field or y expression".to_owned());
+        return Err(error(format_args!("XY plots must declare exactly one y field or y expression")));
     }
 
     Ok(())
 }
 
-fn validate_histogram_axes(plot: &PlotDefinition) -> Result<(), String> {
+fn validate_histogram_axes<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if !plot.y.is_empty() || !plot.y_expressions.is_empty() {
-        return Err("histogram plots take their value on the x axis and the host counts it on y; \
+        return Err(error(format_args!(
+            "histogram plots take their value on the x axis and the host counts it on y; \
              replace `.y(…)` with `.x(…)`"
-            .to_owned());
+        )));
     }
     let x_field = plot.x.as_deref().filter(|field| *field != "timestamp");
     if usize::from(x_field.is_some()) + usize::from(plot.x_expression.is_some()) != 1 {
-        return Err("histogram plots must declare exactly one x field or x expression: the value they bin".to_owned());
+        return Err(error(format_args!("histogram plots must declare exactly one x field or x expression: the value they bin")));
     }
 
     Ok(())
 }
 
-fn validate_wifi_channel_occupancy(plot: &PlotDefinition) -> Result<(), String> {
+fn validate_wifi_channel_occupancy<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if plot.x_expression.is_some() || !plot.y_expressions.is_empty() || plot.z_expression.is_some() || plot.series_by_expression.is_some() {
-        return Err("wifi_channel_occupancy uses fixed host columns; remove axis and grouping expressions".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy uses fixed host columns; remove axis and grouping expressions")));
     }
 
     if plot.stream.as_deref() != Some("host.wifi.channel_occupancy") {
-        return Err("wifi_channel_occupancy plots must use stream host.wifi.channel_occupancy".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy plots must use stream host.wifi.channel_occupancy")));
     }
     if plot.x.as_deref() != Some("timestamp") {
-        return Err("wifi_channel_occupancy plots must use timestamp as x field".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy plots must use timestamp as x field")));
     }
     if plot.y.len() != 1 || plot.y[0] != "network_count" {
-        return Err("wifi_channel_occupancy plots must use network_count as y field".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy plots must use network_count as y field")));
     }
     if plot.series_by.as_deref() != Some("wifi_channel") {
-        return Err("wifi_channel_occupancy plots must group by wifi_channel".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy plots must group by wifi_channel")));
     }
 
     Ok(())

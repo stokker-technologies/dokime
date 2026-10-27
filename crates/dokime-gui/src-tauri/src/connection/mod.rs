@@ -11,6 +11,7 @@
 
 mod contract;
 mod errors;
+pub mod registry;
 mod transport;
 
 /* === Re-Exports === */
@@ -31,6 +32,7 @@ use zeroize::Zeroizing;
 
 // Local Imports
 use dokime::client::secrets::{KeyringStore, SecretStore};
+use dokime::domain::model::settings::application::ClientPreferences;
 
 /* === Constants === */
 
@@ -42,6 +44,7 @@ use dokime::client::secrets::{KeyringStore, SecretStore};
 
 #[derive(Clone)]
 pub struct ConnectionSession {
+    preferences: Arc<Mutex<ClientPreferences>>,
     inner: Arc<Mutex<SessionState>>,
     secrets: Arc<dyn SecretStore>,
     secret_operations: Arc<tokio::sync::Mutex<()>>,
@@ -52,6 +55,7 @@ struct SessionState {
     cancellation: CancellationToken,
     snapshot: ConnectionSnapshot,
     lease: Option<SessionLease>,
+    profile: Option<String>,
 }
 
 #[derive(Clone)]
@@ -59,6 +63,7 @@ pub struct SessionLease {
     generation: String,
     client: dokime::client::Client,
     cancellation: CancellationToken,
+    preferences: Arc<Mutex<ClientPreferences>>,
 }
 
 /* === Enums === */
@@ -74,8 +79,42 @@ impl Default for ConnectionSession {
 }
 
 impl ConnectionSession {
+    pub(crate) fn preferences(&self) -> ClientPreferences {
+        *self.preferences.lock().expect("client preferences poisoned")
+    }
+
+    pub(crate) fn set_preferences(&self, preferences: ClientPreferences) {
+        *self.preferences.lock().expect("client preferences poisoned") = preferences;
+    }
+
+    pub(crate) fn disconnect_profile(&self, name: &str) -> Result<bool, ConnectionError> {
+        let mut state = self.inner.lock().expect("connection state poisoned");
+        if state.profile.as_deref() != Some(name) {
+            return Ok(false);
+        }
+        state.advance()?;
+        state.snapshot.phase = ConnectionPhase::Disconnected;
+        state.snapshot.endpoint = None;
+        state.snapshot.remote = false;
+        Ok(true)
+    }
+
+    pub(crate) fn selected_profile(&self, generation: &str, name: String) -> Result<(), ConnectionError> {
+        let mut state = self.inner.lock().expect("connection state poisoned");
+        if state.snapshot.generation != generation || state.lease.is_none() {
+            return Err(ConnectionError::Superseded);
+        }
+        state.profile = Some(name);
+        Ok(())
+    }
+
     pub fn with_secrets(secrets: Arc<dyn SecretStore>) -> Self {
+        Self::with_secrets_and_settings(secrets, ClientPreferences::default())
+    }
+
+    fn with_secrets_and_settings(secrets: Arc<dyn SecretStore>, settings: ClientPreferences) -> Self {
         Self {
+            preferences: Arc::new(Mutex::new(settings)),
             inner: Arc::new(Mutex::new(SessionState {
                 generation: 0,
                 cancellation: CancellationToken::new(),
@@ -88,6 +127,7 @@ impl ConnectionSession {
                     error: None,
                 },
                 lease: None,
+                profile: None,
             })),
             secrets,
             secret_operations: Arc::new(tokio::sync::Mutex::new(())),
@@ -187,11 +227,15 @@ impl ConnectionSession {
             }
             ConnectionSecrets::Bearer { token, remember } => (Some(Zeroizing::new(token)), remember),
         };
-        let client = dokime::client::Client::connect(target.inner.clone(), token.as_ref().map(|token| token.as_str()), expected_id)
-            .await
-            .map_err(ConnectionError::from)?;
+        let client = dokime::client::Client::connect(
+            target.inner.clone().with_settings(self.preferences()),
+            token.as_ref().map(|token| token.as_str()),
+            expected_id,
+        )
+        .await
+        .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
-        let lease = SessionLease { generation: generation.to_string(), client, cancellation };
+        let lease = SessionLease { generation: generation.to_string(), client, cancellation, preferences: Arc::clone(&self.preferences) };
         if remember && let Some(token) = token {
             let endpoint = target.endpoint.clone();
             self.access_secrets(generation, &lease.cancellation, move |store| {
@@ -235,6 +279,7 @@ impl SessionState {
         self.generation = generation;
         self.cancellation = CancellationToken::new();
         self.snapshot.generation = generation.to_string();
+        self.profile = None;
         self.snapshot.backend = None;
         self.snapshot.error = None;
         Ok(())
@@ -251,8 +296,9 @@ impl Drop for SessionState {
 }
 
 impl SessionLease {
-    pub(crate) fn client(&self) -> &dokime::client::Client {
-        &self.client
+    pub(crate) fn client(&self) -> dokime::client::Client {
+        let preferences = *self.preferences.lock().expect("client preferences poisoned");
+        self.client.with_timeout(std::time::Duration::from_millis(preferences.request_timeout_ms))
     }
 
     pub fn generation(&self) -> &str {

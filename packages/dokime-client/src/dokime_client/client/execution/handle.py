@@ -50,6 +50,11 @@ from .request import _identity, _interval
 
 # === Constants === #
 
+CHECKPOINT_BYTES = 4096
+REQUEST_POLL_MS = 200
+SAMPLE_PAGE_ITEMS = 1000
+VALUE_DEPTH = 64
+
 # === Types === #
 
 # === Classes === #
@@ -168,7 +173,7 @@ class Execution:
             raise
         if point.execution_identifier != self.id:
             raise ProtocolError("saved checkpoint belongs to another execution")
-        return Checkpoint._from_wire(point)
+        return Checkpoint._from_wire(point, CHECKPOINT_BYTES)
 
     async def _document_at(self, point: Checkpoint) -> Message:
         if point.execution_id != self.id:
@@ -208,7 +213,7 @@ class Execution:
 
     async def wait(self, *, timeout: float | None = None, poll_interval: float | None = None) -> ExecutionOutcome:
         """Wait natively for a saved outcome; cancellation leaves remote work running."""
-        interval = 0.2 if poll_interval is None else poll_interval
+        interval = REQUEST_POLL_MS / 1000 if poll_interval is None else poll_interval
         _interval(interval)
         if timeout is not None:
             _interval(timeout)
@@ -222,7 +227,7 @@ class Execution:
                 await asyncio.sleep(interval)
         saved = reply.document.execution
         return ExecutionOutcome(
-            checkpoint=Checkpoint._from_wire(reply.checkpoint),
+            checkpoint=Checkpoint._from_wire(reply.checkpoint, CHECKPOINT_BYTES),
             status=_wire.enum_name(saved.status),
             result=_wire.result(saved.result),
         )
@@ -260,7 +265,7 @@ class Execution:
         destination: str | Path,
         *,
         identity: FileIdentity | None = None,
-        max_bytes: int = 64 * 1024,
+        max_bytes: int | None = None,
     ) -> AsyncGenerator[FileUpdate]:
         """Follow A Registered File; Supply Its Identity To Resume A Committed Prefix"""
         async with aclosing(
@@ -291,7 +296,7 @@ class Execution:
         early publications. Saved storage positions are separate from live cursors.
         """
         await self._snapshot()
-        interval = 0.2 if poll_interval is None else poll_interval
+        interval = REQUEST_POLL_MS / 1000 if poll_interval is None else poll_interval
         _interval(interval)
         completion = self.wait(poll_interval=interval) if follow else None
         ids = frozenset(record_ids)
@@ -307,7 +312,7 @@ class Execution:
             async for page in reader:
                 for item in page.records:
                     if not ids or item.record_id in ids:
-                        yield _wire.record(item)
+                        yield _wire.record(item, VALUE_DEPTH)
 
     async def run(
         self,
@@ -341,7 +346,7 @@ class Execution:
 
         async def samples() -> None:
             if on_sample is not None:
-                async with aclosing(self.samples(streams=streams, follow=True, poll_interval=poll_interval)) as reader:
+                async with aclosing(self.samples(streams=streams, follow=True)) as reader:
                     async for item in reader:
                         await on_sample(item)
 
@@ -359,32 +364,25 @@ class Execution:
         *,
         streams: Sequence[str] = (),
         follow: bool = False,
-        page_size: int = 500,
-        poll_interval: float | None = None,
+        page_size: int | None = None,
     ) -> AsyncGenerator[Sample]:
-        """Replay raw samples; native polling follows through the saved seal.
+        """Replay Saved Samples And Follow Durable Changes Through The Saved Seal.
 
         Without follow, read until caught up. Original-epoch validation rejects
         backend replacement instead of resuming raw cursors in another process.
         """
         await self._snapshot()
-        interval = 0.2 if poll_interval is None else poll_interval
-        _interval(interval)
-
-        async def complete() -> bool:
-            return not follow or await self.checkpoint() is not None
-
+        page_size = SAMPLE_PAGE_ITEMS if page_size is None else page_size
         async for page in read_samples(
             self._transport,
             self._backend,
             _wire.nested("Evidence", "ListRecords", "selection.scope", execution_id=self.id),
             streams,
             page_size,
-            interval,
-            complete,
+            follow,
         ):
             for item in page.samples:
-                yield _wire.sample(item)
+                yield _wire.sample(item, VALUE_DEPTH)
 
     async def next(self, *, request_id: str, command_id: str) -> ExecutionCommandReceipt:
         return await self._command(request_id, command_id, CommandAction.NEXT)

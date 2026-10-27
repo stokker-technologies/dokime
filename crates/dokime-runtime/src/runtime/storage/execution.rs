@@ -47,17 +47,65 @@ use dokime_domain::model::identity::TestExecutionId;
 pub struct ExecutionView {
     storage: Manager,
     saved: StorageCursor,
-    execution: Option<Arc<ObjectRevision<TestExecution>>>,
-    captured: Option<Arc<CapturedSource>>,
+    execution: Option<harmos::storage::ReadBatch<ObjectRevision<TestExecution>>>,
+    captured: Option<CapturedSourceOwner>,
 }
 
 /* === Enums === */
+
+#[derive(Clone)]
+pub(crate) enum CapturedSourceOwner {
+    Live(Arc<CapturedSource>),
+    Saved(harmos::storage::ReadBatch<CapturedSource>),
+}
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl std::ops::Deref for CapturedSourceOwner {
+    type Target = CapturedSource;
+    fn deref(&self) -> &CapturedSource {
+        match self {
+            Self::Live(source) => source,
+            Self::Saved(source) => source,
+        }
+    }
+}
+
+impl From<Arc<CapturedSource>> for CapturedSourceOwner {
+    fn from(source: Arc<CapturedSource>) -> Self {
+        Self::Live(source)
+    }
+}
+
+impl From<harmos::storage::ReadBatch<CapturedSource>> for CapturedSourceOwner {
+    fn from(source: harmos::storage::ReadBatch<CapturedSource>) -> Self {
+        Self::Saved(source)
+    }
+}
+
 impl ExecutionView {
+    pub(crate) async fn from_seal_source(storage: &Manager, seal: &dokime_domain::model::execution::saved::ExecutionSeal) -> Result<Self> {
+        let source = crate::execution::context::captured::read::read_file(storage, &seal.source.context).await?;
+        if source.owner_node_id != seal.source.owner_node_id
+            || source.execution_id != seal.source.execution.execution_id
+            || source.evidence_through != seal.source.evidence_through
+        {
+            return Err(Error::InvalidReportInputs("captured file differs from its execution seal".into()));
+        }
+        if let Some(anchor) = &source.execution
+            && !seal.source.execution.position.covers(&anchor.position)?
+        {
+            return Err(Error::InvalidReportInputs("captured anchor follows its published revision".into()));
+        }
+        let source = source.try_map(|mut source| {
+            source.outputs = seal.source.outputs.clone();
+            Ok::<_, Error>(source)
+        })?;
+        Self::captured(storage, source.into(), &seal.source.owner_node_id).await
+    }
+
     pub async fn open(storage: &Manager, id: &TestExecutionId, version: ObjectVersion) -> Result<Option<Self>> {
         let saved = storage.cursor_saved();
         let Some(execution) = crate::storage::objects::execution::read(storage, id, version).await? else {
@@ -66,7 +114,7 @@ impl ExecutionView {
         if let Some(seal) = &execution.value.saved {
             check_seal_position(&execution.position, &seal.dependencies_saved)?;
         }
-        Ok(Some(Self { storage: storage.clone(), saved, execution: Some(Arc::new(execution)), captured: None }))
+        Ok(Some(Self { storage: storage.clone(), saved, execution: Some(execution), captured: None }))
     }
 
     pub async fn open_checkpoint(storage: &Manager, checkpoint: &ExecutionCheckpoint) -> Result<Option<Self>> {
@@ -101,7 +149,7 @@ impl ExecutionView {
         Ok(checkpoint)
     }
 
-    pub(crate) async fn captured(storage: &Manager, captured: Arc<CapturedSource>, owner: &NodeId) -> Result<Self> {
+    pub(crate) async fn captured(storage: &Manager, captured: CapturedSourceOwner, owner: &NodeId) -> Result<Self> {
         if &captured.owner_node_id != owner {
             return Err(Error::Storage(crate::storage::Error::Invalid("captured execution source belongs to another node")));
         }
@@ -128,7 +176,7 @@ impl ExecutionView {
             {
                 return Err(Error::InvalidReportInputs("captured primary anchor differs from stored revision".into()));
             }
-            Some(Arc::new(revision))
+            Some(revision)
         } else {
             None
         };
@@ -157,8 +205,48 @@ impl ExecutionView {
         if self.captured.is_some() {
             return Ok(self.clone());
         }
-        let captured = Arc::new(self.read_source().await?);
+        let captured = self.read_source().await?.into();
         Ok(Self { captured: Some(captured), ..self.clone() })
+    }
+
+    pub(crate) async fn into_snapshot(mut self) -> Result<Self> {
+        if self.captured.is_none() {
+            self.captured = Some(self.read_source().await?.into());
+        }
+        Ok(self)
+    }
+
+    pub(crate) fn project_captured<T>(
+        self, project: impl FnOnce(ObjectRevision<TestExecution>, CapturedSource) -> Result<T>,
+    ) -> Result<harmos::storage::ReadBatch<T>> {
+        let captured = self.captured.ok_or_else(|| Error::InvalidReportInputs("checkpoint source is missing".into()))?;
+        let revision = self.execution.ok_or_else(|| Error::InvalidReportInputs("checkpoint revision is missing".into()))?;
+        match captured {
+            CapturedSourceOwner::Saved(captured) => revision.try_map_with(captured, project),
+            CapturedSourceOwner::Live(captured) => {
+                if Arc::strong_count(&captured) != 1 || Arc::weak_count(&captured) != 0 {
+                    return Err(harmos::storage::Error::InvalidInput {
+                        field: "checkpoint projection",
+                        reason: "requires a unique captured source",
+                    }
+                    .into());
+                }
+                revision.try_map(|revision| {
+                    let captured = Arc::try_unwrap(captured).map_err(|_| harmos::storage::Error::InvalidInput {
+                        field: "checkpoint projection",
+                        reason: "captured source became shared",
+                    })?;
+                    project(revision, captured)
+                })
+            }
+        }
+    }
+
+    pub(crate) fn project_revision<T>(
+        self, project: impl FnOnce(ObjectRevision<TestExecution>) -> Result<T>,
+    ) -> Result<harmos::storage::ReadBatch<T>> {
+        let revision = self.execution.ok_or_else(|| Error::InvalidReportInputs("checkpoint revision is missing".into()))?;
+        revision.try_map(project)
     }
 
     pub fn context(&self) -> Result<&ExecutionContext> {
@@ -181,6 +269,10 @@ impl ExecutionView {
         &self.storage
     }
 
+    pub fn session(&self) -> &crate::storage::Manager {
+        &self.storage
+    }
+
     pub fn saved(&self) -> &StorageCursor {
         &self.saved
     }
@@ -198,7 +290,7 @@ impl ExecutionView {
         &self.captured.as_ref().expect("captured view has lifecycle metadata").lifecycle
     }
 
-    pub(crate) async fn read_source(&self) -> Result<CapturedSource> {
+    pub(crate) async fn read_source(&self) -> Result<harmos::storage::ReadBatch<CapturedSource>> {
         crate::execution::context::captured::read::read_execution(&self.storage, self.revision()?).await
     }
 
@@ -233,8 +325,8 @@ impl ExecutionView {
         super::records::RecordReader::open(self, true).await
     }
 
-    pub fn context_telemetry(&self) -> Result<super::telemetry::TelemetryReader> {
-        super::telemetry::TelemetryReader::open(self, true)
+    pub async fn context_telemetry(&self, settings: &harmos::config::SchemaSettings) -> Result<super::telemetry::TelemetryReader> {
+        super::telemetry::TelemetryReader::open(self, settings).await
     }
 
     pub async fn read_file(&self, file: &FileReference, range: harmos::storage::ByteRange) -> Result<FileReader> {
@@ -246,7 +338,10 @@ impl ExecutionView {
         if !self.saved.covers(&file.position)? {
             return Err(Error::Storage(crate::storage::Error::Invalid("execution file exceeds the original saved view")));
         }
-        Ok(self.storage.read_file(harmos::storage::operations::ReadFile { file: file.clone(), range }).await?)
+        Ok(self
+            .storage
+            .read_file(harmos::storage::operations::ReadFile { source: harmos::storage::FileSource::Stored(file.clone()), range })
+            .await?)
     }
 }
 

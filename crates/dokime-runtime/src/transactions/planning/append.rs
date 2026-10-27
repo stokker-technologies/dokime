@@ -40,6 +40,7 @@ use dokime_domain::model::values::Value;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppendExecutions {
     pub cycle_id: TestCycleId,
+    pub max_executions: u64,
     pub executions: Vec<(TestExecutionId, CaseId)>,
     pub occurred_at: Timestamp,
     pub settings: BTreeMap<String, BTreeMap<String, Value>>,
@@ -70,8 +71,8 @@ impl Transaction<RuntimeState> for AppendExecutions {
 /* === Private Functions === */
 
 fn prepare(state: &RuntimeState, append: &AppendExecutions) -> Result<super::CycleView, String> {
-    if append.executions.is_empty() || append.executions.len() > 1000 {
-        return Err("append requires 1 to 1000 executions".into());
+    if append.executions.is_empty() || append.executions.len() as u64 > append.max_executions {
+        return Err("append requires a nonempty plan within the configured execution limit".into());
     }
     let mut unique = BTreeSet::new();
     for (id, _) in &append.executions {

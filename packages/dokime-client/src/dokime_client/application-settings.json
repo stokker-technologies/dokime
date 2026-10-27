@@ -1,0 +1,25 @@
+{
+  "appearance": {
+    "theme_mode": "system",
+    "theme_family": null,
+    "density": "comfortable"
+  },
+  "report": {
+    "plot_points": 2000,
+    "plot_downsample": "auto"
+  },
+  "client": {
+    "connect_timeout_ms": 10000,
+    "request_timeout_ms": 30000
+  },
+  "telemetry": {
+    "interval_ms": 1000
+  },
+  "listener": {
+    "enabled": false,
+    "address": "0.0.0.0:8765",
+    "tls_enabled": true,
+    "authentication_enabled": true,
+    "certificate_names": []
+  }
+}

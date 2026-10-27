@@ -94,6 +94,7 @@ tonic-types = { workspace = true }
 # === Build Dependencies === #
 
 [build-dependencies]
+dokime-packaging = { path = "../dokime-packaging" }
 # Local
 dokime = { workspace = true }
 
@@ -107,6 +108,7 @@ dokime = { workspace = true }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
+serde_json = { workspace = true }
 
 # Configuration
 

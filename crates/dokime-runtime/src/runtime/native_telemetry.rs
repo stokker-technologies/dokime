@@ -127,7 +127,7 @@ impl Decoder {
                 let samples = rows
                     .iter()
                     .map(|(cursor, row)| {
-                        let mut values = self.decode(definition, &row.payload)?;
+                        let mut values = self.decode(definition, &row.payload, handle.schema_settings())?;
                         let now = publication_time(row.published_unix_micros)?;
                         values.insert("timestamp".into(), Value::from(now.clone()));
                         let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), cursor.0, now, owner);
@@ -185,7 +185,7 @@ impl Decoder {
             None => return,
         };
         let result = self
-            .decode(definition, &row.payload)
+            .decode(definition, &row.payload, handle.schema_settings())
             .and_then(|values| publication_time(row.published_unix_micros).map(|timestamp| (values, timestamp)));
         match result {
             Ok((mut values, now)) => {
@@ -228,12 +228,13 @@ impl Decoder {
         }
     }
 
-    fn decode(&mut self, definition: &harmos::streams::Definition, bytes: &[u8]) -> Result<BTreeMap<String, Value>, String> {
+    fn decode(
+        &mut self, definition: &harmos::streams::Definition, bytes: &[u8], settings: &harmos::config::SchemaSettings,
+    ) -> Result<BTreeMap<String, Value>, String> {
         let key = (definition.id().to_owned(), definition.version());
         if !self.descriptors.contains_key(&key) {
             let schema = definition.schema().ok_or("native stream has no inspected schema")?;
-            let descriptor =
-                Validator::from_schema(schema, &harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
+            let descriptor = Validator::from_schema(schema, settings).map_err(|error| error.to_string())?;
             self.descriptors.insert(key.clone(), descriptor);
         }
         crate::storage::telemetry::decode_stream_values(definition.id(), &self.descriptors[&key], bytes).map_err(|error| error.to_string())
@@ -242,7 +243,9 @@ impl Decoder {
 
 /* === Public Functions === */
 
-pub(super) fn validate(artifact: &crate::InstalledPlugin, streams: &[harmos::sidecar::StreamDeclaration]) -> Result<(), String> {
+pub(super) fn validate(
+    artifact: &crate::InstalledPlugin, streams: &[harmos::sidecar::StreamDeclaration], settings: &harmos::config::SchemaSettings,
+) -> Result<(), String> {
     let contracts = artifact.telemetry_contracts.iter().chain(artifact.suites.suites.iter().flat_map(|suite| &suite.telemetry_contracts));
     for contract in contracts.filter(|contract| !contract.foreign) {
         let stream = streams.iter().find(|stream| stream.id == contract.stream.as_str()).ok_or_else(|| {
@@ -257,17 +260,13 @@ pub(super) fn validate(artifact: &crate::InstalledPlugin, streams: &[harmos::sid
             .storage_schema
             .as_ref()
             .ok_or_else(|| format!("telemetry `{}` has no authoritative storage row schema", contract.stream))?;
-        if !stream
-            .row
-            .equivalent(stream.row.root, declared, declared.root, &harmos::config::SchemaSettings::default())
-            .map_err(|error| error.to_string())?
-        {
+        if !stream.row.equivalent(stream.row.root, declared, declared.root, settings).map_err(|error| error.to_string())? {
             return Err(format!("telemetry `{}` storage graph differs from its native stream", contract.stream));
         }
         if stream.schema != contract.schema_version {
             return Err(format!("telemetry `{}` disagrees with its native stream schema version", contract.stream));
         }
-        stream.row.prepare(&harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
+        stream.row.prepare(settings).map_err(|error| error.to_string())?;
         let fields = stream.row.root().map_err(|error| error.to_string())?.fields();
         if !contract.allow_extra_fields
             && fields.iter().any(|field| !contract.columns.iter().any(|column| column.metadata.identifier.as_str() == field.name))
@@ -306,7 +305,9 @@ pub(super) fn validate(artifact: &crate::InstalledPlugin, streams: &[harmos::sid
 }
 
 pub(super) fn observe(handle: &RuntimeHandle, owner: &str) -> Subscriptions {
-    let contracts = handle.installed_plugins().get(owner).map(|artifact| artifact.telemetry_contracts.clone()).unwrap_or_default();
+    let state = handle.state_read();
+    let Some(artifact) = state.installed_plugins.get(owner) else { return Vec::new() };
+    let contracts = &artifact.telemetry_contracts;
     handle
         .streams()
         .definitions()

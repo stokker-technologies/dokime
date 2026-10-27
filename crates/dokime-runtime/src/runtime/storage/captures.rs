@@ -36,9 +36,6 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
-// Bounds sealing one capture: stopping the device and storing its file.
-const SEAL_DEADLINE: Duration = Duration::from_secs(60);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -48,10 +45,10 @@ pub(crate) type SealRequest = oneshot::Sender<oneshot::Sender<()>>;
 
 /* === Structs === */
 
-#[derive(Default)]
 pub(crate) struct Captures {
     open: Mutex<BTreeMap<TestExecutionId, Vec<(u64, SealRequest)>>>,
     next: AtomicU64,
+    seal_timeout: Duration,
 }
 
 /* === Enums === */
@@ -61,6 +58,10 @@ pub(crate) struct Captures {
 /* === Implementations === */
 
 impl Captures {
+    pub(crate) fn new() -> Self {
+        Self { open: Mutex::new(BTreeMap::new()), next: AtomicU64::new(0), seal_timeout: Duration::from_secs(60) }
+    }
+
     pub(crate) fn register(&self, execution: &TestExecutionId, seal: SealRequest) -> u64 {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         self.open.lock().unwrap_or_else(std::sync::PoisonError::into_inner).entry(execution.clone()).or_default().push((id, seal));
@@ -90,7 +91,7 @@ impl Captures {
             }
         }
         for sealed in stored {
-            if tokio::time::timeout(SEAL_DEADLINE, sealed).await.is_err() {
+            if tokio::time::timeout(self.seal_timeout, sealed).await.is_err() {
                 tracing::warn!(execution = %execution, "capture did not seal before its execution closed");
             }
         }

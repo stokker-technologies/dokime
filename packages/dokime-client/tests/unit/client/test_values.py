@@ -37,26 +37,26 @@ from dokime_client.client._wire import decode, encode
 
 def test_number_values() -> None:
     for integer in [-(2**63), 2**63 - 1, 2**63, 2**64 - 1]:
-        assert decode(_round_trip(integer)) == integer
+        assert decode(_round_trip(integer), 64) == integer
     assert _wire.variant(_project(2**64 - 1).nodes[0].kind) == "Unsigned"
     unsigned_zero = UnsignedValue(0)
-    zero = decode(_project(unsigned_zero))
+    zero = decode(_project(unsigned_zero), 64)
     assert _wire.variant(_project(zero).nodes[0].kind) == "Unsigned"
 
     for number in [float("nan"), float("inf"), float("-inf")]:
-        result = decode(_round_trip(number))
+        result = decode(_round_trip(number), 64)
         assert isinstance(result, float)
         assert math.isnan(result) if math.isnan(number) else result == number
 
 
 def test_datetime_values() -> None:
     date = datetime(2026, 9, 28, 12, 13, 14, 123456, tzinfo=UTC)
-    assert decode(_project(date)) == date
+    assert decode(_project(date), 64) == date
 
     # Nanosecond Precision Survives And Orders After The Microsecond Value
     precise = _project(DatetimeValue.from_rfc3339("2026-09-28T12:13:14.123456789Z"))
-    assert _project(decode(precise)) == precise
-    decoded = decode(precise)
+    assert _project(decode(precise, 64)) == precise
+    decoded = decode(precise, 64)
     assert isinstance(decoded, datetime)
     assert decoded != date
     assert decoded > date
@@ -65,8 +65,8 @@ def test_datetime_values() -> None:
     # Arithmetic Keeps The Precise Wire Representation
     replaced_value = decoded.replace(second=15)
     shifted_value = decoded + timedelta(seconds=1)
-    replaced = decode(_project(replaced_value))
-    shifted = decode(_project(shifted_value))
+    replaced = decode(_project(replaced_value), 64)
+    shifted = decode(_project(shifted_value), 64)
     assert isinstance(replaced, DatetimeValue)
     assert isinstance(shifted, DatetimeValue)
     assert replaced._wire_text is not None
@@ -100,7 +100,7 @@ def test_aggregate_codec() -> None:
 
 
 def _project(item):
-    return _contracts.nested("Evidence", "ListRecords", "records.details", direction="response", **encode(item))
+    return _contracts.nested("Evidence", "ListRecords", "records.details", direction="response", **encode(item, 64))
 
 
 def _round_trip(item):

@@ -62,7 +62,6 @@ struct BootParts {
     installed_plugins: InstalledPlugins,
     storage: crate::storage::Manager,
     local_state: crate::storage::sqlite::State,
-    storage_policy: Arc<crate::config::policy::PolicyStore>,
     record_source: Arc<crate::runtime::storage::record_capture::Source>,
     resources: crate::app::Resources,
     node_identity: dokime_domain::model::identity::DokimeNodeIdentity,
@@ -76,16 +75,10 @@ struct BootParts {
 
 struct BootRuntime(Option<HarmosRuntime>);
 
-pub(crate) struct HostTraceabilityIndex {
-    pub(crate) generation: u64,
-    pub(crate) samples: BTreeMap<String, crate::telemetry::TelemetrySample>,
-}
-
 #[derive(Clone)]
 pub struct RuntimeHandle {
     storage: crate::storage::Manager,
     pub(crate) local_storage: crate::storage::sqlite::State,
-    pub(crate) storage_policy: Arc<crate::config::policy::PolicyStore>,
     pub(crate) request_storage: Arc<crate::runtime::storage::requests::RequestStorage>,
     pub(crate) execution_storage: Arc<crate::runtime::storage::executions::ExecutionStorage>,
     pub(crate) plugin_boot: Arc<RwLock<BTreeMap<uuid::Uuid, bool>>>,
@@ -103,8 +96,7 @@ pub struct RuntimeHandle {
     pub(crate) evidence_admission: Arc<tokio::sync::Mutex<()>>,
     pub(crate) evidence_exports: crate::domains::exports::evidence::Manager,
     pub(crate) telemetry_admission: Arc<tokio::sync::Mutex<()>>,
-    pub(crate) telemetry_cursors: Arc<Mutex<BTreeMap<String, u64>>>,
-    pub(crate) host_traceability: Arc<Mutex<HostTraceabilityIndex>>,
+    pub(crate) telemetry_cursors: Arc<Mutex<crate::domains::telemetry::TelemetryCursors>>,
     pub(crate) host_telemetry_source: Arc<RwLock<Option<Arc<crate::telemetry_runtime::HostTelemetrySource>>>>,
     pub(crate) providers: Arc<ProviderExecutorRegistry>,
     pub(crate) progress: Arc<crate::domains::execution::progress::ProgressRegistry>,
@@ -193,6 +185,14 @@ impl RuntimeHandle {
         Ok(receipt)
     }
 
+    pub(crate) async fn commit_owned(
+        &self, transaction: harmos::operations::Response<Transactions>,
+    ) -> std::result::Result<harmos::state::Receipt, harmos::Error<String>> {
+        let receipt = self.state_manager.commit_owned(transaction).await?;
+        self.refresh_state().await.map_err(|_| harmos::Error::Unavailable)?;
+        Ok(receipt)
+    }
+
     #[tracing::instrument(
         level = "info",
         name = "runtime.boot",
@@ -204,11 +204,11 @@ impl RuntimeHandle {
     ) -> Result<(HarmosRuntime, Self)> {
         #[cfg(feature = "fault-injection")]
         {
-            Self::boot_inner(config, providers, install_builtins, None).await
+            Box::pin(Self::boot_inner(config, providers, install_builtins, None)).await
         }
         #[cfg(not(feature = "fault-injection"))]
         {
-            Self::boot_inner(config, providers, install_builtins).await
+            Box::pin(Self::boot_inner(config, providers, install_builtins)).await
         }
     }
 
@@ -216,7 +216,7 @@ impl RuntimeHandle {
     pub(crate) async fn boot_with_backends(
         config: RuntimeConfig, providers: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool, decorate: BackendDecorator,
     ) -> Result<(HarmosRuntime, Self)> {
-        Self::boot_inner(config, providers, install_builtins, Some(decorate)).await
+        Box::pin(Self::boot_inner(config, providers, install_builtins, Some(decorate))).await
     }
 
     async fn boot_inner(
@@ -224,37 +224,30 @@ impl RuntimeHandle {
         #[cfg(feature = "fault-injection")] decorate: Option<BackendDecorator>,
     ) -> Result<(HarmosRuntime, Self)> {
         let boot_started = std::time::Instant::now();
-        let installed_plugins = check_boot_config(&config, boot_started)?;
+        let installed_plugins = check_boot_config(&config)?;
         config.storage.validate()?;
         harmos::filesystem::publication::create_dir_all(&config.storage_root)?;
         let backend = Arc::new(crate::storage::Backend::primary(config.storage_root.clone()).await?);
         let local_state = backend.local_state();
-        let (config, application_settings, storage_policy) = tokio::task::spawn_blocking(move || {
-            let mut config = config;
-            let settings = crate::config::Settings::load(&config.application_root)?;
-            let policy = crate::config::policy::PolicyStore::open(&mut config, settings.clone())?;
-            Ok::<_, Error>((config, settings, Arc::new(policy)))
-        })
-        .await??;
-        let node_identity = application_settings.read(|document| document.identity.clone());
+        let application_settings = crate::config::Settings::open(config.application_root.clone(), local_state.clone()).await?;
+        let node_identity = application_settings.read(|document| document.identity.clone()).await?;
         let plugin_preferences = PluginPreferences::new(application_settings.clone());
         let secrets =
-            SecretStore::from_config(&config, application_settings.clone()).map_err(|error| Error::Operation(error.to_string()))?;
+            SecretStore::from_config(&config, application_settings.clone()).await.map_err(|error| Error::Operation(error.to_string()))?;
         let mut state = RuntimeState::new(config.session_id.clone());
         state.record_namespace = crate::model::identity::new_id::<dokime_domain::model::identity::SessionId>();
         if install_builtins {
             state.install_builtin_domains().map_err(|error| Error::Operation(format!("failed to install built-in domains: {error}")))?;
         }
 
-        let sampling = Sampling::default();
+        let sampling = Sampling::new();
         let providers = ProviderExecutorRegistry::new(providers);
         let settings = config.storage.clone();
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             config.storage_root.clone(),
             harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
-            crate::storage::state_settings(),
+            config.storage_state,
         ));
-        tracing::info!(read_pool_bytes = settings.budget.read_memory_bytes.get(), "storage read pool sized");
         let backends = harmos::storage::StorageBackends { primary: backend.clone(), state: recovery };
         #[cfg(feature = "fault-injection")]
         let backends = match decorate {
@@ -262,10 +255,12 @@ impl RuntimeHandle {
             None => backends,
         };
         let storage = crate::storage::Manager::new(backends, settings)?;
-        let record_source = Arc::new(crate::runtime::storage::record_capture::Source::new(state.process_epoch(), storage.clone())?);
-        let resources = crate::app::Resources::new(config.storage.clone());
+        let record_source =
+            Arc::new(crate::runtime::storage::record_capture::Source::new(state.process_epoch(), storage.clone(), config.schema)?);
+        let resources = crate::app::Resources::new(config.schema);
         *resources.analysis.dispatchers.write().expect("analysis dispatcher registry is healthy") = config.action_dispatchers.clone();
-        let harmos_runtime = crate::runtime::storage::build(state, record_source.clone(), &storage, resources.clone()).await;
+        let harmos_runtime =
+            crate::runtime::storage::build(state, record_source.clone(), &storage, resources.clone(), config.managed_storage.clone()).await;
         let harmos_runtime = match harmos_runtime {
             Ok(runtime) => runtime,
             Err(mut source) => {
@@ -288,7 +283,6 @@ impl RuntimeHandle {
             installed_plugins,
             storage: storage.clone(),
             local_state: local_state.clone(),
-            storage_policy,
             record_source,
             resources,
             node_identity,
@@ -335,7 +329,6 @@ impl RuntimeHandle {
             installed_plugins,
             storage,
             local_state,
-            storage_policy,
             record_source,
             resources,
             node_identity,
@@ -380,7 +373,7 @@ impl RuntimeHandle {
         let brand = Arc::new(RwLock::new(None));
         let process_id = crate::model::identity::new_id::<SessionId>();
         let requests_started = std::time::Instant::now();
-        let request_storage = crate::runtime::storage::requests::RequestStorage::new(storage.clone(), node_identity.node_id.clone());
+        let request_storage = crate::runtime::storage::requests::RequestStorage::new(storage.clone(), &node_identity.node_id)?;
         request_storage
             .recover(|id| {
                 initial_state.run_requests.get(id).map(|request| &request.summary).filter(|summary| {
@@ -396,12 +389,12 @@ impl RuntimeHandle {
                 harmos_runtime.state.clone(),
                 process_id,
                 brand.clone(),
+                config.schema,
             )
             .await?,
         );
         let runtime = Self {
             local_storage: local_state.clone(),
-            storage_policy,
             request_storage,
             storage: storage.clone(),
             execution_storage,
@@ -418,9 +411,8 @@ impl RuntimeHandle {
             evidence_admission: Default::default(),
             evidence_exports: crate::domains::exports::evidence::Manager::new(config.application_root.join("cache/exports")),
             telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),
-            telemetry_cursors: Arc::new(Mutex::new(BTreeMap::new())),
-            host_traceability: Arc::new(Mutex::new(HostTraceabilityIndex { generation: 0, samples: BTreeMap::new() })),
-            stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::default()),
+            telemetry_cursors: Arc::new(Mutex::new(crate::domains::telemetry::TelemetryCursors::default())),
+            stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::new()),
             host_telemetry_source: Arc::new(RwLock::new(None)),
             providers: Arc::new(providers),
             progress: Arc::new(crate::domains::execution::progress::ProgressRegistry::new()),
@@ -462,7 +454,8 @@ impl RuntimeHandle {
         .map_err(|error| Error::Operation(format!("failed to establish node identity: {error}")))?;
 
         step_builtins.bind(self);
-        for plugin in installed_plugins.into_values() {
+        for mut plugin in installed_plugins.into_values() {
+            dokime_host::configure_contracts(&mut plugin);
             if self.state_read().host_plugin_current(&plugin) {
                 continue;
             }
@@ -477,10 +470,6 @@ impl RuntimeHandle {
         crate::runtime::operations::secrets::register(self)?;
         crate::runtime::operations::reports::register(self)?;
         Ok(())
-    }
-
-    pub(crate) fn installed_plugins(&self) -> Arc<InstalledPlugins> {
-        Arc::new(self.state_read().installed_plugins.clone())
     }
 
     // The Listener Shares The Booted Runtime Registry And Shutdown Owner.
@@ -537,6 +526,10 @@ impl RuntimeHandle {
         &self.settings
     }
 
+    pub fn schema_settings(&self) -> &harmos::config::SchemaSettings {
+        &self.config.schema
+    }
+
     pub(crate) fn plugin_preferences(&self) -> Arc<PluginPreferences> {
         Arc::clone(&self.plugin_preferences)
     }
@@ -554,14 +547,8 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-fn check_boot_config(config: &RuntimeConfig, boot_started: std::time::Instant) -> Result<InstalledPlugins> {
-    if config.compaction_interval.is_zero() || boot_started.checked_add(config.compaction_interval).is_none() {
-        return Err(Error::Operation("compaction interval must be positive and representable".into()));
-    }
+fn check_boot_config(config: &RuntimeConfig) -> Result<InstalledPlugins> {
     let mut installed_plugins = BTreeMap::new();
-    if config.local_retention.is_some_and(|duration| duration.is_zero() || i64::try_from(duration.as_micros()).is_err()) {
-        return Err(Error::Operation("local retention must be positive and fit the timestamp range".into()));
-    }
     for plugin in &config.installed_plugins {
         if installed_plugins.insert(plugin.source.clone(), plugin.clone()).is_some() {
             return Err(Error::Operation(format!("installed plugin `{}` is duplicated", plugin.source)));

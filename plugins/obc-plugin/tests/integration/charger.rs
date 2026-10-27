@@ -47,7 +47,7 @@ use obc_plugin::{SOURCE, suites::steady};
 
 #[tokio::test]
 async fn cleanup_drains_input() {
-    let workflow = Workflow::<steady::Steady>::new(steady::STEADY_SUITE, SOURCE);
+    let workflow = Workflow::<steady::Steady>::new(steady::STEADY_SUITE, SOURCE, &Default::default());
     workflow
         .start_on(
             RunExecution {

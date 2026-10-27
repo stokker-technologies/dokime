@@ -174,21 +174,28 @@ pub enum EvidenceOriginKind {
 
 /* === Implementations === */
 
-impl From<&crate::model::identity::Metadata> for Metadata {
-    fn from(metadata: &crate::model::identity::Metadata) -> Self {
-        Self {
-            identifier: metadata.identifier.to_string(),
-            label: metadata.label.clone(),
-            description: metadata.description.clone(),
-            tags: metadata.tags.clone(),
-            attributes: metadata
-                .attributes
-                .iter()
-                .map(|(key, value)| MetadataAttribute { key: key.clone(), value: Some(Value::from(value)) })
-                .collect(),
+impl TryFrom<&crate::model::identity::Metadata> for Metadata {
+    type Error = ValueError;
+
+    fn try_from(metadata: &crate::model::identity::Metadata) -> Result<Self, Self::Error> {
+        use crate::model::values::wire::{slots, text};
+        let mut tags = slots(metadata.tags.len())?;
+        for tag in &metadata.tags {
+            tags.push(text(tag)?);
+        }
+        let mut attributes = slots(metadata.attributes.len())?;
+        for (key, value) in &metadata.attributes {
+            attributes.push(MetadataAttribute { key: text(key)?, value: Some(Value::try_from(value)?) });
+        }
+        Ok(Self {
+            identifier: text(metadata.identifier.as_str())?,
+            label: text(&metadata.label)?,
+            description: metadata.description.as_deref().map(text).transpose()?,
+            tags,
+            attributes,
             created_at: metadata.created_at.map(Timestamp::from),
             updated_at: metadata.updated_at.map(Timestamp::from),
-        }
+        })
     }
 }
 

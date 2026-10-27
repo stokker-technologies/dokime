@@ -67,7 +67,7 @@ impl dokime::ExecutionFixture for Provider {
                 .unwrap();
             let bytes: Vec<_> = (0..1_200_000).map(|i| (i % 251) as u8).collect();
             for chunk in bytes.chunks(64 * 1024) {
-                upload.send(chunk).await.unwrap();
+                upload.send(chunk.to_vec()).await.unwrap();
             }
             let artifact_id = upload.finish().await.unwrap().artifact_id.to_string();
             self.0.send_replace(Some(artifact_id));
@@ -151,7 +151,7 @@ pub async fn registered_cycle(
         runtime.test_suites().await.into_iter().find(|entry| entry.suite_id == suite_id).expect("fixture suite is registered").suite;
     let options = dokime::definition::CaseMaterializationOptions {
         force: true,
-        max_cases: dokime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        max_cases: usize::try_from(1_000).unwrap(),
         registration_id: dokime::model::identity::new_id(),
         first_label_number: 1,
     };

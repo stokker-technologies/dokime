@@ -34,8 +34,6 @@ use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Constants === */
 
-const CONTAINER_OVERHEAD: usize = 64;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -46,16 +44,18 @@ const CONTAINER_OVERHEAD: usize = 64;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CopyCycle {
     pub source_cycle_id: TestCycleId,
+    pub max_executions: u64,
+    pub max_source_bytes: u64,
+    pub max_source_depth: u64,
     pub test_cycle_id: TestCycleId,
     pub occurred_at: Timestamp,
 }
 
-// Walk the existing borrowed Serde representation without allocating a payload.
-// The budget charges the encoded bytes plus a fixed overhead per container, which
-// bounds owned structure without charging the serializer's write granularity.
+// Bound The Exact Encoded Source Bytes And Depth Before Cloning The Plan.
 struct Budget {
     remaining: usize,
     depth: usize,
+    maximum_depth: usize,
     quoted: bool,
     escaped: bool,
 }
@@ -74,13 +74,23 @@ impl Transaction<RuntimeState> for CopyCycle {
         if state.cycles.contains_key(&self.test_cycle_id) {
             return Err("target cycle already exists".into());
         }
-        let source = state.cycle_view(&self.source_cycle_id).ok_or("source cycle not found")?;
-        if source.test_executions.is_empty() || source.test_executions.len() > 1000 {
-            return Err("cycle copy requires 1 to 1000 executions".into());
+        let source = state
+            .cycles
+            .get(&self.source_cycle_id)
+            .filter(|cycle| cycle.execution_ids.iter().all(|id| state.executions.contains_key(id)))
+            .ok_or("source cycle not found")?;
+        if source.execution_ids.is_empty() || source.execution_ids.len() as u64 > self.max_executions {
+            return Err("cycle copy requires one or more executions within the configured limit".into());
         }
-        let mut budget = Budget { remaining: 8 * 1024 * 1024, depth: 0, quoted: false, escaped: false };
+        let mut budget = Budget {
+            remaining: usize::try_from(self.max_source_bytes).map_err(|_| "cycle copy source budget exceeds native size")?,
+            maximum_depth: usize::try_from(self.max_source_depth).map_err(|_| "cycle copy source depth exceeds native size")?,
+            depth: 0,
+            quoted: false,
+            escaped: false,
+        };
         budget.source(&source.metadata)?;
-        for execution in &source.test_executions {
+        for execution in source.execution_ids.iter().map(|id| state.executions.get(id).expect("checked cycle membership")) {
             budget.source(&execution.snapshot)?;
         }
         Ok(())
@@ -92,7 +102,7 @@ impl Transaction<RuntimeState> for CopyCycle {
 
     fn apply(&self, state: &mut RuntimeState) {
         let records = self.drafts(state);
-        let source = state.cycle_view(&self.source_cycle_id).expect("checked source cycle");
+        let source = state.cycles.get(&self.source_cycle_id).expect("checked source cycle");
         let mut cycle = CycleView {
             saved: None,
             test_cycle_id: self.test_cycle_id.clone(),
@@ -109,7 +119,9 @@ impl Transaction<RuntimeState> for CopyCycle {
             continue_automatically: source.continue_automatically,
             result: None,
         };
-        for (ordinal, original) in source.test_executions.iter().enumerate() {
+        for (ordinal, original) in
+            source.execution_ids.iter().map(|id| state.executions.get(id).expect("checked cycle membership")).enumerate()
+        {
             let id = TestExecutionId::from_seed(format!(
                 "cycle:{}:source-execution:{}:ordinal:{ordinal}",
                 cycle.test_cycle_id, original.test_execution_id
@@ -132,14 +144,14 @@ impl Transaction<RuntimeState> for CopyCycle {
 
 impl Budget {
     fn source(&mut self, value: &impl Serialize) -> Result<(), String> {
-        serde_json::to_writer(self, value).map_err(|error| error.to_string())
+        serde_json::to_writer(&mut *self, value).map_err(|error| error.to_string())
     }
 }
 
 impl Write for Budget {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         self.remaining =
-            self.remaining.checked_sub(bytes.len()).ok_or_else(|| io::Error::other("cycle copy exceeds 8 MiB source budget"))?;
+            self.remaining.checked_sub(bytes.len()).ok_or_else(|| io::Error::other("cycle copy exceeds configured source budget"))?;
         for byte in bytes {
             if self.quoted {
                 if self.escaped {
@@ -153,13 +165,9 @@ impl Write for Budget {
                 match byte {
                     b'"' => self.quoted = true,
                     b'{' | b'[' => {
-                        self.remaining = self
-                            .remaining
-                            .checked_sub(CONTAINER_OVERHEAD)
-                            .ok_or_else(|| io::Error::other("cycle copy exceeds 8 MiB source budget"))?;
                         self.depth += 1;
-                        if self.depth > 64 {
-                            return Err(io::Error::other("cycle copy exceeds depth 64"));
+                        if self.depth > self.maximum_depth {
+                            return Err(io::Error::other("cycle copy exceeds configured source depth"));
                         }
                     }
                     b'}' | b']' => self.depth = self.depth.saturating_sub(1),

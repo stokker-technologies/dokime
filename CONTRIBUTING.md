@@ -40,6 +40,12 @@ local Cargo patch in an untracked `.cargo/config.toml`. Preparation and frontend
 tasks use that same explicit patch for the Harmos authoring tool. CI refuses
 local overrides; remove the patch and pin the published dependency before delivery.
 
+Development and test builds use line tables for workspace crates and disable
+debug information for dependencies to reduce compilation and linking costs.
+Workspace backtraces retain source locations; type and variable inspection
+require rebuilding the affected crate with full debug information.
+Debug assertions and overflow checks remain enabled.
+
 ## Tests And Checks
 
 During implementation, run targeted checks for changed behavior. Once all agreed
@@ -62,6 +68,46 @@ profile; test lanes consume their artifacts. Nightly additionally runs coverage,
 benchmarks and the generated-starter test, with release-profile installers.
 Required hosted CI controls integration. Keep auto-merge enabled; it may merge
 independently of local completion. Report and investigate local failures.
+
+### Storage Benchmarks
+
+The runtime's `integration-storage` Criterion target uses the actual SQLite
+backend and unmodified `dokime_runtime::config::storage_defaults()`. It mirrors
+Harmos's storage suite and reduced workloads: a 30 MiB file, 10,000 records
+with 256-byte payloads, and 1 million timestamped f64 samples. File chunks are 1 MiB;
+record and sample batches contain at most 4,096 items and 1 MiB charged using
+Harmos's public input memory accounting, including metadata and allocation capacity.
+The sample workload represents one second at 1 MHz without paced sleeps.
+
+The shared fixture and suite cover accepted and durable ingestion, symmetric
+reads, serial and concurrent files, queries, transforms, contention and filesystem
+operations. Workload generation, timing boundaries, correctness checks and resource
+sampling match Harmos; fixture storage configuration and persistence use Dokime.
+The query suite also preserves Dokime's end-to-end manager RMS, histogram and
+extrema-downsample cases on the shared waveform fixture, alongside separately
+identified Arrow transform kernels. They use the same production settings, reduced
+waveforms and first-batch/completion timing as the other manager queries.
+Storage benchmarks have one owner in `integration-storage`; `integration-runtime`
+contains runtime capture and durable plot-visibility cases.
+Distinct-file reads have both serial and concurrent cases. Concurrent read timing
+counts each parallel open/page round once; offset, length and digest checks run
+outside that interval. The small journal/captured-record/transaction comparison
+cases retain Harmos's explicit single-entry replay/capture policy to isolate those
+paths; they do not represent Dokime's default managed-state throughput.
+
+Effective settings, backend identity and source provenance accompany the native
+Criterion results. Dokime's machine-sized budgets differ from Harmos's fixed
+reference budgets, so the comparison measures configured systems rather than
+backend cost alone. Pure transform cases are identified separately.
+
+```sh
+mise run build:rust:bench
+mise run bench:rust:integration -- storage/
+```
+
+The standard runner retains native Criterion results under `.stkr/benchmarks/`.
+Keep workload, settings, compiler profile and hardware consistent when comparing
+before and after results; these timings are not correctness-test deadlines.
 
 ## Pull Requests
 

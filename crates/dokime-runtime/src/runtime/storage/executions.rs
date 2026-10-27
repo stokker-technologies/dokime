@@ -22,14 +22,14 @@ use std::{
 // Third Party Imports
 use harmos::{
     state::Position,
-    storage::{FileReference, ObjectReceipt, StorageCursor},
+    storage::{FileReference, ObjectReceipt, ReadBatch, StorageCursor},
 };
 use tokio::sync::Mutex;
 
 // Local Imports
 use crate::app::StateManager;
 use crate::installed_plugins::RuntimeAppearanceFrame;
-use crate::report::{CapturedExecutionReportInput, PreparedExecutionReport};
+use crate::report::PreparedExecutionReport;
 use crate::runtime::Error;
 use crate::runtime::Result;
 use crate::storage::Manager;
@@ -49,8 +49,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
-const MAX_ACTIVE_OWNERS: usize = 10_000;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -66,6 +64,7 @@ pub(crate) struct TailStopPreparation {
 }
 
 pub(crate) struct ExecutionStorage {
+    pub(crate) schema_settings: harmos::config::SchemaSettings,
     pub(crate) storage: Manager,
     pub(super) state_manager: StateManager,
     pub(super) context_epoch: SessionId,
@@ -87,6 +86,7 @@ pub(crate) struct Acquisition {
     pub(super) storage: Manager,
     pub(super) execution_id: TestExecutionId,
     pub(super) execution: Arc<TestExecution>,
+    execution_owner: ReadBatch<Arc<TestExecution>>,
     pub(super) gate: Arc<Mutex<()>>,
     materialization_gate: Arc<Mutex<()>>,
     pub(super) finish_requested: bool,
@@ -95,7 +95,7 @@ pub(crate) struct Acquisition {
     pub(super) artifacts: BTreeMap<ArtifactId, super::artifacts::Upload>,
     pub(super) native_outputs: BTreeMap<String, super::native_outputs::NativeOutput>,
     observed_at: Option<Position>,
-    settled_outputs: Option<Arc<Vec<ExecutionOutput>>>,
+    settled_outputs: Option<Arc<ReadBatch<Vec<ExecutionOutput>>>>,
     working: Option<Arc<ExecutionRevision>>,
     pending: Option<PendingRevision>,
     finalizing: Option<Arc<TestExecution>>,
@@ -106,17 +106,16 @@ pub(crate) struct Acquisition {
 pub(super) struct CycleMemberContext {
     pub(super) context: FileReference,
     pub(super) appearance: RuntimeAppearanceFrame,
-    // The Materialized Final Report Input, Reused By The Cycle Report Instead Of Re-Querying Evidence.
-    pub(super) input: Arc<CapturedExecutionReportInput>,
 }
 
 pub(crate) struct CaptureInputs {
     pub execution: Arc<TestExecution>,
+    pub _execution_owner: ReadBatch<Arc<TestExecution>>,
     pub lifecycle_id: String,
     // The Revision A Lifecycle Froze, Which Anchors Its Report.
     pub anchor: Option<ExecutionRevision>,
-    pub outputs: Arc<Vec<ExecutionOutput>>,
-    pub unavailable_outputs: Vec<String>,
+    pub outputs: Arc<ReadBatch<Vec<ExecutionOutput>>>,
+    pub unavailable_outputs: ReadBatch<Vec<String>>,
     pub through: StorageCursor,
 }
 
@@ -128,12 +127,16 @@ struct PendingRevision {
 // A Final Report Published In Full, Waiting For Finalization To Seal Its Owner.
 struct PublishedReport {
     seal: Arc<ExecutionSeal>,
-    inspection: super::execution::ExecutionView,
+    anchor: Option<ExecutionRevision>,
     appearance: RuntimeAppearanceFrame,
-    input: Arc<CapturedExecutionReportInput>,
 }
 
 /* === Enums === */
+
+pub(crate) enum FrozenExecution {
+    Live(Arc<TestExecution>),
+    Saved(harmos::storage::ReadBatch<harmos::storage::ObjectRevision<TestExecution>>),
+}
 
 /* === Traits === */
 
@@ -147,7 +150,7 @@ impl TailStopPreparation {
 }
 
 impl Acquisition {
-    pub(super) async fn settle_outputs(&mut self) -> Result<Arc<Vec<ExecutionOutput>>> {
+    pub(super) async fn settle_outputs(&mut self) -> Result<Arc<ReadBatch<Vec<ExecutionOutput>>>> {
         if !self.finish_requested || !self.outputs_sealed || !self.outputs_quiescent {
             return Err(invalid("execution output settlement requires closed producer admission"));
         }
@@ -168,28 +171,33 @@ impl Acquisition {
         Ok(outputs)
     }
 
-    pub(super) async fn snapshot_outputs(&mut self) -> Result<Arc<Vec<ExecutionOutput>>> {
+    pub(super) async fn snapshot_outputs(&mut self) -> Result<Arc<ReadBatch<Vec<ExecutionOutput>>>> {
         super::artifacts::checkpoint(self).await?;
         super::native_outputs::snapshot(self, false).await?;
         self.capture_outputs().await
     }
 
-    async fn capture_outputs(&self) -> Result<Arc<Vec<ExecutionOutput>>> {
-        let mut captured = Vec::new();
-        let descriptors = self
-            .native_outputs
-            .values()
-            .map(|source| source.descriptor())
-            .chain(self.artifacts.values().filter_map(|source| source.descriptor()).map(Some));
-        for output in descriptors {
-            captured.push(output.ok_or_else(|| invalid("captured output descriptor is missing"))?.clone());
-        }
+    async fn capture_outputs(&self) -> Result<Arc<ReadBatch<Vec<ExecutionOutput>>>> {
+        let count = self.native_outputs.len() + self.artifacts.values().filter(|source| source.descriptor().is_some()).count();
+        let captured = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
+            let mut captured = Vec::new();
+            captured.try_reserve_exact(count).map_err(|_| invalid("captured output allocation failed"))?;
+            let descriptors = self
+                .native_outputs
+                .values()
+                .map(|source| source.descriptor())
+                .chain(self.artifacts.values().filter_map(|source| source.descriptor()).map(Some));
+            for output in descriptors {
+                captured.push(output.ok_or_else(|| invalid("captured output descriptor is missing"))?.clone());
+            }
+            Ok(captured)
+        })?;
         let through = self.storage.status().accepted;
         let saved = self.storage.flush_until(&through).await?;
         if !saved.covers(&through)? {
             return Err(invalid("captured output save does not cover original files"));
         }
-        validate_outputs(&self.execution_id, &through, &captured).map_err(crate::storage::Error::from)?;
+        validate_outputs(&self.execution_id, &through, captured.as_slice()).map_err(crate::storage::Error::from)?;
         Ok(Arc::new(captured))
     }
 }
@@ -216,9 +224,11 @@ impl ExecutionStorage {
 
     pub(crate) async fn new(
         storage: Manager, state_manager: StateManager, context_epoch: SessionId,
-        brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
+        brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>, schema_settings: harmos::config::SchemaSettings,
     ) -> Result<Self> {
+        let captures = super::captures::Captures::new();
         Ok(Self {
+            schema_settings,
             storage,
             state_manager,
             context_epoch,
@@ -229,26 +239,33 @@ impl ExecutionStorage {
             open_scopes: Default::default(),
             codecs: Default::default(),
             tail_stops: Mutex::new(BTreeMap::new()),
-            captures: Default::default(),
+            captures,
         })
     }
 
-    pub(crate) async fn durable_seal(&self, id: &TestExecutionId) -> Result<Option<dokime_domain::model::execution::saved::ExecutionSeal>> {
+    pub(crate) async fn durable_seal(&self, id: &TestExecutionId) -> Result<Option<ReadBatch<ExecutionSeal>>> {
         let latest = super::execution::ExecutionView::open(&self.storage, id, harmos::storage::ObjectVersion::Latest).await?;
-        Ok(latest.and_then(|latest| latest.execution().saved.clone()))
+        latest.as_ref().and_then(|latest| latest.execution().saved.as_ref()).map(retain_seal).transpose()
     }
 
-    pub(crate) async fn final_seal(&self, id: &TestExecutionId) -> Option<dokime_domain::model::execution::saved::ExecutionSeal> {
-        let owner = self.acquisition(id).await?;
+    pub(crate) async fn final_seal(&self, id: &TestExecutionId) -> Result<Option<ReadBatch<ExecutionSeal>>> {
+        let Some(owner) = self.acquisition(id).await else { return Ok(None) };
         let acquisition = owner.lock().await;
-        acquisition.execution.saved.clone()
+        let Some(seal) = acquisition.execution.saved.as_ref() else { return Ok(None) };
+        Ok(Some(retain_seal(seal)?))
     }
 
     // The Final Seal, Or The Seal Of A Final Report Published Ahead Of It.
-    pub(crate) async fn published_seal(&self, id: &TestExecutionId) -> Option<dokime_domain::model::execution::saved::ExecutionSeal> {
-        let owner = self.acquisition(id).await?;
+    pub(crate) async fn published_seal(&self, id: &TestExecutionId) -> Result<Option<ReadBatch<ExecutionSeal>>> {
+        let Some(owner) = self.acquisition(id).await else { return Ok(None) };
         let acquisition = owner.lock().await;
-        acquisition.execution.saved.clone().or_else(|| acquisition.published.as_ref().map(|published| (*published.seal).clone()))
+        let seal = acquisition.execution.saved.as_ref().or_else(|| acquisition.published.as_ref().map(|published| published.seal.as_ref()));
+        let Some(seal) = seal else { return Ok(None) };
+        Ok(Some(retain_seal(seal)?))
+    }
+
+    pub(crate) fn retain_seal(&self, seal: &ExecutionSeal) -> Result<ReadBatch<ExecutionSeal>> {
+        retain_seal(seal)
     }
 
     pub(crate) async fn acquisition(&self, id: &TestExecutionId) -> Option<Arc<Mutex<Acquisition>>> {
@@ -275,23 +292,11 @@ impl ExecutionStorage {
         Ok(Some((context.clone(), revision, acquisition.execution.clone())))
     }
 
-    // The Final Report Input This Process Materialized For Exactly This Seal, If It Still Holds It.
-    pub(crate) async fn retained_member_input(&self, seal: &ExecutionSeal) -> Option<Arc<CapturedExecutionReportInput>> {
-        let id = &seal.source.execution.execution_id;
-        let owner = self.acquisition(id).await?;
-        let acquisition = owner.lock().await;
-        let input = match (&acquisition.cycle_context, &acquisition.published) {
-            (Some(context), _) if context.context == seal.source.context => context.input.clone(),
-            (_, Some(published)) if published.seal.source.context == seal.source.context => published.input.clone(),
-            _ => return None,
-        };
-        (input.final_report && input.execution_id == *id && input.evidence_through == seal.source.evidence_through).then_some(input)
-    }
-
-    pub(crate) async fn retained_report_view(&self, id: &TestExecutionId) -> Option<super::execution::ExecutionView> {
-        let owner = self.acquisition(id).await?;
-        let acquisition = owner.lock().await;
-        acquisition.published.as_ref().map(|report| report.inspection.clone())
+    pub(crate) async fn published_report_view(&self, id: &TestExecutionId) -> Result<Option<super::execution::ExecutionView>> {
+        let Some(owner) = self.acquisition(id).await else { return Ok(None) };
+        let seal = owner.lock().await.published.as_ref().map(|report| report.seal.clone());
+        let Some(seal) = seal else { return Ok(None) };
+        Ok(Some(super::execution::ExecutionView::from_seal_source(&self.storage, &seal).await?))
     }
 
     pub(crate) async fn prepare_execution(self: &Arc<Self>, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
@@ -329,7 +334,16 @@ impl ExecutionStorage {
             Some(owner) => owner,
             None => self.acquire(cycle, execution).await?,
         };
-        let frozen = Arc::new(execution.clone());
+        // The Caller's Execution Is The Frozen Input; The Owner's Copy May Lag Behind It.
+        let (frozen, execution_owner) = {
+            let acquisition = owner.lock().await;
+            validate_identity(&acquisition, execution)?;
+            if **acquisition.execution_owner.as_ref() == *execution {
+                (acquisition.execution_owner.as_ref().clone(), acquisition.execution_owner.clone())
+            } else {
+                retained_execution(execution)?
+            }
+        };
         if !self.storage.cursor_saved().covers(at)? {
             return Err(invalid("report cursor is not durable"));
         }
@@ -374,18 +388,39 @@ impl ExecutionStorage {
             // A Final Report Seals Every Settled Output; Settlement May Follow The Evidence Cut.
             let pending =
                 |output: &ExecutionOutput| -> harmos::Result<bool> { Ok(!final_report && !report_boundary.covers(&output.file.position)?) };
-            let mut unavailable_outputs = Vec::new();
-            let mut included = Vec::with_capacity(outputs.len());
+            let mut included_count = 0usize;
+            let mut unavailable_count = 0usize;
             for output in outputs.iter() {
                 if pending(output)? {
-                    unavailable_outputs.push(output.relative_path.clone());
+                    unavailable_count = unavailable_count.checked_add(1).ok_or_else(|| invalid("unavailable output count overflows"))?;
                 } else {
-                    included.push(output.clone());
+                    included_count = included_count.checked_add(1).ok_or_else(|| invalid("included output count overflows"))?;
                 }
             }
+            let included = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
+                let mut included = Vec::new();
+                included.try_reserve_exact(included_count).map_err(|_| invalid("included output allocation failed"))?;
+                for output in outputs.iter() {
+                    if !pending(output)? {
+                        included.push(output.clone());
+                    }
+                }
+                Ok(included)
+            })?;
+            let unavailable_outputs = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
+                let mut unavailable = Vec::new();
+                unavailable.try_reserve_exact(unavailable_count).map_err(|_| invalid("unavailable output allocation failed"))?;
+                for output in outputs.iter() {
+                    if pending(output)? {
+                        unavailable.push(output.relative_path.clone());
+                    }
+                }
+                Ok(unavailable)
+            })?;
             // Freeze Evidence While This Owner Still Excludes New Admissions.
             Ok::<_, Error>(CaptureInputs {
                 execution: frozen,
+                _execution_owner: execution_owner,
                 lifecycle_id,
                 anchor,
                 outputs: Arc::new(included),
@@ -414,12 +449,13 @@ impl ExecutionStorage {
         {
             return Err(invalid("report lifecycle must be terminal and unsealed"));
         }
-        let execution = Arc::new(execution.clone());
+        let (execution, execution_owner) = retained_execution(execution)?;
         // Saving Survives Caller Cancellation So A Started Freeze Always Settles.
         tokio::spawn(async move {
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
             let mut acquisition = owner.lock().await;
+            acquisition.execution_owner = execution_owner;
             validate_identity(&acquisition, &execution)?;
             if acquisition.finalizing.as_ref().is_some_and(|frozen| **frozen != *execution) {
                 return Err(invalid("report lifecycle differs from its frozen input"));
@@ -431,15 +467,17 @@ impl ExecutionStorage {
         .map_err(|source| Error::Join { source })?
     }
 
-    pub(crate) async fn frozen_execution(&self, revision: &ExecutionRevision) -> Result<TestExecution> {
+    pub(crate) async fn frozen_execution(
+        &self, session: &crate::storage::Manager, revision: &ExecutionRevision,
+    ) -> Result<FrozenExecution> {
         if let Some(owner) = self.acquisition(&revision.execution_id).await {
             let acquisition = owner.lock().await;
             if acquisition.working.as_deref() == Some(revision) && acquisition.pending.is_none() {
-                return Ok((*acquisition.execution).clone());
+                return Ok(FrozenExecution::Live(acquisition.execution.clone()));
             }
         }
         let stored = crate::storage::objects::execution::read(
-            &self.storage,
+            session,
             &revision.execution_id,
             harmos::storage::ObjectVersion::Exact(revision.version.clone()),
         )
@@ -448,7 +486,7 @@ impl ExecutionStorage {
         if stored.position != revision.position || stored.value.test_execution_id != revision.execution_id || stored.value.saved.is_some() {
             return Err(invalid("report lifecycle revision differs from its reference"));
         }
-        Ok(stored.value)
+        Ok(FrozenExecution::Saved(stored))
     }
 
     pub(crate) async fn adopt_revision(&self, execution: &TestExecution, revision: &ExecutionRevision) -> Result<()> {
@@ -469,15 +507,23 @@ impl ExecutionStorage {
             .read_object::<Execution>(revision.execution_id.as_str(), harmos::storage::ObjectVersion::Exact(revision.version.clone()))
             .await?
             .ok_or_else(|| invalid("report lifecycle revision is missing"))?;
-        if revision.execution_id != execution.test_execution_id
-            || stored.position != revision.position
-            || stored.version != revision.version
-            || stored.value != Execution::try_from(execution)?
-            || acquisition.pending.is_some()
-        {
+        let same_revision = revision.execution_id == execution.test_execution_id
+            && stored.position == revision.position
+            && stored.version == revision.version;
+        if !same_revision || acquisition.pending.is_some() {
             return Err(invalid("capture differs from immutable lifecycle intent"));
         }
-        acquisition.execution = Arc::new(execution.clone());
+
+        let native = Execution::try_from(execution)?;
+        if stored.value != native {
+            return Err(invalid("capture differs from immutable lifecycle intent"));
+        }
+        drop(native);
+        drop(stored);
+
+        let (execution, execution_owner) = retained_execution(execution)?;
+        acquisition.execution = execution;
+        acquisition.execution_owner = execution_owner;
         acquisition.working = Some(Arc::new(revision.clone()));
         Ok(())
     }
@@ -548,7 +594,8 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn checkpoint_targets(self: &Arc<Self>, cycle: &CycleView, targets: &[TestExecutionId]) -> Result<()> {
-        if cycle.test_executions.len() > MAX_ACTIVE_OWNERS || targets.len() > MAX_ACTIVE_OWNERS {
+        let maximum = 10_000;
+        if cycle.test_executions.len() > maximum || targets.len() > maximum {
             return Err(invalid("execution checkpoint fanout exceeds its source bound"));
         }
         let mut members = BTreeMap::new();
@@ -586,13 +633,14 @@ impl ExecutionStorage {
                         if current.saved.is_some() || acquisition.finalizing.as_ref().is_some_and(|frozen| **frozen != *current) {
                             return Err(invalid("execution checkpoint changed its frozen ownership"));
                         }
-                        Ok(Arc::new(current.clone()))
+                        retained_execution(current)
                     })
                     .await
                     .map_err(Error::Harmos)?;
-                let current = observed.value?;
+                let (current, current_owner) = observed.value?;
                 if *acquisition.execution != *current || acquisition.working.is_none() {
                     acquisition.execution = current;
+                    acquisition.execution_owner = current_owner;
                     save_working_revision(&mut acquisition).await?;
                 }
                 acquisition.observed_at = Some(observed.position);
@@ -604,14 +652,13 @@ impl ExecutionStorage {
         Ok(())
     }
 
-    pub(crate) fn active_ids(&self) -> Result<Vec<TestExecutionId>> {
+    pub(crate) fn with_active_membership<T>(&self, inspect: impl FnOnce(&dyn Fn(&TestExecutionId) -> bool) -> Result<T>) -> Result<T> {
         let active = self
             .active
             .try_lock()
             .map_err(|_| Error::Harmos(harmos::Error::ResourceExhausted { resource: "active execution inventory registry busy" }))?;
-        Ok(active.keys().cloned().collect())
+        inspect(&|id| active.contains_key(id))
     }
-
     pub(crate) async fn acquire(&self, cycle: &CycleView, execution: &TestExecution) -> Result<Arc<Mutex<Acquisition>>> {
         validate_owner(cycle, execution)?;
         if execution.saved.is_some() {
@@ -621,12 +668,13 @@ impl ExecutionStorage {
             validate_existing(&*owner.lock().await, execution)?;
             return Ok(owner);
         }
-        let frozen = Arc::new(execution.clone());
+        let (frozen, execution_owner) = retained_execution(execution)?;
         let id = execution.test_execution_id.clone();
         let owner = Arc::new(Mutex::new(Acquisition {
             storage: self.storage.clone(),
             execution_id: id.clone(),
             execution: frozen,
+            execution_owner,
             gate: Arc::new(Mutex::new(())),
             materialization_gate: Arc::new(Mutex::new(())),
             finish_requested: false,
@@ -668,6 +716,16 @@ impl ExecutionStorage {
 
 /* === Private Functions === */
 
+fn retained_execution(execution: &TestExecution) -> Result<(Arc<TestExecution>, ReadBatch<Arc<TestExecution>>)> {
+    let owner = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Arc::new(execution.clone())))?;
+    let value = owner.as_ref().clone();
+    Ok((value, owner))
+}
+
+fn retain_seal(seal: &ExecutionSeal) -> Result<ReadBatch<ExecutionSeal>> {
+    harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(seal.clone()))
+}
+
 fn validate_report(
     acquisition: &Acquisition, inspection: &super::execution::ExecutionView, prepared: &PreparedExecutionReport,
 ) -> Result<()> {
@@ -690,7 +748,7 @@ fn validate_report(
         || captured.telemetry_contracts != source.telemetry_contracts
         || captured.record_contracts != source.record_contracts
         || source.outputs.iter().any(|output| !outputs.contains(output))
-        || prepared.settled_outputs().as_slice() != source.outputs.as_slice()
+        || prepared.settled_outputs() != source.outputs.as_slice()
         || captured.input.cycle.test_executions.as_slice() != std::slice::from_ref(&**terminal)
         || inspection.execution() != &**terminal
         || *acquisition.execution != **terminal
@@ -705,12 +763,12 @@ async fn publish_final(
     inspection: super::execution::ExecutionView, sealed_at: &Timestamp,
 ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
     let revision = acquisition.working.as_ref().ok_or_else(|| invalid("publication has no real native revision"))?;
-    let seal = prepared.save_dependencies(&acquisition.storage, ctx, sealed_at, revision).await?;
+    let seal = prepared.save_dependencies(&acquisition.storage, sealed_at, revision).await?;
     let captured = prepared.captured_input();
     if seal.source.execution.execution_id != captured.execution_id
         || seal.source.owner_node_id != captured.owner_node_id
         || seal.source.evidence_through != captured.evidence_through
-        || seal.source.outputs.as_slice() != prepared.settled_outputs().as_slice()
+        || seal.source.outputs.as_slice() != prepared.settled_outputs()
     {
         return Err(invalid("saved report dependencies differ from their input"));
     }
@@ -728,15 +786,15 @@ async fn publish_final(
             inputs: std::slice::from_ref(&seal.source.context),
             file: &seal.report,
         },
+        &ctx.scope().resources::<crate::app::Dokime>().schema_settings,
     )?
     .finish()
     .await?;
     let report = seal.report.clone();
     acquisition.published = Some(PublishedReport {
         seal: Arc::new(seal),
-        inspection,
+        anchor: inspection.captured_source().and_then(|source| source.execution.clone()),
         appearance: captured.context.appearance.clone(),
-        input: captured.clone(),
     });
     Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
 }
@@ -747,18 +805,19 @@ async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevisi
     }
     // A Reopened Cycle Rebuilds This Report From Its Captured Anchor; Only
     // Revisions Before That Anchor Become Stale Once The Seal Is Saved.
-    let anchor = acquisition
-        .published
-        .as_ref()
-        .and_then(|published| published.inspection.captured_source())
-        .and_then(|source| source.execution.clone());
+    let anchor = acquisition.published.as_ref().and_then(|published| published.anchor.clone());
     if acquisition.pending.is_none() {
         let seal = acquisition.published.as_ref().ok_or_else(|| invalid("seal requires a published final report"))?.seal.clone();
         let terminal = acquisition.finalizing.as_ref().ok_or_else(|| invalid("seal has no frozen terminal execution"))?;
-        let mut sealed = (**terminal).clone();
-        sealed.saved = Some((*seal).clone());
+        let sealed_owner = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
+            let mut sealed = (**terminal).clone();
+            sealed.saved = Some((*seal).clone());
+            Ok(Arc::new(sealed))
+        })?;
+        let sealed = sealed_owner.as_ref().clone();
+        acquisition.execution_owner = sealed_owner;
         // Keep The Mutable Head Unsealed Until This Exact Pending Admission Is Saved
-        acquisition.pending = Some(PendingRevision { execution: Arc::new(sealed), receipt: None });
+        acquisition.pending = Some(PendingRevision { execution: sealed, receipt: None });
     }
     save_working_revision(acquisition).await?;
     if let Some(anchor) = anchor {
@@ -775,7 +834,9 @@ async fn release_before(storage: &Manager, anchor: &ExecutionRevision) -> Result
         return Ok(());
     };
     let schema = <ObjectDefinitions as Member<Execution>>::ENTRY.schema()?;
-    let key = ObjectKey::new(anchor.execution_id.as_str(), std::num::NonZeroUsize::new(1024).unwrap())?;
+    let key_bytes =
+        std::num::NonZeroUsize::new(anchor.execution_id.as_str().len()).ok_or_else(|| invalid("execution identity is empty"))?;
+    let key = ObjectKey::new(anchor.execution_id.as_str(), key_bytes)?;
     let through = StorageCursor { history: anchor.position.history.clone(), sequence: predecessor };
     storage.release_object_history(&schema, &key, &through).await?;
     Ok(())
@@ -790,11 +851,7 @@ fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionR
         && let Some(published) = &acquisition.published
     {
         let file = &acquisition.execution.saved.as_ref().expect("saved original seal").source.context;
-        acquisition.cycle_context = Some(Arc::new(CycleMemberContext {
-            context: file.clone(),
-            appearance: published.appearance.clone(),
-            input: published.input.clone(),
-        }));
+        acquisition.cycle_context = Some(Arc::new(CycleMemberContext { context: file.clone(), appearance: published.appearance.clone() }));
     }
     acquisition.published = None;
     acquisition.finalizing = None;
@@ -820,8 +877,11 @@ async fn bind_publication_revision(acquisition: &mut Acquisition, execution: &Te
     if acquisition.execution.saved.is_some() {
         return Err(invalid("cannot replace a sealed execution"));
     }
+    validate_identity(acquisition, execution)?;
     if *acquisition.execution != *execution || acquisition.working.is_none() {
-        acquisition.execution = Arc::new(execution.clone());
+        let (frozen, execution_owner) = retained_execution(execution)?;
+        acquisition.execution = frozen;
+        acquisition.execution_owner = execution_owner;
         save_working_revision(acquisition).await?;
     }
     Ok(())
@@ -831,6 +891,7 @@ async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
     if acquisition.pending.is_none() {
         acquisition.pending = Some(PendingRevision { execution: acquisition.execution.clone(), receipt: None });
     }
+
     let pending = acquisition.pending.as_mut().expect("original execution save retained");
     if pending.receipt.is_none() {
         if acquisition.storage.status().failure.is_some() {
@@ -848,6 +909,7 @@ async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
         let receipts = [receipt];
         pending.receipt = receipts.into_iter().next();
     }
+
     let receipt = pending.receipt.as_ref().expect("original execution receipt retained");
     receipt.version.check_position(&receipt.position)?;
     let saved = acquisition.storage.flush_until(&receipt.position).await?;

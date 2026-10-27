@@ -108,7 +108,6 @@ pub struct TelemetrySchema {
     pub owner_suite_id: Option<String>,
     pub columns: Vec<TelemetryColumn>,
     pub default_x: Option<String>,
-    pub plot_window_ms: Option<u64>,
     pub allow_extra_fields: bool,
     pub scalar: bool,
     pub validation_mode: Option<ValidationMode>,

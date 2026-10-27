@@ -30,8 +30,6 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-const SECRET_READ_TIMEOUT: Duration = Duration::from_secs(5);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -45,19 +43,20 @@ const SECRET_READ_TIMEOUT: Duration = Duration::from_secs(5);
 /* === Implementations === */
 
 impl RuntimeHandle {
-    pub(crate) fn settings_snapshot(&self, plugin: &InstalledPlugin) -> Result<SettingValues> {
-        self.resolved_settings(plugin).map(|resolved| resolved.0)
+    pub(crate) async fn settings_snapshot(&self, plugin: &InstalledPlugin) -> Result<SettingValues> {
+        self.resolved_settings(plugin).await.map(|resolved| resolved.0)
     }
 
-    fn resolved_settings(&self, plugin: &InstalledPlugin) -> Result<(SettingValues, std::collections::BTreeSet<String>)> {
+    async fn resolved_settings(&self, plugin: &InstalledPlugin) -> Result<(SettingValues, std::collections::BTreeSet<String>)> {
         self.plugin_preferences()
             .read(&Identifier::new(&plugin.source).map_err(operation)?, &plugin.settings, &self.secret_store())
+            .await
             .map(|resolved| (resolved.values, resolved.saved))
             .map_err(operation)
     }
 
     pub(crate) async fn plugin_initialization(&self, plugin: &InstalledPlugin, configured: &serde_json::Value) -> Result<Configuration> {
-        let (mut settings, mut saved) = self.resolved_settings(plugin)?;
+        let (mut settings, mut saved) = self.resolved_settings(plugin).await?;
 
         apply_configured_settings(plugin, configured, &mut settings, &mut saved)?;
 
@@ -67,7 +66,7 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn resolve_secrets(&self, catalog: &Settings, values: &SettingValues) -> Result<BTreeMap<String, Option<String>>> {
-        resolved_secrets(catalog, values, &self.secret_store()).await
+        resolved_secrets(catalog, values, &self.secret_store(), Duration::from_secs(5)).await
     }
 }
 
@@ -75,7 +74,9 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-async fn resolved_secrets(catalog: &Settings, values: &SettingValues, store: &SecretStore) -> Result<BTreeMap<String, Option<String>>> {
+async fn resolved_secrets(
+    catalog: &Settings, values: &SettingValues, store: &SecretStore, timeout: Duration,
+) -> Result<BTreeMap<String, Option<String>>> {
     let mut secrets = BTreeMap::new();
     for definition in catalog.secrets() {
         let reference = values.get(&definition.id).map(SecretReference::try_from).transpose().map_err(operation)?;
@@ -87,7 +88,7 @@ async fn resolved_secrets(catalog: &Settings, values: &SettingValues, store: &Se
                     return Err(Error::Operation(format!("secret setting {:?} references a non-text environment value", definition.id)));
                 }
             },
-            Some(SecretReference::StoredSecret { secret_id }) => read_stored_secret(store, &definition.id, &secret_id).await?,
+            Some(SecretReference::StoredSecret { secret_id }) => read_stored_secret(store, &definition.id, &secret_id, timeout).await?,
             None => None,
         };
         secrets.insert(definition.id.clone(), secret);
@@ -119,22 +120,18 @@ fn apply_configured_settings(
     skip(secrets),
     fields(setting_id = %setting_id, secret_id = %secret_id)
 )]
-async fn read_stored_secret(secrets: &SecretStore, setting_id: &str, secret_id: &str) -> Result<Option<String>> {
+async fn read_stored_secret(secrets: &SecretStore, setting_id: &str, secret_id: &str, timeout: Duration) -> Result<Option<String>> {
     let secrets = secrets.clone();
     let secret_id = secret_id.to_owned();
-    let read = tokio::task::spawn_blocking(move || secrets.get_secret(&secret_id));
-    match tokio::time::timeout(SECRET_READ_TIMEOUT, read).await {
-        Ok(Ok(Ok(secret))) => Ok(secret.map(|secret| secret.expose().to_owned())),
-        Ok(Ok(Err(_backend_error))) => {
+    let read = secrets.get_secret(&secret_id);
+    match tokio::time::timeout(timeout, read).await {
+        Ok(Ok(secret)) => Ok(secret.map(|secret| secret.expose().to_owned())),
+        Ok(Err(_backend_error)) => {
             Err(Error::Operation(format!("secret setting {setting_id:?} could not be resolved from secret storage")))
         }
-        Ok(Err(join_error)) => Err(Error::Operation(format!(
-            "secret setting {setting_id:?} could not be resolved from secret storage: \
-             the lookup task failed ({join_error})"
-        ))),
         Err(_elapsed) => Err(Error::Operation(format!(
             "secret setting {setting_id:?} could not be resolved from secret storage: \
-             timed out after {SECRET_READ_TIMEOUT:?}"
+             timed out after {timeout:?}"
         ))),
     }
 }

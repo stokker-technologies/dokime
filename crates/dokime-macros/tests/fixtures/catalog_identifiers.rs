@@ -178,7 +178,7 @@ impl sdk::Plugin for Plugin {
     type Context = sdk::Supervisor;
     type Resources = ();
 
-    fn prepare(_: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
+    fn prepare(config: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
         Ok(Self)
     }
 

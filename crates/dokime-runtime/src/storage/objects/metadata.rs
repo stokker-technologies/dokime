@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::MemorySize;
@@ -86,8 +85,6 @@ impl TryFrom<Row> for Metadata {
     type Error = Error;
 
     fn try_from(value: Row) -> Result<Self> {
-        let bound = value.projection_memory()?;
-        let allowance = NonZeroUsize::new(bound).ok_or(Error::Invalid("metadata projection is empty"))?;
         // Tags Remain In Authored Order
         let mut tags = Vec::new();
         tags.try_reserve_exact(value.tags.len()).map_err(|_| Error::Invalid("metadata tag allocation failed"))?;
@@ -103,7 +100,7 @@ impl TryFrom<Row> for Metadata {
             label: value.label,
             description: value.description,
             tags: value.tags,
-            attributes: values::decode_owned(value.attributes, allowance)?,
+            attributes: values::decode_owned(value.attributes)?,
             created_at: value.created_at.map(|at| Timestamp::new(at).to_datetime()).transpose()?,
             updated_at: value.updated_at.map(|at| Timestamp::new(at).to_datetime()).transpose()?,
         })
@@ -131,6 +128,9 @@ impl Row {
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
+        for timestamp in [self.created_at.as_deref(), self.updated_at.as_deref()].into_iter().flatten() {
+            values::validate_datetime(timestamp)?;
+        }
         let attributes = values::owned_memory(&self.attributes)?;
         if attributes == usize::MAX {
             return Ok(usize::MAX);

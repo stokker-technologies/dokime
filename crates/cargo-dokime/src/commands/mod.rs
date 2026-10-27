@@ -37,6 +37,8 @@ mod package;
 
 #[derive(clap::Subcommand)]
 pub enum Command {
+    #[command(name = "__desktop-development", hide = true)]
+    DesktopDevelopment(dev::desktop::Args),
     New(new::Args),
     Build(Box<build::Args>),
     Package(package::Args),
@@ -52,6 +54,7 @@ impl Command {
     #[tracing::instrument(level = "debug", skip_all)]
     pub async fn run(self) -> Result<(), crate::error::Error> {
         match self {
+            Self::DesktopDevelopment(args) => dev::desktop::run(args).await,
             Self::New(args) => new::run(args),
             Self::Build(args) => build::run(*args).await,
             Self::Package(args) => package::run(args).await,

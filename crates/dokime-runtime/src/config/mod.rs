@@ -10,27 +10,40 @@
 /* === Modules === */
 
 mod application;
+
+#[cfg(feature = "host")]
 mod launch;
+
 pub mod organization;
-pub(crate) mod policy;
+
+#[cfg(feature = "host")]
 mod runtime;
+
+#[cfg(feature = "host")]
 mod settings;
+
+mod storage;
+
+#[cfg(feature = "host")]
 mod view;
 
 /* === Re-Exports === */
 
 pub use crate::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID};
-pub use crate::runtime::storage::config::storage_defaults;
 pub use application::ApplicationOptions;
 pub use harmos::storage::StorageSettings;
+#[cfg(feature = "host")]
 pub use launch::Config;
-pub use policy::{StoragePolicy, StoragePolicyView};
-pub use runtime::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
-pub use settings::{Appearance, Density, ReportDefaults, Settings, SettingsDocument, ThemeMode};
-pub use view::ApplicationSettingsView;
 
-#[cfg(test)]
-pub(crate) use view::MAX_PLOT_POINTS;
+#[cfg(feature = "host")]
+pub use runtime::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
+
+#[cfg(feature = "host")]
+pub use settings::{ApplicationMetadata, Settings};
+
+pub use dokime_domain::model::settings::{Appearance, Density, ReportDefaults, ThemeMode};
+
+pub use storage::{managed_storage_defaults, storage_defaults, storage_state_defaults};
 
 /* === Imports === */
 

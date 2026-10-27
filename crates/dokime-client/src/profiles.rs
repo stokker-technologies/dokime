@@ -25,39 +25,24 @@ use std::{
 };
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+pub use dokime_domain::model::backends::{Document, Profile, Secret};
 
 // Local Imports
 use super::{Target, secrets::SecretStore};
 
 /* === Constants === */
 
-pub const MAX_BYTES: usize = 1024 * 1024;
-const MAX_PROFILES: usize = 128;
+const CA_BYTES: u64 = 1_048_576;
+const PROFILE_BYTES: u64 = 1_048_576;
+const PROFILE_ID_BYTES: u64 = 256;
+const PROFILE_NAME_BYTES: u64 = 64;
+const PROFILES: u64 = 128;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Profile {
-    pub name: String,
-    pub endpoint: String,
-    pub expected_backend_id: Option<String>,
-    pub ca_certificate_pem: Option<String>,
-    pub secret: Secret,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Document {
-    pub version: u8,
-    pub default: Option<String>,
-    pub profiles: Vec<Profile>,
-}
 
 // A configuration file. Reading and selection never create files or connect.
 pub struct Store {
@@ -72,13 +57,6 @@ pub struct Selection {
 }
 
 /* === Enums === */
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Secret {
-    None,
-    Keyring,
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -102,85 +80,83 @@ pub enum Error {
 
 /* === Implementations === */
 
-impl Default for Document {
-    fn default() -> Self {
-        Self { version: 1, default: None, profiles: Vec::new() }
+pub fn decode(bytes: &[u8]) -> Result<Document, Error> {
+    if bytes.len() as u64 > PROFILE_BYTES {
+        return Err(invalid("file exceeds the configured profile byte limit"));
     }
+    let document: Document = serde_json::from_slice(bytes).map_err(|_| invalid("file does not match the version 1 profile schema"))?;
+    validate(&document)?;
+    Ok(document)
 }
 
-impl Document {
-    pub fn decode(bytes: &[u8]) -> Result<Self, Error> {
-        if bytes.len() > MAX_BYTES {
-            return Err(invalid("file exceeds 1 MiB"));
-        }
-        let document: Self = serde_json::from_slice(bytes).map_err(|_| invalid("file does not match the version 1 profile schema"))?;
-        document.validate()?;
-        Ok(document)
+pub fn encode(document: &Document) -> Result<Vec<u8>, Error> {
+    validate(document)?;
+    let bytes = serde_json::to_vec_pretty(document).map_err(|_| invalid("cannot encode profile document"))?;
+    if bytes.len() as u64 > PROFILE_BYTES {
+        return Err(invalid("file exceeds the configured profile byte limit"));
     }
-
-    pub fn encode(&self) -> Result<Vec<u8>, Error> {
-        self.validate()?;
-        let bytes = serde_json::to_vec_pretty(self).map_err(|_| invalid("cannot encode profile document"))?;
-        if bytes.len() > MAX_BYTES {
-            return Err(invalid("file exceeds 1 MiB"));
-        }
-        Ok(bytes)
-    }
-
-    pub fn validate(&self) -> Result<(), Error> {
-        if self.version != 1 || self.profiles.len() > MAX_PROFILES {
-            return Err(invalid("unsupported version or too many profiles"));
-        }
-        let mut names = BTreeSet::new();
-        for profile in &self.profiles {
-            if !names.insert(&profile.name) {
-                return Err(invalid("duplicate profile name"));
-            }
-            profile.selection()?;
-        }
-        if let Some(name) = &self.default {
-            self.get(name)?;
-        }
-        Ok(())
-    }
-
-    pub fn get(&self, name: &str) -> Result<&Profile, Error> {
-        validate_name(name)?;
-        self.profiles.iter().find(|profile| profile.name == name).ok_or_else(|| invalid("requested profile does not exist"))
-    }
-
-    // Selection happens once; subsequent default edits cannot alter a connection.
-    pub fn select(&self, backend: Option<&str>, endpoint: Option<&str>, environment: Option<&str>) -> Result<Selection, Error> {
-        if backend.is_some() && endpoint.is_some() {
-            return Err(invalid("backend and endpoint are mutually exclusive"));
-        }
-        if let Some(endpoint) = endpoint {
-            let target = Target::new(endpoint, None).map_err(|_| invalid("invalid endpoint"))?;
-            return Ok(Selection { name: None, target, expected_backend_id: None, secret: Secret::None });
-        }
-        let name =
-            backend.or(environment).or(self.default.as_deref()).ok_or_else(|| invalid("select a backend profile or explicit endpoint"))?;
-        self.get(name)?.selection()
-    }
+    Ok(bytes)
 }
 
-impl Profile {
-    pub fn selection(&self) -> Result<Selection, Error> {
-        validate_name(&self.name)?;
-        if let Some(identity) = &self.expected_backend_id
-            && (identity.is_empty() || identity.len() > 256 || identity.chars().any(char::is_control))
-        {
-            return Err(invalid("invalid expected backend identity"));
-        }
-        if let Some(ca) = &self.ca_certificate_pem
-            && (ca.is_empty() || ca.len() > MAX_BYTES || ca.contains('\0'))
-        {
-            return Err(invalid("invalid CA certificate"));
-        }
-        let target = Target::new(&self.endpoint, self.ca_certificate_pem.clone())
-            .map_err(|_| invalid("invalid endpoint or CA certificate association"))?;
-        Ok(Selection { name: Some(self.name.clone()), target, expected_backend_id: self.expected_backend_id.clone(), secret: self.secret })
+pub fn validate(document: &Document) -> Result<(), Error> {
+    if document.version != 1 || document.profiles.len() as u64 > PROFILES {
+        return Err(invalid("unsupported version or too many profiles"));
     }
+    let mut names = BTreeSet::new();
+    for profile in &document.profiles {
+        if !names.insert(&profile.name) {
+            return Err(invalid("duplicate profile name"));
+        }
+        selection(profile)?;
+    }
+    if let Some(name) = &document.default {
+        get(document, name)?;
+    }
+    Ok(())
+}
+
+pub fn get<'a>(document: &'a Document, name: &str) -> Result<&'a Profile, Error> {
+    validate_name(name)?;
+    document.profiles.iter().find(|profile| profile.name == name).ok_or_else(|| invalid("requested profile does not exist"))
+}
+
+// Selection happens once; subsequent default edits cannot alter a connection.
+pub fn select(document: &Document, backend: Option<&str>, endpoint: Option<&str>, environment: Option<&str>) -> Result<Selection, Error> {
+    if backend.is_some() && endpoint.is_some() {
+        return Err(invalid("backend and endpoint are mutually exclusive"));
+    }
+    if let Some(endpoint) = endpoint {
+        let target = Target::new(endpoint, None).map_err(|_| invalid("invalid endpoint"))?;
+        return Ok(Selection { name: None, target, expected_backend_id: None, secret: Secret::None });
+    }
+    let name =
+        backend.or(environment).or(document.default.as_deref()).ok_or_else(|| invalid("select a backend profile or explicit endpoint"))?;
+    selection(get(document, name)?)
+}
+
+pub fn selection(profile: &Profile) -> Result<Selection, Error> {
+    validate_name(&profile.name)?;
+    if profile.name.len() as u64 > PROFILE_NAME_BYTES {
+        return Err(invalid("profile name exceeds the configured byte limit"));
+    }
+    if let Some(identity) = &profile.expected_backend_id
+        && (identity.is_empty() || identity.len() as u64 > PROFILE_ID_BYTES || identity.chars().any(char::is_control))
+    {
+        return Err(invalid("invalid expected backend identity"));
+    }
+    if let Some(ca) = &profile.ca_certificate_pem
+        && (ca.is_empty() || ca.len() as u64 > CA_BYTES || ca.contains('\0'))
+    {
+        return Err(invalid("invalid CA certificate"));
+    }
+    let target = Target::new(&profile.endpoint, profile.ca_certificate_pem.clone())
+        .map_err(|_| invalid("invalid endpoint or CA certificate association"))?;
+    Ok(Selection {
+        name: Some(profile.name.clone()),
+        target,
+        expected_backend_id: profile.expected_backend_id.clone(),
+        secret: profile.secret,
+    })
 }
 
 impl Store {
@@ -226,8 +202,9 @@ impl Store {
 
     pub fn load(&self) -> Result<Document, Error> {
         self.parent()?;
-        match harmos::filesystem::input::read(&self.path, MAX_BYTES) {
-            Ok(bytes) => Document::decode(&bytes),
+
+        match harmos::filesystem::input::read(&self.path, PROFILE_BYTES as usize) {
+            Ok(bytes) => decode(&bytes),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Document::default()),
             Err(error) => Err(error.into()),
         }
@@ -239,14 +216,16 @@ impl Store {
     pub fn remember(&self, selection: &Selection, token: &str, secrets: &dyn SecretStore) -> Result<(), Error> {
         let name = selection.name.as_deref().ok_or_else(|| invalid("a named profile is required"))?;
         self.update(|document| {
-            let current = document.get(name)?.selection()?;
-            if current.target != selection.target || current.expected_backend_id != selection.expected_backend_id {
+            let current = self::selection(get(document, name)?)?;
+            if current.target.with_settings(*selection.target.settings()) != selection.target
+                || current.expected_backend_id != selection.expected_backend_id
+            {
                 return Err(invalid("profile target changed during login; retry explicitly"));
             }
             let profile = document.profiles.iter_mut().find(|profile| profile.name == name).expect("validated profile exists");
             profile.secret = Secret::Keyring;
             // Refuse Schema And Capacity Failures Before Saving A Secret.
-            document.encode()?;
+            encode(document)?;
             secrets.write(selection.target.endpoint(), token)?;
             Ok(())
         })
@@ -267,7 +246,7 @@ impl Store {
         }
         let mut document = self.load()?;
         let result = edit(&mut document)?;
-        let bytes = document.encode()?;
+        let bytes = encode(&document)?;
         harmos::filesystem::publication::write(&self.path, &bytes)?;
         Ok(result)
     }
@@ -282,8 +261,8 @@ fn invalid(message: &str) -> Error {
 }
 
 fn validate_name(name: &str) -> Result<(), Error> {
-    if name.is_empty() || name.len() > 64 || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')) {
-        return Err(invalid("profile names require 1–64 ASCII letters, digits, dots, underscores or hyphens"));
+    if name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')) {
+        return Err(invalid("profile names require ASCII letters, digits, dots, underscores or hyphens"));
     }
     Ok(())
 }

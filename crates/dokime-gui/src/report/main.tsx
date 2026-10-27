@@ -15,15 +15,11 @@ import { createRoot, type Root } from "react-dom/client";
 /* === Local Imports === */
 
 import { BrandProvider, defaultBrand } from "@/lib/brand";
-import { ReportApp } from "./ReportApp";
 import { applyReportAppearance } from "./report-appearance";
-import { readReportPayload } from "./report-data";
+
 import "../styles.css";
 
 /* === Constants === */
-
-const payload = readReportPayload();
-const brand = applyReportAppearance(payload.appearance);
 
 declare global {
   interface Window {
@@ -47,10 +43,21 @@ function reportRoot(): Root {
 
 const root = reportRoot();
 
-root.render(
-  <StrictMode>
-    <BrandProvider brand={brand}>
-      <ReportApp payload={payload} />
-    </BrandProvider>
-  </StrictMode>,
-);
+async function start(): Promise<void> {
+  const text = document.getElementById("hub-report-data")?.textContent?.trim();
+  if (!text) throw new Error("Report data is unavailable.");
+  const [{ readReportPayload }, { ReportApp }] = await Promise.all([import("./report-data"), import("./ReportApp")]);
+  const payload = readReportPayload();
+  const brand = applyReportAppearance(payload.appearance);
+  root.render(
+    <StrictMode>
+      <BrandProvider brand={brand}>
+        <ReportApp payload={payload} />
+      </BrandProvider>
+    </StrictMode>,
+  );
+}
+
+void start().catch((error: unknown) => {
+  root.render(<p role="alert">{error instanceof Error ? error.message : String(error)}</p>);
+});

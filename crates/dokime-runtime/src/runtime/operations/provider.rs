@@ -419,6 +419,7 @@ async fn run_provider_cycle(
         }
     }
     let summary = runtime.state_read().run_requests[&request_id].summary.clone();
+
     runtime
         .request_storage
         .update(&request_id, |receipt| receipt.summary = summary)
@@ -480,6 +481,7 @@ async fn prepare_attempts(
             return Ok(());
         };
         let ordinal = summary.prepared;
+
         runtime
             .request_storage
             .update(request_id, |receipt| {
@@ -513,6 +515,7 @@ async fn prepare_attempts(
             .await
             .map_err(|error| ProviderExecutionFailure::new("storage", error.to_string()))?;
         let summary = runtime.state_read().run_requests[request_id].summary.clone();
+
         runtime
             .request_storage
             .update(request_id, |receipt| receipt.summary = summary)
@@ -572,6 +575,7 @@ async fn submit_finish_provider_cycle(
         );
     }
     let finish = crate::execution_runtime::provider_finish::Finish {
+        installed_plugin_errors: 100,
         request_id: dokime_domain::model::identity::CommandId::from_uuid(&job.request_id).expect("journaled request identity is valid"),
         test_cycle_id,
         target,
@@ -584,7 +588,7 @@ async fn submit_finish_provider_cycle(
     let published = runtime.finish_provider_cycle(finish).await;
     tracing::debug!(request_id = %job.request_id, cycle_id = %job.test_cycle_id, phase = "terminal_publication", elapsed_ms = %publishing.elapsed().as_millis(), succeeded = published.is_ok(), "provider monitor terminal publication finished");
     if let Err(error) = published {
-        tracing::error!(?error, storage_read_bytes = runtime.storage().status().read_bytes, "failed to record terminal provider state");
+        tracing::error!(?error, "failed to record terminal provider state");
         runtime.provider_completion_failure.lock().expect("provider completion failure lock poisoned").get_or_insert_with(|| {
             PublicationFailure {
                 request_id: dokime_domain::model::identity::CommandId::from_uuid(&job.request_id).expect("journaled request ID is valid"),

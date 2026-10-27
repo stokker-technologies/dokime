@@ -61,8 +61,9 @@ struct Collecting {
     task: tokio::task::JoinHandle<std::result::Result<Option<TelemetryBatch>, String>>,
     stream: String,
     at: Timestamp,
-    deadline: tokio::time::Instant,
+    timeout: std::pin::Pin<Box<tokio::time::Sleep>>,
     expired: bool,
+    aborting: bool,
 }
 
 /* === Enums === */
@@ -98,29 +99,40 @@ impl Sampler for HostSampler {
 impl HostSamplerSession {
     fn reap(&mut self) {
         let mut context = std::task::Context::from_waker(std::task::Waker::noop());
-        let now = tokio::time::Instant::now();
+        let _ = self.poll_tasks(&mut context);
+    }
+
+    fn poll_tasks(&mut self, context: &mut std::task::Context<'_>) -> std::task::Poll<()> {
+        let mut completed = false;
         let mut index = 0;
         while index < self.tasks.len() {
             let pending = &mut self.tasks[index];
-            let result = std::future::Future::poll(std::pin::Pin::new(&mut pending.task), &mut context);
+            let result = std::future::Future::poll(std::pin::Pin::new(&mut pending.task), context);
             let std::task::Poll::Ready(result) = result else {
-                if !pending.expired && now >= pending.deadline {
+                if !pending.expired && std::future::Future::poll(pending.timeout.as_mut(), context).is_ready() {
                     pending.expired = true;
                     let stream = pending.stream.clone();
                     self.refuse(&stream, "host collection timed out".to_owned());
+                    completed = true;
                 }
                 index += 1;
                 continue;
             };
             let pending = self.tasks.remove(index);
-            self.complete(pending.stream, pending.at, result);
+            self.complete(pending.stream, pending.at, pending.aborting, result);
+            completed = true;
         }
+        if completed { std::task::Poll::Ready(()) } else { std::task::Poll::Pending }
     }
 
     fn complete(
-        &mut self, stream: String, at: Timestamp,
+        &mut self, stream: String, at: Timestamp, aborting: bool,
         result: std::result::Result<std::result::Result<Option<TelemetryBatch>, String>, tokio::task::JoinError>,
     ) {
+        if aborting && result.as_ref().is_err_and(|error| error.is_cancelled()) {
+            self.working.remove(&stream);
+            return;
+        }
         let outcome = match result {
             Ok(outcome) => outcome,
             Err(error) => {
@@ -153,6 +165,13 @@ impl HostSamplerSession {
 }
 
 impl SamplerSession for HostSamplerSession {
+    fn poll_ready(&mut self, context: &mut std::task::Context<'_>) -> std::task::Poll<()> {
+        if !self.ready.is_empty() || self.refused.is_some() {
+            return std::task::Poll::Ready(());
+        }
+        self.poll_tasks(context)
+    }
+
     fn tick(&mut self, at: Timestamp, streams: &[String]) {
         self.reap();
         let now = tokio::time::Instant::now();
@@ -161,18 +180,30 @@ impl SamplerSession for HostSamplerSession {
             let collector = Arc::clone(&self.collector);
             let source = stream.clone();
             let task = tokio::task::spawn_blocking(move || collector.collect(&source));
-            self.tasks.push(Collecting { task, deadline: now + collection_timeout(&stream), stream, at: at.clone(), expired: false });
+            self.tasks.push(Collecting {
+                task,
+                timeout: Box::pin(tokio::time::sleep_until(now + collection_timeout(&stream))),
+                stream,
+                at: at.clone(),
+                expired: false,
+                aborting: false,
+            });
         }
     }
 
     fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>> {
         Box::pin(async move {
-            while let Some(pending) = self.tasks.last_mut() {
-                let result = (&mut pending.task).await;
-                let pending = self.tasks.pop().expect("the original collector remains owned");
-                self.complete(pending.stream, pending.at, result);
+            loop {
+                self.reap();
+                if self.tasks.iter().any(|pending| pending.expired) {
+                    let error = std::io::Error::new(std::io::ErrorKind::TimedOut, "host collection remains owned after its timeout");
+                    return Err(Box::new(error) as SettlementError);
+                }
+                if self.tasks.is_empty() {
+                    break;
+                }
+                std::future::poll_fn(|context| self.poll_tasks(context)).await;
             }
-            self.reap();
             match self.settlement_failure.take() {
                 Some(error) => Err(Box::new(error) as SettlementError),
                 None => Ok(()),
@@ -182,10 +213,10 @@ impl SamplerSession for HostSamplerSession {
 
     fn abandon(&mut self) {
         self.reap();
-        for pending in std::mem::take(&mut self.tasks) {
-            // A blocking collector runs out its own bound; nothing waits for it.
+        for pending in &mut self.tasks {
+            // A Running Blocking Collector Remains Owned Until Its Actual Join.
+            pending.aborting = true;
             pending.task.abort();
-            self.working.remove(&pending.stream);
         }
     }
 
@@ -216,7 +247,10 @@ impl RuntimeHandle {
     }
 
     pub fn bind_native_host_telemetry(&self) {
-        self.bind_host_telemetry_source(dokime_host::default_host_telemetry_collector());
+        self.bind_host_telemetry_source(dokime_host::host_telemetry_collector(dokime_host::HostTelemetryConfig {
+            source: dokime_host::HostTelemetrySourceKind::Native,
+            options: dokime_host::HostOptions::default(),
+        }));
     }
 
     pub async fn request_host_sampling(
@@ -269,13 +303,14 @@ fn host_producer_key() -> String {
 }
 
 fn collection_timeout(stream: &str) -> Duration {
-    match stream {
-        "host.wifi" => Duration::from_secs(10),
-        "host.wifi.latency" => Duration::from_secs(4),
-        "host.wifi.channel_occupancy" => Duration::from_secs(12),
-        "host.bluetooth" => Duration::from_secs(6),
-        _ => Duration::from_secs(2),
-    }
+    let milliseconds = match stream {
+        "host.wifi" => 10000,
+        "host.wifi.latency" => 4000,
+        "host.wifi.channel_occupancy" => 12000,
+        "host.bluetooth" => 6000,
+        _ => 2000,
+    };
+    Duration::from_millis(milliseconds)
 }
 
 /* === Tests === */

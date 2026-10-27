@@ -114,9 +114,6 @@ impl UpdatePlotSettings {
         if state.shutting_down {
             return Err(Error::conflict("document_closed", "runtime is shutting down"));
         }
-        if self.display_points.is_some_and(|points| points > 100_000) {
-            return Err(Error::Operation("display_points must not exceed 100000".into()));
-        }
         let execution = state
             .executions
             .get(&self.execution_id)

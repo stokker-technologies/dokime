@@ -82,8 +82,7 @@ async fn smoke_runtime(root: &Path, behaviour: Behaviour, constrained: bool) -> 
         constrain_report_memory(&mut config);
     }
     tracing::debug!(target: "dokime_runtime::domains::execution::run",
-        read_memory_bytes = config.storage.budget.read_memory_bytes.get(),
-        batch_rows = config.storage.response.batch_rows.get(),
+                batch_rows = config.storage.response.batch_rows.get(),
         batch_bytes = config.storage.response.batch_bytes.get(),
         active_queries = config.storage.request.max_active_queries.get(),
         "sampling fixture storage settings");
@@ -107,7 +106,7 @@ async fn run(handle: &RuntimeHandle, cycle_id: &TestCycleId) -> CommandId {
     receipt.command_id
 }
 
-async fn settled(handle: &RuntimeHandle, run: &CommandId) -> Arc<RunReceipt> {
+async fn settled(handle: &RuntimeHandle, run: &CommandId) -> impl std::ops::Deref<Target = RunReceipt> + use<> {
     wait_for_run_settled(handle, run).await;
     handle.run_request(run).await.unwrap().unwrap()
 }
@@ -123,7 +122,13 @@ async fn rows_saved(handle: &RuntimeHandle, cycle_id: &TestCycleId, stream: &str
     // its index, so the window holding the last row means every row is in.
     let last = Value::Number(f64::from(rows - 1));
     until_telemetry(handle, || async {
-        handle.selected_telemetry(selection.clone()).await.iter().any(|sample| sample.values.get("value") == Some(&last)).then_some(())
+        handle
+            .selected_telemetry(selection.clone())
+            .await
+            .unwrap()
+            .iter()
+            .any(|sample| sample.values.get("value") == Some(&last))
+            .then_some(())
     })
     .await;
     // Storage accepts a row before the window shows it; a running report reads
@@ -187,8 +192,6 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize) {
 }
 
 fn constrain_report_memory(config: &mut dokime_runtime::RuntimeConfig) {
-    let memory = std::num::NonZeroUsize::new(32 * 1024 * 1024).unwrap();
-    config.storage.budget.read_memory_bytes = memory;
     config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();
 }
 
@@ -363,7 +366,7 @@ async fn report_shows_progress() {
     // Retention Is Time Semantics: Advance The Paused Clock Past It.
     let mut operations = handle.watch_state();
     tokio::time::pause();
-    tokio::time::advance(dokime_runtime::runtime::progress::SETTLED_RETENTION * 2).await;
+    tokio::time::advance(std::time::Duration::from_millis(3_000) * 2).await;
     tokio::time::resume();
     let retired = loop {
         let latest = operations.operations();

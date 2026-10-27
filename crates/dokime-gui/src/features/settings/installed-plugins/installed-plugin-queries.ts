@@ -42,7 +42,6 @@ export function useInstalledPluginsQuery() {
   return useQuery({
     queryFn: () => listNativeAdmittedPlugins(session.identity),
     queryKey: pluginQueryKeys.list(session.identity.generation),
-    staleTime: 15_000,
   });
 }
 
@@ -57,7 +56,6 @@ export function useInstalledPluginDetailQuery(pluginId: string, ownerKey: string
       return getInstalledPluginDetail(session.identity, pluginId);
     },
     queryKey: [...pluginQueryKeys.detail(pluginId, session.identity.generation), ownerKey],
-    staleTime: 15_000,
   });
 }
 

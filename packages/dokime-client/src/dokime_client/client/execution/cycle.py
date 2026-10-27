@@ -11,7 +11,6 @@
 # === Imports === #
 
 # Standard Library Imports
-import math
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import aclosing
 from pathlib import Path
@@ -47,6 +46,11 @@ from .request import _identity
 
 # === Constants === #
 
+MAXIMUM_SAMPLE_PAGE_ITEMS = 5000
+PAGE_ITEMS = 100
+SAMPLE_PAGE_ITEMS = 1000
+VALUE_DEPTH = 64
+
 # === Types === #
 
 # === Classes === #
@@ -75,8 +79,8 @@ class Cycle:
     async def append(self, executions: Sequence[Execution]) -> None:
         """Atomically Register These Exact Attempts In Order; Retrying Cannot Duplicate Them."""
         executions = tuple(executions)
-        if not 1 <= len(executions) <= 1000:
-            raise ValueError("append requires 1 to 1000 executions")
+        if not executions:
+            raise ValueError("append requires at least one execution")
         identifiers = [execution.id for execution in executions]
         if len(set(identifiers)) != len(identifiers):
             raise ValueError("append repeats an execution identity")
@@ -125,7 +129,7 @@ class Cycle:
     async def _bind(cls, transport: Transport, cycle_id: str, backend: Backend) -> "Cycle":
         result = cls(cycle_id, transport, backend, ())
         await result._snapshot()
-        request = _wire.request("Execution", "ListExecutions", cycle_id=cycle_id, limit=100)
+        request = _wire.request("Execution", "ListExecutions", cycle_id=cycle_id, limit=PAGE_ITEMS)
         members = []
         seen = set()
         while True:
@@ -256,25 +260,19 @@ class Cycle:
             async for page in reader:
                 for item in page.records:
                     if not ids or item.record_id in ids:
-                        yield _wire.record(item)
+                        yield _wire.record(item, VALUE_DEPTH)
 
     async def samples(
         self,
         *,
         streams: Sequence[str] = (),
         execution_id: str | None = None,
-        poll_interval: float = 0.2,
-        page_size: int = 500,
+        page_size: int | None = None,
     ) -> AsyncGenerator[Sample]:
-        """Read raw telemetry from the beginning with lossless cursor polling.
-
-        This wraps ListSamples, not a server-streaming raw-telemetry RPC.
-        Read until caught up; that is not an immutable snapshot of an actively writing run.
-        Oversized replies fail explicitly; lower page_size and retry collection.
-        """
-        _interval(poll_interval)
-        if not 1 <= page_size <= 5000:
-            raise ValueError("page_size must be between 1 and 5000")
+        """Replay Saved Telemetry Through One Fixed Durable Frontier."""
+        page_size = SAMPLE_PAGE_ITEMS if page_size is None else page_size
+        if type(page_size) is not int or not 1 <= page_size <= MAXIMUM_SAMPLE_PAGE_ITEMS:
+            raise ValueError("page_size exceeds the configured maximum")
         await self._snapshot()
         scope = _wire.nested(
             "Evidence",
@@ -284,30 +282,21 @@ class Cycle:
             execution_id=execution_id,
         )
 
-        async def complete() -> bool:
-            return True
-
         async for page in read_samples(
             self._transport,
             self._backend,
             scope,
             streams,
             page_size,
-            poll_interval,
-            complete,
+            False,
         ):
             for item in page.samples:
-                yield _wire.sample(item)
+                yield _wire.sample(item, VALUE_DEPTH)
 
 
 # === Public Functions === #
 
 # === Private Functions === #
-
-
-def _interval(value: float) -> None:
-    if not math.isfinite(value) or value <= 0:
-        raise ValueError("interval/timeout must be positive and finite")
 
 
 # === Entry Point === #

@@ -233,7 +233,7 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
         T: IntoIterator,
         T::IntoIter: ExactSizeIterator,
     {
-        crate::execution::Progress::new(phase, items.into_iter(), self.transport.progress())
+        crate::execution::Progress::new(phase, items.into_iter(), self.transport.progress(), 3)
     }
 
     pub async fn ask<R: Prompt>(&mut self, prompt: R) -> crate::Result<R::Response> {

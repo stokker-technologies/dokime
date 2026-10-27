@@ -25,11 +25,8 @@ use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::BuiltinDraft;
-use dokime_domain::model::execution::notes::NOTE_CHECKPOINT_LIMIT;
 use dokime_domain::model::execution::notes::NOTE_EDIT_NOT_AUTHOR;
 use dokime_domain::model::execution::notes::NOTE_OWNER_SEALED;
-use dokime_domain::model::execution::notes::NOTE_RECEIPT_BYTES;
-use dokime_domain::model::execution::notes::NOTE_RECEIPT_LIMIT;
 use dokime_domain::model::execution::notes::NoteAdmission;
 use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::execution::notes::note_identity;
@@ -126,12 +123,14 @@ impl Transaction<RuntimeState> for CreateOperatorNote {
         if state.note_owner_scope(&next.owner)? != next.note.scope {
             return Err("note owner differs from canonical scope".into());
         }
-        if next.checkpoint_targets.len() > NOTE_CHECKPOINT_LIMIT || next.checkpoint_targets.windows(2).any(|ids| ids[0] >= ids[1]) {
+        if next.checkpoint_targets.len() > crate::state::notes::NOTE_CHECKPOINT_LIMIT
+            || next.checkpoint_targets.windows(2).any(|ids| ids[0] >= ids[1])
+        {
             return Err("note checkpoint target budget/order is invalid".into());
         }
         let cycle = &state.cycles[next.owner.cycle_id()];
         for target in &next.checkpoint_targets {
-            if !state.executions_for_cycle(cycle).take(dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT).any(|execution| {
+            if !state.executions_for_cycle(cycle).take(crate::state::notes::NOTE_SCAN_LIMIT).any(|execution| {
                 &execution.test_execution_id == target
                     && next.note.scope.test_execution_id.as_ref().is_none_or(|id| id == target)
                     && next.note.scope.test_case_id.as_ref().is_none_or(|id| id == &execution.test_case_id)
@@ -211,9 +210,9 @@ impl EditOperatorNote {
 /* === Public Functions === */
 
 pub fn admission_fits(state: &RuntimeState, next: &NoteAdmission) -> bool {
-    state.note_admissions.len() < NOTE_RECEIPT_LIMIT
+    state.note_admissions.len() < crate::state::notes::NOTE_RECEIPT_LIMIT
         && state.note_admissions.values().fold(receipt_bytes(next), |bytes, item| bytes.saturating_add(receipt_bytes(item)))
-            <= NOTE_RECEIPT_BYTES
+            <= crate::state::notes::NOTE_RECEIPT_BYTES
 }
 
 /* === Private Functions === */

@@ -16,7 +16,7 @@ mod prompts;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashSet, time::Duration};
+use std::collections::HashSet;
 
 // Third Party Imports
 
@@ -110,15 +110,14 @@ impl TestCycleHandle {
     }
 
     pub fn samples(
-        &self, streams: Vec<String>, execution_id: Option<TestExecutionId>, page_size: u32, interval: Option<Duration>,
+        &self, streams: Vec<String>, execution_id: Option<TestExecutionId>, page_size: u32,
     ) -> Result<ResponseStream<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>> {
         super::execution::validate_filters(&streams)?;
-        let interval = super::execution::sample_interval(page_size, interval)?;
+        super::execution::validate_sample_page(page_size)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let result = async {
                 handle.snapshot().await?;
-                let completion = || async { Ok(true) };
                 let scope = dokime_domain::model::identity::wire::EvidenceScope {
                     cycle_id: Some(handle.id.to_string()),
                     execution_id: execution_id.map(|id| id.to_string()),
@@ -130,7 +129,7 @@ impl TestCycleHandle {
                     suite_id: None,
                     origin: None,
                 };
-                super::execution::read_samples(&handle.client, scope, streams, page_size, interval, completion, &sender).await
+                super::execution::read_samples(&handle.client, scope, streams, page_size, false, &sender).await
             }
             .await;
             if let Err(error) = result {

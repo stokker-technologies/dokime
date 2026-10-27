@@ -9,8 +9,6 @@
 
 // Persisted Report Restart Story
 
-/* === Modules === */
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -118,7 +116,14 @@ async fn persisted_cycle_restart() {
         [anchor.as_str()],
         "a sealed member releases through its captured anchor: {released:?}"
     );
-    while !backend.prune_objects(&at, NonZeroUsize::new(128).unwrap()).await.unwrap() {}
+    while !backend
+        .prune_objects(&at, NonZeroUsize::new(128).unwrap(), |schema| {
+            harmos::domain::model::storage::catalog::definition::<dokime_runtime::storage::objects::Objects>(schema)
+                .map(|definition| definition.retention())
+        })
+        .await
+        .unwrap()
+    {}
     backend.close().await.unwrap();
     drop(backend);
 
@@ -126,9 +131,9 @@ async fn persisted_cycle_restart() {
     let recovered = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
-        .unwrap()
-        .value;
-    assert_eq!(recovered.saved, settled.saved);
+        .unwrap();
+    assert_eq!(recovered.value.saved, settled.saved);
+    drop(recovered);
     assert!(runtime.cycles().await.is_empty(), "sealed containers stay in native history");
     let recovered_checkpoint = crate::service_support::native::checkpoint(&runtime, &first).await;
     assert_eq!(crate::service_support::native::open(&runtime, &recovered_checkpoint).await.execution().saved.as_ref(), Some(&seal));

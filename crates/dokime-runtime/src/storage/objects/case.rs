@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{
@@ -25,7 +24,7 @@ use harmos::{
 // Local Imports
 use super::metadata;
 use crate::definition::TestCase;
-use crate::storage::{Error, Manager, Result, values};
+use crate::storage::{Error, Result, values};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TemplateId;
 
@@ -115,10 +114,7 @@ impl TryFrom<Case> for TestCase {
             test_case_template_id: TemplateId::from_uuid(case.template_id)?,
             metadata: case.metadata.ok_or(Error::Invalid("case metadata is missing"))?.try_into()?,
             suite: case.suite.map(TryInto::try_into).transpose()?,
-            parameters: {
-                let bound = values::owned_memory(&case.parameters)?;
-                values::decode_owned(case.parameters, NonZeroUsize::new(bound).ok_or(Error::Invalid("case projection is empty"))?)?
-            },
+            parameters: { values::decode_owned(case.parameters)? },
             generation_index: case.generation_index,
             label_number: case.label_number,
         })
@@ -168,11 +164,15 @@ impl Case {
 
 /* === Public Functions === */
 
-pub async fn read(storage: &Manager, id: &CaseId) -> Result<Option<TestCase>> {
+pub async fn read(storage: &crate::storage::Manager, id: &CaseId) -> Result<Option<harmos::storage::ReadBatch<TestCase>>> {
     let Some(stored) = storage.read_object::<Case>(id.as_str(), ObjectVersion::Latest).await? else {
         return Ok(None);
     };
-    Ok(Some(stored.value.try_into()?))
+    let peak = stored.value.projection_memory()?;
+    if peak == usize::MAX {
+        return Err(Error::Invalid("case projection memory overflows"));
+    }
+    Ok(Some(stored.try_map(|stored| stored.value.try_into())?))
 }
 
 /* === Private Functions === */

@@ -28,7 +28,7 @@ use crate::records::RecordSeverity;
 use crate::records::ValidationMode as RecordValidationMode;
 use crate::records::validate_record;
 use crate::state::RuntimeState;
-use crate::telemetry::{TelemetrySample, ValidationMode as TelemetryValidationMode, validate_telemetry_sample};
+use crate::telemetry::{TelemetrySample, ValidationMode as TelemetryValidationMode, check_telemetry_sample};
 use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
 use crate::transactions::records::draft::BuiltinDraft;
 use crate::transactions::records::draft::Drafts;
@@ -70,6 +70,7 @@ use dokime_domain::model::values::Value;
 #[harmos::transaction(id = "dokime.execution.provider.finish", version = 6, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinishProvider {
+    pub installed_plugin_errors: u64,
     pub request_id: dokime_domain::model::identity::CommandId,
     pub test_cycle_id: TestCycleId,
     pub target: ExecutionProviderTarget,
@@ -99,6 +100,9 @@ impl Transaction<RuntimeState> for FinishProvider {
     type Error = String;
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
+        if self.installed_plugin_errors == 0 || usize::try_from(self.installed_plugin_errors).is_err() {
+            return Err("installed plugin diagnostic limit must be positive and fit the native address space".into());
+        }
         let request = state.run_requests.get(&self.request_id).ok_or("provider request not found")?;
         if request.completion_at.is_some() || request.summary.phase.terminal() {
             return Err("provider work cannot change after completion is staged".into());
@@ -754,7 +758,7 @@ fn append_provider_evidence(
                 .or_insert_with(|| Value::Datetime(at.to_datetime().expect("runtime timestamp is valid")));
             sample.summary.insert("template".to_owned(), Value::from(outcome.template_identifier.clone()));
             sample.summary.insert("label".to_owned(), Value::from(group.label.clone()));
-            validate_telemetry_sample(Some(contract), &sample, TelemetryValidationMode::Strict)
+            check_telemetry_sample(Some(contract), &sample, TelemetryValidationMode::Strict)
                 .map_err(|error| evidence_failure(outcome, "evidence_telemetry", error.to_string()))?;
             telemetry.push(sample);
         }
@@ -830,13 +834,10 @@ fn record_provider_plugin_errors(state: &mut RuntimeState, finish: &FinishProvid
         Err(error) => vec![error],
     };
     for failure in failures {
-        state.record_installed_plugin_error(provider_failure_record(
-            &finish.test_cycle_id,
-            &finish.target,
-            &session_id,
-            failure,
-            &finish.finished_at,
-        ));
+        state.record_installed_plugin_error(
+            provider_failure_record(&finish.test_cycle_id, &finish.target, &session_id, failure, &finish.finished_at),
+            finish.installed_plugin_errors,
+        );
     }
 }
 

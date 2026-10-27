@@ -59,13 +59,13 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
+pub(crate) async fn run(args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     let mode = if args.mode == "interactive" { ExecutionMode::Interactive } else { ExecutionMode::Automatic };
     let record_types = (args.records || !args.record_types.is_empty()).then_some(args.record_types);
     let streams = (args.samples || !args.streams.is_empty()).then_some(args.streams);
     let options = dokime::client::RunOptions { mode, record_types, streams, ..Default::default() };
     options.validate().map_err(|error| crate::Error::Input(error.to_string()))?;
-    super::wait::execute(args.waiting, Some(options)).await
+    super::wait::execute(args.waiting, Some(options), settings).await
 }
 
 /* === Private Functions === */

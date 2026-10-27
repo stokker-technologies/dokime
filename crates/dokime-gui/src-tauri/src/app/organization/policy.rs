@@ -24,7 +24,10 @@ use url::Url;
 
 /* === Constants === */
 
-const MAXIMUM_SOURCES: usize = 32;
+const DESKTOP_ORGANIZATION_IDENTIFIER_BYTES: u64 = 128;
+const DESKTOP_ORGANIZATION_REFERENCE_BYTES: u64 = 512;
+const DESKTOP_ORGANIZATION_SOURCES: u64 = 32;
+const DESKTOP_ORGANIZATION_URL_BYTES: u64 = 4_096;
 
 /* === Macros === */
 
@@ -78,21 +81,23 @@ pub(crate) enum Source {
 
 impl UpdatePolicy {
     pub(crate) fn validate(&self) -> Result<(), String> {
-        if self.sources.len() > MAXIMUM_SOURCES || self.connections.len() > MAXIMUM_SOURCES {
-            return Err("organization updates allow at most 32 sources and 32 connections".into());
+        if self.sources.len() > DESKTOP_ORGANIZATION_SOURCES as usize || self.connections.len() > DESKTOP_ORGANIZATION_SOURCES as usize {
+            return Err("organization updates exceed the configured source or connection count".into());
         }
         for (name, connection) in &self.connections {
-            validate_name(name)?;
-            let host = https_url(&connection.host)?;
+            validate_name(name, DESKTOP_ORGANIZATION_IDENTIFIER_BYTES)?;
+            let host = https_url(&connection.host, DESKTOP_ORGANIZATION_URL_BYTES)?;
             if host.path() != "/" || host.query().is_some() {
                 return Err(format!("connection {name} must name an HTTPS origin without a path or query"));
             }
-            if connection.oauth_client_id.len() > 512 || connection.oauth_client_id.chars().any(char::is_control) {
+            if connection.oauth_client_id.len() as u64 > DESKTOP_ORGANIZATION_REFERENCE_BYTES
+                || connection.oauth_client_id.chars().any(char::is_control)
+            {
                 return Err(format!("connection {name} has an invalid OAuth client identifier"));
             }
         }
         for (name, source) in &self.sources {
-            validate_name(name)?;
+            validate_name(name, DESKTOP_ORGANIZATION_IDENTIFIER_BYTES)?;
             self.validate_source(source)?;
         }
         if let Some(source) = &self.source {
@@ -108,9 +113,9 @@ impl UpdatePolicy {
     fn validate_source(&self, source: &Source) -> Result<(), String> {
         match source {
             Source::Direct { manifest, plugins, connection } => {
-                https_url(manifest)?;
+                https_url(manifest, DESKTOP_ORGANIZATION_URL_BYTES)?;
                 if let Some(plugins) = plugins {
-                    https_url(plugins)?;
+                    https_url(plugins, DESKTOP_ORGANIZATION_URL_BYTES)?;
                 }
                 if let Some(connection) = connection {
                     self.connection(connection)?;
@@ -118,13 +123,16 @@ impl UpdatePolicy {
             }
             Source::Github { repository } => {
                 let parts: Vec<_> = repository.split('/').collect();
-                if parts.len() != 2 || parts.iter().any(|part| validate_name(part).is_err()) {
+                if parts.len() != 2 || parts.iter().any(|part| validate_name(part, DESKTOP_ORGANIZATION_IDENTIFIER_BYTES).is_err()) {
                     return Err("GitHub update repository must be owner/repository".into());
                 }
             }
             Source::Gitlab { connection, project } => {
                 self.connection(connection)?;
-                if project.is_empty() || project.len() > 512 || project.split('/').any(|part| validate_name(part).is_err()) {
+                if project.is_empty()
+                    || project.len() as u64 > DESKTOP_ORGANIZATION_REFERENCE_BYTES
+                    || project.split('/').any(|part| validate_name(part, DESKTOP_ORGANIZATION_IDENTIFIER_BYTES).is_err())
+                {
                     return Err("GitLab update project must be an ID or namespace/project path".into());
                 }
             }
@@ -139,9 +147,9 @@ impl UpdatePolicy {
 
 /* === Public Functions === */
 
-pub(crate) fn https_url(value: &str) -> Result<Url, String> {
-    if value.len() > 4096 {
-        return Err("organization release URL exceeds 4096 bytes".into());
+pub(crate) fn https_url(value: &str, maximum: u64) -> Result<Url, String> {
+    if value.len() as u64 > maximum {
+        return Err("organization release URL exceeds its configured byte budget".into());
     }
     let url = Url::parse(value).map_err(|_| "organization release URL is invalid")?;
     if url.scheme() != "https"
@@ -157,14 +165,14 @@ pub(crate) fn https_url(value: &str) -> Result<Url, String> {
 
 /* === Private Functions === */
 
-fn validate_name(value: &str) -> Result<(), String> {
+fn validate_name(value: &str, maximum: u64) -> Result<(), String> {
     let safe = !value.is_empty()
-        && value.len() <= 128
+        && value.len() as u64 <= maximum
         && value != "."
         && value != ".."
         && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'));
     if !safe {
-        return Err("organization source and connection names must use 1–128 letters, digits, dots, underscores or hyphens".into());
+        return Err("organization source and connection names exceed their configured bound or use unsupported characters".into());
     }
     Ok(())
 }
@@ -215,7 +223,7 @@ project = "lab/instruments"
             policy.validate().unwrap();
         }
         for url in ["file:///tmp/latest.json", "https://user:password@example.test/latest.json", "https://example.test/#fragment"] {
-            assert!(https_url(url).is_err());
+            assert!(https_url(url, DESKTOP_ORGANIZATION_URL_BYTES).is_err());
         }
     }
 }

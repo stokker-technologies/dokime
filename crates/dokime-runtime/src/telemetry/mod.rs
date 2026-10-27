@@ -21,7 +21,8 @@ pub use crate::values::field;
 pub use capture::capture_payload;
 pub use contract::{
     TelemetryColumn, TelemetryCondition, TelemetryConditionEvaluation, TelemetryConditionOperator, TelemetryContract, TelemetryFilter,
-    TelemetryRole, evaluate_telemetry_condition, validate_normalized_telemetry_sample, validate_telemetry_sample,
+    TelemetryRole, check_normalized_telemetry_sample, check_telemetry_sample, evaluate_telemetry_condition, telemetry_sample_check_memory,
+    validate_normalized_telemetry_sample, validate_telemetry_sample,
 };
 pub use dokime_domain::model::telemetry::SamplingScope;
 pub use dokime_domain::model::telemetry::TelemetryBatch;

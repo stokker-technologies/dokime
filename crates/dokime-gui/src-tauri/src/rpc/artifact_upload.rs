@@ -13,6 +13,9 @@
 
 /* === Imports === */
 
+use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
+use crate::rpc::protocol::UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES;
+
 // Standard Library Imports
 use std::time::Duration;
 
@@ -26,10 +29,12 @@ use super::*;
 
 /* === Constants === */
 
-const MAX_ACTIVE_UPLOADS: usize = 2;
-const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
-const FINISH_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-pub const MAX_UPLOAD_SLICE_BYTES: usize = 1024 * 1024;
+const DESKTOP_ACTIVE_UPLOADS: u64 = 2;
+const DESKTOP_INPUT_BUFFER_ITEMS: u64 = 2;
+const DESKTOP_RECORDING_IDLE_MS: u64 = 1_800_000;
+const DESKTOP_UPLOAD_HEARTBEAT_MS: u64 = 5_000;
+const DESKTOP_UPLOAD_IDLE_MS: u64 = 30_000;
+const DESKTOP_UPLOAD_REAPER_MS: u64 = 1_000;
 
 // Recording Sink
 
@@ -54,7 +59,6 @@ pub const MAX_UPLOAD_SLICE_BYTES: usize = 1024 * 1024;
 // not one of these raw ones) takes the finished file out of the registry
 
 // and hands it to `content::push_verified` after patching it.
-const RECORDING_IDLE_TIMEOUT: Duration = Duration::from_secs(60 * 30);
 
 /* === Macros === */
 
@@ -170,10 +174,10 @@ impl ArtifactUploads {
         let mut encoded = Vec::new();
         <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<_>>::encode(&header, &mut encoded)
             .map_err(|_| RpcError::InvalidRequest)?;
-        if encoded.len() > MAX_FRAME_BYTES {
+        if encoded.len() > DESKTOP_FRAME_BYTES as usize {
             return Err(RpcError::LimitExceeded);
         }
-        let (sender, receiver) = mpsc::channel(2);
+        let (sender, receiver) = mpsc::channel(DESKTOP_INPUT_BUFFER_ITEMS as usize);
         sender
             .try_send(dokime::domain::model::content::wire::UploadArtifactFrame {
                 payload: Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)),
@@ -212,7 +216,7 @@ impl ArtifactUploads {
     fn insert(&self, upload: Arc<Upload>) -> Result<tauri::ipc::Response, RpcError> {
         let mut registry = self.0.lock().expect("artifact upload registry poisoned");
         registry.prune();
-        if registry.entries.len() >= MAX_ACTIVE_UPLOADS {
+        if registry.entries.len() >= DESKTOP_ACTIVE_UPLOADS as usize {
             return Err(RpcError::LimitExceeded);
         }
         registry.next_id = registry.next_id.checked_add(1).ok_or(RpcError::LimitExceeded)?;
@@ -223,9 +227,10 @@ impl ArtifactUploads {
         if !registry.reaper_started {
             registry.reaper_started = true;
             let weak = Arc::downgrade(&self.0);
+            let interval = DESKTOP_UPLOAD_REAPER_MS;
             tokio::spawn(async move {
                 loop {
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    tokio::time::sleep(Duration::from_millis(interval)).await;
                     let Some(registry) = weak.upgrade() else {
                         break;
                     };
@@ -253,10 +258,10 @@ impl ArtifactUploads {
     }
 
     async fn write(&self, owner: &str, generation: u64, id: u64, sequence: u64, bytes: Vec<u8>) -> Result<(), RpcError> {
-        if bytes.len() > MAX_UPLOAD_SLICE_BYTES {
+        let upload = self.get(owner, generation, id)?;
+        if bytes.len() > DESKTOP_UPLOAD_SLICE_BYTES as usize {
             return Err(RpcError::LimitExceeded);
         }
-        let upload = self.get(owner, generation, id)?;
         let mut writer = upload.writer.lock().await;
         if sequence != writer.next_sequence {
             return Err(RpcError::InvalidAck);
@@ -370,7 +375,8 @@ impl ArtifactUploads {
 impl Registry {
     fn prune(&mut self) {
         self.entries.retain(|_, upload| {
-            let expired = upload.last_access.lock().expect("artifact upload idle timer poisoned").elapsed() >= IDLE_TIMEOUT;
+            let expired = upload.last_access.lock().expect("artifact upload idle timer poisoned").elapsed()
+                >= Duration::from_millis(DESKTOP_UPLOAD_IDLE_MS);
             if upload.cancel.is_cancelled()
                 || upload.context.owner_cancel.is_cancelled()
                 || upload.context.lease.cancellation().is_cancelled()
@@ -444,7 +450,8 @@ impl RecordingSinks {
     fn get(&self, owner: &str, generation: u64) -> Result<Arc<Recording>, RpcError> {
         let mut registry = self.0.lock().expect("recording registry poisoned");
         registry.retain(|_, recording| {
-            let expired = recording.last_access.lock().expect("recording idle timer poisoned").elapsed() >= RECORDING_IDLE_TIMEOUT;
+            let expired = recording.last_access.lock().expect("recording idle timer poisoned").elapsed()
+                >= Duration::from_millis(DESKTOP_RECORDING_IDLE_MS);
             if recording.cancel.is_cancelled()
                 || recording.context.owner_cancel.is_cancelled()
                 || recording.context.lease.cancellation().is_cancelled()
@@ -507,7 +514,7 @@ pub async fn artifact_upload_write<R: tauri::Runtime>(
     session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
-    let (generation, payload) = super::request(request.body())?;
+    let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     if payload.len() < 16 {
         return Err(RpcError::InvalidRequest);
@@ -520,7 +527,7 @@ pub async fn artifact_upload_finish<R: tauri::Runtime>(
     session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<tauri::ipc::Response, RpcError> {
-    let (generation, payload) = super::request(request.body())?;
+    let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     if payload.len() != 8 {
         return Err(RpcError::InvalidRequest);
@@ -533,7 +540,7 @@ pub async fn artifact_upload_cancel<R: tauri::Runtime>(
     session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
-    let (generation, payload) = super::request(request.body())?;
+    let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     if payload.len() != 8 {
         return Err(RpcError::InvalidRequest);
@@ -560,7 +567,7 @@ pub async fn recording_write<R: tauri::Runtime>(
     session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
-    let (generation, payload) = super::request(request.body())?;
+    let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     bridge.recordings.write(webview.label(), generation, payload.to_vec()).await
 }
@@ -570,7 +577,7 @@ pub async fn recording_cancel<R: tauri::Runtime>(
     session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
-    let (generation, _payload) = super::request(request.body())?;
+    let (generation, _payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     bridge.recordings.cancel(webview.label(), generation).await
 }
@@ -584,7 +591,7 @@ async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime::domain::model::c
         tokio::select! {
             biased;
             result = &mut outcome => return result,
-            _ = tokio::time::sleep(FINISH_HEARTBEAT_INTERVAL) => {
+            _ = tokio::time::sleep(Duration::from_millis(DESKTOP_UPLOAD_HEARTBEAT_MS)) => {
                 *upload.last_access.lock().expect("artifact upload idle timer poisoned") =
                     tokio::time::Instant::now();
             }

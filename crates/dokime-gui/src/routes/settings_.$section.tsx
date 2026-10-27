@@ -9,8 +9,7 @@
 
 /* === External Imports === */
 
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 
 /* === Local Imports === */
 
@@ -25,10 +24,6 @@ export const Route = createFileRoute("/settings_/$section")({
 /* === Components === */
 
 function SettingsSectionRoute() {
-  const router = useRouter();
   const { section } = Route.useParams();
-  const close = useCallback(() => {
-    void router.navigate({ to: "/cycles" });
-  }, [router]);
-  return <SettingsSurface close={close} section={section} />;
+  return <SettingsSurface section={section} />;
 }

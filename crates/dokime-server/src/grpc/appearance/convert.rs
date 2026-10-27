@@ -68,35 +68,6 @@ pub(super) fn appearance(
     })
 }
 
-pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> dokime::harmos::Result<usize> {
-    let mut bytes = std::mem::size_of::<dokime::domain::model::appearance::wire::AppearanceSnapshot>()
-        .saturating_add(source.app_name.capacity())
-        .saturating_add(heap(&source.organization)?)
-        .saturating_add(heap(&source.title_template)?)
-        .saturating_add(source.active_theme.as_ref().map_or(0, |id| id.as_str().len()))
-        .saturating_add(source.source_plugin_id.as_ref().map_or(0, |id| id.as_str().len()))
-        .saturating_add(source.themes.len().saturating_mul(std::mem::size_of::<dokime::domain::model::appearance::wire::ThemeFamily>()));
-    for theme in &source.themes {
-        bytes = bytes
-            .saturating_add(theme.plugin_id.as_str().len())
-            .saturating_add(theme.theme_id.as_str().len())
-            .saturating_add(theme.label.capacity())
-            .saturating_add(heap(&theme.description)?)
-            .saturating_add(heap(&theme.stylesheet)?)
-            .saturating_add(variables_heap(
-                &theme.variables,
-                std::mem::size_of::<dokime::domain::model::appearance::wire::ThemeFamilyVariablesEntry>(),
-            )?)
-            .saturating_add(heap(&theme.corner_radii)?)
-            .saturating_add(variant_heap(&theme.light)?)
-            .saturating_add(variant_heap(&theme.dark)?);
-    }
-    if bytes == usize::MAX {
-        return Err(exhausted());
-    }
-    Ok(bytes)
-}
-
 /* === Private Functions === */
 
 fn theme(value: RuntimeThemeFamily) -> dokime::harmos::Result<dokime::domain::model::appearance::wire::ThemeFamily> {
@@ -138,28 +109,6 @@ fn variant(value: ThemeVariant) -> dokime::harmos::Result<dokime::domain::model:
         variables.push(dokime::domain::model::appearance::wire::ThemeVariantVariablesEntry { key, value });
     }
     Ok(dokime::domain::model::appearance::wire::ThemeVariant { variables, plot_palette: value.plot_palette })
-}
-
-fn variables_heap(source: &std::collections::BTreeMap<String, String>, slot: usize) -> dokime::harmos::Result<usize> {
-    let mut bytes = source.len().checked_mul(slot).ok_or_else(exhausted)?;
-    for (key, value) in source {
-        bytes = bytes.checked_add(key.capacity()).and_then(|bytes| bytes.checked_add(value.capacity())).ok_or_else(exhausted)?;
-    }
-    Ok(bytes)
-}
-
-fn variant_heap(source: &ThemeVariant) -> dokime::harmos::Result<usize> {
-    variables_heap(&source.variables, std::mem::size_of::<dokime::domain::model::appearance::wire::ThemeVariantVariablesEntry>())?
-        .checked_add(heap(&source.plot_palette)?)
-        .ok_or_else(exhausted)
-}
-
-fn heap<T: dokime::harmos::MemorySize>(source: &T) -> dokime::harmos::Result<usize> {
-    let bytes = source.memory_size();
-    if bytes == usize::MAX {
-        return Err(exhausted());
-    }
-    Ok(bytes.saturating_sub(std::mem::size_of::<T>()))
 }
 
 fn exhausted() -> dokime::harmos::Error {

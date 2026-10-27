@@ -69,6 +69,7 @@ struct Served {
 }
 
 struct Publisher {
+    schema_settings: harmos::config::SchemaSettings,
     owner: String,
     executions: native_telemetry::Executions,
     streams: BTreeMap<Identifier, Publication>,
@@ -101,12 +102,12 @@ pub trait EmbeddedProvider: Send + Sync {
 /* === Implementations === */
 
 impl Active {
-    pub(super) fn prepare(provider: Arc<dyn EmbeddedProvider>) -> Result<Self> {
+    pub(super) fn prepare(provider: Arc<dyn EmbeddedProvider>, settings: &harmos::config::SchemaSettings) -> Result<Self> {
         let catalog = provider.catalog();
         Identifier::new(&catalog.source).map_err(operation)?;
         let streams = provider.streams();
         let generation = uuid::Uuid::now_v7().to_string();
-        let wire_contracts = template_contracts(&catalog)?;
+        let wire_contracts = template_contracts(&catalog, settings)?;
         let operations = wire_contracts.iter().map(|contract| contract.operation().clone()).collect();
         let definition = harmos::plugin::PluginDefinition {
             id: catalog.source.clone(),
@@ -119,7 +120,7 @@ impl Active {
                 lifecycle: None,
                 operations,
                 wire_contracts,
-                required_contracts: record_requirement(&catalog)?,
+                required_contracts: record_requirement(&catalog, settings)?,
                 observers: Vec::new(),
                 listeners: Vec::new(),
                 streams: streams.clone(),
@@ -127,7 +128,7 @@ impl Active {
                 sections: Vec::new(),
             },
         };
-        native_telemetry::validate(&catalog, &streams).map_err(operation)?;
+        native_telemetry::validate(&catalog, &streams, settings).map_err(operation)?;
 
         Ok(Self {
             provider,
@@ -192,9 +193,10 @@ impl Instance {
 
         let registration = handle.operations.stage_plugin(&scope, |bindings| {
             for template in &templates {
-                let [run, signal] = crate::execution::contracts(template.template_identifier()).map_err(|_| {
-                    harmos::Error::InvalidInput { field: "embedded template", reason: "the template id is not an operation identity" }
-                })?;
+                let [run, signal] =
+                    crate::execution::contracts_with_settings(template.template_identifier(), handle.schema_settings()).map_err(|_| {
+                        harmos::Error::InvalidInput { field: "embedded template", reason: "the template id is not an operation identity" }
+                    })?;
                 let served = Arc::new(Served {
                     template: Arc::clone(template),
                     publisher: Arc::clone(&publisher),
@@ -296,7 +298,13 @@ impl Publisher {
             })
             .collect::<Result<_>>()?;
 
-        Ok(Self { owner: scope.owner().into(), executions: handle.native_executions.clone(), streams, _registration: registration })
+        Ok(Self {
+            schema_settings: *handle.schema_settings(),
+            owner: scope.owner().into(),
+            executions: handle.native_executions.clone(),
+            streams,
+            _registration: registration,
+        })
     }
 
     fn revoke(&self) {
@@ -312,8 +320,8 @@ impl EmbeddedPublisher for Publisher {
     ) -> std::result::Result<(), String> {
         self.executions.scope(&self.owner, token, stream)?;
         let publication = self.streams.get(stream).ok_or("stream was not admitted for this provider")?;
-        let validator = harmos::schema::Validator::from_schema(&publication.schema, &harmos::config::SchemaSettings::default())
-            .map_err(|error| error.to_string())?;
+        let validator =
+            harmos::schema::Validator::from_schema(&publication.schema, &self.schema_settings).map_err(|error| error.to_string())?;
         validator.validate(&payload).map_err(|error| error.to_string())?;
         let published_unix_micros = i64::try_from(time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000)
             .map_err(|_| "publication time exceeds the protocol range")?;
@@ -370,11 +378,12 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Regis
         .collect()
 }
 
-fn template_contracts(catalog: &InstalledPlugin) -> Result<Vec<harmos::operations::Contract>> {
+fn template_contracts(catalog: &InstalledPlugin, settings: &harmos::config::SchemaSettings) -> Result<Vec<harmos::operations::Contract>> {
     let mut contracts = Vec::new();
     for suite in &catalog.suites.suites {
         for template in &suite.suite.test_case_templates {
-            contracts.extend(crate::execution::contracts(template.metadata.identifier.as_str()).map_err(operation)?);
+            contracts
+                .extend(crate::execution::contracts_with_settings(template.metadata.identifier.as_str(), settings).map_err(operation)?);
         }
     }
     Ok(contracts)
@@ -382,11 +391,15 @@ fn template_contracts(catalog: &InstalledPlugin) -> Result<Vec<harmos::operation
 
 // A provider that declares records may file them through the host's record
 // publication, as a sidecar contributing records requires it.
-fn record_requirement(catalog: &InstalledPlugin) -> Result<Option<Vec<harmos::plugin::inventory::contracts::Required>>> {
+fn record_requirement(
+    catalog: &InstalledPlugin, settings: &harmos::config::SchemaSettings,
+) -> Result<Option<Vec<harmos::plugin::inventory::contracts::Required>>> {
     if catalog.record_contracts.is_empty() {
         return Ok(None);
     }
-    let contract = harmos::operations::WireDeclaration::of::<crate::records::RecordPublication>().contract().map_err(operation)?;
+    let contract = harmos::operations::WireDeclaration::of::<crate::records::RecordPublication>()
+        .contract_with_settings(settings)
+        .map_err(operation)?;
     Ok(Some(vec![harmos::plugin::inventory::contracts::Required { contract, grants: Vec::new() }]))
 }
 

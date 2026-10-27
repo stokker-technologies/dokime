@@ -21,7 +21,7 @@ use tonic::Status;
 
 // Local Imports
 use super::value::canonical::timestamp;
-use super::value::{self, Budget, canonical, projection};
+use super::value::{Budget, canonical, projection};
 use dokime::definition::RuntimeCondition;
 use dokime::domain::model::definition::wire as schema;
 use dokime::domain::model::identity::wire as common;
@@ -56,13 +56,11 @@ pub(super) fn identity(value: &prompts::PromptDefinition) -> dokime::domain::mod
 }
 
 pub(super) fn definition(value: &prompts::PromptDefinition) -> Result<dokime::domain::model::prompts::wire::PromptDefinition, Status> {
-    definition_heap(value, &mut Budget::new())?;
-    definition_with_budget(value, &mut Budget::new())
+    definition_with_budget(value, &mut Budget::new()?)
 }
 
 pub(crate) fn instance(value: &prompts::PromptInstance) -> Result<dokime::domain::model::prompts::wire::PromptInstance, Status> {
-    instance_memory(value)?;
-    let mut budget = Budget::new();
+    let mut budget = Budget::new()?;
     Ok(dokime::domain::model::prompts::wire::PromptInstance {
         prompt_id: value.prompt_id.as_str().to_owned(),
         definition: Some(definition_with_budget(&value.definition, &mut budget)?),
@@ -85,20 +83,9 @@ pub(super) fn response(value: &prompts::PromptResponse) -> Result<dokime::domain
         action: value.action.clone(),
         responder: value.responder.clone(),
         submitted_at: Some(timestamp(&value.submitted_at)?),
-        values: Some(object(&value.values, &mut Budget::new(), 0)?),
+        values: Some(object(&value.values, &mut Budget::new()?, 0)?),
         accepted: value.accepted,
     })
-}
-
-pub(crate) fn instance_memory(source: &prompts::PromptInstance) -> Result<usize, Status> {
-    let mut budget = Budget::new();
-    timestamp(&source.created_at)?;
-    let bytes = std::mem::size_of::<dokime::domain::model::prompts::wire::PromptInstance>()
-        .saturating_add(source.prompt_id.as_str().len())
-        .saturating_add(definition_heap(&source.definition, &mut budget)?)
-        .saturating_add(object_heap(&source.values, &mut budget, 0)?)
-        .saturating_add(scope_heap(&source.scope)?);
-    bounded(bytes)
 }
 
 /* === Private Functions === */
@@ -106,13 +93,6 @@ pub(crate) fn instance_memory(source: &prompts::PromptInstance) -> Result<usize,
 fn definition_with_budget(
     value: &prompts::PromptDefinition, budget: &mut Budget,
 ) -> Result<dokime::domain::model::prompts::wire::PromptDefinition, Status> {
-    for len in [value.fields.len(), value.actions.len(), value.rules.len(), value.examples.len()] {
-        value::collection(len)?;
-    }
-    value::text(&value.title)?;
-    if let Some(message) = &value.message {
-        value::text(message)?;
-    }
     Ok(dokime::domain::model::prompts::wire::PromptDefinition {
         prompt_type: value.prompt_type.as_str().to_owned(),
         schema_version: value.schema_version,
@@ -127,8 +107,6 @@ fn definition_with_budget(
         fields: collect(value.fields.iter().map(|field| field_wire(field, budget)))?,
         actions: collect(value.actions.iter().map(|action| {
             budget.node(0)?;
-            value::text(&action.id)?;
-            value::text(&action.label)?;
             Ok(dokime::domain::model::prompts::wire::PromptAction {
                 id: action.id.clone(),
                 label: action.label.clone(),
@@ -141,7 +119,6 @@ fn definition_with_budget(
             })
         }))?,
         rules: collect(value.rules.iter().map(|rule| {
-            value::text(&rule.message)?;
             Ok(dokime::domain::model::prompts::wire::AnswerRule {
                 predicate: Some(predicate(&rule.predicate.expression, budget, 0)?),
                 message: rule.message.clone(),
@@ -157,14 +134,7 @@ fn definition_with_budget(
 
 fn field_wire(field: &prompts::PromptField, budget: &mut Budget) -> Result<dokime::domain::model::prompts::wire::PromptField, Status> {
     budget.node(0)?;
-    value::collection(field.choices.len())?;
-    for choice in &field.choices {
-        value::text(choice)?;
-    }
     let validation = &field.validation;
-    if let Some(pattern) = &validation.pattern {
-        value::text(pattern)?;
-    }
     Ok(dokime::domain::model::prompts::wire::PromptField {
         metadata: Some(metadata(&field.metadata)?),
         value_type: match field.value_type {
@@ -217,10 +187,7 @@ fn push_predicate(
     nodes.push(dokime::domain::model::prompts::wire::AnswerPredicateNode { kind: None });
     let kind = match &expression.kind {
         ExpressionKind::Literal { value } => Kind::Literal(project_value(value, budget, depth + 1)?),
-        ExpressionKind::Selector { path } => {
-            value::text(path)?;
-            Kind::Field(path.clone())
-        }
+        ExpressionKind::Selector { path } => Kind::Field(path.clone()),
         ExpressionKind::Unary { op: ExpressionUnaryOp::Not, value } => Kind::Not(push_predicate(value, budget, depth + 1, nodes)?),
         ExpressionKind::Binary { op, left, right } => Kind::Binary(dokime::domain::model::prompts::wire::AnswerBinaryPredicate {
             op: match op {
@@ -269,7 +236,6 @@ fn push_condition(
             match_fields: Some(object(&condition.match_fields, budget, depth + 1)?),
         }),
         RuntimeCondition::Telemetry { condition } => {
-            value::text(&condition.field)?;
             if condition.tolerance.is_some_and(|v| !v.is_finite()) {
                 return Err(Status::internal("admitted prompt has nonfinite tolerance"));
             }
@@ -290,7 +256,6 @@ fn push_condition(
             })
         }
         RuntimeCondition::All { conditions } | RuntimeCondition::Any { conditions } => {
-            value::collection(conditions.len())?;
             let mut links = projection::slots(conditions.len()).map_err(failure)?;
             for child in conditions {
                 links.push(push_condition(child, budget, depth + 1, nodes)?);
@@ -308,13 +273,6 @@ fn object(
 ) -> Result<dokime::domain::model::values::wire::Value, Status> {
     budget.node(depth)?;
     canonical::object_at(values, budget, depth)
-}
-
-fn bounded(bytes: usize) -> Result<usize, Status> {
-    if bytes == usize::MAX {
-        return Err(Status::resource_exhausted("canonical prompt construction overflows"));
-    }
-    Ok(bytes)
 }
 
 fn failure(error: dokime::harmos::Error) -> Status {
@@ -338,128 +296,6 @@ fn metadata(source: &dokime::domain::model::identity::Metadata) -> Result<common
 
 fn project_value(source: &Value, budget: &mut Budget, depth: usize) -> Result<dokime::domain::model::values::wire::Value, Status> {
     canonical::encode(source, budget, depth)
-}
-
-fn scope_heap(source: &dokime::domain::model::execution::RecordScope) -> Result<usize, Status> {
-    Ok(canonical::scope_memory(source)? - std::mem::size_of::<common::EvidenceScope>())
-}
-
-fn object_heap(source: &BTreeMap<String, Value>, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
-    budget.node(depth)?;
-    Ok(canonical::object_memory_at(source, budget, depth)? - std::mem::size_of::<dokime::domain::model::values::wire::Value>())
-}
-
-fn value_heap(source: &Value, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
-    Ok(canonical::memory(source, budget, depth)? - std::mem::size_of::<dokime::domain::model::values::wire::Value>())
-}
-
-fn slots<T>(length: usize) -> usize {
-    length.saturating_mul(4).saturating_mul(std::mem::size_of::<T>())
-}
-
-fn definition_heap(source: &prompts::PromptDefinition, budget: &mut Budget) -> Result<usize, Status> {
-    for length in [source.fields.len(), source.actions.len(), source.rules.len(), source.examples.len()] {
-        value::collection(length)?;
-    }
-    value::text(&source.title)?;
-    if let Some(message) = &source.message {
-        value::text(message)?;
-    }
-    let mut bytes = source
-        .prompt_type
-        .as_str()
-        .len()
-        .saturating_add(source.title.len())
-        .saturating_add(source.message.as_ref().map_or(0, String::len))
-        .saturating_add(source.owner.as_ref().map_or(0, |id| id.as_str().len()))
-        .saturating_add(source.template_identifier.as_ref().map_or(0, |id| id.as_str().len()))
-        .saturating_add(slots::<dokime::domain::model::prompts::wire::PromptField>(source.fields.len()))
-        .saturating_add(slots::<dokime::domain::model::prompts::wire::PromptAction>(source.actions.len()))
-        .saturating_add(slots::<dokime::domain::model::prompts::wire::AnswerRule>(source.rules.len()))
-        .saturating_add(slots::<dokime::domain::model::values::wire::Value>(source.examples.len()));
-    for field in &source.fields {
-        budget.node(0)?;
-        value::collection(field.choices.len())?;
-        bytes = bytes
-            .saturating_add(canonical::metadata_memory(&field.metadata)? - std::mem::size_of::<common::Metadata>())
-            .saturating_add(slots::<String>(field.choices.len()));
-        for choice in &field.choices {
-            value::text(choice)?;
-            bytes = bytes.saturating_add(choice.len());
-        }
-        if let Some(pattern) = &field.validation.pattern {
-            value::text(pattern)?;
-            bytes = bytes.saturating_add(pattern.len());
-        }
-        for value in [&field.default, &field.validation.minimum, &field.validation.maximum].into_iter().flatten() {
-            bytes = bytes.saturating_add(value_heap(value, budget, 0)?);
-        }
-    }
-    for action in &source.actions {
-        budget.node(0)?;
-        value::text(&action.id)?;
-        value::text(&action.label)?;
-        bytes = bytes.saturating_add(action.id.len()).saturating_add(action.label.len());
-    }
-    for rule in &source.rules {
-        value::text(&rule.message)?;
-        bytes = bytes.saturating_add(rule.message.len()).saturating_add(predicate_heap(&rule.predicate.expression, budget, 0)?);
-    }
-    if let Some(condition) = &source.condition {
-        bytes = bytes.saturating_add(condition_heap(condition, budget, 0)?);
-    }
-    for example in &source.examples {
-        bytes = bytes.saturating_add(object_heap(example, budget, 0)?);
-    }
-    bounded(bytes)
-}
-
-fn predicate_heap(source: &Expression, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
-    budget.node(depth)?;
-    let bytes = match &source.kind {
-        ExpressionKind::Literal { value } => value_heap(value, budget, depth + 1)?,
-        ExpressionKind::Selector { path } => {
-            value::text(path)?;
-            path.len()
-        }
-        ExpressionKind::Unary { op: ExpressionUnaryOp::Not, value } => predicate_heap(value, budget, depth + 1)?,
-        ExpressionKind::Binary { left, right, .. } => {
-            predicate_heap(left, budget, depth + 1)?.saturating_add(predicate_heap(right, budget, depth + 1)?)
-        }
-        ExpressionKind::Call { .. } => {
-            return Err(Status::internal("admitted prompt contains unsupported answer call"));
-        }
-    };
-    bounded(bytes.saturating_add(4 * std::mem::size_of::<dokime::domain::model::prompts::wire::AnswerPredicateNode>()))
-}
-
-fn condition_heap(source: &RuntimeCondition, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
-    budget.node(depth)?;
-    let bytes = match source {
-        RuntimeCondition::Record { condition } => {
-            condition.record_type.as_str().len().saturating_add(object_heap(&condition.match_fields, budget, depth + 1)?)
-        }
-        RuntimeCondition::Telemetry { condition } => {
-            value::text(&condition.field)?;
-            if condition.tolerance.is_some_and(|value| !value.is_finite()) {
-                return Err(Status::internal("admitted prompt has nonfinite tolerance"));
-            }
-            let mut bytes = condition.stream.as_str().len().saturating_add(condition.field.len());
-            if let Some(target) = &condition.target {
-                bytes = bytes.saturating_add(value_heap(target, budget, depth + 1)?);
-            }
-            bytes
-        }
-        RuntimeCondition::All { conditions } | RuntimeCondition::Any { conditions } => {
-            value::collection(conditions.len())?;
-            let mut bytes = slots::<u32>(conditions.len());
-            for condition in conditions {
-                bytes = bytes.saturating_add(condition_heap(condition, budget, depth + 1)?);
-            }
-            bytes
-        }
-    };
-    bounded(bytes.saturating_add(4 * std::mem::size_of::<dokime::domain::model::prompts::wire::EvidenceConditionNode>()))
 }
 
 /* === Tests === */

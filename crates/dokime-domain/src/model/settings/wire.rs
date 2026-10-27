@@ -13,6 +13,11 @@
 
 /* === Re-Exports === */
 
+pub use super::application::{
+    Appearance, ApplicationSettings, ClientPreferences, Density, ReportDefaults, SettingsScope, SettingsSnapshot, TelemetryPreferences,
+    ThemeMode, UpdateSettings,
+};
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -31,59 +36,6 @@ use crate::model::values::wire::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
-
-// The points and strategy a plot draws with when neither its author nor its
-// operator chose, live and in every report.
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReportPreference {
-    pub plot_points: u32,
-    pub plot_downsample: crate::model::document::DownsampleTechnique,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct AppearancePreference {
-    pub theme_mode: ThemeMode,
-    pub theme_family: Option<String>,
-    pub density: Density,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ApplicationSettings {
-    pub appearance: Option<AppearancePreference>,
-    pub report: Option<ReportPreference>,
-    pub application_root: String,
-
-    // Absent when settings.json names none and the default applies.
-    #[row(description = "Absent when settings.json names none and the default applies.")]
-    pub configured_data_root: Option<String>,
-
-    pub default_data_root: String,
-
-    // The data root this backend process is using.
-    #[row(description = "The data root this backend process is using.")]
-    pub effective_data_root: String,
-
-    pub restart_required: bool,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct StoragePolicy {
-    pub compaction_interval_ms: u64,
-    pub local_retention_ms: Option<u64>,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct StoragePolicyView {
-    pub revision: u64,
-    pub configured: Option<StoragePolicy>,
-    pub effective: Option<StoragePolicy>,
-    pub restart_required: bool,
-}
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -329,24 +281,6 @@ pub struct RedactedSecretBinding {
 }
 
 /* === Enums === */
-
-#[harmos_domain::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ThemeMode {
-    Unspecified,
-    System,
-    Light,
-    Dark,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Density {
-    Unspecified,
-    Comfortable,
-    Compact,
-    Touch,
-}
 
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

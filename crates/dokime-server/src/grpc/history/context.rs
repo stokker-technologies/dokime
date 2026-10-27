@@ -13,6 +13,8 @@
 
 /* === Imports === */
 
+use crate::grpc::transcode::Transcode;
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -23,7 +25,6 @@ use tonic::Status;
 // Local Imports
 use super::document::canonical::wire as document_wire;
 use super::wire;
-use crate::grpc::transcode::Transcode;
 use crate::grpc::{
     appearance, execution, notes, prompts,
     value::{self, canonical},
@@ -31,7 +32,6 @@ use crate::grpc::{
 use dokime::RuntimeHandle;
 use dokime::domain::model::execution::result::CycleStatus;
 use dokime::domain::model::execution::result::CycleView;
-use dokime::domain::model::identity::wire as common;
 use dokime::domain::operations::history;
 use dokime::runtime::query::execution_history::ExecutionCheckpointContext;
 
@@ -71,13 +71,16 @@ impl Operation for Get {
         &mut self, _: Self::Context<'a>, request: &mut history::GetCheckpointContext, _: &mut (),
     ) -> Result<Response<dokime::domain::model::history::wire::CheckpointContext>, Status> {
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
-        self.resources.runtime.execution_checkpoint_context(checkpoint).await.map_err(wire::checkpoint_failure).and_then(|context| {
-            match checkpoint_context(context, self.resources.maximum).map_err(original_error) {
-                Ok(response) if response.wire_len()? <= self.resources.maximum => Ok(response.into()),
-                Ok(_) => Err(wire::checkpoint_failure(exhausted().into())),
-                Err(source) => Err(wire::checkpoint_failure(source.into())),
-            }
-        })
+        let context = self.resources.runtime.execution_checkpoint_context(checkpoint).await.map_err(wire::checkpoint_failure)?;
+        let response = context
+            .try_map(|context| -> dokime::runtime::Result<_> {
+                checkpoint_context(context, self.resources.maximum).map_err(|error| original_error(error).into())
+            })
+            .map_err(wire::checkpoint_failure)?;
+        if response.wire_len()? > self.resources.maximum {
+            return Err(Status::resource_exhausted("historical response exceeds transport limit"));
+        }
+        Ok(Response::from_owner(response.owner()))
     }
 }
 
@@ -87,7 +90,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(4 * 1024 * 1024) }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
@@ -95,14 +98,14 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 pub(super) fn checkpoint_context(
     value: ExecutionCheckpointContext, maximum: usize,
 ) -> Result<dokime::domain::model::history::wire::CheckpointContext, Status> {
-    let cycle = Some(cycle_context(value.cycle, maximum)?);
+    let cycle = Some(cycle_context(value.cycle)?);
     let execution_documents = collect(value.execution_documents.values().map(|document| document_wire(document, &value.scope)))?;
     let prompts = collect(value.prompts.iter().map(prompts::canonical::instance))?;
     let health = collect(value.health.iter().map(notes::health))?;
     let notes = collect(value.notes.iter().map(notes::note))?;
     let traceability = collect(value.traceability.iter().map(wire::traceability))?;
     Ok(dokime::domain::model::history::wire::CheckpointContext {
-        checkpoint: Some(wire::checkpoint_wire(value.checkpoint)?),
+        checkpoint: Some(wire::checkpoint_wire(value.checkpoint, maximum)?),
         session_id: value.session_id.as_str().to_owned(),
         execution_id: value.scope.test_execution_id.as_ref().map(|id| id.as_str().to_owned()),
         execution_scope: Some(canonical::scope(&value.scope)?),
@@ -121,9 +124,9 @@ pub(super) fn checkpoint_context(
 /* === Private Functions === */
 
 fn cycle_context(
-    value: dokime::runtime::ExecutionCycleContext, maximum: usize,
+    value: dokime::runtime::ExecutionCycleContext,
 ) -> Result<dokime::domain::model::history::wire::HistoricalCycleContext, Status> {
-    let cycle = cycle(value.cycle, &value.cases, maximum)?;
+    let cycle = cycle(value.cycle, &value.cases)?;
     Ok(dokime::domain::model::history::wire::HistoricalCycleContext {
         cycle: Some(cycle),
         execution_order: collect(value.execution_order.into_iter().map(|id| Ok(id.as_str().to_owned())))?,
@@ -131,14 +134,12 @@ fn cycle_context(
 }
 
 fn cycle(
-    value: CycleView, cases: &[dokime::definition::TestCase], maximum: usize,
+    value: CycleView, cases: &[dokime::definition::TestCase],
 ) -> Result<dokime::domain::model::history::wire::HistoricalCycle, Status> {
-    let mut bounds = execution::Bounds::new(maximum);
-    let cases =
-        collect(cases.iter().enumerate().map(|(ordinal, case)| execution::historical_case_summary(&value, case, ordinal, &mut bounds)))?;
+    let cases = collect(cases.iter().enumerate().map(|(ordinal, case)| execution::historical_case_summary(&value, case, ordinal)))?;
     Ok(dokime::domain::model::history::wire::HistoricalCycle {
         cycle_id: value.test_cycle_id.as_str().to_owned(),
-        metadata: Some(canonical_metadata(&value.metadata)?),
+        metadata: Some(canonical::metadata(&value.metadata)?),
         phase: value.phase,
         lifecycle: cycle_status(value.lifecycle),
         created_at: Some(canonical::timestamp(&value.created_at)?),
@@ -160,10 +161,6 @@ fn cycle_status(value: CycleStatus) -> dokime::domain::model::execution::wire::C
         CycleStatus::Blocked => dokime::domain::model::execution::wire::CycleStatus::Blocked,
         CycleStatus::Stopped => dokime::domain::model::execution::wire::CycleStatus::Stopped,
     }
-}
-
-fn canonical_metadata(value: &dokime::domain::model::identity::Metadata) -> Result<common::Metadata, Status> {
-    canonical::metadata(value)
 }
 
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {

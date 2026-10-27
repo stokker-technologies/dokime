@@ -9,25 +9,28 @@
 
 /* === Modules === */
 
+mod reader;
+
 /* === Re-Exports === */
+
+pub use reader::TelemetryReader;
 
 /* === Imports === */
 
 // Standard Library Imports
-use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 // Third Party Imports
 use harmos::{
     Identifier,
     storage::{
-        RecordWrite, SchemaKey, StreamWrite,
+        RecordInput, SchemaKey, StreamInput,
         operations::Query,
         query::{QueryArrow, RowSlice, Source, StreamSelection},
     },
 };
 
 // Local Imports
-use super::execution::ExecutionView;
 use crate::storage::{
     Manager,
     telemetry::{self, TelemetryEntry},
@@ -36,9 +39,6 @@ use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
 
-// Rows Each Typed Head Reads Per Query Before The Merge Consumes Them.
-const PAGE_ROWS: usize = 65_536;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -46,6 +46,14 @@ const PAGE_ROWS: usize = 65_536;
 pub(super) type PositionedTelemetry = super::paging::Positioned<TelemetryEntry>;
 
 /* === Structs === */
+
+#[derive(Default)]
+pub(crate) struct ReadOptions<'a> {
+    pub scan_limit: Option<usize>,
+    pub window: Option<(&'a str, f64)>,
+    pub visible: Option<&'a dokime_domain::model::execution::RecordScope>,
+    pub sequence: Sequence,
+}
 
 pub(crate) struct PreparedTelemetry {
     schema: SchemaKey,
@@ -58,23 +66,9 @@ pub(crate) struct PreparedTelemetry {
     payload: Vec<u8>,
 }
 
-pub struct TelemetryReader {
-    storage: Manager,
-    readers: Vec<TypedRead>,
-    page_rows: usize,
-}
-
-struct TypedRead {
-    query: Query,
-    codec: telemetry::TypedCodec,
-    head: Option<Vec<PositionedTelemetry>>,
-    offset: usize,
-    finished: bool,
-}
-
 pub(crate) struct TelemetryAdmission {
     storage: Manager,
-    rows: Vec<PreparedTelemetry>,
+    rows: Vec<(usize, PreparedTelemetry)>,
     _owners: Vec<tokio::sync::OwnedMutexGuard<super::executions::Acquisition>>,
 }
 
@@ -85,132 +79,73 @@ pub(crate) struct CommittedTelemetry {
 
 /* === Enums === */
 
+#[derive(Clone, Copy, Default)]
+pub(crate) enum Sequence {
+    #[default]
+    StreamOrdinal,
+    StoragePosition,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
 
+impl Sequence {
+    fn sample(self, mut entry: TelemetryEntry, position: u64) -> crate::telemetry::TelemetrySample {
+        entry.sample.sequence = match self {
+            Self::StreamOrdinal => entry.ordinal,
+            Self::StoragePosition => position,
+        };
+        entry.sample.values.retain(|_, value| !matches!(value, dokime_domain::model::values::Value::Null));
+        entry.sample
+    }
+}
+
 impl PreparedTelemetry {
-    pub(crate) fn write(&self) -> StreamWrite<'_> {
-        StreamWrite {
-            stream: &self.stream,
+    pub(crate) fn into_input(self) -> StreamInput {
+        StreamInput {
+            stream: self.stream,
             sequence: self.ordinal,
-            record: RecordWrite {
-                schema: &self.schema,
-                scope: self.scope.as_ref(),
-                item: &self.item,
-                source: Some(&self.source),
+            record: RecordInput {
+                schema: self.schema,
+                scope: self.scope,
+                item: self.item,
+                source: Some(self.source),
                 source_time: Some(self.source_time),
-                payload: &self.payload,
+                payload: self.payload,
             },
         }
     }
 }
 
-impl TelemetryReader {
-    pub(crate) fn open(view: &ExecutionView, _context: bool) -> Result<Self> {
-        Self::selected(view, None, None, 0, PAGE_ROWS)
-    }
-
-    pub(super) fn open_page(view: &ExecutionView, stream: &Identifier, after: u64) -> Result<Self> {
-        Self::selected(view, Some(stream), None, after, PAGE_ROWS)
-    }
-
-    pub(crate) fn for_contract(view: &ExecutionView, stream: &Identifier, version: u32, page_rows: NonZeroUsize) -> Result<Self> {
-        let reader = Self::selected(view, Some(stream), Some(version), 0, page_rows.get())?;
-        if reader.readers.len() != 1 {
-            return Err(invalid("selected telemetry schema is not captured"));
-        }
-        Ok(reader)
-    }
-
-    fn selected(view: &ExecutionView, stream: Option<&Identifier>, version: Option<u32>, after: u64, page_rows: usize) -> Result<Self> {
-        let captured = view.captured_source().ok_or_else(|| invalid("typed telemetry read requires captured producer schemas"))?;
-        let scope = Identifier::new(view.execution().test_execution_id.as_str()).map_err(crate::storage::Error::from)?;
-        let mut readers = Vec::new();
-        for (id, versions) in &captured.telemetry_contracts {
-            if stream.is_some_and(|selected| selected != id) {
-                continue;
-            }
-            for contract in versions.values() {
-                if version.is_some_and(|selected| selected != contract.schema_version) {
-                    continue;
-                }
-                let codec = telemetry::codec(contract)?;
-                let query = Query {
-                    at: view.evidence_through()?.clone(),
-                    source: Source::Stream(StreamSelection {
-                        schema: codec.schema().clone(),
-                        scope: Some(scope.clone()),
-                        item: None,
-                        stream: Some(contract.stream.clone()),
-                        source_start: None,
-                        source_end: None,
-                        after,
-                    }),
-                    transforms: vec![],
-                    slice: RowSlice::default(),
-                };
-                readers.push(TypedRead { query, codec, head: None, offset: 0, finished: false });
-            }
-        }
-        Ok(Self { storage: view.storage().clone(), readers, page_rows })
-    }
-
-    pub async fn next(&mut self) -> Result<Option<Vec<TelemetryEntry>>> {
-        Ok(self.next_positioned().await?.map(|rows| rows.into_iter().map(|row| row.captured).collect()))
-    }
-
-    pub(super) async fn next_positioned(&mut self) -> Result<Option<Vec<PositionedTelemetry>>> {
-        // Each Head Retains One Bounded Batch; Merge By Durable Storage Position.
-        let mut selected = Vec::new();
-        while selected.len() < self.page_rows {
-            for source in &mut self.readers {
-                while !source.finished && source.head.is_none() {
-                    source.head = read_head(&self.storage, source, self.page_rows).await?;
-                    source.offset = 0;
-                }
-            }
-            let next = self
-                .readers
-                .iter()
-                .enumerate()
-                .filter_map(|(index, source)| source.head.as_ref().map(|rows| (index, rows[source.offset].position)))
-                .min_by_key(|(_, position)| *position);
-            let Some((index, _)) = next else {
-                break;
-            };
-            let source = &mut self.readers[index];
-            let rows = source.head.as_ref().expect("selected head exists");
-            let row = &rows[source.offset];
-            selected.push(PositionedTelemetry { position: row.position, captured: row.captured.clone() });
-            source.offset += 1;
-            if source.offset == rows.len() {
-                source.head = None;
-            }
-        }
-        Ok((!selected.is_empty()).then_some(selected))
-    }
-}
-
 impl TelemetryAdmission {
-    pub(crate) async fn commit(self, closure: Option<&crate::services::telemetry::Sampling>) -> Result<CommittedTelemetry> {
-        let mut accepted = vec![false; self.rows.len()];
-        let mut groups = std::collections::BTreeMap::<&str, Vec<usize>>::new();
-        for (index, row) in self.rows.iter().enumerate() {
-            let scope = row.scope.as_ref().ok_or_else(|| invalid("native telemetry has no execution owner"))?;
-            groups.entry(scope.as_str()).or_default().push(index);
-        }
+    pub(crate) async fn commit(mut self, closure: Option<&crate::services::telemetry::Sampling>) -> Result<CommittedTelemetry> {
+        self.rows.sort_unstable_by(|left, right| left.1.scope.cmp(&right.1.scope).then(left.0.cmp(&right.0)));
+        let mut accepted = crate::domains::telemetry::telemetry_slots(self.rows.len())?;
+        accepted.resize(self.rows.len(), false);
+        let mut rows = self.rows.into_iter();
         let mut failure = None;
-        'groups: for (scope, indices) in groups {
-            let writes = indices.iter().map(|index| self.rows[*index].write()).collect::<Vec<_>>();
+        'groups: while let Some((first_index, first)) = rows.next() {
+            let count = 1 + rows.as_slice().iter().take_while(|(_, row)| row.scope == first.scope).count();
+            let scope = first.scope.as_ref().map(ToString::to_string);
+            let mut indices = crate::domains::telemetry::telemetry_slots(count)?;
+            let mut writes = crate::domains::telemetry::telemetry_slots(count)?;
+            indices.push(first_index);
+            writes.push(first.into_input());
+            for _ in 1..count {
+                let (index, row) = rows.next().ok_or_else(|| invalid("telemetry scope group is incomplete"))?;
+                indices.push(index);
+                writes.push(row.into_input());
+            }
+            let mut writes = writes.into_iter();
             let mut offset = 0;
-            while offset < writes.len() {
-                if let Some(sampling) = closure
+            while writes.len() > 0 {
+                if let (Some(sampling), Some(scope)) = (closure, scope.as_deref())
                     && sampling.measurement_closed(scope).await
                 {
                     break;
                 }
-                let length = match self.storage.stream_batch_len(&writes[offset..]) {
+                let length = match self.storage.stream_batch_len(writes.as_slice()) {
                     Ok(length) => length,
                     Err(source) if accepted.iter().any(|accepted| *accepted) => {
                         failure = Some(source.into());
@@ -218,22 +153,31 @@ impl TelemetryAdmission {
                     }
                     Err(source) => return Err(source.into()),
                 };
-                let batch = &writes[offset..offset + length];
-                // Harmos Enqueue Has No Await Between Ownership Transfer And Its Ready Receipt.
-                // Poll The Receipt First; Cancellation Only Drops An Unaccepted Pending Enqueue.
+                if length == 0 {
+                    return Err(invalid("native telemetry batch made no progress"));
+                }
+                let mut batch = crate::domains::telemetry::telemetry_slots(length)?;
+                batch.extend(writes.by_ref().take(length));
+                // Once Ownership Transfers, Settle Durability Before Reporting Accepted Rows.
                 tokio::select! {
                     biased;
                     result = self.storage.write_stream(batch) => {
                         match result {
-                            Ok(_) => for index in &indices[offset..offset + length] { accepted[*index] = true; },
-                            Err(source) if accepted.iter().any(|accepted| *accepted) => {
-                                failure = Some(source.into());
-                                break 'groups;
-                            }
+                            Ok(cursor) => {
+                                if let Err(source) = self.storage.flush_until(&cursor).await {
+                                    if accepted.iter().any(|accepted| *accepted) {
+                                        failure = Some(source.into());
+                                        break 'groups;
+                                    }
+                                    return Err(source.into());
+                                }
+                                for index in &indices[offset..offset + length] { accepted[*index] = true; }
+                            },
+                            Err(source) if accepted.iter().any(|accepted| *accepted) => { failure = Some(source.into()); break 'groups; }
                             Err(source) => return Err(source.into()),
                         }
                     }
-                    () = closed(closure, scope) => break,
+                    () = closed(closure, scope.as_deref()) => break,
                 }
                 offset += length;
             }
@@ -243,12 +187,14 @@ impl TelemetryAdmission {
 }
 
 impl super::executions::ExecutionStorage {
-    pub(crate) async fn telemetry_scopes(
+    pub(crate) fn with_telemetry_scopes<T>(
         &self,
-    ) -> Result<std::collections::BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::RecordScope>>
-    {
-        // A Routing Snapshot Only; `prepare_telemetry` Rechecks Each Owner Under Its Lock.
-        Ok(self.open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone())
+        read: impl FnOnce(
+            &std::collections::BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::RecordScope>,
+        ) -> T,
+    ) -> T {
+        let open = self.open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        read(&open)
     }
 
     // Saves Each Owned Typed Schema Once Per Process; Every Start Repeats The Request.
@@ -257,14 +203,14 @@ impl super::executions::ExecutionStorage {
         let mut last = None;
         let mut written = Vec::new();
         for contract in contracts.iter().filter(|contract| !contract.foreign) {
-            let Some(codec) = self.codecs.unregistered(contract)? else {
+            let Some(codec) = self.codecs.unregistered(contract, &self.schema_settings)? else {
                 continue;
             };
             let mutation = harmos::storage::MutationId {
                 window: storage.mutation_window()?.id,
                 key: Identifier::new(format!("{}.v{}", codec.schema().id, codec.schema().version)).map_err(crate::storage::Error::from)?,
             };
-            last = Some(storage.write_schema_once(&mutation, codec.schema(), codec.graph()).await?);
+            last = Some(storage.write_schema_once(&mutation, codec.schema().clone(), Arc::clone(codec.graph())).await?);
             written.push((contract, codec));
         }
         if let Some(cursor) = last {
@@ -277,55 +223,61 @@ impl super::executions::ExecutionStorage {
     }
 
     pub(crate) async fn prepare_telemetry(
-        &self, samples: &[(crate::telemetry::TelemetrySample, crate::telemetry::TelemetryContract, u64)],
+        &self, samples: &[crate::domains::telemetry::PreparedSample], contracts: &[crate::telemetry::TelemetryContract],
     ) -> Result<TelemetryAdmission> {
-        let ids = samples
-            .iter()
-            .filter_map(|(sample, _, _)| sample.scope.as_ref()?.test_execution_id.as_ref())
-            .collect::<std::collections::BTreeSet<_>>();
-        let mut owners = Vec::with_capacity(ids.len());
+        use crate::domains::telemetry::telemetry_slots as slots;
+        let mut ids = std::collections::BTreeSet::new();
+        for row in samples {
+            let Some(id) = row.sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()) else {
+                continue;
+            };
+            if ids.contains(id) {
+                continue;
+            }
+            ids.insert(id);
+        }
+        let mut owners = slots(ids.len())?;
         for id in ids {
             let owner = self.acquisition(id).await.ok_or_else(|| invalid("telemetry has no execution owner"))?;
             let acquisition = owner.lock_owned().await;
             if acquisition.finish_requested {
                 return Err(invalid("telemetry execution admission is closed"));
             }
-            for (sample, _, _) in samples {
-                if sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()) == Some(id)
-                    && sample.scope.as_ref().is_some_and(|scope| {
-                        let owner = &acquisition.execution.scope;
-                        scope.session_id != owner.session_id
-                            || scope.test_cycle_id != owner.test_cycle_id
-                            || scope.test_case_id != owner.test_case_id
-                            || scope.test_execution_id != owner.test_execution_id
-                            || scope.template_id != owner.template_id
-                            || scope.suite_id != owner.suite_id
-                    })
-                {
-                    return Err(invalid("telemetry execution scope differs from its owner"));
-                }
+            if &acquisition.execution.test_execution_id != id {
+                return Err(invalid("telemetry acquisition belongs to a different execution"));
             }
             owners.push(acquisition);
         }
-        let mut rows = Vec::with_capacity(samples.len());
-        let mut codecs = std::collections::BTreeMap::new();
-        for (sample, contract, ordinal) in samples {
-            if sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).is_none() {
+        for row in samples {
+            let Some(scope) = &row.sample.scope else {
                 continue;
+            };
+            let Some(id) = &scope.test_execution_id else {
+                continue;
+            };
+            let index = owners
+                .binary_search_by(|owner| owner.execution.test_execution_id.cmp(id))
+                .map_err(|_| invalid("telemetry execution owner is missing"))?;
+            let owner = &owners[index].execution.scope;
+            if scope.session_id != owner.session_id
+                || scope.test_cycle_id != owner.test_cycle_id
+                || scope.test_case_id != owner.test_case_id
+                || scope.test_execution_id != owner.test_execution_id
+                || scope.template_id != owner.template_id
+                || scope.suite_id != owner.suite_id
+            {
+                return Err(invalid("telemetry execution scope differs from its owner"));
             }
-            let entry = TelemetryEntry { epoch: self.context_epoch.clone(), ordinal: *ordinal, sample: sample.clone() };
-            let key = (contract.stream.clone(), contract.schema_version);
-            if !codecs.contains_key(&key) {
-                if contract.storage_schema.is_none() {
-                    return Err(invalid("telemetry producer requires an explicit storage row schema"));
-                }
-                codecs.insert(key.clone(), (contract.storage_schema.as_ref(), self.codecs.codec(contract)?));
-            }
-            let (graph, codec) = &codecs[&key];
-            if *graph != contract.storage_schema.as_ref() {
-                return Err(invalid("telemetry batch reuses a stream version with a different storage schema"));
-            }
-            rows.push(prepare(&entry, codec)?);
+        }
+        let mut codecs = slots(contracts.len())?;
+        for contract in contracts {
+            codecs.push(self.codecs.registered(contract)?);
+        }
+        let mut rows = slots(samples.len())?;
+        for (index, row) in samples.iter().enumerate() {
+            let codec = codecs.get(row.contract).ok_or_else(|| invalid("telemetry codec index is missing"))?;
+            let prepared = prepare_staged(&self.context_epoch, &row.sample, row.ordinal, codec)?;
+            rows.push((index, prepared));
         }
         Ok(TelemetryAdmission { storage: self.storage.clone(), rows, _owners: owners })
     }
@@ -333,9 +285,513 @@ impl super::executions::ExecutionStorage {
 
 /* === Public Functions === */
 
-pub(crate) fn prepare(entry: &TelemetryEntry, codec: &telemetry::TypedCodec) -> Result<PreparedTelemetry> {
-    let sample = &entry.sample;
-    let scope = captured_scope(sample)?;
+/// Reads Only The Explicit Durable Frontier; Accepted Queue Rows Are Never Visible.
+pub(crate) async fn saved_codecs(
+    session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, schema: Option<&SchemaKey>,
+    settings: &harmos::config::SchemaSettings, selected: impl Fn(&str, u32) -> bool + Send + Sync,
+) -> Result<harmos::storage::ReadBatch<Vec<telemetry::TypedCodec>>> {
+    let mut catalog = session
+        .query(Query {
+            at: at.clone(),
+            source: Source::Schemas(harmos::storage::query::SchemaSelection { schema: schema.cloned() }),
+            transforms: Vec::new(),
+            slice: RowSlice::default(),
+        })
+        .await?;
+    let mut codecs = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<telemetry::TypedCodec>::new()))?;
+    let mut announced = None;
+    let mut rows = 0_u64;
+    while let Some(output) = catalog.next().await? {
+        match output {
+            QueryArrow::Schema(schema) => {
+                if announced.is_some() || rows != 0 {
+                    return Err(invalid("schema query emitted a repeated or late schema"));
+                }
+                announced = Some(schema);
+            }
+            QueryArrow::Batch(batch) => {
+                let schema = announced.as_ref().ok_or_else(|| invalid("schema query emitted data before its schema"))?;
+                batch.validate_schema(schema.as_schema())?;
+                let count = u64::try_from(batch.as_record_batch().num_rows()).map_err(|_| invalid("schema query row count overflows"))?;
+                rows = rows.checked_add(count).ok_or_else(|| invalid("schema query row count overflows"))?;
+                let page = telemetry::stored_codecs_where(batch, settings, &selected)?;
+                codecs = append_retained(codecs, page)?;
+            }
+        }
+    }
+    let completed = catalog.completion()?;
+    if announced.is_none() || completed.at != *at || completed.rows != rows {
+        return Err(invalid("schema query completion differs from the consumed evidence"));
+    }
+    codecs.try_map(|mut codecs| {
+        codecs.sort_unstable_by(|left, right| {
+            left.schema().id.cmp(&right.schema().id).then(left.schema().version.cmp(&right.schema().version))
+        });
+        codecs.dedup_by(|left, right| left.schema() == right.schema());
+        Ok::<_, Error>(codecs)
+    })
+}
+
+/// Reads Only The Explicit Durable Frontier; Accepted Queue Rows Are Never Visible.
+pub(crate) async fn collect_saved(
+    session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
+    settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>,
+) -> Result<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>> {
+    let ReadOptions { scan_limit, window, visible, sequence } = options;
+    let codecs = saved_codecs(session, at, None, settings, |id, _| telemetry::selected_schema(id, &selection.streams)).await?;
+
+    let mut end = None;
+    if let Some((anchor, _)) = window {
+        for codec in codecs.iter() {
+            if !selection.schema_versions.is_empty() && !selection.schema_versions.contains(&codec.schema().version.get()) {
+                continue;
+            }
+            if codec.schema().id.as_str().strip_prefix("dokime.telemetry.") != Some(anchor) {
+                continue;
+            }
+            let mut query = telemetry_query(at, codec, selection, visible, 1)?;
+            telemetry_aggregate(&mut query, &[], "_storage.source_time", "last")?;
+            let mut reader = session.query(query).await?;
+            while let Some(output) = reader.next().await? {
+                let QueryArrow::Batch(batch) = output else {
+                    continue;
+                };
+                let values = batch
+                    .as_record_batch()
+                    .column_by_name("last")
+                    .and_then(|column| column.as_any().downcast_ref::<arrow_array::TimestampNanosecondArray>())
+                    .ok_or_else(|| invalid("telemetry maximum timestamp is absent"))?;
+                use arrow_array::Array;
+                for row in 0..values.len() {
+                    if !values.is_null(row) {
+                        end = Some(end.map_or(values.value(row), |prior: i64| prior.max(values.value(row))));
+                    }
+                }
+            }
+            reader.completion()?;
+        }
+    }
+    let start = window
+        .map(|(_, seconds)| seconds)
+        .zip(end)
+        .map(|(window, end)| {
+            let duration = crate::plot::plot_window_duration(window).ok_or_else(|| invalid("plot window is invalid"))?;
+            let end =
+                time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(end)).map_err(|_| invalid("telemetry timestamp is invalid"))?;
+            let start = end.checked_sub(duration).ok_or_else(|| invalid("plot window timestamp overflows"))?;
+            Ok::<std::time::SystemTime, Error>(start.into())
+        })
+        .transpose()?;
+    let mut samples =
+        harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::storage::Error>(Vec::<crate::telemetry::TelemetrySample>::new()))?;
+    for codec in codecs.iter() {
+        if !selection.schema_versions.is_empty() && !selection.schema_versions.contains(&codec.schema().version.get()) {
+            continue;
+        }
+        let secondary = window.is_some_and(|(anchor, _)| codec.schema().id.as_str().strip_prefix("dokime.telemetry.") != Some(anchor));
+        if let Some(start) = start.filter(|_| secondary) {
+            let predecessors = telemetry_predecessors(session, at, codec, selection, visible, start, sequence).await?;
+            let length = samples.len().checked_add(predecessors.len()).ok_or_else(|| invalid("telemetry sample count overflows"))?;
+            if scan_limit.is_some_and(|limit| length > limit) {
+                return Err(invalid("telemetry scan exceeds the analysis sample budget"));
+            }
+            samples = append_retained(samples, predecessors)?;
+        }
+        let mut query = telemetry_query(at, codec, selection, visible, 0)?;
+        if let Source::Stream(source) = &mut query.source
+            && start.is_some()
+        {
+            source.source_start = source.source_start.max(start);
+            close_window(source);
+        }
+        if let Some(limit) = scan_limit {
+            query.slice.limit = Some(limit.saturating_add(1) as u64);
+        }
+        // Native Reads Avoid An Arrow Encode/Decode Round Trip When No Transform Is Needed.
+        if query.transforms.is_empty() {
+            let Source::Stream(source) = query.source else { unreachable!("telemetry uses stream storage") };
+            let mut reader = session.read_stream(harmos::storage::StreamRead { at: at.clone(), selection: source }).await?;
+            while let Some(rows) = reader.next().await? {
+                let page = crate::storage::projection::page(rows, |row| {
+                    let entry = codec.decode_stored(&row)?;
+                    Ok(sequence.sample(entry, row.record.position.sequence))
+                })?;
+                let length = samples.len().checked_add(page.len()).ok_or_else(|| invalid("telemetry sample count overflows"))?;
+                if scan_limit.is_some_and(|limit| length > limit) {
+                    return Err(invalid("telemetry scan exceeds the analysis sample budget"));
+                }
+                samples = append_retained(samples, page)?;
+            }
+            continue;
+        }
+        let mut reader = session.query(query).await?;
+        while let Some(output) = reader.next().await? {
+            let QueryArrow::Batch(batch) = output else {
+                continue;
+            };
+            let entries = telemetry::decode_positioned(codec, batch)?;
+            let page = crate::storage::projection::page(entries, |(position, entry)| Ok(sequence.sample(entry, position)))?;
+            let length = samples.len().checked_add(page.len()).ok_or_else(|| invalid("telemetry sample count overflows"))?;
+            if scan_limit.is_some_and(|limit| length > limit) {
+                return Err(invalid("telemetry scan exceeds the analysis sample budget"));
+            }
+            samples = append_retained(samples, page)?;
+        }
+        reader.completion()?;
+    }
+    Ok(samples.try_map(|mut samples| {
+        samples.sort_unstable_by_key(|sample| sample.sequence);
+        samples.retain(|sample| {
+            let follows = selection.after_stream_cursors.is_empty() || {
+                let stream = crate::telemetry_runtime::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
+                selection.after_stream_cursors.get(&stream).is_none_or(|after| sample.sequence > *after)
+            };
+            follows
+                && selection.scope.matches(sample.scope.as_ref())
+                && (selection.sources.is_empty() || selection.sources.contains(&sample.source))
+                && selection.signals.iter().all(|signal| sample.values.contains_key(signal))
+        });
+        if let Some(limit) = selection.limit {
+            if selection.latest && samples.len() > limit {
+                samples.drain(..samples.len() - limit);
+            }
+            samples.truncate(limit);
+        }
+        Ok::<_, crate::storage::Error>(samples)
+    })?)
+}
+
+pub(crate) fn append_retained<T>(
+    left: harmos::storage::ReadBatch<Vec<T>>, right: harmos::storage::ReadBatch<Vec<T>>,
+) -> crate::storage::Result<harmos::storage::ReadBatch<Vec<T>>> {
+    let length = left.len().checked_add(right.len()).ok_or(crate::storage::Error::Invalid("telemetry collection length overflows"))?;
+    if length <= left.capacity() {
+        return left.try_map_with(right, |mut left, right| {
+            left.extend(right);
+            Ok(left)
+        });
+    }
+    let capacity = length.checked_next_power_of_two().ok_or(crate::storage::Error::Invalid("telemetry collection capacity overflows"))?;
+    left.try_map_with(right, |left, right| {
+        let mut target = Vec::new();
+        target.try_reserve_exact(capacity).map_err(|_| crate::storage::Error::Invalid("telemetry collection allocation failed"))?;
+        target.extend(left);
+        target.extend(right);
+        Ok(target)
+    })
+}
+
+async fn telemetry_predecessors(
+    session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, codec: &telemetry::TypedCodec,
+    selection: &crate::evidence_runtime::TelemetrySelection, visible: Option<&dokime_domain::model::execution::RecordScope>,
+    start: std::time::SystemTime, sequence: Sequence,
+) -> Result<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>> {
+    let mut samples = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::new()))?;
+    let Some(end) = start.checked_sub(std::time::Duration::from_nanos(1)) else { return Ok(samples) };
+    let mut query = telemetry_query(at, codec, selection, visible, 1)?;
+    if let Source::Stream(source) = &mut query.source {
+        source.source_end = Some(source.source_end.map_or(end, |prior| prior.min(end)));
+        close_window(source);
+        if source.source_start.zip(source.source_end).is_some_and(|(start, end)| start >= end) {
+            return Ok(samples);
+        }
+    }
+    // Exact Scope Groups Keep Attempt And Wildcard Correlations Distinct.
+    let fields = [
+        "payload.metadata.scope.session_id",
+        "payload.metadata.scope.test_cycle_id",
+        "payload.metadata.scope.test_case_id",
+        "payload.metadata.scope.test_execution_id",
+        "payload.metadata.scope.step_id",
+        "payload.metadata.scope.criterion_id",
+        "payload.metadata.scope.template_id",
+        "payload.metadata.scope.suite_id",
+        "payload.metadata.scope.origin.phase",
+        "payload.metadata.scope.origin.attempt_id",
+    ];
+    telemetry_aggregate(&mut query, &fields, "_storage.source_time", "predecessor_time")?;
+    let mut groups = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<arrow_array::RecordBatch>::new()))?;
+    let mut reader = session.query(query).await?;
+    while let Some(output) = reader.next().await? {
+        let QueryArrow::Batch(batch) = output else { continue };
+        let page = batch.try_map(|batch| {
+            let mut groups = query_slots(1)?;
+            groups.push(batch);
+            Ok::<_, Error>(groups)
+        })?;
+        groups = append_retained(groups, page)?;
+    }
+    reader.completion()?;
+    // Retain Only Group Metadata And Release Its Query Slot Before Tie Selection.
+    drop(reader);
+    let mut positions = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<u64>::new()))?;
+    for group in groups.iter() {
+        use arrow_array::Array;
+        let times = group
+            .column_by_name("predecessor_time")
+            .and_then(|column| column.as_any().downcast_ref::<arrow_array::TimestampNanosecondArray>())
+            .ok_or_else(|| invalid("telemetry predecessor timestamp is absent"))?;
+        for row in 0..group.num_rows() {
+            if times.is_null(row) {
+                continue;
+            }
+            let time = time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(times.value(row)))
+                .map_err(|_| invalid("telemetry predecessor timestamp is invalid"))?;
+            let mut query = telemetry_query(at, codec, selection, visible, 2)?;
+            if let Source::Stream(source) = &mut query.source {
+                // Half-Open Window Selecting Exactly The Predecessor Instant.
+                let start: std::time::SystemTime = time.into();
+                source.source_start = Some(start);
+                // The Window Spans One Clock Tick: SystemTime Is Coarser Than A Nanosecond On Windows.
+                let tick = [1, 100].into_iter().map(std::time::Duration::from_nanos).find(|tick| start + *tick > start);
+                source.source_end = Some(start + tick.ok_or_else(|| invalid("telemetry predecessor window is empty"))?);
+            }
+            telemetry_predecessor_scope(&mut query, group, row, &fields)?;
+            telemetry_aggregate(&mut query, &[], "_storage.position", "predecessor")?;
+            let page = telemetry_predecessor_positions(session, query).await?;
+            positions = append_retained(positions, page)?;
+        }
+    }
+    drop(groups);
+    for position in positions.iter().copied() {
+        let mut query = telemetry_query(at, codec, selection, visible, 1)?;
+        if let Source::Stream(source) = &mut query.source {
+            source.after = position.checked_sub(1).ok_or_else(query_memory)?;
+        }
+        query.slice.limit = Some(1);
+        telemetry_position(&mut query, position)?;
+        let mut reader = session.query(query).await?;
+        while let Some(output) = reader.next().await? {
+            let QueryArrow::Batch(batch) = output else { continue };
+            let entries = telemetry::decode_positioned(codec, batch)?;
+            let page = crate::storage::projection::page(entries, |(position, entry)| Ok(sequence.sample(entry, position)))?;
+            samples = append_retained(samples, page)?;
+        }
+        reader.completion()?;
+    }
+    Ok(samples)
+}
+
+async fn telemetry_predecessor_positions(session: &crate::storage::Manager, query: Query) -> Result<harmos::storage::ReadBatch<Vec<u64>>> {
+    let mut positions = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<u64>::new()))?;
+    let mut reader = session.query(query).await?;
+    while let Some(output) = reader.next().await? {
+        let QueryArrow::Batch(batch) = output else { continue };
+        let count = batch.as_record_batch().num_rows();
+        let page = batch.try_map(|batch| {
+            use arrow_array::Array;
+            let values = batch
+                .column_by_name("predecessor")
+                .and_then(|column| column.as_any().downcast_ref::<arrow_array::UInt64Array>())
+                .ok_or_else(|| invalid("telemetry predecessor position is absent"))?;
+            let mut positions = query_slots(count)?;
+            for index in 0..values.len() {
+                if !values.is_null(index) {
+                    positions.push(values.value(index));
+                }
+            }
+            Ok::<_, Error>(positions)
+        })?;
+        positions = append_retained(positions, page)?;
+    }
+    reader.completion()?;
+    Ok(positions)
+}
+
+fn telemetry_predecessor_scope(query: &mut Query, group: &arrow_array::RecordBatch, row: usize, fields: &[&str]) -> Result<()> {
+    use harmos::storage::query::transform::{
+        FieldPath, FieldPathExecution, Transform,
+        filter::{Clause, Compare, Condition, Filter, Term},
+    };
+    let mut terms = query_slots(fields.len())?;
+    for field in fields {
+        // Aggregate Group Names Are Literal Columns, Unlike The Source's Nested Paths.
+        let mut literal = query_slots(1)?;
+        literal.push(query_text(field)?);
+        let value = FieldPath { fields: literal }.value(group, row)?;
+        let condition = match value {
+            harmos::storage::query::scalar::ScalarValue::Missing | harmos::storage::query::scalar::ScalarValue::Null => Condition::IsNull,
+            value => Condition::Compare { op: Compare::Eq, value },
+        };
+        terms.push(Term { field: query_path(field)?, condition, negate: false });
+    }
+    let mut clauses = query_slots(1)?;
+    clauses.push(Clause { terms });
+    if query.transforms.len() == query.transforms.capacity() {
+        return Err(query_memory());
+    }
+    query.transforms.push(Transform::Filter(Filter { clauses }));
+    Ok(())
+}
+
+fn telemetry_position(query: &mut Query, position: u64) -> Result<()> {
+    use harmos::storage::query::transform::{
+        Transform,
+        filter::{Clause, Compare, Condition, Filter, Term},
+    };
+    let mut terms = query_slots(1)?;
+    terms.push(Term {
+        field: query_path("_storage.position")?,
+        condition: Condition::Compare { op: Compare::Eq, value: harmos::storage::query::scalar::ScalarValue::Unsigned(position) },
+        negate: false,
+    });
+    let mut clauses = query_slots(1)?;
+    clauses.push(Clause { terms });
+    if query.transforms.len() == query.transforms.capacity() {
+        return Err(query_memory());
+    }
+    query.transforms.push(Transform::Filter(Filter { clauses }));
+    Ok(())
+}
+
+fn telemetry_query(
+    at: &harmos::storage::StorageCursor, codec: &telemetry::TypedCodec, selection: &crate::evidence_runtime::TelemetrySelection,
+    visible: Option<&dokime_domain::model::execution::RecordScope>, extra_transforms: usize,
+) -> Result<Query> {
+    use harmos::storage::query::transform::{
+        Transform,
+        filter::{Clause, Compare, Condition, Filter, Term},
+    };
+    let count = telemetry_terms(selection, visible).count();
+    let transforms = usize::from(count != 0).checked_add(extra_transforms).ok_or_else(query_memory)?;
+    let mut terms = query_slots(count)?;
+    for (field, value) in telemetry_terms(selection, visible) {
+        let value = match value {
+            TelemetryTerm::Text(value) => harmos::storage::query::scalar::ScalarValue::Text(query_text(value)?),
+            TelemetryTerm::Unsigned(value) => harmos::storage::query::scalar::ScalarValue::Unsigned(value),
+        };
+        terms.push(Term { field: query_path(field)?, condition: Condition::Compare { op: Compare::Eq, value }, negate: false });
+    }
+    let mut transforms = query_slots(transforms)?;
+    if count != 0 {
+        let mut clauses = query_slots(1)?;
+        clauses.push(Clause { terms });
+        transforms.push(Transform::Filter(Filter { clauses }));
+    }
+    let time = |timestamp: &dokime_domain::model::time::Timestamp| -> Result<std::time::SystemTime> {
+        Ok(timestamp.to_datetime().map_err(crate::storage::Error::from)?.into())
+    };
+    let mut query = Query {
+        at: at.clone(),
+        source: Source::Stream(StreamSelection {
+            schema: codec.schema().clone(),
+            scope: selection
+                .scope
+                .test_execution_id
+                .as_ref()
+                .map(|id| Identifier::new(id.as_str()))
+                .transpose()
+                .map_err(crate::storage::Error::from)?,
+            item: None,
+            stream: None,
+            source_start: selection.start.as_ref().map(time).transpose()?,
+            source_end: selection.end.as_ref().map(time).transpose()?,
+            after: 0,
+        }),
+        transforms,
+        slice: RowSlice::default(),
+    };
+    if let Source::Stream(source) = &mut query.source {
+        close_window(source);
+    }
+    Ok(query)
+}
+
+// A Source Window Needs Both Ends; An Open Side Spans The Representable Instants.
+fn close_window(source: &mut StreamSelection) {
+    let epoch = std::time::SystemTime::UNIX_EPOCH;
+    let span = std::time::Duration::from_nanos(i64::MAX as u64);
+    if source.source_start.is_some() || source.source_end.is_some() {
+        source.source_start.get_or_insert(epoch - span);
+        source.source_end.get_or_insert(epoch + span);
+    }
+}
+
+enum TelemetryTerm<'a> {
+    Text(&'a str),
+    Unsigned(u64),
+}
+
+fn telemetry_terms<'a>(
+    selection: &'a crate::evidence_runtime::TelemetrySelection, visible: Option<&'a dokime_domain::model::execution::RecordScope>,
+) -> impl Iterator<Item = (&'static str, TelemetryTerm<'a>)> {
+    let selected = &selection.scope;
+    let fields = [
+        ("payload.metadata.scope.test_cycle_id", selected.test_cycle_id.as_ref().map(|id| id.as_str())),
+        ("payload.metadata.scope.test_case_id", selected.test_case_id.as_ref().map(|id| id.as_str())),
+        ("payload.metadata.scope.template_id", selected.template_id.as_ref().map(|id| id.as_str())),
+        ("payload.metadata.scope.session_id", visible.and_then(|s| s.session_id.as_ref()).map(|id| id.as_str())),
+        ("payload.metadata.scope.test_cycle_id", visible.and_then(|s| s.test_cycle_id.as_ref()).map(|id| id.as_str())),
+        ("payload.metadata.scope.test_case_id", visible.and_then(|s| s.test_case_id.as_ref()).map(|id| id.as_str())),
+        ("payload.metadata.scope.test_execution_id", visible.and_then(|s| s.test_execution_id.as_ref()).map(|id| id.as_str())),
+        ("payload.metadata.scope.step_id", visible.and_then(|s| s.step_id.as_ref()).map(|id| id.as_str())),
+        ("payload.metadata.scope.criterion_id", visible.and_then(|s| s.criterion_id.as_ref()).map(|id| id.as_str())),
+        ("payload.metadata.scope.template_id", visible.and_then(|s| s.template_id.as_ref()).map(|id| id.as_str())),
+        ("payload.metadata.scope.suite_id", visible.and_then(|s| s.suite_id.as_ref()).map(|id| id.as_str())),
+    ];
+    use dokime_domain::model::execution::EvidenceOrigin;
+    let (phase, attempt) = match visible.map(|scope| &scope.origin) {
+        Some(EvidenceOrigin::Initialization) => (Some(1), None),
+        Some(EvidenceOrigin::Cleanup) => (Some(3), None),
+        Some(EvidenceOrigin::Step { attempt_id }) => (Some(2), Some(attempt_id.as_str())),
+        _ => (None, None),
+    };
+    fields
+        .into_iter()
+        .filter_map(|(field, value)| value.map(|value| (field, TelemetryTerm::Text(value))))
+        .chain(phase.map(|value| ("payload.metadata.scope.origin.phase", TelemetryTerm::Unsigned(value))))
+        .chain(attempt.map(|value| ("payload.metadata.scope.origin.attempt_id", TelemetryTerm::Text(value))))
+}
+
+fn query_memory() -> Error {
+    harmos::Error::ResourceExhausted { resource: "telemetry query construction" }.into()
+}
+fn query_slots<T>(count: usize) -> Result<Vec<T>> {
+    let mut rows = Vec::new();
+    rows.try_reserve_exact(count).map_err(|_| query_memory())?;
+    Ok(rows)
+}
+fn query_text(value: &str) -> Result<String> {
+    let mut result = String::new();
+    result.try_reserve_exact(value.len()).map_err(|_| query_memory())?;
+    result.push_str(value);
+    Ok(result)
+}
+fn query_path(field: &str) -> Result<harmos::storage::query::transform::FieldPath> {
+    let mut fields = query_slots(field.split('.').count())?;
+    for part in field.split('.') {
+        fields.push(query_text(part)?);
+    }
+    Ok(harmos::storage::query::transform::FieldPath { fields })
+}
+
+fn telemetry_aggregate(query: &mut Query, fields: &[&str], measure: &str, name: &str) -> Result<()> {
+    use harmos::storage::query::transform::{
+        Transform,
+        aggregate::{Aggregate, Measure},
+        project::Projection,
+    };
+    let mut groups = query_slots(fields.len())?;
+    for field in fields {
+        groups.push(Projection { field: query_path(field)?, name: query_text(field)? });
+    }
+    let mut measures = query_slots(1)?;
+    measures.push(Measure { field: query_path(measure)?, statistic: harmos::Aggregate::Max, name: query_text(name)? });
+    if query.transforms.len() == query.transforms.capacity() {
+        return Err(query_memory());
+    }
+    query.transforms.push(Transform::Aggregate(Aggregate { groups, measures }));
+    Ok(())
+}
+
+/* === Private Functions === */
+
+fn prepare_staged(
+    epoch: &dokime_domain::model::identity::SessionId, sample: &crate::telemetry::TelemetrySample, ordinal: u64,
+    codec: &telemetry::TypedCodec,
+) -> Result<PreparedTelemetry> {
+    let payload = codec.encode_staged(epoch, ordinal, sample)?;
+    let scope = sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str());
     let identifier = |value: &str| Identifier::new(value).map_err(crate::storage::Error::from);
     let at = sample.timestamp.to_datetime().map_err(|_| invalid("typed telemetry timestamp is invalid"))?;
     let seconds = u64::try_from(at.unix_timestamp()).map_err(|_| invalid("typed telemetry predates 1970"))?;
@@ -343,65 +799,24 @@ pub(crate) fn prepare(entry: &TelemetryEntry, codec: &telemetry::TypedCodec) -> 
         schema: codec.schema().clone(),
         stream: identifier(sample.stream.as_str())?,
         item: identifier(sample.sample_id.as_str())?,
-        source: identifier(entry.epoch.as_str())?,
-        scope: Some(identifier(scope)?),
-        ordinal: entry.ordinal,
+        source: identifier(epoch.as_str())?,
+        scope: scope.map(identifier).transpose()?,
+        ordinal,
         source_time: std::time::UNIX_EPOCH
             .checked_add(std::time::Duration::new(seconds, at.nanosecond()))
             .ok_or_else(|| invalid("typed telemetry timestamp overflows"))?,
-        payload: codec.encode(entry, usize::MAX)?,
+        payload,
     })
 }
 
-/* === Private Functions === */
-
-async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: &str) {
-    match closure {
-        Some(sampling) => sampling.wait_measurement_closed(scope).await,
-        None => std::future::pending().await,
+async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: Option<&str>) {
+    match (closure, scope) {
+        (Some(sampling), Some(scope)) => sampling.wait_measurement_closed(scope).await,
+        _ => std::future::pending().await,
     }
 }
 
-// One Bounded Query Per Head, Resuming After The Last Row The Head Read;
-// Holding Readers For Every Schema Can Exhaust Admission.
-async fn read_head(storage: &Manager, source: &mut TypedRead, page_rows: usize) -> Result<Option<Vec<PositionedTelemetry>>> {
-    source.query.slice.limit = Some(page_rows as u64);
-    let mut reader = storage.query(source.query.clone()).await?;
-    let mut rows = Vec::new();
-    while let Some(output) = reader.next().await? {
-        let QueryArrow::Batch(batch) = output else {
-            continue;
-        };
-        let raw = batch.as_record_batch();
-        let positions = raw
-            .column_by_name("_storage")
-            .and_then(|column| column.as_any().downcast_ref::<arrow_array::StructArray>())
-            .and_then(|metadata| metadata.column_by_name("position"))
-            .and_then(|column| column.as_any().downcast_ref::<arrow_array::UInt64Array>())
-            .ok_or_else(|| invalid("typed telemetry positions are absent"))?;
-        let decoded = telemetry::decode_batch(&source.codec, &batch)?;
-        for (index, captured) in decoded.into_iter().enumerate() {
-            rows.push(PositionedTelemetry { position: positions.value(index), captured });
-        }
-    }
-    reader.completion()?;
-    source.finished = rows.len() < page_rows;
-    if let (Some(last), Source::Stream(selection)) = (rows.last(), &mut source.query.source) {
-        selection.after = last.position;
-    }
-    Ok((!rows.is_empty()).then_some(rows))
-}
-
-fn captured_scope(sample: &crate::telemetry::TelemetrySample) -> Result<&str> {
-    sample
-        .scope
-        .as_ref()
-        .and_then(|scope| scope.test_execution_id.as_ref())
-        .map(|id| id.as_str())
-        .ok_or_else(|| invalid("native telemetry capture requires an execution address"))
-}
-
-fn invalid(reason: &'static str) -> Error {
+pub(super) fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
 
@@ -436,15 +851,16 @@ mod admission_tests {
         let state = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
-            crate::storage::state_settings(),
+            crate::config::storage_state_defaults(),
         ));
         let storage = Manager::new(StorageBackends { primary: backend, state }, settings).unwrap();
         let runtime = Runtime::<TestApp>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
         let contract = crate::telemetry::TelemetryContract::declared("partial.fixture", "Partial").typed::<Reading>();
-        let codec = telemetry::codec(&contract).unwrap();
-        storage.write_schema(codec.schema(), codec.graph()).await.unwrap();
+        let codec = telemetry::codec(&contract, &Default::default()).unwrap();
+        storage.write_schema(codec.schema().clone(), Arc::clone(codec.graph())).await.unwrap();
         let execution = dokime_domain::model::identity::TestExecutionId::from_seed("partial.scope");
-        let mut rows = Vec::new();
+        let mut rows = crate::domains::telemetry::telemetry_slots(2).unwrap();
+        let epoch = dokime_domain::model::identity::SessionId::from_seed("partial.epoch");
         for (index, value) in ["first".to_owned(), "x".repeat(256 * 1024)].into_iter().enumerate() {
             let row = Reading { value };
             let mut sample = crate::telemetry::TelemetrySample::new(
@@ -457,16 +873,12 @@ mod admission_tests {
             .typed(&row);
             sample.scope =
                 Some(dokime_domain::model::execution::RecordScope { test_execution_id: Some(execution.clone()), ..Default::default() });
-            let entry = TelemetryEntry {
-                epoch: dokime_domain::model::identity::SessionId::from_seed("partial.epoch"),
-                ordinal: index as u64,
-                sample,
-            };
-            rows.push(prepare(&entry, &codec).unwrap());
+            let row = prepare_staged(&epoch, &sample, index as u64, &codec).unwrap();
+            rows.push((index, row));
         }
         let before = storage.cursor_accepted();
         let admission = TelemetryAdmission { storage: storage.clone(), rows, _owners: Vec::new() };
-        let result = admission.commit(Some(&crate::services::telemetry::Sampling::default())).await.unwrap();
+        let result = admission.commit(Some(&crate::services::telemetry::Sampling::new())).await.unwrap();
         assert_eq!(&*result.accepted, &[true, false]);
         assert!(result.failure.is_some());
         assert_eq!(storage.cursor_accepted().sequence, before.sequence + 1);

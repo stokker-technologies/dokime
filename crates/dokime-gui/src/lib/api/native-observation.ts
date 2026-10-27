@@ -36,6 +36,8 @@ import {
   timestampIso,
 } from "./native-values";
 
+const GUI_SMALL_PAGE_ITEMS = 100;
+
 /* === Types === */
 
 type RuntimeShellSnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetRuntimeShell>>>;
@@ -68,7 +70,7 @@ async function fetchRuntimeShellCycles(session: SessionIdentity): Promise<Runtim
   let cursor: RuntimeShellSnapshot["observedCursor"];
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
     const snapshot = await rpc.observationGetRuntimeShell(session, {
-      limit: 100,
+      limit: GUI_SMALL_PAGE_ITEMS,
       afterCycleId,
       ...(cursor ? { cursor } : {}),
     });

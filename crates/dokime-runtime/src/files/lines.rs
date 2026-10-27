@@ -19,6 +19,7 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use regex::{Regex, RegexBuilder};
@@ -30,18 +31,6 @@ use dokime_domain::model::files::wire::LineMatcher;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-
-// The most matchers and markers one watch may carry together.
-pub const MAX_LINE_MATCHERS: usize = 32;
-
-// The longest pattern one matcher or marker may carry, in UTF-8 bytes.
-pub const MAX_PATTERN_BYTES: usize = 1024;
-
-// Compiled program size one pattern may reach.
-const PATTERN_SIZE: usize = 1 << 20;
-
-// A line longer than this is offered truncated at the bound.
-pub const MAX_LINE_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
@@ -64,10 +53,11 @@ struct CompiledRow {
 }
 
 // Splits bytes arriving in arbitrary pieces into whole lines; a partial line
-// waits for its end.
-#[derive(Clone, Debug, Default)]
+// waits for its end. Bytes beyond the configured line bound are truncated.
+#[derive(Clone, Debug)]
 pub struct LineBuffer {
     pending: Vec<u8>,
+    maximum: NonZeroUsize,
 }
 
 /* === Enums === */
@@ -80,10 +70,10 @@ pub enum LineMatch {
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum InvalidLineMatcher {
-    #[error("a watch carries at most {MAX_LINE_MATCHERS} matchers and markers")]
+    #[error("a watch exceeds its configured matcher and marker count")]
     Count,
 
-    #[error("pattern {index} must contain 1–{MAX_PATTERN_BYTES} bytes")]
+    #[error("pattern {index} must be nonempty and within its configured byte limit")]
     Shape { index: usize },
 
     #[error("pattern {index} is invalid: {reason}")]
@@ -107,21 +97,21 @@ pub enum InvalidLineMatcher {
 /* === Implementations === */
 
 impl LineMatchers {
-    pub fn compile(matchers: &[LineMatcher], markers: &[LineMarker]) -> Result<Self, InvalidLineMatcher> {
-        if matchers.len() + markers.len() > MAX_LINE_MATCHERS {
+    pub fn compile(
+        matchers: &[LineMatcher], markers: &[LineMarker], maximum_matchers: usize, maximum_pattern_bytes: usize, regex_size_bytes: usize,
+        schema_settings: &harmos::config::SchemaSettings,
+    ) -> Result<Self, InvalidLineMatcher> {
+        if matchers.len().saturating_add(markers.len()) > maximum_matchers {
             return Err(InvalidLineMatcher::Count);
         }
         let mut compiled = Self::default();
         for (index, matcher) in matchers.iter().enumerate() {
-            let pattern = pattern(index, &matcher.pattern)?;
+            let pattern = pattern(index, &matcher.pattern, maximum_pattern_bytes, regex_size_bytes)?;
             if matcher.stream.is_empty() || matcher.fields.is_empty() {
                 return Err(InvalidLineMatcher::Target { index });
             }
             use harmos::schema::{Cardinality, graph::Kind};
-            matcher
-                .storage_schema
-                .preparation(&harmos::config::SchemaSettings::default())
-                .map_err(|_| InvalidLineMatcher::Schema { index })?;
+            matcher.storage_schema.preparation(schema_settings).map_err(|_| InvalidLineMatcher::Schema { index })?;
             let declaration = &matcher.storage_schema.definitions[matcher.storage_schema.root];
             if declaration.len() != matcher.fields.len()
                 || declaration.iter().any(|field| {
@@ -164,7 +154,7 @@ impl LineMatchers {
         }
         for (offset, marker) in markers.iter().enumerate() {
             let index = matchers.len() + offset;
-            let pattern = pattern(index, &marker.pattern)?;
+            let pattern = pattern(index, &marker.pattern, maximum_pattern_bytes, regex_size_bytes)?;
             if marker.record_type.is_empty() {
                 return Err(InvalidLineMatcher::RecordType { index });
             }
@@ -218,13 +208,16 @@ impl LineMatchers {
 }
 
 impl LineBuffer {
+    pub fn new(maximum: NonZeroUsize) -> Self {
+        Self { pending: Vec::new(), maximum }
+    }
     // The whole lines these bytes complete, without their line endings.
     pub fn push(&mut self, bytes: &[u8]) -> Vec<String> {
         let mut lines = Vec::new();
         for byte in bytes {
             if *byte == b'\n' {
                 lines.push(self.take());
-            } else if self.pending.len() < MAX_LINE_BYTES {
+            } else if self.pending.len() < self.maximum.get() {
                 self.pending.push(*byte);
             }
         }
@@ -254,12 +247,12 @@ impl LineBuffer {
 
 /* === Private Functions === */
 
-fn pattern(index: usize, source: &str) -> Result<Regex, InvalidLineMatcher> {
-    if source.is_empty() || source.len() > MAX_PATTERN_BYTES {
+fn pattern(index: usize, source: &str, maximum_bytes: usize, regex_size_bytes: usize) -> Result<Regex, InvalidLineMatcher> {
+    if source.is_empty() || source.len() > maximum_bytes {
         return Err(InvalidLineMatcher::Shape { index });
     }
     RegexBuilder::new(source)
-        .size_limit(PATTERN_SIZE)
+        .size_limit(regex_size_bytes)
         .build()
         .map_err(|source| InvalidLineMatcher::Pattern { index, reason: source.to_string() })
 }
@@ -286,6 +279,10 @@ mod tests {
     use super::*;
     use dokime_domain::model::files::wire::LineField;
 
+    fn compile(matchers: &[LineMatcher], markers: &[LineMarker]) -> Result<LineMatchers, InvalidLineMatcher> {
+        LineMatchers::compile(matchers, markers, 32, 1024, 1 << 20, &Default::default())
+    }
+
     fn row_schema() -> harmos::schema::graph::Schema {
         #[harmos::message]
         struct Log {
@@ -301,7 +298,7 @@ mod tests {
 
     #[test]
     fn lines_become_rows_and_markers() {
-        let matchers = LineMatchers::compile(
+        let matchers = compile(
             &[LineMatcher {
                 storage_schema: row_schema(),
                 pattern: r"temperature=(?P<temperature_c>[-\d.]+) state=(?P<state>\w+)".into(),
@@ -314,7 +311,8 @@ mod tests {
             &[LineMarker::new(r"FAULT (?P<code>\w+)", "bench.charger.fault")],
         )
         .unwrap();
-        let mut buffer = LineBuffer::default();
+        let maximum = NonZeroUsize::new(64 * 1024).unwrap();
+        let mut buffer = LineBuffer::new(maximum);
         let mut lines = buffer.push(b"temperature=41.5 state=charging\r\nFAULT E7\npartial");
         lines.extend(buffer.finish());
         assert_eq!(lines.len(), 3);
@@ -343,9 +341,9 @@ mod tests {
 
     #[test]
     fn malformed_matchers_are_refused() {
-        let refused = LineMatchers::compile(&[], &[LineMarker::new("(", "x")]).unwrap_err();
+        let refused = compile(&[], &[LineMarker::new("(", "x")]).unwrap_err();
         assert!(matches!(refused, InvalidLineMatcher::Pattern { index: 0, .. }));
-        let unnamed = LineMatchers::compile(
+        let unnamed = compile(
             &[LineMatcher {
                 storage_schema: row_schema(),
                 pattern: r"(\d+)".into(),
@@ -356,5 +354,22 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(unnamed, InvalidLineMatcher::Schema { index: 0 });
+    }
+
+    #[test]
+    fn schema_preparation_uses_the_supplied_policy() {
+        let matcher = LineMatcher {
+            storage_schema: row_schema(),
+            pattern: r"temperature=(?P<temperature_c>[-\d.]+) state=(?P<state>\w+)".into(),
+            stream: "fixture".into(),
+            fields: vec![
+                LineField { name: "temperature_c".into(), kind: LineFieldKind::Number },
+                LineField { name: "state".into(), kind: LineFieldKind::Text },
+            ],
+        };
+        let mut settings = harmos::config::SchemaSettings::default();
+        settings.preparation_bytes = NonZeroUsize::new(1).unwrap();
+        let result = LineMatchers::compile(&[matcher], &[], 1, 1024, 65536, &settings);
+        assert_eq!(result.unwrap_err(), InvalidLineMatcher::Schema { index: 0 });
     }
 }

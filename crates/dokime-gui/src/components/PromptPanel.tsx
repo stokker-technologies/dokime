@@ -220,7 +220,7 @@ function PromptDialog({
       {fields.length ? (
         <div className="grid gap-3">
           {fields.map((field) => (
-            <div className="grid gap-1.5" key={field.name}>
+            <div className="grid gap-2" key={field.name}>
               <Label className="text-xs font-bold uppercase text-muted-foreground" htmlFor={promptFieldId(field)}>
                 {field.label}
               </Label>
@@ -311,7 +311,7 @@ function PromptMessage({ message }: { message: string }) {
         </p>
       ) : null}
       {technicalSections.length ? (
-        <div className="grid gap-1.5 rounded-md border bg-muted/35 p-3">
+        <div className="grid gap-2 rounded-lg border bg-muted/35 p-3">
           <p className="text-xs font-bold uppercase text-muted-foreground">Technical Detail</p>
           <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
             {technicalSections.join("\n\n")}
@@ -319,7 +319,7 @@ function PromptMessage({ message }: { message: string }) {
         </div>
       ) : null}
       {hasAction ? (
-        <p className="rounded-md border border-destructive/20 bg-destructive/5 p-3 font-medium text-foreground [overflow-wrap:anywhere]">
+        <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 font-medium text-foreground [overflow-wrap:anywhere]">
           <InlinePathText text={lastSection} />
         </p>
       ) : null}

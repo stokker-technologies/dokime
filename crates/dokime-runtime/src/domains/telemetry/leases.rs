@@ -35,7 +35,6 @@ use dokime_domain::model::time::Timestamp;
 /* === Constants === */
 
 pub(crate) const HOST_PRODUCER_KEY: &str = "host";
-const MAX_CLOSED_WINDOWS: usize = 4_096;
 
 /* === Macros === */
 
@@ -43,13 +42,13 @@ const MAX_CLOSED_WINDOWS: usize = 4_096;
 
 /* === Structs === */
 
-#[derive(Default)]
 pub(crate) struct StreamLeases {
     state: Mutex<LeaseState>,
 }
 
 #[derive(Default)]
 struct LeaseState {
+    closed_windows: usize,
     instances: BTreeMap<Identifier, Instance>,
     ledger: Vec<LeaseWindow>,
     held: BTreeMap<String, Hold>,
@@ -109,7 +108,6 @@ struct Holder {
 }
 
 pub(crate) struct LeasedRows {
-    samples: Vec<crate::telemetry::TelemetrySample>,
     holders: BTreeMap<Identifier, Vec<Holder>>,
 }
 
@@ -143,33 +141,55 @@ impl Drop for PendingLeases {
 }
 
 impl LeasedRows {
-    pub(crate) fn attribute(&mut self, state: &crate::state::RuntimeState) -> crate::runtime::Result<()> {
-        for holder in self.holders.values_mut().flatten() {
-            holder.scope = state.capture_scope(&holder.scope).map_err(crate::runtime::Error::Operation)?;
-        }
-        for sample in &mut self.samples {
-            let Some(scope) = &sample.scope else {
-                continue;
-            };
-            let scope = state.capture_scope(scope).map_err(crate::runtime::Error::Operation)?;
-            let Some(execution) = scope.test_execution_id.as_ref().and_then(|id| state.executions.get(id)) else {
-                continue;
-            };
-            let Some(plugin) = execution.snapshot.plugin() else {
-                continue;
-            };
-            sample.scope = Some(scope.clone());
-            let holders = self.holders.entry(sample.stream.clone()).or_default();
-            if !holders.iter().any(|holder| holder.scope.test_execution_id == scope.test_execution_id && holder.requester == plugin.source)
-            {
-                holders.push(Holder { scope, requester: plugin.source.clone() });
+    pub(crate) fn attribute(
+        owner: harmos::storage::ReadBatch<Self>, state: &crate::state::RuntimeState, samples: &[(crate::telemetry::TelemetrySample, bool)],
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Self>> {
+        owner.try_map(|mut delivery| {
+            for holder in delivery.holders.values_mut().flatten() {
+                holder.scope = state.capture_scope(&holder.scope).map_err(crate::runtime::Error::Operation)?;
             }
-        }
-        Ok(())
+            for (stream, holders) in &mut delivery.holders {
+                let extra = samples
+                    .iter()
+                    .filter(|(sample, original)| {
+                        *original
+                            && &sample.stream == stream
+                            && sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some())
+                    })
+                    .count();
+                let needed = holders.len().checked_add(extra).ok_or_else(lease_memory_error)?;
+                if holders.capacity() < needed {
+                    holders.try_reserve_exact(needed - holders.len()).map_err(|_| lease_memory_error())?;
+                }
+            }
+            for (sample, original) in samples {
+                if !original {
+                    continue;
+                }
+                let Some(scope) = &sample.scope else {
+                    continue;
+                };
+                let scope = state.capture_scope(scope).map_err(crate::runtime::Error::Operation)?;
+                let Some(execution) = scope.test_execution_id.as_ref().and_then(|id| state.executions.get(id)) else {
+                    continue;
+                };
+                let Some(plugin) = execution.snapshot.plugin() else {
+                    continue;
+                };
+                let holders = delivery.holders.get_mut(&sample.stream).ok_or_else(lease_memory_error)?;
+                if !holders
+                    .iter()
+                    .any(|holder| holder.scope.test_execution_id == scope.test_execution_id && holder.requester == plugin.source)
+                {
+                    holders.push(Holder { scope, requester: plugin.source.clone() });
+                }
+            }
+            Ok(delivery)
+        })
     }
 
-    pub(crate) fn capture_scopes(&self, stream: &Identifier) -> Vec<RecordScope> {
-        self.holders.get(stream).into_iter().flatten().map(|holder| holder.scope.clone()).collect()
+    pub(crate) fn capture_scopes(&self, stream: &Identifier) -> impl Iterator<Item = &RecordScope> + Clone {
+        self.holders.get(stream).into_iter().flatten().map(|holder| &holder.scope)
     }
 }
 
@@ -201,10 +221,10 @@ impl LeaseState {
 
     fn bound_ledger(&mut self) {
         let closed = self.ledger.iter().filter(|window| window.closed_at.is_some()).count();
-        if closed <= MAX_CLOSED_WINDOWS {
+        if closed <= self.closed_windows {
             return;
         }
-        let mut forget = closed - MAX_CLOSED_WINDOWS;
+        let mut forget = closed - self.closed_windows;
         self.ledger.retain(|window| {
             if forget > 0 && window.closed_at.is_some() {
                 forget -= 1;
@@ -215,7 +235,61 @@ impl LeaseState {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct LeaseFacts<'a> {
+    state: &'a LeaseState,
+    scope: &'a RecordScope,
+}
+#[derive(Clone, Copy)]
+pub(crate) struct LeaseFactRef<'a> {
+    state: &'a LeaseState,
+    window: &'a LeaseWindow,
+}
+impl<'a> LeaseFacts<'a> {
+    pub(crate) fn iter(self) -> impl Iterator<Item = LeaseFactRef<'a>> {
+        self.state
+            .ledger
+            .iter()
+            .filter(move |window| window.scope.is_visible_in(self.scope))
+            .map(move |window| LeaseFactRef { state: self.state, window })
+    }
+}
+impl<'a> LeaseFactRef<'a> {
+    pub(crate) fn stream(self) -> &'a Identifier {
+        &self.window.stream
+    }
+    pub(crate) fn owner(self) -> &'a str {
+        match &self.window.owner {
+            StreamOwner::Host => "host",
+            StreamOwner::Sidecar(source) => source,
+        }
+    }
+    pub(crate) fn opened_at(self) -> &'a Timestamp {
+        &self.window.opened_at
+    }
+    pub(crate) fn closed_at(self) -> Option<&'a Timestamp> {
+        self.window.closed_at.as_ref()
+    }
+    pub(crate) fn gap(self) -> bool {
+        self.window.gap
+    }
+    pub(crate) fn shared_with(self) -> impl Iterator<Item = &'a str> {
+        self.state
+            .ledger
+            .iter()
+            .filter(move |other| {
+                other.lease_id != self.window.lease_id && other.stream == self.window.stream && overlaps(self.window, other)
+            })
+            .filter_map(|other| other.scope.test_execution_id.as_ref().map(|id| id.as_str()))
+    }
+}
+
 impl StreamLeases {
+    pub(crate) fn new() -> Self {
+        let closed_windows = 4096;
+        Self { state: Mutex::new(LeaseState { closed_windows, ..LeaseState::default() }) }
+    }
+
     fn take(&self, stream: &Identifier, owner: StreamOwner, requester: &str, interval: Duration, scope: RecordScope) -> (String, bool) {
         let lease_id = format!("lease-{}", uuid::Uuid::now_v7());
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
@@ -322,29 +396,25 @@ impl StreamLeases {
         self.state.lock().unwrap_or_else(|error| error.into_inner()).held.contains_key(lease_id)
     }
 
+    pub(crate) fn with_facts<R>(&self, scope: &RecordScope, read: impl FnOnce(LeaseFacts<'_>) -> R) -> R {
+        let state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        read(LeaseFacts { state: &state, scope })
+    }
+
     pub(crate) fn facts_for(&self, scope: &RecordScope) -> Vec<LeaseFact> {
-        let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
-        state
-            .ledger
-            .iter()
-            .filter(|window| window.scope.is_visible_in(scope))
-            .map(|window| LeaseFact {
-                stream: window.stream.clone(),
-                owner: match &window.owner {
-                    StreamOwner::Host => "host".to_owned(),
-                    StreamOwner::Sidecar(source) => source.clone(),
-                },
-                opened_at: window.opened_at.clone(),
-                closed_at: window.closed_at.clone(),
-                shared_with: state
-                    .ledger
-                    .iter()
-                    .filter(|other| other.lease_id != window.lease_id && other.stream == window.stream && overlaps(window, other))
-                    .filter_map(|other| other.scope.test_execution_id.as_ref().map(ToString::to_string))
-                    .collect(),
-                gap: window.gap,
-            })
-            .collect()
+        self.with_facts(scope, |facts| {
+            facts
+                .iter()
+                .map(|fact| LeaseFact {
+                    stream: fact.stream().clone(),
+                    owner: fact.owner().to_owned(),
+                    opened_at: fact.opened_at().clone(),
+                    closed_at: fact.closed_at().cloned(),
+                    shared_with: fact.shared_with().map(str::to_owned).collect(),
+                    gap: fact.gap(),
+                })
+                .collect()
+        })
     }
 }
 
@@ -355,7 +425,8 @@ impl RuntimeHandle {
             && self.execution_storage.acquisition(id).await.is_none()
         {
             // A Lease Can Precede Provider Dispatch; Its Durable Capture Owner Must Exist.
-            let cycle = self.execution_storage.report_source(id).await?;
+            let session = self.storage().clone();
+            let cycle = self.execution_storage.report_source(&session, id).await?;
             let execution = cycle
                 .test_executions
                 .iter()
@@ -403,60 +474,73 @@ impl RuntimeHandle {
         self.stream_leases().facts_for(scope)
     }
 
-    pub(crate) async fn leased_rows(&self, samples: &[crate::telemetry::TelemetrySample]) -> LeasedRows {
-        let mut holders = BTreeMap::new();
+    pub(crate) fn leased_rows(
+        &self, samples: &[crate::telemetry::TelemetrySample],
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<LeasedRows>> {
+        use super::streams::admission::slots;
+
+        let mut streams = BTreeSet::new();
         for sample in samples {
-            if !holders.contains_key(&sample.stream) {
-                holders.insert(sample.stream.clone(), self.stream_leases().holders_of(&sample.stream));
+            if streams.contains(&sample.stream) {
+                continue;
             }
+            streams.insert(&sample.stream);
         }
-        LeasedRows { samples: samples.to_vec(), holders }
+        let table = self.stream_leases();
+        let state = table.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let matches = |stream: &Identifier, window: &&LeaseWindow| {
+            &window.stream == stream
+                && window.closed_at.is_none()
+                && state.instances.get(stream).is_some_and(|instance| instance.holders.contains(&window.lease_id))
+        };
+        harmos::storage::ReadBatch::new(()).try_map(|_| {
+            let mut holders = BTreeMap::new();
+            for stream in streams {
+                let windows = state.ledger.iter().filter(|window| matches(stream, window));
+                let mut rows = slots(windows.clone().count())?;
+                rows.extend(windows.map(|window| Holder { scope: window.scope.clone(), requester: window.requester.clone() }));
+                holders.insert(stream.clone(), rows);
+            }
+            Ok(LeasedRows { holders })
+        })
     }
 
     pub(crate) async fn forward_leased_rows(
-        &self, delivery: LeasedRows,
-        accepted: &[(Option<dokime_domain::model::identity::TestExecutionId>, dokime_domain::model::identity::TelemetrySampleId)],
+        &self, delivery: harmos::storage::ReadBatch<LeasedRows>, samples: &[super::streams::PreparedSample],
+        identities: &[super::streams::admission::SampleIdentity<'_>],
     ) {
-        for (stream, holders) in delivery.holders {
+        for (stream, holders) in &delivery.holders {
             for holder in holders {
                 if let Some(id) = holder.scope.test_execution_id.as_ref()
                     && self.sampling().measurement_closed(id.as_str()).await
                 {
                     continue;
                 }
-                let samples = delivery
-                    .samples
+                let count = samples
                     .iter()
-                    .filter(|sample| sample.stream == stream)
-                    .filter(|sample| {
-                        accepted
-                            .iter()
-                            .any(|(execution, id)| id == &sample.sample_id && execution.as_ref() == holder.scope.test_execution_id.as_ref())
-                    })
-                    .filter(|sample| super::streams::lease_accepts_sample(sample.scope.as_ref(), &holder.scope))
-                    .map(|sample| {
-                        let mut sample = sample.clone();
-                        // A Producer's Step Origin Survives Delivery Back To Its Owner.
-                        sample.scope = Some(delivery_scope(sample.scope.as_ref(), &holder.scope));
-                        serde_json::to_string(&sample)
-                    })
-                    .collect::<std::result::Result<Vec<_>, _>>();
-                let Ok(samples) = samples else {
-                    tracing::warn!(stream = stream.as_str(), "a leased row could not be encoded for its leaseholder");
-                    continue;
-                };
-                if samples.is_empty() {
+                    .filter(|row| row.original && &row.sample.stream == stream && lease_delivers(&row.sample, holder, identities))
+                    .count();
+                if count == 0 {
                     continue;
                 }
-                self.deliver_to_leaseholder(
-                    &holder,
-                    DeliverSamplesRequest {
-                        samples,
-                        gaps: Vec::new(),
-                        scope_json: serde_json::to_string(&holder.scope).unwrap_or_default(),
-                    },
-                )
-                .await;
+                let request = (|| -> crate::runtime::Result<_> {
+                    let mut encoded = super::streams::admission::slots(count)?;
+                    for row in samples
+                        .iter()
+                        .filter(|row| row.original && &row.sample.stream == stream && lease_delivers(&row.sample, holder, identities))
+                    {
+                        let mut sample = row.sample.clone();
+                        sample.scope = Some(delivery_scope(sample.scope.as_ref(), &holder.scope));
+                        encoded.push(lease_json(&sample)?);
+                    }
+                    Ok(DeliverSamplesRequest { samples: encoded, gaps: Vec::new(), scope_json: lease_json(&holder.scope)? })
+                })();
+                match request {
+                    Ok(request) => self.deliver_to_leaseholder(holder, request).await,
+                    Err(error) => {
+                        tracing::warn!(stream = stream.as_str(), detail = %error, "a leased row could not be encoded for its leaseholder")
+                    }
+                }
             }
         }
     }
@@ -563,8 +647,9 @@ impl RuntimeHandle {
 
     fn stream_owner_and_cadence(&self, stream: &Identifier) -> Result<(StreamOwner, Duration)> {
         let state = self.state_read();
-        let contract = crate::runtime_state::contract_lookup(&state)
-            .telemetry_contract(stream)
+        let contract = state
+            .telemetry_definitions
+            .get(stream)
             .ok_or_else(|| Error::Operation(format!("telemetry stream {stream} is not published by any installed plugin")))?;
         let interval = contract
             .interval
@@ -577,7 +662,7 @@ impl RuntimeHandle {
             .map(|artifact| artifact.source.clone());
 
         Ok(match owner {
-            Some(source) if source == dokime_host::installed_plugin().source => (StreamOwner::Host, interval),
+            Some(source) if source == dokime_host::HOST_PLUGIN_SOURCE => (StreamOwner::Host, interval),
             Some(source) => (StreamOwner::Sidecar(source), interval),
             // No artifact claims the contract, which is two different things
             // and they are told apart by whether the contract names a
@@ -634,6 +719,39 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn lease_delivers(
+    sample: &crate::telemetry::TelemetrySample, holder: &Holder, identities: &[super::streams::admission::SampleIdentity<'_>],
+) -> bool {
+    identities.binary_search(&(holder.scope.test_execution_id.as_ref(), &sample.sample_id)).is_ok()
+        && super::streams::lease_accepts_sample(sample.scope.as_ref(), &holder.scope)
+}
+
+#[derive(Default)]
+struct LeaseJsonCount(usize);
+impl std::io::Write for LeaseJsonCount {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0 = self.0.checked_add(bytes.len()).ok_or_else(|| std::io::Error::other("lease JSON length overflows"))?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+fn lease_json_len(value: &impl serde::Serialize) -> crate::runtime::Result<usize> {
+    let mut count = LeaseJsonCount::default();
+    serde_json::to_writer(&mut count, value).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+    Ok(count.0)
+}
+fn lease_json(value: &impl serde::Serialize) -> crate::runtime::Result<String> {
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(lease_json_len(value)?).map_err(|_| lease_memory_error())?;
+    serde_json::to_writer(&mut bytes, value).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+    String::from_utf8(bytes).map_err(|error| crate::runtime::Error::Operation(error.to_string()))
+}
+fn lease_memory_error() -> crate::runtime::Error {
+    crate::runtime::Error::Operation("leased telemetry staging memory overflows".into())
+}
 
 fn delivery_scope(source: Option<&RecordScope>, holder: &RecordScope) -> RecordScope {
     source

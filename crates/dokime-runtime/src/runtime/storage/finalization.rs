@@ -67,18 +67,18 @@ impl RuntimeHandle {
                 return Err(error);
             }
         };
-        self.commit(crate::transactions::SealCycle { sealed_cycle: sealed.header.clone() })
+        self.commit(crate::transactions::SealCycle { sealed_cycle: (*sealed.header).clone() })
             .await
             .map_err(|error| Error::Operation(error.to_string()))?;
         self.execution_storage.retire_cycle_report(id).await;
         Ok(())
     }
 
-    // Unsealed Members Finalize Four At Once. Those Without An Evidence
+    // Unsealed Members Use The Configured Report Member Concurrency. Those Without An Evidence
     // Boundary Share One Flush And One Durable Intent: Their Providers Have
     // Settled, So No Later Sample Can Belong To Any Of Them.
     pub(crate) async fn finish_saved_members(&self, cycle: &CycleView) -> Result<()> {
-        let pending = cycle.test_executions.iter().filter(|execution| execution.saved.is_none()).cloned().collect::<Vec<_>>();
+        let pending = cycle.test_executions.iter().filter(|execution| execution.saved.is_none()).collect::<Vec<_>>();
         if pending.is_empty() {
             return Ok(());
         }
@@ -111,18 +111,19 @@ impl RuntimeHandle {
                 tracing::debug!(%error, cycle_id = %cycle.test_cycle_id, "batched report finalization intent was refused");
             }
         }
-        match self.finish_saved_executions(cycle, pending).await?.into_iter().next() {
+        match self.finish_saved_executions(cycle, &pending).await?.into_iter().next() {
             Some((_, error)) => Err(error),
             None => Ok(()),
         }
     }
 
     pub(crate) async fn finish_saved_executions(
-        &self, cycle: &CycleView, executions: Vec<TestExecution>,
+        &self, cycle: &CycleView, executions: &[&TestExecution],
     ) -> Result<Vec<(TestExecutionId, Error)>> {
-        let mut remaining = executions.iter();
+        let mut remaining = executions.iter().copied();
         let mut active = FuturesUnordered::new();
-        for execution in remaining.by_ref().take(4) {
+        let active_members = usize::try_from(8_u64).expect("validated report member concurrency");
+        for execution in remaining.by_ref().take(active_members) {
             active.push(self.finish_saved_execution_attributed(cycle, execution));
         }
         let mut failures = Vec::new();
@@ -198,7 +199,7 @@ impl RuntimeHandle {
         // Only Finalization Seals The Subject, After The Full Publication Is Durable.
         self.execution_storage.seal_final_report(id).await?;
         let seal = self.execution_storage.durable_seal(id).await?.ok_or_else(|| invalid("execution seal is not durable"))?;
-        self.commit(crate::transactions::SealExecution { seal }).await.map_err(|error| Error::Operation(error.to_string()))?;
+        self.commit_admitted_seal(seal).await?;
         Ok(())
     }
 
@@ -206,8 +207,19 @@ impl RuntimeHandle {
         let Some(seal) = self.execution_storage.durable_seal(id).await? else {
             return Ok(false);
         };
-        self.commit(crate::transactions::SealExecution { seal }).await.map_err(|error| Error::Operation(error.to_string()))?;
+        self.commit_admitted_seal(seal).await?;
         Ok(true)
+    }
+
+    async fn commit_admitted_seal(
+        &self, seal: harmos::storage::ReadBatch<dokime_domain::model::execution::saved::ExecutionSeal>,
+    ) -> Result<()> {
+        let transaction = seal.try_map(|seal| {
+            Ok::<_, crate::storage::Error>(crate::transactions::Transactions::from(crate::transactions::SealExecution { seal }))
+        })?;
+        let owner = transaction.owner();
+        self.commit_owned(harmos::operations::Response::from_owner(owner)).await.map_err(|error| Error::Operation(error.to_string()))?;
+        Ok(())
     }
 }
 

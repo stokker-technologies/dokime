@@ -48,7 +48,7 @@ pub(crate) struct Args {
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
     args.config.store()?.update(|document| {
-        document.get(&args.name)?;
+        dokime::client::profiles::get(document, &args.name)?;
         document.default = Some(args.name);
         Ok(())
     })?;

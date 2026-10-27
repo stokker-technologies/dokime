@@ -14,6 +14,7 @@ pub mod declared;
 pub mod host;
 pub mod inbox;
 pub mod route;
+pub mod view;
 
 /* === Re-Exports === */
 

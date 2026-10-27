@@ -34,11 +34,6 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-const MAX_RETAINED_EXECUTIONS: usize = 32;
-
-// Shutdown alone re-admits local inputs on a short cadence while each run winds down.
-const SHUTDOWN_SETTLE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(10);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -177,7 +172,7 @@ impl<T: SidecarTemplate> Workflow<T> {
         }
         let parameters = resolved(&request.parameters_json)?;
         let secrets = serde_json::from_str(&request.secrets_json).map_err(|_| Refusal::of("invalid execution secret bindings"))?;
-        let bindings = crate::plugin::Configuration { secrets, ..Default::default() };
+        let bindings = crate::plugin::Configuration { secrets, settings: BTreeMap::new(), saved: Default::default() };
         let mut runs = self.runs.lock().unwrap_or_else(PoisonError::into_inner);
         runs.retain(|run| !run.is_finished());
 
@@ -191,7 +186,7 @@ impl<T: SidecarTemplate> Workflow<T> {
                 }
                 return Err(reused(&token));
             }
-            retain_capacity(&mut executions)?;
+            retain_capacity(&mut executions, 32)?;
             let mut state = ExecutionState::new(request, cancel);
             state.local_inputs = host.is_none();
             state.subscribe(&self.declaration.subscriptions);
@@ -389,8 +384,12 @@ impl<T: SidecarTemplate> Workflow<T> {
             let mut refused = std::collections::BTreeSet::new();
             for mut run in runs {
                 loop {
+                    let mut changes = Vec::new();
                     // Finalization owns local input admission after the driver stops polling.
                     for (token, state) in lock(&self.executions).iter_mut() {
+                        let mut changed = Box::pin(Arc::clone(&state.settled).notified_owned());
+                        changed.as_mut().enable();
+                        changes.push(changed);
                         if !state.local_inputs || refused.contains(token) {
                             continue;
                         }
@@ -399,9 +398,10 @@ impl<T: SidecarTemplate> Workflow<T> {
                             refused.insert(token.clone());
                         }
                     }
+                    let has_changes = !changes.is_empty();
                     tokio::select! {
                         _ = &mut run => break,
-                        _ = tokio::time::sleep(SHUTDOWN_SETTLE_INTERVAL) => {}
+                        _ = async { futures_util::future::select_all(changes).await }, if has_changes => {}
                     }
                 }
             }
@@ -462,8 +462,8 @@ fn reused(token: &str) -> Refusal {
     Refusal::of(format!("execution token {token:?} was reused with different inputs"))
 }
 
-fn retain_capacity(executions: &mut BTreeMap<String, ExecutionState>) -> Result<(), Refusal> {
-    if executions.len() < MAX_RETAINED_EXECUTIONS {
+fn retain_capacity(executions: &mut BTreeMap<String, ExecutionState>, maximum: u64) -> Result<(), Refusal> {
+    if (executions.len() as u64) < maximum {
         return Ok(());
     }
     let finished = executions.iter().find_map(|(token, state)| state.terminal().then(|| token.clone()));
@@ -472,7 +472,7 @@ fn retain_capacity(executions: &mut BTreeMap<String, ExecutionState>) -> Result<
             executions.remove(&token);
             Ok(())
         }
-        None => Err(Refusal::of(format!("sidecar already has {MAX_RETAINED_EXECUTIONS} active executions"))),
+        None => Err(Refusal::of(format!("sidecar already has {maximum} active executions"))),
     }
 }
 

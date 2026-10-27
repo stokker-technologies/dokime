@@ -21,6 +21,8 @@ import { elapsedLabel } from "@/lib/time-format";
 import type { DiagnosticsSnapshot, DocumentCardLayout, HubLiveState } from "@/lib/types";
 import { useHubStore } from "@/stores/hub-store";
 
+const GUI_ELAPSED_TICK_MS = 1_000;
+
 /* === Types === */
 
 type RuntimeSectionProps = {
@@ -33,7 +35,7 @@ type RuntimeSectionProps = {
 /* === Components === */
 
 export function RuntimeSection({ connection, diagnostics, layout, snapshot }: RuntimeSectionProps) {
-  const now = useNow(1000);
+  const now = useNow(GUI_ELAPSED_TICK_MS);
   const artifacts = snapshot?.installed_plugins ?? [];
   const readyArtifacts = artifacts.filter((artifact) => artifact.ready).length;
   const failedArtifacts = artifacts.filter((artifact) => artifact.status === "failed").length;
@@ -89,7 +91,7 @@ export function RuntimeSection({ connection, diagnostics, layout, snapshot }: Ru
         <div className="grid gap-2 sm:grid-cols-2">
           {artifacts.length ? (
             artifacts.map((artifact) => (
-              <div className="grid gap-1 rounded-md border bg-muted/20 p-3 text-sm" key={artifact.artifact_id}>
+              <div className="grid gap-1 rounded-lg border bg-muted/20 p-3 text-sm" key={artifact.artifact_id}>
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <strong className="truncate">{artifact.artifact_id}</strong>
                   <Badge variant={artifact.ready ? "outline" : "secondary"}>{artifact.status}</Badge>
@@ -124,7 +126,7 @@ function RuntimeMetric({
   value: string;
 }) {
   return (
-    <div className="grid gap-2 rounded-md border bg-muted/25 p-3">
+    <div className="grid gap-2 rounded-lg border bg-muted/25 p-3">
       <div className="flex items-center justify-between gap-2 text-muted-foreground">
         <span className="text-xs font-bold uppercase">{label}</span>
         {icon}

@@ -59,6 +59,7 @@ async fn cycle_exposes_rows() {
             ..TelemetrySelection::default()
         })
         .await
+        .unwrap()
         .len();
     executor.release();
     wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;

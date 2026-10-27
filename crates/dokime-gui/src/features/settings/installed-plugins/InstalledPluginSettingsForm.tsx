@@ -47,8 +47,7 @@ type Props = {
 export function InstalledPluginSettingsForm({ schema, values, discovered, onSubmit, onSaveSecret, savingSecret, bindings }: Props) {
   // The draft starts from the discovered values written over the saved ones, so
   // a field the plugin filled in shows what it found. Nothing is confirmed
-  // twice: a change writes itself, debounced for text and at once for a switch
-  // or a select, and the row says what became of it.
+  // twice: every change writes after the same debounce, and the row reports it.
   const [draft, setDraft] = useState<SettingValues>({ ...values, ...discovered });
   const latest = useRef(draft);
   latest.current = draft;
@@ -108,20 +107,25 @@ function SettingField({
   discovered: boolean;
 }) {
   const id = useId();
+  const [fieldValue, setFieldValue] = useState(value);
+  useEffect(() => setFieldValue(value), [value]);
+  const [invalid, setInvalid] = useState(false);
   const autosave = useAutosave<SettingValues[string] | undefined>(onSave);
-  const onChange = autosave.change;
-  const onCommit = autosave.commit;
+  const onChange = (next: SettingValues[string] | undefined) => {
+    setFieldValue(next);
+    autosave.change(next);
+  };
   let control: ReactNode;
   switch (field.kind) {
     case "boolean":
-      control = <Switch id={id} checked={typeof value === "boolean" ? value : field.default} onCheckedChange={onCommit} />;
+      control = <Switch id={id} checked={typeof fieldValue === "boolean" ? fieldValue : field.default} onCheckedChange={onChange} />;
       break;
     case "text_area":
       control = (
         <Textarea
           id={id}
           required={field.required}
-          value={typeof value === "string" ? value : field.default}
+          value={typeof fieldValue === "string" ? fieldValue : field.default}
           onChange={(event) => onChange(event.target.value)}
         />
       );
@@ -131,7 +135,7 @@ function SettingField({
         <Input
           id={id}
           required={field.required}
-          value={typeof value === "string" ? value : field.default}
+          value={typeof fieldValue === "string" ? fieldValue : field.default}
           onChange={(event) => onChange(event.target.value)}
         />
       );
@@ -140,23 +144,31 @@ function SettingField({
       control = (
         <Input
           id={id}
+          className="text-right tabular-nums"
           type="number"
           required
           min={field.min ?? undefined}
           max={field.max ?? undefined}
           step={field.step ?? "any"}
-          value={typeof value === "number" ? value : (field.default ?? "")}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.valueAsNumber)}
+          value={typeof fieldValue === "number" ? fieldValue : (field.default ?? "")}
+          onChange={(event) => {
+            if (!event.currentTarget.validity.valid || !Number.isFinite(event.target.valueAsNumber)) {
+              setInvalid(true);
+              return;
+            }
+            setInvalid(false);
+            onChange(event.target.valueAsNumber);
+          }}
         />
       );
       break;
     case "multiple_choice":
       control = (
         <select
-          className="h-9 rounded-md border bg-background px-3 text-sm"
+          className="h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
           id={id}
-          value={typeof value === "string" ? value : field.default}
-          onChange={(event) => onCommit(event.target.value)}
+          value={typeof fieldValue === "string" ? fieldValue : field.default}
+          onChange={(event) => onChange(event.target.value)}
         >
           {field.choices.map((choice) => (
             <option key={choice.value} value={choice.value}>
@@ -170,8 +182,8 @@ function SettingField({
       control = (
         <SecretField
           id={id}
-          reference={secretReference(value) ?? field.default ?? undefined}
-          onChange={onCommit}
+          reference={secretReference(fieldValue) ?? field.default ?? undefined}
+          onChange={onChange}
           onSave={onSaveSecret}
           saving={savingSecret}
           configured={configured}
@@ -182,6 +194,7 @@ function SettingField({
   return (
     <SettingsRow
       description={field.description}
+      error={invalid ? "Enter a number within the allowed range." : undefined}
       htmlFor={id}
       label={field.title}
       status={
@@ -195,7 +208,7 @@ function SettingField({
         </span>
       }
     >
-      <div className="grid min-w-0 gap-2">{control}</div>
+      <div className="grid w-full min-w-0 gap-2">{control}</div>
     </SettingsRow>
   );
 }
@@ -220,7 +233,7 @@ function SecretField({
   return (
     <div className="grid gap-2">
       <select
-        className="h-9 rounded-md border bg-background px-3 text-sm"
+        className="h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
         aria-label="Secret reference source"
         value={kind}
         onChange={(event) =>

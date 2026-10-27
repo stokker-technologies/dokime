@@ -54,7 +54,7 @@ pub enum Error {
     #[error(
         "Dokime cannot open the data root {}.\n\
          The stored data is not usable by this build: {reason}.\n\
-         Move or delete that directory, or point DOKIME_OUTPUT_ROOT or the settings.json data_root at a fresh directory.",
+         Move or delete that directory, or point DOKIME_OUTPUT_ROOT at a fresh directory.",
         .root.display()
     )]
     IncompatibleStorage { root: PathBuf, reason: String },

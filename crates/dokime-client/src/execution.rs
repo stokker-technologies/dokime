@@ -16,7 +16,7 @@ mod saved;
 
 /* === Re-Exports === */
 
-pub(super) use listeners::{read_records, read_samples, sample_interval, validate_filters};
+pub(super) use listeners::{read_records, read_samples, validate_filters, validate_sample_page};
 pub use run::{RunCallbacks, RunOptions};
 
 /* === Imports === */
@@ -36,7 +36,9 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
-const REQUEST_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
+const CHECKPOINT_BYTES: u64 = 4_096;
+const IDENTITY_BYTES: u64 = 4_096;
+const REQUEST_POLL_MS: u64 = 200;
 
 /* === Macros === */
 
@@ -108,7 +110,7 @@ impl TestExecutionHandle {
     pub async fn wait(
         &self, timeout: Option<std::time::Duration>, interval: Option<std::time::Duration>,
     ) -> Result<dokime_domain::model::history::wire::CheckpointDocument> {
-        let interval = poll_interval(interval)?;
+        let interval = poll_interval(interval, REQUEST_POLL_MS)?;
         let wait = self.client.guard(async {
             loop {
                 let checkpoint = match self.checkpoint().await {
@@ -231,8 +233,8 @@ pub(super) fn admission(
 
 /* === Private Functions === */
 
-fn poll_interval(interval: Option<std::time::Duration>) -> Result<std::time::Duration> {
-    let interval = interval.unwrap_or(REQUEST_POLL_INTERVAL);
+fn poll_interval(interval: Option<std::time::Duration>, default_ms: u64) -> Result<std::time::Duration> {
+    let interval = interval.unwrap_or_else(|| std::time::Duration::from_millis(default_ms));
     if interval.is_zero() {
         return Err(Error::Rpc(tonic::Status::invalid_argument("poll interval must be positive")));
     }
@@ -245,34 +247,35 @@ fn validate_checkpoint(
     use harmos::storage::ObjectVersionToken;
     use std::num::NonZeroUsize;
 
-    if checkpoint.execution_identifier != id.as_str() || checkpoint.version.len() > 4096 {
+    if checkpoint.execution_identifier != id.as_str() || checkpoint.version.len() as u64 > CHECKPOINT_BYTES {
         return Err(invalid("saved checkpoint identity or version differs"));
     }
     let version = ObjectVersionToken::decode_bounded(
         &checkpoint.version,
-        NonZeroUsize::new(4096 + std::mem::size_of::<ObjectVersionToken>()).unwrap(),
+        NonZeroUsize::new((CHECKPOINT_BYTES as usize).saturating_add(std::mem::size_of::<ObjectVersionToken>())).unwrap(),
     )
     .map_err(|_| invalid("saved checkpoint version is invalid"))?;
-    let canonical = version.encode_bounded(NonZeroUsize::new(4096).unwrap()).map_err(|_| invalid("saved checkpoint version is invalid"))?;
+    let maximum = NonZeroUsize::new(CHECKPOINT_BYTES as usize).unwrap();
+    let canonical = version.encode_bounded(maximum).map_err(|_| invalid("saved checkpoint version is invalid"))?;
     if canonical != checkpoint.version {
         return Err(invalid("saved checkpoint version is noncanonical"));
     }
     let original = dokime_domain::model::execution::ExecutionCheckpoint {
         execution_id: id.clone(),
-        position: checkpoint_cursor(checkpoint.position.as_ref())?,
+        position: checkpoint_cursor(checkpoint.position.as_ref(), IDENTITY_BYTES)?,
         version,
-        evidence_through: checkpoint_cursor(checkpoint.evidence_through.as_ref())?,
+        evidence_through: checkpoint_cursor(checkpoint.evidence_through.as_ref(), IDENTITY_BYTES)?,
     };
     original.validate().map_err(|_| invalid("saved checkpoint cut differs"))?;
     Ok(original)
 }
 
 fn checkpoint_cursor(
-    cursor: Option<&dokime_domain::model::execution::wire_checkpoint::StorageCursor>,
+    cursor: Option<&dokime_domain::model::execution::wire_checkpoint::StorageCursor>, maximum: u64,
 ) -> Result<harmos::storage::StorageCursor> {
     let cursor = cursor.ok_or_else(|| invalid("saved checkpoint cursor is missing"))?;
     let history = cursor.history.as_ref().ok_or_else(|| invalid("saved checkpoint history is missing"))?;
-    if history.store.len() > 4096 || history.epoch.len() > 4096 {
+    if history.store.len() as u64 > maximum || history.epoch.len() as u64 > maximum {
         return Err(invalid("saved checkpoint history exceeds its bound"));
     }
     Ok(harmos::storage::StorageCursor {

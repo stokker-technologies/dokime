@@ -48,9 +48,11 @@ fn elapsed_seconds(samples: &[TelemetrySample]) -> Vec<String> {
     values
 }
 
-async fn wait_for_telemetry(handle: &RuntimeHandle, selection: &TelemetrySelection, minimum: usize) -> Vec<TelemetrySample> {
+async fn wait_for_telemetry(
+    handle: &RuntimeHandle, selection: &TelemetrySelection, minimum: usize,
+) -> harmos::storage::ReadBatch<Vec<TelemetrySample>> {
     crate::service_support::waits::until_telemetry(handle, || async {
-        let samples = handle.selected_telemetry(selection.clone()).await;
+        let samples = handle.selected_telemetry(selection.clone()).await.unwrap();
         (samples.len() >= minimum).then_some(samples)
     })
     .await

@@ -70,8 +70,15 @@ impl From<&Identity> for PluginIdentity {
 
 /* === Public Functions === */
 
-pub fn inspect(bytes: &[u8]) -> Result<(Bundle, PluginMetadata), PluginError> {
-    let bundle = Bundle::inspect(bytes, Limits::default()).map_err(|error| PluginError::Invalid(error.to_string()))?;
+pub fn inspect(bytes: &[u8], settings: &harmos::config::SchemaSettings) -> Result<(Bundle, PluginMetadata), PluginError> {
+    inspect_with_archive_limit(bytes, settings, Limits::default().archive_bytes)
+}
+
+pub fn inspect_with_archive_limit(
+    bytes: &[u8], settings: &harmos::config::SchemaSettings, archive_bytes: usize,
+) -> Result<(Bundle, PluginMetadata), PluginError> {
+    let limits = Limits { archive_bytes, ..Limits::default() };
+    let bundle = Bundle::inspect(bytes, limits).map_err(|error| PluginError::Invalid(error.to_string()))?;
     let mut owners = BTreeSet::new();
     let mut environment_references = BTreeSet::new();
     // Validate each platform's catalog independently; selected platforms are
@@ -91,7 +98,7 @@ pub fn inspect(bytes: &[u8]) -> Result<(Bundle, PluginMetadata), PluginError> {
         };
         let installation = decode_registrations(id, &version.to_string(), description, &executable.registrations)
             .map_err(|error| PluginError::Invalid(error.to_string()))?;
-        super::dispatch::validate_analyses(&installation, contracts).map_err(PluginError::Invalid)?;
+        super::dispatch::validate_analyses(&installation, contracts, settings).map_err(PluginError::Invalid)?;
         super::dispatch::Bindings::inspect(&installation, operations).map_err(PluginError::Invalid)?;
         for setting in installation.settings.secrets() {
             if let Some(crate::settings::SecretReference::Environment { variable }) = &setting.default {

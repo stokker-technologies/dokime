@@ -50,17 +50,20 @@ impl ExecutionStorage {
                 .state_manager
                 .state()
                 .read(|state| {
-                    let Some(header) = state.cycles.get(&id).filter(|header| header.saved.is_none()) else {
+                    let Some(header) = state.cycles.get(&id) else {
                         return Ok::<_, Error>(None);
                     };
+                    if header.saved.is_some() {
+                        return Ok(None);
+                    }
                     let cycle = state
                         .cycle_view(&id)
                         .ok_or(harmos::Error::InvalidInput { field: "cycle membership", reason: "execution disappeared" })?;
-                    Ok(Some((cycle, native_cycle(header)?)))
+                    Ok(Some(cycle))
                 })
                 .await?
                 .value?;
-            let Some((cycle, header)) = selected else {
+            let Some(cycle) = selected else {
                 return Ok(());
             };
             for execution in &cycle.test_executions {
@@ -76,7 +79,9 @@ impl ExecutionStorage {
                     storage.storage.write_object(&native).await?;
                 }
             }
+            let header = native_cycle_view(cycle)?;
             let receipt = storage.storage.write_object(&header).await?;
+            drop(header);
             storage.storage.flush_until(&receipt.position).await?;
             Ok(())
         })
@@ -93,11 +98,20 @@ impl ExecutionStorage {
             let native = storage
                 .state_manager
                 .state()
-                .read(|state| state.cycles.get(&id).filter(|header| header.saved.is_none()).map(native_cycle).transpose())
+                .read(|state| {
+                    let Some(header) = state.cycles.get(&id) else {
+                        return Ok::<_, Error>(None);
+                    };
+                    if header.saved.is_some() {
+                        return Ok(None);
+                    }
+                    native_cycle(header).map(Some)
+                })
                 .await?
                 .value?;
             if let Some(native) = native {
                 let receipt = storage.storage.write_object(&native).await?;
+                drop(native);
                 storage.storage.flush_until(&receipt.position).await?;
             }
             Ok(())
@@ -121,12 +135,22 @@ impl ExecutionStorage {
 
 async fn sealed(storage: &crate::storage::Manager, id: &TestCycleId) -> Result<bool> {
     // Native Publication Precedes The State Mirror; Both Are Immutable Once Sealed.
-    let revision = crate::storage::objects::cycle::read(storage, id, harmos::storage::ObjectVersion::Latest).await?;
+    let revision = crate::storage::objects::cycle::read(&storage.clone(), id, harmos::storage::ObjectVersion::Latest).await?;
     Ok(revision.is_some_and(|revision| revision.value.saved.is_some()))
 }
 
 fn native_cycle(header: &dokime_domain::model::execution::result::TestCycle) -> Result<Cycle> {
     Ok(Cycle::try_from(header)?)
+}
+
+fn native_cycle_view(mut source: dokime_domain::model::execution::result::CycleView) -> Result<Cycle> {
+    let executions = std::mem::take(&mut source.test_executions);
+    let mut ids = Vec::new();
+    ids.try_reserve_exact(executions.len()).map_err(|_| harmos::Error::ResourceExhausted { resource: "cycle membership" })?;
+    for execution in executions {
+        ids.push(execution.test_execution_id);
+    }
+    Ok(Cycle::from_view(&source, &ids)?)
 }
 
 /* === Tests === */

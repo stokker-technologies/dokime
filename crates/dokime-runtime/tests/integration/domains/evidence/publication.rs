@@ -134,7 +134,7 @@ async fn subscriptions_deliver_selection() {
 
 #[tokio::test]
 async fn telemetry_batches_sample() {
-    for count in [2, 104, 600] {
+    for count in [2, 104, 600, 5_000] {
         let root = tempdir().unwrap();
         let (_owner, runtime) = started(wifi_config(root.path())).await;
         let before = runtime.runtime_overview().await.expect("runtime overview query succeeds").revision;
@@ -163,7 +163,6 @@ async fn telemetry_batches_sample() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = started(wifi_config(root.path())).await;
 
-    assert!(runtime.publish_telemetry_batch(samples(WIFI, 5_000, None)).await.is_err());
     assert!(runtime.evidence_snapshot().await.unwrap().telemetry.is_empty());
     // Keep each publication below the byte limit while spanning multiple Harmos
     // read pages across the accepted stream.

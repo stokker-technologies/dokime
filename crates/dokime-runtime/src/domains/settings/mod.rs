@@ -41,8 +41,9 @@ use presentation::{SettingsCardContribution, SettingsSectionContribution};
 
 /* === Constants === */
 
+const LIVE_STATUS_TIMEOUT_MS: u64 = 2_000;
+
 pub const IDENTITY_SETTINGS_SECTION_ID: &str = "identity";
-const LIVE_STATUS_TIMEOUT: Duration = Duration::from_secs(2);
 
 /* === Macros === */
 
@@ -122,37 +123,38 @@ pub enum RuntimeSettingsCardState {
 
 impl RuntimeHandle {
     pub async fn settings_frame(&self) -> RuntimeSettingsFrame {
-        let plugins = self.installed_plugins();
-        let sources = join_all(plugins.values().map(|module| {
+        let state = self.state_read();
+        let plugins = &state.installed_plugins;
+        let timeout_ms = LIVE_STATUS_TIMEOUT_MS;
+        let sources = join_all(plugins.values().map(|module| async move {
             let plugin_id = Identifier::new(&module.source).expect("installed source is valid");
             let (sections, cards) = presentation(module);
-            let (state, dispatch_context) = self.settings_card_posture(module);
+            let (state, dispatch_context) = self.settings_card_posture(module).await;
             let dispatcher = (module.enabled && module.settings_status.is_some() && !cards.is_empty() && dispatch_context.is_some())
                 .then(|| self.action_dispatcher(&plugin_id))
                 .flatten();
-            async move {
-                let live_status = match dispatcher {
-                    Some(dispatcher) => Some(
-                        tokio::time::timeout(LIVE_STATUS_TIMEOUT, dispatcher.status())
-                            .await
-                            .map_err(|_| "request exceeded the 2 second timeout".to_owned())
-                            .and_then(|status| status.map_err(|error| error.to_string())),
-                    ),
-                    None => None,
-                };
-                SettingsSource { plugin_id, sections, cards, state, live_status }
-            }
-        }))
-        .await;
+            let live_status = match dispatcher {
+                Some(dispatcher) => Some(
+                    tokio::time::timeout(Duration::from_millis(timeout_ms), dispatcher.status())
+                        .await
+                        .map_err(|_| format!("request exceeded the {timeout_ms} ms timeout"))
+                        .and_then(|status| status.map_err(|error| error.to_string())),
+                ),
+                None => None,
+            };
+            SettingsSource { plugin_id, sections, cards, state, live_status }
+        }));
+        let sources = sources.await;
+        drop(state);
         settings_frame_from_sources(sources)
     }
 
-    fn settings_card_posture(&self, module: &crate::InstalledPlugin) -> (RuntimeSettingsCardState, Option<DispatchContext>) {
+    async fn settings_card_posture(&self, module: &crate::InstalledPlugin) -> (RuntimeSettingsCardState, Option<DispatchContext>) {
         if !module.enabled {
             return (RuntimeSettingsCardState::Disabled, None);
         }
 
-        match self.action_dispatch_context(module) {
+        match self.action_dispatch_context(module).await {
             Ok(context) if context.secrets_configured => (RuntimeSettingsCardState::Ready, Some(context)),
             Ok(context) => (RuntimeSettingsCardState::Disconnected, Some(context)),
             Err(_) => (RuntimeSettingsCardState::Error, None),

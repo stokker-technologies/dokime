@@ -217,7 +217,7 @@ impl RuntimeExecutionSummary {
 impl RuntimeHandle {
     pub async fn runtime_overview(&self) -> crate::runtime::Result<RuntimeOverviewSnapshot> {
         let artifact_count = self.execution_storage.artifact_count().await?;
-        let telemetry_cursor_entries = self.telemetry_cursors.lock().unwrap_or_else(|error| error.into_inner()).len();
+        let telemetry_cursor_entries = self.telemetry_cursors.lock().unwrap_or_else(|error| error.into_inner()).values.len();
         let state = self.state_read();
         // Product revisions advance with transactions. Records share Harmos's
         // ordered history but do not mutate this state image, so report the
@@ -225,7 +225,8 @@ impl RuntimeHandle {
         // record-only journal frontier.
         let revision = self.state_watch.borrow().revision();
         let cycles = state.cycle_views().collect();
-        let evidence_counts = crate::runtime_state::evidence_counts(&state, artifact_count);
+        let traceability = crate::traceability::count(&state)?;
+        let evidence_counts = crate::runtime_state::evidence_counts(&state, artifact_count, traceability);
         let config = self.config();
         Ok(crate::runtime_state::runtime_overview_snapshot(&state, &config, revision, cycles, evidence_counts, telemetry_cursor_entries))
     }

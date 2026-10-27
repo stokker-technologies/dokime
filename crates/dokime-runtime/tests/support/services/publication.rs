@@ -21,9 +21,9 @@ use std::sync::{
 use std::num::NonZeroUsize;
 
 use harmos::storage::{
-    BackendSnapshot, FileCheckpoint, FileMetadata, FileProgress, FileReference, MutationReceipt, ObjectEntry, ObjectKey, ObjectPoint,
-    ReadLimits, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture, StorageSchema, StoreHistory,
-    StoredRecord, StoredRow,
+    BackendSnapshot, FileCheckpoint, FileChunk, FileMetadata, FileProgress, FileReference, MutationReceipt, ObjectEntry, ObjectKey,
+    ObjectPoint, ObjectRetention, ReadLimits, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture,
+    StorageSchema, StoreHistory, StoredRecord, StoredRow,
     query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection},
 };
 // Local Imports
@@ -44,23 +44,18 @@ pub struct PublicationFault {
     released: AtomicUsize,
     pub advance_after_create: AtomicBool,
     pub created: AtomicUsize,
+    pub append_boundary: Mutex<Option<Arc<AppendBoundary>>>,
 }
 pub struct PublicationBackend {
     inner: Arc<dyn StorageBackend>,
     fault: Arc<PublicationFault>,
 }
 
-pub struct MutationBoundary {
+pub struct AppendBoundary {
     pub advance_after_append: AtomicBool,
     pub lose_append_reply: AtomicBool,
-    pub calls: Mutex<Vec<harmos::storage::MutationId>>,
+    pub calls: Mutex<Vec<(harmos::Identifier, u64, Vec<u8>)>>,
     pub lengths: Mutex<std::collections::BTreeMap<String, u64>>,
-}
-
-pub struct MutationHost<H> {
-    pub inner: H,
-    pub storage: dokime_runtime::storage::Manager,
-    pub boundary: Arc<MutationBoundary>,
 }
 
 pub struct AdmissionClock;
@@ -103,72 +98,6 @@ impl AdmissionClock {
     }
 }
 
-impl<H: harmos::operations::Host<Error = harmos::Error>> harmos::operations::Host for MutationHost<H> {
-    type Error = harmos::Error;
-    type Instance<O: harmos::operations::OperationDeclaration> = H::Instance<O>;
-
-    fn context(&self) -> &harmos::operations::CallContext {
-        self.inner.context()
-    }
-
-    fn with_value<T: harmos::operations::ContextValue>(&self, value: T) -> Result<Self, harmos::operations::ContextError> {
-        Ok(Self { inner: self.inner.with_value(value)?, storage: self.storage.clone(), boundary: self.boundary.clone() })
-    }
-
-    async fn submit<O: harmos::operations::OperationDeclaration>(&self, request: O) -> Result<Self::Instance<O>, Self::Error> {
-        self.inner.submit(request).await
-    }
-
-    async fn submit_with_resources<O: harmos::operations::OperationDeclaration<Response = ()>, R: Send + Sync + 'static>(
-        &self, request: O, resources: Arc<R>,
-    ) -> Result<Self::Instance<O>, Self::Error> {
-        self.inner.submit_with_resources(request, resources).await
-    }
-
-    async fn call<O: harmos::operations::OperationDeclaration>(
-        &self, request: O,
-    ) -> Result<harmos::operations::Response<O::Response>, Self::Error> {
-        use harmos::storage::operations::{AppendFile, CreateFile, FinishFile};
-        let request_value = &request as &dyn std::any::Any;
-        let create = request_value.downcast_ref::<CreateFile>();
-        let append = request_value.downcast_ref::<AppendFile>();
-        let finish = request_value.downcast_ref::<FinishFile>();
-        let created = create.map(|value| &value.mutation);
-        let appended = append.map(|value| &value.mutation);
-        let finished = finish.map(|value| &value.mutation);
-        let mutation = created.or(appended).or(finished);
-        if let Some(mutation) = mutation {
-            self.boundary.calls.lock().unwrap().push(mutation.clone());
-        }
-        if let Some(created) = create {
-            let id = created.metadata.id.to_string();
-            let length = created.metadata.expected_length.unwrap();
-            self.boundary.lengths.lock().unwrap().insert(id, length);
-        }
-        let complete_report = append.is_some_and(|value| {
-            let length = self.boundary.lengths.lock().unwrap().get(value.session.id.as_str()).copied();
-            value.session.id.as_str().ends_with(".report") && length == Some(value.offset + value.bytes.len() as u64)
-        });
-
-        let response = self.inner.call(request).await?;
-        if !complete_report {
-            return Ok(response);
-        }
-        if self.boundary.advance_after_append.swap(false, Ordering::SeqCst) {
-            let accepted = self.storage.info().unwrap().accepted;
-            self.storage.flush_until(&accepted).await.unwrap();
-            tokio::time::pause();
-            tokio::time::advance(std::time::Duration::from_secs(51)).await;
-            tokio::time::resume();
-        }
-        if self.boundary.lose_append_reply.swap(false, Ordering::SeqCst) {
-            let lost = std::io::Error::other("controlled append reply loss");
-            return Err(harmos::Error::backend("fixture append reply", harmos::BackendFailure::Transient, lost));
-        }
-        Ok(response)
-    }
-}
-
 impl PublicationFault {
     pub fn new(suffix: &'static str) -> Self {
         Self {
@@ -180,6 +109,7 @@ impl PublicationFault {
             released: AtomicUsize::new(0),
             advance_after_create: AtomicBool::new(false),
             created: AtomicUsize::new(0),
+            append_boundary: Mutex::new(None),
         }
     }
     pub fn crash(suffix: &'static str, status: i32) -> Self {
@@ -247,8 +177,20 @@ impl StorageBackend for PublicationBackend {
     fn close(&self) -> StorageFuture<'_, ()> {
         self.inner.close()
     }
-    fn write<'a>(&'a self, batch: StorageBatch<'a>) -> StorageFuture<'a, StorageCursor> {
-        self.inner.write(batch)
+    fn write_schemas(&self, batch: StorageBatch<StorageSchema>) -> StorageFuture<'_, StorageCursor> {
+        self.inner.write_schemas(batch)
+    }
+    fn write_objects(&self, batch: StorageBatch<ObjectEntry>) -> StorageFuture<'_, StorageCursor> {
+        self.inner.write_objects(batch)
+    }
+    fn write_records(&self, batch: StorageBatch<StoredRecord>) -> StorageFuture<'_, StorageCursor> {
+        self.inner.write_records(batch)
+    }
+    fn write_stream(&self, batch: StorageBatch<StoredRow>) -> StorageFuture<'_, StorageCursor> {
+        self.inner.write_stream(batch)
+    }
+    fn write_files(&self, batch: StorageBatch<FileReference>) -> StorageFuture<'_, StorageCursor> {
+        self.inner.write_files(batch)
     }
     fn open_snapshot<'a>(&'a self, at: &'a StorageCursor) -> StorageFuture<'a, BackendSnapshot> {
         self.inner.open_snapshot(at)
@@ -289,14 +231,44 @@ impl StorageBackend for PublicationBackend {
     ) -> StorageFuture<'a, Vec<u8>> {
         self.inner.read_file(snapshot, file, offset, max_bytes)
     }
-    fn prune_objects<'a>(&'a self, through: &'a StorageCursor, max_entries: NonZeroUsize) -> StorageFuture<'a, bool> {
-        self.inner.prune_objects(through, max_entries)
+    fn prune_objects<'a>(
+        &'a self, through: &'a StorageCursor, max_entries: NonZeroUsize,
+        retention: fn(&SchemaKey) -> harmos::domain::Result<ObjectRetention>,
+    ) -> StorageFuture<'a, bool> {
+        self.inner.prune_objects(through, max_entries, retention)
     }
     fn create_file<'a>(&'a self, metadata: &'a FileMetadata) -> StorageFuture<'a, StagedFile> {
+        if let Some(boundary) = self.fault.append_boundary.lock().unwrap().as_ref() {
+            boundary.lengths.lock().unwrap().insert(metadata.id.to_string(), metadata.expected_length.unwrap());
+        }
         self.inner.create_file(metadata)
     }
-    fn write_file<'a>(&'a self, staging: &'a StagedFile, offset: u64, bytes: &'a [u8]) -> StorageFuture<'a, ()> {
-        self.inner.write_file(staging, offset, bytes)
+    fn write_file<'a>(&'a self, staging: &'a StagedFile, offset: u64, bytes: FileChunk) -> StorageFuture<'a, ()> {
+        let boundary = self.fault.append_boundary.lock().unwrap().clone();
+        Box::pin(async move {
+            let complete_report = boundary.as_ref().is_some_and(|boundary| {
+                boundary.calls.lock().unwrap().push((staging.id.clone(), offset, bytes.as_slice().to_vec()));
+                staging.id.as_str().ends_with(".report")
+                    && boundary.lengths.lock().unwrap().get(staging.id.as_str()).copied() == Some(offset + bytes.len() as u64)
+            });
+            self.inner.write_file(staging, offset, bytes).await?;
+            if complete_report {
+                let boundary = boundary.unwrap();
+                if boundary.advance_after_append.swap(false, Ordering::SeqCst) {
+                    tokio::time::pause();
+                    tokio::time::advance(std::time::Duration::from_secs(51)).await;
+                    tokio::time::resume();
+                }
+                if boundary.lose_append_reply.load(Ordering::SeqCst) {
+                    return Err(harmos::storage::Error::Backend {
+                        operation: "fixture append reply",
+                        kind: harmos::BackendFailure::Transient,
+                        source: Box::new(std::io::Error::other("controlled append reply loss")),
+                    });
+                }
+            }
+            Ok(())
+        })
     }
     fn abort_file<'a>(&'a self, staging: &'a StagedFile) -> StorageFuture<'a, ()> {
         self.inner.abort_file(staging)
@@ -317,7 +289,7 @@ impl StorageBackend for PublicationBackend {
     fn fence_production<'a>(&'a self, file: &'a StagedFile, expected: u64, next: u64) -> StorageFuture<'a, ()> {
         self.inner.fence_production(file, expected, next)
     }
-    fn save_production<'a>(&'a self, checkpoint: &'a FileCheckpoint) -> StorageFuture<'a, ()> {
+    fn save_production(&self, checkpoint: StorageBatch<FileCheckpoint>) -> StorageFuture<'_, ()> {
         self.inner.save_production(checkpoint)
     }
     fn recover_productions(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<FileCheckpoint>> {
@@ -341,11 +313,16 @@ impl StorageBackend for PublicationBackend {
     fn supports_mutation_receipts(&self) -> bool {
         self.inner.supports_mutation_receipts()
     }
-    fn save_mutations<'a>(&'a self, receipts: &'a [MutationReceipt]) -> StorageFuture<'a, ()> {
+    fn save_mutations(&self, receipts: StorageBatch<MutationReceipt>) -> StorageFuture<'_, ()> {
         self.inner.save_mutations(receipts)
     }
     fn recover_mutations(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<MutationReceipt>> {
         self.inner.recover_mutations(limits)
+    }
+    fn read_identities<'a>(
+        &'a self, snapshot: &'a BackendSnapshot, selection: &'a harmos::domain::model::storage::IdentitySelection, page: ScanPage,
+    ) -> StorageFuture<'a, Vec<harmos::domain::model::storage::StoredIdentity>> {
+        self.inner.read_identities(snapshot, selection, page)
     }
 }
 

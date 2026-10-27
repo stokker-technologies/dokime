@@ -19,8 +19,8 @@
 // Local Imports
 use super::*;
 use dokime_runtime::runtime::query::{
-    DownsampleTechnique, PlotAnalysis, PlotDomain, PlotPayloadCursor, PlotPayloadRequest, PlotSeriesSummary, PlotWindow,
-    RuntimePlotQueryMode, WifiBandScan, WifiBandWindow, WifiChannelCount,
+    DownsampleTechnique, PlotAnalysis, PlotDomain, PlotPayloadRequest, PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode, WifiBandScan,
+    WifiBandWindow, WifiChannelCount,
 };
 
 /* === Constants === */
@@ -53,8 +53,9 @@ async fn snapshot_query_samples() {
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 30, None)).await.unwrap();
+    runtime.storage().flush().await.unwrap();
 
-    let envelopes = runtime.query_plot_payloads(vec![wifi_request(None, Some(5), None)], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot).await.unwrap();
 
     assert_eq!(envelopes.len(), 1);
     assert_eq!(envelopes[0].payload.series[0].raw_points, 30);
@@ -62,7 +63,7 @@ async fn snapshot_query_samples() {
     assert!(envelopes[0].payload.series[0].downsampled);
 
     for (budget, expected) in [(10, DownsampleTechnique::Lttb), (5, DownsampleTechnique::MinMax)] {
-        let mut automatic = wifi_request(None, Some(budget), None);
+        let mut automatic = wifi_request(None, Some(budget));
         automatic.technique = DownsampleTechnique::Auto;
         let mut explicit = automatic.clone();
         explicit.technique = expected;
@@ -70,41 +71,37 @@ async fn snapshot_query_samples() {
         let explicit = runtime.query_plot_payloads(vec![explicit], RuntimePlotQueryMode::Snapshot).await.unwrap();
         assert_eq!(automatic[0].payload.series, explicit[0].payload.series);
     }
-    let raw = runtime.query_plot_payloads(vec![wifi_request(None, Some(0), None)], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let raw = runtime.query_plot_payloads(vec![wifi_request(None, Some(0))], RuntimePlotQueryMode::Snapshot).await.unwrap();
     assert_eq!(raw[0].payload.series[0].points.len(), 30);
     assert!(!raw[0].payload.series[0].downsampled);
-    let default = runtime.query_plot_payloads(vec![wifi_request(None, None, None)], RuntimePlotQueryMode::Snapshot).await.unwrap();
-    assert_eq!(default[0].payload.max_points, dokime_runtime::document::DEFAULT_PLOT_MAX_POINTS);
+    let default = runtime.query_plot_payloads(vec![wifi_request(None, None)], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    assert_eq!(default[0].payload.max_points, 2_000_usize);
 }
 
 #[tokio::test]
-async fn batch_request_cursors() {
+async fn batch_replacement_requests() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 4, None)).await.unwrap();
-    let stream = "dokime.tel|-|-|host.wifi.channel_occupancy".to_owned();
-    let mut first =
-        wifi_request(None, Some(10), Some(PlotPayloadCursor { telemetry_streams: [(stream.clone(), 2)].into(), record_sequence: None }));
+    runtime.storage().flush().await.unwrap();
+    let mut first = wifi_request(None, Some(10));
     first.plot_id = Some("first".to_owned());
-    let mut second =
-        wifi_request(None, Some(10), Some(PlotPayloadCursor { telemetry_streams: [(stream, 3)].into(), record_sequence: None }));
+    let mut second = wifi_request(None, Some(10));
     second.plot_id = Some("second".to_owned());
 
-    let envelopes = runtime.query_plot_payloads(vec![first, second], RuntimePlotQueryMode::Append).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![first, second], RuntimePlotQueryMode::Replace).await.unwrap();
 
     assert_eq!(envelopes.iter().map(|envelope| envelope.plot_id.as_str()).collect::<Vec<_>>(), vec!["first", "second"]);
-    assert_eq!(envelopes[0].payload.series[0].raw_points, 2);
-    // The second request is the one-cursor case: only the samples after it, and
-    // the cursor it hands back is the stream's new high-water.
-    assert_eq!(envelopes[1].payload.series[0].raw_points, 1);
-    assert_eq!(envelopes[1].cursor.telemetry_streams.values().copied().collect::<Vec<_>>(), vec![4]);
-    assert_eq!(envelopes[1].revision, 4);
+    assert_eq!(envelopes[0].payload.series[0].raw_points, 4);
+    assert_eq!(envelopes[1].payload.series[0].raw_points, 4);
+    assert_eq!(envelopes[0].payload.series, envelopes[1].payload.series);
+    assert_eq!(envelopes[1].revision, runtime.storage().cursor_saved().sequence);
 }
 
 // a time series plot summarizes each series over the exact rows of its window,
 // whatever the display budget, for the whole window, a trailing window, a
-// zoomed range, and an append frame that carries only the newest rows.
+// Zoomed Ranges And Complete Replacement Frames.
 #[tokio::test]
 async fn series_window_summaries() {
     let root = tempdir().unwrap();
@@ -112,8 +109,9 @@ async fn series_window_summaries() {
     register_plot_suite(&runtime).await;
     // `network_count` is the sample index, one sample per second from midnight.
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 10, None)).await.unwrap();
+    runtime.storage().flush().await.unwrap();
     let midnight = 1_767_225_600.0;
-    let mut whole = wifi_request(None, Some(3), None);
+    let mut whole = wifi_request(None, Some(3));
     whole.plot_type = Some(dokime_runtime::document::PlotType::TimeSeries);
     whole.x_key = None;
     whole.technique = DownsampleTechnique::MinMax;
@@ -142,16 +140,20 @@ async fn series_window_summaries() {
         [midnight + 2.0, midnight + 4.0],
     );
 
-    // An append frame draws only the rows after its cursor, yet summarizes the
-    // whole window.
-    let mut append = whole;
-    append.cursor = Some(PlotPayloadCursor {
-        telemetry_streams: [("dokime.tel|-|-|host.wifi.channel_occupancy".to_owned(), 7)].into(),
-        record_sequence: None,
-    });
-    let appended = runtime.query_plot_payloads(vec![append], RuntimePlotQueryMode::Append).await.unwrap();
-    assert_eq!(appended[0].payload.series[0].raw_points, 3);
-    assert_eq!(appended[0].payload.summaries, envelopes[0].payload.summaries);
+    // A Replacement Summarizes The Same Complete Stored Window.
+    let replacement = whole.clone();
+    let replaced = runtime.query_plot_payloads(vec![replacement], RuntimePlotQueryMode::Replace).await.unwrap();
+    assert_eq!(replaced[0].payload.series[0].raw_points, 10);
+    assert_eq!(replaced[0].payload.summaries, envelopes[0].payload.summaries);
+
+    // Narrowing Does Not Destroy Older Stored Samples; Widening And All Requery Them.
+    for (window_s, count, minimum) in [(Some(2.0), 3, 7.0), (Some(8.0), 9, 1.0), (None, 10, 0.0)] {
+        let request = PlotPayloadRequest { window_s, ..whole.clone() };
+        let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Replace).await.unwrap();
+        assert_eq!(result[0].payload.series[0].raw_points, count);
+        assert_eq!(result[0].payload.summaries[0].count, count);
+        assert_eq!(result[0].payload.summaries[0].min, Some(minimum));
+    }
 }
 
 // a wifi occupancy plot carries its per-scan and per-band counts: readings
@@ -182,7 +184,8 @@ async fn wifi_occupancy_scans() {
         })
         .collect();
     runtime.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)).await.unwrap();
-    let mut request = wifi_request(None, Some(0), None);
+    runtime.storage().flush().await.unwrap();
+    let mut request = wifi_request(None, Some(0));
     request.plot_type = Some(dokime_runtime::document::PlotType::WifiChannelOccupancy);
     request.x_key = Some("timestamp".to_owned());
     request.series_by = Some("wifi_channel".to_owned());
@@ -201,6 +204,8 @@ async fn wifi_occupancy_scans() {
     assert_eq!(scans[1].bands, [band_scan("2.4 GHz", 1, 5, 5), band_scan("5 GHz", 1, 4, 4), band_scan("6 GHz", 1, 2, 2),]);
     assert_eq!(scans[0].bands, [band_scan("2.4 GHz", 2, 5, 3), band_scan("5 GHz", 0, 0, 0)]);
     assert!(scans[0].time.starts_with("2026-01-01T00:00:00"));
+    assert_eq!(scans[2].channels, [WifiChannelCount { channel: 1, count: 0 }, WifiChannelCount { channel: 6, count: 0 }]);
+    assert_eq!(scans[2].bands, [band_scan("2.4 GHz", 0, 0, 0)]);
 }
 
 // an xy interval plot's analysis counts the samples its bins summarize.
@@ -211,45 +216,55 @@ async fn interval_raw_points() {
     register_plot_suite(&runtime).await;
     // `sample_index` and `network_count` both run 0..=9.
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 10, None)).await.unwrap();
-    let mut request = wifi_request(None, Some(0), None);
+    runtime.storage().flush().await.unwrap();
+    let mut request = wifi_request(None, Some(0));
     request.plot_type = Some(dokime_runtime::document::PlotType::XyInterval);
     request.interval.bin_width = 4.0;
     request.interval.sigma = 1.0;
 
-    let envelopes = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
 
     let Some(PlotAnalysis::SigmaInterval { series }) = &envelopes[0].payload.analysis else {
         panic!("no interval: {:?}", envelopes[0].payload.analysis);
     };
     assert_eq!(series[0].bins.iter().map(|bin| bin.count).collect::<Vec<_>>(), [4, 4, 2]);
     assert_eq!(series[0].raw_points, 10);
+    assert_eq!(series[0].bins.iter().map(|bin| bin.x).collect::<Vec<_>>(), [2.0, 6.0, 10.0]);
+    assert_eq!(series[0].bins.iter().map(|bin| bin.mean).collect::<Vec<_>>(), [1.5, 5.5, 8.5]);
+    let sigma = 1.25_f64.sqrt();
+    assert!((series[0].bins[0].lower - (1.5 - sigma)).abs() < 1e-12);
+    assert!((series[0].bins[0].upper - (1.5 + sigma)).abs() < 1e-12);
+
+    request.interval.sigma = 10.0;
+    request.interval.clip_to_observed = true;
+    let clipped = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let Some(PlotAnalysis::SigmaInterval { series }) = &clipped[0].payload.analysis else {
+        panic!("no interval");
+    };
+    assert_eq!(series[0].bins.iter().map(|bin| (bin.lower, bin.upper)).collect::<Vec<_>>(), [(0.0, 3.0), (4.0, 7.0), (8.0, 9.0)]);
 }
 
-// an append frame draws only the rows after its cursor, yet its cartesian
-// domains and point count describe the whole window it extends.
+// Replacement Frames Carry The Complete Cartesian Window.
 #[tokio::test]
-async fn append_frame_domains() {
+async fn replacement_frame_domains() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     // `network_count` is the sample index, one sample per second from midnight.
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 10, None)).await.unwrap();
+    runtime.storage().flush().await.unwrap();
     let midnight = 1_767_225_600.0;
-    let mut whole = wifi_request(None, Some(0), None);
+    let mut whole = wifi_request(None, Some(0));
     whole.plot_type = Some(dokime_runtime::document::PlotType::TimeSeries);
     whole.x_key = None;
-    let mut append = whole.clone();
-    append.cursor = Some(PlotPayloadCursor {
-        telemetry_streams: [("dokime.tel|-|-|host.wifi.channel_occupancy".to_owned(), 7)].into(),
-        record_sequence: None,
-    });
+    let replacement = whole.clone();
 
     let snapshot = runtime.query_plot_payloads(vec![whole], RuntimePlotQueryMode::Snapshot).await.unwrap();
-    let appended = runtime.query_plot_payloads(vec![append], RuntimePlotQueryMode::Append).await.unwrap();
+    let replaced = runtime.query_plot_payloads(vec![replacement], RuntimePlotQueryMode::Replace).await.unwrap();
 
     let snapshot = snapshot[0].payload.cartesian.as_ref().unwrap();
-    let frame = appended[0].payload.cartesian.as_ref().unwrap();
-    assert_eq!(frame.series[0].x.len(), 3);
+    let frame = replaced[0].payload.cartesian.as_ref().unwrap();
+    assert_eq!(frame.series[0].x.len(), 10);
     assert_eq!(frame.x_domain, Some(PlotDomain { min: midnight, max: midnight + 9.0 }));
     assert_eq!(frame.y_domain, Some(PlotDomain { min: 0.0, max: 9.0 }));
     assert_eq!(frame.point_count, 10);
@@ -391,6 +406,7 @@ async fn execution_plots_samples() {
     drop(snapshot);
     for (scope, count) in [(None, 7), (Some(RecordScope::default().with_cycle(cycle.clone())), 5), (Some(execution.clone()), 2)] {
         let receipt = runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", count, scope)).await.unwrap();
+        runtime.storage().flush().await.unwrap();
         assert_eq!(receipt.accepted, count as u64);
         assert_eq!(receipt.dropped, 0);
     }
@@ -410,6 +426,7 @@ async fn execution_plots_samples() {
         sample.stream = wide_batch.stream.clone();
     }
     let receipt = runtime.publish_telemetry_batch(wide_batch).await.unwrap();
+    runtime.storage().flush().await.unwrap();
     assert_eq!(receipt.accepted, 3);
     assert_eq!(receipt.dropped, 0);
     let mut exact_batch = samples("host.wifi.channel_occupancy", 2, Some(execution.clone()));
@@ -427,10 +444,11 @@ async fn execution_plots_samples() {
         sample.stream = exact_batch.stream.clone();
     }
     let receipt = runtime.publish_telemetry_batch(exact_batch).await.unwrap();
+    runtime.storage().flush().await.unwrap();
     assert_eq!(receipt.accepted, 2);
     assert_eq!(receipt.dropped, 0);
     let envelopes =
-        runtime.query_plot_payloads(vec![wifi_request(Some(execution), Some(100), None)], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        runtime.query_plot_payloads(vec![wifi_request(Some(execution), Some(100))], RuntimePlotQueryMode::Snapshot).await.unwrap();
 
     assert_eq!(envelopes[0].payload.series[0].raw_points, 2);
     assert_eq!(envelopes[0].payload.series[0].points.len(), 2);
@@ -579,9 +597,10 @@ async fn large_sample_plot() {
     register_plot_suite(&runtime).await;
     for _ in 0..LARGE_PLOT_SAMPLES / SAMPLE_BATCH {
         runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", SAMPLE_BATCH, None)).await.unwrap();
+        runtime.storage().flush().await.unwrap();
     }
-    let mut request = wifi_request(None, Some(PLOT_POINTS), None);
-    // Markers read records from storage; samples come from the live window.
+    let mut request = wifi_request(None, Some(PLOT_POINTS));
+    // Markers And Samples Read The Same Saved Storage Cut.
     request.marker_record_types = vec!["test.cycle.started".to_owned()];
     let envelopes = runtime
         .query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot)
@@ -641,7 +660,7 @@ fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBand
     WifiBandScan { band: band.to_owned(), occupied_channels: occupied, total_networks: total, peak_count: peak }
 }
 
-fn wifi_request(scope: Option<RecordScope>, max_points: Option<usize>, cursor: Option<PlotPayloadCursor>) -> PlotPayloadRequest {
+fn wifi_request(scope: Option<RecordScope>, max_points: Option<usize>) -> PlotPayloadRequest {
     PlotPayloadRequest {
         plot_id: Some("wifi.network_count".to_owned()),
         plot_type: None,
@@ -664,7 +683,6 @@ fn wifi_request(scope: Option<RecordScope>, max_points: Option<usize>, cursor: O
         max_points,
         window_s: None,
         scope,
-        cursor,
         technique: DownsampleTechnique::Raw,
         ..Default::default()
     }
@@ -675,14 +693,72 @@ fn wifi_request(scope: Option<RecordScope>, max_points: Option<usize>, cursor: O
 // distribution query bins its x column and does not limit evidence to the display budget.
 
 #[tokio::test]
+async fn window_context_uses_latest_source_time_then_persisted_position() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted(root.path()).await;
+    runtime
+        .set_suites(
+            "plot-query",
+            dokime_runtime::definition::SuiteSet::new([TestSuiteDefinition {
+                suite_id: "plot.query.suite".to_owned(),
+                tags: Vec::new(),
+                workflow: None,
+                suite: plot_query_suite(),
+                record_contracts: Vec::new(),
+                telemetry_contracts: vec![wifi_occupancy_contract(), crate::service_support::contracts::minimal_tracking_contract()],
+            }]),
+        )
+        .await
+        .unwrap();
+
+    let mut primary = samples("host.wifi.channel_occupancy", 21, None);
+    primary.samples.retain(|sample| matches!(sample.values.get("sample_index"), Some(Value::Integer(10 | 20))));
+    runtime.publish_telemetry_batch(primary).await.unwrap();
+    // Equal-Time Updates Pick The Later Position; An Older Timestamp Arriving Last Does Not Replace Them.
+    let context = [(8, 8.0), (8, 88.0), (3, 3.0)]
+        .into_iter()
+        .map(|(second, value)| {
+            let mut sample = TelemetrySample::new(
+                dokime_runtime::model::identity::new_id(),
+                Identifier::new("tracking").unwrap(),
+                0,
+                Timestamp::new(format!("2026-01-01T00:00:{second:02}Z")),
+                "host.fixture",
+            );
+            sample.values.insert("elapsed_s".into(), Value::Number(value));
+            sample.values.insert("target_locked".into(), Value::Bool(true));
+            crate::service_support::contracts::typed_minimal_tracking_sample(sample)
+        })
+        .collect();
+    let batch = TelemetryBatch::new(dokime_runtime::model::identity::new_id(), Identifier::new("tracking").unwrap(), context);
+    runtime.publish_telemetry_batch(batch).await.unwrap();
+    runtime.storage().flush().await.unwrap();
+
+    let mut request = wifi_request(None, Some(0));
+    request.plot_type = Some(dokime_runtime::document::PlotType::TimeSeries);
+    request.x_key = Some("timestamp".into());
+    request.window_s = Some(10.0);
+    request.z_stream = Some("tracking".into());
+    request.z_field = Some("elapsed_s".into());
+    let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let points = &result[0].payload.series[0].points;
+    assert_eq!(points.len(), 2);
+    assert_eq!(points.iter().map(|point| point.z).collect::<Vec<_>>(), [Some(88.0), Some(88.0)]);
+    drop(result);
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn distribution_query_budget() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 1000, None)).await.unwrap();
+    runtime.storage().flush().await.unwrap();
 
     // The histogram bins the column it declares on x; y is the count it computes.
-    let mut request = wifi_request(None, Some(5), None);
+    let mut request = wifi_request(None, Some(5));
     request.plot_type = Some(dokime_runtime::document::PlotType::Histogram);
     request.x_key = Some("network_count".to_owned());
     request.y_keys = Vec::new();
@@ -722,6 +798,15 @@ async fn record_query_absent() {
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     let scope = cycle.test_executions[0].scope.clone();
+    // Completion Keeps Writing After The Outcome; Settle Until The Saved Cut Stops Moving.
+    loop {
+        let accepted = runtime.storage().cursor_accepted();
+        runtime.storage().flush().await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        if runtime.storage().cursor_accepted() == accepted {
+            break;
+        }
+    }
 
     for (suite, matches) in [("custom.suite", true), ("other.suite", false)] {
         let request = PlotPayloadRequest {
@@ -742,7 +827,7 @@ async fn record_query_absent() {
         let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
         let count = result[0].payload.series.iter().map(|series| series.points.len()).sum::<usize>();
         assert_eq!(count > 0, matches);
-        assert!(result[0].cursor.telemetry_streams.is_empty());
+        assert_eq!(result[0].revision, runtime.storage().cursor_saved().sequence);
     }
 }
 
@@ -752,10 +837,11 @@ async fn selected_analysis_provenance() {
     let (mut owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();
+    runtime.storage().flush().await.unwrap();
     let definitions = runtime.analysis_definitions().await.unwrap();
     assert!(definitions.iter().any(|definition| definition.id == "dokime.analysis.mean"));
     assert_eq!(definitions.iter().any(|definition| definition.id == "dokime.analysis.fft"), cfg!(feature = "fft"));
-    let mut request = wifi_request(None, Some(1), None);
+    let mut request = wifi_request(None, Some(1));
     request.analysis =
         Some(dokime_runtime::analysis::Selection { id: "dokime.analysis.mean".into(), version: 1, parameters: Default::default() });
     let envelopes = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
@@ -763,8 +849,7 @@ async fn selected_analysis_provenance() {
     assert_eq!(result.series[0].input_samples, 100);
     assert_eq!(result.series[0].output.outputs[0].values, [49.5]);
     assert_eq!(result.series[0].output.outputs[0].unit, "count");
-    assert_eq!(result.source.epoch, runtime.process_epoch().to_string());
-    assert_eq!(result.source.cursor, envelopes[0].cursor);
+    assert_eq!(result.source.position, runtime.storage().cursor_saved());
     assert_eq!(result.source.fields, ["network_count"]);
     assert_eq!(result.selection, request.analysis.clone().unwrap());
     assert!(envelopes[0].payload.series.is_empty());
@@ -778,7 +863,6 @@ async fn selected_analysis_provenance() {
     expressions.y_expressions[0] = expressions.y_expressions[0].clone().mean();
     assert!(runtime.query_plot_payloads(vec![expressions], RuntimePlotQueryMode::Snapshot).await.is_err());
 
-    request.cursor = Some(envelopes[0].cursor.clone());
     let batches = runtime.query_plot_stream_batches(&[request]).await.unwrap();
     assert_eq!(batches[0].mode, RuntimePlotQueryMode::Replace);
     assert_eq!(batches[0].envelope.payload.computed.as_ref().unwrap().series[0].input_samples, 100);
@@ -792,7 +876,8 @@ async fn selected_original_coordinates() {
     let (mut owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();
-    let mut request = wifi_request(None, Some(1), None);
+    runtime.storage().flush().await.unwrap();
+    let mut request = wifi_request(None, Some(1));
     request.analysis = Some(dokime_runtime::analysis::Selection {
         id: "dokime.analysis.lttb".into(),
         version: 1,
@@ -822,7 +907,8 @@ async fn selected_fft_manager() {
         sample.values.insert("network_count".into(), Value::Integer(if index % 2 == 0 { 1 } else { -1 }));
     }
     runtime.publish_telemetry_batch(batch).await.unwrap();
-    let mut request = wifi_request(None, Some(1), None);
+    runtime.storage().flush().await.unwrap();
+    let mut request = wifi_request(None, Some(1));
     request.x_key = Some("timestamp".into());
     request.analysis = Some(dokime_runtime::analysis::Selection {
         id: "dokime.analysis.fft".into(),
@@ -850,7 +936,7 @@ async fn selected_analysis_read() {
         ("dokime.analysis.mean", 999, std::collections::BTreeMap::new(), "version"),
         ("dokime.analysis.mean", 1, [("unknown".into(), Value::Integer(1))].into(), "undeclared"),
     ] {
-        let mut request = wifi_request(None, Some(1), None);
+        let mut request = wifi_request(None, Some(1));
         request.analysis = Some(dokime_runtime::analysis::Selection { id: id.into(), version, parameters });
         let error = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap_err();
         assert!(error.to_string().contains(expected), "{error}");
@@ -865,13 +951,16 @@ async fn selected_analysis_axes() {
     let (mut owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     let mut batch = samples("host.wifi.channel_occupancy", 100, None);
+    // Saved Rows Come From The Typed Payload, So Each Edited Sample Is Encoded Again.
     for sample in &mut batch.samples {
         if let Some(Value::Integer(value)) = sample.values.get_mut("sample_index") {
             *value *= 10;
         }
+        *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
     }
     runtime.publish_telemetry_batch(batch).await.unwrap();
-    let mut request = wifi_request(None, Some(1), None);
+    runtime.storage().flush().await.unwrap();
+    let mut request = wifi_request(None, Some(1));
     request.window_s = Some(9.0);
     request.analysis =
         Some(dokime_runtime::analysis::Selection { id: "dokime.analysis.mean".into(), version: 1, parameters: Default::default() });

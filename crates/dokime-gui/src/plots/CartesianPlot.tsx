@@ -40,7 +40,10 @@ import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/view
 
 /* === Constants === */
 
-const MAX_RENDERED_SERIES = 48;
+const GUI_POINT_MARK_THRESHOLD = 600;
+const GUI_RENDERED_SERIES = 48;
+
+const MAX_RENDERED_SERIES = GUI_RENDERED_SERIES;
 const MIN_CHART_WIDTH = 160;
 /* Tick marks (10px) plus the label gap (5px) plus a little breathing room. */
 const Y_AXIS_LABEL_PADDING = 19;
@@ -57,7 +60,7 @@ const AXIS_LINE_GAP = 1.5;
 const X_AXIS_MIN_RIGHT_PAD = 25;
 /* Axis text is canvas-drawn; the touch rules in styles.css cannot reach it. */
 const TOUCH_PLOT_FONT_SCALE = 1.3;
-const POINT_MARK_RENDER_LIMIT = 600;
+const POINT_MARK_RENDER_LIMIT = GUI_POINT_MARK_THRESHOLD;
 const DENSE_POINT_MARK_SIZE = 3;
 const DEFAULT_POINT_MARK_SIZE = 5;
 const EMPTY_TRACES: ReadonlySet<string> = new Set();
@@ -769,8 +772,8 @@ export const CartesianPlot = memo(function CartesianPlot({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <strong className={titleRepeated ? "sr-only" : "block truncate"}>{title}</strong>
-          {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
-          {contextSummary ? <p className="mt-0.5 text-xs text-muted-foreground">{contextSummary}</p> : null}
+          {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+          {contextSummary ? <p className="mt-1 text-xs text-muted-foreground">{contextSummary}</p> : null}
         </div>
         <div className="flex items-center gap-2">
           {actions}
@@ -780,7 +783,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                 <button
                   type="button"
                   aria-pressed={showPrompts}
-                  className="plot-prompts rounded-md border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-[pressed=false]:text-muted-foreground"
+                  className="plot-prompts rounded-lg border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-[pressed=false]:text-muted-foreground"
                   onClick={() => {
                     setShowPrompts((current) => !current);
                     setHoveredPrompt(null);
@@ -793,7 +796,7 @@ export const CartesianPlot = memo(function CartesianPlot({
               <button
                 type="button"
                 aria-pressed={following}
-                className="plot-follow rounded-md border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                className="plot-follow rounded-lg border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
                 onClick={() => {
                   heldRangeRef.current = null;
                   setFollowing(true);
@@ -823,13 +826,10 @@ export const CartesianPlot = memo(function CartesianPlot({
         <PlotPlaceholder {...placeholder} />
       ) : (
         <div className="relative min-w-0 max-w-full">
-          <div
-            ref={rootRef}
-            className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden"
-          />
+          <div ref={rootRef} className="min-h-60 min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
           {hoveredPrompt && showPrompts ? (
             <div
-              className="pointer-events-none absolute top-1 z-10 max-w-64 -translate-x-1/2 truncate rounded-md border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm"
+              className="pointer-events-none absolute top-1 z-10 max-w-64 -translate-x-1/2 truncate rounded-lg border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm"
               role="tooltip"
               style={{ left: `${hoveredPrompt.left}px` }}
             >

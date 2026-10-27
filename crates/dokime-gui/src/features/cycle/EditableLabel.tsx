@@ -33,6 +33,7 @@ import { CLOSED_LABEL_DRAFT, type LabelDraft, labelEditorKey, openLabelEdit, ref
 
 export type EditableLabelProps = {
   label: string;
+  initiallyEditing?: boolean;
   /** Text before the label that names the node but is not part of it. */
   prefix?: string;
   /** What the pencil renames, for its accessible name: "Cycle" or "Execution". */
@@ -47,8 +48,8 @@ const TITLE_CLASS = "font-heading text-lg leading-7 font-semibold";
 
 /* === Components === */
 
-export function EditableLabel({ label, prefix = "", subject, onRename }: EditableLabelProps) {
-  const [draft, setDraft] = useState<LabelDraft>(CLOSED_LABEL_DRAFT);
+export function EditableLabel({ label, prefix = "", subject, onRename, initiallyEditing = false }: EditableLabelProps) {
+  const [draft, setDraft] = useState<LabelDraft>(() => (initiallyEditing ? openLabelEdit(label) : CLOSED_LABEL_DRAFT));
   const [saving, setSaving] = useState(false);
   const title = `${prefix}${label}`;
 
@@ -118,9 +119,9 @@ export function EditableLabel({ label, prefix = "", subject, onRename }: Editabl
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,auto)_auto] items-center gap-x-2">
-      <h1 className={`min-w-0 truncate ${TITLE_CLASS}`} title={title}>
+      <h2 className={`min-w-0 truncate ${TITLE_CLASS}`} title={title}>
         {title}
-      </h1>
+      </h2>
       {onRename ? (
         <Button
           aria-label={`Rename ${subject}`}

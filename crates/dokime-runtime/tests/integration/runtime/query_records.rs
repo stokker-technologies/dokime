@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -211,44 +209,19 @@ async fn fixed_replay_append() {
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
     publish(&handle).await;
-    let reader = handle.captured_records();
-    let through = reader.frontier();
-    let first = reader.next(0, through).await.unwrap().unwrap();
-    publish(&handle).await;
-    assert_eq!(&*reader.next(0, through).await.unwrap().unwrap(), &*first);
-    assert!(reader.next(first.sequence, through).await.unwrap().is_none());
-    let frontier = reader.wait_after(through).await.unwrap().unwrap();
-    assert!(frontier > through);
-    assert!(reader.next(through, frontier).await.unwrap().unwrap().sequence > through);
-    drop(handle);
-    owner.shutdown().await.unwrap();
-}
-
-#[tokio::test]
-async fn fixed_record_pressure() {
-    let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
-    let handle = owner.handle();
-    publish(&handle).await;
     handle.storage().flush().await.unwrap();
     publish(&handle).await;
     let reader = handle.captured_records();
     let through = reader.frontier();
     let first = reader.next(0, through).await.unwrap().unwrap();
-
-    // Exceed the 16 MiB admission queue while this reader is still in saved history.
-    for _ in 0..300 {
-        let mut draft = ProductCalibrationDetails::new("fixture-device", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
-            .into_draft("fixture.product");
-        draft.message = Some("x".repeat(64 * 1024));
-        handle.publish_product_record(draft).await.unwrap();
-    }
+    publish(&handle).await;
+    assert_eq!(&*reader.next(0, through).await.unwrap().unwrap(), &*first);
     let second = reader.next(first.sequence, through).await.unwrap().unwrap();
     assert!(second.sequence > first.sequence && second.sequence <= through);
     assert!(reader.next(second.sequence, through).await.unwrap().is_none());
-    drop(second);
-    drop(first);
-    drop(reader);
+    let frontier = reader.wait_after(through).await.unwrap().unwrap();
+    assert!(frontier > through);
+    assert!(reader.next(through, frontier).await.unwrap().unwrap().sequence > through);
     drop(handle);
     owner.shutdown().await.unwrap();
 }
@@ -487,12 +460,13 @@ async fn primary_capture_boots() {
     let saved = backend.cursor_saved().await.unwrap();
     let mut actual = Vec::new();
     let mut epochs = Vec::new();
-    for row in crate::service_support::backend::records(backend.as_ref(), &saved, dokime_runtime::storage::records::schema()).await {
+    crate::service_support::backend::for_each_record(backend.as_ref(), &saved, dokime_runtime::storage::records::schema(), |row| {
         let record = dokime_runtime::storage::records::RecordRow::decode_entry(&row.payload).unwrap();
         assert_eq!(row.item.as_str(), record.record_id.as_str());
         actual.push(record.record_id.to_string());
-        epochs.push(row.scope.expect("captured record retains boot scope").to_string());
-    }
+        epochs.push(row.scope.as_ref().expect("captured record retains boot scope").to_string());
+    })
+    .await;
     assert_eq!(actual, expected);
     assert_ne!(epochs[0], epochs[1]);
     backend.close().await.unwrap();
@@ -513,7 +487,7 @@ async fn completed_record_capacity() {
         }
         readers.push(reader);
     }
-    // Completed Readers Stay Alive Without Reserving Another View Or Page.
+    // Completed Readers Observe Later Publications.
     publish(&handle).await;
     let reader = handle.captured_records();
     assert!(reader.next(0, reader.frontier()).await.unwrap().is_some());

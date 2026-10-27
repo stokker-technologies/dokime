@@ -17,6 +17,7 @@ import { test } from "vitest";
 
 // Local Imports
 import { groupExecutions } from "@/features/explore/explore-data-source";
+import { parseTimestampMs } from "@/lib/time-format";
 import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage, SavedCycleSummary } from "@/lib/types/view-contracts";
 
 /* === Re-Exports === */
@@ -85,6 +86,17 @@ function page(entries: ExecutionBrowseEntry[], cycles: ExecutionBrowseCycle[]): 
 }
 
 /* === Entry Point === */
+
+test("Historical Timestamps Remain Valid", () => {
+  assert.equal(parseTimestampMs(undefined), null);
+  assert.equal(parseTimestampMs(null), null);
+  assert.equal(parseTimestampMs(""), null);
+  assert.equal(parseTimestampMs("invalid"), null);
+  assert.equal(parseTimestampMs("1970-01-01T00:00:00Z"), 0);
+  assert.equal(parseTimestampMs("1969-12-31T23:59:59Z"), -1_000);
+  assert.equal(parseTimestampMs("1999-12-31T23:59:59Z"), 946_684_799_000);
+  assert.equal(parseTimestampMs("2000-01-01T00:00:00Z"), 946_684_800_000);
+});
 
 test("Backend Cycle Totals", () => {
   // Totals Cover The Whole Selection, Not The Loaded Entries

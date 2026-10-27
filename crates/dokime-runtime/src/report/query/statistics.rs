@@ -20,6 +20,7 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use harmos::storage::{
+    query::Accumulator,
     query::scalar::ScalarValue,
     query::transform::{
         AggregateExecution,
@@ -29,7 +30,6 @@ use harmos::storage::{
         FieldPath, FieldPathExecution,
         histogram::{Histogram, HistogramExecution},
     },
-    query::{Accumulator, Scratch},
 };
 use harmos::{
     Aggregate,
@@ -97,7 +97,7 @@ pub(super) fn field(name: &str) -> FieldPath {
 pub(super) fn collect(
     read: ReadContext<'_, '_>, samples: &[TelemetrySample], contract: &TelemetryContract, keys: &[String], x: &FieldPath,
 ) -> Result<Vec<Statistics>> {
-    let validator = validator(contract)?;
+    let validator = validator(contract, read.ctx.scope().resources::<crate::app::Dokime>())?;
     for key in keys {
         validate_field(contract, key, true)?;
     }
@@ -108,20 +108,15 @@ pub(super) fn collect(
     }
 
     // Application-Local Reduction: One Series Owns Its Temporary Memory.
-    let bytes = samples
-        .len()
-        .checked_mul(std::mem::size_of::<ScalarValue>() * 2 + std::mem::size_of::<usize>() * 2)
-        .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Accumulator>() * 9 + 65536))
-        .ok_or_else(|| invalid("report reduction memory overflow"))?;
+
     let mut output = Vec::with_capacity(keys.len());
     for key in keys {
-        let _memory = reserve(read, bytes)?;
         let mut accumulators =
             [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Median, Aggregate::Std, Aggregate::Rms]
                 .map(|statistic| Accumulator::new(Agg::Of(statistic)));
         let mut minimum = Accumulator::new(Agg::Of(Aggregate::Min));
         let mut maximum = Accumulator::new(Agg::Of(Aggregate::Max));
-        let mut scratch = Scratch::new(samples.len());
+
         for (capture, sample) in samples.iter().enumerate() {
             let payload = sample.storage_payload.as_deref().ok_or_else(|| invalid("report sample has no original typed payload"))?;
             let row = crate::storage::telemetry::decode_values(&validator, payload)?;
@@ -132,11 +127,11 @@ pub(super) fn collect(
             } else {
                 scalar(row.get(x_key))?
             };
-            minimum.push(capture as u64, &x_value, &mut scratch)?;
-            maximum.push(capture as u64, &x_value, &mut scratch)?;
+            minimum.push(capture as u64, &x_value)?;
+            maximum.push(capture as u64, &x_value)?;
             let value = scalar(row.get(key))?;
             for accumulator in &mut accumulators {
-                accumulator.push(capture as u64, &value, &mut scratch)?;
+                accumulator.push(capture as u64, &value)?;
             }
         }
         // Like full(), This Synchronous Application Work Has No Cancellation Token.
@@ -166,18 +161,12 @@ pub(super) fn histogram(
         return Err(invalid("histogram bin count exceeds storage transform limit"));
     }
     validate_field(contract, key, true)?;
-    let bytes = samples
-        .len()
-        .checked_mul(std::mem::size_of::<Option<f64>>() * 2)
-        .and_then(|bytes| count.checked_add(2)?.checked_mul(128)?.checked_add(bytes))
-        .and_then(|bytes| bytes.checked_add(65536))
-        .ok_or_else(|| invalid("report histogram memory overflow"))?;
-    let _memory = reserve(read, bytes)?;
+
     let (minimum, maximum) = statistics.min.zip(statistics.max).unwrap_or((0.0, 0.0));
     let width = if minimum == maximum { 1.0 } else { (maximum - minimum) / count as f64 };
     let edges =
         (0..=count).map(|index| if index == count && minimum != maximum { maximum } else { minimum + index as f64 * width }).collect();
-    let validator = validator(contract)?;
+    let validator = validator(contract, read.ctx.scope().resources::<crate::app::Dokime>())?;
     let mut values = Vec::with_capacity(samples.len());
     for sample in samples {
         let payload = sample.storage_payload.as_deref().ok_or_else(|| invalid("report sample has no original typed payload"))?;
@@ -234,9 +223,9 @@ pub(super) fn number(value: ScalarValue) -> Option<f64> {
 
 /* === Private Functions === */
 
-fn validator(contract: &TelemetryContract) -> Result<Validator> {
+fn validator(contract: &TelemetryContract, resources: &crate::app::Resources) -> Result<Validator> {
     let schema = contract.storage_schema.as_ref().ok_or_else(|| invalid("captured telemetry has no typed storage schema"))?;
-    Validator::from_schema(schema, &harmos::config::SchemaSettings::default()).map_err(|_| invalid("captured telemetry graph is invalid"))
+    Validator::from_schema(schema, &resources.schema_settings).map_err(|_| invalid("captured telemetry graph is invalid"))
 }
 
 fn validate_field(contract: &TelemetryContract, key: &str, numeric: bool) -> Result<()> {
@@ -271,14 +260,6 @@ fn validate_field(contract: &TelemetryContract, key: &str, numeric: bool) -> Res
     };
     plan.output_schema(&input)?;
     Ok(())
-}
-
-fn reserve(read: ReadContext<'_, '_>, bytes: usize) -> Result<harmos::storage::arrow::RetainedMemory> {
-    if bytes > read.settings.budget.read_memory_bytes.get() {
-        return Err(invalid("report reduction exceeds configured read memory"));
-    }
-    let storage = read.ctx.scope().storage::<crate::app::Dokime>().ok_or_else(|| invalid("report storage is unavailable"))?;
-    Ok(storage.reserve_arrow_memory(bytes)?)
 }
 
 fn scalar(value: Option<&Value>) -> Result<ScalarValue> {

@@ -24,7 +24,6 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 
 // Local Imports
-use super::value;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::DocumentId;
 use dokime::domain::model::identity::Identifier;
@@ -72,7 +71,6 @@ impl Operation for Capture {
         &mut self, _: Self::Context<'a>, request: &mut contract::CaptureCurrentDocument, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let (cycle, execution) = owner(request.scope.take())?;
-        value::text(&request.document_id)?;
         let id = DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
         // A scope without an execution names the cycle's own document.
         let runtime = &self.resources.runtime;
@@ -121,13 +119,8 @@ impl Operation for UpdatePlotSettings {
         &mut self, _: Self::Context<'a>, request: &mut contract::UpdatePlotSettings, _: &mut (),
     ) -> Result<Response<()>, Status> {
         let (cycle, execution) = scope(request.scope.take())?;
-        value::text(&request.document_id)?;
-        value::text(&request.plot_id)?;
         let document = DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
         let plot = Identifier::new(&request.plot_id).map_err(|_| Status::invalid_argument("invalid plot ID"))?;
-        if request.display_points.is_some_and(|points| points > 100_000) {
-            return Err(Status::invalid_argument("display_points must not exceed 100000"));
-        }
         self.resources
             .runtime
             .update_plot_settings(&cycle, &execution, &document, &plot, request.display_points, request.downsample)

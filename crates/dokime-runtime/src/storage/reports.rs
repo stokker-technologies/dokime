@@ -37,6 +37,8 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
+const SCHEMA_ID: &str = "dokime.report.publication";
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -72,9 +74,13 @@ pub struct Input<'a> {
 }
 
 pub struct Prepared {
+    schema_settings: harmos::config::SchemaSettings,
     manager: Manager,
+    state: Option<harmos::storage::ReadBatch<PublicationState>>,
+}
+
+struct PublicationState {
     row: Publication,
-    payload: Vec<u8>,
     scope: Identifier,
     schema: SchemaKey,
     schema_position: Option<StorageCursor>,
@@ -94,60 +100,118 @@ pub enum Owner<'a> {
 /* === Implementations === */
 
 impl Prepared {
-    pub fn new(manager: &Manager, input: &Input<'_>) -> Result<Self> {
+    pub fn new(manager: &Manager, input: &Input<'_>, schema_settings: &harmos::config::SchemaSettings) -> Result<Self> {
         if !manager.cursor_saved().covers(input.dependencies_saved)? {
             return Err(Error::Invalid("report dependencies are not durable in this manager"));
         }
-        let row = Publication::new(input)?;
-        let payload = row.encode_to_vec();
-        Ok(Self {
-            manager: manager.clone(),
-            row,
-            payload,
-            scope: input.owner.scope(),
-            schema: schema(),
-            schema_position: None,
-            position: None,
-        })
+
+        let state = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
+            let row = Publication::new(input)?;
+            let text = input.owner.scope_text()?;
+            let scope = Identifier::new(text)?;
+            Ok(PublicationState { row, scope, schema: schema(), schema_position: None, position: None })
+        })?;
+        Ok(Self { schema_settings: *schema_settings, manager: manager.clone(), state: Some(state) })
     }
 
     pub async fn finish(&mut self) -> Result<StorageCursor> {
-        if self.schema_position.is_none() {
-            let graph =
-                harmos::schema::graph::Schema::from_declaration(Publication::DEFINITION, &harmos::config::SchemaSettings::default())
-                    .map_err(|error| harmos::Error::backend("prepare report schema", harmos::BackendFailure::Permanent, error))?;
-            self.schema_position = Some(self.manager.write_schema(&self.schema, &graph).await?);
+        let state = self.state();
+        if state.schema_position.is_none() {
+            // Native Declaration Compilation Still Owns Its Private Workspace.
+            let graph = harmos::schema::graph::Schema::from_declaration(Publication::DEFINITION, &self.schema_settings)
+                .map_err(|error| harmos::Error::backend("prepare report schema", harmos::BackendFailure::Permanent, error))?;
+            let key = state.schema.clone();
+            let position = self.manager.write_schema(key, graph).await?;
+            let position = Some(position);
+            self.update(|state| state.schema_position = position)?;
         }
-        if self.position.is_none() {
-            self.position = Some(
-                self.manager
-                    .write_records(&[harmos::storage::RecordWrite {
-                        schema: &self.schema,
-                        scope: Some(&self.scope),
-                        item: &self.row.file()?.metadata.id,
-                        source: None,
-                        source_time: None,
-                        payload: &self.payload,
-                    }])
-                    .await?,
-            );
+
+        let state = self.state();
+        if state.position.is_none() {
+            let records = state.records()?;
+            let position = self.manager.write_records(records).await?;
+            let position = Some(position);
+            self.update(|state| state.position = position)?;
         }
-        let position = self.position.as_ref().expect("report admission receipt");
+
+        let state = self.state();
+        let position = state.position.as_ref().expect("report admission receipt");
         let saved = self.manager.flush_until(position).await?;
         if !saved.covers(position)? {
             return Err(Error::Invalid("report publication is not saved"));
         }
         Ok(position.clone())
     }
+
+    fn state(&self) -> &PublicationState {
+        self.state.as_deref().expect("prepared publication owns its state")
+    }
+
+    fn update(&mut self, update: impl FnOnce(&mut PublicationState)) -> Result<()> {
+        let state = self.state.take().expect("prepared publication owns its unique state");
+        let updated = state.try_map(|mut state| -> Result<_> {
+            update(&mut state);
+            Ok(state)
+        })?;
+        self.state = Some(updated);
+        Ok(())
+    }
 }
 
-impl Owner<'_> {
-    pub fn scope(self) -> Identifier {
-        let (kind, id) = match self {
+impl PublicationState {
+    fn records(&self) -> Result<Vec<harmos::storage::RecordInput>> {
+        let length = self.row.encoded_len();
+        let mut payload = exact_slots(length)?;
+        self.row.encode_into(&mut payload);
+        if payload.len() != length {
+            return Err(Error::Invalid("report payload size changed during encoding"));
+        }
+
+        let mut records = exact_slots(1)?;
+        let file = self.row.file()?;
+        let scope = Some(self.scope.clone());
+        records.push(harmos::storage::RecordInput {
+            schema: self.schema.clone(),
+            scope,
+            item: file.metadata.id.clone(),
+            source: None,
+            source_time: None,
+            payload,
+        });
+        Ok(records)
+    }
+}
+
+impl<'a> Owner<'a> {
+    fn parts(self) -> (&'static str, &'a str) {
+        match self {
             Self::Cycle(id) => ("cycle", id.as_str()),
             Self::Execution(id) => ("execution", id.as_str()),
-        };
-        Identifier::new(format!("{kind}.{id}")).expect("typed report owner")
+        }
+    }
+
+    fn scope_len(self) -> usize {
+        let (kind, id) = self.parts();
+        kind.len().saturating_add(1).saturating_add(id.len())
+    }
+
+    fn scope_text(self) -> Result<String> {
+        let length = self.scope_len();
+        let mut text = String::new();
+        if text.try_reserve_exact(length).is_err() {
+            return Err(Error::Invalid("report owner allocation failed"));
+        }
+
+        let (kind, id) = self.parts();
+        text.push_str(kind);
+        text.push('.');
+        text.push_str(id);
+        Ok(text)
+    }
+
+    pub fn scope(self) -> Identifier {
+        let text = self.scope_text().expect("report owner allocation");
+        Identifier::new(text).expect("typed report owner")
     }
 }
 
@@ -171,18 +235,20 @@ impl Publication {
 
     pub fn new(input: &Input<'_>) -> Result<Self> {
         validate(input)?;
-        let mut executions = Vec::with_capacity(input.executions.len());
+        let mut executions = exact_slots(input.executions.len())?;
         for source in input.executions {
             executions.push(Revision::try_from(source)?);
         }
+        let mut inputs = exact_slots(input.inputs.len())?;
+        inputs.extend_from_slice(input.inputs);
         Ok(Self {
-            owner: input.owner.scope().to_string(),
+            owner: input.owner.scope_text()?,
             generated_at: input.generated_at.as_str().to_owned(),
             final_report: input.final_report,
             evidence_through: Some(input.evidence_through.clone()),
             dependencies_saved: Some(input.dependencies_saved.clone()),
             executions,
-            inputs: input.inputs.to_vec(),
+            inputs,
             file: Some(input.file.clone()),
             cycle: input.cycle.map(Cycle::try_from).transpose()?,
             execution: input.execution.map(Seal::try_from).transpose()?,
@@ -278,7 +344,7 @@ impl Publication {
 pub fn schema() -> SchemaKey {
     SchemaKey {
         payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
-        id: Identifier::new("dokime.report.publication").unwrap(),
+        id: Identifier::new(SCHEMA_ID).unwrap(),
         version: 1.try_into().unwrap(),
     }
 }
@@ -294,6 +360,14 @@ pub fn selection(owner: Owner<'_>, report: Option<Identifier>) -> harmos::storag
 }
 
 /* === Private Functions === */
+
+fn exact_slots<T>(length: usize) -> Result<Vec<T>> {
+    let mut values = Vec::new();
+    if values.try_reserve_exact(length).is_err() {
+        return Err(Error::Invalid("report slot allocation failed"));
+    }
+    Ok(values)
+}
 
 fn validate(input: &Input<'_>) -> Result<()> {
     input.generated_at.to_datetime()?;

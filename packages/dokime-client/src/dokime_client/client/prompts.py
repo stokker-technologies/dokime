@@ -31,6 +31,9 @@ from .models import Backend, Prompt, Value
 
 # === Constants === #
 
+PAGE_ITEMS = 100
+VALUE_DEPTH = 64
+
 # === Types === #
 
 # === Classes === #
@@ -66,7 +69,7 @@ class Scope:
         return view
 
     async def pending(self) -> AsyncGenerator[Prompt]:
-        request = _wire.request("Prompts", "ListPending", cycle_id=self.cycle_id, limit=100)
+        request = _wire.request("Prompts", "ListPending", cycle_id=self.cycle_id, limit=PAGE_ITEMS)
         if self.execution_id is not None:
             request.execution_id = self.execution_id
         selection = json.dumps([self.cycle_id, self.execution_id], separators=(",", ":")).encode()
@@ -86,7 +89,7 @@ class Scope:
             _wire.copy(request.cursor, page.cursor)
 
     async def respond(self, prompt_id: str, *, action: str, values: Mapping[str, Value] | None, accepted: bool) -> None:
-        encoded = _wire.encode(dict(values or {}))
+        encoded = _wire.encode(dict(values or {}), VALUE_DEPTH)
         await self.read(prompt_id)
         await self.transport.verify(self.backend, live=True)
         request = _wire.request("Prompts", "Respond", prompt_id=prompt_id, action=action, values=encoded, accepted=accepted)

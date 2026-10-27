@@ -33,7 +33,7 @@ use dokime::domain::model::plugins::wire;
 
 /* === Constants === */
 
-const CONSENT_DEADLINE: Duration = Duration::from_secs(10);
+const CONSENT_TIMEOUT_MS: u64 = 10_000;
 
 /* === Macros === */
 
@@ -68,7 +68,8 @@ struct Review {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> Result<()> {
+pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> Result<()> {
+    args.connection = args.connection.with_settings(*settings);
     if !args.yes && !std::io::stdin().is_terminal() {
         return Err(Error::Input("interactive consent requires a terminal; use --yes for automation".into()));
     }
@@ -101,7 +102,8 @@ pub(crate) async fn run(args: Args) -> Result<()> {
         disclose(&mut std::io::stderr(), &review.references)?;
         let consent = args.yes || confirm()?;
 
-        complete(&client, &endpoint, &staged.install_id, &review.digest, consent).await
+        let deadline = Duration::from_millis(CONSENT_TIMEOUT_MS);
+        complete(&client, &endpoint, &staged.install_id, &review.digest, consent, deadline).await
     }
     .await;
     client.close_and_wait().await;
@@ -185,8 +187,8 @@ fn confirm() -> Result<bool> {
     Ok(matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes"))
 }
 
-async fn complete(client: &Client, endpoint: &str, id: &str, digest: &str, consent: bool) -> Result<()> {
-    let client = client.clone().with_timeout(CONSENT_DEADLINE);
+async fn complete(client: &Client, endpoint: &str, id: &str, digest: &str, consent: bool, deadline: Duration) -> Result<()> {
+    let client = client.clone().with_timeout(deadline);
     if !consent {
         let request = plugins::Remove { install_id: id.into() };
         let removed = client.plugins_remove(request).await;

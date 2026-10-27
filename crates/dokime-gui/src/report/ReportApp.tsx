@@ -77,7 +77,7 @@ function ReportSurface() {
         title,
       }}
     >
-      <ReportCycleWorkspace onSelect={setSelection} selection={selection} source={source} />
+      <ReportCycleWorkspace selection={selection} source={source} />
     </ReportShell>
   );
 }

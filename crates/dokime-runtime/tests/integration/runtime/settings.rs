@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, fs, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use dokime_runtime::domains::{ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse};
 use dokime_runtime::{HostCardBlock, HostCardTone, Identifier, Metadata, RedactedSecretBinding, SecretBackendKind, Value};
@@ -55,6 +55,14 @@ impl ActionDispatcher for FixtureStatusDispatcher {
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn saved_metadata(handle: &RuntimeHandle) -> String {
+    let connection =
+        rusqlite::Connection::open_with_flags(handle.storage_root().join("local.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .unwrap();
+    let body: Vec<u8> = connection.query_row("SELECT body FROM application_metadata WHERE id=1", [], |row| row.get(0)).unwrap();
+    String::from_utf8(body).unwrap()
+}
+
 async fn fixture_runtime(module: Option<dokime_runtime::InstalledPlugin>) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
     fixture_runtime_with_dispatcher(module, None).await
 }
@@ -272,15 +280,14 @@ async fn secret_references_file() {
     };
     let mut artifact = installed_plugin("fixture");
     artifact.settings = catalog;
-    let (root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
+    let (_root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
     handle.save_plugin_secret(&id, "token", PluginSecretUpdate { secret: "never-persist-plaintext-here".into() }).await.unwrap();
     let resolved = handle.plugin_settings(&id).await.unwrap();
     assert_eq!(resolved.values["name"], "default-name".into());
     assert!(resolved.secret_bindings.missing_required.is_empty());
     handle.save_plugin_settings(&id, PluginSettingsUpdate { values: resolved.values.clone() }).await.unwrap();
-    let settings_file = root.path().join("application/settings.json");
     let saved = handle.plugin_settings(&id).await.unwrap();
-    assert!(!fs::read_to_string(&settings_file).unwrap().contains("never-persist-plaintext-here"));
+    assert!(!saved_metadata(&handle).contains("never-persist-plaintext-here"));
     let mut invalid = resolved.values;
     invalid.insert("token".into(), "never-persist-plaintext-here".into());
     assert!(handle.save_plugin_settings(&id, PluginSettingsUpdate { values: invalid }).await.is_err());
@@ -295,7 +302,7 @@ async fn secret_references_file() {
         SecretReference::try_from(&resolved.values["token"]).unwrap(),
         SecretReference::Environment { variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into() }
     );
-    assert!(!fs::read_to_string(settings_file).unwrap().contains("never-persist-plaintext-here"));
+    assert!(!saved_metadata(&handle).contains("never-persist-plaintext-here"));
     runtime.shutdown().await.unwrap();
 }
 
@@ -347,8 +354,8 @@ async fn stored_secret_bindings() {
     runtime.shutdown().await.unwrap();
 
     let mut reopened = dokime_runtime::Runtime::start(config).await.unwrap();
-    assert!(!fs::read_to_string(root.path().join("application/settings.json")).unwrap().contains("secret-token"));
     let handle = reopened.handle();
+    assert!(!saved_metadata(&handle).contains("secret-token"));
     assert_eq!(
         handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.unwrap().value.as_deref(),
         Some("replacement-token")
@@ -365,6 +372,7 @@ async fn stored_secret_bindings() {
 #[tokio::test]
 async fn source_settings_absent() {
     let root = tempfile::tempdir().unwrap();
+    let remote = format!("remote-{}", "x".repeat(256));
     let config = crate::service_support::budgets::runtime_config(
         root.path(),
         dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("storage.settings").unwrap(), "Storage Settings", None),
@@ -372,15 +380,21 @@ async fn source_settings_absent() {
     {
         let state = dokime_runtime::storage::sqlite::State::open(root.path()).await.unwrap();
         state.register_source("fabric", "microsoft.fabric").await.unwrap();
+        state.register_source(&remote, "remote.adapter").await.unwrap();
     }
     let mut runtime = dokime_runtime::Runtime::with_execution_fixtures_without_builtins(config.clone(), std::iter::empty()).await.unwrap();
     let handle = runtime.handle();
-    handle.reorder_storage_sources(vec!["fabric".into(), "local".into()]).await.unwrap();
+    handle.reorder_storage_sources(vec!["fabric".into(), "local".into(), remote.clone()]).await.unwrap();
     handle.set_storage_source_enabled("fabric", false).await.unwrap();
+    handle.set_storage_source_enabled(&remote, false).await.unwrap();
     let expected = handle.storage_sources().await.unwrap();
     assert_eq!(expected[0].identifier, "fabric");
     assert!(!expected[0].enabled);
     assert_eq!(expected[1].priority, 1);
+    assert_eq!(expected[2].identifier, remote);
+    assert!(!expected[2].enabled);
+    assert!(handle.reorder_storage_sources(vec!["fabric".into(), "local".into(), "local".into()]).await.is_err());
+    assert!(handle.set_storage_source_enabled("unknown", true).await.is_err());
     assert!(handle.reorder_storage_sources(vec!["local".into()]).await.is_err());
     assert!(handle.set_storage_source_enabled("local", false).await.is_err());
     assert_eq!(handle.storage_sources().await.unwrap(), expected);
@@ -395,4 +409,48 @@ async fn source_settings_absent() {
     assert!(handle.storage_sources().await.unwrap()[0].enabled);
     drop(handle);
     runtime.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn application_preferences_reopen_and_reject_stale_or_invalid_updates() {
+    use dokime_domain::model::{
+        document::DownsampleTechnique,
+        settings::{Density, ThemeMode, UpdateSettings},
+    };
+    let root = tempfile::tempdir().unwrap();
+    let config = crate::service_support::budgets::runtime_config(root.path(), metadata("preferences.fixture", "Preferences"));
+    let mut runtime = dokime_runtime::Runtime::start(config.clone()).await.unwrap();
+    let handle = runtime.handle();
+    let original = handle.read_application_settings().await.unwrap();
+    let mut settings = original.settings.clone();
+    settings.appearance.theme_mode = ThemeMode::Dark;
+    settings.appearance.theme_family = Some("fixture.theme".into());
+    settings.appearance.density = Density::Compact;
+    settings.report.plot_points = 3210;
+    settings.report.plot_downsample = DownsampleTechnique::Lttb;
+    settings.client.connect_timeout_ms = 1234;
+    settings.client.request_timeout_ms = 5678;
+    settings.telemetry.interval_ms = 42;
+    settings.listener.enabled = true;
+    settings.listener.address = "127.0.0.1:9876".into();
+    settings.listener.tls_enabled = false;
+    settings.listener.authentication_enabled = false;
+    settings.listener.certificate_names = vec!["fixture.local".into()];
+    let update = UpdateSettings { expected_revision: original.revision, settings: settings.clone() };
+    let saved = handle.update_application_settings(update.clone()).await.unwrap();
+    assert_eq!(saved.revision, original.revision + 1);
+    assert_eq!(saved.settings, settings);
+    assert!(handle.update_application_settings(update).await.is_err());
+    let mut invalid = settings;
+    invalid.client.request_timeout_ms = 0;
+    assert!(handle.update_application_settings(UpdateSettings { expected_revision: saved.revision, settings: invalid }).await.is_err());
+    assert_eq!(handle.read_application_settings().await.unwrap(), saved);
+    assert!(!config.application_root.join("settings.json").exists());
+    assert!(!config.application_root.join("config.toml").exists());
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+
+    let mut reopened = dokime_runtime::Runtime::start(config).await.unwrap();
+    assert_eq!(reopened.handle().read_application_settings().await.unwrap(), saved);
+    reopened.shutdown().await.unwrap();
 }

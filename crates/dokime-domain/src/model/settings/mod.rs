@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+pub mod application;
 pub mod boolean;
 pub mod multiple_choice;
 pub mod number;
@@ -18,6 +19,11 @@ pub mod text_area;
 pub mod wire;
 
 /* === Re-Exports === */
+
+pub use application::{
+    Appearance, ApplicationSettings, ClientPreferences, Density, ReportDefaults, SettingsConflict, SettingsScope, SettingsSnapshot,
+    TelemetryPreferences, ThemeMode, UpdateSettings,
+};
 
 pub use boolean::Boolean;
 pub use multiple_choice::Choice;

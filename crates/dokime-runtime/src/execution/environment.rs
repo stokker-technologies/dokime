@@ -99,7 +99,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             #[cfg(feature = "native")]
             identity: Arc::default(),
             #[cfg(feature = "native")]
-            handles: super::instances::Handles::default(),
+            handles: super::instances::Handles::new(),
         }
     }
 

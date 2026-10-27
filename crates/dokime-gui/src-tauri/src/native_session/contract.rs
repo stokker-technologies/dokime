@@ -32,6 +32,7 @@ use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopSessionSnapshot {
+    pub status_revision: u64,
     pub ownership: BackendOwnership,
     pub phase: Option<String>,
     pub archived_bytes: Option<u64>,

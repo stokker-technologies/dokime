@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 use tonic::Status;
 
 // Local Imports
-use super::{Budget, collection, text};
+use super::Budget;
 use dokime::domain::model::definition::wire as schema;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::identity::Metadata;
@@ -55,19 +55,8 @@ pub(in crate::grpc) fn decode(
 }
 
 pub(in crate::grpc) fn decode_metadata(value: &common::Metadata) -> Result<Metadata, Status> {
-    text(&value.identifier)?;
-    text(&value.label)?;
-    if let Some(description) = &value.description {
-        text(description)?;
-    }
-    collection(value.tags.len())?;
-    collection(value.attributes.len())?;
-    for tag in &value.tags {
-        text(tag)?;
-    }
-    let mut budget = Budget::new();
+    let mut budget = Budget::new()?;
     for attribute in &value.attributes {
-        text(&attribute.key)?;
         let item = attribute.value.as_ref().ok_or_else(|| Status::invalid_argument("metadata attribute value is required"))?;
         preflight(item, &mut budget, 0)?;
     }
@@ -77,8 +66,8 @@ pub(in crate::grpc) fn decode_metadata(value: &common::Metadata) -> Result<Metad
 pub(in crate::grpc) fn encode(
     value: &Value, budget: &mut Budget, depth: usize,
 ) -> Result<dokime::domain::model::values::wire::Value, Status> {
-    native(value, budget, depth)?;
-    Ok(dokime::domain::model::values::wire::Value::from(value))
+    validate(value, budget, depth)?;
+    dokime::domain::model::values::wire::Value::try_from(value).map_err(construction_error)
 }
 
 pub(in crate::grpc) fn object(
@@ -90,31 +79,18 @@ pub(in crate::grpc) fn object(
 pub(in crate::grpc) fn object_at(
     fields: &BTreeMap<String, Value>, budget: &mut Budget, depth: usize,
 ) -> Result<dokime::domain::model::values::wire::Value, Status> {
-    collection(fields.len())?;
-    for (key, value) in fields {
-        text(key)?;
-        native(value, budget, depth)?;
+    for value in fields.values() {
+        validate(value, budget, depth)?;
     }
-    Ok(dokime::domain::model::values::wire::Value::from(fields))
+    dokime::domain::model::values::wire::Value::try_from(fields).map_err(construction_error)
 }
 
 pub(in crate::grpc) fn metadata(value: &Metadata) -> Result<common::Metadata, Status> {
-    text(value.identifier.as_str())?;
-    text(&value.label)?;
-    if let Some(description) = &value.description {
-        text(description)?;
+    let mut budget = Budget::new()?;
+    for item in value.attributes.values() {
+        validate(item, &mut budget, 0)?;
     }
-    collection(value.tags.len())?;
-    collection(value.attributes.len())?;
-    for tag in &value.tags {
-        text(tag)?;
-    }
-    let mut budget = Budget::new();
-    for (key, item) in &value.attributes {
-        text(key)?;
-        native(item, &mut budget, 0)?;
-    }
-    Ok(common::Metadata::from(value))
+    common::Metadata::try_from(value).map_err(construction_error)
 }
 
 pub(in crate::grpc) fn cursor(snapshot: &dokime::runtime::query::RuntimeStateSnapshot) -> Cursor {
@@ -132,41 +108,26 @@ pub(in crate::grpc) fn decoded_timestamp(value: common::Timestamp) -> Result<dok
 }
 
 pub(in crate::grpc) fn scope(value: &dokime::domain::model::execution::RecordScope) -> Result<common::EvidenceScope, Status> {
-    scope_memory(value)?;
     let ids = scope_ids(value);
     let origin = match &value.origin {
         dokime::domain::model::execution::EvidenceOrigin::Default => common::EvidenceOriginKind::Default(true),
         dokime::domain::model::execution::EvidenceOrigin::Initialization => common::EvidenceOriginKind::Initialization(true),
         dokime::domain::model::execution::EvidenceOrigin::Step { attempt_id } => {
-            text(attempt_id.as_str())?;
-            common::EvidenceOriginKind::StepAttemptId(attempt_id.to_string())
+            common::EvidenceOriginKind::StepAttemptId(exact_text(attempt_id.as_str())?)
         }
         dokime::domain::model::execution::EvidenceOrigin::Cleanup => common::EvidenceOriginKind::Cleanup(true),
     };
     Ok(common::EvidenceScope {
-        session_id: ids[0].map(str::to_owned),
-        cycle_id: ids[1].map(str::to_owned),
-        case_id: ids[2].map(str::to_owned),
-        execution_id: ids[3].map(str::to_owned),
-        step_id: ids[4].map(str::to_owned),
-        criterion_id: ids[5].map(str::to_owned),
-        template_id: ids[6].map(str::to_owned),
-        suite_id: ids[7].map(str::to_owned),
+        session_id: ids[0].map(exact_text).transpose()?,
+        cycle_id: ids[1].map(exact_text).transpose()?,
+        case_id: ids[2].map(exact_text).transpose()?,
+        execution_id: ids[3].map(exact_text).transpose()?,
+        step_id: ids[4].map(exact_text).transpose()?,
+        criterion_id: ids[5].map(exact_text).transpose()?,
+        template_id: ids[6].map(exact_text).transpose()?,
+        suite_id: ids[7].map(exact_text).transpose()?,
         origin: Some(common::EvidenceOrigin { kind: Some(origin) }),
     })
-}
-
-pub(in crate::grpc) fn scope_memory(value: &dokime::domain::model::execution::RecordScope) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<common::EvidenceScope>();
-    for id in scope_ids(value).into_iter().flatten() {
-        text(id)?;
-        bytes = bytes.saturating_add(id.len());
-    }
-    if let dokime::domain::model::execution::EvidenceOrigin::Step { attempt_id } = &value.origin {
-        text(attempt_id.as_str())?;
-        bytes = bytes.saturating_add(attempt_id.as_str().len());
-    }
-    bounded(bytes)
 }
 
 pub(in crate::grpc) fn decoded_scope(scope: &common::EvidenceScope) -> Result<dokime::domain::model::execution::RecordScope, Status> {
@@ -186,7 +147,6 @@ pub(in crate::grpc) fn decoded_scope(scope: &common::EvidenceScope) -> Result<do
         Some(common::EvidenceOriginKind::Initialization(true)) => EvidenceOrigin::Initialization,
         Some(common::EvidenceOriginKind::Cleanup(true)) => EvidenceOrigin::Cleanup,
         Some(common::EvidenceOriginKind::StepAttemptId(id)) => {
-            text(id)?;
             EvidenceOrigin::Step { attempt_id: StepAttemptId::from_uuid(id).map_err(|error| Status::invalid_argument(error.to_string()))? }
         }
         _ => return Err(Status::invalid_argument("invalid evidence origin")),
@@ -197,10 +157,7 @@ pub(in crate::grpc) fn decoded_scope(scope: &common::EvidenceScope) -> Result<do
     let test_case_id = scope
         .case_id
         .as_deref()
-        .map(|id| {
-            text(id)?;
-            CaseId::from_wire(id).map_err(|error| Status::invalid_argument(format!("invalid case_id: {error}")))
-        })
+        .map(|id| CaseId::from_wire(id).map_err(|error| Status::invalid_argument(format!("invalid case_id: {error}"))))
         .transpose()?;
     Ok(RecordScope {
         origin,
@@ -215,114 +172,29 @@ pub(in crate::grpc) fn decoded_scope(scope: &common::EvidenceScope) -> Result<do
     })
 }
 
-pub(in crate::grpc) fn execution_plugin_memory(
-    value: &dokime::domain::model::execution::snapshot::ExecutionPluginIdentity,
-) -> Result<usize, Status> {
-    use dokime::domain::model::execution::snapshot::ExecutionImplementation;
-    text(&value.source)?;
-    if let Some(version) = &value.version {
-        text(version)?;
-    }
-    let implementation = match &value.implementation {
-        ExecutionImplementation::Bundle { content_digest } => content_digest,
-        ExecutionImplementation::Embedded { generation } => generation,
-    };
-    text(implementation)?;
-    bounded(
-        std::mem::size_of::<dokime::domain::model::execution::wire::ExecutionPluginIdentity>()
-            .saturating_add(value.source.len())
-            .saturating_add(value.version.as_ref().map_or(0, String::len))
-            .saturating_add(implementation.len()),
-    )
-}
-
 pub(in crate::grpc) fn execution_plugin(
     value: &dokime::domain::model::execution::snapshot::ExecutionPluginIdentity,
 ) -> Result<dokime::domain::model::execution::wire::ExecutionPluginIdentity, Status> {
     use dokime::domain::model::execution::snapshot::ExecutionImplementation;
     use dokime::domain::model::execution::wire::ExecutionPluginIdentity;
     use dokime::domain::model::execution::wire::ExecutionPluginIdentityImplementation as Implementation;
-    text(&value.source)?;
-    if let Some(version) = &value.version {
-        text(version)?;
-    }
     let implementation = match &value.implementation {
-        ExecutionImplementation::Bundle { content_digest } => {
-            text(content_digest)?;
-            Implementation::ContentDigest(content_digest.clone())
-        }
-        ExecutionImplementation::Embedded { generation } => {
-            text(generation)?;
-            Implementation::Generation(generation.clone())
-        }
+        ExecutionImplementation::Bundle { content_digest } => Implementation::ContentDigest(content_digest.clone()),
+        ExecutionImplementation::Embedded { generation } => Implementation::Generation(generation.clone()),
     };
     Ok(ExecutionPluginIdentity { source: value.source.clone(), version: value.version.clone(), implementation: Some(implementation) })
 }
 
-pub(in crate::grpc) fn memory(value: &Value, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
-    native(value, budget, depth)?;
-    let (nodes, heap) = heap(value);
-    // Conservative Vec Growth: Include Four Slots Per Node, Including The Initial Allocation.
-    bounded(
-        std::mem::size_of::<dokime::domain::model::values::wire::Value>()
-            .saturating_add(nodes.saturating_mul(4).saturating_mul(std::mem::size_of::<dokime::domain::model::values::wire::ValueNode>()))
-            .saturating_add(heap),
-    )
-}
-
-pub(in crate::grpc) fn object_memory(fields: &BTreeMap<String, Value>, budget: &mut Budget) -> Result<usize, Status> {
-    object_memory_at(fields, budget, 0)
-}
-
-pub(in crate::grpc) fn object_memory_at(fields: &BTreeMap<String, Value>, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
-    collection(fields.len())?;
-    let mut bytes = std::mem::size_of::<dokime::domain::model::values::wire::Value>()
-        .saturating_add(4 * std::mem::size_of::<dokime::domain::model::values::wire::ValueNode>())
-        .saturating_add(
-            fields.len().saturating_mul(4).saturating_mul(std::mem::size_of::<dokime::domain::model::values::wire::ValueField>()),
-        );
-    for (key, value) in fields {
-        text(key)?;
-        bytes = bytes
-            .saturating_add(key.len())
-            .saturating_add(memory(value, budget, depth)? - std::mem::size_of::<dokime::domain::model::values::wire::Value>());
-    }
-    bounded(bytes)
-}
-
-pub(in crate::grpc) fn metadata_memory(value: &Metadata) -> Result<usize, Status> {
-    text(value.identifier.as_str())?;
-    text(&value.label)?;
-    if let Some(description) = &value.description {
-        text(description)?;
-    }
-    collection(value.tags.len())?;
-    collection(value.attributes.len())?;
-    let mut bytes = std::mem::size_of::<common::Metadata>()
-        .saturating_add(value.identifier.as_str().len())
-        .saturating_add(value.label.len())
-        .saturating_add(value.description.as_ref().map_or(0, String::len))
-        .saturating_add(value.tags.len().saturating_mul(std::mem::size_of::<String>()))
-        .saturating_add(value.attributes.len().saturating_mul(4).saturating_mul(std::mem::size_of::<common::MetadataAttribute>()));
-    for tag in &value.tags {
-        text(tag)?;
-        bytes = bytes.saturating_add(tag.len());
-    }
-    let mut budget = Budget::new();
-    for (key, value) in &value.attributes {
-        text(key)?;
-        bytes = bytes
-            .saturating_add(key.len())
-            .saturating_add(memory(value, &mut budget, 0)? - std::mem::size_of::<dokime::domain::model::values::wire::Value>());
-    }
-    bounded(bytes)
+pub(in crate::grpc) fn encode_json(
+    value: serde_json::Value, budget: &mut Budget, depth: usize,
+) -> Result<dokime::domain::model::values::wire::Value, Status> {
+    validate_json(&value, budget, depth)?;
+    let value = json_owned(value)?;
+    dokime::domain::model::values::wire::Value::try_from(&value).map_err(construction_error)
 }
 
 // A reply holds at most one advertised page, which may be longer than a request's collections.
 pub(in crate::grpc) fn slots<T>(length: usize) -> Result<Vec<T>, Status> {
-    if length > dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS as usize {
-        return Err(Status::resource_exhausted("reply exceeds one page of items"));
-    }
     let mut values = Vec::new();
     values.try_reserve_exact(length).map_err(|_| Status::resource_exhausted("canonical projection allocation refused"))?;
     Ok(values)
@@ -404,6 +276,14 @@ pub(in crate::grpc) fn format(value: &ValueFormat) -> schema::ValueFormat {
 
 /* === Private Functions === */
 
+fn exact_text(value: &str) -> Result<String, Status> {
+    super::projection::text(value).map_err(|source| Status::resource_exhausted(source.to_string()))
+}
+
+fn construction_error(source: dokime::domain::model::values::wire::ValueError) -> Status {
+    Status::resource_exhausted(source.to_string())
+}
+
 fn elapsed_unit(value: &ElapsedUnit) -> schema::ElapsedUnit {
     match value {
         ElapsedUnit::Seconds => schema::ElapsedUnit::Seconds,
@@ -416,7 +296,6 @@ fn scope_id<T>(value: Option<&str>, label: &str, build: impl FnOnce(&str) -> Res
     let Some(value) = value else {
         return Ok(None);
     };
-    text(value)?;
     if uuid::Uuid::parse_str(value).map(|value| value.is_nil()).unwrap_or(true) {
         return Err(Status::invalid_argument(format!("invalid {label}")));
     }
@@ -437,13 +316,13 @@ fn scope_ids(value: &dokime::domain::model::execution::RecordScope) -> [Option<&
 }
 
 fn preflight(value: &dokime::domain::model::values::wire::Value, budget: &mut Budget, depth: usize) -> Result<(), Status> {
-    if value.nodes.len() > budget.0 {
+    if value.nodes.len() > budget.remaining {
         return Err(Status::resource_exhausted("value/expression budget exceeded"));
     }
     // Preflight Allocation/Depth/Text Before The Canonical Graph Rebuilder Allocates Values.
     let mut depths = vec![depth; value.nodes.len()];
     for (index, node) in value.nodes.iter().enumerate() {
-        if depths[index] > 32 {
+        if depths[index] > budget.maximum_depth {
             return Err(Status::resource_exhausted("value/expression budget exceeded"));
         }
         let mut child = |member: u32| -> Result<(), Status> {
@@ -455,74 +334,85 @@ fn preflight(value: &dokime::domain::model::values::wire::Value, budget: &mut Bu
             Ok(())
         };
         match node.kind.as_ref() {
-            Some(dokime::domain::model::values::wire::ValueKind::Text(value)) => text(value)?,
             Some(dokime::domain::model::values::wire::ValueKind::Array(values)) => {
-                collection(values.items.len())?;
                 for member in &values.items {
                     child(*member)?;
                 }
             }
             Some(dokime::domain::model::values::wire::ValueKind::Object(values)) => {
-                collection(values.fields.len())?;
                 for field in &values.fields {
-                    text(&field.key)?;
                     child(field.value)?;
                 }
             }
             _ => {}
         }
     }
-    budget.0 -= value.nodes.len();
+    budget.remaining -= value.nodes.len();
     Ok(())
 }
 
-fn bounded(bytes: usize) -> Result<usize, Status> {
-    if bytes == usize::MAX { Err(Status::resource_exhausted("canonical projection memory overflows")) } else { Ok(bytes) }
-}
-
-fn heap(value: &Value) -> (usize, usize) {
-    match value {
-        Value::Text(value) => (1, value.len()),
-        Value::Array(values) => {
-            let mut nodes = 1usize;
-            let mut bytes = values.len().saturating_mul(std::mem::size_of::<u32>());
-            for value in values {
-                let (count, heap) = heap(value);
-                nodes = nodes.saturating_add(count);
-                bytes = bytes.saturating_add(heap);
-            }
-            (nodes, bytes)
-        }
-        Value::Object(values) => {
-            let mut nodes = 1usize;
-            let mut bytes =
-                values.len().saturating_mul(4).saturating_mul(std::mem::size_of::<dokime::domain::model::values::wire::ValueField>());
-            for (key, value) in values {
-                let (count, heap) = heap(value);
-                nodes = nodes.saturating_add(count);
-                bytes = bytes.saturating_add(key.len()).saturating_add(heap);
-            }
-            (nodes, bytes)
-        }
-        _ => (1, 0),
-    }
-}
-
-fn native(value: &Value, budget: &mut Budget, depth: usize) -> Result<(), Status> {
+fn validate_json(value: &serde_json::Value, budget: &mut Budget, depth: usize) -> Result<(), Status> {
     budget.node(depth)?;
     match value {
-        Value::Text(value) => text(value)?,
-        Value::Array(values) => {
-            collection(values.len())?;
+        serde_json::Value::Array(values) => {
             for value in values {
-                native(value, budget, depth + 1)?;
+                validate_json(value, budget, depth + 1)?;
+            }
+        }
+        serde_json::Value::Object(values) => {
+            for value in values.values() {
+                validate_json(value, budget, depth + 1)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn json_owned(value: serde_json::Value) -> Result<Value, Status> {
+    Ok(match value {
+        serde_json::Value::Null => Value::Null,
+        serde_json::Value::Bool(value) => Value::Bool(value),
+        serde_json::Value::Number(value) => {
+            if let Some(value) = value.as_i64() {
+                Value::Integer(value)
+            } else if let Some(value) = value.as_u64() {
+                Value::Unsigned(value)
+            } else {
+                let value =
+                    value.as_f64().filter(|value| value.is_finite()).ok_or_else(|| Status::internal("plot point number is not finite"))?;
+                Value::Number(value)
+            }
+        }
+        serde_json::Value::String(value) => Value::Text(value),
+        serde_json::Value::Array(values) => {
+            let mut output = slots(values.len())?;
+            for value in values {
+                output.push(json_owned(value)?);
+            }
+            Value::Array(output)
+        }
+        serde_json::Value::Object(values) => {
+            let mut output = BTreeMap::new();
+            for (key, value) in values {
+                output.insert(key, json_owned(value)?);
+            }
+            Value::Object(output)
+        }
+    })
+}
+
+pub(in crate::grpc) fn validate(value: &Value, budget: &mut Budget, depth: usize) -> Result<(), Status> {
+    budget.node(depth)?;
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                validate(value, budget, depth + 1)?;
             }
         }
         Value::Object(values) => {
-            collection(values.len())?;
-            for (key, value) in values {
-                text(key)?;
-                native(value, budget, depth + 1)?;
+            for value in values.values() {
+                validate(value, budget, depth + 1)?;
             }
         }
         _ => {}
@@ -531,3 +421,28 @@ fn native(value: &Value, budget: &mut Budget, depth: usize) -> Result<(), Status
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nested_flat_value_round_trip() {
+        let source = Value::Object(BTreeMap::from([
+            (
+                "rows".to_owned(),
+                Value::Array(vec![
+                    Value::Object(BTreeMap::from([
+                        ("label".to_owned(), Value::Text("measurement".to_owned())),
+                        ("values".to_owned(), Value::Array(vec![Value::Number(1.5), Value::Null, Value::Bool(true)])),
+                    ])),
+                    Value::Text("tail".to_owned()),
+                ]),
+            ),
+            ("sequence".to_owned(), Value::Unsigned(99)),
+        ]));
+        let mut budget = Budget::new().unwrap();
+        let mapped = encode(&source, &mut budget, 0).unwrap();
+        assert_eq!(mapped.to_core().unwrap(), source);
+    }
+}

@@ -90,7 +90,7 @@ impl Operation for Lookup {
     async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::Lookup, _: &mut ()) -> Result<Response<Value>, Self::Error> {
         let store = Arc::clone(&self.store);
         let name = std::mem::take(&mut request.name);
-        let value = tokio::task::spawn_blocking(move || store.get_secret(&name)).await.map_err(|_| SecretStoreError::Unavailable)??;
+        let value = store.get_secret(&name).await?;
         let value = value.ok_or(SecretStoreError::Invalid("The named secret is missing or was deleted"))?;
         Ok(Value { value: Some(value.expose().to_owned()) }.into())
     }
@@ -109,7 +109,7 @@ impl Operation for List {
 
     async fn run<'a>(&mut self, _: Self::Context<'a>, _: &mut wire::List, _: &mut ()) -> Result<Response<Snapshot>, Self::Error> {
         let store = Arc::clone(&self.store);
-        let snapshot = tokio::task::spawn_blocking(move || store.snapshot(false)).await.map_err(|_| SecretStoreError::Unavailable)?;
+        let snapshot = store.snapshot(false).await?;
         Ok(snapshot.into())
     }
 }
@@ -129,12 +129,10 @@ impl Operation for Put {
         let store = Arc::clone(&self.store);
         let change = Change { metadata: request.metadata.clone(), value: request.value.take().map(SecretValue::new) };
         let generation = request.generation;
-        let snapshot = tokio::task::spawn_blocking(move || {
-            let cleanup = store.apply(vec![change], &[], generation)?;
-            Ok::<_, SecretStoreError>(store.snapshot(cleanup))
-        })
-        .await
-        .map_err(|_| SecretStoreError::Unavailable)??;
+        let snapshot = {
+            let cleanup = store.apply(vec![change], &[], generation).await?;
+            store.snapshot(cleanup).await?
+        };
         Ok(snapshot.into())
     }
 }
@@ -154,12 +152,10 @@ impl Operation for Remove {
         let store = Arc::clone(&self.store);
         let names = std::mem::take(&mut request.names);
         let generation = request.generation;
-        let snapshot = tokio::task::spawn_blocking(move || {
-            let cleanup = store.apply(Vec::new(), &names, generation)?;
-            Ok::<_, SecretStoreError>(store.snapshot(cleanup))
-        })
-        .await
-        .map_err(|_| SecretStoreError::Unavailable)??;
+        let snapshot = {
+            let cleanup = store.apply(Vec::new(), &names, generation).await?;
+            store.snapshot(cleanup).await?
+        };
         Ok(snapshot.into())
     }
 }
@@ -179,8 +175,7 @@ impl Operation for Export {
         let store = Arc::clone(&self.store);
         let names = std::mem::take(&mut request.names);
         let generation = request.generation;
-        let archive =
-            tokio::task::spawn_blocking(move || store.export(&names, generation)).await.map_err(|_| SecretStoreError::Unavailable)??;
+        let archive = store.export(&names, generation).await?;
         Ok(archive.into())
     }
 }
@@ -201,7 +196,7 @@ impl Operation for Preview {
     ) -> Result<Response<ImportPreview>, Self::Error> {
         let store = Arc::clone(&self.store);
         let data = std::mem::take(&mut request.data);
-        let preview = tokio::task::spawn_blocking(move || store.preview(&data)).await.map_err(|_| SecretStoreError::Unavailable)??;
+        let preview = store.preview(&data).await?;
         Ok(preview.into())
     }
 }
@@ -222,12 +217,10 @@ impl Operation for Import {
         let data = std::mem::take(&mut request.data);
         let choices = std::mem::take(&mut request.choices);
         let generation = request.generation;
-        let snapshot = tokio::task::spawn_blocking(move || {
-            let cleanup = store.import(&data, &choices, generation)?;
-            Ok::<_, SecretStoreError>(store.snapshot(cleanup))
-        })
-        .await
-        .map_err(|_| SecretStoreError::Unavailable)??;
+        let snapshot = {
+            let cleanup = store.import(&data, &choices, generation).await?;
+            store.snapshot(cleanup).await?
+        };
         Ok(snapshot.into())
     }
 }
@@ -239,6 +232,7 @@ impl From<SecretStoreError> for Status {
             SecretStoreError::Invalid(message) => Self::invalid_argument(message),
             SecretStoreError::Conflict => Self::aborted(error.to_string()),
             SecretStoreError::Unavailable => Self::unavailable(error.to_string()),
+            SecretStoreError::Storage(_) => Self::unavailable("Secret catalog storage is unavailable"),
             SecretStoreError::Persistence => Self::failed_precondition(error.to_string()),
         }
     }

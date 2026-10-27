@@ -9,13 +9,14 @@
 
 /* === External Imports === */
 
-import { ArchiveRestore, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
+import { Cloud, Database, GitCompare, HardDrive } from "lucide-react";
 import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import { DataTable } from "@/components/data-table/DataTable";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@/components/data-table/data-table-model";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
@@ -113,32 +114,20 @@ export function HistoryLibrary({
 
   const columns = useMemo(
     () =>
-      archived
-        ? column.columns([
-            ...COLUMNS,
-            column.display({
-              cell: ({ row }) => (
-                <Button
-                  className="h-[var(--control-height)]"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onUnarchive(row.original);
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <ArchiveRestore data-icon="inline-start" />
-                  Unarchive
-                </Button>
-              ),
-              header: "",
-              id: "unarchive",
-              meta: { align: "end", label: "Unarchive", width: "w-36" },
-            }),
-          ])
-        : COLUMNS,
-    [archived, onUnarchive],
+      column.columns([
+        ...COLUMNS,
+        column.display({
+          id: "actions",
+          header: "Actions",
+          meta: { width: "w-36", align: "end" },
+          cell: ({ row }) => (
+            <DataTableRowActions label={row.original.title} primary={{ label: "Open", onSelect: () => onOpenEntry(row.original.target) }}>
+              {archived ? <DropdownMenuItem onSelect={() => onUnarchive(row.original)}>Unarchive</DropdownMenuItem> : null}
+            </DataTableRowActions>
+          ),
+        }),
+      ]),
+    [archived, onUnarchive, onOpenEntry],
   );
 
   /* The view toggle sits on the toolbar beside Compare: pressed, the table
@@ -202,7 +191,7 @@ function EntryTitle({ entry }: { entry: ExploreEntry }) {
 
 function ResultPills({ failed, passed }: { failed: number; passed: number }) {
   return (
-    <div className="flex items-center gap-1.5 text-xs font-medium">
+    <div className="flex items-center gap-2 text-xs font-medium">
       <span className="text-success">{passed} passed</span>
       <span className={cn(failed > 0 ? "text-destructive" : "text-muted-foreground")}>{failed} failed</span>
     </div>
@@ -214,7 +203,7 @@ function SourceBadge({ source }: { source: ExploreSource }) {
   return (
     <Badge
       className={cn(
-        "h-5 gap-1 rounded px-1.5 text-[0.7rem] font-medium [&>svg]:size-3",
+        "h-5 gap-1 rounded px-2 text-xs font-medium [&>svg]:size-3",
         source.kind === "remote" ? "border-info/30 bg-info/10 text-info" : null,
       )}
       variant={source.kind === "remote" ? "secondary" : "outline"}

@@ -194,7 +194,15 @@ impl Client {
     > {
         self.require(contracts::content::UploadArtifact::PATH)?;
         let client = self.clone();
-        RequestStream::new(self, move |stream| async move { client.content_upload_artifact(stream).await })
+        RequestStream::new(self, harmos::grpc::prepare_input_item::<contracts::content::UploadArtifact>, move |stream| async move {
+            client
+                .upload_prepared::<contracts::content::UploadArtifact, _>(
+                    contracts::content::UploadArtifact::PATH,
+                    contracts::content::UploadArtifact {},
+                    stream,
+                )
+                .await
+        })
     }
 
     pub async fn documents_capture_current_document(
@@ -597,7 +605,11 @@ impl Client {
     {
         self.require(contracts::plugins::Stage::PATH)?;
         let client = self.clone();
-        RequestStream::new(self, move |stream| async move { client.plugins_stage(stream).await })
+        RequestStream::new(self, harmos::grpc::prepare_input_item::<contracts::plugins::Stage>, move |stream| async move {
+            client
+                .upload_prepared::<contracts::plugins::Stage, _>(contracts::plugins::Stage::PATH, contracts::plugins::Stage {}, stream)
+                .await
+        })
     }
 
     pub async fn plugins_consent(
@@ -680,20 +692,6 @@ impl Client {
         self.download::<contracts::reports::DownloadExecutionReport>(contracts::reports::DownloadExecutionReport::PATH, message).await
     }
 
-    pub async fn settings_read_storage_policy(
-        &self, message: contracts::settings::ReadStoragePolicy,
-    ) -> Result<dokime_domain::model::settings::wire::StoragePolicyView> {
-        let reply = self.unary::<contracts::settings::ReadStoragePolicy>(contracts::settings::ReadStoragePolicy::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
-    pub async fn settings_update_storage_policy(
-        &self, message: contracts::settings::UpdateStoragePolicy,
-    ) -> Result<dokime_domain::model::settings::wire::StoragePolicyView> {
-        let reply = self.unary::<contracts::settings::UpdateStoragePolicy>(contracts::settings::UpdateStoragePolicy::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
     pub async fn settings_get_settings(
         &self, message: contracts::settings::GetSettings,
     ) -> Result<dokime_domain::model::settings::wire::SettingsFrame> {
@@ -748,32 +746,25 @@ impl Client {
 
     pub async fn settings_read_application_settings(
         &self, message: contracts::settings::ReadApplicationSettings,
-    ) -> Result<dokime_domain::model::settings::wire::ApplicationSettings> {
+    ) -> Result<dokime_domain::model::settings::application::SettingsSnapshot> {
         let reply =
             self.unary::<contracts::settings::ReadApplicationSettings>(contracts::settings::ReadApplicationSettings::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn settings_update_appearance(
-        &self, message: contracts::settings::UpdateAppearance,
-    ) -> Result<dokime_domain::model::settings::wire::ApplicationSettings> {
-        let reply = self.unary::<contracts::settings::UpdateAppearance>(contracts::settings::UpdateAppearance::PATH, message).await?;
+    pub async fn settings_update_application_settings(
+        &self, message: contracts::settings::UpdateApplicationSettings,
+    ) -> Result<dokime_domain::model::settings::application::SettingsSnapshot> {
+        let reply = self
+            .unary::<contracts::settings::UpdateApplicationSettings>(contracts::settings::UpdateApplicationSettings::PATH, message)
+            .await?;
         super::transport::value(reply)
     }
 
-    pub async fn settings_update_report_defaults(
-        &self, message: contracts::settings::UpdateReportDefaults,
-    ) -> Result<dokime_domain::model::settings::wire::ApplicationSettings> {
-        let reply =
-            self.unary::<contracts::settings::UpdateReportDefaults>(contracts::settings::UpdateReportDefaults::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
-    pub async fn settings_update_data_root(
-        &self, message: contracts::settings::UpdateDataRoot,
-    ) -> Result<dokime_domain::model::settings::wire::ApplicationSettings> {
-        let reply = self.unary::<contracts::settings::UpdateDataRoot>(contracts::settings::UpdateDataRoot::PATH, message).await?;
-        super::transport::value(reply)
+    pub async fn telemetry_watch_samples(
+        &self, message: contracts::telemetry::WatchSamples,
+    ) -> Result<ResponseStream<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>> {
+        self.download::<contracts::telemetry::WatchSamples>(contracts::telemetry::WatchSamples::PATH, message).await
     }
 
     pub async fn telemetry_list_samples(

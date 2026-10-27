@@ -23,7 +23,7 @@ use crate::plot::{PlotPayloadRequest, enrich_plot_samples_with_cycle_context, en
 use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::values::ValueFormat;
@@ -38,10 +38,10 @@ use dokime_domain::model::values::ValueFormat;
 
 #[derive(Clone)]
 pub(super) struct RuntimePlotEnvelopeContext {
-    pub(super) generated_at: String,
+    pub(super) generated_at: harmos::storage::ReadBatch<String>,
     pub(super) snapshot: crate::queries::RuntimeStateSnapshot,
-    cycles: Option<Vec<CycleView>>,
-    traceability: Option<Vec<TraceabilitySnapshot>>,
+    cycle_context: bool,
+    traceability: Option<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>>,
 }
 
 /* === Enums === */
@@ -51,53 +51,94 @@ pub(super) struct RuntimePlotEnvelopeContext {
 /* === Implementations === */
 
 impl RuntimePlotEnvelopeContext {
-    pub(super) async fn load(runtime: &RuntimeHandle, requests: &[PlotPayloadRequest]) -> crate::runtime::Result<Self> {
-        Ok(Self::at(runtime, requests, runtime.capture_state().await?).await)
+    pub(super) async fn load_at(
+        runtime: &RuntimeHandle, requests: &[PlotPayloadRequest], at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
+    ) -> crate::runtime::Result<Self> {
+        Self::at(runtime, requests, runtime.capture_state().await?, at, session).await
     }
 
     pub(super) async fn at(
         runtime: &RuntimeHandle, requests: &[PlotPayloadRequest], snapshot: crate::queries::RuntimeStateSnapshot,
-    ) -> Self {
+        at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
+    ) -> crate::runtime::Result<Self> {
         let needs_dimension_context = requests.iter().any(request_needs_dimension_context);
         // Cycles are also what an `elapsed_since_run`/`elapsed_since_cycle`
         // format counts from, so a request declaring one needs them loaded
         // too, even when nothing else here needs dimension context.
         let needs_cycles = needs_dimension_context || requests.iter().any(request_needs_elapsed_origin);
-        let cycles = needs_cycles.then(|| snapshot.state().cycle_views().collect());
+
         let traceability = if needs_dimension_context {
-            let mut values = crate::evidence_runtime::state::traceability_snapshots(snapshot.state());
-            runtime.enrich_host_traceability(&mut values, None).await;
-            Some(values)
+            Some(runtime.retained_traceability_at_in(session, snapshot.state(), None, at, false).await?)
         } else {
             None
         };
-        Self { generated_at: crate::model::time::now_utc().to_string(), snapshot, cycles, traceability }
+        let captured_at = time::OffsetDateTime::now_utc();
+        let clock = harmos::storage::ReadBatch::new(());
+        let generated_at = clock.try_map(|_| crate::storage::encode_datetime(captured_at))?;
+        Ok(Self { generated_at, snapshot, cycle_context: needs_cycles, traceability })
     }
 
-    pub(super) fn enrich_telemetry(&self, telemetry: Vec<TelemetrySample>, request: &PlotPayloadRequest) -> Vec<TelemetrySample> {
-        let telemetry = match self.cycles.as_deref() {
-            Some(cycles) => enrich_plot_telemetry(telemetry, cycles, request),
-            None => telemetry,
-        };
-        match self.traceability.as_deref() {
-            Some(traceability) => enrich_plot_samples_with_traceability_context(telemetry, traceability),
-            None => telemetry,
+    pub(super) fn enrich_telemetry(
+        &self, telemetry: harmos::storage::ReadBatch<Vec<TelemetrySample>>, request: &PlotPayloadRequest,
+        records: &[dokime_domain::model::records::evidence::RecordEntry],
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
+        let records = if request_needs_dimension_context(request) { records } else { &[] };
+        telemetry.try_map(|mut telemetry| -> crate::runtime::Result<_> {
+            telemetry
+                .try_reserve_exact(records.len())
+                .map_err(|error| crate::runtime::Error::Operation(format!("plot context allocation failed: {error}")))?;
+            for record in records {
+                let stream =
+                    dokime_domain::model::identity::Identifier::new(crate::plot::RECORD_CONTEXT_STREAM).expect("internal stream is valid");
+                let mut sample = TelemetrySample::new(
+                    crate::model::identity::new_id(),
+                    stream,
+                    record.sequence,
+                    record.timestamp.clone(),
+                    "plot_context",
+                );
+                sample.scope = record.scope.clone();
+                telemetry.push(sample);
+            }
+            for sample in &mut telemetry {
+                if let Some(execution) = self.execution_for_scope(sample.scope.as_ref(), request) {
+                    enrich_plot_samples_with_cycle_context(std::slice::from_mut(sample), execution);
+                }
+            }
+            if let Some(traceability) = self.traceability.as_ref().map(|rows| rows.as_slice()) {
+                enrich_plot_samples_with_traceability_context(&mut telemetry, traceability);
+            }
+            Ok(telemetry)
+        })
+    }
+
+    fn execution_for_scope(&self, scope: Option<&RecordScope>, request: &PlotPayloadRequest) -> Option<&TestExecution> {
+        if !self.cycle_context {
+            return None;
         }
+        let scope = scope?;
+        let id = scope.test_cycle_id.as_ref().or_else(|| request.scope.as_ref().and_then(|scope| scope.test_cycle_id.as_ref()))?;
+        let state = self.snapshot.state();
+        let cycle = state.cycles.get(id)?;
+        if let Some(id) = scope.test_execution_id.as_ref() {
+            return state.executions_for_cycle(cycle).find(|execution| &execution.test_execution_id == id);
+        }
+        let id = scope.test_case_id.as_ref()?;
+        state.executions_for_cycle(cycle).filter(|execution| &execution.test_case_id == id).last()
     }
-
-    pub(super) fn run_and_cycle_start(&self, scope: Option<&RecordScope>) -> (Option<Timestamp>, Option<Timestamp>) {
-        let (Some(cycles), Some(test_cycle_id)) = (self.cycles.as_deref(), scope.and_then(|scope| scope.test_cycle_id.as_ref())) else {
+    pub(super) fn run_and_cycle_start(&self, scope: Option<&RecordScope>) -> (Option<&Timestamp>, Option<&Timestamp>) {
+        if !self.cycle_context {
             return (None, None);
-        };
-        let Some(cycle) = cycles.iter().find(|cycle| &cycle.test_cycle_id == test_cycle_id) else {
+        }
+        let state = self.snapshot.state();
+        let Some(cycle) = scope.and_then(|scope| scope.test_cycle_id.as_ref()).and_then(|id| state.cycles.get(id)) else {
             return (None, None);
         };
         let run_started_at = scope
             .and_then(|scope| scope.test_execution_id.as_ref())
-            .and_then(|execution_id| cycle.test_executions.iter().find(|execution| &execution.test_execution_id == execution_id))
-            .and_then(|execution| execution.started_at.clone());
-
-        (run_started_at, cycle.started_at.clone())
+            .and_then(|id| state.executions_for_cycle(cycle).find(|execution| &execution.test_execution_id == id))
+            .and_then(|execution| execution.started_at.as_ref());
+        (run_started_at, cycle.started_at.as_ref())
     }
 }
 
@@ -111,24 +152,6 @@ fn request_needs_elapsed_origin(request: &PlotPayloadRequest) -> bool {
     }
 
     is_elapsed(request.x_format.as_ref()) || is_elapsed(request.y_format.as_ref())
-}
-
-fn enrich_plot_telemetry(telemetry: Vec<TelemetrySample>, cycles: &[CycleView], request: &PlotPayloadRequest) -> Vec<TelemetrySample> {
-    telemetry
-        .into_iter()
-        .flat_map(|sample| {
-            let cycle_id = sample
-                .scope
-                .as_ref()
-                .and_then(|scope| scope.test_cycle_id.as_ref())
-                .or_else(|| request.scope.as_ref().and_then(|scope| scope.test_cycle_id.as_ref()));
-            let cycle = cycle_id.and_then(|cycle_id| cycles.iter().find(|cycle| &cycle.test_cycle_id == cycle_id));
-            match cycle {
-                Some(cycle) => enrich_plot_samples_with_cycle_context(vec![sample], cycle),
-                None => vec![sample],
-            }
-        })
-        .collect()
 }
 
 /* === Tests === */

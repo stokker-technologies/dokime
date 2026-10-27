@@ -35,6 +35,8 @@ if TYPE_CHECKING:
 
 # === Constants === #
 
+FOLLOW_BUFFER_BYTES = 65536
+
 # === Types === #
 
 # === Classes === #
@@ -96,11 +98,12 @@ async def follow_file(
     destination: Path,
     *,
     identity: FileIdentity | None = None,
-    max_bytes: int = 64 * 1024,
+    max_bytes: int | None = None,
 ) -> AsyncGenerator[FileUpdate]:
     """Keep Committed Bytes On Cancellation; Resume Only With Their Original Identity"""
-    if not 1 <= max_bytes <= 64 * 1024:
-        raise ValueError("file chunks must contain 1–65536 bytes")
+    max_bytes = FOLLOW_BUFFER_BYTES if max_bytes is None else max_bytes
+    if type(max_bytes) is not int or not 1 <= max_bytes <= FOLLOW_BUFFER_BYTES:
+        raise ValueError("file chunks exceed the configured byte limit")
     if identity is not None and (identity.execution_id, identity.relative_path) != (
         execution_id,
         relative_path,
@@ -112,7 +115,7 @@ async def follow_file(
         digest = hashlib.sha256()
         offset = 0
         if identity is not None:
-            while chunk := output.read(64 * 1024):
+            while chunk := output.read(FOLLOW_BUFFER_BYTES):
                 digest.update(chunk)
                 offset += len(chunk)
         request = _wire.request(
@@ -193,7 +196,7 @@ async def follow_file(
                         output.flush()
                         output.seek(0)
                         committed = hashlib.sha256()
-                        while chunk := output.read(64 * 1024):
+                        while chunk := output.read(FOLLOW_BUFFER_BYTES):
                             committed.update(chunk)
                         if output.tell() != offset or committed.hexdigest() != seal.sha256:
                             raise ProtocolError("committed local prefix differs from the complete file seal")

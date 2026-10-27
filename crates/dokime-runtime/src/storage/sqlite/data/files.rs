@@ -24,7 +24,7 @@ use std::{
 
 // Third Party Imports
 use harmos::storage::*;
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256, digest::common::hazmat::SerializableState};
 
 // Local Imports
@@ -33,7 +33,6 @@ use super::{blob, entry, saved};
 
 /* === Constants === */
 
-const METADATA_BYTES: usize = 16 * 1024;
 const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
@@ -50,15 +49,30 @@ const CHUNK_BYTES: usize = 64 * 1024;
 
 impl State {
     pub(crate) async fn data_create_file(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
-        self.call(move |connection| Ok(create_file(connection, &root, metadata, false))).await?
+        let owner = self.0.clone();
+        self.call(move |connection| {
+            let result = (|| {
+                let staging = create_file(connection, &root, metadata, false)?;
+                if metadata_for(connection, &staging.id)?.is_some_and(|(_, finished)| finished.is_none()) {
+                    let path = staging_path(connection, &root, &staging.id)?;
+                    let file = OpenOptions::new().read(true).write(true).open(path)?;
+                    owner.files.lock().unwrap().insert(staging.id.clone(), file);
+                }
+                Ok(staging)
+            })();
+            Ok(result)
+        })
+        .await?
     }
 
-    pub(crate) async fn data_write_file(&self, root: PathBuf, staging: StagedFile, offset: u64, bytes: Vec<u8>) -> Result<(), Error> {
+    pub(crate) async fn data_write_file(&self, root: PathBuf, staging: StagedFile, offset: u64, bytes: FileChunk) -> Result<(), Error> {
         if bytes.is_empty() {
             return Err(Error::Data("file batch must not be empty"));
         }
+        let owner = self.0.clone();
         self.call(move |connection| {
             Ok((|| {
+                let bytes = bytes.as_slice();
                 super::production::check_writable(connection, staging.id.as_str())?;
                 saved(connection)?.history.check(&staging.history)?;
                 let (metadata, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("unknown file staging"))?;
@@ -75,17 +89,29 @@ impl State {
                     staging_path(connection, &root, &staging.id)?
                 };
                 regular(&path)?;
-                let mut file = OpenOptions::new().read(true).write(sealed.is_none()).open(path)?;
+                let mut files = owner.files.lock().unwrap();
+                let mut opened;
+                let file = if let Some(file) = files.get_mut(&staging.id) {
+                    file
+                } else {
+                    opened = OpenOptions::new().read(true).write(sealed.is_none()).open(path)?;
+                    &mut opened
+                };
                 let length = file.metadata()?.len();
                 if offset > length || sealed.is_some() && end > length {
                     return Err(Error::Data("file write has a gap or grows a sealed file"));
                 }
                 let overlap = (length - offset).min(bytes.len() as u64) as usize;
                 file.seek(SeekFrom::Start(offset))?;
-                let mut existing = vec![0; overlap];
-                file.read_exact(&mut existing)?;
-                if existing != bytes[..overlap] {
-                    return Err(Error::Conflict("file retry bytes differ"));
+                if overlap > 0 {
+                    let mut existing = [0; CHUNK_BYTES];
+                    for expected in bytes[..overlap].chunks(CHUNK_BYTES) {
+                        let actual = &mut existing[..expected.len()];
+                        file.read_exact(actual)?;
+                        if actual != expected {
+                            return Err(Error::Conflict("file retry bytes differ"));
+                        }
+                    }
                 }
                 if sealed.is_none() {
                     file.write_all(&bytes[overlap..])?;
@@ -99,8 +125,9 @@ impl State {
     pub(crate) async fn data_finish_file(
         &self, root: PathBuf, staging: StagedFile, position: StorageCursor, length: u64, sha256: [u8; 32],
     ) -> Result<FileReference, Error> {
+        let owner = self.0.clone();
         self.call(move |connection| {
-            Ok((|| {
+            let result = (|| {
                 super::production::check_writable(connection, staging.id.as_str())?;
                 let head = saved(connection)?;
                 head.history.check(&staging.history)?;
@@ -116,39 +143,57 @@ impl State {
                 {
                     return Err(Error::Conflict("file finish conflicts with metadata or prior finish"));
                 }
-                let encoded = entry::encode(&reference, METADATA_BYTES)?;
+                let encoded = entry::encode(&reference)?;
                 if finish_intent(connection, &staging.id)?.as_ref().is_some_and(|intent| intent != &reference) {
                     return Err(Error::Conflict("file finish intent has different contents"));
                 }
                 let source = staging_path(connection, &root, &staging.id)?;
                 let destination = final_path(&root, &reference)?;
                 let present = regular(&destination)?;
-                verify(if present { &destination } else { &source }, &reference)?;
+                let mut retained = owner.files.lock().unwrap();
+                if present {
+                    retained.remove(&staging.id);
+                    verify(&destination, &reference)?;
+                } else if let Some(file) = retained.get_mut(&staging.id) {
+                    verify_opened(file, &reference)?;
+                } else {
+                    verify(&source, &reference)?;
+                }
                 // Invalid length/hash claims do not bind a finish identity.
                 // Persist the verified intent before changing file visibility.
                 connection
                     .execute("UPDATE storage_file_stages SET finish_intent=?1 WHERE id=?2", params![&encoded, staging.id.as_str()])?;
                 harmos::filesystem::publication::create_dir_all(destination.parent().expect("immutable file parent"))?;
                 if !present {
-                    harmos::filesystem::publication::install(&source, &destination)?;
+                    if let Some(file) = retained.get(&staging.id) {
+                        harmos::filesystem::publication::install_opened(file, &source, &destination)?;
+                    } else {
+                        harmos::filesystem::publication::install(&source, &destination)?;
+                    }
+                    super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                } else if finished.is_none() {
+                    // An Interrupted Install May Have Published Its Name Before Its Flush.
+                    confirm_durability(&destination)?;
                 }
-                // A failed commit leaves an addressable immutable file. The same
-                // identity/length/hash retry verifies it and installs the reference.
-                confirm_durability(&destination)?;
+                // The Finished Row Is Committed Only After Durable Publication.
+                // Retries Still Verify Content And The Exact Finish Identity.
                 let transaction = connection.transaction()?;
                 transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
                 transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
                 super::super::commit(transaction)?;
                 remove(&source)?;
                 Ok(reference)
-            })())
+            })();
+            Ok(result)
         })
         .await?
     }
 
     pub(crate) async fn data_abort_file(&self, root: PathBuf, staging: StagedFile) -> Result<(), Error> {
+        let owner = self.0.clone();
         self.call(move |connection| {
-            Ok((|| {
+            owner.files.lock().unwrap().remove(&staging.id);
+            let result = (|| {
                 saved(connection)?.history.check(&staging.history)?;
                 if metadata_for(connection, &staging.id)?.is_some_and(|(_, finished)| finished.is_some()) {
                     // Aborting cannot remove a finished file or its retry identity.
@@ -174,7 +219,8 @@ impl State {
                 connection.execute("DELETE FROM storage_file_stages WHERE id=?1 AND finished IS NULL", [staging.id.as_str()])?;
                 connection.execute("DELETE FROM storage_staging WHERE owner='local' AND id=?1", [staging.id.as_str()])?;
                 Ok(())
-            })())
+            })();
+            Ok(result)
         })
         .await?
     }
@@ -183,8 +229,10 @@ impl State {
         &self, root: PathBuf, reference: FileReference, through: u64, offset: u64, maximum: NonZeroUsize,
     ) -> Result<Vec<u8>, Error> {
         let maximum = maximum.get();
+
         self.read(move |connection| {
-            Ok((|| {
+            let result = (|| {
+                // Both Stored Metadata And A Finished Reference May Coexist During Validation.
                 let head = saved(connection)?;
                 head.history.check(&reference.position.history)?;
                 if through > head.sequence {
@@ -197,9 +245,6 @@ impl State {
                     let mut rows = statement.query([super::position(reference.position.sequence)])?;
                     let row = rows.next()?.ok_or(Error::Corrupt("saved file reference is missing"))?;
                     let body = blob(row, 0)?;
-                    if body.len() > METADATA_BYTES {
-                        return Err(Error::Corrupt("saved file reference exceeds metadata bound"));
-                    }
                     super::check_digest(body, blob(row, 1)?)?;
                     let stored: FileReference = serde_json::from_slice(body)?;
                     if stored != reference {
@@ -220,10 +265,14 @@ impl State {
                     return Err(Error::Corrupt("immutable file length differs"));
                 }
                 file.seek(SeekFrom::Start(offset))?;
-                let mut bytes = vec![0; (reference.length - offset).min(maximum as u64) as usize];
+                let length = (reference.length - offset).min(maximum as u64) as usize;
+                let mut bytes = Vec::new();
+                bytes.try_reserve_exact(length).map_err(std::io::Error::other)?;
+                bytes.resize(length, 0);
                 file.read_exact(&mut bytes)?;
                 Ok(bytes)
-            })())
+            })();
+            Ok(result)
         })
         .await?
     }
@@ -236,7 +285,7 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
     if let Some(scope) = &metadata.scope {
         entry::key(scope.as_str())?;
     }
-    let encoded = entry::encode(&metadata, METADATA_BYTES)?;
+    let encoded = entry::encode(&metadata)?;
     super::production::check_writable(connection, metadata.id.as_str())?;
     let head = saved(connection)?;
     let active = super::production::checkpoint(connection, &StagedFile { history: head.history.clone(), id: metadata.id.clone() })?;
@@ -268,7 +317,7 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
         };
         transaction.execute(
             "INSERT INTO storage_productions VALUES (?1,?2,0,?3)",
-            params![staging.id.as_str(), super::position(1), entry::encode(&checkpoint, METADATA_BYTES)?],
+            params![staging.id.as_str(), super::position(1), entry::encode(&checkpoint)?],
         )?;
     }
     super::super::commit(transaction)?;
@@ -291,15 +340,20 @@ pub(super) fn confirm_durability(path: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-pub(super) fn confirm(connection: &Connection, root: &Path, reference: &FileReference) -> Result<(), Error> {
+pub(super) fn confirm(connection: &Connection, root: &Path, reference: &FileReference, retained: Option<&mut File>) -> Result<(), Error> {
     let (_, finished) = metadata_for(connection, &reference.metadata.id)?.ok_or(Error::Data("file reference has no finished bytes"))?;
     if finished.as_ref() != Some(reference) {
         return Err(Error::Conflict("file publication differs from finished bytes"));
     }
     let path = final_path(root, reference)?;
     regular(&path)?;
-    verify(&path, reference)?;
-    confirm_durability(&path)?;
+    // The Finished Row Proves Publication Completed Durably. Verify The Bytes
+    // Again Before Admission, Without Copying And Replacing The Immutable File.
+    if let Some(file) = retained {
+        verify_opened(file, reference)?;
+    } else {
+        verify(&path, reference)?;
+    }
     Ok(())
 }
 
@@ -313,9 +367,6 @@ pub(super) fn finish_intent(connection: &Connection, id: &harmos::Identifier) ->
         return Ok(None);
     }
     let body = blob(row, 0)?;
-    if body.len() > METADATA_BYTES {
-        return Err(Error::Data("file finish intent exceeds its bound"));
-    }
     let reference: FileReference = serde_json::from_slice(body)?;
     if reference.metadata.id != *id {
         return Err(Error::Corrupt("file finish intent identity differs"));
@@ -339,27 +390,21 @@ pub(super) fn stored_metadata(
     let Some(row) = rows.next()? else {
         return Ok(None);
     };
-    let body = blob(row, 0)?;
-    if body.len() > METADATA_BYTES {
-        return Err(Error::Data("file metadata exceeds its bound"));
-    }
-    let metadata: FileMetadata = serde_json::from_slice(body)?;
+    let metadata_body = blob(row, 0)?;
+    let finished_body = if row.get_ref(1)?.data_type() == rusqlite::types::Type::Null { None } else { Some(blob(row, 1)?) };
+    let metadata: FileMetadata = serde_json::from_slice(metadata_body)?;
     if metadata.id != *id {
         return Err(Error::Corrupt("file metadata identity differs"));
     }
-    let finished = if row.get_ref(1)?.data_type() == rusqlite::types::Type::Null {
-        None
-    } else {
-        let body = blob(row, 1)?;
-        if body.len() > METADATA_BYTES {
-            return Err(Error::Data("file reference exceeds its bound"));
-        }
+    let finished = if let Some(body) = finished_body {
         let reference: FileReference = serde_json::from_slice(body)?;
         if reference.metadata != metadata {
             return Err(Error::Corrupt("sealed file metadata differs"));
         }
         saved(connection)?.history.check(&reference.position.history)?;
         Some(reference)
+    } else {
+        None
     };
     Ok(Some((metadata, finished)))
 }
@@ -369,15 +414,17 @@ pub(super) fn staging_path(connection: &Connection, root: &Path, id: &harmos::Id
 }
 
 pub(super) fn stage_path(connection: &Connection, root: &Path, owner: &str, id: &str, phase: &str) -> Result<PathBuf, Error> {
-    connection.execute(
-        "INSERT OR IGNORE INTO storage_staging VALUES (?1,?2,?3,?4)",
-        params![owner, id, phase, uuid::Uuid::now_v7().to_string()],
-    )?;
-    let name: String = connection.query_row(
-        "SELECT uuid FROM storage_staging WHERE owner=?1 AND id=?2 AND phase=?3",
-        params![owner, id, phase],
-        |row| row.get(0),
-    )?;
+    let name: Option<String> = connection
+        .query_row("SELECT uuid FROM storage_staging WHERE owner=?1 AND id=?2 AND phase=?3", params![owner, id, phase], |row| row.get(0))
+        .optional()?;
+    let name = match name {
+        Some(name) => name,
+        None => {
+            let name = uuid::Uuid::now_v7().to_string();
+            connection.execute("INSERT INTO storage_staging VALUES (?1,?2,?3,?4)", params![owner, id, phase, name])?;
+            name
+        }
+    };
     let uuid = uuid::Uuid::parse_str(&name).map_err(|_| Error::Corrupt("invalid staging UUID"))?;
     if uuid.to_string() != name {
         return Err(Error::Corrupt("noncanonical staging UUID"));
@@ -430,9 +477,14 @@ pub(super) fn regular(path: &Path) -> Result<bool, Error> {
 pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error> {
     regular(path)?;
     let mut file = File::open(path)?;
+    verify_opened(&mut file, reference)
+}
+
+fn verify_opened(file: &mut File, reference: &FileReference) -> Result<(), Error> {
     if file.metadata()?.len() != reference.length {
         return Err(Error::Data("file finish length differs"));
     }
+    file.seek(SeekFrom::Start(0))?;
     let mut digest = Sha256::new();
     let mut buffer = [0; CHUNK_BYTES];
     loop {

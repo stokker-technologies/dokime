@@ -36,6 +36,9 @@ from .models import Backend, SavedRecord, SavedSample, Value
 
 # === Constants === #
 
+PAGE_ITEMS = 100
+VALUE_DEPTH = 64
+
 # === Types === #
 
 # === Classes === #
@@ -88,8 +91,14 @@ class Checkpoint:
     evidence_through: StorageCursor
 
     @classmethod
-    def _from_wire(cls, value: Message) -> "Checkpoint":
-        if not value.HasField("position") or not value.HasField("evidence_through") or not 0 < len(value.version) <= 4096:
+    def _from_wire(cls, value: Message, maximum: int) -> "Checkpoint":
+        if len(value.version) > maximum:
+            raise ProtocolError("native execution checkpoint exceeds the configured byte bound")
+        return cls._validated(value)
+
+    @classmethod
+    def _validated(cls, value: Message) -> "Checkpoint":
+        if not value.HasField("position") or not value.HasField("evidence_through") or not value.version:
             raise ProtocolError("native execution checkpoint is incomplete")
         try:
             identity = UUID(value.execution_identifier)
@@ -116,7 +125,7 @@ class Checkpoint:
             version=self.version,
             evidence_through=self.evidence_through._wire(),
         )
-        self._from_wire(value)
+        self._validated(value)
         return value
 
 
@@ -192,7 +201,7 @@ class ExecutionEvidence:
                 tuple(
                     TraceabilityEntry(
                         _json(entry.metadata),
-                        _wire.decode(entry.value),
+                        _wire.decode(entry.value, VALUE_DEPTH),
                         entry.source if entry.HasField("source") else None,
                         entry.unit if entry.HasField("unit") else None,
                     )
@@ -257,7 +266,7 @@ class ExecutionEvidence:
                     "History",
                     "ListCheckpointRecords",
                     checkpoint=self.checkpoint._wire(),
-                    limit=100,
+                    limit=PAGE_ITEMS,
                     after=after,
                 ),
             )
@@ -265,7 +274,7 @@ class ExecutionEvidence:
             if (
                 page.issues
                 or page.issues_truncated
-                or len(page.records) > 100
+                or len(page.records) > PAGE_ITEMS
                 or any(not row.epoch or not row.HasField("record") for row in page.records)
             ):
                 raise ProtocolError("saved record page is incomplete or invalid")
@@ -273,7 +282,7 @@ class ExecutionEvidence:
             if next_after is not None:
                 position = _page_cursor(self.checkpoint, "records", "", next_after, position)
             for item in page.records:
-                yield SavedRecord(item.epoch, _wire.record(item.record))
+                yield SavedRecord(item.epoch, _wire.record(item.record, VALUE_DEPTH))
             if next_after is None:
                 return
             after = next_after
@@ -296,7 +305,7 @@ class ExecutionEvidence:
                         "ListCheckpointTelemetry",
                         checkpoint=self.checkpoint._wire(),
                         table=table,
-                        limit=100,
+                        limit=PAGE_ITEMS,
                         after=after,
                     ),
                 )
@@ -305,7 +314,7 @@ class ExecutionEvidence:
                     page.table != table
                     or page.issues
                     or page.issues_truncated
-                    or len(page.rows) > 100
+                    or len(page.rows) > PAGE_ITEMS
                     or any(not row.epoch or not row.HasField("sample") or row.sample.stream != table for row in page.rows)
                 ):
                     raise ProtocolError("saved telemetry page is incomplete or invalid")
@@ -313,7 +322,7 @@ class ExecutionEvidence:
                 if next_after is not None:
                     position = _page_cursor(self.checkpoint, "telemetry", table, next_after, position)
                 for item in page.rows:
-                    yield SavedSample(item.epoch, item.ordinal, _wire.sample(item.sample))
+                    yield SavedSample(item.epoch, item.ordinal, _wire.sample(item.sample, VALUE_DEPTH))
                 if next_after is None:
                     break
                 after = next_after

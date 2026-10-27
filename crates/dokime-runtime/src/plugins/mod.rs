@@ -18,7 +18,7 @@ pub(crate) mod store;
 
 /* === Re-Exports === */
 
-pub use catalog::{PluginEnvironmentReference, PluginIdentity, PluginMetadata, inspect};
+pub use catalog::{PluginEnvironmentReference, PluginIdentity, PluginMetadata, inspect, inspect_with_archive_limit};
 pub use config::{PluginBundle, PluginProvenance};
 pub use model::{Installation, PluginEntry, PluginLastBoot, PluginSettings, PluginState, ProgramValues};
 pub use store::{PluginError, PluginPage, PluginStore};

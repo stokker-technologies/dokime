@@ -18,7 +18,7 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::storage::operations::ReadFile;
-use harmos::storage::{ByteRange, FileReader};
+use harmos::storage::{ByteRange, FileReadBatch, FileReader, ReadBatch};
 
 // Local Imports
 use super::execution::ExecutionView;
@@ -38,10 +38,10 @@ use dokime_domain::model::identity::Metadata;
 /* === Structs === */
 
 pub struct ArtifactReader {
-    descriptor: ExecutionOutput,
+    descriptor: ReadBatch<ExecutionOutput>,
     reader: FileReader,
     // The Unconsumed Tail Of The Last Response Batch.
-    pending: Vec<u8>,
+    pending: Option<FileReadBatch>,
     offset: usize,
 }
 
@@ -52,8 +52,13 @@ pub struct ArtifactReader {
 /* === Implementations === */
 
 impl ArtifactReader {
-    pub(super) async fn from_output(storage: &crate::storage::Manager, descriptor: ExecutionOutput) -> Result<Self> {
-        let reader = storage.read_file(ReadFile { file: descriptor.file.clone(), range: ByteRange { offset: 0, limit: None } }).await?;
+    pub(super) async fn from_output(session: crate::storage::Manager, descriptor: ReadBatch<ExecutionOutput>) -> Result<Self> {
+        let reader = session
+            .read_file(ReadFile {
+                source: harmos::storage::FileSource::Stored(descriptor.file.clone()),
+                range: ByteRange { offset: 0, limit: None },
+            })
+            .await?;
         Ok(Self::new(descriptor, reader))
     }
 
@@ -65,14 +70,14 @@ impl ArtifactReader {
                 matches!(&output.content, ExecutionOutputContent::Artifact { record, .. }
                 if &record.artifact_id == id)
             })
-            .ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("artifact descriptor is missing from captured output")))?
-            .clone();
-        let reader = view.read_file(&output.file, harmos::storage::ByteRange { offset: 0, limit: None }).await?;
+            .ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("artifact descriptor is missing from captured output")))?;
+        let output = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, harmos::Error>(output.clone()))?;
+        let reader = view.read_file(&output.file, ByteRange { offset: 0, limit: None }).await?;
         Ok(Self::new(output, reader))
     }
 
-    fn new(descriptor: ExecutionOutput, reader: FileReader) -> Self {
-        Self { descriptor, reader, pending: Vec::new(), offset: 0 }
+    fn new(descriptor: ReadBatch<ExecutionOutput>, reader: FileReader) -> Self {
+        Self { descriptor, reader, pending: None, offset: 0 }
     }
 
     pub fn record(&self) -> &ArtifactRecord {
@@ -89,16 +94,30 @@ impl ArtifactReader {
         metadata
     }
 
-    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<Vec<u8>>> {
-        if self.offset == self.pending.len() {
+    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<ReadBatch<Vec<u8>>>> {
+        if self.pending.as_ref().is_none_or(|batch| self.offset == batch.bytes().len()) {
+            self.pending = None;
             let Some(batch) = self.reader.next().await? else {
                 return Ok(None);
             };
-            self.pending = batch.bytes;
+            self.pending = Some(batch);
             self.offset = 0;
         }
-        let end = self.pending.len().min(self.offset + maximum.get());
-        let chunk = self.pending[self.offset..end].to_vec();
+        let pending = self.pending.as_ref().expect("read batch retained").bytes();
+        if self.offset == 0 && pending.len() <= maximum.get() {
+            let batch = self.pending.take().expect("read batch retained");
+            let chunk = batch.try_map(|batch| Ok::<_, harmos::Error>(batch.bytes))?;
+            return Ok(Some(chunk));
+        }
+        let end = pending.len().min(self.offset.saturating_add(maximum.get()));
+        let length = end - self.offset;
+        let chunk = harmos::storage::ReadBatch::new(()).try_map(|_| -> harmos::Result<_> {
+            let exhausted = || harmos::Error::ResourceExhausted { resource: "artifact chunk projection" };
+            let mut bytes = Vec::new();
+            bytes.try_reserve_exact(length).map_err(|_| exhausted())?;
+            bytes.extend_from_slice(&pending[self.offset..end]);
+            Ok(bytes)
+        })?;
         self.offset = end;
         Ok(Some(chunk))
     }
@@ -107,11 +126,19 @@ impl ArtifactReader {
         let Some(maximum) = NonZeroUsize::new(buffer.len()) else {
             return Ok(0);
         };
-        let Some(chunk) = self.next_chunk(maximum).await? else {
-            return Ok(0);
-        };
-        buffer[..chunk.len()].copy_from_slice(&chunk);
-        Ok(chunk.len())
+        if self.pending.as_ref().is_none_or(|batch| self.offset == batch.bytes().len()) {
+            self.pending = None;
+            let Some(batch) = self.reader.next().await? else {
+                return Ok(0);
+            };
+            self.pending = Some(batch);
+            self.offset = 0;
+        }
+        let pending = self.pending.as_ref().expect("read batch retained").bytes();
+        let count = maximum.get().min(pending.len() - self.offset);
+        buffer[..count].copy_from_slice(&pending[self.offset..self.offset + count]);
+        self.offset += count;
+        Ok(count)
     }
 }
 

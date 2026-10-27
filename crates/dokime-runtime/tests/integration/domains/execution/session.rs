@@ -253,7 +253,9 @@ async fn cancellation_retains_verdict() {
         let root = tempdir().unwrap();
         let probe = Arc::new(Probe::new(mode));
         let provider = Provider(probe.clone());
-        let (mut owner, handle) = started(config(root.path()).register(Arc::new(provider))).await;
+        let settings = config(root.path());
+
+        let (mut owner, handle) = started(settings.register(Arc::new(provider))).await;
         let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
         let cycle_id = start_cases(&handle, metadata("session.cancel", "Cancellation"), materialize_cases(SOURCE, &suite)).await;
         let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
@@ -292,7 +294,7 @@ async fn cancellation_retains_verdict() {
             handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
         let log_path = log.relative_path.clone();
         let checkpoint = handle.execution_saved_checkpoint(execution.test_execution_id.clone()).await.unwrap();
-        let log = without_timestamps(&String::from_utf8(content.bytes).unwrap());
+        let log = without_timestamps(std::str::from_utf8(&content.bytes).unwrap());
         if mode == Settlement::Refused {
             assert!(log.starts_with("[ERROR] "), "{log}");
             assert!(log.contains("run refused during cancellation"), "{log}");
@@ -316,7 +318,7 @@ async fn cancellation_retains_verdict() {
         assert!(restored.summary.phase.terminal());
         assert_eq!(restored.summary.prepared, 1);
         let content = handle.execution_file_content(&execution.test_execution_id, log_path, 0, 4096).await.unwrap().unwrap();
-        let restored_log = without_timestamps(&String::from_utf8(content.bytes).unwrap());
+        let restored_log = without_timestamps(std::str::from_utf8(&content.bytes).unwrap());
         assert_eq!(restored_log, log, "cancellation evidence survives a fresh host session");
         drop(saved);
         drop(handle);
@@ -375,7 +377,7 @@ async fn ignored_stop(mode: Settlement) {
     let log = files.iter().find(|file| file.relative_path.ends_with("stream.log")).unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     assert!(
-        String::from_utf8(log.bytes)
+        std::str::from_utf8(&log.bytes)
             .unwrap()
             .contains(&format!("the run did not answer its stop within {} seconds", dokime_domain::STOP_SETTLEMENT_SECONDS))
     );

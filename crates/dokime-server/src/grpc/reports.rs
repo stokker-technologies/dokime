@@ -22,9 +22,8 @@ use tonic::Status;
 
 // Local Imports
 use super::chunked;
+use super::error::detailed;
 use super::value::canonical;
-use super::{error::detailed, value};
-use crate::grpc::transcode::Transcode;
 use dokime::OpenedReport;
 use dokime::ReportOrigin;
 use dokime::RuntimeHandle;
@@ -83,7 +82,6 @@ impl Operation for Download {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::DownloadCycleReport, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        value::text(&request.cycle_id)?;
         let cycle = TestCycleId::from_uuid(request.cycle_id.clone()).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
         let identifier = report_identifier(&request.identifier)?;
         let report = self.resources.runtime.open_cycle_report(&cycle).await.map_err(report_failure)?;
@@ -103,7 +101,6 @@ impl Operation for Execution {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::DownloadExecutionReport, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        value::text(&request.execution_id)?;
         let execution =
             TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
         let identifier =
@@ -175,18 +172,18 @@ async fn deliver(
             },
         ))),
     };
-    if frame.wire_len()? > resources.max_message_bytes {
+    if super::content::output_frame_len(&frame)? > resources.max_message_bytes {
         return Err(Status::resource_exhausted("report metadata exceeds the message limit"));
     }
     let size_bytes = html.len() as u64;
     chunked::Download {
         frames: HtmlFrames(frame.into()),
-        source: chunked::Source::bytes(html),
+        source: chunked::Source::bytes(Response::from_owner(html.owner())),
         size_bytes,
         sha256: None,
         noun: "report HTML",
         read_failure: "report HTML could not be read",
-        chunk_bytes: super::content::download_chunk_bytes(resources.max_message_bytes),
+        chunk_bytes: super::content::download_chunk_bytes(&resources.runtime, resources.max_message_bytes)?,
         message_limit: resources.max_message_bytes,
     }
     .run(output)
@@ -215,7 +212,6 @@ fn report_identifier(value: &str) -> Result<Identifier, Status> {
 }
 
 fn required_identifier(value: &str) -> Result<Identifier, Status> {
-    value::text(value)?;
     Identifier::new(value.to_owned()).map_err(|_| Status::invalid_argument("invalid report identifier"))
 }
 

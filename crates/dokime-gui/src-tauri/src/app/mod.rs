@@ -17,6 +17,7 @@ mod logging;
 pub(crate) mod media;
 pub(crate) mod organization;
 pub(crate) mod plugins;
+pub(crate) mod preferences;
 pub(crate) mod recording;
 pub(crate) mod settings;
 pub(crate) mod updates;
@@ -35,6 +36,8 @@ use tauri::Manager;
 use crate::bindings;
 
 /* === Constants === */
+
+const DESKTOP_RETAINED_LOG_FILES: u64 = 14;
 
 /* === Macros === */
 
@@ -93,7 +96,7 @@ fn start_tauri_app() -> tauri::Result<()> {
         let root = std::path::absolute(root)?;
         context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(root));
     }
-    let _log_guards = logging::init(&context.config().identifier);
+    let _log_guards = logging::init(&context.config().identifier, DESKTOP_RETAINED_LOG_FILES as usize);
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());
     let shutdown_stdin = launch.error.is_none() && arguments.iter().any(|argument| argument == "--shutdown-stdin");
@@ -102,9 +105,10 @@ fn start_tauri_app() -> tauri::Result<()> {
     let controls = bindings::invoke_handler();
     let rpc = crate::rpc::handler();
     let builder = tauri::Builder::default()
-        .manage(crate::rpc::Bridge::default())
+        .manage(crate::rpc::Bridge::new())
         .manage(crate::connection::ConnectionSession::default())
         .manage(plugins::DroppedFiles::default())
+        .manage(crate::connection::registry::Registry::default())
         .manage(launch)
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
@@ -139,6 +143,15 @@ fn start_tauri_app() -> tauri::Result<()> {
             settings::setup(app);
             let connection = app.state::<crate::connection::ConnectionSession>().inner().clone();
             let owner = crate::native_session::DesktopSession::with_local_configuration(connection, local::configuration(app.handle()));
+            let mut status_updates = owner.subscribe_status();
+            let status_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tauri::Emitter;
+                while status_updates.changed().await.is_ok() {
+                    let snapshot = status_updates.borrow_and_update().clone();
+                    let _ = status_app.emit(crate::native_session::STATUS_CHANGED_EVENT, snapshot);
+                }
+            });
             *setup_owner.lock().expect("setup owner poisoned") = Some(owner.clone());
             app.manage(crate::native_session::DesktopSessionControl::active(owner));
             organization::setup(app)?;

@@ -22,8 +22,10 @@ import { HistoryComparisonView } from "@/features/explore/HistoryComparisonView"
 import { HistoryLibrary } from "@/features/explore/HistoryLibrary";
 import { setNativeCycleArchived, setNativeExecutionArchived } from "@/lib/api/native-execution";
 import type { ExecutionBrowsePage } from "@/lib/types/view-contracts";
-import { PageBleed, PageNotice, PageShell } from "@/shell/PageShell";
+import { PageNotice, PageShell } from "@/shell/PageShell";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey } from "./explore-contracts";
+
+const GUI_FILTER_DEBOUNCE_MS = 250;
 
 /* === Types === */
 
@@ -83,7 +85,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
   const cycles = cyclesQuery.data ?? [];
 
   useEffect(() => {
-    const handle = window.setTimeout(() => setSelection(query), 250);
+    const handle = window.setTimeout(() => setSelection(query), GUI_FILTER_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
   }, [query]);
 
@@ -98,7 +100,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
       {comparing ? (
         <HistoryComparisonView cycles={selectedCycles} onBack={onBack} />
       ) : (
-        <PageBleed>
+        <div className="min-w-0">
           <HistoryLibrary
             archived={archived}
             cycles={cycles}
@@ -112,7 +114,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
             query={query}
             selectedIds={selectedIds}
           />
-        </PageBleed>
+        </div>
       )}
       {cyclesQuery.hasNextPage ? (
         <div>
@@ -151,7 +153,7 @@ function IncompleteHistoryNotice({ coverage }: { coverage: ExecutionBrowsePage }
     <PageNotice>
       <p>History is incomplete: some sources or executions could not be read.</p>
       {reasons.length ? (
-        <ul className="list-disc pl-5">
+        <ul className="list-disc pl-4">
           {reasons.map((reason) => (
             <li key={reason}>{reason}</li>
           ))}

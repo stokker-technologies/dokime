@@ -261,14 +261,15 @@ async fn runtime_appearance_brand() {
     let captured = runtime.capture_appearance(64 * 1024).unwrap();
     assert_eq!(captured.frame, frame);
     assert_eq!(frame.logos.len(), 4);
-    for (selected, captured_asset) in frame.logos.iter().zip(captured.logos) {
+    for (selected, captured_asset) in frame.logos.iter().zip(captured.logos.iter()) {
         let asset = runtime.plugin_appearance_asset(&selected.plugin_id, &selected.asset_id).await;
-        assert_eq!(captured_asset, asset);
+        assert_eq!(captured_asset, &asset);
         assert!(asset.unwrap().path.is_file());
     }
 
     runtime.set_brand(None);
     assert_ne!(runtime.appearance_frame().await.app_name, "Acme Test Hub");
+    drop(captured);
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

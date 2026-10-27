@@ -30,8 +30,7 @@ use dokime::domain::model::remote::RemoteListenerSettings;
 
 /* === Constants === */
 
-const MAXIMUM_BYTES: usize = 256 * 1024;
-const MAXIMUM_NAMES: usize = 32;
+const SERVER_REMOTE_STORE_BYTES: u64 = 262_144;
 
 /* === Macros === */
 
@@ -39,8 +38,7 @@ const MAXIMUM_NAMES: usize = 32;
 
 /* === Structs === */
 
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone)]
 pub(super) struct Document {
     pub version: u32,
     pub settings: RemoteListenerSettings,
@@ -56,6 +54,14 @@ pub(super) struct Identity {
     pub names: Vec<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Security {
+    version: u32,
+    key_digest: Option<[u8; 32]>,
+    identity: Option<Identity>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -66,13 +72,7 @@ impl Document {
     pub fn initial() -> Self {
         Self {
             version: 1,
-            settings: RemoteListenerSettings {
-                enabled: false,
-                address: "0.0.0.0:8765".into(),
-                tls_enabled: true,
-                authentication_enabled: true,
-                certificate_names: vec![],
-            },
+            settings: dokime::domain::model::settings::wire::ApplicationSettings::default().listener,
             key_digest: None,
             identity: None,
         }
@@ -98,38 +98,39 @@ impl Drop for Identity {
 
 /* === Public Functions === */
 
-pub(super) fn read(path: &Path) -> Result<Document, super::Error> {
+pub(super) fn read(path: &Path, settings: RemoteListenerSettings) -> Result<Document, super::Error> {
     match std::fs::symlink_metadata(path) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Document::initial()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(Document { settings, ..Document::initial() });
+        }
         Err(error) => return Err(super::Error::RemoteStorage(error)),
         Ok(metadata) if !metadata.file_type().is_file() => {
             return Err(super::Error::Configuration("remote security must be a regular file"));
         }
         Ok(_) => {}
     }
-    let bytes = Zeroizing::new(dokime::harmos::filesystem::input::read(path, MAXIMUM_BYTES).map_err(super::Error::RemoteStorage)?);
-    let document: Document = serde_json::from_slice(&bytes).map_err(|_| super::Error::Configuration("invalid remote security document"))?;
+    let bytes = Zeroizing::new(
+        dokime::harmos::filesystem::input::read(path, usize::try_from(SERVER_REMOTE_STORE_BYTES).expect("validated remote security size"))
+            .map_err(super::Error::RemoteStorage)?,
+    );
+    let security: Security = serde_json::from_slice(&bytes)
+        .map_err(|_| super::Error::Configuration("incompatible remote security document; use a fresh application root"))?;
+    let document = Document { version: security.version, settings, key_digest: security.key_digest, identity: security.identity };
     if document.version != 1 {
         return Err(super::Error::Configuration("unsupported remote security document version"));
     }
     validate(&document.settings)?;
-    if let Some(identity) = &document.identity {
-        let mut settings = document.settings.clone();
-        settings.certificate_names = identity.names.clone();
-        validate(&settings)?;
-        if settings.certificate_names != document.settings.certificate_names {
-            return Err(super::Error::Configuration("persisted certificate names differ from listener settings"));
-        }
-    }
     Ok(document)
 }
 
 pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error> {
     let parent = path.parent().ok_or(super::Error::Configuration("remote security path has no parent"))?;
     private_directory(parent).map_err(super::Error::RemoteStorage)?;
-    let bytes =
-        Zeroizing::new(serde_json::to_vec(document).map_err(|_| super::Error::Configuration("cannot encode remote security document"))?);
-    if bytes.len() > MAXIMUM_BYTES {
+    let bytes = Zeroizing::new(
+        serde_json::to_vec(&Security { version: document.version, key_digest: document.key_digest, identity: document.identity.clone() })
+            .map_err(|_| super::Error::Configuration("cannot encode remote security document"))?,
+    );
+    if bytes.len() as u64 > SERVER_REMOTE_STORE_BYTES {
         return Err(super::Error::Configuration("remote security document exceeds its byte limit"));
     }
 
@@ -138,27 +139,8 @@ pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error
 }
 
 pub(super) fn validate(settings: &RemoteListenerSettings) -> Result<SocketAddr, super::Error> {
-    let address = settings
-        .address
-        .parse::<SocketAddr>()
-        .map_err(|_| super::Error::Configuration("listener address must be an IP address and port"))?;
-    if settings.certificate_names.len() > MAXIMUM_NAMES {
-        return Err(super::Error::Configuration("at most 32 certificate identities are allowed"));
-    }
-    for (index, name) in settings.certificate_names.iter().enumerate() {
-        if name.len() > 253 || name.is_empty() || settings.certificate_names[..index].contains(name) {
-            return Err(super::Error::Configuration("certificate identities must be distinct bounded DNS names or IP addresses"));
-        }
-        if name.parse::<IpAddr>().is_ok() {
-            continue;
-        }
-        if !valid_dns(name) {
-            return Err(super::Error::Configuration(
-                "certificate identities must be exact DNS names or IP addresses without wildcards or ports",
-            ));
-        }
-    }
-    Ok(address)
+    settings.validate().map_err(super::Error::Listener)?;
+    settings.address.parse::<SocketAddr>().map_err(|_| super::Error::Configuration("invalid listener address"))
 }
 
 // Creates the owner-only directory that holds remote security material and the session log.
@@ -175,28 +157,29 @@ pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
 
 // The identities this host answers to: the listen address when it is specific, the host name
 // and every non-loopback interface address, falling back to loopback when nothing else exists.
-pub(super) fn host_names(address: SocketAddr) -> Vec<String> {
+pub(super) fn host_names(address: SocketAddr, maximum: usize) -> Vec<String> {
     let networks = sysinfo::Networks::new_with_refreshed_list();
     let interfaces = networks.values().flat_map(|network| network.ip_networks().iter().map(|network| network.addr));
-    default_names(address, sysinfo::System::host_name(), interfaces)
+    default_names(address, sysinfo::System::host_name(), interfaces, maximum)
 }
 
 /* === Private Functions === */
 
-fn default_names(address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = IpAddr>) -> Vec<String> {
+fn default_names(address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = IpAddr>, maximum: usize) -> Vec<String> {
     let reachable = |ip: &IpAddr| !ip.is_loopback() && !ip.is_unspecified() && !matches!(ip, IpAddr::V6(v6) if v6.is_unicast_link_local());
     let host =
         host_name.map(|name| name.trim().trim_end_matches('.').to_ascii_lowercase()).filter(|name| name.len() <= 253 && valid_dns(name));
     let addresses = std::iter::once(address.ip()).chain(interfaces).filter(reachable).map(|ip| ip.to_string());
     let mut names: Vec<String> = Vec::new();
     for name in host.into_iter().chain(addresses) {
-        if names.len() < MAXIMUM_NAMES && !names.contains(&name) {
+        if names.len() < maximum && !names.contains(&name) {
             names.push(name);
         }
     }
     if names.is_empty() {
         names = vec!["localhost".into(), "127.0.0.1".into()];
     }
+    names.truncate(maximum);
     names
 }
 
@@ -220,18 +203,19 @@ mod tests {
     fn persistent_identity_and_verifier() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("remote/access.json");
-        let mut document = read(&path).unwrap();
+        let mut document = read(&path, Document::initial().settings).unwrap();
         document.settings.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
         document.identity = Some(Identity::generate(document.settings.certificate_names.clone()).unwrap());
         document.key_digest = Some([17; 32]);
         write(&path, &document).unwrap();
         let before = std::fs::read(&path).unwrap();
-        let restored = read(&path).unwrap();
-        assert_eq!(restored.settings, document.settings);
+        let restored = read(&path, Document::initial().settings).unwrap();
         assert_eq!(restored.key_digest, document.key_digest);
         assert_eq!(restored.identity.as_ref().unwrap().certificate, document.identity.as_ref().unwrap().certificate);
         assert!(restored.identity.as_ref().unwrap().private_key == document.identity.as_ref().unwrap().private_key);
-        assert!(serde_json::from_slice::<serde_json::Value>(&before).unwrap().get("access_key").is_none());
+        let security = serde_json::from_slice::<serde_json::Value>(&before).unwrap();
+        assert!(security.get("access_key").is_none());
+        assert!(security.get("settings").is_none());
         write(&path, &restored).unwrap();
         assert!(std::fs::read(&path).unwrap() == before);
         #[cfg(unix)]
@@ -247,16 +231,16 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("access.json");
         std::fs::write(&path, b"invalid private material").unwrap();
-        let error = read(&path).err().unwrap();
+        let error = read(&path, Document::initial().settings).err().unwrap();
         assert!(!error.to_string().contains("private material"));
         assert_eq!(std::fs::read(&path).unwrap(), b"invalid private material");
-        assert!(read(root.path()).is_err());
+        assert!(read(root.path(), Document::initial().settings).is_err());
         let mut document = Document::initial();
         document.version = 2;
         write(&path, &document).unwrap();
-        assert!(read(&path).is_err());
-        std::fs::write(&path, vec![b'a'; MAXIMUM_BYTES + 1]).unwrap();
-        assert!(read(&path).is_err());
+        assert!(read(&path, Document::initial().settings).is_err());
+        std::fs::write(&path, vec![b'a'; usize::try_from(SERVER_REMOTE_STORE_BYTES).unwrap() + 1]).unwrap();
+        assert!(read(&path, Document::initial().settings).is_err());
     }
 
     #[test]
@@ -278,15 +262,25 @@ mod tests {
     fn default_certificate_identities() {
         let wildcard: SocketAddr = "0.0.0.0:8765".parse().unwrap();
         let interfaces = ["127.0.0.1", "192.168.1.20", "fe80::1", "192.168.1.20", "2001:db8::7"].map(|ip| ip.parse().unwrap());
-        let names = default_names(wildcard, Some("Lab-Host.".into()), interfaces.into_iter());
+        let names =
+            default_names(wildcard, Some("Lab-Host.".into()), interfaces.into_iter(), usize::try_from(SERVER_REMOTE_NAMES).unwrap());
         assert_eq!(names, ["lab-host", "192.168.1.20", "2001:db8::7"]);
         let mut settings = Document::initial().settings;
         settings.certificate_names = names;
         validate(&settings).unwrap();
         let specific: SocketAddr = "10.0.0.5:8765".parse().unwrap();
-        assert_eq!(default_names(specific, Some("bad_name".into()), std::iter::empty()), ["10.0.0.5"]);
-        assert_eq!(default_names(wildcard, None, std::iter::empty()), ["localhost", "127.0.0.1"]);
+        assert_eq!(
+            default_names(specific, Some("bad_name".into()), std::iter::empty(), usize::try_from(SERVER_REMOTE_NAMES).unwrap()),
+            ["10.0.0.5"]
+        );
+        assert_eq!(
+            default_names(wildcard, None, std::iter::empty(), usize::try_from(SERVER_REMOTE_NAMES).unwrap()),
+            ["localhost", "127.0.0.1"]
+        );
         let many = (0..64u8).map(|index| IpAddr::from([10, 0, 1, index]));
-        assert_eq!(default_names(wildcard, None, many).len(), MAXIMUM_NAMES);
+        assert_eq!(
+            default_names(wildcard, None, many, usize::try_from(SERVER_REMOTE_NAMES).unwrap()).len(),
+            usize::try_from(SERVER_REMOTE_NAMES).unwrap()
+        );
     }
 }

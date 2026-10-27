@@ -49,7 +49,8 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
+pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
     let client = args.connection.connect().await?;
     let result = client.suite(&args.suite).await;
     client.close_and_wait().await;

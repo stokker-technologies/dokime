@@ -24,6 +24,11 @@ use crate::grpc::Config;
 
 /* === Constants === */
 
+const SERVER_ALLOWED_ORIGINS: u64 = 32;
+const SERVER_LISTEN_PORT: u64 = 8_765;
+const SERVER_MAXIMUM_MESSAGE_BYTES: u64 = 16_777_216;
+const SERVER_MESSAGE_BYTES: u64 = 1_048_576;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -38,16 +43,18 @@ use crate::grpc::Config;
 
 impl NetworkArgs {
     pub fn config(&self) -> crate::host::Result<Config> {
-        let bytes = self
-            .message_limit_mib
-            .checked_mul(1024 * 1024)
-            .filter(|bytes| (1..=16 * 1024 * 1024).contains(bytes))
-            .ok_or_else(|| input("message limit must be between 1 and 16 MiB"))?;
+        let bytes = match self.message_limit_mib {
+            Some(mib) => mib.checked_mul(1024 * 1024).ok_or_else(|| input("message limit exceeds the native address space"))?,
+            None => SERVER_MESSAGE_BYTES as usize,
+        };
+        if bytes == 0 || bytes as u64 > SERVER_MAXIMUM_MESSAGE_BYTES {
+            return Err(input("message limit must be positive and within the configured maximum"));
+        }
         if !self.host.is_loopback() {
             return Err(input("the native listener requires loopback; configure remote access in desktop settings"));
         }
-        if self.allowed_origins.len() > 32 {
-            return Err(input("at most 32 exact browser origins are allowed"));
+        if self.allowed_origins.len() as u64 > SERVER_ALLOWED_ORIGINS {
+            return Err(input("browser origins exceed the configured maximum"));
         }
         let origins = self
             .allowed_origins
@@ -60,8 +67,10 @@ impl NetworkArgs {
         if origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
             return Err(input("each browser origin may be allowed only once"));
         }
-        let address = SocketAddr::new(self.host, self.port);
+        let port = self.port.unwrap_or(SERVER_LISTEN_PORT as u16);
+        let address = SocketAddr::new(self.host, port);
         let config = Config::local().with_bind_addr(address).with_max_message_bytes(bytes);
+        config.validate()?;
         if self.grpc_web { Ok(config.with_grpc_web(origins)?) } else { Ok(config) }
     }
 }

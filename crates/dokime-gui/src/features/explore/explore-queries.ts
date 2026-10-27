@@ -62,7 +62,6 @@ export function useExploreHistoryQuery(text = "", archive: HistoryArchiveView = 
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => fetchExecutionPage(session.identity, pageParam, signal, selection),
     getNextPageParam: (page) => page.next ?? undefined,
-    staleTime: 30_000,
   });
   const cycles = useInfiniteQuery({
     queryKey: exploreQueryKeys.cycles(needle, archive),
@@ -74,7 +73,6 @@ export function useExploreHistoryQuery(text = "", archive: HistoryArchiveView = 
         archive: { HarmosVariant: { case: archive, value: {} } },
       }),
     getNextPageParam: (page) => page.next ?? undefined,
-    staleTime: 30_000,
   });
   const data =
     query.data || cycles.data

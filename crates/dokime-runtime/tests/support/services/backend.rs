@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -33,10 +31,10 @@ use harmos::storage::{ScanPage, SchemaKey, StorageBackend, StorageCursor, Stored
 /* === Implementations === */
 
 /* === Public Functions === */
-pub async fn records(backend: &impl StorageBackend, at: &StorageCursor, schema: SchemaKey) -> Vec<StoredRecord> {
+pub async fn for_each_record(backend: &impl StorageBackend, at: &StorageCursor, schema: SchemaKey, mut read: impl FnMut(&StoredRecord)) {
     let selection = RecordSelection { schema, scope: None, item: None, source_start: None, source_end: None };
+
     let snapshot = backend.open_snapshot(at).await.unwrap();
-    let mut records = Vec::new();
     let mut after = 0;
     loop {
         let page = backend
@@ -51,10 +49,11 @@ pub async fn records(backend: &impl StorageBackend, at: &StorageCursor, schema: 
             break;
         };
         after = last.position.sequence;
-        records.extend(page);
+        for row in &page {
+            read(row);
+        }
     }
     backend.release_snapshot(&snapshot).await.unwrap();
-    records
 }
 
 /* === Private Functions === */

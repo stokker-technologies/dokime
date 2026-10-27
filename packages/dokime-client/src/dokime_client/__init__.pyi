@@ -136,17 +136,14 @@ import dokime_client._wire.dokime.v1.SettingsMessages.GetPluginSettings.messages
 import dokime_client._wire.dokime.v1.SettingsMessages.GetSettings.messages_pb2 as _wire_129
 import dokime_client._wire.dokime.v1.SettingsMessages.ListStorageSources.messages_pb2 as _wire_130
 import dokime_client._wire.dokime.v1.SettingsMessages.ReadApplicationSettings.messages_pb2 as _wire_131
-import dokime_client._wire.dokime.v1.SettingsMessages.ReadStoragePolicy.messages_pb2 as _wire_132
-import dokime_client._wire.dokime.v1.SettingsMessages.ReorderStorageSources.messages_pb2 as _wire_133
-import dokime_client._wire.dokime.v1.SettingsMessages.SetStorageSourceEnabled.messages_pb2 as _wire_134
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdateAppearance.messages_pb2 as _wire_135
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdateDataRoot.messages_pb2 as _wire_136
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSecret.messages_pb2 as _wire_137
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2 as _wire_138
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdateReportDefaults.messages_pb2 as _wire_139
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy.messages_pb2 as _wire_140
-import dokime_client._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_141
-import dokime_client._wire.harmos.host.v1.HostMessages.Catalog.messages_pb2 as _wire_142
+import dokime_client._wire.dokime.v1.SettingsMessages.ReorderStorageSources.messages_pb2 as _wire_132
+import dokime_client._wire.dokime.v1.SettingsMessages.SetStorageSourceEnabled.messages_pb2 as _wire_133
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdateApplicationSettings.messages_pb2 as _wire_134
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSecret.messages_pb2 as _wire_135
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2 as _wire_136
+import dokime_client._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_137
+import dokime_client._wire.dokime.v1.TelemetryMessages.WatchSamples.messages_pb2 as _wire_138
+import dokime_client._wire.harmos.host.v1.HostMessages.Catalog.messages_pb2 as _wire_140
 
 # Local Imports
 from .operation import Invoker as Invoker
@@ -916,74 +913,56 @@ DOKIME_SETTINGS_READ_APPLICATION_SETTINGS: Operation[
     DokimeSettingsReadApplicationSettingsRequest, DokimeSettingsReadApplicationSettingsResponse, Message, Message
 ]
 
-DokimeSettingsReadStoragePolicyRequest = _wire_132.Row1
-DokimeSettingsReadStoragePolicyResponse = _wire_132.Row2
-
-DOKIME_SETTINGS_READ_STORAGE_POLICY: Operation[
-    DokimeSettingsReadStoragePolicyRequest, DokimeSettingsReadStoragePolicyResponse, Message, Message
-]
-
-DokimeSettingsReorderStorageSourcesRequest = _wire_133.Row1
-DokimeSettingsReorderStorageSourcesResponse = _wire_133.Row2
+DokimeSettingsReorderStorageSourcesRequest = _wire_132.Row1
+DokimeSettingsReorderStorageSourcesResponse = _wire_132.Row2
 
 DOKIME_SETTINGS_REORDER_STORAGE_SOURCES: Operation[
     DokimeSettingsReorderStorageSourcesRequest, DokimeSettingsReorderStorageSourcesResponse, Message, Message
 ]
 
-DokimeSettingsSetStorageSourceEnabledRequest = _wire_134.Row1
-DokimeSettingsSetStorageSourceEnabledResponse = _wire_134.Row2
+DokimeSettingsSetStorageSourceEnabledRequest = _wire_133.Row1
+DokimeSettingsSetStorageSourceEnabledResponse = _wire_133.Row2
 
 DOKIME_SETTINGS_SET_STORAGE_SOURCE_ENABLED: Operation[
     DokimeSettingsSetStorageSourceEnabledRequest, DokimeSettingsSetStorageSourceEnabledResponse, Message, Message
 ]
 
-DokimeSettingsUpdateAppearanceRequest = _wire_135.Row1
-DokimeSettingsUpdateAppearanceResponse = _wire_135.Row2
+DokimeSettingsUpdateApplicationSettingsRequest = _wire_134.Row1
+DokimeSettingsUpdateApplicationSettingsResponse = _wire_134.Row2
 
-DOKIME_SETTINGS_UPDATE_APPEARANCE: Operation[
-    DokimeSettingsUpdateAppearanceRequest, DokimeSettingsUpdateAppearanceResponse, Message, Message
+DOKIME_SETTINGS_UPDATE_APPLICATION_SETTINGS: Operation[
+    DokimeSettingsUpdateApplicationSettingsRequest, DokimeSettingsUpdateApplicationSettingsResponse, Message, Message
 ]
 
-DokimeSettingsUpdateDataRootRequest = _wire_136.Row1
-DokimeSettingsUpdateDataRootResponse = _wire_136.Row2
-
-DOKIME_SETTINGS_UPDATE_DATA_ROOT: Operation[DokimeSettingsUpdateDataRootRequest, DokimeSettingsUpdateDataRootResponse, Message, Message]
-
-DokimeSettingsUpdatePluginSecretRequest = _wire_137.Row1
-DokimeSettingsUpdatePluginSecretResponse = _wire_137.Row2
+DokimeSettingsUpdatePluginSecretRequest = _wire_135.Row1
+DokimeSettingsUpdatePluginSecretResponse = _wire_135.Row2
 
 DOKIME_SETTINGS_UPDATE_PLUGIN_SECRET: Operation[
     DokimeSettingsUpdatePluginSecretRequest, DokimeSettingsUpdatePluginSecretResponse, Message, Message
 ]
 
-DokimeSettingsUpdatePluginSettingsRequest = _wire_138.Row1
-DokimeSettingsUpdatePluginSettingsResponse = _wire_138.Row2
+DokimeSettingsUpdatePluginSettingsRequest = _wire_136.Row1
+DokimeSettingsUpdatePluginSettingsResponse = _wire_136.Row2
 
 DOKIME_SETTINGS_UPDATE_PLUGIN_SETTINGS: Operation[
     DokimeSettingsUpdatePluginSettingsRequest, DokimeSettingsUpdatePluginSettingsResponse, Message, Message
 ]
 
-DokimeSettingsUpdateReportDefaultsRequest = _wire_139.Row1
-DokimeSettingsUpdateReportDefaultsResponse = _wire_139.Row2
-
-DOKIME_SETTINGS_UPDATE_REPORT_DEFAULTS: Operation[
-    DokimeSettingsUpdateReportDefaultsRequest, DokimeSettingsUpdateReportDefaultsResponse, Message, Message
-]
-
-DokimeSettingsUpdateStoragePolicyRequest = _wire_140.Row1
-DokimeSettingsUpdateStoragePolicyResponse = _wire_140.Row2
-
-DOKIME_SETTINGS_UPDATE_STORAGE_POLICY: Operation[
-    DokimeSettingsUpdateStoragePolicyRequest, DokimeSettingsUpdateStoragePolicyResponse, Message, Message
-]
-
-DokimeTelemetryListSamplesRequest = _wire_141.Row1
-DokimeTelemetryListSamplesResponse = _wire_141.Row2
+DokimeTelemetryListSamplesRequest = _wire_137.Row1
+DokimeTelemetryListSamplesResponse = _wire_137.Row2
 
 DOKIME_TELEMETRY_LIST_SAMPLES: Operation[DokimeTelemetryListSamplesRequest, DokimeTelemetryListSamplesResponse, Message, Message]
 
-HostCatalogRequest = _wire_142.Row1
-HostCatalogResponse = _wire_142.Row2
+DokimeTelemetryWatchSamplesRequest = _wire_138.Row1
+DokimeTelemetryWatchSamplesResponse = _wire_138.Row2
+DokimeTelemetryWatchSamplesOutput = _wire_138.Row3
+
+DOKIME_TELEMETRY_WATCH_SAMPLES: Operation[
+    DokimeTelemetryWatchSamplesRequest, DokimeTelemetryWatchSamplesResponse, Message, DokimeTelemetryWatchSamplesOutput
+]
+
+HostCatalogRequest = _wire_140.Row1
+HostCatalogResponse = _wire_140.Row2
 
 HOST_CATALOG: Operation[HostCatalogRequest, HostCatalogResponse, Message, Message]
 
@@ -994,42 +973,3 @@ HOST_CATALOG: Operation[HostCatalogRequest, HostCatalogResponse, Message, Messag
 # === Private Functions === #
 
 # === Entry Point === #
-
-# Product Client Exports
-from .client._transport import DiscoveredOperation as DiscoveredOperation
-from .client.client import DokimeClient as DokimeClient
-from .client.errors import BackendChanged as BackendChanged
-from .client.errors import ClientClosed as ClientClosed
-from .client.errors import DokimeError as DokimeError
-from .client.errors import ExecutionSubmissionUncertain as ExecutionSubmissionUncertain
-from .client.errors import ProtocolError as ProtocolError
-from .client.errors import RpcError as RpcError
-from .client.errors import RunRejected as RunRejected
-from .client.execution import Cycle as Cycle
-from .client.execution import Execution as Execution
-from .client.execution import ExecutionOutcome as ExecutionOutcome
-from .client.files import FileIdentity as FileIdentity
-from .client.files import FileUpdate as FileUpdate
-from .client.history import Artifact as Artifact
-from .client.history import Checkpoint as Checkpoint
-from .client.history import Download as Download
-from .client.history import ExecutionEvidence as ExecutionEvidence
-from .client.history import Traceability as Traceability
-from .client.history import TraceabilityEntry as TraceabilityEntry
-from .client.models import Backend as Backend
-from .client.models import CommandAction as CommandAction
-from .client.models import CommandPhase as CommandPhase
-from .client.models import DatetimeValue as DatetimeValue
-from .client.models import ExecutionCommandReceipt as ExecutionCommandReceipt
-from .client.models import Prompt as Prompt
-from .client.models import Record as Record
-from .client.models import ResultSummary as ResultSummary
-from .client.models import Sample as Sample
-from .client.models import SavedRecord as SavedRecord
-from .client.models import SavedSample as SavedSample
-from .client.models import Suite as Suite
-from .client.models import UnsignedValue as UnsignedValue
-from .client.models import Value as Value
-from .client.planning import Template as Template
-from .client.planning import TestCase as TestCase
-from .client.profiles import Profile as Profile

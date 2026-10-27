@@ -18,25 +18,19 @@ pub(crate) mod reader;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    io::{Read, Seek},
-    sync::Arc,
-    time::Instant,
-};
+use std::{sync::Arc, time::Instant};
 
 // Third Party Imports
 use futures_util::future::BoxFuture;
-use harmos::storage::{FileMetadata, FileReference, StorageFile};
-use sha2::{Digest, Sha256};
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use harmos::storage::{ByteRange, CaptureConsistency, FileMetadata, FileReference, FrozenFile as FrozenSnapshot, OpenedCapture};
 
 // Local Imports
 use super::executions::{Acquisition, ExecutionStorage};
 use crate::execution_runtime::{
     authoring::ExecutionFileTarget,
     outputs::{
-        ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState, MAX_ARTIFACT_READ_BYTES,
-        MAX_EXECUTION_FILE_SNAPSHOT_BYTES, media_type_for_path, validate_producer_path,
+        ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState, media_type_for_path,
+        validate_producer_path,
     },
 };
 use crate::storage::Manager;
@@ -49,9 +43,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
-
-const COPY_BYTES: usize = 1024 * 1024;
-const MAX_PREFIX_BYTES: usize = 2 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -75,15 +66,20 @@ struct LogPrefix {
 }
 
 pub(super) struct FrozenFile {
-    file: tokio::fs::File,
+    file: FrozenSource,
     metadata: FileMetadata,
     stream_state: Option<SavedStreamState>,
-    creating: tokio::sync::Mutex<Option<BoxFuture<'static, harmos::storage::Result<StorageFile>>>>,
-    producer: Option<StorageFile>,
-    written: bool,
+    creating: tokio::sync::Mutex<Option<BoxFuture<'static, Result<OpenedCapture>>>>,
+    capture: Option<OpenedCapture>,
+    session: Option<crate::storage::Manager>,
 }
 
 /* === Enums === */
+
+enum FrozenSource {
+    Snapshot(FrozenSnapshot),
+    Uploaded(tokio::fs::File),
+}
 
 #[derive(Clone, Copy)]
 enum FileSelection {
@@ -103,12 +99,7 @@ impl FileSelection {
                 let length = (size_bytes - offset).min(limit as u64);
                 Ok((offset, usize::try_from(length).map_err(error)?))
             }
-            Self::Snapshot => {
-                if size_bytes > MAX_EXECUTION_FILE_SNAPSHOT_BYTES as u64 {
-                    return Err(Error::ExecutionFileTooLarge);
-                }
-                Ok((0, usize::try_from(size_bytes).map_err(error)?))
-            }
+            Self::Snapshot => Ok((0, usize::try_from(size_bytes).map_err(error)?)),
         }
     }
 }
@@ -201,25 +192,16 @@ impl ExecutionStorage {
 
     pub(crate) async fn native_read(
         self: &Arc<Self>, execution: &TestExecutionId, path: &str, offset: u64, limit: usize,
-    ) -> Result<Option<ExecutionFileContent>> {
-        if limit == 0 || limit > MAX_ARTIFACT_READ_BYTES {
-            return Err(error("execution output reads require 1 byte to 1 MiB"));
+    ) -> Result<Option<harmos::storage::ReadBatch<ExecutionFileContent>>> {
+        if limit == 0 {
+            return Err(error("execution output reads require a nonempty range"));
         }
         self.owned_native_read(execution, path, FileSelection::Window { offset, limit }).await
     }
 
-    pub(crate) async fn native_read_up_to(
-        self: &Arc<Self>, execution: &TestExecutionId, path: &str, maximum: usize,
-    ) -> Result<Option<ExecutionFileContent>> {
-        if maximum == 0 || maximum > MAX_PREFIX_BYTES {
-            return Err(error("execution output prefixes require 1 byte to 2 MiB"));
-        }
-        self.owned_native_read(execution, path, FileSelection::Window { offset: 0, limit: maximum }).await
-    }
-
     async fn owned_native_read(
         self: &Arc<Self>, execution: &TestExecutionId, path: &str, selection: FileSelection,
-    ) -> Result<Option<ExecutionFileContent>> {
+    ) -> Result<Option<harmos::storage::ReadBatch<ExecutionFileContent>>> {
         let Some(owner) = self.acquisition(execution).await else {
             return Ok(None);
         };
@@ -230,32 +212,18 @@ impl ExecutionStorage {
         // Reopen The Original Inode While Its Registered Owner Is Protected
         #[cfg(windows)]
         let _path_access = std::fs::File::open(output.file.path()).map_err(error)?;
-        let mut file = output.file.reopen().map_err(error)?;
+        let file = output.file.reopen().map_err(error)?;
         let size_bytes = output.visible_length(file.metadata().map_err(error)?.len())?;
         let stream_state = output_state(output.closed_state());
         drop(acquisition);
         let (offset, length) = selection.extent(size_bytes)?;
-        let path = path.to_owned();
-        tokio::task::spawn_blocking(move || {
-            let mut bytes = vec![0; length];
-            file.seek(std::io::SeekFrom::Start(offset)).map_err(error)?;
-            file.read_exact(&mut bytes).map_err(error)?;
-            let content_type = media_type_for_path(&path).map(str::to_owned);
-            Ok(Some(ExecutionFileContent {
-                content_kind: ExecutionFileContentKind::from_metadata(&path, content_type.as_deref()),
-                relative_path: path,
-                content_type,
-                stream_state,
-                offset,
-                size_bytes,
-                bytes,
-            }))
-        })
-        .await
-        .map_err(|source| Error::Join { source })?
+        let reader = reader::Reader::new(self.storage.clone(), file, path, size_bytes, stream_state)?;
+        reader.into_window(offset, length).await.map(Some)
     }
 
-    pub(crate) async fn native_snapshot(self: &Arc<Self>, execution: &TestExecutionId, path: &str) -> Result<Option<ExecutionFileContent>> {
+    pub(crate) async fn native_snapshot(
+        self: &Arc<Self>, execution: &TestExecutionId, path: &str,
+    ) -> Result<Option<harmos::storage::ReadBatch<ExecutionFileContent>>> {
         self.owned_native_read(execution, path, FileSelection::Snapshot).await
     }
 
@@ -273,10 +241,7 @@ impl ExecutionStorage {
         let observed_size = output.visible_length(file.metadata().map_err(error)?.len())?;
         let stream_state = output_state(output.closed_state());
         drop(acquisition);
-        if observed_size > MAX_EXECUTION_FILE_SNAPSHOT_BYTES as u64 {
-            return Err(Error::ExecutionFileTooLarge);
-        }
-        Ok(Some(reader::Reader::new(file, path, observed_size, stream_state)))
+        Ok(Some(reader::Reader::new(self.storage.clone(), file, path, observed_size, stream_state)?))
     }
 
     pub(crate) async fn retire_outputs(self: &Arc<Self>, execution: &TestExecutionId) -> Result<()> {
@@ -325,59 +290,49 @@ impl ExecutionStorage {
 
 impl FrozenFile {
     pub(super) fn new(file: tokio::fs::File, metadata: FileMetadata) -> Self {
-        Self::with_state(file, metadata, None)
+        Self::with_state(FrozenSource::Uploaded(file), metadata, None)
     }
 
-    fn with_state(file: tokio::fs::File, metadata: FileMetadata, stream_state: Option<SavedStreamState>) -> Self {
-        Self { file, metadata, stream_state, creating: tokio::sync::Mutex::new(None), producer: None, written: false }
+    fn with_state(file: FrozenSource, metadata: FileMetadata, stream_state: Option<SavedStreamState>) -> Self {
+        Self { file, metadata, stream_state, creating: tokio::sync::Mutex::new(None), capture: None, session: None }
     }
 
     pub(super) async fn finish(&mut self, storage: &Manager) -> Result<FileReference> {
-        if !self.written {
-            // The Frozen Source And Original Producer Survive A Failed Attempt.
-            // Never Recreate A File With The Same Identity Or Replay Its Prefix.
-            if self.producer.is_none() {
-                if self.creating.get_mut().is_none() {
-                    let manager = storage.clone();
-                    let metadata = self.metadata.clone();
-                    let future = async move { manager.produce_file(metadata).await };
-                    *self.creating.get_mut() = Some(Box::pin(future));
+        if self.capture.is_none() && self.creating.get_mut().is_none() {
+            let session = self.session.get_or_insert_with(|| storage.clone()).clone();
+            let manager = storage.clone();
+            let metadata = self.metadata.clone();
+            let file = match &self.file {
+                FrozenSource::Snapshot(file) => FrozenSource::Snapshot(file.clone()),
+                FrozenSource::Uploaded(file) => FrozenSource::Uploaded(file.try_clone().await.map_err(error)?),
+            };
+            let future = async move {
+                let producer = manager.produce_file(metadata).await?;
+                match file {
+                    FrozenSource::Snapshot(file) => manager.capture_frozen_file(file, producer).map_err(Error::from),
+                    FrozenSource::Uploaded(file) => Ok(session.capture_opened_file(
+                        file.into_std().await,
+                        producer,
+                        ByteRange { offset: 0, limit: None },
+                        CaptureConsistency::Stable,
+                    )),
                 }
-                let outcome = self.creating.get_mut().as_mut().expect("original file creation retained").await;
-                *self.creating.get_mut() = None;
-                self.producer = Some(outcome?);
-            }
-            let retained = self.producer.as_ref().expect("original file producer retained").length();
-            let frozen_length = self.file.metadata().await.map_err(error)?.len();
-            if retained > frozen_length {
-                return Err(error("original production exceeds frozen source"));
-            }
-            let started = Instant::now();
-            tracing::debug!(file_id = %self.metadata.id, retained_bytes = retained,
-                source_bytes = frozen_length, "native snapshot copy started");
-            self.file.seek(std::io::SeekFrom::Start(retained)).await.map_err(error)?;
-            let mut buffer = vec![0; COPY_BYTES];
-            loop {
-                let count = self.file.read(&mut buffer).await.map_err(error)?;
-                if count == 0 {
-                    break;
-                }
-                self.producer.as_mut().expect("original file producer retained").write_all(&buffer[..count]).await?;
-            }
-            self.written = true;
-            tracing::debug!(file_id = %self.metadata.id, retained_bytes = frozen_length,
-                elapsed_ms = started.elapsed().as_millis() as u64, "native snapshot copy settled");
+            };
+            *self.creating.get_mut() = Some(Box::pin(future));
         }
-        // Finish Failure Retries This Same Handle And Admission Position
+        if self.capture.is_none() {
+            let outcome = self.creating.get_mut().as_mut().expect("original capture creation retained").await;
+            *self.creating.get_mut() = None;
+            self.capture = Some(outcome?);
+        }
+        // Harmos Retains The Opened Source, Exact Pending Chunk And Producer Across Retries.
         let started = Instant::now();
-        tracing::debug!(file_id = %self.metadata.id, "native snapshot seal started");
-        let reference = self.producer.as_mut().expect("written file producer retained").finish().await?;
+        let reference = self.capture.as_mut().expect("original capture retained").finish().await?;
         tracing::debug!(file_id = %self.metadata.id, retained_bytes = reference.length,
-            elapsed_ms = started.elapsed().as_millis() as u64, "native snapshot seal settled");
+            elapsed_ms = started.elapsed().as_millis() as u64, "native snapshot capture settled");
         Ok(reference)
     }
 }
-
 /* === Public Functions === */
 
 pub(super) async fn capture(acquisition: &mut Acquisition) -> Result<()> {
@@ -398,7 +353,7 @@ pub(super) async fn snapshot(acquisition: &mut Acquisition, finalizing: bool) ->
         }
         let stream_state = source.log.as_ref().and_then(|log| log.closed).or(finalizing.then_some(SavedStreamState::Finalized));
         if finalizing && source.production.is_some() {
-            if let Err(failure) = follow::capture(&acquisition.storage, path, source, stream_state).await {
+            if let Err(failure) = follow::capture(path, source, stream_state).await {
                 follow::interrupt(path, source).await?;
                 capture_error.get_or_insert(failure);
             }
@@ -411,7 +366,8 @@ pub(super) async fn snapshot(acquisition: &mut Acquisition, finalizing: bool) ->
                 continue;
             }
         }
-        let (frozen, digest) = match freeze(source).await {
+        let session = acquisition.storage.clone();
+        let frozen = match freeze(&session, source).await {
             Ok(frozen) => frozen,
             Err(failure) if finalizing => {
                 interrupt_source(&acquisition.storage, &acquisition.execution_id, path, source).await?;
@@ -420,10 +376,12 @@ pub(super) async fn snapshot(acquisition: &mut Acquisition, finalizing: bool) ->
             }
             Err(failure) => return Err(failure),
         };
+        let digest = *frozen.sha256();
         if source.descriptor.as_ref().is_none_or(|previous| previous.file.sha256 != digest) {
-            let length = frozen.metadata().await.map_err(error)?.len();
-            let metadata = file_metadata(&acquisition.execution_id, path, Some(length), Some(digest))?;
-            source.pending = Some(FrozenFile::with_state(frozen, metadata, stream_state));
+            let metadata = file_metadata(&acquisition.execution_id, path, Some(frozen.length()), Some(digest))?;
+            let mut pending = FrozenFile::with_state(FrozenSource::Snapshot(frozen), metadata, stream_state);
+            pending.session = Some(session);
+            source.pending = Some(pending);
             finish_snapshot(&acquisition.storage, path, source).await?;
         }
         store_descriptor(path, source, stream_state)?;
@@ -469,8 +427,14 @@ async fn finish_snapshot(storage: &Manager, path: &str, source: &mut NativeOutpu
 
 fn file_metadata(execution: &TestExecutionId, path: &str, length: Option<u64>, digest: Option<[u8; 32]>) -> Result<FileMetadata> {
     let media_type = media_type_for_path(path).unwrap_or("application/octet-stream");
+    let id_length = "output.native.".len() + uuid::fmt::Hyphenated::LENGTH;
+    let mut id = String::new();
+    id.try_reserve_exact(id_length).map_err(error)?;
+    id.push_str("output.native.");
+    let mut nonce = [0u8; uuid::fmt::Hyphenated::LENGTH];
+    id.push_str(uuid::Uuid::now_v7().hyphenated().encode_lower(&mut nonce));
     Ok(FileMetadata {
-        id: Identifier::new(format!("output.native.{}", uuid::Uuid::now_v7().hyphenated())).map_err(error)?,
+        id: Identifier::new(id).map_err(error)?,
         scope: Some(Identifier::new(execution.as_str()).map_err(error)?),
         media_type: media_type.to_owned(),
         expected_length: length,
@@ -478,35 +442,13 @@ fn file_metadata(execution: &TestExecutionId, path: &str, length: Option<u64>, d
     })
 }
 
-async fn freeze(source: &NativeOutput) -> Result<(tokio::fs::File, [u8; 32])> {
+async fn freeze(session: &crate::storage::Manager, source: &NativeOutput) -> Result<FrozenSnapshot> {
     let started = Instant::now();
-    let mut file = open_file(source).await?;
-    let before = file.metadata().await.map_err(error)?;
-    let modified = before.modified().map_err(error)?;
-    let mut remaining = source.visible_length(before.len())?;
-    if remaining > MAX_EXECUTION_FILE_SNAPSHOT_BYTES as u64 {
-        return Err(crate::runtime::Error::ExecutionFileTooLarge);
-    }
-    let source_bytes = remaining;
-    tracing::debug!(source_bytes, "native snapshot freeze started");
-    let mut frozen = tokio::fs::File::from_std(tempfile::tempfile().map_err(error)?);
-    let mut digest = Sha256::new();
-    let mut buffer = vec![0; COPY_BYTES];
-    while remaining > 0 {
-        let count = remaining.min(buffer.len() as u64) as usize;
-        file.read_exact(&mut buffer[..count]).await.map_err(error)?;
-        frozen.write_all(&buffer[..count]).await.map_err(error)?;
-        digest.update(&buffer[..count]);
-        remaining -= count as u64;
-    }
-    let after = open_file(source).await?.metadata().await.map_err(error)?;
-    if after.len() != before.len() || after.modified().map_err(error)? != modified {
-        return Err(error("native output changed during snapshot; retry after the producer settles"));
-    }
-    frozen.flush().await.map_err(error)?;
-    frozen.seek(std::io::SeekFrom::Start(0)).await.map_err(error)?;
-    tracing::debug!(source_bytes, elapsed_ms = started.elapsed().as_millis() as u64, "native snapshot freeze settled");
-    Ok((frozen, digest.finalize().into()))
+    let file = open_file(source).await?.into_std().await;
+    let limit = source.log.as_ref().map(|log| log.acknowledged);
+    let frozen = session.freeze_opened_file(file, ByteRange { offset: 0, limit }).await?;
+    tracing::debug!(source_bytes = frozen.length(), elapsed_ms = started.elapsed().as_millis() as u64, "native snapshot freeze settled");
+    Ok(frozen)
 }
 
 fn store_descriptor(path: &str, source: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {
@@ -547,12 +489,13 @@ async fn interrupt_source(storage: &Manager, execution: &TestExecutionId, path: 
         finish_snapshot(storage, path, source).await?;
     }
     if source.descriptor.is_none() {
-        let digest: [u8; 32] = Sha256::digest([]).into();
-        source.pending = Some(FrozenFile::with_state(
-            tokio::fs::File::from_std(tempfile::tempfile().map_err(error)?),
-            file_metadata(execution, path, Some(0), Some(digest))?,
-            Some(SavedStreamState::Interrupted),
-        ));
+        let session = storage.clone();
+        let file = tempfile::NamedTempFile::new().map_err(error)?.into_file();
+        let empty = session.freeze_opened_file(file, ByteRange { offset: 0, limit: None }).await?;
+        let metadata = file_metadata(execution, path, Some(0), Some(*empty.sha256()))?;
+        let mut pending = FrozenFile::with_state(FrozenSource::Snapshot(empty), metadata, Some(SavedStreamState::Interrupted));
+        pending.session = Some(session);
+        source.pending = Some(pending);
         finish_snapshot(storage, path, source).await?;
     }
     store_descriptor(path, source, Some(SavedStreamState::Interrupted))?;

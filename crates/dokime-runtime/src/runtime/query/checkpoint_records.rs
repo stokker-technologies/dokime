@@ -42,7 +42,7 @@ pub struct ExecutionRecordQuery {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionRecordPage {
     pub checkpoint: ExecutionCheckpoint,
-    pub records: Vec<ContextRecord>,
+    pub records: crate::storage::ReadRows<ContextRecord>,
     pub next: Option<String>,
     pub issues: Vec<ExecutionBrowseIssue>,
     pub issues_truncated: bool,
@@ -57,7 +57,7 @@ pub struct ExecutionRecordPage {
 impl RuntimeHandle {
     pub async fn execution_checkpoint_records(
         &self, checkpoint: ExecutionCheckpoint, query: ExecutionRecordQuery,
-    ) -> Result<ExecutionRecordPage> {
+    ) -> Result<harmos::storage::ReadBatch<ExecutionRecordPage>> {
         let view = self.checkpoint_execution(&checkpoint).await?;
         crate::runtime::storage::record_pages::read(&view, query).await
     }

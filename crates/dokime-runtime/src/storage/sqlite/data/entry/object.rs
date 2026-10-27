@@ -90,6 +90,7 @@ pub(super) fn portable_bytes(bytes: &[u8]) -> Result<usize, Error> {
 
 pub(super) fn length(value: &ObjectEntry, maximum: usize) -> Result<usize, Error> {
     let metadata = check_size(&Header::from(value), maximum)?;
+    u32::try_from(metadata).map_err(|_| Error::Data("SQLite object metadata length overflows"))?;
     metadata
         .checked_add(PREFIX)
         .and_then(|length| length.checked_add(value.value.payload.len()))

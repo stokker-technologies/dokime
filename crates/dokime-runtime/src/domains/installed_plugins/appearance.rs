@@ -74,10 +74,12 @@ impl RuntimeHandle {
         appearance_asset(&state, brand.as_ref(), plugin_id, asset_id)
     }
 
-    pub fn capture_appearance(&self, max_bytes: usize) -> Result<CapturedAppearance, AppearanceLimitExceeded> {
+    pub fn capture_appearance(&self, max_bytes: usize) -> Result<harmos::storage::ReadBatch<CapturedAppearance>, harmos::storage::Error> {
         let state = self.state_read();
         let brand = self.brand.read().expect("brand lock is healthy");
         capture_appearance_state(&state, brand.as_ref(), max_bytes)
+            .map(harmos::storage::ReadBatch::new)
+            .map_err(|_| harmos::storage::Error::ResourceExhausted { resource: "appearance source" })
     }
 }
 
@@ -161,12 +163,16 @@ pub(crate) fn capture_appearance_state(
     state: &crate::RuntimeState, brand: Option<&ResolvedBrand>, max_bytes: usize,
 ) -> Result<CapturedAppearance, AppearanceLimitExceeded> {
     preflight_appearance(state, brand, max_bytes)?;
-    let frame = captured_appearance(state, brand);
-    let logos = frame.logos.iter().map(|logo| captured_logo_asset(state, brand, logo)).collect();
-    Ok(CapturedAppearance { frame, logos })
+    Ok(captured_appearance_source(state, brand))
 }
 
 /* === Private Functions === */
+
+fn captured_appearance_source(state: &crate::RuntimeState, brand: Option<&ResolvedBrand>) -> CapturedAppearance {
+    let frame = captured_appearance(state, brand);
+    let logos = frame.logos.iter().map(|logo| captured_logo_asset(state, brand, logo)).collect();
+    CapturedAppearance { frame, logos }
+}
 
 fn appearance_asset(
     state: &crate::RuntimeState, brand: Option<&ResolvedBrand>, plugin_id: &Identifier, asset_id: &Identifier,

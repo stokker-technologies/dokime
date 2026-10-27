@@ -83,18 +83,20 @@ async fn drain(follower: &mut ExecutionFileFollower, length: usize) -> Vec<u8> {
     bytes
 }
 
-async fn terminal(follower: &mut ExecutionFileFollower) -> wire::ExecutionFileFollowTerminal {
+async fn terminal(follower: &mut ExecutionFileFollower) -> harmos::operations::Response<wire::ExecutionFileFollowFrame> {
     let maximum = NonZeroUsize::new(7).unwrap();
     let frame = follower.next_frame(maximum).await.unwrap().unwrap();
-    let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
+    let Some(wire::ExecutionFileFollowFramePayload::Terminal(_)) = &frame.payload else {
         panic!("settled follow closes with its terminal frame");
     };
-    let terminal = terminal.clone();
     assert!(follower.next_frame(maximum).await.unwrap().is_none());
-    terminal
+    frame
 }
 
-fn assert_sealed(terminal: &wire::ExecutionFileFollowTerminal, identity: &wire::ExecutionFileIdentity) {
+fn assert_sealed(frame: &harmos::operations::Response<wire::ExecutionFileFollowFrame>, identity: &wire::ExecutionFileIdentity) {
+    let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
+        panic!();
+    };
     assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
     assert_eq!(terminal.length, ORIGINAL.len() as u64);
     let sealed = terminal.sealed.as_ref().expect("finished follow carries its seal");
@@ -104,13 +106,58 @@ fn assert_sealed(terminal: &wire::ExecutionFileFollowTerminal, identity: &wire::
     assert_eq!(sealed.sha256, digest);
 }
 
-fn assert_abandoned(terminal: &wire::ExecutionFileFollowTerminal) {
+fn assert_abandoned(frame: &harmos::operations::Response<wire::ExecutionFileFollowFrame>) {
+    let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
+        panic!();
+    };
     assert_eq!(terminal.phase, wire::ExecutionFilePhase::Abandoned);
     assert_eq!(terminal.length, ORIGINAL.len() as u64);
     assert!(terminal.sealed.is_none(), "an abandoned production is never sealed");
 }
 
 /* === Tests === */
+
+#[tokio::test(flavor = "multi_thread")]
+async fn live_growth_resumes_one_identity_and_seals_exact_prefix() {
+    use std::io::Write as _;
+    let root = tempdir().unwrap();
+    let (mut owner, handle, cycle, executor) = blocked_cycle(root.path()).await;
+    let (id, path) = producing(&handle, &cycle).await;
+    let mut initial = follow(&handle, &id, None).await.unwrap();
+    let identity = initial.metadata().identity.clone().unwrap();
+    assert_eq!(drain(&mut initial, ORIGINAL.len()).await, ORIGINAL);
+
+    let suffix = b" appended bytes";
+    let mut writer = std::fs::OpenOptions::new().append(true).open(path).unwrap();
+    writer.write_all(suffix).unwrap();
+    drop(writer);
+    let mut resumed = handle.follow_execution_file(&id, PATH, Some(&identity), ORIGINAL.len() as u64).await.unwrap().unwrap();
+    assert_eq!(resumed.metadata().identity.as_ref(), Some(&identity));
+    let mut delivered = Vec::new();
+    while delivered.len() < suffix.len() {
+        let frame = resumed.next_frame(NonZeroUsize::new(5).unwrap()).await.unwrap().unwrap();
+        let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+            panic!("growing source settled before its suffix");
+        };
+        assert_eq!(chunk.offset, (ORIGINAL.len() + delivered.len()) as u64);
+        delivered.extend_from_slice(&chunk.data);
+    }
+    assert_eq!(delivered, suffix);
+
+    executor.release();
+    wait_for_cycle_outcome(&handle, &cycle, ResultStatus::Passed).await;
+    let frame = terminal(&mut resumed).await;
+    let Some(wire::ExecutionFileFollowFramePayload::Terminal(value)) = &frame.payload else { panic!() };
+    assert_eq!(value.phase, wire::ExecutionFilePhase::Finished);
+    assert_eq!(value.length, (ORIGINAL.len() + suffix.len()) as u64);
+    let sealed = value.sealed.as_ref().unwrap();
+    assert_eq!(sealed.identity.as_ref(), Some(&identity));
+    let bytes = [ORIGINAL, suffix.as_slice()].concat();
+    let expected = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    assert_eq!(sealed.sha256, expected);
+    drop((initial, resumed, handle));
+    owner.shutdown().await.unwrap();
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn follow_terminal_interleavings() {

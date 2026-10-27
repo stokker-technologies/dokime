@@ -444,14 +444,16 @@ async fn producer_generation_follow(runtime: &dokime::RuntimeHandle) {
         expected_sha256: Some(Sha256::digest(b"prefix-suffix").into()),
     };
     let mut producer = storage.produce_file(metadata).await.unwrap();
-    producer.write_all(b"prefix-").await.unwrap();
+    producer.write_all(b"prefix-".to_vec()).await.unwrap();
     let original = producer.session().expect("resumable production").clone();
     let identity = StagedFile { history: original.history.clone(), id: original.id.clone() };
-    let mut follower = storage.follow_file(&identity, 0).await.unwrap();
+    let mut follower = storage.follow_production(&identity, 0).await.unwrap();
     let maximum = std::num::NonZeroUsize::new(64).unwrap();
     let prefix = follower.next_batch(maximum).await.unwrap().unwrap();
-    assert_eq!(prefix.bytes, b"prefix-");
-    let mut retained = prefix.bytes.clone();
+    assert_eq!(prefix.bytes(), b"prefix-");
+    let mut hash = Sha256::new();
+    hash.update(prefix.bytes());
+    let mut retained_length = prefix.bytes().len();
     drop(prefix);
     assert_eq!(follower.offset(), 7);
     drop(producer);
@@ -463,20 +465,21 @@ async fn producer_generation_follow(runtime: &dokime::RuntimeHandle) {
     assert_eq!(generation.id, identity.id);
     assert_eq!(generation.generation, original.generation + 1);
     assert!(storage.resume_file(&original).await.is_err(), "stale producer generation is fenced");
-    resumed.write_all(b"suffix").await.unwrap();
+    resumed.write_all(b"suffix".to_vec()).await.unwrap();
     let sealed = resumed.finish().await.unwrap();
     let suffix = follower.next_batch(maximum).await.unwrap().unwrap();
-    assert_eq!(suffix.bytes, b"suffix");
-    retained.extend_from_slice(&suffix.bytes);
+    assert_eq!(suffix.bytes(), b"suffix");
+    hash.update(suffix.bytes());
+    retained_length += suffix.bytes().len();
     drop(suffix);
     assert!(follower.next_batch(maximum).await.unwrap().is_none());
     assert_eq!(follower.progress().phase, FilePhase::Finished);
     assert_eq!(follower.offset(), 13);
     assert_eq!(sealed.position.history, identity.history);
     assert_eq!(sealed.metadata.id, identity.id);
-    assert_eq!(sealed.length, retained.len() as u64);
-    assert_eq!(sealed.sha256, <[u8; 32]>::from(Sha256::digest(&retained)));
-    assert_eq!(retained, b"prefix-suffix");
+    assert_eq!(sealed.length, retained_length as u64);
+    assert_eq!(sealed.sha256, <[u8; 32]>::from(hash.finalize()));
+    assert_eq!(sealed.sha256, <[u8; 32]>::from(Sha256::digest(b"prefix-suffix")));
 }
 
 async fn live_follow_refusal(change: &str) {

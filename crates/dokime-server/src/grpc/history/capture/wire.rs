@@ -115,10 +115,7 @@ fn step_attempt(
         .map(|detail| {
             // Diagnostics Use The Preflighted Graph And Response Byte Budgets.
             // A Backtrace Is Not A Short Authored Metadata Field.
-            if detail.chain.len() > value::MAX_COLLECTION || detail.span_trace.len() > value::MAX_COLLECTION {
-                return Err(Status::resource_exhausted("step diagnostic exceeds history bounds"));
-            }
-            Ok(dokime::domain::model::identity::wire::Diagnostic {
+            Ok::<_, Status>(dokime::domain::model::identity::wire::Diagnostic {
                 message: detail.message.clone(),
                 chain: detail.chain.clone(),
                 location: detail.location.clone(),
@@ -153,13 +150,10 @@ fn step_attempt(
 fn execution_snapshot(
     value: ExecutionSnapshot, scope: &dokime::domain::model::execution::RecordScope,
 ) -> Result<dokime::domain::model::history::wire::HistoricalExecutionSnapshot, Status> {
-    let mut budget = value::Budget::new();
+    let mut budget = value::Budget::new()?;
     let parameter_definitions = catalog::parameters(value.parameter_definitions(), &mut budget)?;
     let parameters = materialized_parameters(value.parameters())?;
     let documents = collect(value.documents().values().map(|document| document_wire(document, scope)))?;
-    if let Some(version) = value.host_version() {
-        value::text(version)?;
-    }
     Ok(dokime::domain::model::history::wire::HistoricalExecutionSnapshot {
         case_definition: Some(case_definition(value.case())?),
         host_version: value.host_version().map(str::to_owned),
@@ -174,11 +168,8 @@ fn execution_snapshot(
 }
 
 fn case_definition(case: &TestCase) -> Result<dokime::domain::model::history::wire::HistoricalCaseDefinition, Status> {
-    value::text(&case.suite_id)?;
-    value::collection(case.parameters.len())?;
-    let mut budget = value::Budget::new();
+    let mut budget = value::Budget::new()?;
     let parameters = collect(case.parameters.iter().map(|(name, parameter)| {
-        value::text(name)?;
         Ok(dokime::domain::model::execution::wire::CaseParameter {
             name: name.clone(),
             value: Some(projected_value(parameter, &mut budget, 0)?),
@@ -205,9 +196,8 @@ fn invalidation(value: &ExecutionInvalidation) -> Result<dokime::domain::model::
 fn materialized_parameters(
     values: &BTreeMap<String, MaterializedParameter>,
 ) -> Result<Vec<dokime::domain::model::execution::wire::MaterializedParameter>, Status> {
-    let mut budget = value::Budget::new();
+    let mut budget = value::Budget::new()?;
     collect(values.iter().map(|(name, parameter)| {
-        value::text(name)?;
         let unit = parameter.unit.as_ref().map(catalog::unit).transpose()?;
         Ok(dokime::domain::model::execution::wire::MaterializedParameter {
             name: name.clone(),
@@ -240,7 +230,7 @@ fn step(
     let measurements = collect(value.measurements.iter().enumerate().map(|(ordinal, measurement)| {
         Ok(dokime::domain::model::execution::wire::StepMeasurement {
             metadata: Some(canonical_metadata(&measurement.metadata)?),
-            value: Some(projected_value(&measurement.value, &mut value::Budget::new(), 0)?),
+            value: Some(projected_value(&measurement.value, &mut value::Budget::new()?, 0)?),
             unit: measurement.unit.as_ref().map(catalog::unit).transpose()?,
             ordinal: ordinal as u64,
         })
@@ -266,7 +256,7 @@ fn step(
                     dokime::domain::model::execution::wire::CriterionStatus::Skipped
                 }
             },
-            observed: criterion.observed.as_ref().map(|item| projected_value(item, &mut value::Budget::new(), 0)).transpose()?,
+            observed: criterion.observed.as_ref().map(|item| projected_value(item, &mut value::Budget::new()?, 0)).transpose()?,
             message: criterion.message.clone(),
             ordinal: ordinal as u64,
         })

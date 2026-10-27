@@ -19,6 +19,7 @@
 
 /* === External Imports === */
 
+import { useMemo } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
@@ -33,6 +34,7 @@ import {
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
+import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { usePageChrome } from "@/shell/page-chrome";
@@ -51,7 +53,8 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
   const section = settings.frame?.sections.find((entry) => entry.section_id === sectionId) ?? null;
   const pluginId = section?.owner.kind === "installed_plugin" ? section.owner.plugin_id : null;
 
-  usePageChrome({ title: `Settings › Plugins › ${section?.label ?? sectionId}` });
+  const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
+  usePageChrome({ title: `Settings › Plugins › ${section?.label ?? sectionId}`, overflow: actions });
 
   const cards = settings.frame?.cards.filter((card) => card.section_id === sectionId) ?? [];
 

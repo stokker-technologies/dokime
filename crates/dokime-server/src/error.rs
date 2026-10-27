@@ -42,11 +42,17 @@ pub enum Error {
     #[error("remote listener change failed: {change}; restoring the previous state also failed: {restoration}")]
     RemoteRollback { change: Box<Error>, restoration: Box<Error> },
 
+    #[error("invalid listener settings: {0}")]
+    Listener(String),
+
     #[error("invalid gRPC configuration: {0}")]
     Configuration(&'static str),
 
     #[error("cannot configure generated operation service: {0}")]
     OperationService(#[source] tonic::Status),
+
+    #[error("application settings storage failed: {0}")]
+    Settings(#[from] dokime::runtime::Error),
 
     #[error("runtime operation failed: {0}")]
     Operation(#[from] dokime::harmos::Error),

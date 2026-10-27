@@ -13,6 +13,8 @@
 
 /* === Imports === */
 
+use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 
@@ -28,9 +30,10 @@ use crate::connection::ConnectionSession;
 
 /* === Constants === */
 
+const DESKTOP_MEDIA_CACHE_BYTES: u64 = 4_294_967_296;
+const DESKTOP_MEDIA_RANGE_BYTES: u64 = 4_194_304;
+
 pub const MEDIA_SCHEME: &str = "dokime-media";
-const MAX_MEDIA_CACHE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
-const MEDIA_RANGE_BYTES: u64 = 4 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -83,12 +86,14 @@ pub async fn desktop_media_prepare(
         .map_err(|error| error.to_string())??;
     let destination = cache_dir.join(&key);
     if !tokio::fs::try_exists(&destination).await.unwrap_or(false) {
-        let verified = content::fetch_verified(&lease, &source, &destination).await.map_err(|error| error.to_string())?;
+        let verified = content::fetch_verified(&lease, &source, &destination, DESKTOP_FRAME_BYTES as usize)
+            .await
+            .map_err(|error| error.to_string())?;
         write_content_type(&destination, verified.content_type.as_deref()).await?;
         let private_path = destination.clone();
         tauri::async_runtime::spawn_blocking(move || set_private_file(&private_path)).await.map_err(|error| error.to_string())??;
     }
-    evict_lru(&cache_dir, MAX_MEDIA_CACHE_BYTES).await?;
+    evict_lru(&cache_dir, DESKTOP_MEDIA_CACHE_BYTES).await?;
     Ok(format!("{generation}/{key}"))
 }
 
@@ -220,12 +225,12 @@ where
     }
 }
 
-fn resolve_range(range_header: Option<&str>, len: u64) -> RangeOutcome {
+fn resolve_range(range_header: Option<&str>, len: u64, maximum: u64) -> RangeOutcome {
     let Some(value) = range_header else {
-        return if len <= MEDIA_RANGE_BYTES {
+        return if len <= maximum {
             RangeOutcome::Full
         } else {
-            RangeOutcome::Partial { start: 0, end: MEDIA_RANGE_BYTES.saturating_sub(1).min(len.saturating_sub(1)) }
+            RangeOutcome::Partial { start: 0, end: maximum.saturating_sub(1).min(len.saturating_sub(1)) }
         };
     };
     let Some(spec) = value.strip_prefix("bytes=") else {
@@ -248,7 +253,7 @@ fn resolve_range(range_header: Option<&str>, len: u64) -> RangeOutcome {
             Err(_) => return RangeOutcome::Unsatisfiable,
         }
     };
-    let max_end = start.saturating_add(MEDIA_RANGE_BYTES - 1);
+    let max_end = start.saturating_add(maximum - 1);
     RangeOutcome::Partial { start, end: requested_end.min(len - 1).min(max_end) }
 }
 
@@ -287,7 +292,7 @@ async fn try_respond(app: &AppHandle, request: &http::Request<Vec<u8>>) -> Resul
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "application/octet-stream".into());
     let range_header = request.headers().get(http::header::RANGE).and_then(|value| value.to_str().ok());
-    match resolve_range(range_header, len) {
+    match resolve_range(range_header, len, DESKTOP_MEDIA_RANGE_BYTES) {
         RangeOutcome::Unsatisfiable => http::Response::builder()
             .status(http::StatusCode::RANGE_NOT_SATISFIABLE)
             .header(http::header::CONTENT_RANGE, format!("bytes */{len}"))

@@ -24,7 +24,7 @@ use zeroize::Zeroizing;
 
 // Local Imports
 use dokime_client::{
-    profiles::{Document, Error, Secret, Store},
+    profiles::{self, Error, Secret, Store},
     secrets::{Error as SecretError, SecretStore},
 };
 
@@ -85,26 +85,26 @@ impl SecretStore for Secrets {
 fn shared_language_conformance() {
     let cases: Vec<Case> = serde_json::from_str(include_str!("../fixtures/profiles.json")).unwrap();
     for case in cases {
-        assert_eq!(Document::decode(case.document.as_bytes()).is_ok(), case.valid, "{}", case.name);
+        assert_eq!(profiles::decode(case.document.as_bytes()).is_ok(), case.valid, "{}", case.name);
     }
 }
 
 #[test]
 fn selection_snapshot_bound() {
     let cases: Vec<Case> = serde_json::from_str(include_str!("../fixtures/profiles.json")).unwrap();
-    let mut document = Document::decode(cases[0].document.as_bytes()).unwrap();
+    let mut document = profiles::decode(cases[0].document.as_bytes()).unwrap();
     document.profiles[0].secret = Secret::Keyring;
-    let selected = document.select(Some("local"), None, Some("unknown")).unwrap();
+    let selected = profiles::select(&document, Some("local"), None, Some("unknown")).unwrap();
     assert_eq!(selected.expected_backend_id.as_deref(), Some("machine-1"));
-    let direct = document.select(None, Some("http://127.0.0.1:9000"), Some("unknown")).unwrap();
+    let direct = profiles::select(&document, None, Some("http://127.0.0.1:9000"), Some("unknown")).unwrap();
     assert_eq!(direct.secret, Secret::None);
     assert!(direct.expected_backend_id.is_none());
-    assert!(document.select(Some("local"), Some("http://127.0.0.1"), None).is_err());
-    assert!(document.select(None, None, Some("unknown")).is_err());
+    assert!(profiles::select(&document, Some("local"), Some("http://127.0.0.1"), None).is_err());
+    assert!(profiles::select(&document, None, None, Some("unknown")).is_err());
     document.default = None;
     document.profiles.clear();
     assert_eq!(selected.target.endpoint(), "http://127.0.0.1:8765/");
-    assert!(document.select(None, None, None).is_err());
+    assert!(profiles::select(&document, None, None, None).is_err());
 }
 
 #[test]
@@ -142,7 +142,7 @@ fn edits_refuse_contention() {
 #[test]
 fn secrets_keep_profile() {
     let cases: Vec<Case> = serde_json::from_str(include_str!("../fixtures/profiles.json")).unwrap();
-    let original = Document::decode(cases[0].document.as_bytes()).unwrap();
+    let original = profiles::decode(cases[0].document.as_bytes()).unwrap();
     let directory = tempfile::tempdir().unwrap();
     let store = Store::new(directory.path().join("backends.json"));
     store
@@ -151,7 +151,7 @@ fn secrets_keep_profile() {
             Ok(())
         })
         .unwrap();
-    let selection = store.load().unwrap().select(None, None, None).unwrap();
+    let selection = profiles::select(&store.load().unwrap(), None, None, None).unwrap();
     let secrets = Secrets::default();
     // A Default Edit Does Not Redirect An In-Flight Login.
     store
@@ -161,7 +161,7 @@ fn secrets_keep_profile() {
         })
         .unwrap();
     store.remember(&selection, "private-token", &secrets).unwrap();
-    assert_eq!(store.load().unwrap().get("local").unwrap().secret, Secret::Keyring);
+    assert_eq!(profiles::get(&store.load().unwrap(), "local").unwrap().secret, Secret::Keyring);
     assert_eq!(secrets.read(selection.target.endpoint()).unwrap().unwrap().as_str(), "private-token");
     let bytes = std::fs::read(store.path()).unwrap();
     assert!(!String::from_utf8(bytes).unwrap().contains("private-token"));
@@ -178,7 +178,7 @@ fn secrets_keep_profile() {
     assert!(store.remember(&selection, "other-token", &secrets).is_err());
     assert!(secrets.values.lock().unwrap().is_empty());
     assert_eq!(std::fs::read(store.path()).unwrap(), before);
-    let current = store.load().unwrap().select(Some("local"), None, None).unwrap();
+    let current = profiles::select(&store.load().unwrap(), Some("local"), None, None).unwrap();
     let unavailable = Secrets { unavailable: true, ..Secrets::default() };
     assert!(matches!(store.remember(&current, "private-token", &unavailable), Err(Error::Secrets(SecretError::Unavailable))));
     assert_eq!(std::fs::read(store.path()).unwrap(), before);

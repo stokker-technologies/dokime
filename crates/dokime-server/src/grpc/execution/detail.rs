@@ -25,14 +25,14 @@ use super::*;
 use dokime::definition::{MaterializedParameter, ParameterSource};
 use dokime::domain::model::execution::result::TestExecution;
 use dokime::domain::model::execution::wire as execution_model;
-use dokime::domain::model::identity::Metadata;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::domain::model::identity::wire::Diagnostic;
 use dokime::domain::model::values::Value;
 
 /* === Constants === */
 
-const MAX_DIAGNOSTIC_TEXT: usize = 4096;
+const SERVER_DIAGNOSTIC_TEXT_BYTES: u64 = 4_096;
+
 const DIAGNOSTIC_TRUNCATED: &str = "\n… truncated";
 
 /* === Macros === */
@@ -41,35 +41,11 @@ const DIAGNOSTIC_TRUNCATED: &str = "\n… truncated";
 
 /* === Structs === */
 
-pub(in crate::grpc) struct Bounds {
-    remaining: usize,
-    nodes: value::Budget,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Bounds {
-    pub(in crate::grpc) fn new(limit: usize) -> Self {
-        Self { remaining: limit.min(4 * 1024 * 1024), nodes: value::Budget::new() }
-    }
-    pub(in crate::grpc) fn bytes(&mut self, count: usize) -> Result<(), Status> {
-        self.remaining =
-            self.remaining.checked_sub(count).ok_or_else(|| Status::resource_exhausted("inspection allocation budget exceeded"))?;
-        Ok(())
-    }
-    pub(in crate::grpc) fn text(&mut self, text: &str) -> Result<(), Status> {
-        value::text(text)?;
-        self.bytes(text.len().saturating_add(32))
-    }
-    pub(in crate::grpc) fn value(&mut self, item: &Value, depth: usize) -> Result<(), Status> {
-        let bytes = canonical::memory(item, &mut self.nodes, depth)?;
-        self.bytes(bytes)
-    }
-}
 
 /* === Public Functions === */
 
@@ -108,7 +84,6 @@ pub(crate) fn result(
 
 pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<execution_model::CaseDetail, Status> {
     let id = cycle_id(&request.cycle_id)?;
-    super::value::text(&request.case_id)?;
     let snapshot = service.runtime.watch_state().latest();
     let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
     let (ordinal, case) = cycle
@@ -116,11 +91,7 @@ pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<e
         .enumerate()
         .find(|(_, case)| case.test_case_id.as_str() == request.case_id)
         .ok_or_else(|| Status::not_found("case not found in requested cycle"))?;
-    let mut bounds = Bounds::new(service.max_message_bytes);
-    bounds.bytes(std::mem::size_of::<execution_model::CaseDetail>())?;
-    if let Some(suite) = &case.suite {
-        bounds.bytes(metadata_memory(suite)?)?;
-    }
+
     reply(
         service,
         execution_model::CaseDetail {
@@ -128,7 +99,6 @@ pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<e
                 case,
                 ordinal,
                 dokime::runtime::query::case_projection(snapshot.state(), &cycle, &case.test_case_id),
-                &mut bounds,
             )?),
             suite: case.suite.as_ref().map(metadata).transpose()?,
             parameter_count: case.parameters.len() as u64,
@@ -141,30 +111,7 @@ pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<e
 pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -> Result<execution_model::ExecutionDetail, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (cycle, ordinal, execution) = execution(snapshot.state(), &request.execution_id)?;
-    let mut bounds = Bounds::new(service.max_message_bytes);
-    bounds.bytes(std::mem::size_of::<execution_model::ExecutionDetail>())?;
-    bounds.text(cycle.test_cycle_id.as_str())?;
-    bounds.text(execution.test_execution_id.as_str())?;
-    bounds.text(execution.test_case_id.as_str())?;
-    bounds.bytes(canonical::scope_memory(&execution.scope)?)?;
-    if let Some(suite) = execution.snapshot.suite() {
-        bounds.bytes(metadata_memory(suite)?)?;
-    }
-    if let Some(id) = execution.snapshot.template_id() {
-        bounds.text(id.as_str())?;
-    }
-    if let Some(template) = execution.snapshot.template() {
-        bounds.bytes(metadata_memory(&template.metadata)?)?;
-    }
-    if let Some(plugin) = execution.snapshot.plugin() {
-        bounds.bytes(canonical::execution_plugin_memory(plugin)?)?;
-    }
-    if let Some(invalidation) = &execution.invalidation {
-        bounds.bytes(canonical::execution_plugin_memory(&invalidation.previous)?)?;
-        if let Some(current) = &invalidation.current {
-            bounds.bytes(canonical::execution_plugin_memory(current)?)?;
-        }
-    }
+
     let summary = Some(execution_summary(snapshot.state(), execution, ordinal));
     reply(
         service,
@@ -236,26 +183,18 @@ pub(super) fn list_execution_parameters(
     parameters(service, selected, &request.after_name, limit, parameter_cursor(&snapshot, selection))
 }
 
-pub(super) fn metadata_memory(value: &Metadata) -> Result<usize, Status> {
-    canonical::metadata_memory(value)
-}
-
-pub(super) fn diagnostic(value: &dokime::plugin::Diagnostic, bounds: &mut Bounds) -> Result<Diagnostic, Status> {
-    value::collection(value.chain.len())?;
-    value::collection(value.span_trace.len())?;
-    bounds.bytes(std::mem::size_of::<Diagnostic>())?;
-    bounds.bytes(value.chain.len().saturating_add(value.span_trace.len()).saturating_mul(std::mem::size_of::<String>()))?;
-    let message = bounded(&value.message, bounds)?;
+pub(super) fn diagnostic(value: &dokime::plugin::Diagnostic) -> Result<Diagnostic, Status> {
+    let message = bounded(&value.message)?;
     let mut chain = canonical::slots(value.chain.len())?;
     for cause in &value.chain {
-        chain.push(bounded(cause, bounds)?);
+        chain.push(bounded(cause)?);
     }
-    let location = bounded(&value.location, bounds)?;
+    let location = bounded(&value.location)?;
     let mut span_trace = canonical::slots(value.span_trace.len())?;
     for span in &value.span_trace {
-        span_trace.push(bounded(span, bounds)?);
+        span_trace.push(bounded(span)?);
     }
-    let backtrace = bounded(&value.backtrace, bounds)?;
+    let backtrace = bounded(&value.backtrace)?;
 
     Ok(Diagnostic { message, chain, location, span_trace, backtrace })
 }
@@ -264,7 +203,6 @@ pub(super) fn list_case_parameters(
     service: &Resources, request: &wire::ListCaseParameters,
 ) -> Result<execution_model::ListCaseParametersReply, Status> {
     let id = cycle_id(&request.cycle_id)?;
-    value::text(&request.case_id)?;
     let snapshot = service.runtime.watch_state().latest();
     let selection = execution_model::ParameterCursorSelection::PlannedCase(execution_model::PlannedCaseParameters {
         cycle_id: request.cycle_id.clone(),
@@ -282,7 +220,7 @@ pub(super) fn list_case_parameters(
 /* === Private Functions === */
 
 fn reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
-    if value.encoded_len() > service.max_message_bytes {
+    if value.wire_len()? > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));
     }
     Ok(value)
@@ -296,29 +234,14 @@ fn parameters(
         return Err(Status::invalid_argument("after name not found in requested parameter set"));
     }
     let mut selected = entries.iter().filter(|(name, _)| name.as_str() > after);
-    let mut bounds = Bounds::new(service.max_message_bytes);
-    let mut budget = value::Budget::new();
+    let mut budget = value::Budget::new()?;
     let count = selected.clone().take(limit).count();
-    bounds.bytes(count.saturating_mul(std::mem::size_of::<execution_model::MaterializedParameter>()))?;
+
     let mut parameters = canonical::slots(count)?;
     for (name, item) in selected.by_ref().take(limit) {
-        bounds.text(name)?;
-        bounds.value(&item.value, 0)?;
-        bounds.bytes(metadata_memory(&item.metadata)?)?;
         let metadata = metadata(&item.metadata)?;
-        if let Some(group) = &item.group_id {
-            bounds.text(group.as_str())?;
-        }
-        let unit = item
-            .unit
-            .as_ref()
-            .map(|unit| {
-                let bytes = super::super::catalog::unit_memory(unit)
-                    .map_err(|_| Status::resource_exhausted("inspection unit exceeds response budget"))?;
-                bounds.bytes(bytes)?;
-                super::super::catalog::unit(unit)
-            })
-            .transpose()?;
+
+        let unit = item.unit.as_ref().map(super::super::catalog::unit).transpose()?;
         parameters.push(execution_model::MaterializedParameter {
             name: name.clone(),
             metadata: Some(metadata),
@@ -342,17 +265,18 @@ fn parameters(
     reply(service, execution_model::ListMaterializedParametersReply { parameters, next_after_name, cursor: Some(cursor) })
 }
 
-fn bounded(value: &str, bounds: &mut Bounds) -> Result<String, Status> {
-    if value.len() <= MAX_DIAGNOSTIC_TEXT {
-        bounds.text(value)?;
+fn bounded(value: &str) -> Result<String, Status> {
+    let maximum = SERVER_DIAGNOSTIC_TEXT_BYTES as usize;
+    if value.len() <= maximum {
         return Ok(value.to_owned());
     }
-    let mut cut = MAX_DIAGNOSTIC_TEXT.saturating_sub(DIAGNOSTIC_TRUNCATED.len());
+    let marker = if maximum >= DIAGNOSTIC_TRUNCATED.len() { DIAGNOSTIC_TRUNCATED } else { "" };
+    let mut cut = maximum.saturating_sub(marker.len());
     while !value.is_char_boundary(cut) {
         cut -= 1;
     }
-    bounds.bytes(cut.saturating_add(DIAGNOSTIC_TRUNCATED.len()).saturating_add(32))?;
-    Ok(format!("{}{DIAGNOSTIC_TRUNCATED}", &value[..cut]))
+
+    Ok(format!("{}{marker}", &value[..cut]))
 }
 
 fn parameter_cursor(
@@ -383,14 +307,11 @@ fn case_parameters(
         return Err(Status::invalid_argument("after name not found in requested case"));
     }
     let mut selected = entries.iter().filter(|(name, _)| after.is_empty() || name.as_str() > after);
-    let mut bounds = Bounds::new(service.max_message_bytes);
-    let mut budget = value::Budget::new();
+    let mut budget = value::Budget::new()?;
     let count = selected.clone().take(limit).count();
-    bounds.bytes(count.saturating_mul(std::mem::size_of::<execution_model::CaseParameter>()))?;
+
     let mut parameters = canonical::slots(count)?;
     for (name, item) in selected.by_ref().take(limit) {
-        bounds.text(name)?;
-        bounds.value(item, 0)?;
         parameters.push(execution_model::CaseParameter { name: name.clone(), value: Some(canonical::encode(item, &mut budget, 0)?) });
     }
     let next_after_name = selected.next().is_some().then(|| parameters.last().unwrap().name.clone());

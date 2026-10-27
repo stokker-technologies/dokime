@@ -185,6 +185,12 @@ impl Host for StepHost {
     }
 
     // A step lends no process-local resources to the host.
+    async fn submit_owned<O: OperationDeclaration>(
+        &self, _: O, _: harmos::operations::RequestClaims,
+    ) -> Result<StepInstance<O>, CallError> {
+        Err(CallError::LocalResources { method: O::ID })
+    }
+
     async fn submit_with_resources<O: OperationDeclaration<Response = ()>, R: Send + Sync + 'static>(
         &self, _: O, _: Arc<R>,
     ) -> Result<StepInstance<O>, CallError> {

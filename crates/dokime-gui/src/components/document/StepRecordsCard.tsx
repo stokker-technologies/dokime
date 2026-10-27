@@ -87,20 +87,20 @@ export function StepRecordList({
         return (
           <DocumentEmbeddedBlock
             as="li"
-            className="grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 pr-0.5 py-1.5 text-[0.8125rem]"
+            className="grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 pr-1 py-2 text-sm"
             key={`${record.test_execution_id}:${record.record_type}:${record.step_id}:${record.order}:${record.started_at}`}
           >
-            <span className="grid size-7 shrink-0 place-items-center rounded-md border bg-muted/40 text-xs font-semibold tabular-nums text-muted-foreground">
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg border bg-muted/40 text-xs font-semibold tabular-nums text-muted-foreground">
               {String(index + 1).padStart(orderWidth, "0")}
             </span>
             <div className="min-w-0">
               <span className="block min-w-0 font-medium leading-tight [overflow-wrap:break-word]">
                 {stepRecordLabel(record, showRecordType)}
               </span>
-              {duration ? <span className="mt-0.5 block text-[0.72rem] leading-tight text-muted-foreground">{duration}</span> : null}
+              {duration ? <span className="mt-1 block text-xs leading-tight text-muted-foreground">{duration}</span> : null}
               {record.detail ? <StepFailure detail={record.detail} /> : null}
             </div>
-            <Badge className="justify-self-end gap-1 text-[0.72rem] capitalize" variant={stepBadgeVariant(record.status)}>
+            <Badge className="justify-self-end gap-1 text-xs capitalize" variant={stepBadgeVariant(record.status)}>
               {record.status === "running" ? <LoaderCircle aria-hidden className="animate-spin" size={10} /> : null}
               {record.status}
             </Badge>
@@ -124,15 +124,15 @@ export function StepFailure({ detail }: { detail: StepFailureDetail }) {
 
   return (
     <Collapsible onOpenChange={setOpen} open={open}>
-      <p className="mt-1 text-[0.72rem] leading-snug text-destructive [overflow-wrap:anywhere]">{detail.message}</p>
+      <p className="mt-1 text-xs leading-snug text-destructive [overflow-wrap:anywhere]">{detail.message}</p>
       {hasStory ? (
         <>
-          <CollapsibleTrigger className="mt-1 inline-flex items-center gap-1 text-[0.7rem] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <CollapsibleTrigger className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ChevronDown className={open ? "rotate-180 transition-transform" : "transition-transform"} size={12} />
             {open ? "Hide details" : "Show details"}
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="mt-1.5 grid gap-1.5 rounded-md border bg-muted/30 p-2 text-[0.7rem] leading-snug">
+            <div className="mt-2 grid gap-2 rounded-lg border bg-muted/30 p-2 text-xs leading-snug">
               {detail.chain.length ? (
                 <span className="text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-line">
                   {detail.chain.map((cause) => `caused by: ${cause}`).join("\n")}
@@ -145,9 +145,7 @@ export function StepFailure({ detail }: { detail: StepFailureDetail }) {
                 </span>
               ) : null}
               {detail.backtrace ? (
-                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all text-[0.68rem] text-muted-foreground">
-                  {detail.backtrace}
-                </pre>
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs text-muted-foreground">{detail.backtrace}</pre>
               ) : null}
             </div>
           </CollapsibleContent>

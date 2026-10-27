@@ -34,6 +34,5 @@ export function useSettingsFrameQuery(ownerKey?: string, enabled = true) {
     queryKey: ownerKey
       ? [...settingsQueryKeys.frame(session.identity.generation), ownerKey]
       : settingsQueryKeys.frame(session.identity.generation),
-    staleTime: 30_000,
   });
 }

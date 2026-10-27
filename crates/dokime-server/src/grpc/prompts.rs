@@ -15,15 +15,14 @@ pub(in crate::grpc) mod canonical;
 
 /* === Imports === */
 
+use crate::grpc::transcode::Transcode;
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::domain::Portable;
-use dokime::harmos::{
-    MemorySize,
-    operations::{Context, Operation, Response},
-};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -126,7 +125,6 @@ impl Operation for GetDefinition {
     async fn run<'a>(
         &mut self, _context: Self::Context<'a>, request: &mut wire::GetDefinition, _: &mut (),
     ) -> Result<Response<dokime::domain::model::prompts::wire::PromptDefinition>, Status> {
-        value::text(&request.prompt_type)?;
         let snapshot = self.resources.runtime.watch_state().latest();
         let definition = snapshot
             .state()
@@ -153,12 +151,12 @@ impl Operation for ListPending {
         let cycle = request
             .cycle_id
             .take()
-            .map(|id| TestCycleId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid cycle UUID")))
+            .map(|value| TestCycleId::from_uuid(value).map_err(|_| Status::invalid_argument("invalid cycle UUID")))
             .transpose()?;
         let execution = request
             .execution_id
             .take()
-            .map(|id| TestExecutionId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid execution UUID")))
+            .map(|value| TestExecutionId::from_uuid(value).map_err(|_| Status::invalid_argument("invalid execution UUID")))
             .transpose()?;
         let selection = dokime::prompts::pending_stream(cycle.as_ref(), execution.as_ref());
         let snapshot = self.resources.runtime.watch_state().latest();
@@ -246,8 +244,8 @@ impl Operation for Respond {
         let responder = context.submitted_by.clone().ok_or_else(|| Status::unauthenticated("authentication required"))?;
 
         let id = prompt_id(&request.prompt_id)?;
-        value::text(&request.action)?;
-        let decoded = request.values.take().map(|value| values::decode(value, &mut value::Budget::new(), 0)).transpose()?;
+        let mut budget = value::Budget::new()?;
+        let decoded = request.values.take().map(|value| values::decode(value, &mut budget, 0)).transpose()?;
         let values = match decoded {
             None => Default::default(),
             Some(dokime::domain::model::values::Value::Object(fields)) => fields,
@@ -273,11 +271,9 @@ impl Operation for Respond {
 }
 
 impl Resources {
-    fn produce<T: MemorySize + Portable + Send + Sync + 'static>(
-        &self, build: impl FnOnce() -> Result<T, Status>,
-    ) -> Result<Response<T>, Status> {
+    fn produce<T: Portable + Send + Sync + 'static>(&self, build: impl FnOnce() -> Result<T, Status>) -> Result<Response<T>, Status> {
         let output = build()?;
-        if output.encoded_len() > self.maximum {
+        if output.wire_len()? > self.maximum {
             return Err(Status::resource_exhausted("prompt response exceeds wire budget"));
         }
         Ok(output.into())

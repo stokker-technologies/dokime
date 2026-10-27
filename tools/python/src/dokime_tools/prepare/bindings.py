@@ -13,6 +13,7 @@
 # Standard Library Imports
 import argparse
 import hashlib
+import json
 import subprocess
 import sys
 import tempfile
@@ -118,6 +119,11 @@ def generate(
                     generated[Path(name)] = generated[Path(name)].rstrip() + b"\n\n" + suffix
         if not {Path(name) for name in _FILES | {"_wire/_pool.py"}}.issubset(generated):
             raise ValueError("shared exporter omitted required contract assets")
+        defaults = export / "application-settings.json"
+        if not defaults.is_file():
+            raise ValueError("selected Dokime build did not export application defaults")
+        generated[Path("application-settings.json")] = defaults.read_bytes()
+        generated[Path("_profiles.py")] = _profiles(export).encode()
         _normalize(generated, source, root)
         for relative, data in generated.items():
             if relative.parts[0] == "_wire" and relative.suffix == ".py":
@@ -173,6 +179,55 @@ def main() -> None:
 
 
 # === Private Functions === #
+
+
+def _profiles(export: Path) -> str:
+    models = json.loads((export / "application-settings-models.json").read_text())
+    lines = [
+        '"""Generated Backend Profiles From Domain Declarations"""',
+        "",
+        "from __future__ import annotations",
+        "",
+        "# === Imports === #",
+        "",
+        "# Standard Library Imports",
+        "from dataclasses import dataclass",
+        "from typing import Literal",
+        "",
+        "# Third Party Imports",
+        "# Local Imports",
+        "# Type Checking Imports",
+        "",
+        "# === Public Exports === #",
+        "# === Constants === #",
+        "# === Types === #",
+        "",
+    ]
+    for name in ("Secret", "Profile", "Document"):
+        model = models[name]
+        if "variants" in model:
+            variants = ", ".join(repr(value) for value in model["variants"])
+            lines.extend([f"type {name} = Literal[{variants}]", ""])
+            continue
+        if name == "Profile":
+            lines.extend(["# === Classes === #", ""])
+        lines.extend(["@dataclass(frozen=True, kw_only=True)", f"class {name}:"])
+        for field, value in model["fields"].items():
+            lines.append(f"    {field}: {_profile_type(value)}")
+        lines.append("")
+    lines.extend(["# === Public Functions === #", "# === Private Functions === #", "# === Entry Point === #", ""])
+    return _HEADER + "\n".join(lines)
+
+
+def _profile_type(value: object) -> str:
+    if isinstance(value, str):
+        return {"string": "str", "number": "int", "boolean": "bool"}.get(value, value)
+    if isinstance(value, dict) and "optional" in value:
+        return f"{_profile_type(value['optional'])} | None"
+    if isinstance(value, dict) and "list" in value:
+        return f"tuple[{_profile_type(value['list'])}, ...]"
+    raise ValueError("invalid generated profile field")
+
 
 
 def _skeleton(source: str) -> str:
@@ -233,7 +288,7 @@ def _sections(docstring: str, *, imports: tuple[str, str], constants: str) -> st
 
 
 def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
-    selected = sorted(path for path in generated if path.as_posix() in _FILES and path.suffix in {".py", ".pyi"})
+    selected = sorted(path for path in generated if path.as_posix() in _FILES | {"_profiles.py"} and path.suffix in {".py", ".pyi"})
     for relative in selected:
         (source / relative).write_bytes(generated[relative])
     paths = [str(source / relative) for relative in selected]

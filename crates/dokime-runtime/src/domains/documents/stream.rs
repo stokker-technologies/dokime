@@ -32,7 +32,7 @@ use crate::{ExecutionFileContent, runtime::Result, runtime::storage::native_outp
 
 pub struct ExecutionFileStream {
     source: Source,
-    metadata: ExecutionFileContent,
+    metadata: harmos::storage::ReadBatch<ExecutionFileContent>,
     offset: u64,
 }
 
@@ -40,7 +40,7 @@ pub struct ExecutionFileStream {
 
 enum Source {
     Live(Reader),
-    Saved(Box<SavedOutputFile>),
+    Saved(SavedOutputFile),
 }
 
 /* === Traits === */
@@ -49,20 +49,30 @@ enum Source {
 
 impl ExecutionFileStream {
     pub(crate) fn live(reader: Reader) -> Result<Self> {
-        let metadata = ExecutionFileContent { offset: 0, bytes: Vec::new(), ..reader.metadata().clone() };
+        let metadata = reader.metadata().clone();
         Ok(Self { source: Source::Live(reader), metadata, offset: 0 })
     }
 
     pub(crate) fn saved(file: SavedOutputFile) -> Result<Self> {
-        let metadata = file.metadata();
-        Ok(Self { source: Source::Saved(Box::new(file)), metadata, offset: 0 })
+        let metadata = file.metadata()?;
+        Ok(Self { source: Source::Saved(file), metadata, offset: 0 })
+    }
+
+    pub fn session(&self) -> &crate::storage::Manager {
+        match &self.source {
+            Source::Live(reader) => reader.session(),
+            Source::Saved(file) => file.session(),
+        }
     }
 
     pub fn metadata(&self) -> &ExecutionFileContent {
         &self.metadata
     }
 
-    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<ExecutionFileContent>> {
+    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<harmos::storage::ReadBatch<ExecutionFileContent>>> {
+        if self.offset == self.metadata.size_bytes {
+            return Ok(None);
+        }
         let content = match &mut self.source {
             Source::Live(reader) => reader.next_chunk(maximum).await?,
             Source::Saved(file) => {

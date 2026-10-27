@@ -20,7 +20,7 @@
 
 // Third Party Imports
 import { Archive, ArchiveRestore, Copy, Ellipsis, FileText, Plus, RotateCcw, Settings2 } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 
 // Local Imports
 import { Button } from "@/components/ui/button";
@@ -81,7 +81,7 @@ export type ExecutionMenu = {
 /* === Components === */
 
 /** The selected node's own menu, behind one trigger of one size on both pages. */
-export function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
+export function NodeMenu({ menu, children }: { menu: CycleMenu | ExecutionMenu; children?: ReactNode }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -97,6 +97,7 @@ export function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
       {/* The groups and their order are the model's, so a test can read
           what each page's menu offers without rendering it. */}
       <DropdownMenuContent align="end" className="w-52">
+        {children}
         {nodeMenuGroups(menu.kind, menu.archive?.archived ?? false).map((group, index) => (
           <Fragment key={group[0]}>
             {index > 0 ? <DropdownMenuSeparator /> : null}

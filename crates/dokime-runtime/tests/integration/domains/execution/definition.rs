@@ -177,20 +177,18 @@ async fn doc_example_context() -> Result<(), Box<dyn std::error::Error>> {
 fn doc_example_matrix() -> Result<(), Box<dyn std::error::Error>> {
     use std::collections::BTreeMap;
 
-    use dokime_runtime::definition::{
-        CaseMaterializationOptions, CaseMaterializationSelection, DEFAULT_MATERIALIZED_CASE_CAP, materialize_template_cases,
-    };
+    use dokime_runtime::definition::{CaseMaterializationOptions, CaseMaterializationSelection, materialize_template_cases};
 
     let template = MatrixTemplate.to_test_case_template()?;
     let options = || CaseMaterializationOptions {
-        max_cases: DEFAULT_MATERIALIZED_CASE_CAP,
+        max_cases: usize::try_from(1_000).unwrap(),
         force: false,
         registration_id: dokime_runtime::model::identity::new_id(),
         first_label_number: 1,
     };
 
     // voltage (2) × mode (2) = 4 cases, one per combination. Expansion is capped
-    // at `DEFAULT_MATERIALIZED_CASE_CAP` (1000); a grid past the cap is refused
+    // by the canonical parameter settings; a grid past the cap is refused
     // unless the cycle forces it.
     let generated = materialize_template_cases("fixture.registration", &template, Default::default(), options())?;
     assert_eq!(generated.case_count, 4);

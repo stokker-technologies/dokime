@@ -32,13 +32,6 @@ use dokime_domain::model::identity::Identifier;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct PlotTelemetryReadGroup {
-    pub(super) scope: ScopeSelection,
-    pub(super) streams: Vec<Identifier>,
-    pub(super) request_indexes: Vec<usize>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -69,23 +62,6 @@ pub(super) fn request_record_types(request: &PlotPayloadRequest) -> Vec<Identifi
     record_types.into_iter().collect()
 }
 
-pub(super) fn telemetry_read_groups(requests: &[PlotPayloadRequest]) -> Vec<PlotTelemetryReadGroup> {
-    let mut groups = Vec::<PlotTelemetryReadGroup>::new();
-    for (request_index, request) in requests.iter().enumerate() {
-        let streams = request_telemetry_streams(request);
-        if streams.is_empty() {
-            continue;
-        }
-        let scope = scope_selection(request);
-        if let Some(group) = groups.iter_mut().find(|group| group.scope == scope && group.streams == streams) {
-            group.request_indexes.push(request_index);
-        } else {
-            groups.push(PlotTelemetryReadGroup { scope, streams, request_indexes: vec![request_index] });
-        }
-    }
-    groups
-}
-
 pub(crate) fn request_telemetry_streams(request: &PlotPayloadRequest) -> Vec<Identifier> {
     let mut streams = BTreeSet::new();
     if !request.y_keys.is_empty() || request.x_key.is_some() || request.series_by.is_some() || request.z_field.is_some() {
@@ -103,18 +79,8 @@ pub(crate) fn request_telemetry_streams(request: &PlotPayloadRequest) -> Vec<Ide
     streams.into_iter().collect()
 }
 
-pub(super) fn request_requires_context_snapshot(request: &PlotPayloadRequest) -> bool {
-    request.z_stream.as_ref().is_some_and(|stream| stream != &request.stream)
-        || request_expressions(request)
-            .any(|expression| expression_telemetry_streams(expression).into_iter().any(|stream| stream != request.stream))
-}
-
 pub(super) fn request_needs_dimension_context(request: &PlotPayloadRequest) -> bool {
     request_expressions(request).any(expression_needs_dimension_context)
-}
-
-pub(super) fn request_requires_stateful_expression_snapshot(request: &PlotPayloadRequest) -> bool {
-    request_expressions(request).any(|expression| expression.transforms.iter().any(is_stateful_transform))
 }
 
 pub(super) fn scope_selection(request: &PlotPayloadRequest) -> ScopeSelection {
@@ -175,10 +141,6 @@ fn request_expressions(request: &PlotPayloadRequest) -> impl Iterator<Item = &Da
 
 fn expression_needs_dimension_context(expression: &DataExpression) -> bool {
     matches!(&expression.source, DataSource::Dimension { .. } | DataSource::Parameter { .. })
-}
-
-fn is_stateful_transform(transform: &DataTransform) -> bool {
-    matches!(transform, DataTransform::Aggregate(_) | DataTransform::TimeBetween { .. } | DataTransform::PerCase)
 }
 
 /* === Tests === */

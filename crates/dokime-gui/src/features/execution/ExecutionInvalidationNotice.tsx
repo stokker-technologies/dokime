@@ -17,7 +17,7 @@ export function ExecutionInvalidationNotice({ execution }: { execution: TestExec
   if (execution?.status !== "invalidated") return null;
   const reason = execution.invalidation;
   return (
-    <div role="status" className="grid gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
+    <div role="status" className="grid gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">
       <div>
         <Badge variant="warning">Invalidated</Badge>
       </div>

@@ -210,7 +210,8 @@ async fn live_rows_paths() {
                 scope: dokime_runtime::domains::evidence::ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
                 ..Default::default()
             })
-            .await;
+            .await
+            .unwrap();
         (!rows.is_empty()).then_some(rows)
     })
     .await;

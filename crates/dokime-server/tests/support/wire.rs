@@ -19,6 +19,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 // Third Party Imports
+use futures_util::FutureExt;
 use tokio::sync::Notify;
 use tonic::{
     Request,
@@ -90,7 +91,7 @@ pub struct Gate {
 pub trait WireMessage: Sized {
     fn wire_bytes(&self) -> Vec<u8>;
 
-    fn from_wire(bytes: &[u8]) -> Result<Self, dokime::harmos::MessageError>;
+    fn from_wire(bytes: &[u8]) -> Result<dokime::harmos::operations::StreamItem<Self>, tonic::Status>;
 }
 
 impl<T: dokime::harmos::domain::Portable> WireMessage for T {
@@ -100,8 +101,28 @@ impl<T: dokime::harmos::domain::Portable> WireMessage for T {
         bytes
     }
 
-    fn from_wire(bytes: &[u8]) -> Result<Self, dokime::harmos::MessageError> {
-        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<T>>::decode(harmos_sdk::grpc::DecodeInput::new(bytes))
+    fn from_wire(bytes: &[u8]) -> Result<dokime::harmos::operations::StreamItem<Self>, tonic::Status> {
+        let message_bytes = 16 * 1024 * 1024;
+        if bytes.len() > message_bytes {
+            return Err(tonic::Status::resource_exhausted("fixture message exceeds wire ceiling"));
+        }
+        let retained = 64 * 1024 * 1024;
+        let budget = Arc::new(tokio::sync::Semaphore::new(retained));
+        let (value, claim) = <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<T>>::decode_admitted(
+            harmos_sdk::grpc::DecodeInput::new(bytes),
+            |memory| {
+                let memory = memory.max(std::mem::size_of::<T>()).max(1);
+                let permits =
+                    u32::try_from(memory).map_err(|_| tonic::Status::resource_exhausted("fixture decode exceeds permit capacity"))?;
+                if memory > retained {
+                    return Err(tonic::Status::resource_exhausted("fixture decoded message exceeds byte ceiling"));
+                }
+                budget
+                    .try_acquire_many_owned(permits)
+                    .map_err(|_| tonic::Status::resource_exhausted("fixture decoded message retains byte capacity"))
+            },
+        )?;
+        dokime::harmos::operations::StreamItem::charged(value, claim).map_err(|error| tonic::Status::internal(error.to_string()))
     }
 }
 
@@ -430,7 +451,7 @@ impl ExecutionFixture for Gate {
 
 pub async fn runtime(root: &std::path::Path) -> Runtime {
     let config = super::budgets::runtime_config(root, Metadata::new(Identifier::new("grpc.fixture").unwrap(), "gRPC fixture", None));
-    Runtime::start(config).await.unwrap()
+    Runtime::start(config).boxed_local().await.unwrap()
 }
 
 pub fn keyed() -> Config {
@@ -517,6 +538,7 @@ pub async fn fixture_with_provider(root: &std::path::Path, provider: Arc<dyn Exe
         "fixture",
         provider,
     )
+    .boxed_local()
     .await
     .unwrap();
     super::register_fixture_execution(&owner.handle(), super::fixture_suite(&["passed"])).await;

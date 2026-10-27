@@ -9,11 +9,7 @@
 
 /* === Modules === */
 
-mod telemetry;
-
 /* === Re-Exports === */
-
-pub use telemetry::{CycleTrack, ExecutionTrack, TelemetryRow};
 
 /* === Imports === */
 
@@ -42,11 +38,6 @@ pub struct AggregateOutput {
 }
 
 /* === Enums === */
-
-#[harmos::streams]
-pub enum Streams {
-    Telemetry(TelemetryRow),
-}
 
 /* === Traits === */
 

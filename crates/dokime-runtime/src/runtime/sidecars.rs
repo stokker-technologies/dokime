@@ -114,15 +114,17 @@ impl RuntimeHandle {
     }
 
     pub(crate) fn hold_record_demand(&self, records: &[Identifier]) -> crate::runtime::Result<Vec<harmos::sidecar::DemandLease>> {
-        let artifacts = self.installed_plugins();
+        let state = self.state_read();
+        let artifacts = &state.installed_plugins;
         let unavailable = self.unavailable_plugins.read().expect("plugin availability lock poisoned");
         let demands = self.record_demands.lock().expect("record demand lock poisoned");
+        let records = records.iter().collect::<BTreeSet<_>>();
         let mut held = Vec::new();
         for artifact in artifacts.values().filter(|artifact| artifact.enabled && !unavailable.contains(&artifact.source)) {
             let Some(source) = demands.sources.get(&artifact.source) else {
                 continue;
             };
-            for record in records.iter().collect::<BTreeSet<_>>() {
+            for &record in &records {
                 if artifact.record_contracts.iter().any(|contract| &contract.record_type == record) {
                     held.push(
                         source
@@ -137,10 +139,11 @@ impl RuntimeHandle {
     }
 
     pub(crate) fn reconcile_listener_record_demand(&self) -> crate::runtime::Result<()> {
-        let artifacts = self.installed_plugins();
+        let state = self.state_read();
+        let artifacts = &state.installed_plugins;
         let unavailable = self.unavailable_plugins.read().expect("plugin availability lock poisoned");
         let mut demands = self.record_demands.lock().expect("record demand lock poisoned");
-        demands.reconcile(&artifacts, &unavailable, self.routing.get())
+        demands.reconcile(artifacts, &unavailable, self.routing.get())
     }
 
     pub(crate) async fn flush_plugin_publications(&self) -> crate::runtime::Result<()> {
@@ -407,7 +410,8 @@ fn listeners(handle: &RuntimeHandle, record: &dokime_domain::model::records::evi
     };
     let graph = router.graph();
     handle
-        .installed_plugins()
+        .state_read()
+        .installed_plugins
         .values()
         .filter(|artifact| artifact.enabled && handle.plugin_available(&artifact.source))
         .filter(|artifact| graph.ordered().iter().any(|definition| definition.id == artifact.source))

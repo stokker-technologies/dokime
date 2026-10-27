@@ -64,10 +64,8 @@ impl Operation for List {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListArtifacts, _: &mut (),
     ) -> Result<Response<dokime::domain::model::content::wire::ListArtifactsReply>, Status> {
-        if request.limit > 100 {
-            return Err(Status::invalid_argument("page limit exceeds 100"));
-        }
-        value::text(&request.after_artifact_id)?;
+        let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_artifact_id)
+            .map_err(value::canonical::cursor_failure)?;
         let epoch = self.resources.runtime.process_epoch().to_string();
         let records = self.resources.runtime.artifacts().await.map_err(inventory_failure)?;
         let start = if request.after_artifact_id.is_empty() {
@@ -79,7 +77,6 @@ impl Operation for List {
                 .map(|index| index + 1)
                 .unwrap_or(records.len())
         };
-        let limit = if request.limit == 0 { 50 } else { request.limit as usize };
         let count = records.len().saturating_sub(start).min(limit);
         let more = records.len().saturating_sub(start) > count;
         project(&records, request, &epoch, start, count, more, self.resources.maximum).map(Into::into)

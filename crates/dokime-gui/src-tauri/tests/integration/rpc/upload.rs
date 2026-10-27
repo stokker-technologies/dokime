@@ -24,7 +24,7 @@ use sha2::{Digest, Sha256};
 use super::invoke;
 use crate::support::{artifact, server::Fixture};
 use dokime::domain::model;
-use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, handler};
+use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, handler};
 
 /* === Constants === */
 
@@ -269,16 +269,10 @@ async fn upload_sink_completes() {
         panic!("finish replies with raw metadata bytes");
     };
     let payload = &metadata_bytes[8..];
-    assert!(
-        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<model::content::wire::ArtifactMetadata>>::decoding_memory(
-            harmos_sdk::grpc::DecodeInput::new(payload)
-        )
-        .unwrap()
-            <= MAX_FRAME_BYTES * 8,
-        "the metadata decoding budget stays within the native transfer bound"
-    );
-    let metadata = model::content::wire::ArtifactMetadata::from_wire(payload).unwrap();
-    assert!(metadata.memory_size() <= MAX_FRAME_BYTES * 8, "the decoded metadata stays within the native transfer bound");
+    let (metadata, admitted_memory) = model::content::wire::ArtifactMetadata::from_wire(payload).unwrap();
+    let transfer_bound = 4_194_304 * 8;
+    assert!(admitted_memory <= transfer_bound, "the metadata decoding budget stays within the native transfer bound");
+    assert!(metadata.memory_size() <= transfer_bound, "the decoded metadata stays within the native transfer bound");
     assert_eq!(metadata.size_bytes, 6);
     assert_eq!(metadata.sha256, Sha256::digest(b"foobar").iter().map(|byte| format!("{byte:02x}")).collect::<String>());
     assert_eq!(metadata.state, model::content::wire::ArtifactState::Complete);

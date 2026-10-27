@@ -51,6 +51,7 @@ def test_pure_wheel(workspace: Path, request) -> None:
         assert "dokime_client/operation.py" in names
         assert "dokime_client/dynamic.py" in names
         assert "dokime_client/contracts.json" in names
+        assert "dokime_client/client-settings.json" not in names
         assert "dokime_client/descriptors.bin" in names
         assert any(name.startswith("dokime_client/_wire/") and name.endswith(".pyi") for name in names)
         assert not any(name.startswith("dokime_client/client/_generated/") for name in names)

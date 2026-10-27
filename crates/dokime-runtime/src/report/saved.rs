@@ -14,13 +14,12 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
 
 // Third Party Imports
 use harmos::{
     Message,
-    operations::Host,
-    storage::{FileMetadata, FileProducer, FileReference, MutationId, StorageCursor},
+    storage::{FileMetadata, FileReference, StorageCursor, StorageFile},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -62,6 +61,7 @@ use dokime_domain::model::time::Timestamp;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapturedExecutionReportInput {
+    pub report_defaults: crate::config::ReportDefaults,
     pub final_report: bool,
     pub owner_node_id: NodeId,
     pub execution_id: dokime_domain::model::identity::TestExecutionId,
@@ -75,17 +75,16 @@ pub struct CapturedExecutionReportInput {
 }
 
 pub struct PreparedExecutionReport {
-    captured: Arc<CapturedExecutionReportInput>,
-    outputs: Vec<ExecutionOutput>,
+    captured: harmos::storage::ReadBatch<CapturedExecutionReportInput>,
+    outputs: Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>,
     context: ReportFile,
     report: ReportFile,
     sealed_at: Option<Timestamp>,
 }
 
 pub(super) struct ReportFile {
-    data: Arc<ReportFileData>,
-    window: Option<Identifier>,
-    producer: Option<FileProducer>,
+    data: harmos::storage::ReadBatch<ReportFileData>,
+    producer: Option<StorageFile>,
     written: usize,
     finished: Option<FileReference>,
 }
@@ -95,21 +94,85 @@ struct ReportFileData {
     bytes: Vec<u8>,
 }
 
+#[derive(Clone, Copy)]
+struct ReportFileIdentity<'a> {
+    owner: &'a str,
+    nonce: uuid::Uuid,
+    suffix: &'a str,
+    media_type: &'a str,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl ReportFileData {
+    fn context(source: &NativeSource, identity: ReportFileIdentity<'_>, length: usize) -> Result<Self> {
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(length).map_err(report_allocation_error)?;
+        source.encode_into(&mut bytes);
+        if bytes.len() != length {
+            return Err(report_invalid("report encoding differs from reported length"));
+        }
+        let metadata = identity.metadata(&bytes)?;
+        Ok(Self { metadata, bytes })
+    }
+}
+
+impl ReportFileIdentity<'_> {
+    fn id_length(&self) -> Result<usize> {
+        let mut length = self.owner.len();
+        for part in [1, uuid::fmt::Hyphenated::LENGTH, self.suffix.len()] {
+            let Some(total) = length.checked_add(part) else {
+                return Err(report_invalid("report identity length overflows"));
+            };
+            length = total;
+        }
+        Ok(length)
+    }
+
+    fn id(&self) -> Result<Identifier> {
+        let mut id = report_text(self.id_length()?)?;
+        id.push_str(self.owner);
+        id.push('.');
+        let mut nonce = [0u8; uuid::fmt::Hyphenated::LENGTH];
+        let nonce = self.nonce.hyphenated().encode_lower(&mut nonce);
+        id.push_str(nonce);
+        id.push_str(self.suffix);
+        Ok(Identifier::new(id).map_err(crate::storage::Error::from)?)
+    }
+
+    fn metadata(&self, bytes: &[u8]) -> Result<FileMetadata> {
+        let id = self.id()?;
+        let mut scope = report_text(self.owner.len())?;
+        scope.push_str(self.owner);
+        let scope = Identifier::new(scope).map_err(crate::storage::Error::from)?;
+
+        let mut media_type = report_text(self.media_type.len())?;
+        media_type.push_str(self.media_type);
+        let length = match u64::try_from(bytes.len()) {
+            Ok(length) => length,
+            Err(_) => return Err(report_invalid("report file length overflows")),
+        };
+        let digest = Sha256::digest(bytes).into();
+        Ok(FileMetadata { id, scope: Some(scope), media_type, expected_length: Some(length), expected_sha256: Some(digest) })
+    }
+}
+
 impl RuntimeHandle {
     // Benchmarks And Callers Read The Immutable Published Bytes Of Sealed Subjects.
-    pub async fn render_saved_execution_report(&self, execution: &dokime_domain::model::identity::TestExecutionId) -> Result<Vec<u8>> {
+    pub async fn render_saved_execution_report(
+        &self, execution: &dokime_domain::model::identity::TestExecutionId,
+    ) -> Result<harmos::storage::ReadBatch<Vec<u8>>> {
+        let session = self.storage().clone();
         let inspection = ExecutionView::open(self.storage(), execution, harmos::storage::ObjectVersion::Latest)
             .await?
             .ok_or_else(|| Error::InvalidReportInputs("execution is not saved".into()))?;
         let seal =
             inspection.execution().saved.as_ref().ok_or_else(|| Error::InvalidReportInputs("execution has no published report".into()))?;
-        Ok(crate::storage::read_file_bytes(self.storage(), &seal.report).await?)
+        Ok(crate::storage::read_file_bytes(&session, &seal.report).await?)
     }
 }
 
@@ -196,6 +259,7 @@ impl CapturedExecutionReportInput {
 
     pub(crate) fn source(&self, outputs: &[ExecutionOutput]) -> CapturedSource {
         CapturedSource {
+            report_defaults: self.report_defaults,
             captured_at: self.input.generated_at.clone(),
             owner_node_id: self.owner_node_id.clone(),
             execution_id: self.execution_id.clone(),
@@ -212,18 +276,21 @@ impl CapturedExecutionReportInput {
 }
 
 impl PreparedExecutionReport {
-    pub(crate) fn captured_input(&self) -> &Arc<CapturedExecutionReportInput> {
+    pub(crate) fn captured_input(&self) -> &harmos::storage::ReadBatch<CapturedExecutionReportInput> {
         &self.captured
     }
 
-    pub(crate) fn settled_outputs(&self) -> &Vec<ExecutionOutput> {
-        &self.outputs
+    pub(crate) fn settled_outputs(&self) -> &[ExecutionOutput] {
+        self.outputs.as_slice()
     }
 
-    pub(super) fn prepare_html(html: HtmlReport, outputs: Vec<ExecutionOutput>, saved: &StorageCursor) -> Result<Self> {
+    pub(super) fn prepare_html(
+        html: HtmlReport, outputs: Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>, saved: &StorageCursor,
+    ) -> Result<Self> {
         let captured = html.captured_input()?.clone();
         captured.validate()?;
-        validate_outputs(&captured.execution_id, saved, &outputs).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+        validate_outputs(&captured.execution_id, saved, outputs.as_slice())
+            .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
         let (context, report) = ReportFile::capture(&html)?;
         if outputs
             .iter()
@@ -235,12 +302,12 @@ impl PreparedExecutionReport {
     }
 
     pub(crate) async fn publish_current(
-        &mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>, revision: &ExecutionRevision,
+        &mut self, manager: &Manager, revision: &ExecutionRevision, schema_settings: &harmos::config::SchemaSettings,
     ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         self.captured.validate()?;
-        tokio::try_join!(self.context.write(manager, operations), self.report.write(manager, operations))?;
-        let context = self.context.finish(manager, operations).await?;
-        let report = self.report.finish(manager, operations).await?;
+        tokio::try_join!(self.context.write(manager), self.report.write(manager))?;
+        let context = self.context.finish(manager).await?;
+        let report = self.report.finish(manager).await?;
         let last = [&context.position, &report.position].into_iter().max_by_key(|cursor| cursor.sequence).unwrap();
         let dependencies_saved = manager.flush_until(last).await?;
         let mut publication = crate::storage::reports::Prepared::new(
@@ -257,13 +324,14 @@ impl PreparedExecutionReport {
                 cycle: None,
                 execution: None,
             },
+            schema_settings,
         )?;
         publication.finish().await?;
         Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
     }
 
     pub async fn save_dependencies(
-        &mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>, sealed_at: &Timestamp, revision: &ExecutionRevision,
+        &mut self, manager: &Manager, sealed_at: &Timestamp, revision: &ExecutionRevision,
     ) -> Result<ExecutionSeal> {
         self.captured.validate_final()?;
         if self.sealed_at.as_ref().is_some_and(|original| original != sealed_at) {
@@ -274,9 +342,9 @@ impl PreparedExecutionReport {
         }
         manager.flush_until(&self.captured.evidence_through).await?;
         // Stage Frozen Context And HTML Before Publication.
-        tokio::try_join!(self.context.write(manager, operations), self.report.write(manager, operations),)?;
-        let context = self.context.finish(manager, operations).await?;
-        let report = self.report.finish(manager, operations).await?;
+        tokio::try_join!(self.context.write(manager), self.report.write(manager),)?;
+        let context = self.context.finish(manager).await?;
+        let report = self.report.finish(manager).await?;
         let last = [&context.position, &report.position].into_iter().max_by_key(|cursor| cursor.sequence).unwrap();
         let dependencies_saved = manager.flush_until(last).await?;
         for file in [&context, &report] {
@@ -284,7 +352,7 @@ impl PreparedExecutionReport {
                 return Err(Error::InvalidReportInputs("report dependency is not durable".into()));
             }
         }
-        let outputs = self.outputs.clone();
+        let outputs = self.outputs.as_slice().to_vec();
         let seal = ExecutionSeal {
             source: ExecutionSource {
                 owner_node_id: self.captured.owner_node_id.clone(),
@@ -303,104 +371,77 @@ impl PreparedExecutionReport {
 }
 
 impl ReportFile {
-    fn new(data: ReportFileData) -> Self {
-        Self { data: Arc::new(data), window: None, producer: None, written: 0, finished: None }
+    fn new(data: harmos::storage::ReadBatch<ReportFileData>) -> Self {
+        Self { data, producer: None, written: 0, finished: None }
     }
 
-    pub(super) fn render(html: &HtmlReport, mut metadata: FileMetadata) -> Result<Self> {
+    pub(super) fn render(html: &HtmlReport, owner: &str, nonce: uuid::Uuid, suffix: &str) -> Result<Self> {
+        let identity = ReportFileIdentity { owner, nonce, suffix, media_type: "text/html" };
         let bytes = html.render()?;
-        metadata.expected_length = Some(bytes.len() as u64);
-        metadata.expected_sha256 = Some(Sha256::digest(&bytes).into());
-        Ok(Self::new(ReportFileData { metadata, bytes }))
+        let data = bytes.try_map(|bytes| {
+            let metadata = identity.metadata(&bytes)?;
+            Ok::<_, Error>(ReportFileData { metadata, bytes })
+        })?;
+        Ok(Self::new(data))
     }
 
-    fn context(captured: &CapturedSource, stem: &str) -> Result<Self> {
-        let bytes = NativeSource::try_from(captured)?.encode_to_vec();
-        let metadata = file_metadata(
-            report_file_id(stem, ".context")?,
-            Identifier::new(captured.execution_id.as_str()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
-            MEDIA_TYPE,
-            &bytes,
-        )?;
-        Ok(Self::new(ReportFileData { metadata, bytes }))
+    fn context(captured: &CapturedSource, nonce: uuid::Uuid) -> Result<Self> {
+        let identity = ReportFileIdentity { owner: captured.execution_id.as_str(), nonce, suffix: ".context", media_type: MEDIA_TYPE };
+        let seed = harmos::storage::ReadBatch::new(());
+        let build = |_| NativeSource::try_from(captured);
+        let native = seed.try_map(build)?;
+
+        let length = native.encoded_len();
+        let seed = harmos::storage::ReadBatch::new(());
+        let encode = |_| ReportFileData::context(&native, identity, length);
+        let data = seed.try_map(encode)?;
+        drop(native);
+        Ok(Self::new(data))
     }
 
     fn capture(html: &HtmlReport) -> Result<(Self, Self)> {
         let captured = html.captured_input()?;
-        let stem = format!("{}.{}", captured.execution_id, uuid::Uuid::now_v7());
-        let context = Self::context(html.captured_source()?, &stem)?;
-        let bytes = html.render()?;
-        let metadata = file_metadata(
-            report_file_id(&stem, ".report")?,
-            Identifier::new(captured.execution_id.as_str()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
-            "text/html",
-            &bytes,
-        )?;
-        Ok((context, Self::new(ReportFileData { metadata, bytes })))
+        let nonce = uuid::Uuid::now_v7();
+        let evidence = html.captured_source()?;
+        let context = Self::context(evidence, nonce)?;
+        let report = Self::render(html, captured.execution_id.as_str(), nonce, ".report")?;
+        Ok((context, report))
     }
 
-    pub(super) async fn finish(&mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>) -> Result<FileReference> {
+    pub(super) async fn finish(&mut self, manager: &Manager) -> Result<FileReference> {
         if let Some(reference) = &self.finished {
             return Ok(reference.clone());
         }
-        self.write(manager, operations).await?;
-        let reference = operations
-            .call(harmos::storage::operations::FinishFile {
-                mutation: self.mutation(manager, "finish")?,
-                session: self.producer.as_ref().expect("created report file").session.clone(),
-            })
-            .await?
-            .into_owned();
+        self.write(manager).await?;
+        let reference = self.producer.as_mut().expect("created report file").finish().await?;
         self.finished = Some(reference.clone());
-        self.window = None;
         Ok(reference)
     }
 
-    fn mutation(&mut self, manager: &Manager, action: &str) -> Result<MutationId> {
-        if self.window.is_none() {
-            self.window = Some(manager.mutation_window()?.id);
-        }
-        Ok(MutationId {
-            window: self.window.as_ref().expect("retained mutation window").clone(),
-            key: Identifier::new(format!("{}.{}", self.data.metadata.id, action))
-                .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
-        })
-    }
-
-    async fn write(&mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>) -> Result<()> {
-        use harmos::storage::operations::{AppendFile, CreateFile};
-
+    async fn write(&mut self, manager: &Manager) -> Result<()> {
         if self.finished.is_some() {
             return Ok(());
         }
         let batch_bytes = usize::try_from(manager.info()?.file_batch_bytes)
             .map_err(|_| Error::InvalidReportInputs("file batch size overflows".into()))?;
         if self.producer.is_none() {
-            self.producer = Some(
-                operations
-                    .call(CreateFile { mutation: self.mutation(manager, "create")?, metadata: self.data.metadata.clone() })
-                    .await?
-                    .into_owned(),
-            );
-            self.window = None;
+            self.producer = Some(manager.create_file(self.data.metadata.clone()).await?);
         }
+
         while self.written < self.data.bytes.len() {
             let end = self.written.saturating_add(batch_bytes).min(self.data.bytes.len());
-            let producer = operations
-                .call(AppendFile {
-                    mutation: self.mutation(manager, &format!("append.{}", self.written))?,
-                    session: self.producer.as_ref().expect("created report file").session.clone(),
-                    offset: self.written as u64,
-                    bytes: self.data.bytes[self.written..end].to_vec(),
-                })
-                .await?
-                .into_owned();
-            if producer.length != end as u64 {
+            let length = end - self.written;
+            let length = NonZeroUsize::new(length).ok_or(report_invalid("report append batch is empty"))?;
+
+            let mut bytes = Vec::new();
+            bytes.try_reserve_exact(length.get()).map_err(report_allocation_error)?;
+            bytes.extend_from_slice(&self.data.bytes[self.written..end]);
+            let producer = self.producer.as_mut().expect("created report file");
+            producer.write_retained_at(self.written as u64, bytes.into()).await?;
+            if producer.length() != end as u64 {
                 return Err(Error::InvalidReportInputs("report append returned a different offset".into()));
             }
-            self.producer = Some(producer);
             self.written = end;
-            self.window = None;
         }
         Ok(())
     }
@@ -410,14 +451,18 @@ impl ReportFile {
 
 /* === Private Functions === */
 
-fn report_file_id(execution: &str, suffix: &str) -> Result<Identifier> {
-    Identifier::new(format!("{execution}{suffix}")).map_err(|error| Error::InvalidReportInputs(error.to_string()))
+fn report_text(length: usize) -> Result<String> {
+    let mut value = String::new();
+    value.try_reserve_exact(length).map_err(report_allocation_error)?;
+    Ok(value)
 }
 
-fn file_metadata(id: Identifier, scope: Identifier, media_type: &str, bytes: &[u8]) -> Result<FileMetadata> {
-    let length = u64::try_from(bytes.len()).map_err(|_| Error::Operation("report file length overflow".into()))?;
-    let sha256 = Sha256::digest(bytes).into();
-    Ok(FileMetadata { id, scope: Some(scope), media_type: media_type.into(), expected_length: Some(length), expected_sha256: Some(sha256) })
+fn report_invalid(message: &'static str) -> Error {
+    Error::Storage(crate::storage::Error::Invalid(message))
+}
+
+fn report_allocation_error(_: std::collections::TryReserveError) -> Error {
+    report_invalid("report allocation failed")
 }
 
 /* === Tests === */
@@ -427,21 +472,46 @@ mod tests {
     use super::*;
 
     // The Published Payload Of A Fixed Input; Changing It Changes Every Sealed Report Digest.
-    const PAYLOAD_SHA256: &str = "883c5bfc20def0e49b9e8ae8a3319d745fa65bf82fba9a7f387818888d14ef20";
+    const PAYLOAD_SHA256: &str = "8c4a6d2aa30cbc895613b8c9c1eeef0e5de409661abc65d95800cbb4197ccc12";
 
-    #[test]
-    fn report_digest_is_stable() {
+    #[tokio::test]
+    async fn report_digest_is_stable() {
         let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("fixtures/execution-report-input.json")).unwrap();
-        let evidence = Arc::new(captured.source(&[]));
-        let html = HtmlReport::from_capture(Arc::new(captured), evidence).unwrap();
-        let (_, report) = ReportFile::capture(&html).unwrap();
+        let evidence = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(captured.source(&[]))).unwrap();
+        let captured = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(captured)).unwrap();
+        let html = HtmlReport::from_capture(captured, evidence).unwrap();
+        let source = html.captured_source().unwrap();
+        let (context, report) = ReportFile::capture(&html).unwrap();
+        let decoded = NativeSource::decode(&context.data.bytes).unwrap();
+        let decoded = decoded.into_source().unwrap();
+        assert!(decoded == **source);
+        drop(decoded);
+        let context_owner = context.data.clone();
+        drop(context);
+        drop(context_owner);
+
         let bytes = &report.data.bytes;
         assert_eq!(report.data.metadata.expected_length, Some(bytes.len() as u64));
-        assert_eq!(report.data.metadata.expected_sha256, Some(Sha256::digest(bytes).into()));
+        assert_eq!(report.data.metadata.expected_sha256, Some(Sha256::digest(&bytes[..]).into()));
         let html = std::str::from_utf8(bytes).unwrap();
         let payload = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1;
         let payload = payload.split_once("</script>").unwrap().0;
         let digest = Sha256::digest(payload.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         assert_eq!(digest, PAYLOAD_SHA256);
+        drop(report);
+    }
+
+    #[test]
+    fn report_file_metadata_identifies_content() {
+        let nonce = uuid::Uuid::nil();
+        let identity = ReportFileIdentity { owner: "fixture.execution", nonce, suffix: ".context", media_type: MEDIA_TYPE };
+        for capacity in [0, 128] {
+            let bytes = Vec::with_capacity(capacity);
+            let metadata = identity.metadata(&bytes).unwrap();
+            let data = ReportFileData { metadata, bytes };
+            assert_eq!(data.metadata.expected_length, Some(0));
+            assert_eq!(data.metadata.scope.as_ref().unwrap().as_str(), identity.owner);
+            assert_eq!(data.metadata.id.as_str(), "fixture.execution.00000000-0000-0000-0000-000000000000.context");
+        }
     }
 }

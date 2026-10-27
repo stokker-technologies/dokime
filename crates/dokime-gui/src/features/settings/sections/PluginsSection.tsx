@@ -16,14 +16,14 @@ import { toast } from "sonner";
 
 /* === Local Imports === */
 
-import { titleCaseIdentifier } from "@/components/start-cycle-form-model";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginConsentDialog } from "@/features/settings/plugins/PluginConsentDialog";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
-import { PluginPrograms } from "@/features/settings/plugins/PluginPrograms";
+import { programKey, programSource } from "@/features/settings/plugins/PluginPrograms";
+import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import {
   useConsentPluginMutation,
   usePluginReleaseMutation,
@@ -56,27 +56,34 @@ export function PluginsSection() {
   const removeMutation = useRemovePluginMutation();
   const restartMutation = useRestartAppMutation();
   const enabledMutation = useSetPluginEnabledMutation();
+  const [installOpen, setInstallOpen] = useState(false);
   const [restartPrompt, setRestartPrompt] = useState(false);
   const [staged, setStaged] = useState<PluginEntry | null>(null);
   const [uploadingFilename, setUploadingFilename] = useState<string | null>(null);
   const [removeCandidate, setRemoveCandidate] = useState<PluginEntry | null>(null);
   const entries = pluginsQuery.data ?? [];
   const programs = programsQuery.data ?? [];
-  const standalone = new Map<string, typeof programs>();
+  const builtInRows: PluginTableRow[] = [];
   for (const program of programs) {
     const owner = program.owner;
     if (owner?.kind === "bundle" && owner.installation && entries.some((entry) => entry.install_id === owner.installation)) continue;
-    const name =
-      owner?.kind === "host"
-        ? `${brand.label} Host`
-        : owner?.kind === "bundle"
-          ? titleCaseIdentifier(owner.package)
-          : owner?.kind === "embedded"
-            ? "Embedded Providers"
-            : "Unclassified Catalogs";
-    const members = standalone.get(name) ?? [];
-    members.push(program);
-    standalone.set(name, members);
+    const key = owner?.kind === "host" ? "host" : owner?.kind === "bundle" ? `bundle:${owner.package}` : programKey(program);
+    if (builtInRows.some((row) => row.key === key)) continue;
+    const section = settings.frame?.sections.find(
+      (candidate) => candidate.owner.kind === "installed_plugin" && candidate.owner.plugin_id === program.plugin_id,
+    );
+    builtInRows.push({
+      key,
+      name: owner?.kind === "host" ? `${brand.label} Host` : program.label,
+      source: programSource(program, brand.label),
+      enabled: { checked: true, disabled: true, onChange: () => {} },
+      onOpenSettings:
+        owner?.kind === "host"
+          ? () => void navigate({ to: "/settings/$section", params: { section: "appearance" } })
+          : section
+            ? () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: section.section_id } })
+            : undefined,
+    });
   }
   const restartPending = entries.some((entry) => entry.restart_required);
 
@@ -104,7 +111,10 @@ export function PluginsSection() {
     setUploadingFilename(filename);
     try {
       const entry = await stageMutation.mutateAsync(source);
-      if (entry) setStaged(entry);
+      if (entry) {
+        setStaged(entry);
+        setInstallOpen(false);
+      }
     } catch {
       // Mutation error is rendered beside the drop zone.
     } finally {
@@ -154,20 +164,7 @@ export function PluginsSection() {
 
   return (
     <>
-      <SettingsCard
-        title="Install A Plugin"
-        description={`Install and manage .dokime plugin bundles. Files are staged for static inspection before ${brand.label} asks for consent, and new installs activate after the next restart.`}
-      >
-        <div className="px-4 py-3">
-          <PluginDropZone
-            disabled={stageMutation.isPending}
-            error={errorMessage(stageMutation.error, "The plugin could not be inspected.")}
-            filename={uploadingFilename}
-            onDrop={(filename) => void handleStage("drop", filename)}
-            onPick={() => void handleStage("pick", null)}
-            progress={stageMutation.progress}
-          />
-        </div>
+      <SettingsCard title="Plugins">
         <SettingsRow
           label="Organization Release Source"
           description={
@@ -177,14 +174,6 @@ export function PluginsSection() {
           }
           error={releaseMutation.isError ? errorMessage(releaseMutation.error, "The release feed could not be checked.") : null}
         >
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!desktop || releaseMutation.isPending || stageMutation.isPending}
-            onClick={() => releaseMutation.mutate()}
-          >
-            Check Plugin Release
-          </Button>
           {releaseMutation.data ? (
             <Button
               size="sm"
@@ -216,99 +205,91 @@ export function PluginsSection() {
             )}
           </SettingsRow>
         ) : null}
-      </SettingsCard>
-
-      {entries.length > 0 ||
-      pluginsQuery.isPending ||
-      pluginsQuery.isError ||
-      !programs.some((program) => program.owner?.kind === "bundle") ? (
-        <SettingsCard span="full" title="Installed Plugins" description="Active state reflects this application process.">
-          <div className="px-4 py-3">
-            {pluginsQuery.isPending ? (
-              <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="size-4 animate-spin" />
-                  Loading plugins…
-                </span>
-              </div>
-            ) : pluginsQuery.isError ? (
-              <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
-                <div>
-                  <p className="font-medium">Plugins could not be loaded</p>
-                  <p className="mt-1 text-sm text-destructive" role="alert">
-                    {errorMessage(pluginsQuery.error, "Try loading the plugin registry again.")}
-                  </p>
-                </div>
-                <Button onClick={() => void pluginsQuery.refetch()} size="sm" variant="outline">
-                  Try Again
-                </Button>
-              </div>
-            ) : (
-              <PluginList
-                entries={entries}
-                changingEnabled={enabledMutation.isPending}
-                onSetEnabled={(entry, enabled) =>
-                  enabledMutation.mutate(
-                    { installId: entry.install_id, enabled },
-                    {
-                      onSuccess: () => setRestartPrompt(true),
-                      onError: (error) =>
-                        toast.error("Plugin Change Failed", {
-                          description: errorMessage(error, "The plugin change could not be saved.") ?? undefined,
-                        }),
-                    },
-                  )
-                }
-                onOpenSettings={(entry) => {
-                  const pluginId = settingsSectionOf(entry);
-                  if (pluginId) void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" });
-                }}
-                settingsSectionOf={settingsSectionOf}
-                onRemove={setRemoveCandidate}
-                removingId={removeMutation.isPending ? (removeMutation.variables ?? null) : null}
-              />
-            )}
-          </div>
-        </SettingsCard>
-      ) : null}
-      {programsQuery.isError || programsQuery.isPending ? (
-        <SettingsCard title="Programs">
-          <SettingsRow
-            label="Programs"
-            error={programsQuery.isError ? errorMessage(programsQuery.error, "Program settings could not be loaded.") : null}
-          >
-            {programsQuery.isPending ? (
-              <span className="text-sm text-muted-foreground" role="status">
-                Loading programs…
+        <div className="px-4 py-3">
+          {pluginsQuery.isPending || programsQuery.isPending ? (
+            <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="size-4 animate-spin" />
+                Loading plugins…
               </span>
-            ) : (
-              <Button onClick={() => void programsQuery.refetch()} size="sm" variant="outline">
-                Reload Programs
+            </div>
+          ) : pluginsQuery.isError || programsQuery.isError ? (
+            <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
+              <div>
+                <p className="font-medium">Plugins could not be loaded</p>
+                <p className="mt-1 text-sm text-destructive" role="alert">
+                  {errorMessage(pluginsQuery.error ?? programsQuery.error, "Try loading the plugin registry again.")}
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  void pluginsQuery.refetch();
+                  void programsQuery.refetch();
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Try Again
               </Button>
-            )}
-          </SettingsRow>
-        </SettingsCard>
-      ) : null}
-      {Array.from(standalone, ([name, members]) => (
-        <SettingsCard
-          key={name}
-          span="full"
-          title={name}
-          description={
-            members[0]?.owner?.kind === "host"
-              ? `Built-in ${brand.label} features.`
-              : members[0]?.owner?.kind === "bundle"
-                ? "Loaded from the launch configuration; managed outside the installation store."
-                : members[0]?.owner?.kind === "embedded"
-                  ? "Registered by the application that started this backend."
-                  : "Catalog definitions without provider ownership."
-          }
-        >
-          <div className="px-4 py-3">
-            <PluginPrograms programs={members} />
-          </div>
-        </SettingsCard>
-      ))}
+            </div>
+          ) : null}
+
+          <PluginList
+            actions={
+              <>
+                <Button disabled={!desktop || stageMutation.isPending} onClick={() => setInstallOpen(true)}>
+                  Install Plugin
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={!desktop || releaseMutation.isPending || stageMutation.isPending}
+                  onClick={() => releaseMutation.mutate()}
+                >
+                  Check For Updates
+                </Button>
+              </>
+            }
+            entries={entries}
+            builtInRows={builtInRows}
+            changingEnabled={enabledMutation.isPending}
+            onSetEnabled={(entry, enabled) =>
+              enabledMutation.mutate(
+                { installId: entry.install_id, enabled },
+                {
+                  onSuccess: () => setRestartPrompt(true),
+                  onError: (error) =>
+                    toast.error("Plugin Change Failed", {
+                      description: errorMessage(error, "The plugin change could not be saved.") ?? undefined,
+                    }),
+                },
+              )
+            }
+            onOpenSettings={(entry) => {
+              const pluginId = settingsSectionOf(entry);
+              if (pluginId) void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" });
+            }}
+            settingsSectionOf={settingsSectionOf}
+            onRemove={setRemoveCandidate}
+            removingId={removeMutation.isPending ? (removeMutation.variables ?? null) : null}
+          />
+        </div>
+      </SettingsCard>
+      <Dialog open={installOpen} onOpenChange={setInstallOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Install Plugin</DialogTitle>
+            <DialogDescription>Choose a .dokime bundle to inspect before installation.</DialogDescription>
+          </DialogHeader>
+          <PluginDropZone
+            disabled={stageMutation.isPending}
+            error={errorMessage(stageMutation.error, "The plugin could not be inspected.")}
+            filename={uploadingFilename}
+            onDrop={(filename) => void handleStage("drop", filename)}
+            onPick={() => void handleStage("pick", null)}
+            progress={stageMutation.progress}
+          />
+        </DialogContent>
+      </Dialog>
       <Dialog open={restartPrompt} onOpenChange={setRestartPrompt}>
         <DialogContent>
           <DialogHeader>

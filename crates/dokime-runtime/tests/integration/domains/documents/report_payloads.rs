@@ -111,8 +111,8 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
         documents: BTreeMap::new(),
         plots: BTreeMap::new(),
         case_documents: Vec::new(),
-        records: Vec::new(),
-        telemetry: Vec::new(),
+        records: Default::default(),
+        telemetry: Vec::new().into(),
         traceability: Vec::new(),
         artifact_links: Vec::new(),
         appearance: None,
@@ -236,25 +236,28 @@ fn materialization_shape_is_raw(value: &serde_json::Value) -> bool {
 }
 
 fn fixture_plot_payload(stream: &str, series_key: &str, y_value: f64, raw_points: usize) -> dokime_runtime::report::value::Value {
-    dokime_runtime::report::value::Value::try_from(serde_json::json!({
-        "stream": stream,
-        "x_key": "timestamp",
-        "series_by": serde_json::Value::Null,
-        "context": {},
-        "series": [{
-            "key": series_key,
-            "label": series_key,
-            "unit": serde_json::Value::Null,
-            "points": [{"x": "2026-01-01T00:00:00Z", "y": y_value}],
-            "raw_points": raw_points,
-            "downsampled": raw_points > 1,
-        }],
-        "cartesian": serde_json::Value::Null,
-        "markers": [],
-        "max_points": 2048,
-        "window_s": serde_json::Value::Null,
-        "generated_at": "2026-01-01T00:00:00Z",
-    }))
+    dokime_runtime::report::value::Value::from_serializable(
+        &serde_json::json!({
+            "stream": stream,
+            "x_key": "timestamp",
+            "series_by": serde_json::Value::Null,
+            "context": {},
+            "series": [{
+                "key": series_key,
+                "label": series_key,
+                "unit": serde_json::Value::Null,
+                "points": [{"x": "2026-01-01T00:00:00Z", "y": y_value}],
+                "raw_points": raw_points,
+                "downsampled": raw_points > 1,
+            }],
+            "cartesian": serde_json::Value::Null,
+            "markers": [],
+            "max_points": 2048,
+            "window_s": serde_json::Value::Null,
+            "generated_at": "2026-01-01T00:00:00Z",
+        }),
+        128_usize,
+    )
     .unwrap()
 }
 
@@ -805,7 +808,8 @@ async fn rendered_report_interval() {
             sample.values.insert("sample_index".to_owned(), Value::from(index as i64));
             crate::service_support::contracts::typed_fixture_sample(sample)
         })
-        .collect();
+        .collect::<Vec<_>>()
+        .into();
 
     let html = render(&input).await;
     let payload = parse(&html);
@@ -971,7 +975,8 @@ async fn rendered_report_happened() {
             related_stream_id: None,
             related_artifact_id: None,
         },
-    )];
+    )]
+    .into();
 
     let html = render(&input).await;
     let payload = parse(&html);
@@ -1356,11 +1361,13 @@ async fn telemetry_index_endpoints() {
         time.clone(),
         "fixture",
     );
+    let mut telemetry = Vec::new();
     for ordinal in 0..2_001 {
         let mut sample = sample.clone();
         sample.values.insert("ordinal".into(), Value::Unsigned(ordinal));
-        input.telemetry.push(crate::service_support::contracts::typed_fixture_sample(sample));
+        telemetry.push(crate::service_support::contracts::typed_fixture_sample(sample));
     }
+    input.telemetry = telemetry.into();
     // All Sort Keys Tie; Input Order Must Still Select The Same Endpoints.
     let html = render(&input).await;
     let payload = parse(&html);

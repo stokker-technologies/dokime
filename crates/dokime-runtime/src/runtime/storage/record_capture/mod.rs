@@ -14,7 +14,7 @@ mod source;
 /* === Re-Exports === */
 
 pub use source::CapturedRecord;
-pub(crate) use source::{Process, Projection, Source, group_limits};
+pub(crate) use source::{Process, Projection, Source};
 
 /* === Imports === */
 

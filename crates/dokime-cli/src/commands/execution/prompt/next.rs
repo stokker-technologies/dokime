@@ -26,6 +26,9 @@ use dokime::domain::model::prompts::wire::PromptInstance;
 
 /* === Constants === */
 
+const MAXIMUM_TIMEOUT_MS: u64 = 86_400_000;
+const REQUEST_POLL_MS: u64 = 200;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -37,7 +40,7 @@ pub(crate) struct Args {
     #[arg(help = "Execution UUID Whose Pending Prompt Is Required.")]
     execution_id: String,
 
-    #[arg(long, value_parser = clap::value_parser!(u64).range(1..=86400), help = "Wait Up To This Many Seconds; Omitted Reads Once.")]
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..), help = "Wait Up To This Many Seconds; Omitted Reads Once.")]
     wait_seconds: Option<u64>,
 
     #[command(flatten)]
@@ -64,18 +67,23 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
+pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
+    let timeout = args.wait_seconds.map(Duration::from_secs);
+    if timeout.is_some_and(|timeout| timeout > Duration::from_millis(MAXIMUM_TIMEOUT_MS)) {
+        return Err(crate::Error::Input("wait deadline exceeds the configured maximum".into()));
+    }
     let id = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let recovery = args.recovery.prepare(&id)?;
     let id_file = args.id_file.open()?;
     let client = args.connection.connect().await?;
     let execution = client.execution(id);
     let read = async {
-        match args.wait_seconds {
-            Some(seconds) => tokio::time::timeout(Duration::from_secs(seconds), find(&execution, true)).await.map_err(|_| {
+        match timeout {
+            Some(timeout) => tokio::time::timeout(timeout, find(&execution, true, REQUEST_POLL_MS)).await.map_err(|_| {
                 crate::Error::Setup(format!("No pending prompt observed before the deadline for execution {}.", args.execution_id))
             })?,
-            None => find(&execution, false).await,
+            None => find(&execution, false, REQUEST_POLL_MS).await,
         }
     };
     let result = super::super::recovery::observe(&client, &execution, recovery.as_ref(), "Prompt", read).await;
@@ -98,7 +106,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 
 /* === Private Functions === */
 
-async fn find(execution: &dokime::client::TestExecutionHandle, wait: bool) -> crate::Result<PromptInstance> {
+async fn find(execution: &dokime::client::TestExecutionHandle, wait: bool, poll_ms: u64) -> crate::Result<PromptInstance> {
     loop {
         let pending = execution.pending_prompts().await?;
         let prompt = pending.message().await;
@@ -114,7 +122,7 @@ async fn find(execution: &dokime::client::TestExecutionHandle, wait: bool) -> cr
             Err(dokime::client::Error::Rpc(status)) if status.code() == dokime::client::RpcCode::NotFound => {}
             Err(error) => return Err(error.into()),
         }
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(poll_ms)).await;
     }
 }
 

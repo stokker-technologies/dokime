@@ -45,8 +45,6 @@ use dokime_domain::operations::files::WatchFile;
 
 /* === Constants === */
 
-const DEFAULT_POLL: Duration = Duration::from_millis(1000);
-const READ_BYTES: usize = 64 * 1024;
 const CANCELLED: &str = "the file watch was cancelled; it sealed what it captured";
 
 /* === Macros === */
@@ -72,6 +70,7 @@ struct Tail {
     base: String,
     maximum_bytes: u64,
     captured: u64,
+    read_bytes: usize,
 }
 
 /* === Enums === */
@@ -136,7 +135,7 @@ impl Tail {
         let mut file = std::fs::File::open(&self.path).map_err(|error| error.to_string())?;
         file.seek(SeekFrom::Start(self.offset)).map_err(|error| error.to_string())?;
         let mut source = file.take(length - self.offset);
-        let mut bytes = vec![0; READ_BYTES];
+        let mut bytes = vec![0; self.read_bytes];
         loop {
             let count = source.read(&mut bytes).map_err(|error| error.to_string())?;
             if count == 0 {
@@ -197,7 +196,8 @@ pub(super) async fn run(
     if !path.is_absolute() {
         return Err("a local file watch source must be absolute".into());
     }
-    let matchers = LineMatchers::compile(&request.matchers, &request.markers).map_err(|error| error.to_string())?;
+    let matchers = LineMatchers::compile(&request.matchers, &request.markers, 32, 1024, 1 << 20, &Default::default())
+        .map_err(|error| error.to_string())?;
     let policy = request.policy;
     if policy == FileWatchPolicy::Unspecified {
         return Err("a file watch needs a policy".into());
@@ -205,18 +205,21 @@ pub(super) async fn run(
     if !matchers.is_empty() && policy != FileWatchPolicy::Stream {
         return Err("line matchers and markers need the Stream policy".into());
     }
-    let poll = request.poll_interval_ms.map_or(DEFAULT_POLL, |milliseconds| Duration::from_millis(milliseconds.into()));
+    let poll = match request.poll_interval_ms {
+        Some(milliseconds) => Duration::from_millis(milliseconds.into()),
+        None => Duration::from_secs(1),
+    };
     let bound = request.maximum_seconds.map(|seconds| Duration::from_secs(seconds.into()));
-    let valid_poll = (Duration::from_millis(50)..=Duration::from_secs(60)).contains(&poll);
-    let valid_bound = bound.is_none_or(|duration| !duration.is_zero() && duration.as_secs() <= 86_400);
+    let valid_poll = (Duration::from_millis(50)..=Duration::from_millis(60_000)).contains(&poll);
+    let valid_bound = bound.is_none_or(|duration| !duration.is_zero() && duration <= Duration::from_millis(86_400_000));
     let maximum_bytes = request.maximum_bytes.unwrap_or(256 * 1024 * 1024);
     if !valid_poll || !valid_bound || maximum_bytes == 0 || maximum_bytes > 4 * 1024 * 1024 * 1024 {
         return Err("invalid file watch poll interval, duration or byte cap".into());
     }
     let source_started = Instant::now();
     let source_wait = request.wait_for_source_seconds.map(|seconds| Duration::from_secs(seconds.into()));
-    if source_wait.is_some_and(|duration| duration.is_zero() || duration.as_secs() > 86_400) {
-        return Err("source wait must be between 1 and 86400 seconds".into());
+    if source_wait.is_some_and(|duration| duration.is_zero() || duration > Duration::from_millis(86_400_000)) {
+        return Err("source wait exceeds its configured duration bound".into());
     }
     let metadata = loop {
         if source_wait.is_some_and(|wait| source_started.elapsed() >= wait) {
@@ -269,11 +272,12 @@ pub(super) async fn run(
         artifacts: Vec::new(),
         maximum_bytes,
         captured: 0,
+        read_bytes: 64 * 1024,
         path,
         artifact,
         written: 0,
         spool,
-        lines: LineBuffer::default(),
+        lines: LineBuffer::new(std::num::NonZeroUsize::new(64 * 1024).ok_or_else(|| "line capacity must be positive".to_owned())?),
         matchers,
         gaps: Vec::new(),
     };
@@ -345,7 +349,7 @@ async fn publish(binding: &Binding, matchers: &LineMatchers, lines: impl IntoIte
         for found in matchers.matches(&line) {
             match found {
                 LineMatch::Row { stream, values, storage_schema } => match Identifier::new(&stream) {
-                    Ok(stream) => match crate::telemetry::capture_payload(&storage_schema, &values) {
+                    Ok(stream) => match crate::telemetry::capture_payload(&storage_schema, &values, &Default::default()) {
                         Ok(payload) => binding.streams.published(&stream, values, payload).await,
                         Err(error) => binding.journal.log(crate::execution::log::Level::Warn, error),
                     },

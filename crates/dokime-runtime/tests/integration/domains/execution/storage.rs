@@ -98,13 +98,13 @@ async fn execution_save_sealing() {
     let mut follower = handle.follow_execution_file(&id, path, None, 0).await.unwrap().unwrap();
     let identity = follower.metadata().identity.clone().unwrap();
     let first = follower.next_frame(maximum).await.unwrap().unwrap();
+    drop(follower);
     let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &first.payload else {
         panic!("live file starts with its retained prefix");
     };
     assert_eq!(chunk.offset, 0);
     assert_eq!(chunk.data, b"pre");
     drop(first);
-    drop(follower);
     let expected = b"prefix-appended";
     {
         let mut file = std::fs::OpenOptions::new().append(true).open(&target.absolute_path).unwrap();
@@ -180,7 +180,7 @@ async fn execution_save_sealing() {
     seal.validate(&saved_cycle.value).unwrap();
     assert_eq!(seal.report, cycle_report);
     let bytes = dokime_runtime::storage::read_file_bytes(handle.storage(), &seal.report).await.unwrap();
-    assert!(String::from_utf8(bytes).unwrap().contains(id.as_str()));
+    assert!(String::from_utf8(bytes.as_slice().to_vec()).unwrap().contains(id.as_str()));
     drop(saved_cycle);
     let restored = crate::service_support::native::open(&handle, &checkpoint).await;
     assert_eq!(restored.execution().snapshot, snapshot);
@@ -297,10 +297,9 @@ async fn permanent_finalization_settles() {
         dokime_runtime::storage::objects::cycle::read(runtime.storage(), &test_cycle_id, harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
-            .unwrap()
-            .value;
-    assert_eq!(original_cycle.lifecycle, CycleStatus::Completed);
-    assert!(original_cycle.saved.is_some(), "publication repair is durable without replaying the provider");
+            .unwrap();
+    assert_eq!(original_cycle.value.lifecycle, CycleStatus::Completed);
+    assert!(original_cycle.value.saved.is_some(), "publication repair is durable without replaying the provider");
     let receipt = runtime.run_request(&receipt.command_id).await.unwrap().unwrap();
     assert_eq!(receipt.summary.phase, RunPhase::Failed);
     assert_eq!(receipt.summary.failed, 0);
@@ -326,12 +325,13 @@ async fn permanent_finalization_settles() {
         .unwrap();
     let mut records = Vec::new();
     while let Some(batch) = reader.next().await.unwrap() {
-        records.extend(batch.into_iter().map(|row| row.payload.entry().unwrap().clone()));
+        records.push(crate::service_support::native::record_page(batch).unwrap());
     }
     drop(reader);
     for (record_type, scoped) in [("test.execution.finalization.failed", Some(&failed_id)), ("test.cycle.finalization.failed", None)] {
         let record = records
             .iter()
+            .flat_map(|batch| batch.iter())
             .find(|record| record.record_type.as_str() == record_type)
             .unwrap_or_else(|| panic!("{record_type} is recorded as evidence"));
         assert_eq!(record.severity, RecordSeverity::Error);
@@ -349,10 +349,10 @@ async fn permanent_finalization_settles() {
     assert_eq!(original.test_execution_id, failed_id);
     assert_eq!(original.status, ExecutionStatus::Passed);
     assert!(original.saved.is_some(), "publication repair preserves the original outcome");
-    assert_eq!(original_cycle.execution_ids.len(), 1);
+    assert_eq!(original_cycle.value.execution_ids.len(), 1);
     let fresh_cycle = runtime
         .create_cycle(
-            CycleDefinition { metadata: original_cycle.metadata.clone(), continue_automatically: false },
+            CycleDefinition { metadata: original_cycle.value.metadata.clone(), continue_automatically: false },
             CommandContext::default(),
         )
         .await

@@ -49,12 +49,12 @@ __all__ = ["copy", "equal", "nested", "request", "variant"]
 # === Public Functions === #
 
 
-def encode(item: Value) -> dict:
+def encode(item: Value, maximum_depth: int) -> dict:
     nodes = []
 
     def add(item: Value, depth: int) -> int:
-        if depth > 64:
-            raise ValueError("values cannot nest beyond 64 levels")
+        if depth > maximum_depth:
+            raise ValueError("value exceeds the configured nesting depth")
         index = len(nodes)
         nodes.append({})
         if item is None:
@@ -88,13 +88,13 @@ def encode(item: Value) -> dict:
     return {"nodes": nodes}
 
 
-def decode(item: Message) -> Value:
+def decode(item: Message, maximum_depth: int) -> Value:
     if not item.nodes:
         raise ProtocolError("value has no root node")
     visited = set()
 
     def rebuild(index: int, parent: int, depth: int) -> Value:
-        if depth > 64 or not parent < index < len(item.nodes) or index in visited:
+        if depth > maximum_depth or not parent < index < len(item.nodes) or index in visited:
             raise ProtocolError("value graph is cyclic, shared, out of range, or too deep")
         visited.add(index)
         node = item.nodes[index]
@@ -127,8 +127,8 @@ def decode(item: Message) -> Value:
     return result
 
 
-def fields(item: Message) -> dict[str, Value]:
-    result = decode(item)
+def fields(item: Message, maximum_depth: int) -> dict[str, Value]:
+    result = decode(item, maximum_depth)
     if not isinstance(result, dict):
         raise ProtocolError("expected an object value")
     return result
@@ -203,7 +203,7 @@ def result(item: Message) -> ResultSummary:
     )
 
 
-def record(item: Message) -> Record:
+def record(item: Message, maximum_depth: int) -> Record:
     return Record(
         id=item.record_id,
         type=item.record_type,
@@ -213,7 +213,7 @@ def record(item: Message) -> Record:
         severity=enum_name(item.severity),
         timestamp=timestamp(item, "timestamp"),
         message=item.message if item.HasField("message") else None,
-        details=fields(item.details) if item.HasField("details") else {},
+        details=fields(item.details, maximum_depth) if item.HasField("details") else {},
         scope=scope(item.scope),
         error=MessageToDict(item.error, preserving_proto_field_name=True) if item.HasField("error") else None,
         related_sample_id=item.related_sample_id if item.HasField("related_sample_id") else None,
@@ -222,7 +222,7 @@ def record(item: Message) -> Record:
     )
 
 
-def sample(item: Message) -> Sample:
+def sample(item: Message, maximum_depth: int) -> Sample:
     return Sample(
         id=item.sample_id,
         stream=item.stream,
@@ -231,9 +231,9 @@ def sample(item: Message) -> Sample:
         source=item.source,
         timestamp=timestamp(item, "timestamp"),
         received_at=timestamp(item, "received_at"),
-        values=fields(item.values) if item.HasField("values") else {},
-        summary=fields(item.summary) if item.HasField("summary") else {},
-        metadata=fields(item.metadata) if item.HasField("metadata") else {},
+        values=fields(item.values, maximum_depth) if item.HasField("values") else {},
+        summary=fields(item.summary, maximum_depth) if item.HasField("summary") else {},
+        metadata=fields(item.metadata, maximum_depth) if item.HasField("metadata") else {},
         scope=scope(item.scope),
     )
 

@@ -49,7 +49,7 @@ fn start(owner: &Runtime, cycle: &str) -> contracts::execution::StartExecution {
     contracts::execution::StartExecution { execution_id, mode: model::execution::wire::ExecutionMode::Automatic }
 }
 
-async fn receipt(handle: &dokime::RuntimeHandle, id: &str) -> Arc<model::execution::request::RunReceipt> {
+async fn receipt(handle: &dokime::RuntimeHandle, id: &str) -> impl std::ops::Deref<Target = model::execution::request::RunReceipt> + use<> {
     let id = model::identity::CommandId::from_uuid(id).unwrap();
     handle.run_request(&id).await.unwrap().unwrap()
 }
@@ -129,6 +129,7 @@ async fn command_receipts_survive_restart() {
         if let Err(error) = &response {
             let request_id = dokime::domain::model::identity::CommandId::from_uuid(command.request_id.clone()).unwrap();
             let original = owner.handle().run_request(&request_id).await;
+            let original = original.as_ref().map(|receipt| receipt.as_deref());
             panic!("command lookup failed: {error}; original receipt: {original:?}");
         }
         let receipt = response.unwrap().into_inner();
@@ -223,44 +224,47 @@ async fn execution_admissions_restart() {
     let handle = rebooted.handle();
     assert!(handle.watch_state().latest().state().cycles.is_empty(), "shutdown seals every old cycle");
     let other_id = dokime::domain::model::identity::TestCycleId::from_uuid(other_cycle).unwrap();
-    let stored_cycle = dokime::storage::objects::cycle::read(handle.storage(), &other_id, dokime::harmos::storage::ObjectVersion::Latest)
-        .await
-        .unwrap()
-        .unwrap()
-        .value;
+    let stored_cycle_owner =
+        dokime::storage::objects::cycle::read(handle.storage(), &other_id, dokime::harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
+    let stored_cycle = &stored_cycle_owner.value;
     assert_eq!(stored_cycle.test_cycle_id, other_id);
     assert_eq!(stored_cycle.phase, dokime::domain::model::execution::result::CyclePhase::Sealed);
     assert!(stored_cycle.saved.is_some());
     assert_eq!(stored_cycle.execution_ids.len(), 1);
     let execution_id = &stored_cycle.execution_ids[0];
-    let stored_execution =
+    let stored_execution_owner =
         dokime::storage::objects::execution::read(handle.storage(), execution_id, dokime::harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
-            .unwrap()
-            .value;
+            .unwrap();
+    let stored_execution = &stored_execution_owner.value;
     assert_eq!(stored_execution.status, dokime::domain::model::execution::result::ExecutionStatus::Cancelled);
     assert!(stored_execution.started_at.is_none());
     assert!(stored_execution.finished_at.is_some());
     assert!(stored_execution.saved.is_some());
     let next = Server::start(rebooted.handle(), keyed()).await.unwrap();
     let client = WireClient::connect(next.local_endpoint()).await.unwrap();
-    assert_eq!(receipt(&handle, &admission.command_id).await, completed);
+    let repeated = receipt(&handle, &admission.command_id).await;
+    assert_eq!(&*repeated, &*completed);
     let retried = accepted(client.unary::<contracts::execution::StartExecution>(authenticated(request)).await.unwrap().into_inner());
     assert_eq!(retried.command_id, admission.command_id);
     assert_eq!(retried.accepted_at, admission.accepted_at);
     assert!(handle.watch_state().latest().state().cycles.is_empty());
-    let restored_cycle = dokime::storage::objects::cycle::read(handle.storage(), &other_id, dokime::harmos::storage::ObjectVersion::Latest)
-        .await
-        .unwrap()
-        .unwrap()
-        .value;
-    let restored_execution =
+    let restored_cycle_owner =
+        dokime::storage::objects::cycle::read(handle.storage(), &other_id, dokime::harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
+    let restored_cycle = &restored_cycle_owner.value;
+    let restored_execution_owner =
         dokime::storage::objects::execution::read(handle.storage(), execution_id, dokime::harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
-            .unwrap()
-            .value;
+            .unwrap();
+    let restored_execution = &restored_execution_owner.value;
     assert_eq!(restored_cycle, stored_cycle, "replay preserves the other cycle's durable seal");
     assert_eq!(restored_execution, stored_execution, "replay cannot start or rewrite the other execution");
     next.shutdown().await.unwrap();
@@ -314,7 +318,8 @@ async fn key_rotation_isolation() {
     let client = WireClient::connect(format!("http://{listening}")).await.unwrap();
     let refused = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key.access_key)).await.unwrap_err();
     assert_eq!(refused.code(), Code::Unauthenticated);
-    assert_eq!(receipt(&handle, &admission.command_id).await, running);
+    let unchanged = receipt(&handle, &admission.command_id).await;
+    assert_eq!(&*unchanged, &*running);
 
     let reply = client.unary::<contracts::execution::StartExecution>(auth(request, &rotated.access_key)).await.unwrap();
     let replay = accepted(reply.into_inner());

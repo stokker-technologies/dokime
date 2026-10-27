@@ -25,7 +25,7 @@ use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
-use crate::grpc::{error::detailed, value};
+use crate::grpc::error::detailed;
 use dokime::domain::operations::content as wire;
 use dokime::{RuntimeHandle, runtime::Error};
 
@@ -67,7 +67,6 @@ impl Operation for Download {
         let runtime = &self.resources.runtime;
         let message_limit = self.resources.maximum;
         let (id, _) = super::files::execution(runtime, &request.execution_id)?;
-        value::text(&request.relative_path)?;
         if request.relative_path.is_empty() {
             return Err(Status::invalid_argument("output name is required"));
         }
@@ -76,13 +75,19 @@ impl Operation for Download {
             .await
             .map_err(stream_failure)?
             .ok_or_else(|| Status::not_found("registered execution output not found"))?;
-        if source.metadata().size_bytes > super::MAX_CONTENT_BYTES {
-            return Err(Status::resource_exhausted("execution output exceeds native content limit"));
+        if source.metadata().size_bytes > 2 * 1024 * 1024 * 1024 {
+            return Err(Status::resource_exhausted("execution output exceeds the transfer size limit"));
         }
-        let maximum = NonZeroUsize::new(super::download_chunk_bytes(message_limit))
-            .ok_or_else(|| Status::resource_exhausted("message limit cannot contain execution chunk"))?;
+        let cap = super::download_chunk_bytes(runtime, message_limit)?;
+        let template = dokime::domain::model::content::wire::ExecutionFileDownloadFrame {
+            payload: Some(dokime::domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
+                dokime::domain::model::content::wire::ArtifactChunk { offset: source.metadata().size_bytes, data: Vec::new() },
+            )),
+        };
+        let bytes = super::output_chunk_bytes(&template, cap, message_limit)?;
+        let maximum = NonZeroUsize::new(bytes).ok_or_else(|| Status::resource_exhausted("message limit cannot contain execution chunk"))?;
         let metadata = frames::metadata(source.metadata(), message_limit).map_err(|error| stream_failure(error.into()))?;
-        output.send_owned(metadata.into()).await.map_err(|error| stream_failure(error.into()))?;
+        output.send_owned(metadata).await.map_err(|error| stream_failure(error.into()))?;
         let mut digest = Sha256::new();
         let mut hashed = 0u64;
         loop {
@@ -92,17 +97,17 @@ impl Operation for Download {
             if content.offset != hashed {
                 return Err(Status::data_loss("execution output chunk does not continue its prefix"));
             }
-            let frame = frames::chunk(&content, message_limit).map_err(|error| stream_failure(error.into()))?;
             digest.update(&content.bytes);
             hashed = content.offset + content.bytes.len() as u64;
-            output.send_owned(frame.into()).await.map_err(|error| stream_failure(error.into()))?;
+            let frame = frames::chunk(content, message_limit).map_err(|error| stream_failure(error.into()))?;
+            output.send_owned(frame).await.map_err(|error| stream_failure(error.into()))?;
         }
         if hashed != source.metadata().size_bytes {
             return Err(Status::data_loss("execution output ended before declared prefix"));
         }
         let complete =
             frames::complete(source.metadata().size_bytes, &digest, message_limit).map_err(|error| stream_failure(error.into()))?;
-        output.send_owned(complete.into()).await.map_err(|error| stream_failure(error.into()))?;
+        output.send_owned(complete).await.map_err(|error| stream_failure(error.into()))?;
         Ok(().into())
     }
 }
@@ -125,7 +130,6 @@ fn stream_failure(error: Error) -> Status {
         Error::Harmos(dokime::harmos::Error::ResourceExhausted { resource }) => {
             Status::resource_exhausted(format!("execution output exceeds its original {resource} budget"))
         }
-        Error::ExecutionFileTooLarge => Status::resource_exhausted("execution output exceeds native content limit"),
         Error::ShuttingDown | Error::Interrupted => Status::unavailable("execution output capture interrupted"),
         _ => Status::internal("execution output could not be captured"),
     };

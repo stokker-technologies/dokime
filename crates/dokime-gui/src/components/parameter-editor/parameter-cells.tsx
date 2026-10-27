@@ -65,7 +65,7 @@ import { type EditorParameterRow, isExpandedParameter, parameterChoiceList, para
 /* === Constants === */
 
 /** Every value control matches the row so the value column reads as one rule. */
-const CELL_HEIGHT = "h-[calc(var(--parameter-row-height)-0.5rem)]";
+const CELL_HEIGHT = "h-[calc(var(--parameter-row-height)_-_--spacing(2))]";
 
 /**
  * The gap between a value's right edge and its unit, plus the field's own
@@ -354,19 +354,19 @@ export function ListChipsCell({
     <div
       aria-invalid={invalid}
       className={cn(
-        "flex min-h-[calc(var(--parameter-row-height)-0.5rem)] flex-wrap items-center gap-1.5 rounded-md border bg-background px-1.5 py-1",
+        "flex min-h-[calc(var(--parameter-row-height)_-_--spacing(2))] flex-wrap items-center gap-2 rounded-lg border bg-background px-2 py-1",
         invalid && "border-destructive",
       )}
       data-testid={`parameter-chips-${definition.name}`}
     >
       {chips.map((chip, position) => (
         <span
-          className={cn("inline-flex h-6 items-center gap-0.5 rounded-md border bg-muted/40 pl-2", "[[data-density=touch]_&]:h-7")}
+          className={cn("inline-flex h-6 items-center gap-1 rounded-lg border bg-muted/40 pl-2", "[[data-density=touch]_&]:h-7")}
           key={`${definition.name}-${chip.candidate}-${chip.index}`}
         >
           <input
             aria-label={`${label} value ${position + 1}`}
-            className="min-w-6 bg-transparent py-0.5 font-mono text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-w-6 bg-transparent py-1 font-mono text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onBlur={(event) => commit(chip, event.target.value)}
             onChange={(event) => replace(chip, [event.target.value])}
             onKeyDown={(event) => {
@@ -435,7 +435,7 @@ export function ExpressionReferencePopover() {
           <CircleHelp aria-hidden />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(38rem,calc(100vw-2rem))]" data-testid="expression-reference">
+      <PopoverContent align="end" className="w-[min(--spacing(152),calc(100vw_-_--spacing(8)))]" data-testid="expression-reference">
         <div className="grid gap-2">
           <p className="font-heading text-sm font-semibold">Expression Reference</p>
           {/* Three content-sized columns: a result list reads as one line, never
@@ -592,7 +592,7 @@ export function WifiChannelCell({
           <ChevronDown aria-hidden size={14} />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[min(88vh,46rem)] overflow-hidden p-0 sm:max-w-3xl">
+      <DialogContent className="max-h-[min(88vh,--spacing(184))] overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="px-4 pt-4">
           <DialogTitle>WiFi Channel</DialogTitle>
           <DialogDescription>Select auto-band options or explicit streams for generated WiFi cases.</DialogDescription>
@@ -609,7 +609,7 @@ export function WifiChannelCell({
           </Button>
         </div>
         <Separator />
-        <ScrollArea className="max-h-[min(58vh,28rem)] px-4">
+        <ScrollArea className="max-h-[min(58vh,--spacing(112))] px-4">
           <div className="grid gap-4 pb-4">
             <WifiChannelGroup
               choices={choices.filter((choice) => choice.mode === "auto")}
@@ -676,7 +676,7 @@ export function WifiChannelGroup({
           return (
             <Label
               className={cn(
-                "grid min-h-12 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border px-2.5 py-2 text-sm transition-colors",
+                "grid min-h-12 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
                 checked ? "border-primary bg-primary/5" : "bg-background hover:bg-muted/45",
               )}
               htmlFor={choiceId}
@@ -687,7 +687,7 @@ export function WifiChannelGroup({
                 <span className="block truncate font-medium">{choice.label}</span>
                 {choice.band ? (
                   <span className="mt-1 inline-flex">
-                    <Badge className="px-1 py-0 text-[10px]" variant="outline">
+                    <Badge className="px-1 py-0 text-xs" variant="outline">
                       {choice.band}
                     </Badge>
                   </span>

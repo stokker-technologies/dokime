@@ -98,12 +98,14 @@ import {
 
 /* === Constants === */
 
+const GUI_LONG_PRESS_MS = 500;
+
 /**
  * The one row grid: chevron, glyph, label, Run Again, ordinal, menu. Every
  * row uses it, so every trailing column sits on the same x.
  */
 const ROW_GRID =
-  "grid h-[var(--tree-row-height)] min-w-0 grid-cols-[1.25rem_1.25rem_minmax(0,1fr)_var(--tree-action-width)_2.75rem_var(--tree-action-width)] items-center gap-x-1 rounded-md pr-1";
+  "grid h-[var(--tree-row-height)] min-w-0 grid-cols-[--spacing(5)_--spacing(5)_minmax(0,1fr)_var(--tree-action-width)_--spacing(11)_var(--tree-action-width)] items-center gap-x-1 rounded-lg pr-1";
 
 const TONE_CLASS: Record<GlyphTone, string> = {
   danger: "text-destructive",
@@ -114,7 +116,7 @@ const TONE_CLASS: Record<GlyphTone, string> = {
 };
 
 /** How long a touch must rest on a row before its menu opens. */
-const LONG_PRESS_MS = 500;
+const LONG_PRESS_MS = GUI_LONG_PRESS_MS;
 
 /* === Types === */
 
@@ -282,7 +284,7 @@ export function CycleSidebarCasesView({
             <div className={cn(ROW_GRID, rowTone(cycleSelected))}>
               <button
                 aria-label={expanded ? "Collapse Executions" : "Expand Executions"}
-                className="grid size-5 place-items-center rounded-sm text-muted-foreground hover:text-foreground"
+                className="grid size-5 place-items-center rounded-lg text-muted-foreground hover:text-foreground"
                 onClick={() => setExpanded((open) => !open)}
                 tabIndex={-1}
                 type="button"
@@ -565,7 +567,7 @@ function StatusGlyph({ glyph }: { glyph: Glyph }) {
         aria-hidden
         className={cn(
           TONE_CLASS[glyph.tone],
-          dot ? "size-2 fill-current [[data-density=touch]_&]:size-2.5" : "size-3.5 [[data-density=touch]_&]:size-4.5",
+          dot ? "size-2 fill-current [[data-density=touch]_&]:size-2.5" : "size-4 [[data-density=touch]_&]:size-4.5",
           glyph.spin && "animate-spin",
         )}
       />
@@ -576,7 +578,7 @@ function StatusGlyph({ glyph }: { glyph: Glyph }) {
 
 function TreeNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (
-    <li className="grid gap-1.5 py-3 pr-2 pl-[calc(2.5rem+var(--tree-indent))]" role="none">
+    <li className="grid gap-2 py-3 pr-2 pl-[calc(--spacing(10)+var(--tree-indent))]" role="none">
       <p className="font-heading text-xs font-semibold">{title}</p>
       <p className="text-xs leading-snug text-muted-foreground">{message}</p>
       {action ? (

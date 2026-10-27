@@ -179,7 +179,8 @@ async fn shared_stream_publishes() {
             scope: ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
             ..Default::default()
         })
-        .await;
+        .await
+        .unwrap();
     let values = rows.iter().map(|row| row.values["value"].clone()).collect::<Vec<_>>();
     assert_eq!(rows.len(), 2, "both templates publish the shared stream");
     assert!(values.contains(&Value::Number(1.0)));
@@ -196,7 +197,7 @@ async fn shared_stream_publishes() {
     let stream = Identifier::new(Sample::ID).unwrap();
     let contract = contracts.into_iter().find(|contract| contract.stream == stream);
     let contract = contract.unwrap();
-    let codec = dokime_runtime::storage::telemetry::codec(&contract).unwrap();
+    let codec = dokime_runtime::storage::telemetry::codec(&contract, &Default::default()).unwrap();
     let storage = handle.storage();
     let at = storage.flush().await.unwrap();
     let schema = codec.schema().clone();

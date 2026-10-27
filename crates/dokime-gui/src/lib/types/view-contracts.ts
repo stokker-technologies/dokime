@@ -366,17 +366,11 @@ export type PlotMarker = {
   color: string;
 };
 
-export type PlotPayloadCursor = {
-  telemetry_streams?: { [key in string]: number };
-  record_sequence?: number | null;
-};
-
 export type PlotPayloadDiagnostics = {
   series_count: number;
   point_count: number;
   raw_point_count: number;
   downsampled: boolean;
-  delta: boolean;
   max_points: number;
   window_s: number | null;
 };
@@ -384,13 +378,14 @@ export type PlotPayloadDiagnostics = {
 export type PlotPayloadEnvelope_Serialize = {
   plot_id: string;
   revision: number;
-  cursor: PlotPayloadCursor;
+  epoch: string;
+  selection: string;
   payload: PlotPayload_Serialize;
   diagnostics: PlotPayloadDiagnostics;
   warnings: string[];
 };
 
-export type PlotPayloadStreamKind = "snapshot" | "append" | "replace" | "error";
+export type PlotPayloadStreamKind = "snapshot" | "replace" | "error";
 
 export type PlotPayload_Serialize = {
   stream: string;

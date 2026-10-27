@@ -70,7 +70,7 @@ export function openClientStream<I extends DescMessage, O extends DescMessage>(
   session: SessionIdentity,
   request: MessageInitShape<I>,
   envelope: DescMessage,
-  timeoutMs?: number,
+  timeoutMs: number,
 ): Promise<NativeClientStream<I, O>> {
   return transport.openClientStream(path, input, output, session, request, envelope, timeoutMs).then(
     (stream) => ({

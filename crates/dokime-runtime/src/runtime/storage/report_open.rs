@@ -52,7 +52,7 @@ pub struct OpenedReport {
     pub metadata: Option<Metadata>,
     pub generated_at: Timestamp,
     pub origin: ReportOrigin,
-    pub html: Vec<u8>,
+    pub html: harmos::storage::ReadBatch<Vec<u8>>,
 }
 
 /* === Enums === */
@@ -87,12 +87,13 @@ impl RuntimeHandle {
         if let Some((true, cycle)) = live {
             // An Execution Sealed Inside A Running Cycle Serves Its Final Report Directly.
             if let Some(seal) = self.execution_storage.durable_seal(id).await? {
-                let html = crate::storage::read_file_bytes(self.storage(), &seal.report).await?;
+                let session = self.storage().clone();
+                let html = crate::storage::read_file_bytes(&session, &seal.report).await?;
                 return Ok(OpenedReport {
                     test_cycle_id: cycle,
                     test_execution_id: Some(id.clone()),
                     metadata: None,
-                    generated_at: seal.sealed_at,
+                    generated_at: seal.sealed_at.clone(),
                     origin: ReportOrigin::Sealed,
                     html,
                 });
@@ -110,7 +111,8 @@ impl RuntimeHandle {
                     at,
                 })
                 .await?;
-            let html = crate::storage::read_file_bytes(self.storage(), &materialized.report).await?;
+            let session = self.storage().clone();
+            let html = crate::storage::read_file_bytes(&session, &materialized.report).await?;
             return Ok(OpenedReport {
                 test_cycle_id: cycle,
                 test_execution_id: Some(id.clone()),
@@ -120,6 +122,7 @@ impl RuntimeHandle {
                 html,
             });
         }
+        let session = self.storage().clone();
         let inspection = ExecutionView::open(self.storage(), id, ObjectVersion::Latest)
             .await?
             .filter(|inspection| inspection.execution().saved.is_some())
@@ -127,7 +130,7 @@ impl RuntimeHandle {
         let execution = inspection.execution();
         let seal = execution.saved.as_ref().expect("filtered sealed execution");
         let (generated_at, test_cycle_id) = (seal.sealed_at.clone(), execution.test_cycle_id.clone());
-        let html = crate::storage::read_file_bytes(self.storage(), &seal.report).await?;
+        let html = crate::storage::read_file_bytes(&session, &seal.report).await?;
         Ok(OpenedReport {
             test_cycle_id,
             test_execution_id: Some(id.clone()),
@@ -148,7 +151,8 @@ impl RuntimeHandle {
                 at,
             })
             .await?;
-        let html = crate::storage::read_file_bytes(self.storage(), &materialized.report).await?;
+        let session = self.storage().clone();
+        let html = crate::storage::read_file_bytes(&session, &materialized.report).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,
@@ -161,13 +165,14 @@ impl RuntimeHandle {
 
     async fn sealed_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
         let storage = self.storage();
-        let selected = crate::storage::objects::cycle::read(storage, id, ObjectVersion::Latest)
+        let session = storage.clone();
+        let selected = crate::storage::objects::cycle::read(&session, id, ObjectVersion::Latest)
             .await?
             .ok_or_else(|| not_found("cycle_not_found", "cycle not found"))?;
         let cycle = &selected.value;
         let seal = cycle.saved.as_ref().ok_or_else(|| not_found("cycle_report_missing", "cycle has no sealed report"))?;
         seal.validate(cycle).map_err(crate::storage::Error::from)?;
-        let html = crate::storage::read_file_bytes(storage, &seal.report).await?;
+        let html = crate::storage::read_file_bytes(&session, &seal.report).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,

@@ -22,8 +22,10 @@ use std::{collections::BTreeMap, fs, ops::RangeInclusive, process::Command, time
 
 /* === Constants === */
 
+const WIFI_COMMAND_TIMEOUT_MS: u64 = 5_000;
+const WIFI_SCAN_TIMEOUT_MS: u64 = 30_000;
+
 const PROC_NET_WIRELESS: &str = "/proc/net/wireless";
-const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 
 /* === Macros === */
@@ -132,7 +134,7 @@ pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String>
         "--rescan",
         if rescan { "yes" } else { "no" },
     ]);
-    let output = crate::collectors::run_command_bounded(command, Duration::from_secs(30))
+    let output = crate::collectors::run_command_bounded(command, Duration::from_millis(WIFI_SCAN_TIMEOUT_MS))
         .map_err(|error| format!("nmcli could not be started: {error}"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
@@ -143,7 +145,7 @@ pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String>
 
 #[cfg(not(windows))]
 pub(crate) fn wireless_link(interface: &str) -> Option<WifiLinkReport> {
-    match iw_links() {
+    match iw_links(Duration::from_millis(WIFI_COMMAND_TIMEOUT_MS)) {
         Ok(mut links) => links.remove(interface),
         Err(_) => {
             let wireless = fs::read_to_string(PROC_NET_WIRELESS).ok()?;
@@ -173,12 +175,12 @@ pub(crate) fn adapter_matches(device: Option<&str>, filter: Option<&str>) -> boo
 /* === Private Functions === */
 
 #[cfg(not(windows))]
-fn iw_links() -> Result<BTreeMap<String, WifiLinkReport>, String> {
-    let devices = iw_output(&["dev"])?;
+fn iw_links(timeout: Duration) -> Result<BTreeMap<String, WifiLinkReport>, String> {
+    let devices = iw_output(&["dev"], timeout)?;
 
     let mut links = BTreeMap::new();
     for interface in parse_iw_interfaces(&devices) {
-        let Ok(link) = iw_output(&["dev", &interface, "link"]) else {
+        let Ok(link) = iw_output(&["dev", &interface, "link"], timeout) else {
             continue;
         };
         if let Some(link) = WifiLinkReport::parse_iw_link(&link) {
@@ -190,11 +192,10 @@ fn iw_links() -> Result<BTreeMap<String, WifiLinkReport>, String> {
 }
 
 #[cfg(not(windows))]
-fn iw_output(args: &[&str]) -> Result<String, String> {
+fn iw_output(args: &[&str], timeout: Duration) -> Result<String, String> {
     let mut command = Command::new("iw");
     command.args(args);
-    let output =
-        crate::collectors::run_command_bounded(command, COMMAND_TIMEOUT).map_err(|error| format!("iw could not be started: {error}"))?;
+    let output = crate::collectors::run_command_bounded(command, timeout).map_err(|error| format!("iw could not be started: {error}"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }

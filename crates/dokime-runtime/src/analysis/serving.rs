@@ -35,7 +35,7 @@ pub struct Handler<A> {
     analysis: std::marker::PhantomData<fn() -> A>,
 }
 
-pub struct Served<A, R = ()>(Handler<A>, std::marker::PhantomData<fn() -> R>);
+pub struct Served<A, R>(Handler<A>, std::marker::PhantomData<fn() -> R>);
 
 struct State {
     consumed: bool,
@@ -55,7 +55,7 @@ impl<A: Analysis> harmos::operations::Operation for Handler<A> {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
+    async fn initialize<'ctx>(_: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
         Ok(Self::fresh())
     }
     async fn run<'ctx>(
@@ -100,10 +100,15 @@ impl<A: Analysis> Handler<A> {
 
 impl State {
     fn check<A: Analysis>(request: &Request) -> Result<(), Refusal> {
-        if request.parameters.len() > super::MAX_PARAMETER_BYTES {
+        if request.parameters.len() as u64 > dokime_domain::model::analysis::MAX_PARAMETER_BYTES as u64 {
             return Err(Refusal::of("analysis configuration exceeds its budget"));
         }
-        request.samples.as_ref().ok_or_else(|| Refusal::of("analysis samples are missing"))?.check(A::LIMITS).map_err(Refusal::of)?;
+        request
+            .samples
+            .as_ref()
+            .ok_or_else(|| Refusal::of("analysis samples are missing"))?
+            .check(A::LIMITS.constrained())
+            .map_err(Refusal::of)?;
         Ok(())
     }
 

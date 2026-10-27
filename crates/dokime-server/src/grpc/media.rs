@@ -23,7 +23,7 @@ use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
-use super::content::{artifact_scope, content_failure, metadata, metadata_memory};
+use super::content::{artifact_scope, content_failure, metadata};
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::artifacts::ArtifactRecord;
@@ -32,15 +32,15 @@ use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::execution::RecordScope;
 use dokime::domain::operations::media as contract;
 use dokime::domains::media::AudioRecording as Recording;
-use dokime::domains::media::DEFAULT_RECORDING_SECONDS;
-use dokime::domains::media::MAXIMUM_RECORDING_SECONDS;
 use dokime::domains::media::NOT_COMPILED;
 use dokime::domains::media::UNAVAILABLE;
 use dokime::runtime::Error;
 
 /* === Constants === */
 
-const PROGRESS_INTERVAL: Duration = Duration::from_secs(1);
+const SERVER_MEDIA_DEFAULT_RECORDING_MS: u64 = 600_000;
+const SERVER_MEDIA_PROGRESS_MS: u64 = 1_000;
+const SERVER_MEDIA_RECORDING_MS: u64 = 3_600_000;
 
 // Video capture is declared but refused until an encoder is chosen: no ffmpeg,
 // GStreamer or platform encoder is linked yet. The desktop's MediaRecorder sink
@@ -144,8 +144,8 @@ impl Operation for AudioRecording {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut contract::AudioRecording, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let scope = capture_scope(request.scope.as_ref())?;
         let limit = recording_limit(request.maximum_seconds)?;
+        let scope = capture_scope(request.scope.as_ref())?;
         let recording = self.resources.runtime.start_audio_recording(scope, request.input).await.map_err(failure)?;
         let recording = self.recording.insert(recording);
 
@@ -161,16 +161,17 @@ impl Operation for AudioRecording {
                 size_bytes: recording.size_bytes(),
             };
             output
-                .send_with(std::mem::size_of::<dokime::domain::model::media::wire::RecordingFrame>(), || {
-                    Ok(dokime::domain::model::media::wire::RecordingFrame {
+                .send_owned(
+                    (dokime::domain::model::media::wire::RecordingFrame {
                         payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Progress(progress)),
                     })
-                })
+                    .into(),
+                )
                 .await
                 .map_err(stream_failure)?;
             tokio::select! {
                 sealed = recording.settled() => break sealed,
-                () = tokio::time::sleep(PROGRESS_INTERVAL.min(limit - elapsed)) => {}
+                () = tokio::time::sleep(Duration::from_millis(SERVER_MEDIA_PROGRESS_MS).min(limit - elapsed)) => {}
             }
         };
 
@@ -178,13 +179,13 @@ impl Operation for AudioRecording {
         self.recording = None;
         let record = sealed.map_err(failure)?;
         let completed = metadata(&record)?;
-        let bytes = std::mem::size_of::<dokime::domain::model::media::wire::RecordingFrame>().saturating_add(metadata_memory(&record)?);
         output
-            .send_with(bytes, || {
-                Ok(dokime::domain::model::media::wire::RecordingFrame {
+            .send_owned(
+                (dokime::domain::model::media::wire::RecordingFrame {
                     payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Completed(Box::new(completed))),
                 })
-            })
+                .into(),
+            )
             .await
             .map_err(stream_failure)?;
         Ok(().into())
@@ -273,11 +274,11 @@ fn capture_scope(scope: Option<&dokime::domain::model::content::wire::ArtifactSc
 }
 
 fn recording_limit(seconds: Option<u32>) -> Result<Duration, Status> {
-    let seconds = seconds.unwrap_or(DEFAULT_RECORDING_SECONDS);
-    if seconds == 0 || seconds > MAXIMUM_RECORDING_SECONDS {
-        return Err(Status::invalid_argument(format!("recording maximum must be 1–{MAXIMUM_RECORDING_SECONDS} seconds")));
+    let seconds = seconds.map_or(SERVER_MEDIA_DEFAULT_RECORDING_MS / 1000, u64::from);
+    if seconds == 0 || seconds.saturating_mul(1000) > SERVER_MEDIA_RECORDING_MS {
+        return Err(Status::invalid_argument("recording maximum exceeds configured bounds"));
     }
-    Ok(Duration::from_secs(seconds.into()))
+    Ok(Duration::from_secs(seconds))
 }
 
 fn failure(error: Error) -> Status {

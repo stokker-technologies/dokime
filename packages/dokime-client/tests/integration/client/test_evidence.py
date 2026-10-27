@@ -59,14 +59,14 @@ def test_live_values() -> None:
             run = run_cycle.executions[0]
             await run.start()
             assert server.overrides is not None
-            assert _wire.decode(server.overrides["integer"].values[0]) == 2**60
-            assert _wire.decode(server.overrides["flag"].values[0]) is True
-            assert _wire.decode(server.overrides["array"].values[0]) == [1, None]
+            assert _wire.decode(server.overrides["integer"].values[0], 64) == 2**60
+            assert _wire.decode(server.overrides["flag"].values[0], 64) is True
+            assert _wire.decode(server.overrides["array"].values[0], 64) == [1, None]
 
             # Live Readers Follow Until The Run Completes
             following = asyncio.gather(
                 collect(run.records(follow=True)),
-                collect(run.samples(page_size=1, poll_interval=0.01, follow=True)),
+                collect(run.samples(page_size=1, follow=True)),
                 run.wait(poll_interval=0.01),
             )
             await server.records_parked.wait()
@@ -79,6 +79,22 @@ def test_live_values() -> None:
             assert summary.passed == 1
             assert server.stop_calls == 0
             assert any(p.get("voltage") == 2 for p in server.sent_cursors)
+
+    asyncio.run(scenario())
+
+
+def test_sample_watch_reconnect() -> None:
+    async def scenario() -> None:
+        async with serve() as (server, client):
+            cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            execution = cycle.executions[0]
+            await execution.start()
+            await execution.wait(poll_interval=0.01)
+            server.interrupt_sample_watch = True
+            samples = await collect(execution.samples(follow=True, page_size=1))
+            assert [sample.sequence for sample in samples] == [1, 2]
+            assert any(cursor.get("voltage") == 1 for cursor in server.sent_cursors)
+            assert server.stop_calls == 0
 
     asyncio.run(scenario())
 

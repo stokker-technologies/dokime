@@ -67,7 +67,7 @@ def test_prompt_level() -> None:
                         "message": "Check that the charger status indicator is steady.",
                         "level": {"Warn": {}},
                     },
-                    "values": _wire.encode({}),
+                    "values": _wire.encode({}, 64),
                     "scope": {"cycle_id": CYCLE_ID},
                     "created_at": {"seconds": 1_760_000_000, "nanos": 0},
                 }
@@ -104,7 +104,7 @@ def test_execution_prompt_scope() -> None:
                     "level": {"Info": {}},
                     "actions": [{"id": "yes", "label": "Yes"}, {"id": "no", "label": "No"}],
                 },
-                "values": _wire.encode({}),
+                "values": _wire.encode({}, 64),
                 "scope": {"cycle_id": CYCLE_ID, "execution_id": EXECUTION_ID},
                 "created_at": {"seconds": 1_760_000_000, "nanos": 0},
             }

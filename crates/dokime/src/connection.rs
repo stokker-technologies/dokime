@@ -32,7 +32,9 @@ use dokime_client::{
 
 /* === Constants === */
 
-const ENVIRONMENT_BYTES: usize = 64 * 1024;
+const CA_BYTES: u64 = 1_048_576;
+const ENVIRONMENT_BYTES: u64 = 65_536;
+const MAXIMUM_TIMEOUT_MS: u64 = 86_400_000;
 
 /* === Macros === */
 
@@ -43,6 +45,9 @@ const ENVIRONMENT_BYTES: usize = 64 * 1024;
 #[derive(Debug, clap::Args)]
 #[group(id = "connection")]
 pub struct Args {
+    #[arg(skip)]
+    settings: dokime_domain::model::settings::application::ClientPreferences,
+
     #[arg(long, help = "Backend HTTP(S) Origin; Use Plain HTTP Only In An Isolated Lab.")]
     #[arg(conflicts_with = "backend")]
     endpoint: Option<String>,
@@ -65,8 +70,8 @@ pub struct Args {
     #[arg(long, requires = "endpoint", conflicts_with = "backend", help = "Require This Backend Identity During Connection.")]
     expected_backend: Option<String>,
 
-    #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..=86400), help = "Connection And Call Deadline In Seconds.")]
-    timeout_seconds: u64,
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..), help = "Connection And Call Deadline In Seconds; Defaults To Local Configuration.")]
+    timeout_seconds: Option<u64>,
 }
 
 pub struct Resolved {
@@ -82,22 +87,38 @@ pub struct Resolved {
 /* === Implementations === */
 
 impl Args {
+    pub fn with_settings(mut self, settings: dokime_domain::model::settings::application::ClientPreferences) -> Self {
+        self.settings = settings;
+        self
+    }
+
+    pub fn settings(&self) -> &dokime_domain::model::settings::application::ClientPreferences {
+        &self.settings
+    }
+
     pub fn resolve(&self) -> crate::client_error::Result<Resolved> {
-        let environment = read_environment(self.env_file.as_deref())?;
+        self.settings.validate().map_err(crate::client_error::Error::Input)?;
+        let timeout = self.timeout();
+        if timeout > Duration::from_millis(MAXIMUM_TIMEOUT_MS) || std::time::Instant::now().checked_add(timeout).is_none() {
+            return Err(crate::client_error::Error::Input(
+                "connection deadline exceeds the configured maximum or native clock range".into(),
+            ));
+        }
+        let environment = read_environment(self.env_file.as_deref(), ENVIRONMENT_BYTES as usize)?;
         let token = read_key(self.key_file.as_deref(), &environment)?;
         if let Some(endpoint) = &self.endpoint {
             let ca = self
                 .ca
                 .as_deref()
                 .map(|path| {
-                    let bytes = harmos::filesystem::input::read(path, 1024 * 1024)?;
+                    let bytes = harmos::filesystem::input::read(path, CA_BYTES as usize)?;
                     String::from_utf8(bytes).map_err(|_| crate::client_error::Error::Input("CA certificate must be UTF-8 PEM".into()))
                 })
                 .transpose()?;
             return Ok(Resolved {
                 selection: Selection {
                     name: None,
-                    target: Target::new(endpoint, ca)?,
+                    target: Target::new(endpoint, ca)?.with_settings(self.settings),
                     expected_backend_id: self.expected_backend.clone(),
                     secret: Secret::None,
                 },
@@ -108,7 +129,9 @@ impl Args {
         let environment =
             if self.backend.is_some() { None } else { environment_value("DOKIME_BACKEND", &environment)?.map(|value| value.to_string()) };
         let store = Store::discover(self.profiles_file.as_deref())?;
-        let selection = store.load()?.select(self.backend.as_deref(), None, environment.as_deref())?;
+        let document = store.load()?;
+        let mut selection = dokime_client::profiles::select(&document, self.backend.as_deref(), None, environment.as_deref())?;
+        selection.target = selection.target.with_settings(self.settings);
         Ok(Resolved { selection, store: Some(store), token })
     }
 
@@ -117,7 +140,7 @@ impl Args {
     }
 
     pub fn timeout(&self) -> Duration {
-        Duration::from_secs(self.timeout_seconds)
+        self.timeout_seconds.map(Duration::from_secs).unwrap_or_else(|| Duration::from_millis(self.settings.request_timeout_ms))
     }
 
     pub async fn connect_selected(&self, resolved: &Resolved, mut token: Option<Zeroizing<String>>) -> crate::client_error::Result<Client> {
@@ -167,9 +190,9 @@ where
 
 /* === Private Functions === */
 
-fn read_environment(path: Option<&Path>) -> crate::client_error::Result<BTreeMap<String, Zeroizing<String>>> {
+fn read_environment(path: Option<&Path>, maximum: usize) -> crate::client_error::Result<BTreeMap<String, Zeroizing<String>>> {
     let Some(path) = path else { return Ok(BTreeMap::new()) };
-    let bytes = Zeroizing::new(harmos::filesystem::input::read(path, ENVIRONMENT_BYTES)?);
+    let bytes = Zeroizing::new(harmos::filesystem::input::read(path, maximum)?);
     if bytes.contains(&0) {
         return Err(crate::client_error::Error::Input("The selected dotenv file contains an invalid entry.".into()));
     }
@@ -232,7 +255,7 @@ mod tests {
         let path = root.path().join("selected.env");
         for case in cases {
             std::fs::write(&path, case.document).unwrap();
-            let result = read_environment(Some(&path));
+            let result = read_environment(Some(&path), 64 * 1024);
             assert_eq!(result.is_ok(), case.valid, "{}", case.name);
             match result {
                 Ok(values) => assert_eq!(values.get("DOKIME_KEY").map(|key| key.to_string()), case.key),
@@ -252,6 +275,7 @@ mod tests {
         assert_eq!(read_key(Some(&key_file), &fallback).unwrap().as_deref().map(String::as_str), Some(key.as_str()));
         std::fs::write(&env_file, "invalid private entry").unwrap();
         let args = Args {
+            settings: Default::default(),
             endpoint: Some("http://127.0.0.1:1".into()),
             backend: None,
             profiles_file: None,
@@ -259,7 +283,7 @@ mod tests {
             env_file: Some(env_file),
             ca: None,
             expected_backend: None,
-            timeout_seconds: 1,
+            timeout_seconds: Some(1),
         };
         let error = args.resolve().err().expect("bad explicit dotenv cannot be hidden by a valid key file");
         assert!(!format!("{error:?}").contains("private"));
@@ -268,7 +292,7 @@ mod tests {
             assert!(read_key(Some(&key_file), &fallback).is_err());
         }
         assert!(read_key(Some(&root.path().join("missing.key")), &fallback).is_err());
-        assert!(read_environment(Some(root.path())).is_err());
+        assert!(read_environment(Some(root.path()), 64 * 1024).is_err());
     }
 
     #[test]

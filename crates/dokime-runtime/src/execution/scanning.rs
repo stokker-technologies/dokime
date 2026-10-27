@@ -28,8 +28,6 @@ use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock};
 
 /* === Constants === */
 
-const SCAN_INTERVAL: Duration = Duration::from_millis(100);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -50,6 +48,7 @@ pub(super) struct Scanning {
 /* === Public Functions === */
 
 pub(super) fn start(artifacts: Artifacts, executions: &Executions, token: &str, tasks: &Tasks) -> Scanning {
+    let interval = Duration::from_millis(100);
     let (stop, mut listener) = watch::channel(false);
     let (completed, completion) = oneshot::channel();
     let owner = Arc::clone(executions);
@@ -61,7 +60,7 @@ pub(super) fn start(artifacts: Artifacts, executions: &Executions, token: &str, 
             tokio::select! {
                 biased;
                 _ = listener.wait_for(|stopped| *stopped) => break,
-                _ = tokio::time::sleep(SCAN_INTERVAL) => {}
+                _ = tokio::time::sleep(interval) => {}
             }
             let notes = scan_blocking(&artifacts).await;
             report(&owner, &owned, notes);

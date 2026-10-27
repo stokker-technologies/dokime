@@ -22,7 +22,6 @@ pub use case_materialization::CaseMaterializationError;
 pub use case_materialization::CaseMaterializationOptions;
 pub use case_materialization::CaseMaterializationOutput;
 pub use case_materialization::CaseMaterializationSelection;
-pub use case_materialization::DEFAULT_MATERIALIZED_CASE_CAP;
 pub use case_materialization::materialize_template_cases;
 pub use conditions::RuntimeCondition;
 pub use conditions::RuntimeConditionEvaluation;

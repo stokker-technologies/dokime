@@ -24,6 +24,8 @@ use dokime::domain::operations::planning::MaterializeTemplate;
 
 /* === Constants === */
 
+const INPUT_BYTES: u64 = 16_777_216;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -58,13 +60,14 @@ enum Input {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
+pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
     // === Read Request === //
 
     let mut input = args.input;
     let input = match input.input_file.take() {
         Some(path) => {
-            let bytes = dokime::harmos::filesystem::input::read(&path, 16 * 1024 * 1024)?;
+            let bytes = dokime::harmos::filesystem::input::read(&path, INPUT_BYTES as usize)?;
             let request = serde_json::from_slice::<MaterializeTemplate>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?;
             if request.selection.is_none() {

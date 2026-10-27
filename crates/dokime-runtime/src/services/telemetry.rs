@@ -17,12 +17,13 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 // Third Party Imports
 use harmos::{services::Fault, services::Resident, services::Service};
 use tokio::sync::{Mutex, RwLock};
+use tokio::time::Instant;
 
 // Local Imports
 use crate::app::Dokime;
@@ -37,10 +38,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
-const DEFAULT_INTERVAL: Duration = Duration::from_secs(1);
-const POLL_INTERVAL: Duration = Duration::from_millis(25);
-const IDLE_GRACE: Duration = Duration::from_secs(2);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -49,25 +46,37 @@ pub type SettlementError = Box<dyn std::error::Error + Send + Sync>;
 
 /* === Structs === */
 
+struct ReceiptDetail<'a> {
+    receipt: &'a crate::evidence_runtime::PublishReceipt,
+    expected: u64,
+}
+
 #[derive(Clone)]
 pub(crate) struct Sampling {
-    state: Arc<Mutex<SamplingState>>,
+    state: Arc<std::sync::Mutex<SamplingState>>,
     publish_gate: Arc<RwLock<()>>,
     fence_changed: Arc<tokio::sync::Notify>,
-    poll_interval: Duration,
     idle_grace: Duration,
 }
 
 #[derive(Default)]
 struct SamplingState {
     producers: BTreeMap<String, ProducerEntry>,
-    closing_executions: BTreeSet<TestExecutionId>,
-    fencing_executions: BTreeSet<TestExecutionId>,
+    execution_fences: BTreeMap<TestExecutionId, ExecutionFence>,
+}
+
+#[derive(Default)]
+struct ExecutionFence {
+    permanent: bool,
+    scopes: usize,
+    closed: usize,
 }
 
 pub(crate) struct SamplingQuiescence {
-    lease_ids: Vec<String>,
+    sampling: Sampling,
     execution_ids: BTreeSet<TestExecutionId>,
+    closed: bool,
+    released: std::sync::atomic::AtomicBool,
     publish: std::sync::Mutex<Option<tokio::sync::OwnedRwLockWriteGuard<()>>>,
 }
 
@@ -136,6 +145,8 @@ struct SamplingBorrow<'a> {
 
 #[derive(Debug, thiserror::Error)]
 enum ProduceError {
+    #[error("sampling preferences could not be read: {0}")]
+    Preferences(#[from] crate::runtime::Error),
     #[error("sampling source `{producer_key}` failed to open: {message}")]
     SourceOpen { producer_key: String, message: String },
 
@@ -150,8 +161,14 @@ enum ProduceError {
         source: SettlementError,
     },
 
-    #[error("sampling destination for lease `{lease_id}` rejected a batch: {message}")]
-    Destination { lease_id: String, message: String },
+    #[error("sampling destination for lease `{lease_id}` rejected a batch: {}", receipt_detail(.receipt, *.expected))]
+    Destination {
+        lease_id: String,
+        expected: u64,
+        receipt: harmos::storage::ReadBatch<crate::evidence_runtime::PublishReceipt>,
+        #[source]
+        source: Option<Box<crate::runtime::Error>>,
+    },
 
     #[error("sampling destination for lease `{lease_id}` refused before row commit: {source}")]
     DestinationRefused {
@@ -188,16 +205,55 @@ pub trait Sampler: Send + Sync + 'static {
 pub trait SamplerSession: Send {
     fn tick(&mut self, at: Timestamp, streams: &[String]);
 
+    // Register Collection Completion And Timeout Wakes Without Borrowing Across A Wait.
+    fn poll_ready(&mut self, context: &mut std::task::Context<'_>) -> std::task::Poll<()>;
+
     fn collected(&mut self) -> std::result::Result<Vec<TelemetryBatch>, String>;
 
     fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>>;
 
-    // A stopping runtime keeps what was collected and stops waiting for
-    // collections still in flight; their rows would postdate the stop.
+    // Request Cancellation Without Releasing The Original Collection Owner.
     fn abandon(&mut self) {}
 }
 
 /* === Implementations === */
+
+impl SamplingQuiescence {
+    fn release(&self) {
+        if self.released.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            return;
+        }
+        let mut state = self.sampling.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        for execution in &self.execution_ids {
+            let Some(fence) = state.execution_fences.get_mut(execution) else {
+                continue;
+            };
+            fence.scopes -= 1;
+            fence.closed -= usize::from(self.closed);
+            if !fence.permanent && fence.scopes == 0 {
+                state.execution_fences.remove(execution);
+            }
+        }
+        drop(state);
+        self.publish.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
+        self.sampling.fence_changed.notify_waiters();
+    }
+}
+
+impl Drop for SamplingQuiescence {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
+impl std::fmt::Display for ReceiptDetail<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.receipt.message.as_deref() {
+            Some(message) => formatter.write_str(message),
+            None => write!(formatter, "capture accepted {} of {} original rows", self.receipt.accepted, self.expected),
+        }
+    }
+}
 
 impl CapturedSamples {
     fn new(scope: &RecordScope, mut batch: TelemetryBatch) -> Self {
@@ -321,6 +377,27 @@ impl SamplingSession {
             available.await;
         }
     }
+
+    async fn ready(&self) {
+        let mut available = Box::pin(self.available.notified());
+        std::future::poll_fn(|context| {
+            loop {
+                available.as_mut().enable();
+                let ready = {
+                    let mut slot = self.owner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                    slot.as_mut().and_then(|owner| owner.source.as_mut()).is_some_and(|source| source.poll_ready(context).is_ready())
+                };
+                if ready {
+                    return std::task::Poll::Ready(());
+                }
+                if std::future::Future::poll(available.as_mut(), context).is_pending() {
+                    return std::task::Poll::Pending;
+                }
+                available = Box::pin(self.available.notified());
+            }
+        })
+        .await;
+    }
 }
 
 impl std::ops::Deref for SamplingBorrow<'_> {
@@ -364,14 +441,13 @@ impl<T> CaptureDemand<T> {
     }
 }
 
-impl Default for Sampling {
-    fn default() -> Self {
+impl Sampling {
+    pub(crate) fn new() -> Self {
         Self {
-            state: Arc::new(Mutex::new(SamplingState::default())),
+            state: Arc::new(std::sync::Mutex::new(SamplingState::default())),
             publish_gate: Arc::new(RwLock::new(())),
             fence_changed: Arc::new(tokio::sync::Notify::new()),
-            poll_interval: POLL_INTERVAL,
-            idle_grace: IDLE_GRACE,
+            idle_grace: Duration::from_secs(2),
         }
     }
 }
@@ -402,9 +478,10 @@ impl Sampling {
         if requests.is_empty() {
             return Ok(Vec::new());
         }
+        let preferences = runtime.read_application_settings().await?.settings.telemetry;
         let record_scope = record_scope_from_sampling_scope(&scope);
         let admission = {
-            let mut state = self.state.lock().await;
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             let producer = state.producers.entry(producer_key.clone()).or_insert_with(|| ProducerEntry {
                 admission: Arc::new(Mutex::new(())),
                 registered: false,
@@ -418,7 +495,7 @@ impl Sampling {
         let _admission = admission.lock().await;
         let service_name = producer_service_name(&producer_key);
         let activate = {
-            let mut state = self.state.lock().await;
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             let producer = state.producers.get_mut(&producer_key).expect("producer exists");
             if !producer.registered {
                 let key = producer_key.clone();
@@ -456,8 +533,8 @@ impl Sampling {
         // Admit The Whole Group
         // Until this lock is acquired, no capture demand is visible. Cancelled
         // waits leave generation settlement with the original service manager.
-        let mut state = self.state.lock().await;
-        if record_scope.test_execution_id.as_ref().is_some_and(|execution| state.fencing_executions.contains(execution)) {
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if record_scope.test_execution_id.as_ref().is_some_and(|execution| state.execution_fences.contains_key(execution)) {
             return Err(Error::Operation("execution sampling is closing".into()));
         }
         let producer = state.producers.get_mut(&producer_key).expect("producer exists");
@@ -474,7 +551,7 @@ impl Sampling {
                 lease_id.clone(),
                 CaptureDemand {
                     scope: record_scope.clone(),
-                    interval: sampling_interval(&request),
+                    interval: sampling_interval(&request, &preferences),
                     request: request.clone(),
                     next_due: Instant::now(),
                     paused: false,
@@ -489,12 +566,13 @@ impl Sampling {
             }
             return Err(error);
         }
+        self.fence_changed.notify_waiters();
         Ok(leases)
     }
 
     async fn stop(&self, runtime: &RuntimeHandle, lease_id: &str) -> Result<bool> {
         let target = {
-            let mut state = self.state.lock().await;
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             state.producers.iter_mut().find_map(|(key, producer)| {
                 let demand = producer.leases.get_mut(lease_id)?;
                 demand.closing = true;
@@ -504,17 +582,20 @@ impl Sampling {
         let Some((key, session)) = target else {
             return Ok(false);
         };
+        self.fence_changed.notify_waiters();
         let mut owner = session.borrow().await;
         owner.drain(runtime, &key).await.map_err(|source| Error::SamplingSettlement(Box::new(source)))?;
-        let mut state = self.state.lock().await;
-        Ok(state.producers.get_mut(&key).is_some_and(|producer| producer.leases.remove(lease_id).is_some()))
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let removed = state.producers.get_mut(&key).is_some_and(|producer| producer.leases.remove(lease_id).is_some());
+        self.fence_changed.notify_waiters();
+        Ok(removed)
     }
 
     pub(crate) async fn release_stream_lease(
         &self, runtime: &RuntimeHandle, leases: &crate::domains::telemetry::StreamLeases, lease_id: &str,
     ) -> Result<()> {
         let sessions = {
-            let mut state = self.state.lock().await;
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             let Some(captures) = leases.fence_release(lease_id) else {
                 return Ok(());
             };
@@ -533,11 +614,12 @@ impl Sampling {
             }
             sessions
         };
+        self.fence_changed.notify_waiters();
         for (key, session) in sessions {
             let mut owner = session.borrow().await;
             owner.drain(runtime, &key).await.map_err(|source| Error::SamplingSettlement(Box::new(source)))?;
         }
-        let mut state = self.state.lock().await;
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(released) = leases.release(lease_id) {
             for capture in released.captures {
                 for producer in state.producers.values_mut() {
@@ -545,77 +627,89 @@ impl Sampling {
                 }
             }
         }
+        self.fence_changed.notify_waiters();
         Ok(())
     }
 
-    async fn reconcile(&self, _runtime: &RuntimeHandle) {}
+    async fn reconcile(&self, _runtime: &RuntimeHandle) {
+        self.fence_changed.notify_waiters();
+    }
 
     pub(crate) async fn contains(&self, lease_id: &str) -> bool {
-        self.state.lock().await.producers.values().any(|producer| producer.leases.contains_key(lease_id))
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .producers
+            .values()
+            .any(|producer| producer.leases.contains_key(lease_id))
     }
 
     async fn quiesce_executions(&self, runtime: &RuntimeHandle, execution_ids: &BTreeSet<TestExecutionId>) -> Result<SamplingQuiescence> {
         // Fence Tick Admission Before Borrowing Any Physical Owner.
-        let (quiesced, sessions) = {
-            let mut state = self.state.lock().await;
-            state.fencing_executions.extend(execution_ids.iter().cloned());
-            let mut quiesced = Vec::new();
+        let mut quiescence = SamplingQuiescence {
+            sampling: self.clone(),
+            execution_ids: execution_ids.clone(),
+            closed: false,
+            released: std::sync::atomic::AtomicBool::new(false),
+            publish: std::sync::Mutex::new(None),
+        };
+        let sessions = {
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            for execution in execution_ids {
+                state.execution_fences.entry(execution.clone()).or_default().scopes += 1;
+            }
             let mut sessions = Vec::new();
             for (key, producer) in &mut state.producers {
-                let mut affected = false;
-                for (lease_id, demand) in &mut producer.leases {
-                    if demand.scope.test_execution_id.as_ref().is_some_and(|id| execution_ids.contains(id)) {
-                        demand.closing = true;
-                        quiesced.push(lease_id.clone());
-                        affected = true;
-                    }
-                }
+                let affected = producer
+                    .leases
+                    .values()
+                    .any(|demand| demand.scope.test_execution_id.as_ref().is_some_and(|id| execution_ids.contains(id)));
                 if affected {
                     sessions.push((key.clone(), Arc::clone(&producer.session)));
                 }
             }
-            (quiesced, sessions)
+            sessions
         };
         // Drain The Same Original Collectors And Their Actual Write Receipts.
+        self.fence_changed.notify_waiters();
         for (key, session) in sessions {
             let mut owner = session.borrow().await;
             owner.drain(runtime, &key).await.map_err(|source| Error::SamplingSettlement(Box::new(source)))?;
         }
         // Capture Closure Begins Only After Materialized Rows Were Accounted For.
         let publish = Arc::clone(&self.publish_gate).write_owned().await;
-        self.state.lock().await.closing_executions.extend(execution_ids.iter().cloned());
-        Ok(SamplingQuiescence { lease_ids: quiesced, execution_ids: execution_ids.clone(), publish: std::sync::Mutex::new(Some(publish)) })
+        {
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            for execution in execution_ids {
+                state.execution_fences.get_mut(execution).expect("the quiescence owns its fence").closed += 1;
+            }
+            quiescence.closed = true;
+        }
+        *quiescence.publish.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(publish);
+        self.fence_changed.notify_waiters();
+        Ok(quiescence)
     }
 
     async fn release_quiescence(&self, quiescence: &SamplingQuiescence) {
-        let lease_ids = quiescence.lease_ids.iter().collect::<BTreeSet<_>>();
-        let mut state = self.state.lock().await;
-        for execution_id in &quiescence.execution_ids {
-            state.closing_executions.remove(execution_id);
-            state.fencing_executions.remove(execution_id);
-        }
-        for producer in state.producers.values_mut() {
-            for (lease_id, demand) in &mut producer.leases {
-                if lease_ids.contains(lease_id) {
-                    demand.closing = false;
-                }
-            }
-        }
-        drop(state);
-        // Reopen publication only after closing state and capture demand agree.
-        quiescence.publish.lock().unwrap_or_else(|error| error.into_inner()).take();
+        quiescence.release();
     }
 
     pub(crate) async fn fence_executions(&self, ids: &[TestExecutionId]) {
-        let mut state = self.state.lock().await;
-        state.fencing_executions.extend(ids.iter().cloned());
-        state.closing_executions.extend(ids.iter().cloned());
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        for id in ids {
+            state.execution_fences.entry(id.clone()).or_default().permanent = true;
+        }
         drop(state);
         self.fence_changed.notify_waiters();
     }
 
     pub(crate) async fn measurement_closed(&self, execution: &str) -> bool {
-        self.state.lock().await.closing_executions.iter().any(|id| id.as_str() == execution)
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .execution_fences
+            .iter()
+            .any(|(id, fence)| id.as_str() == execution && (fence.permanent || fence.closed > 0))
     }
 
     pub(crate) async fn wait_measurement_closed(&self, execution: &str) {
@@ -635,23 +729,50 @@ impl Sampling {
     }
 
     pub(crate) async fn closing_executions(&self) -> BTreeSet<TestExecutionId> {
-        self.state.lock().await.closing_executions.clone()
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .execution_fences
+            .iter()
+            .filter(|(_, fence)| fence.permanent || fence.closed > 0)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    pub(crate) async fn retain_open_samples(&self, batch: &mut crate::telemetry::TelemetryBatch) -> u64 {
+        let state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let before = batch.samples.len();
+        batch.samples.retain(|sample| {
+            sample
+                .scope
+                .as_ref()
+                .and_then(|scope| scope.test_execution_id.as_ref())
+                .is_none_or(|id| state.execution_fences.get(id).is_none_or(|fence| !fence.permanent && fence.closed == 0))
+        });
+        (before - batch.samples.len()) as u64
     }
 
     async fn snapshot(&self, key: &str) -> Option<(Arc<dyn Sampler>, Vec<(String, CaptureDemand)>)> {
-        self.state
-            .lock()
-            .await
-            .producers
-            .get(key)
-            .map(|producer| (producer.sampler.clone(), producer.leases.iter().map(|(id, demand)| (id.clone(), demand.clone())).collect()))
+        let state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.producers.get(key).map(|producer| {
+            let leases = producer
+                .leases
+                .iter()
+                .map(|(id, demand)| {
+                    let mut demand = demand.clone();
+                    demand.closing |= demand.scope.test_execution_id.as_ref().is_some_and(|id| state.execution_fences.contains_key(id));
+                    (id.clone(), demand)
+                })
+                .collect();
+            (producer.sampler.clone(), leases)
+        })
     }
 
     async fn remove_stopped(&self, key: &str, leases: &[String]) {
         if leases.is_empty() {
             return;
         }
-        let mut state = self.state.lock().await;
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(producer) = state.producers.get_mut(key) {
             for lease in leases {
                 if let Some(demand) = producer.leases.get_mut(lease) {
@@ -662,40 +783,49 @@ impl Sampling {
     }
 
     async fn admit_tick(
-        &self, key: &str, runnable: &[(String, CaptureDemand)], source: &mut dyn SamplerSession, owed: &mut BTreeMap<String, CaptureDemand>,
-    ) {
-        let mut state = self.state.lock().await;
-        let Some(producer) = state.producers.get_mut(key) else {
-            return;
+        &self, key: &str, runnable: &[(String, CaptureDemand)], source: &mut dyn SamplerSession,
+        owed: &mut BTreeMap<String, CaptureDemand>, preferences: &dokime_domain::model::settings::application::TelemetryPreferences,
+    ) -> Option<Instant> {
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let SamplingState { producers, execution_fences } = &mut *state;
+        let producer = producers.get_mut(key)?;
+        let open = |demand: &CaptureDemand| {
+            !demand.closing && demand.scope.test_execution_id.as_ref().is_none_or(|id| !execution_fences.contains_key(id))
         };
         let now = Instant::now();
         let due = producer
             .leases
             .iter()
-            .filter(|(lease_id, demand)| !demand.closing && demand.next_due <= now && runnable.iter().any(|(id, _)| id == *lease_id))
+            .filter(|(lease_id, demand)| open(demand) && demand.next_due <= now && runnable.iter().any(|(id, _)| id == *lease_id))
             .map(|(lease_id, _)| lease_id.clone())
             .collect::<Vec<_>>();
-        if due.is_empty() {
-            return;
-        }
         let mut streams = Vec::new();
         for lease_id in due {
             let demand = producer.leases.get_mut(&lease_id).expect("the due capture is retained");
             streams.push(demand.request.stream.clone());
             owed.entry(lease_id).or_insert_with(|| demand.clone());
+            demand.interval = sampling_interval(&demand.request, preferences);
             demand.next_due += demand.interval;
         }
         streams.sort();
         streams.dedup();
         // Tick Is Nonblocking; The Short Registry Borrow Linearizes It With Fencing.
-        source.tick(crate::model::time::now_utc(), &streams);
+        if !streams.is_empty() {
+            source.tick(crate::model::time::now_utc(), &streams);
+        }
+        producer
+            .leases
+            .iter()
+            .filter(|(lease_id, demand)| open(demand) && runnable.iter().any(|(id, _)| id == *lease_id))
+            .map(|(_, demand)| demand.next_due)
+            .min()
     }
 
     async fn update_phase_transitions(&self, key: &str, paused: &[String], resumed: &[String], now: Instant) {
         if paused.is_empty() && resumed.is_empty() {
             return;
         }
-        let mut state = self.state.lock().await;
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let Some(producer) = state.producers.get_mut(key) else {
             return;
         };
@@ -715,88 +845,116 @@ impl Sampling {
         &self, mut context: Service<Dokime>, runtime: &RuntimeHandle, key: &str, session: &SamplingSession,
     ) -> std::result::Result<(), ProduceError> {
         let mut idle_since: Option<Instant> = None;
-
-        while !context.rest(self.poll_interval).await {
-            let mut owner = session.borrow().await;
-            owner.publish_returned(runtime).await?;
-            if let Some(source) = owner.source.as_mut() {
-                let batches = collect_samples(key, source.as_mut())?;
-                if !batches.is_empty() {
-                    owner.returned = Some(CollectedSamples { batches, next: 0, accounted: 0, received_at: crate::model::time::now_utc() });
-                    owner.publish_returned(runtime).await?;
+        let mut state_changes = runtime.state_watch.subscribe();
+        while !context.is_stopping() {
+            let changed = self.fence_changed.notified();
+            tokio::pin!(changed);
+            changed.as_mut().enable();
+            let next_due = self.advance(&mut context, runtime, key, session, &mut idle_since).await?;
+            let waiting = async {
+                tokio::select! {
+                    () = &mut changed => true,
+                    result = state_changes.changed() => result.is_ok(),
+                    () = session.ready() => true,
+                    () = async {
+                        match next_due {
+                            Some(deadline) => tokio::time::sleep_until(deadline).await,
+                            None => std::future::pending().await,
+                        }
+                    } => true,
                 }
-            }
-            let Some((sampler, leases)) = self.snapshot(key).await else {
-                owner.settle(runtime, key).await?;
-                continue;
             };
-            let mut runnable = Vec::new();
-            let mut paused = Vec::new();
-            let mut resumed = Vec::new();
-            let mut stopped = Vec::new();
-            let phase_now = Instant::now();
-            let state = runtime.state_read();
-            for (lease_id, mut demand) in leases {
-                let phase = sampling_phase_state(&state, &demand.scope, demand.request.start_after.as_deref());
-                if phase == SamplingPhaseState::Stopped {
-                    stopped.push(lease_id);
-                    continue;
-                }
-                if demand.closing {
-                    continue;
-                }
-                match phase {
-                    SamplingPhaseState::Running if demand.paused => {
-                        resumed.push(lease_id.clone());
-                        demand.paused = false;
-                        demand.next_due = phase_now + demand.interval;
-                        runnable.push((lease_id, demand));
-                    }
-                    SamplingPhaseState::Running => runnable.push((lease_id, demand)),
-                    SamplingPhaseState::Paused if !demand.paused => paused.push(lease_id),
-                    SamplingPhaseState::Paused => {}
-                    SamplingPhaseState::Stopped => unreachable!("stopped leases handled above"),
-                }
+            if context.until_stopping(waiting).await != Some(true) {
+                break;
             }
-            self.update_phase_transitions(key, &paused, &resumed, phase_now).await;
-            self.remove_stopped(key, &stopped).await;
-            if !stopped.is_empty() {
-                // Keep Each Closing Demand Until Its Original Tick Debt Is Drained.
-                owner.drain(runtime, key).await?;
-                let mut state = self.state.lock().await;
-                if let Some(producer) = state.producers.get_mut(key) {
-                    for lease in &stopped {
-                        producer.leases.remove(lease);
-                    }
-                }
-            }
+        }
+        Ok(())
+    }
 
-            if runnable.is_empty() {
-                let since = idle_since.get_or_insert_with(Instant::now);
-                if since.elapsed() >= self.idle_grace {
-                    owner.settle(runtime, key).await?;
-                }
-                continue;
-            }
-            idle_since = None;
-
-            let SamplingOwner { source: session, owed, .. } = &mut *owner;
-            if session.is_none() {
-                *session = Some(open_sampler(key, sampler.as_ref())?);
-                context.ready();
-            }
-
-            let session = session.as_mut().expect("sampling session is open");
-            self.admit_tick(key, &runnable, session.as_mut(), owed).await;
-
-            let batches = collect_samples(key, session.as_mut())?;
+    async fn advance(
+        &self, context: &mut Service<Dokime>, runtime: &RuntimeHandle, key: &str, session: &SamplingSession,
+        idle_since: &mut Option<Instant>,
+    ) -> std::result::Result<Option<Instant>, ProduceError> {
+        let mut owner = session.borrow().await;
+        owner.publish_returned(runtime).await?;
+        if let Some(source) = owner.source.as_mut() {
+            let batches = collect_samples(key, source.as_mut())?;
             if !batches.is_empty() {
                 owner.returned = Some(CollectedSamples { batches, next: 0, accounted: 0, received_at: crate::model::time::now_utc() });
                 owner.publish_returned(runtime).await?;
             }
         }
+        let Some((sampler, leases)) = self.snapshot(key).await else {
+            owner.settle(runtime, key).await?;
+            return Ok(None);
+        };
+        let mut runnable = Vec::new();
+        let mut paused = Vec::new();
+        let mut resumed = Vec::new();
+        let mut stopped = Vec::new();
+        let phase_now = Instant::now();
+        let state = runtime.state_read();
+        for (lease_id, mut demand) in leases {
+            let phase = sampling_phase_state(&state, &demand.scope, demand.request.start_after.as_deref());
+            if phase == SamplingPhaseState::Stopped {
+                stopped.push(lease_id);
+                continue;
+            }
+            if demand.closing {
+                continue;
+            }
+            match phase {
+                SamplingPhaseState::Running if demand.paused => {
+                    resumed.push(lease_id.clone());
+                    demand.paused = false;
+                    demand.next_due = phase_now + demand.interval;
+                    runnable.push((lease_id, demand));
+                }
+                SamplingPhaseState::Running => runnable.push((lease_id, demand)),
+                SamplingPhaseState::Paused if !demand.paused => paused.push(lease_id),
+                SamplingPhaseState::Paused => {}
+                SamplingPhaseState::Stopped => unreachable!("stopped leases handled above"),
+            }
+        }
+        self.update_phase_transitions(key, &paused, &resumed, phase_now).await;
+        self.remove_stopped(key, &stopped).await;
+        if !stopped.is_empty() {
+            // Keep Each Closing Demand Until Its Original Tick Debt Is Drained.
+            owner.drain(runtime, key).await?;
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(producer) = state.producers.get_mut(key) {
+                for lease in &stopped {
+                    producer.leases.remove(lease);
+                }
+            }
+        }
 
-        Ok(())
+        if runnable.is_empty() {
+            let since = idle_since.get_or_insert_with(Instant::now);
+            if since.elapsed() >= self.idle_grace {
+                owner.settle(runtime, key).await?;
+                return Ok(None);
+            }
+            return Ok(Some(*since + self.idle_grace));
+        }
+        *idle_since = None;
+
+        let SamplingOwner { source: session, owed, .. } = &mut *owner;
+        if session.is_none() {
+            *session = Some(open_sampler(key, sampler.as_ref())?);
+            context.ready();
+        }
+
+        let session = session.as_mut().expect("sampling session is open");
+        let preferences = runtime.read_application_settings().await?.settings.telemetry;
+        let next_due = self.admit_tick(key, &runnable, session.as_mut(), owed, &preferences).await;
+
+        let batches = collect_samples(key, session.as_mut())?;
+        if !batches.is_empty() {
+            owner.returned = Some(CollectedSamples { batches, next: 0, accounted: 0, received_at: crate::model::time::now_utc() });
+            owner.publish_returned(runtime).await?;
+        }
+        Ok(next_due)
     }
 }
 
@@ -873,8 +1031,11 @@ fn collect_samples(key: &str, session: &mut dyn SamplerSession) -> std::result::
     })
 }
 
-fn sampling_interval(request: &TelemetrySamplingRequest) -> Duration {
-    let requested = request.interval.map(|interval| Duration::from_millis(interval.0)).unwrap_or(DEFAULT_INTERVAL);
+fn sampling_interval(
+    request: &TelemetrySamplingRequest, settings: &dokime_domain::model::settings::application::TelemetryPreferences,
+) -> Duration {
+    let requested =
+        request.interval.map(|interval| Duration::from_millis(interval.0)).unwrap_or(Duration::from_millis(settings.interval_ms));
     let minimum = request.min_interval.map(|interval| Duration::from_millis(interval.0)).unwrap_or(Duration::ZERO);
     requested.max(minimum).max(Duration::from_millis(1))
 }
@@ -919,12 +1080,22 @@ async fn publish_to_capture(
         runtime.forward_lease_gap(&stream, &message).await;
         return Ok(());
     }
+    if let Some(source) = &publication.failure {
+        tracing::warn!(lease = lease_id, error = ?source, "telemetry capture was partially accepted");
+    }
     let receipt = publication.receipt;
     // Explicitly Discarded Stop Buffers Are Accounted For, Not Destination Failures.
     if receipt.accepted.checked_add(receipt.dropped) != Some(expected) || (receipt.dropped != 0 && !capture_stopped(runtime, scope).await) {
-        let message = receipt.message.unwrap_or_else(|| format!("capture accepted {} of {expected} original rows", receipt.accepted));
-        record_destination_failure(runtime, lease_id, scope, &message).await;
-        return Err(ProduceError::Destination { lease_id: lease_id.to_owned(), message });
+        match &publication.failure {
+            Some(source) => record_destination_failure(runtime, lease_id, scope, source).await,
+            None => record_destination_failure(runtime, lease_id, scope, &receipt_detail(&receipt, expected)).await,
+        }
+        return Err(ProduceError::Destination {
+            lease_id: lease_id.to_owned(),
+            expected,
+            receipt,
+            source: publication.failure.map(Box::new),
+        });
     }
     Ok(())
 }
@@ -950,7 +1121,13 @@ async fn capture_stopped(runtime: &RuntimeHandle, scope: &RecordScope) -> bool {
     runtime.sampling().closing_executions().await.contains(id) || runtime.state_read().report_finalizations.contains_key(id)
 }
 
-async fn record_destination_failure(runtime: &RuntimeHandle, lease_id: &str, scope: &RecordScope, message: &str) {
+fn receipt_detail(receipt: &crate::evidence_runtime::PublishReceipt, expected: u64) -> ReceiptDetail<'_> {
+    ReceiptDetail { receipt, expected }
+}
+
+async fn record_destination_failure(
+    runtime: &RuntimeHandle, lease_id: &str, scope: &RecordScope, message: &(impl std::fmt::Display + ?Sized),
+) {
     if let Err(error) = runtime
         .add_health_item(
             scope.clone(),
@@ -969,6 +1146,47 @@ async fn record_destination_failure(runtime: &RuntimeHandle, lease_id: &str, sco
 #[cfg(test)]
 mod destination_tests {
     use super::*;
+
+    #[test]
+    fn quiescence_preserves_owners() {
+        let sampling = Sampling::new();
+        let execution = TestExecutionId::from_seed("quiescent");
+        let rollback = TestExecutionId::from_seed("partial");
+        {
+            let mut state = sampling.state.lock().unwrap();
+            state.execution_fences.insert(execution.clone(), ExecutionFence { permanent: false, scopes: 2, closed: 1 });
+            state.execution_fences.insert(rollback.clone(), ExecutionFence { permanent: false, scopes: 1, closed: 0 });
+        }
+        let partial = SamplingQuiescence {
+            sampling: sampling.clone(),
+            execution_ids: BTreeSet::from([execution.clone(), rollback.clone()]),
+            closed: false,
+            released: std::sync::atomic::AtomicBool::new(false),
+            publish: std::sync::Mutex::new(None),
+        };
+        let closed = SamplingQuiescence {
+            sampling: sampling.clone(),
+            execution_ids: BTreeSet::from([execution.clone()]),
+            closed: true,
+            released: std::sync::atomic::AtomicBool::new(false),
+            publish: std::sync::Mutex::new(None),
+        };
+
+        drop(partial);
+        {
+            let mut state = sampling.state.lock().unwrap();
+            assert!(!state.execution_fences.contains_key(&rollback));
+            let fence = state.execution_fences.get_mut(&execution).unwrap();
+            assert_eq!((fence.scopes, fence.closed), (1, 1));
+            fence.permanent = true;
+        }
+        closed.release();
+        drop(closed);
+        let state = sampling.state.lock().unwrap();
+        let fence = &state.execution_fences[&execution];
+        assert!(fence.permanent);
+        assert_eq!((fence.scopes, fence.closed), (0, 0));
+    }
 
     #[test]
     fn only_transient_storage_failures_allow_fresh_collection() {

@@ -9,6 +9,8 @@
 
 /* === Modules === */
 
+mod wifi;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -28,8 +30,6 @@ use crate::document::PlotType;
 use crate::document::{FftDetrend, FftWindow, FrequencyLevelUnit};
 
 /* === Constants === */
-
-const WIFI_BANDS: [&str; 3] = ["2.4 GHz", "5 GHz", "6 GHz"];
 
 /* === Macros === */
 
@@ -170,12 +170,19 @@ pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -
             let total = boxes.iter().map(|summary| summary.count).sum();
             Some(PlotAnalysis::BoxSummary { series: boxes, total })
         }
-        PlotType::XyInterval => Some(PlotAnalysis::SigmaInterval { series: series.iter().map(|entry| interval(entry, request)).collect() }),
-        PlotType::WifiChannelOccupancy => Some(wifi_occupancy(series)),
+        PlotType::XyInterval => Some(match interval_analysis(series, request) {
+            Ok(analysis) => analysis,
+            Err(message) => PlotAnalysis::Error { message: message.into() },
+        }),
+        PlotType::WifiChannelOccupancy => Some(match wifi::analyze(series) {
+            Ok(analysis) => analysis,
+            Err(message) => PlotAnalysis::Error { message: message.into() },
+        }),
         _ => None,
     }
 }
 
+#[cfg(feature = "storage")]
 pub(super) fn summarize(series: &[PlotSeries], request: &PlotPayloadRequest) -> Vec<PlotSeriesSummary> {
     if !summarizes(request) {
         return Vec::new();
@@ -217,18 +224,6 @@ pub(super) fn summarizes(request: &PlotPayloadRequest) -> bool {
     request.analysis.is_none() && matches!(request.plot_type, Some(PlotType::TimeSeries | PlotType::XyScatter))
 }
 
-pub(super) fn reduce_spectrum(points: Vec<PlotPoint>, max_points: usize) -> (Vec<PlotPoint>, bool) {
-    if max_points == 0 || points.len() <= max_points {
-        return (points, false);
-    }
-    let magnitudes = points.iter().map(|point| point.y.filter(|value| value.is_finite()).unwrap_or(f64::NEG_INFINITY)).collect::<Vec<_>>();
-    let mut selected = harmos::signal::extrema(&magnitudes, (max_points / 2).max(1));
-    selected.sort_unstable();
-    selected.dedup();
-    let reduced = selected.into_iter().filter_map(|index| points.get(index).cloned()).collect();
-    (reduced, true)
-}
-
 pub(super) fn point_x(point: &PlotPoint) -> Option<f64> {
     point
         .x
@@ -244,90 +239,64 @@ pub(super) fn point_x(point: &PlotPoint) -> Option<f64> {
 
 #[cfg(feature = "fft")]
 pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Result<(), String> {
+    let (n, size, rate, scale) = match fft_input(entry, request) {
+        Ok(input) => input,
+        Err(error) => {
+            entry.points.clear();
+            return Err(error.to_owned());
+        }
+    };
     let options = &request.fft;
-    let scale = if matches!(options.level_unit, FrequencyLevelUnit::Dbu | FrequencyLevelUnit::Dbm) {
-        match entry.unit.as_deref() {
-            Some("V" | "volt" | "volts") => 1.0,
-            Some("mV") => 0.001,
-            _ => {
-                entry.points.clear();
-                return Err("dBu and dBm spectra require voltage samples in V or mV; dBm uses a 50-ohm load".into());
-            }
-        }
+    let mean = if matches!(options.detrend, FftDetrend::Mean) {
+        entry.points.iter().map(|point| point.y.expect("finite samples checked") * scale).sum::<f64>() / n as f64
     } else {
-        1.0
+        0.0
     };
-    let samples = values(entry).into_iter().map(|value| value * scale).collect::<Vec<_>>();
-    let n = samples.len();
-    let rate = options.sample_rate_hz.or_else(|| {
-        let origin = entry.points.first()?.x.as_str().and_then(parse_timestamp);
-        let times = entry
-            .points
-            .iter()
-            .map(|point| {
-                if let Some(origin) = origin {
-                    Some((parse_timestamp(point.x.as_str()?)? - origin).as_seconds_f64())
-                } else {
-                    point_x(point)
-                }
-            })
-            .collect::<Option<Vec<_>>>()?;
-        if times.len() != n || n < 2 {
-            return None;
-        }
-        let step = (times[n - 1] - times[0]) / (n - 1) as f64;
-        // A Fourier spectrum needs uniform sampling. Missing/irregular rows must not silently compress time.
-        if step <= 0.0 || times.windows(2).any(|pair| ((pair[1] - pair[0]) - step).abs() > step.abs() * 1e-4 + 1e-9) {
-            return None;
-        }
-        Some(1.0 / step)
-    });
-    let Some(rate) = rate.filter(|rate| rate.is_finite() && *rate > 0.0 && n >= 2 && n == entry.points.len()) else {
-        entry.points.clear();
-        return Err("FFT requires at least two finite samples and a positive sample rate or uniformly spaced timestamps".into());
-    };
-    let size = n.next_power_of_two();
-    let mean = if matches!(options.detrend, FftDetrend::Mean) { samples.iter().sum::<f64>() / n as f64 } else { 0.0 };
-    let mut windowed = vec![0.0; size];
+    let mut real = fft_buffer(size)?;
+    let mut imaginary = fft_buffer(size)?;
     let mut gain = 0.0;
-    for (index, sample) in samples.into_iter().enumerate() {
+    for (index, point) in entry.points.iter().enumerate() {
+        let sample = point.y.expect("finite samples checked") * scale;
         let weight = match options.window {
             FftWindow::Rectangular => 1.0,
             FftWindow::Hann => 0.5 * (1.0 - (std::f64::consts::TAU * index as f64 / n as f64).cos()),
         };
         gain += weight;
-        windowed[index] = (sample - mean) * weight;
+        real[index] = (sample - mean) * weight;
     }
-    // Window Before Padding; Preserve The Original Sample Coherent Gain.
-    let spectrum = harmos::signal::transform(&windowed, rate, harmos::signal::Taper::Rectangular);
-    entry.points = spectrum
-        .real
-        .iter()
-        .zip(&spectrum.imag)
-        .enumerate()
-        .take(size / 2 + 1)
-        .filter_map(|(index, (&real, &imaginary))| {
-            let frequency = index as f64 * rate / size as f64;
-            if (index == 0 && !options.include_dc)
-                || options.min_frequency_hz.is_some_and(|min| frequency < min)
-                || options.max_frequency_hz.is_some_and(|max| frequency > max)
-            {
-                return None;
-            }
-            let amplitude = real.hypot(imaginary) * size as f64 / gain;
-            let rms = if index == 0 || index == size / 2 { amplitude } else { amplitude / std::f64::consts::SQRT_2 };
-            let level = match options.level_unit {
-                FrequencyLevelUnit::Linear => amplitude,
-                FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
-                FrequencyLevelUnit::Dbu => 20.0 * (rms / 0.775).max(f64::MIN_POSITIVE).log10(),
-                // Voltage amplitude into the conventional 50-ohm reference load.
-                FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
-            };
-            Some(PlotPoint { x: frequency.into(), y: Some(level), z: None })
-        })
-        .collect();
+    // The synchronous analysis interface has no cancellation context. This preserves
+    // its existing uninterrupted execution; the kernel itself allocates no workspace.
+    harmos::signal::fft_in_place(&mut real, &mut imaginary, || true).map_err(|_| "FFT exceeds finite range".to_owned())?;
+    let bins = size / 2 + 1;
+    let selected_frequency = |index| fft_frequency(index, size, rate, request);
+    let count = (0..bins).filter_map(selected_frequency).count();
+    let mut points = Vec::new();
+    points.try_reserve_exact(count).map_err(|_| "FFT output allocation failed".to_owned())?;
+    for index in 0..bins {
+        let Some(frequency) = selected_frequency(index) else {
+            continue;
+        };
+        // Match transform's forward normalization before applying coherent gain.
+        let mut real = real[index] / size as f64 * 2.0;
+        let mut imaginary = imaginary[index] / size as f64 * 2.0;
+        if index == 0 || index == size / 2 {
+            real /= 2.0;
+            imaginary /= 2.0;
+        }
+        let amplitude = real.hypot(imaginary) * size as f64 / gain;
+        let rms = if index == 0 || index == size / 2 { amplitude } else { amplitude / std::f64::consts::SQRT_2 };
+        let level = match options.level_unit {
+            FrequencyLevelUnit::Linear => amplitude,
+            FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
+            FrequencyLevelUnit::Dbu => 20.0 * (rms / 0.775).max(f64::MIN_POSITIVE).log10(),
+            // Voltage amplitude into the conventional 50-ohm reference load.
+            FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
+        };
+        points.push(PlotPoint { x: frequency.into(), y: Some(level), z: None });
+    }
+    entry.points = points;
     entry.unit = match options.level_unit {
-        FrequencyLevelUnit::Linear => entry.unit.clone(),
+        FrequencyLevelUnit::Linear => entry.unit.take(),
         FrequencyLevelUnit::Db => Some("dB".into()),
         FrequencyLevelUnit::Dbu => Some("dBu".into()),
         FrequencyLevelUnit::Dbm => Some("dBm".into()),
@@ -342,6 +311,74 @@ pub(super) fn fft(entry: &mut PlotSeries, _: &PlotPayloadRequest) -> Result<(), 
 }
 
 /* === Private Functions === */
+
+#[cfg(feature = "fft")]
+fn fft_frequency(index: usize, size: usize, rate: f64, request: &PlotPayloadRequest) -> Option<f64> {
+    let frequency = index as f64 * rate / size as f64;
+    let options = &request.fft;
+    let omitted_dc = index == 0 && !options.include_dc;
+    let below = options.min_frequency_hz.is_some_and(|min| frequency < min);
+    let above = options.max_frequency_hz.is_some_and(|max| frequency > max);
+    (!omitted_dc && !below && !above).then_some(frequency)
+}
+
+#[cfg(feature = "fft")]
+fn fft_input(entry: &PlotSeries, request: &PlotPayloadRequest) -> Result<(usize, usize, f64, f64), &'static str> {
+    let options = &request.fft;
+    let scale = if matches!(options.level_unit, FrequencyLevelUnit::Dbu | FrequencyLevelUnit::Dbm) {
+        match entry.unit.as_deref() {
+            Some("V" | "volt" | "volts") => 1.0,
+            Some("mV") => 0.001,
+            _ => {
+                return Err("dBu and dBm spectra require voltage samples in V or mV; dBm uses a 50-ohm load");
+            }
+        }
+    } else {
+        1.0
+    };
+    let n = entry.points.len();
+    if entry.points.iter().any(|point| point.y.is_none_or(|value| !value.is_finite())) {
+        return Err("FFT requires finite samples without missing rows");
+    }
+    let rate = options.sample_rate_hz.or_else(|| {
+        let origin = entry.points.first()?.x.as_str().and_then(parse_timestamp);
+        let time = |point: &PlotPoint| {
+            if let Some(origin) = origin { Some((parse_timestamp(point.x.as_str()?)? - origin).as_seconds_f64()) } else { point_x(point) }
+        };
+        if n < 2 {
+            return None;
+        }
+        let first = time(entry.points.first()?)?;
+        let last = time(entry.points.last()?)?;
+        let step = (last - first) / (n - 1) as f64;
+        // Missing/irregular rows must not silently compress time.
+        if step <= 0.0 {
+            return None;
+        }
+        let mut previous = first;
+        for point in &entry.points[1..] {
+            let current = time(point)?;
+            if ((current - previous) - step).abs() > step.abs() * 1e-4 + 1e-9 {
+                return None;
+            }
+            previous = current;
+        }
+        Some(1.0 / step)
+    });
+    let Some(rate) = rate.filter(|rate| rate.is_finite() && *rate > 0.0 && n >= 2) else {
+        return Err("FFT requires at least two finite samples and a positive sample rate or uniformly spaced timestamps");
+    };
+    let size = n.checked_next_power_of_two().ok_or("FFT sample count exceeds addressable buffer size")?;
+    Ok((n, size, rate, scale))
+}
+
+#[cfg(feature = "fft")]
+fn fft_buffer(size: usize) -> Result<Vec<f64>, String> {
+    let mut buffer = Vec::new();
+    buffer.try_reserve_exact(size).map_err(|_| "FFT buffer allocation failed".to_owned())?;
+    buffer.resize(size, 0.0);
+    Ok(buffer)
+}
 
 fn values(entry: &PlotSeries) -> Vec<f64> {
     entry.points.iter().filter_map(|point| point.y.filter(|value| value.is_finite())).collect()
@@ -422,120 +459,218 @@ fn box_summary(entry: &PlotSeries) -> Option<BoxSummary> {
     })
 }
 
-fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
-    let options = &request.interval;
-    let mut groups = BTreeMap::<i64, Vec<f64>>::new();
-    if options.bin_width.is_finite() && options.bin_width > 0.0 && options.sigma.is_finite() && options.sigma > 0.0 {
-        for point in &entry.points {
-            if let (Some(x), Some(y)) = (point_x(point), point.y.filter(|value| value.is_finite())) {
-                groups.entry((x / options.bin_width).floor() as i64).or_default().push(y);
-            }
-        }
-    }
-    let bins: Vec<SigmaBin> = groups
-        .into_iter()
-        .map(|(index, values)| {
-            let count = values.len();
-            let summary = Summary::of(&values);
-            let mean = summary.mean().unwrap_or(0.0);
-            let sigma = summary.std().unwrap_or(0.0);
-            let mut lower = mean - options.sigma * sigma;
-            let mut upper = mean + options.sigma * sigma;
-            if options.clip_to_observed {
-                lower = lower.max(summary.min().unwrap_or(mean));
-                upper = upper.min(summary.max().unwrap_or(mean));
-            }
-            SigmaBin { x: (index as f64 + 0.5) * options.bin_width, count, mean, lower, upper }
-        })
-        .collect();
-    SigmaSeries { key: entry.key.clone(), raw_points: bins.iter().map(|bin| bin.count).sum(), bins }
-}
-
-fn wifi_occupancy(series: &[PlotSeries]) -> PlotAnalysis {
-    // Whole second -> (x as carried, channel -> largest reading).
-    let mut scans = BTreeMap::<i64, (String, BTreeMap<i64, usize>)>::new();
-    let mut channels = Vec::new();
+fn interval_analysis(series: &[PlotSeries], request: &PlotPayloadRequest) -> Result<PlotAnalysis, &'static str> {
+    let mut result = interval_slots(series.len())?;
     for entry in series {
-        let Some(channel) = series_channel(entry) else {
-            continue;
-        };
-        channels.push(channel);
-        for point in &entry.points {
-            let Some(second) = point_x(point).map(|x| x.floor() as i64) else {
-                continue;
-            };
-            let count = point.y.filter(|value| value.is_finite()).map_or(0, |value| value.round().max(0.0) as usize);
-            let time = point.x.as_str().map_or_else(|| point.x.to_string(), ToOwned::to_owned);
-            let (_, counts) = scans.entry(second).or_insert_with(|| (time, BTreeMap::new()));
-            let slot = counts.entry(channel).or_default();
-            *slot = (*slot).max(count);
+        result.push(interval(entry, request)?);
+    }
+    Ok(PlotAnalysis::SigmaInterval { series: result })
+}
+
+fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> Result<SigmaSeries, &'static str> {
+    let options = &request.interval;
+    let mut groups = BTreeMap::<i64, Summary>::new();
+    for (index, value) in interval_values(entry, request) {
+        groups.entry(index).or_default().push(value);
+    }
+    let mut bins = interval_slots(groups.len())?;
+    let mut raw_points = 0usize;
+    for (index, summary) in groups {
+        let count = usize::try_from(summary.count()).map_err(|_| "interval size overflows")?;
+        raw_points = raw_points.checked_add(count).ok_or("interval size overflows")?;
+        let mean = summary.mean().unwrap_or(0.0);
+        let sigma = summary.std().unwrap_or(0.0);
+        let mut lower = mean - options.sigma * sigma;
+        let mut upper = mean + options.sigma * sigma;
+        if options.clip_to_observed {
+            lower = lower.max(summary.min().unwrap_or(mean));
+            upper = upper.min(summary.max().unwrap_or(mean));
+        }
+        bins.push(SigmaBin { x: (index as f64 + 0.5) * options.bin_width, count, mean, lower, upper });
+    }
+    let mut key = String::new();
+    key.try_reserve_exact(entry.key.len()).map_err(|_| "interval allocation failed")?;
+    key.push_str(&entry.key);
+    Ok(SigmaSeries { key, raw_points, bins })
+}
+
+fn interval_values<'a>(entry: &'a PlotSeries, request: &'a PlotPayloadRequest) -> impl Iterator<Item = (i64, f64)> + 'a {
+    let options = &request.interval;
+    let valid = options.bin_width.is_finite() && options.bin_width > 0.0 && options.sigma.is_finite() && options.sigma > 0.0;
+    entry.points.iter().filter_map(move |point| {
+        if !valid {
+            return None;
+        }
+        let x = point_x(point)?;
+        let y = point.y.filter(|value| value.is_finite())?;
+        Some(((x / options.bin_width).floor() as i64, y))
+    })
+}
+
+fn interval_slots<T>(count: usize) -> Result<Vec<T>, &'static str> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|_| "interval allocation failed")?;
+    Ok(values)
+}
+
+#[cfg(feature = "storage")]
+#[cfg(feature = "storage")]
+/* === Tests === */
+#[cfg(all(test, feature = "fft"))]
+mod tests {
+    use super::*;
+
+    fn series(samples: &[f64]) -> PlotSeries {
+        PlotSeries {
+            key: "spectrum".into(),
+            label: "Spectrum".into(),
+            unit: Some("V".into()),
+            points: samples.iter().enumerate().map(|(index, &value)| PlotPoint { x: index.into(), y: Some(value), z: None }).collect(),
+            raw_points: samples.len(),
+            downsampled: false,
+            format: None,
         }
     }
-    channels.sort_unstable();
-    channels.dedup();
-    let mut occupied = scans
-        .values()
-        .flat_map(|(_, counts)| counts.iter())
-        .filter(|(_, count)| **count > 0)
-        .map(|(channel, _)| *channel)
-        .collect::<Vec<_>>();
-    occupied.sort_unstable();
-    occupied.dedup();
-    let bands = WIFI_BANDS
-        .iter()
-        .filter_map(|band| {
-            let occupied_channels = occupied.iter().filter(|channel| wifi_band(**channel) == Some(*band)).count();
-            (occupied_channels > 0).then(|| WifiBandWindow { band: (*band).to_owned(), occupied_channels })
-        })
-        .collect();
-    let scans = scans
-        .into_values()
-        .map(|(time, counts)| {
-            let (occupied_channels, total_networks, peak_count) = occupancy(counts.values());
-            WifiScan {
-                time,
-                bands: WIFI_BANDS
-                    .iter()
-                    .filter_map(|band| {
-                        let in_band = counts
-                            .iter()
-                            .filter(|(channel, _)| wifi_band(**channel) == Some(*band))
-                            .map(|(_, count)| count)
-                            .collect::<Vec<_>>();
-                        if in_band.is_empty() {
-                            return None;
-                        }
-                        let (occupied_channels, total_networks, peak_count) = occupancy(in_band.into_iter());
-                        Some(WifiBandScan { band: (*band).to_owned(), occupied_channels, total_networks, peak_count })
-                    })
-                    .collect(),
-                channels: counts.into_iter().map(|(channel, count)| WifiChannelCount { channel, count }).collect(),
-                occupied_channels,
-                total_networks,
-                peak_count,
+
+    fn request() -> PlotPayloadRequest {
+        let mut request = PlotPayloadRequest::default();
+        request.fft.window = FftWindow::Rectangular;
+        request.fft.detrend = FftDetrend::None;
+        request.fft.include_dc = true;
+        request.fft.level_unit = FrequencyLevelUnit::Linear;
+        request
+    }
+
+    fn assert_levels(series: &PlotSeries, expected: &[f64]) {
+        assert_eq!(series.points.len(), expected.len());
+        for (point, expected) in series.points.iter().zip(expected) {
+            assert!((point.y.unwrap() - expected).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn fft_forward_levels() {
+        // DC=2, interior cosine amplitude=3, Nyquist amplitude=4.
+        let mut input = series(&[9.0, -2.0, 3.0, -2.0]);
+        fft(&mut input, &request()).unwrap();
+        assert_levels(&input, &[2.0, 3.0, 4.0]);
+        assert_eq!(input.points.iter().map(|point| point.x.as_f64().unwrap()).collect::<Vec<_>>(), [0.0, 0.25, 0.5]);
+
+        let mut options = request();
+        options.fft.detrend = FftDetrend::Mean;
+        let mut input = series(&[9.0, -2.0, 3.0, -2.0]);
+        fft(&mut input, &options).unwrap();
+        assert_levels(&input, &[0.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn fft_hann_gain_before_padding() {
+        // Three original samples have weights [0, .75, .75], then pad to four.
+        let mut input = series(&[1.0, 1.0, 1.0]);
+        let mut options = request();
+        options.fft.window = FftWindow::Hann;
+        fft(&mut input, &options).unwrap();
+        assert_levels(&input, &[1.0, std::f64::consts::SQRT_2, 0.0]);
+    }
+
+    #[test]
+    fn fft_voltage_levels() {
+        for (unit, expected) in [
+            (FrequencyLevelUnit::Db, 0.0),
+            (FrequencyLevelUnit::Dbu, 20.0 * (1.0_f64 / 0.775).log10()),
+            (FrequencyLevelUnit::Dbm, 10.0 * (1.0_f64 / 0.05).log10()),
+        ] {
+            let mut input = series(&[1000.0; 4]);
+            input.unit = Some("mV".into());
+            let mut options = request();
+            options.fft.level_unit = unit;
+            options.fft.max_frequency_hz = Some(0.0);
+            // Plain dB preserves the original measurement unit.
+            if matches!(options.fft.level_unit, FrequencyLevelUnit::Db) {
+                input = series(&[1.0; 4]);
             }
-        })
-        .collect();
-    PlotAnalysis::WifiOccupancy { channels, occupied_channels: occupied, bands, scans }
-}
+            fft(&mut input, &options).unwrap();
+            assert_levels(&input, &[expected]);
+        }
+    }
 
-fn occupancy<'a>(counts: impl Iterator<Item = &'a usize>) -> (usize, usize, usize) {
-    counts.fold((0, 0, 0), |(occupied, total, peak), count| (occupied + usize::from(*count > 0), total + count, peak.max(*count)))
-}
+    #[test]
+    fn fft_rejects_missing_or_irregular_samples() {
+        let mut missing = series(&[1.0; 4]);
+        missing.points[1].y = None;
+        assert!(fft(&mut missing, &request()).is_err());
+        assert!(missing.points.is_empty());
 
-fn series_channel(entry: &PlotSeries) -> Option<i64> {
-    let channel =
-        |text: &str| text.trim().parse::<f64>().ok().filter(|value| value.is_finite() && value.fract() == 0.0).map(|value| value as i64);
-    channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))
-}
-
-fn wifi_band(channel: i64) -> Option<&'static str> {
-    match channel {
-        1..=14 => Some(WIFI_BANDS[0]),
-        32..=177 => Some(WIFI_BANDS[1]),
-        1_001..=1_233 if (channel - 1_000) % 4 == 1 => Some(WIFI_BANDS[2]),
-        _ => None,
+        let mut irregular = series(&[1.0; 4]);
+        irregular.points[1].x = 1.5.into();
+        assert!(fft(&mut irregular, &request()).is_err());
+        assert!(irregular.points.is_empty());
     }
 }
 
-/* === Tests === */
+#[cfg(test)]
+mod interval_tests {
+    use super::*;
+
+    fn input() -> PlotSeries {
+        PlotSeries {
+            key: "interval".into(),
+            label: "Interval".into(),
+            unit: None,
+            points: vec![
+                PlotPoint { x: (-0.1).into(), y: Some(1.0), z: None },
+                PlotPoint { x: 0.0.into(), y: Some(2.0), z: None },
+                PlotPoint { x: 0.9.into(), y: Some(4.0), z: None },
+                PlotPoint { x: 1.0.into(), y: Some(10.0), z: None },
+                PlotPoint { x: 2.0.into(), y: Some(f64::INFINITY), z: None },
+                PlotPoint { x: 3.0.into(), y: None, z: None },
+            ],
+            raw_points: 6,
+            downsampled: false,
+            format: None,
+        }
+    }
+
+    #[test]
+    fn interval_floor_and_finite_rows() {
+        let mut request = PlotPayloadRequest::default();
+        request.interval.bin_width = 1.0;
+        request.interval.sigma = 1.0;
+        request.interval.clip_to_observed = false;
+        let result = interval(&input(), &request).unwrap();
+        assert_eq!(result.raw_points, 4);
+        assert_eq!(
+            result.bins.iter().map(|bin| (bin.x, bin.count, bin.mean)).collect::<Vec<_>>(),
+            [(-0.5, 1, 1.0), (0.5, 2, 3.0), (1.5, 1, 10.0)]
+        );
+        assert_eq!((result.bins[1].lower, result.bins[1].upper), (2.0, 4.0));
+    }
+
+    #[test]
+    fn invalid_interval_options_keep_empty_bins() {
+        for invalid in [0.0, -1.0, f64::INFINITY, f64::NAN] {
+            let mut request = PlotPayloadRequest::default();
+            request.interval.bin_width = invalid;
+            let result = interval(&input(), &request).unwrap();
+            assert!(result.bins.is_empty());
+            assert_eq!(result.raw_points, 0);
+            request.interval.bin_width = 1.0;
+            request.interval.sigma = invalid;
+            let result = interval(&input(), &request).unwrap();
+            assert!(result.bins.is_empty());
+            assert_eq!(result.raw_points, 0);
+        }
+    }
+    #[test]
+    fn interval_rejects_transformed_z() {
+        let mut request = PlotPayloadRequest::default();
+        request.plot_type = Some(PlotType::XyInterval);
+        request.z_expression = Some(crate::expressions::DataExpression {
+            label: None,
+            source: crate::expressions::DataSource::Dimension { name: "dimension".into() },
+            transforms: vec![crate::expressions::DataTransform::PerCase],
+        });
+        let mut series = [input()];
+        assert!(matches!(analyze(&mut series, &request), Some(PlotAnalysis::Error { .. })));
+    }
+}

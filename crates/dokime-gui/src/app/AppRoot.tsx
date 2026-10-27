@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { router } from "@/app/router";
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopLaunch } from "@/lib/desktop/session";
+import { preferencesCommands } from "@/lib/desktop/settings";
 import { AppProviders } from "./AppProviders";
 import { ConnectionScreen } from "./native-session/ConnectionScreen";
 import { NativeSessionProvider } from "./native-session/NativeSessionProvider";
@@ -18,7 +19,7 @@ export function AppRoot() {
     let active = true;
     void commands
       .desktopSessionLaunch()
-      .then((configuration) => {
+      .then(async (configuration) => {
         if (!active) return;
         setLaunch(configuration);
         if (configuration.error) return;
@@ -31,8 +32,9 @@ export function AppRoot() {
               secrets: { kind: configuration.target.kind === "remote" ? "saved" : "none" },
             },
           });
-        } else if (configuration.localBackendAvailable) {
-          void owner.select({ kind: "owned_local" });
+        } else {
+          const backends = await preferencesCommands.desktopBackendsList();
+          if (active && backends.default) void owner.select({ kind: "profile", name: backends.default });
         }
       })
       .catch((error: unknown) => {

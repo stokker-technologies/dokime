@@ -34,7 +34,7 @@ pub use command::CommandContext;
 pub use cursor::PageCursor;
 pub use health::{HealthItem, HealthSeverity};
 pub use mode::{ExecutionMode, StepCommand};
-pub use notes::{NOTE_SCAN_LIMIT, NoteAdmission, NoteOwner, OperatorNote, OperatorNoteRequest, note_identity};
+pub use notes::{NoteAdmission, NoteOwner, OperatorNote, OperatorNoteRequest, note_identity};
 pub use request::{AttemptClaim, RunPhase, RunReceipt, RunSummary, StepCommandPhase, StepCommandReceipt};
 pub use result::{
     CriterionResult, CriterionStatus, CyclePhase, CycleStatus, CycleView, ExecutionInvalidation, ExecutionStatus, IllegalCycleTransition,

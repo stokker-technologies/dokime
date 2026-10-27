@@ -26,7 +26,7 @@ use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
 use dokime::domain::model;
 use dokime::domain::operations::backend;
-use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES};
+use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE};
 
 /* === Constants === */
 
@@ -200,9 +200,11 @@ async fn refuses_invalid_dispatch() {
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     for command in ["rpc", "rpc_stream_open"] {
-        for (bytes, kind) in
-            [(vec![], "invalid_request"), (vec![0; 40], "incompatible_descriptor"), (vec![0; MAX_FRAME_BYTES + 40 + 1], "limit_exceeded")]
-        {
+        for (bytes, kind) in [
+            (vec![], "invalid_request"),
+            (vec![0; 40], "incompatible_descriptor"),
+            (vec![0; 4_194_304 as usize + 40 + 1], "limit_exceeded"),
+        ] {
             assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
         }
         for path in [None, Some("dokime.v1.Backend/GetHealth"), Some("/a/b/c")] {
@@ -264,7 +266,7 @@ async fn unary_call_bridges() {
         panic!("a unary reply is raw bytes");
     };
     assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
-    let identity = model::backend::wire::BackendIdentity::from_wire(&reply[8..]).unwrap();
+    let (identity, _admitted_memory) = model::backend::wire::BackendIdentity::from_wire(&reply[8..]).unwrap();
     assert_eq!(identity.backend_id, fixture.session.status().backend.unwrap().backend_id);
     // A typed backend status crosses unchanged.
     let missing = bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path": "/dokime.v1.Missing/Call"}))
@@ -298,7 +300,8 @@ fn stages_large_bundle() {
     assert_eq!(frames.len(), 2, "one reply, then the final status");
     assert_eq!(frames[0][8], FRAME_MESSAGE);
     assert_eq!(frames[1][8], FRAME_END);
-    let installation = model::plugins::wire::PluginInstallation::from_wire(&frames[0][9..]).expect("the reply is a PluginInstallation");
+    let (installation, _admitted_memory) =
+        model::plugins::wire::PluginInstallation::from_wire(&frames[0][9..]).expect("the reply is a PluginInstallation");
     assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
     use tauri::Manager;
     harness.app.state::<Bridge>().cancel_owner("main");

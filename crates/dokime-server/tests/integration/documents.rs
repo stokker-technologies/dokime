@@ -236,6 +236,7 @@ async fn summary_complete_telemetry() {
     unrelated.values.insert("progress".into(), Value::Number(999.0));
     samples.push(unrelated.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: 999.0 })));
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), stream, samples)).await.unwrap();
+    let durable = handle.storage().flush().await.unwrap();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
@@ -255,8 +256,10 @@ async fn summary_complete_telemetry() {
         match frame.frame.unwrap() {
             Frame::Header(presentation) => {
                 let cut = presentation.frontiers.unwrap().telemetry.unwrap();
-                assert!(matches!(cut.source, Some(model::documents::wire::DocumentTelemetryCutSource::RetainedWindow(true))));
-                assert_eq!(cut.series_ordinal, None);
+                assert_eq!(cut.store, durable.history.store.as_str());
+                assert_eq!(cut.epoch, durable.history.epoch.as_str());
+                assert!(cut.position >= durable.sequence);
+                assert!(cut.position <= handle.storage().cursor_saved().sequence);
             }
             Frame::SummaryTile(value) => tile = value.value,
             Frame::Completion(_) => complete = true,

@@ -110,6 +110,10 @@ impl Sampler for CollectedQueue {
     }
 }
 impl SamplerSession for CollectedSession {
+    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<()> {
+        std::task::Poll::Pending
+    }
+
     fn tick(&mut self, _: Timestamp, _: &[String]) {
         if *self.state.queued.borrow() {
             return;

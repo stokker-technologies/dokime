@@ -17,27 +17,23 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{
-    MemorySize,
-    operations::{Context, Operation, Response, StreamOutput},
-};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 use tracing::Instrument;
 
 // Local Imports
-use crate::grpc::transcode::Transcode;
-use crate::trace::{Event, Journal, Scope, WATCH_SPAN};
+use crate::trace::{Event, Journal, Page, Scope, WATCH_SPAN};
 use dokime::RuntimeHandle;
+use dokime::domain::model::backend::wire::{LogFrameFieldsEntry, TraceBatch, TraceEvent};
 use dokime::domain::model::identity::wire::Timestamp;
 use dokime::domain::operations::backend as wire;
 
 /* === Constants === */
 
-const DEFAULT_EVENTS: usize = 256;
-const MAX_EVENTS: usize = 1024;
-const DEFAULT_BYTES: usize = 256 * 1024;
-const MIN_BYTES: usize = 32 * 1024;
-const BATCH_OVERHEAD: usize = 256;
+const SERVER_DEFAULT_TRACE_BYTES: u64 = 262_144;
+const SERVER_DEFAULT_TRACE_EVENTS: u64 = 256;
+const SERVER_MAXIMUM_TRACE_EVENTS: u64 = 1_024;
+const SERVER_MINIMUM_TRACE_BYTES: u64 = 32_768;
 
 /* === Macros === */
 
@@ -94,12 +90,13 @@ impl Watch {
         }
         let scope = scope(request.scope.as_ref())?;
         let min_level = request.min_level as i32;
-        let events = if request.max_events == 0 { DEFAULT_EVENTS } else { request.max_events as usize }.min(MAX_EVENTS);
+        let events = if request.max_events == 0 { SERVER_DEFAULT_TRACE_EVENTS } else { u64::from(request.max_events) }
+            .min(SERVER_MAXIMUM_TRACE_EVENTS);
+        let events = usize::try_from(events).expect("validated trace event count");
         let maximum = self.resources.maximum;
-        let bytes = if request.max_bytes == 0 { DEFAULT_BYTES } else { request.max_bytes as usize }.max(MIN_BYTES).min(maximum);
-        if bytes <= BATCH_OVERHEAD {
-            return Err(Status::resource_exhausted("trace message budget is too small"));
-        }
+        let bytes =
+            if request.max_bytes == 0 { SERVER_DEFAULT_TRACE_BYTES } else { u64::from(request.max_bytes) }.max(SERVER_MINIMUM_TRACE_BYTES);
+        let bytes = usize::try_from(bytes).expect("validated trace byte count").min(maximum);
         // Subscribe Before Reading So Capture Cannot Race The Follow Wait.
         let mut changes = journal.subscribe();
         let through = if request.follow { u64::MAX } else { journal.tail(&scope) };
@@ -109,31 +106,15 @@ impl Watch {
         loop {
             changes.borrow_and_update();
             let page = journal
-                .read_until(
-                    &scope,
-                    after,
-                    |event| level(event.level) as i32 >= min_level,
-                    events,
-                    // Account Conservatively For Cloned Wire Rows And Vector Capacity.
-                    bytes.saturating_sub(BATCH_OVERHEAD) / 4,
-                    through,
-                )
+                .read_until(&scope, after, |event| level(event.level) as i32 >= min_level, events, bytes, through)
                 .map_err(|_| Status::out_of_range("trace cursor is unavailable; restart replay with after_sequence zero"))?;
-            dropped = dropped.saturating_add(page.missed);
-            let advanced = page.next > after;
-            after = page.next;
-            if initial || advanced || page.missed > 0 {
-                let batch = dokime::domain::model::backend::wire::TraceBatch {
-                    epoch: epoch.clone(),
-                    events: page.events.into_iter().map(|(sequence, event)| event_wire(sequence, &event)).collect(),
-                    dropped,
-                    next_sequence: after,
-                };
-                if batch.wire_len()? > bytes || batch.memory_size() > bytes {
-                    return Err(Status::resource_exhausted("trace batch exceeds configured budget"));
-                }
-                let response = batch.into();
-                output.send_owned(response).await.map_err(failure)?;
+            let missed = page.missed;
+            dropped = dropped.saturating_add(missed);
+            let batch = batch(&epoch, page, dropped, bytes)?;
+            let advanced = batch.next_sequence > after;
+            after = batch.next_sequence;
+            if initial || advanced || missed > 0 {
+                output.send_owned(batch.into()).await.map_err(failure)?;
                 initial = false;
             }
             if !request.follow && after >= through {
@@ -150,11 +131,11 @@ impl Watch {
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize, journal: Arc<Journal>) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<Watch>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum, journal: Journal::global().clone() }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum, journal }),
     )?;
     Ok(())
 }
@@ -188,8 +169,34 @@ fn level(level: tracing::Level) -> dokime::domain::model::backend::wire::LogLeve
     }
 }
 
-fn event_wire(sequence: u64, event: &Event) -> dokime::domain::model::backend::wire::TraceEvent {
-    dokime::domain::model::backend::wire::TraceEvent {
+fn budget_failure() -> Status {
+    Status::resource_exhausted("trace frame exceeds its allocation or wire limit")
+}
+
+fn batch(epoch: &str, page: Page, dropped: u64, maximum: usize) -> Result<TraceBatch, Status> {
+    let count = page.events.len();
+    let mut events = Vec::new();
+    events.try_reserve_exact(count).map_err(|_| budget_failure())?;
+    for (sequence, event) in page.events.iter().take(count) {
+        events.push(event_wire(*sequence, event)?);
+    }
+    let next_sequence = if count == page.events.len() { page.next } else { events.last().expect("nonempty bounded prefix").sequence };
+    let mut batch = TraceBatch { epoch: epoch.to_owned(), events, dropped, next_sequence };
+    while super::content::output_frame_len(&batch)? > maximum {
+        batch.events.pop();
+        batch.next_sequence = batch.events.last().ok_or_else(budget_failure)?.sequence;
+    }
+    Ok(batch)
+}
+
+fn event_wire(sequence: u64, event: &Event) -> Result<TraceEvent, Status> {
+    let mut fields = Vec::new();
+    fields.try_reserve_exact(event.fields.len()).map_err(|_| budget_failure())?;
+
+    for (key, value) in &event.fields {
+        fields.push(LogFrameFieldsEntry { key: key.clone(), value: value.clone() });
+    }
+    Ok(TraceEvent {
         sequence,
         time: Some(Timestamp { seconds: event.time.unix_timestamp(), nanos: event.time.nanosecond() as i32 }),
         level: level(event.level),
@@ -198,12 +205,8 @@ fn event_wire(sequence: u64, event: &Event) -> dokime::domain::model::backend::w
         plugin_id: event.plugin.clone(),
         cycle_id: event.cycle.clone(),
         execution_id: event.execution.clone(),
-        fields: event
-            .fields
-            .iter()
-            .map(|(key, value)| dokime::domain::model::backend::wire::LogFrameFieldsEntry { key: key.clone(), value: value.clone() })
-            .collect(),
-    }
+        fields,
+    })
 }
 
 fn failure(source: dokime::harmos::Error) -> Status {
@@ -216,3 +219,38 @@ fn failure(source: dokime::harmos::Error) -> Status {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(message: &str) -> Arc<Event> {
+        Arc::new(Event {
+            time: time::OffsetDateTime::UNIX_EPOCH,
+            level: tracing::Level::INFO,
+            target: "fixture".into(),
+            message: message.into(),
+            plugin: None,
+            cycle: None,
+            execution: None,
+            fields: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn split_batch_preserves_resume_position() {
+        let event = event(&"x".repeat(1024));
+        let one = TraceBatch { epoch: "epoch".into(), events: vec![event_wire(1, &event).unwrap()], dropped: 0, next_sequence: 1 };
+        let maximum = super::super::content::output_frame_len(&one).unwrap();
+        let page = Page { events: vec![(1, Arc::clone(&event)), (2, Arc::clone(&event))], missed: 0, next: 3 };
+        let first = batch("epoch", page, 0, maximum).unwrap();
+        assert_eq!(first.events.iter().map(|event| event.sequence).collect::<Vec<_>>(), [1]);
+        assert_eq!(first.next_sequence, 1);
+        assert!(super::super::content::output_frame_len(&first).unwrap() <= maximum);
+
+        let page = Page { events: vec![(2, event)], missed: 0, next: 3 };
+        let second = batch("epoch", page, 0, maximum).unwrap();
+        assert_eq!(second.events.iter().map(|event| event.sequence).collect::<Vec<_>>(), [2]);
+        assert_eq!(second.next_sequence, 3);
+    }
+}

@@ -40,7 +40,10 @@ use super::organization::{
 
 /* === Constants === */
 
-const SETTINGS_BYTES: usize = 16 * 1024;
+const DESKTOP_ORGANIZATION_URL_BYTES: u64 = 4_096;
+const DESKTOP_UPDATE_APPROVAL_TIMEOUT_MS: u64 = 180_000;
+const DESKTOP_UPDATE_SETTINGS_BYTES: u64 = 16_384;
+const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
 
 /* === Macros === */
 
@@ -162,6 +165,9 @@ impl UpdateState {
         policy.source = selection.source.clone();
         policy.validate()?;
         let bytes = serde_json::to_vec(&selection).map_err(|_| "Update selection could not be encoded")?;
+        if bytes.len() as u64 > DESKTOP_UPDATE_SETTINGS_BYTES {
+            return Err("Update selection exceeds its configured byte budget".into());
+        }
         dokime::harmos::filesystem::publication::write(&self.0.path, &bytes).map_err(|_| "Update selection could not be saved")?;
         self.0.accounts.cancel(None);
         inner.policy = policy;
@@ -210,9 +216,9 @@ impl UpdateState {
         inner.candidate = None;
         let result = match found {
             Some(mut update) => {
-                super::organization::policy::https_url(update.download_url.as_str())?;
+                super::organization::policy::https_url(update.download_url.as_str(), DESKTOP_ORGANIZATION_URL_BYTES)?;
                 update.headers = sources::headers(auth.as_ref(), &update.download_url)?;
-                update.timeout = Some(Duration::from_secs(300));
+                update.timeout = Some(Duration::from_millis(DESKTOP_UPDATE_TIMEOUT_MS));
                 let id = format!("{:032x}", rand::random::<u128>());
                 let result = UpdateCheck {
                     status: "available".into(),
@@ -260,7 +266,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let path = root.join("selection.json");
     let mut policy = app.state::<OrganizationState>().update_policy()?;
     let mut error = None;
-    match dokime::harmos::filesystem::input::read(&path, SETTINGS_BYTES) {
+    match dokime::harmos::filesystem::input::read(&path, DESKTOP_UPDATE_SETTINGS_BYTES as usize) {
         Ok(bytes) => {
             let selection = serde_json::from_slice::<Selection>(&bytes);
             let selected = selection.map_err(|_| "Saved update selection is invalid".to_owned()).and_then(|selection| {
@@ -343,7 +349,7 @@ pub async fn desktop_updates_sign_in(app: AppHandle, state: State<'_, UpdateStat
         state.0.accounts.cancel(Some(pending.epoch));
         return Err("The sign-in browser could not be opened".into());
     }
-    let result = tokio::time::timeout(Duration::from_secs(180), pending.reply).await;
+    let result = tokio::time::timeout(Duration::from_millis(DESKTOP_UPDATE_APPROVAL_TIMEOUT_MS), pending.reply).await;
     state.0.accounts.cancel(Some(pending.epoch));
     result.map_err(|_| "Release sign-in timed out")?.map_err(|_| "Release sign-in was cancelled")??;
     if state.snapshot()?.1 != generation {

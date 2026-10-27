@@ -37,7 +37,7 @@ export function PathPill({ value, align = "left", copy = true, compact = false, 
 
   return (
     <span
-      className={`inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full border bg-muted/60 py-0.5 pl-2 pr-1 font-mono text-foreground ring-1 ring-border/40 ${compact ? "w-full text-[0.68rem] leading-4" : "text-xs leading-5"} ${align === "right" ? "justify-self-end" : ""}`}
+      className={`inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full border bg-muted/60 py-1 pl-2 pr-1 font-mono text-foreground ring-1 ring-border/40 ${compact ? "w-full text-xs leading-4" : "text-xs leading-5"} ${align === "right" ? "justify-self-end" : ""}`}
       title={value}
     >
       <span className="min-w-0 truncate">{compactPath(value)}</span>

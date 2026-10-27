@@ -24,7 +24,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 // Local Imports
 use super::source::{Entry, Listing};
-use super::{SCAN_ENTRIES, capped, invalid, unreachable_source};
+use super::{capped, invalid, unreachable_source};
 use crate::files::{FileMatcher, identity};
 use crate::runtime::Result;
 
@@ -75,7 +75,8 @@ impl LocalSource {
         let root = self.root.clone();
         let matcher = matcher.clone();
         let depth = self.depth;
-        tokio::task::spawn_blocking(move || walk(&root, depth, &matcher)).await?
+        let scan_entries = 100_000;
+        tokio::task::spawn_blocking(move || walk(&root, depth, &matcher, scan_entries)).await?
     }
 
     pub(super) async fn read_range(&self, relative: &str, offset: u64, length: u64, sink: &mut tokio::fs::File) -> Result<u64> {
@@ -92,7 +93,7 @@ impl LocalSource {
 
 /* === Private Functions === */
 
-fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
+fn walk(root: &Path, depth: usize, matcher: &FileMatcher, scan_entries: usize) -> Result<Listing> {
     let metadata = std::fs::metadata(root).map_err(|source| source_error(&root.display().to_string(), source))?;
     if !metadata.is_dir() {
         return Err(invalid("a local watch root must be a directory"));
@@ -101,8 +102,8 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
     let mut visited = 0_usize;
     for entry in walkdir::WalkDir::new(root).follow_links(false).min_depth(1).max_depth(depth) {
         visited += 1;
-        if visited > SCAN_ENTRIES {
-            return Err(capped(format!("the watch root holds more than {SCAN_ENTRIES} entries")));
+        if visited > scan_entries {
+            return Err(capped(format!("the watch root holds more than {scan_entries} entries")));
         }
         let entry = match entry {
             Ok(entry) => entry,

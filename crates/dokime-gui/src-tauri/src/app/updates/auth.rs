@@ -36,9 +36,12 @@ use crate::app::organization::policy::{Connection, https_url};
 
 /* === Constants === */
 
+const DESKTOP_ACCOUNT_TIMEOUT_MS: u64 = 30_000;
+const DESKTOP_ORGANIZATION_URL_BYTES: u64 = 4_096;
+const DESKTOP_UPDATE_ACCOUNT_BYTES: u64 = 65_536;
+
 const REDIRECT: &str = "dokime-test-hub://auth/gitlab/callback";
 const SERVICE: &str = "com.stokker.dokime.organization-oauth";
-const ACCOUNT_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
@@ -93,7 +96,7 @@ pub(super) struct SignIn {
 
 impl Accounts {
     pub(super) fn open(path: PathBuf) -> Self {
-        let read = match dokime::harmos::filesystem::input::read(&path, ACCOUNT_BYTES) {
+        let read = match dokime::harmos::filesystem::input::read(&path, DESKTOP_UPDATE_ACCOUNT_BYTES as usize) {
             Ok(bytes) => serde_json::from_slice(&bytes).map_err(|_| "Saved release accounts are invalid; the file was retained"),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(BTreeMap::new()),
             Err(_) => Err("Saved release accounts could not be read; the file was retained"),
@@ -109,20 +112,20 @@ impl Accounts {
         if let Some(error) = &self.load_error {
             return Err(error.clone());
         }
-        let scope = scope(connection)?;
+        let scope = scope(connection, DESKTOP_ORGANIZATION_URL_BYTES)?;
         let inner = self.inner.lock().map_err(|_| "Release account state is unavailable")?;
         Ok(inner.users.get(&scope).cloned())
     }
 
     pub(super) fn authorization(&self, connection: &Connection) -> Result<Option<Authorization>, String> {
         let Some(user) = self.user(connection)? else { return Ok(None) };
-        let entry = entry(connection, user.id)?;
+        let entry = entry(connection, user.id, DESKTOP_ORGANIZATION_URL_BYTES)?;
         let token = match entry.get_password() {
             Ok(token) => Zeroizing::new(token),
             Err(KeyringError::NoEntry) => return Ok(None),
             Err(_) => return Err("The release account token could not be read from secure storage".into()),
         };
-        Ok(Some(Authorization { origin: https_url(&connection.host)?, token }))
+        Ok(Some(Authorization { origin: https_url(&connection.host, DESKTOP_ORGANIZATION_URL_BYTES)?, token }))
     }
 
     pub(super) fn begin(&self, connection: Connection) -> Result<SignIn, String> {
@@ -132,7 +135,9 @@ impl Accounts {
         if connection.oauth_client_id.is_empty() {
             return Err("This connection has no OAuth client identifier".into());
         }
-        let mut url = https_url(&connection.host)?.join("oauth/authorize").map_err(|_| "The OAuth origin is invalid")?;
+        let mut url = https_url(&connection.host, DESKTOP_ORGANIZATION_URL_BYTES)?
+            .join("oauth/authorize")
+            .map_err(|_| "The OAuth origin is invalid")?;
         let state = random_token();
         let verifier = Zeroizing::new(random_token());
         let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
@@ -199,7 +204,7 @@ impl Accounts {
     }
 
     pub(super) fn sign_out(&self, connection: &Connection) -> Result<(), String> {
-        let scope = scope(connection)?;
+        let scope = scope(connection, DESKTOP_ORGANIZATION_URL_BYTES)?;
         let mut inner = self.inner.lock().map_err(|_| "Release account state is unavailable")?;
         cancel(&mut inner);
         let Some(user) = inner.users.get(&scope).cloned() else { return Ok(()) };
@@ -207,19 +212,19 @@ impl Accounts {
         next.remove(&scope);
         self.save(&next)?;
         inner.users = next;
-        match entry(connection, user.id)?.delete_credential() {
+        match entry(connection, user.id, DESKTOP_ORGANIZATION_URL_BYTES)?.delete_credential() {
             Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
             Err(_) => Err("Signed out; the old secure token could not be removed".into()),
         }
     }
 
     fn publish(&self, connection: &Connection, epoch: u64, user: User, token: Zeroizing<String>) -> Result<User, String> {
-        let scope = scope(connection)?;
+        let scope = scope(connection, DESKTOP_ORGANIZATION_URL_BYTES)?;
         let mut inner = self.inner.lock().map_err(|_| "Release account state is unavailable")?;
         if inner.epoch != epoch {
             return Err("The release connection changed before sign-in completed".into());
         }
-        let entry = entry(connection, user.id)?;
+        let entry = entry(connection, user.id, DESKTOP_ORGANIZATION_URL_BYTES)?;
         entry.set_password(&token).map_err(|_| "The release token could not be saved in secure storage")?;
         let mut next = inner.users.clone();
         next.insert(scope, user.clone());
@@ -233,7 +238,7 @@ impl Accounts {
             return Err(error.clone());
         }
         let bytes = serde_json::to_vec(users).map_err(|_| "Release account metadata could not be encoded")?;
-        if bytes.len() > ACCOUNT_BYTES {
+        if bytes.len() as u64 > DESKTOP_UPDATE_ACCOUNT_BYTES {
             return Err("Release account metadata exceeds its size limit".into());
         }
         dokime::harmos::filesystem::publication::write(&self.path, &bytes).map_err(|_| "Release account metadata could not be saved".into())
@@ -251,14 +256,14 @@ fn cancel(inner: &mut Inner) {
     }
 }
 
-fn scope(connection: &Connection) -> Result<String, String> {
-    let origin = https_url(&connection.host)?.origin().ascii_serialization();
+fn scope(connection: &Connection, maximum_url_bytes: u64) -> Result<String, String> {
+    let origin = https_url(&connection.host, maximum_url_bytes)?.origin().ascii_serialization();
     let digest = Sha256::digest(format!("{origin}\0{}", connection.oauth_client_id).as_bytes());
     Ok(URL_SAFE_NO_PAD.encode(digest))
 }
 
-fn entry(connection: &Connection, account: u64) -> Result<Entry, String> {
-    let user = format!("{}:{account}", scope(connection)?);
+fn entry(connection: &Connection, account: u64, maximum_url_bytes: u64) -> Result<Entry, String> {
+    let user = format!("{}:{account}", scope(connection, maximum_url_bytes)?);
     Entry::new(SERVICE, &user).map_err(|_| "Release secure storage is unavailable".into())
 }
 
@@ -267,11 +272,11 @@ fn random_token() -> String {
 }
 
 async fn exchange(connection: &Connection, code: &str, verifier: &str) -> Result<(User, Zeroizing<String>), String> {
-    let origin = https_url(&connection.host)?;
+    let origin = https_url(&connection.host, DESKTOP_ORGANIZATION_URL_BYTES)?;
     let token_url = origin.join("oauth/token").map_err(|_| "The OAuth origin is invalid")?;
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_millis(DESKTOP_ACCOUNT_TIMEOUT_MS))
         .build()
         .map_err(|_| "OAuth HTTP initialization failed")?;
     let form = [
@@ -292,7 +297,7 @@ async fn exchange(connection: &Connection, code: &str, verifier: &str) -> Result
     let mut response = response.error_for_status().map_err(|_| "The identity provider refused the token exchange")?;
     let mut bytes = Zeroizing::new(Vec::new());
     while let Some(chunk) = response.chunk().await.map_err(|_| "OAuth token response failed")? {
-        if chunk.len() > ACCOUNT_BYTES.saturating_sub(bytes.len()) {
+        if chunk.len() > (DESKTOP_UPDATE_ACCOUNT_BYTES as usize).saturating_sub(bytes.len()) {
             return Err("OAuth token response exceeds its size limit".into());
         }
         bytes.extend_from_slice(&chunk);
@@ -301,7 +306,7 @@ async fn exchange(connection: &Connection, code: &str, verifier: &str) -> Result
     let token = Zeroizing::new(decoded.access_token);
     let authorization = Authorization { origin: origin.clone(), token: token.clone() };
     let user_url = origin.join("api/v4/user").map_err(|_| "The OAuth origin is invalid")?;
-    let bytes = sources::fetch(&user_url, Some(&authorization), ACCOUNT_BYTES).await?;
+    let bytes = sources::fetch(&user_url, Some(&authorization), DESKTOP_UPDATE_ACCOUNT_BYTES as usize).await?;
     let user: User = serde_json::from_slice(&bytes).map_err(|_| "The identity provider returned an invalid account")?;
     Ok((user, token))
 }
@@ -321,9 +326,9 @@ mod tests {
         accounts.callback(Url::parse(&format!("{REDIRECT}?state=wrong&code=unused")).unwrap()).await;
         assert!(accounts.inner.lock().unwrap().pending.is_some());
         let other = Connection { oauth_client_id: "client-two".into(), ..connection.clone() };
-        assert_ne!(scope(&connection).unwrap(), scope(&other).unwrap());
+        assert_ne!(scope(&connection, DESKTOP_ORGANIZATION_URL_BYTES).unwrap(), scope(&other, DESKTOP_ORGANIZATION_URL_BYTES).unwrap());
         let host = Connection { host: "https://other.example.test".into(), ..connection };
-        assert_ne!(scope(&host).unwrap(), scope(&other).unwrap());
+        assert_ne!(scope(&host, DESKTOP_ORGANIZATION_URL_BYTES).unwrap(), scope(&other, DESKTOP_ORGANIZATION_URL_BYTES).unwrap());
         accounts.cancel(None);
         assert!(pending.reply.await.unwrap().is_err());
         assert!(!root.path().join("accounts.json").exists());

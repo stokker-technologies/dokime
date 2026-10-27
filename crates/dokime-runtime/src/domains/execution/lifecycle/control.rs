@@ -170,6 +170,7 @@ impl RuntimeHandle {
                 .await
                 .map_err(|error| Error::Operation(error.to_string()))?;
             let summary = self.state_read().run_requests[&request.summary.request_id].summary.clone();
+
             self.request_storage.update(&request.summary.request_id, |receipt| receipt.summary = summary).await?;
         }
         self.execution_storage.save_cycle_header(cycle_id).await?;
@@ -264,6 +265,7 @@ impl RuntimeHandle {
             .await
             .map_err(|error| Error::Operation(error.to_string()))?;
         let summary = self.state_read().run_requests[request_id].summary.clone();
+
         self.request_storage.update(request_id, |receipt| receipt.summary = summary).await?;
         Ok(())
     }
@@ -351,7 +353,8 @@ impl RuntimeHandle {
         }
         if saved.is_none() {
             let historical =
-                crate::storage::objects::cycle::read(self.storage(), &test_cycle_id, harmos::storage::ObjectVersion::Latest).await?;
+                crate::storage::objects::cycle::read(&self.storage().clone(), &test_cycle_id, harmos::storage::ObjectVersion::Latest)
+                    .await?;
             return match historical {
                 Some(cycle) if cycle.value.saved.is_some() => Ok(()),
                 _ => Err(Error::not_found("cycle_not_found", "active or sealed cycle not found")),
@@ -435,6 +438,7 @@ impl RuntimeHandle {
                 .await
                 .map_err(|error| Error::Operation(error.to_string()))?;
             let summary = self.state_read().run_requests[&request_id].summary.clone();
+
             self.request_storage.update(&request_id, |receipt| receipt.summary = summary).await?;
         }
         self.dispatch_next_request().await;

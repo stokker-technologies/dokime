@@ -72,13 +72,18 @@ impl FixtureAppend {
             .iter()
             .map(|case| state.case_definition_revision(case).map(|revision| (case.test_case_id.clone(), revision)))
             .collect::<Result<_, _>>()?;
-        let registration =
-            dokime_runtime::transactions::RegisterCases { registration_id: self.admission_identifier.clone(), cases, definition_revisions };
+        let registration = dokime_runtime::transactions::RegisterCases {
+            registration_id: self.admission_identifier.clone(),
+            cases,
+            definition_revisions,
+            max_cases: 1_000,
+        };
         registration.check(state)?;
         let mut next = state.clone();
         registration.apply(&mut next);
         let executions = self.execution_ids().into_iter().zip(self.cases.iter().map(|case| case.test_case_id.clone())).collect();
         let append = dokime_runtime::transactions::AppendExecutions {
+            max_executions: 1_000,
             cycle_id: self.test_cycle_id.clone(),
             executions,
             occurred_at: self.occurred_at.clone(),
@@ -302,6 +307,7 @@ fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestE
         execution,
         dokime_runtime::model::time::now_utc(),
     )
+    .unwrap()
     .into_iter()
     .flat_map(|snapshot| snapshot.entries)
     .find(|entry| entry.metadata.identifier.as_str() == "execution.status")
@@ -806,6 +812,7 @@ fn settlement_replay_timestamp() {
     }
     let execution = &state.cycle_view(&cycle_id).unwrap().test_executions[0];
     let finish = dokime_runtime::transactions::FinishProvider {
+        installed_plugin_errors: 256,
         request_id: id.clone(),
         test_cycle_id: cycle_id,
         target: state.run_requests[&id].target.clone(),
@@ -862,6 +869,7 @@ fn recovery_completed_outcomes() {
     let execution = before.test_executions[0].clone();
     let target = state.suites.provider_target_for_case(before.cases().next().unwrap()).unwrap();
     dokime_runtime::transactions::FinishProvider {
+        installed_plugin_errors: 256,
         request_id: CommandId::from_seed("snapshot.run"),
         test_cycle_id: cycle_id.clone(),
         target,
@@ -978,6 +986,7 @@ fn terminal_traceability_history() {
     let first = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     let target = state.suites.provider_target_for_case(state.cycle_view(&cycle_id).unwrap().cases().next().unwrap()).unwrap();
     dokime_runtime::transactions::FinishProvider {
+        installed_plugin_errors: 256,
         request_id: CommandId::from_seed("snapshot.run"),
         test_cycle_id: cycle_id.clone(),
         target,
@@ -1011,6 +1020,7 @@ fn terminal_traceability_history() {
     assert_eq!(completed.output_parameters["telemetry.voltage.mean"].value, Value::from(12_i64));
 
     dokime_runtime::transactions::AppendExecutions {
+        max_executions: 1_000,
         cycle_id: cycle_id.clone(),
         executions: vec![(dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>(), completed.test_case_id.clone())],
         settings: Default::default(),
@@ -1040,6 +1050,7 @@ fn terminal_traceability_history() {
     assert_eq!(projected_status(&state, &cycle_id, &repeated), Value::from("Pending"));
     let target = state.suites.provider_target_for_case(state.cycle_view(&cycle_id).unwrap().cases().next().unwrap()).unwrap();
     dokime_runtime::transactions::FinishProvider {
+        installed_plugin_errors: 256,
         request_id: CommandId::from_seed("snapshot.rerun"),
         test_cycle_id: cycle_id.clone(),
         target,
@@ -1129,6 +1140,9 @@ fn copied_cycle_reusing() {
     state.replace_cycle(source).unwrap();
     let run_parameters = state.run_parameters.clone();
     let copy = dokime_runtime::transactions::CopyCycle {
+        max_executions: 1_000,
+        max_source_bytes: 1_048_576,
+        max_source_depth: 64,
         source_cycle_id: source_id.clone(),
         test_cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
         occurred_at: dokime_runtime::model::time::now_utc(),
@@ -1164,6 +1178,9 @@ fn copied_cycle_reusing() {
     // retained payload, a too-deep value, a plan with no cases, and a source
     // that is gone are each refused by `check`.
     let retry = dokime_runtime::transactions::CopyCycle {
+        max_executions: 1_000,
+        max_source_bytes: 1_048_576,
+        max_source_depth: 64,
         source_cycle_id: source_id.clone(),
         test_cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
         occurred_at: dokime_runtime::model::time::now_utc(),
@@ -1230,6 +1247,7 @@ fn recovery_requires_request() {
     assert!(run.check(&state).is_err());
     let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let mut append = dokime_runtime::transactions::AppendExecutions {
+        max_executions: 1_000,
         cycle_id: cycle_id.clone(),
         executions: vec![(execution_id.clone(), sealed.test_case_id.clone())],
         settings: Default::default(),
@@ -1344,11 +1362,23 @@ fn copied_cycle_membership() {
     let originals = source.test_executions.clone();
     state.replace_cycle(source).unwrap();
     // Cycle-level presentation is not an authority for copied execution inputs.
-    let copy = dokime_runtime::transactions::CopyCycle {
+    let mut copy = dokime_runtime::transactions::CopyCycle {
+        max_executions: 1_000,
+        max_source_bytes: 1_048_576,
+        max_source_depth: 64,
         source_cycle_id: source_id,
         test_cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
         occurred_at: dokime_runtime::model::time::now_utc(),
     };
+    copy.max_executions = 1;
+    assert!(copy.check(&state).is_err());
+    copy.max_executions = 2;
+    let source_budget = copy.max_source_bytes;
+    copy.max_source_bytes = 1;
+    assert!(copy.check(&state).is_err());
+    copy.max_source_bytes = source_budget;
+    let copy: dokime_runtime::transactions::CopyCycle = serde_json::from_slice(&serde_json::to_vec(&copy).unwrap()).unwrap();
+    assert_eq!(copy.max_executions, 2);
     copy.check(&state).unwrap();
     copy.apply(&mut state);
 
@@ -1549,6 +1579,7 @@ fn execution_selection_attempts() {
     assert_eq!(state.executions[&selected].mode, run.mode);
     assert_eq!(state.executions[&first.test_execution_id], first);
     let finish = dokime_runtime::transactions::FinishProvider {
+        installed_plugin_errors: 256,
         request_id: run.command_id.clone(),
         test_cycle_id: cycle_id.clone(),
         target: state.run_requests[&run.command_id].target.clone(),
@@ -1581,6 +1612,7 @@ fn execution_selection_attempts() {
     assert_eq!(state.run_requests[&run.command_id], active_request, "stopping an old execution preserves the new request");
     dispatch_request(&mut state, &run.command_id);
     let finish = dokime_runtime::transactions::FinishProvider {
+        installed_plugin_errors: 256,
         request_id: run.command_id.clone(),
         test_cycle_id: cycle_id.clone(),
         target: state.run_requests[&run.command_id].target.clone(),

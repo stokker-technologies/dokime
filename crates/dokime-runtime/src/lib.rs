@@ -86,7 +86,7 @@ pub mod __answer {
 #[cfg(feature = "host")]
 pub mod app;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "configuration")]
 pub mod config;
 
 #[cfg(feature = "host")]
@@ -210,9 +210,7 @@ pub use config::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
 pub use dokime_domain::model::plugins::InstalledPlugin;
 
 #[cfg(feature = "host")]
-pub use domains::documents::{
-    CurrentDocumentCapture, CurrentDocumentTelemetryCut, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument,
-};
+pub use domains::documents::{CurrentDocumentCapture, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument};
 
 #[cfg(feature = "host")]
 pub use domains::execution::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState};

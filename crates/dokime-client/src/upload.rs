@@ -25,6 +25,8 @@ use super::Client;
 
 /* === Constants === */
 
+const PLUGIN_CHUNK_BYTES: u64 = 65_536;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -56,7 +58,18 @@ impl Client {
         let file = tokio::fs::File::open(source).await?;
         header.size_bytes = file.metadata().await?.len();
         header.sha256 = None;
-        let chunk_bytes = super::plugins::chunk_bytes(self.backend().limits.max_chunk_bytes, self.request_limit());
+        let template = dokime_domain::model::content::wire::UploadArtifactFrame {
+            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(
+                dokime_domain::model::content::wire::ArtifactChunk { offset: header.size_bytes, data: Vec::new() },
+            )),
+        };
+        let chunk_bytes = super::plugins::chunk_bytes::<dokime_domain::operations::content::UploadArtifact>(
+            self.backend().limits.max_chunk_bytes,
+            self.request_limit(),
+            PLUGIN_CHUNK_BYTES as usize,
+            &template,
+            &["payload", "Chunk", "field_0", "data"],
+        )?;
         if chunk_bytes == 0 {
             return Err(Error::Invalid("negotiated frame limit cannot carry upload data"));
         }
@@ -95,9 +108,10 @@ async fn feed<F: Future<Output = super::Result<()>>>(
     send(dokime_domain::model::content::wire::UploadArtifactFrame { payload: Some(Payload::Header(header)) }).await?;
     let mut digest = Sha256::new();
     let mut offset = 0u64;
-    let mut buffer = vec![0; chunk_bytes];
-    loop {
-        let count = source.read(&mut buffer).await?;
+    while offset < expected {
+        let remaining = usize::try_from(expected - offset).unwrap_or(usize::MAX);
+        let mut data = vec![0; chunk_bytes.min(remaining)];
+        let count = source.read(&mut data).await?;
         if count == 0 {
             break;
         }
@@ -105,7 +119,7 @@ async fn feed<F: Future<Output = super::Result<()>>>(
         if next > expected {
             return Err(Error::Invalid("source length changed during upload"));
         }
-        let data = buffer[..count].to_vec();
+        data.truncate(count);
         digest.update(&data);
         send(dokime_domain::model::content::wire::UploadArtifactFrame {
             payload: Some(Payload::Chunk(dokime_domain::model::content::wire::ArtifactChunk { offset, data })),
@@ -114,6 +128,10 @@ async fn feed<F: Future<Output = super::Result<()>>>(
         offset = next;
     }
     if offset != expected {
+        return Err(Error::Invalid("source length changed during upload"));
+    }
+    let mut probe = [0u8; 1];
+    if source.read(&mut probe).await? != 0 {
         return Err(Error::Invalid("source length changed during upload"));
     }
     let completion = dokime_domain::model::content::wire::ArtifactCompletion {

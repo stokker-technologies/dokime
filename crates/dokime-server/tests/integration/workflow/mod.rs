@@ -600,7 +600,7 @@ async fn historical_checkpoint_content() {
         definition.parameters,
         vec![model::execution::wire::CaseParameter {
             name: "fixture.result".into(),
-            value: Some(model::values::wire::Value::from(&dokime::Value::Text("passed".into()))),
+            value: Some(model::values::wire::Value::try_from(&dokime::Value::Text("passed".into())).unwrap()),
         }]
     );
     assert!(frozen_snapshot.host_version.as_ref().is_some_and(|version| !version.is_empty()));
@@ -786,7 +786,7 @@ async fn invalid_admission_values() {
     assert_eq!(
         client
             .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
-                limit: dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1,
+                limit: u32::try_from(500).unwrap().checked_add(1).unwrap(),
                 ..Default::default()
             })
             .await

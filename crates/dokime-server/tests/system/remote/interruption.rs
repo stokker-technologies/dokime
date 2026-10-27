@@ -270,7 +270,7 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
     let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
     let parameters = vec![RegisteredSelectionParametersEntry {
         key: "require_confirmation".into(),
-        value: Some(SelectionValues { values: vec![Value::Bool(true).into()] }),
+        value: Some(SelectionValues { values: vec![Value::Bool(true).try_into().unwrap()] }),
     }];
     let (_, template) = client.template("obc.checks.pulse").await.unwrap();
     let selection = RegisteredSelection { suite_id: "obc.checks".into(), template_id: template.template_id, parameters, files: Vec::new() };
@@ -619,7 +619,7 @@ fn read_terminal(
 async fn first_sample(client: &Client, id: TestExecutionId) {
     // The Tutorial Prints Only After Draining; Observe Live Evidence Before Interrupting It.
     let execution = client.execution(id);
-    let samples = execution.samples(vec!["obc.pulse".into()], true, 64, None).unwrap();
+    let samples = execution.samples(vec!["obc.pulse".into()], true, 64).unwrap();
     let waiting = async {
         while let Some(page) = samples.message().await.unwrap() {
             if !page.samples.is_empty() {

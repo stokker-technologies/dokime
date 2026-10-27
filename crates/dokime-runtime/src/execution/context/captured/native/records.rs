@@ -88,8 +88,6 @@ struct Field {
 
 /* === Implementations === */
 
-impl Contracts {}
-
 impl TryFrom<&Declarations> for Contracts {
     type Error = Error;
     fn try_from(values: &Declarations) -> Result<Self> {
@@ -121,8 +119,6 @@ impl TryFrom<Contracts> for Declarations {
         Ok(types)
     }
 }
-
-impl Contract {}
 
 impl TryFrom<&RecordContract> for Contract {
     type Error = Error;
@@ -168,8 +164,6 @@ impl TryFrom<Contract> for RecordContract {
         })
     }
 }
-
-impl Field {}
 
 impl TryFrom<&RecordField> for Field {
     type Error = Error;
@@ -222,18 +216,12 @@ fn invalid(message: &str) -> Error {
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| invalid("record declaration allocation failed"))?;
-    if values.capacity() > count {
-        return Err(invalid("record declaration slots exceed admission"));
-    }
     Ok(values)
 }
 
 fn text(source: &str) -> Result<String> {
     let mut value = String::new();
     value.try_reserve_exact(source.len()).map_err(|_| invalid("record declaration text allocation failed"))?;
-    if value.capacity() > source.len() {
-        return Err(invalid("record declaration text exceeds admission"));
-    }
     value.push_str(source);
     Ok(value)
 }

@@ -34,7 +34,6 @@ pub use dokime_domain::model::definition::CaseMaterializationOptions;
 pub use dokime_domain::model::definition::CaseMaterializationOutput;
 pub use dokime_domain::model::definition::CaseMaterializationSelection;
 pub use dokime_domain::model::definition::CriterionDefinition;
-pub use dokime_domain::model::definition::DEFAULT_MATERIALIZED_CASE_CAP;
 pub use dokime_domain::model::definition::DynamicDefaultKey;
 pub use dokime_domain::model::definition::ExecutionPhaseDefinition;
 pub use dokime_domain::model::definition::FileDefinition;

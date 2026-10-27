@@ -176,6 +176,8 @@ pub(super) fn register(runtime: &RuntimeHandle, controller: Arc<Controller>) -> 
 fn status(error: Error) -> Status {
     match error {
         Error::Configuration(message) => Status::invalid_argument(message),
+        Error::Listener(message) => Status::invalid_argument(message),
+        Error::Settings(error) => crate::grpc::execution::status(error),
         other => Status::unavailable(other.to_string()),
     }
 }

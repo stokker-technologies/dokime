@@ -29,8 +29,6 @@ use dokime_domain::model::identity::StepAttemptId;
 
 /* === Constants === */
 
-const MAX_COMMANDS: usize = 4096;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -44,6 +42,7 @@ pub(crate) struct Command {
 }
 
 pub(crate) struct Controls {
+    maximum: u64,
     state: Mutex<State>,
     pub changed: Notify,
 }
@@ -72,9 +71,6 @@ pub(crate) enum Action {
 impl Command {
     pub fn parse(request: &CommandExecutionRequest) -> Result<Self, Refusal> {
         let id = CommandId::from_uuid(&request.command_id).map_err(|error| Refusal::of(error.to_string()))?;
-        if request.step.len() > 256 {
-            return Err(Refusal::of("command step identifier exceeds 256 bytes"));
-        }
         let action = match (request.action.as_str(), request.step.as_str()) {
             ("next", "") => Action::Next,
             ("finish", "") => Action::Finish,
@@ -88,8 +84,9 @@ impl Command {
 }
 
 impl Controls {
-    pub fn new(interactive: bool) -> Self {
+    pub fn new(interactive: bool, maximum: u64) -> Self {
         Self {
+            maximum,
             state: Mutex::new(State { interactive, closed: false, pending: None, active: None, receipts: BTreeMap::new() }),
             changed: Notify::new(),
         }
@@ -117,7 +114,7 @@ impl Controls {
         if state.pending.is_some() || state.active.is_some() {
             return Err(Refusal::of("another execution command is still settling"));
         }
-        if state.receipts.len() >= MAX_COMMANDS && command.action != Action::Finish {
+        if state.receipts.len() as u64 >= self.maximum && command.action != Action::Finish {
             return Err(Refusal::of("execution command receipts are at capacity; finish this execution"));
         }
         let receipt = CommandExecutionReply { state: "accepted".into(), attempt_id: String::new(), message: String::new() };

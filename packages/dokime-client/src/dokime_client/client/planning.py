@@ -29,6 +29,8 @@ from .models import Backend, Value
 
 # === Constants === #
 
+VALUE_DEPTH = 64
+
 # === Types === #
 
 # === Classes === #
@@ -52,7 +54,7 @@ class TestCase:
     def parameters(self) -> dict[str, Value]:
         message = _wire.nested("Planning", "MaterializeTemplate", "cases.parameters", direction="response")
         message.ParseFromString(self._parameters)
-        parameters = _wire.decode(message)
+        parameters = _wire.decode(message, VALUE_DEPTH)
         if not isinstance(parameters, dict):
             raise ProtocolError("materialized parameters must be an object")
         return parameters
@@ -81,7 +83,7 @@ class Template:
 
         entries = []
         for key, value in sorted(supplied.items()):
-            encoded = _wire.encode(value)
+            encoded = _wire.encode(value, VALUE_DEPTH)
             numbers = [node["kind"]["Number"]["field_0"] for node in encoded["nodes"] if "Number" in node["kind"]]
             if any(not math.isfinite(number) for number in numbers):
                 raise ValueError("materialization parameters must contain finite numbers")

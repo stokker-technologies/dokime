@@ -19,7 +19,7 @@
 use tonic::Status;
 
 // Local Imports
-use crate::grpc::value::{self, Budget, canonical};
+use crate::grpc::value::{Budget, canonical};
 use dokime::telemetry::TelemetrySample;
 
 /* === Constants === */
@@ -38,38 +38,19 @@ use dokime::telemetry::TelemetrySample;
 
 /* === Public Functions === */
 
-pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<dokime::domain::model::telemetry::wire::TelemetrySample>();
-    for text in [sample.sample_id.as_str(), sample.stream.as_str(), &sample.source] {
-        value::text(text)?;
-        bytes = bytes.saturating_add(text.len());
-    }
-    for fields in [&sample.values, &sample.summary, &sample.metadata] {
-        bytes = bytes.saturating_add(canonical::object_memory(fields, &mut Budget::new())?);
-    }
-    if let Some(scope) = &sample.scope {
-        bytes = bytes.saturating_add(canonical::scope_memory(scope)?);
-    }
-    if bytes == usize::MAX {
-        return Err(Status::resource_exhausted("sample construction size overflow"));
-    }
-    Ok(bytes)
-}
-
 pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<dokime::domain::model::telemetry::wire::TelemetrySample, Status> {
-    memory(sample)?;
     Ok(dokime::domain::model::telemetry::wire::TelemetrySample {
-        sample_id: sample.sample_id.to_string(),
-        stream: sample.stream.to_string(),
+        sample_id: sample.sample_id.as_str().to_owned(),
+        stream: sample.stream.as_str().to_owned(),
         schema_version: sample.schema_version,
         sequence: sample.sequence,
         timestamp: Some(canonical::timestamp(&sample.timestamp)?),
         received_at: Some(canonical::timestamp(&sample.received_at)?),
         source: sample.source.clone(),
         scope: sample.scope.as_ref().map(canonical::scope).transpose()?,
-        values: Some(canonical::object(&sample.values, &mut Budget::new())?),
-        summary: Some(canonical::object(&sample.summary, &mut Budget::new())?),
-        metadata: Some(canonical::object(&sample.metadata, &mut Budget::new())?),
+        values: Some(canonical::object(&sample.values, &mut Budget::new()?)?),
+        summary: Some(canonical::object(&sample.summary, &mut Budget::new()?)?),
+        metadata: Some(canonical::object(&sample.metadata, &mut Budget::new()?)?),
     })
 }
 

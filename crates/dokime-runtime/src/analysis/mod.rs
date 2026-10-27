@@ -147,6 +147,16 @@ impl Samples {
 }
 
 impl Response {
+    pub fn check_limits(&self) -> Result<(), Error> {
+        if self.outputs.iter().any(|output| {
+            output.unit.len() as u64 > dokime_domain::model::analysis::MAX_UNIT_BYTES
+                || output.axis_unit.len() as u64 > dokime_domain::model::analysis::MAX_UNIT_BYTES
+        }) {
+            return Err(Error::Output("response units exceed their configured byte budget".into()));
+        }
+        Ok(())
+    }
+
     pub fn check(&self, definition: &Definition) -> Result<(), Error> {
         definition.check().map_err(Error::Declaration)?;
         if self.outputs.len() != definition.outputs.len() {
@@ -171,8 +181,6 @@ impl Response {
             }
             if schema.unit.as_ref().is_some_and(|unit| unit != &output.unit)
                 || schema.axis.as_ref().and_then(|axis| axis.unit.as_ref()).is_some_and(|unit| unit != &output.axis_unit)
-                || output.unit.len() > 128
-                || output.axis_unit.len() > 128
             {
                 return Err(Error::Output("response units do not match the declared output".into()));
             }
@@ -210,8 +218,10 @@ impl<A: Analysis> Operation<A> {
     }
 
     pub fn evaluate(request: Request) -> Result<Response, Error> {
-        let definition = Self::definition()?;
-        if request.parameters.len() > MAX_PARAMETER_BYTES {
+        let mut definition = Self::definition()?;
+        definition.check_limits().map_err(Error::Declaration)?;
+        definition.limits = definition.limits.constrained();
+        if request.parameters.len() as u64 > dokime_domain::model::analysis::MAX_PARAMETER_BYTES as u64 {
             return Err(Error::Input("analysis configuration exceeds its budget".into()));
         }
         let samples = request.samples.ok_or_else(|| Error::Input("analysis samples are missing".into()))?;
@@ -223,6 +233,7 @@ impl<A: Analysis> Operation<A> {
         let result = A::evaluate(&samples, &parameters).map_err(|error| Error::Evaluation(Box::new(error)))?;
         let response = result.into_response();
         response.check(&definition)?;
+        response.check_limits()?;
         Ok(response)
     }
 }

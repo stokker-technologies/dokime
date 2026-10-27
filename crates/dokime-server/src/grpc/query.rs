@@ -86,7 +86,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 /* === Private Functions === */
 
 fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
-    let mut budget = Budget::new();
+    let mut budget = Budget::new()?;
     value::collection(request.filters.len())?;
     value::collection(request.group_by.len())?;
     value::collection(request.aggregates.len())?;
@@ -102,7 +102,6 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
     };
     let mut filters = Vec::with_capacity(request.filters.len());
     for filter in std::mem::take(&mut request.filters) {
-        value::text(&filter.column)?;
         value::collection(filter.values.len())?;
         let op = match filter.op {
             dokime::domain::model::query::wire::QueryFilterOperator::Eq => AggregateOperator::Eq,
@@ -120,15 +119,8 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
         let values = filter.values.into_iter().map(|value| canonical::decode(value, &mut budget, 0)).collect::<Result<_, Status>>()?;
         filters.push(AggregateFilter { column: filter.column, op, values });
     }
-    for column in &request.group_by {
-        value::text(column)?;
-    }
     let mut aggregates = Vec::with_capacity(request.aggregates.len());
     for aggregate in std::mem::take(&mut request.aggregates) {
-        if !aggregate.column.is_empty() {
-            value::text(&aggregate.column)?;
-        }
-        value::text(&aggregate.alias)?;
         if !aggregate.aggregate.answerable() {
             return Err(Status::invalid_argument("aggregate percentile rank exceeds 100"));
         }
@@ -140,7 +132,9 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
 
 fn status(error: dokime::runtime::Error) -> Status {
     let status = match &error {
-        dokime::runtime::Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
+        dokime::runtime::Error::Admission(AdmissionFailure::Validation { .. }) => {
+            Status::invalid_argument(dokime::plugin::Diagnostic::capture(&error).redacted().message)
+        }
         dokime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("aggregate source was not found"),
         dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("aggregate response exceeds its original budget")

@@ -19,12 +19,11 @@
 
 // Local Imports
 use super::limits::ParameterLimitError;
+use super::{MAX_COLLECTION_ITEMS, MAX_DEPTH, MAX_NODES, MAX_SPACE_ITEMS, MAX_TEXT_BYTES};
 use crate::model::definition::ParameterExpr;
 use crate::model::values::Value;
 
 /* === Constants === */
-
-const MAX_SPACE: usize = 1000;
 
 /* === Macros === */
 
@@ -42,25 +41,19 @@ pub struct Budget {
 
 /* === Implementations === */
 
-impl Default for Budget {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Budget {
-    pub fn new() -> Self {
-        Self { nodes: 4096 }
+    pub fn new() -> crate::Result<Self> {
+        Ok(Self { nodes: MAX_NODES })
     }
     pub fn node(&mut self, depth: usize) -> crate::Result<()> {
-        if depth > 32 || self.nodes == 0 {
+        if depth > MAX_DEPTH || self.nodes == 0 {
             return Err(ParameterLimitError::Structure.into());
         }
         self.nodes -= 1;
         Ok(())
     }
-    pub fn text(value: &str) -> crate::Result<()> {
-        if value.len() > 4096 {
+    pub fn text(&self, value: &str) -> crate::Result<()> {
+        if value.len() > MAX_TEXT_BYTES {
             return Err(ParameterLimitError::Structure.into());
         }
         Ok(())
@@ -71,9 +64,9 @@ impl Budget {
             Value::Number(number) if !number.is_finite() => {
                 return Err(ParameterLimitError::Invalid("number must be finite").into());
             }
-            Value::Text(text) => Self::text(text)?,
+            Value::Text(text) => self.text(text)?,
             Value::Array(values) => {
-                if values.len() > 256 {
+                if values.len() > MAX_COLLECTION_ITEMS {
                     return Err(ParameterLimitError::Structure.into());
                 }
                 for value in values {
@@ -81,11 +74,11 @@ impl Budget {
                 }
             }
             Value::Object(values) => {
-                if values.len() > 256 {
+                if values.len() > MAX_COLLECTION_ITEMS {
                     return Err(ParameterLimitError::Structure.into());
                 }
                 for (key, value) in values {
-                    Self::text(key)?;
+                    self.text(key)?;
                     self.value(value, depth + 1)?;
                 }
             }
@@ -112,29 +105,29 @@ pub fn definition(definition: &crate::model::definition::ParameterDefinition, bu
         crate::Error::from(ParameterLimitError::Invalid("parameter numeric bounds must be finite, ordered, and attached to a numeric type"))
     })?;
     if let super::ParameterExpansion::Zip { group } = &definition.expansion {
-        Budget::text(group.as_str())?;
+        budget.text(group.as_str())?;
     }
     if let Some(group) = &definition.group_id {
-        Budget::text(group.as_str())?;
+        budget.text(group.as_str())?;
     }
     if let Some(unit) = &definition.unit {
         metadata(&unit.metadata)?;
-        Budget::text(&unit.symbol)?;
+        budget.text(&unit.symbol)?;
     }
     structure(&definition.expression, budget, 0)?;
     if let Some(selection) = &definition.selection {
-        if selection.choices.len() > 256 {
+        if selection.choices.len() > MAX_COLLECTION_ITEMS {
             return Err(ParameterLimitError::Structure.into());
         }
         for value in &selection.choices {
             budget.value(value, 0)?;
         }
     }
-    if definition.extensions.len() > 256 {
+    if definition.extensions.len() > MAX_COLLECTION_ITEMS {
         return Err(ParameterLimitError::Structure.into());
     }
     for (key, value) in &definition.extensions {
-        Budget::text(key)?;
+        budget.text(key)?;
         budget.value(value, 0)?;
     }
     Ok(())
@@ -149,7 +142,7 @@ fn walk(expr: &ParameterExpr, budget: &mut Budget, depth: usize, expansion: bool
             budget.value(literal, depth + 1)?;
         }
         ParameterExpr::Array { values } => {
-            if values.len() > if expansion { MAX_SPACE } else { 256 } {
+            if values.len() > if expansion { MAX_SPACE_ITEMS } else { MAX_COLLECTION_ITEMS } {
                 return Err(limit());
             }
             for item in values {
@@ -167,7 +160,7 @@ fn walk(expr: &ParameterExpr, budget: &mut Budget, depth: usize, expansion: bool
             let mut count = 0;
             while if step > 0 { current <= stop } else { current >= stop } {
                 count += 1;
-                if count > MAX_SPACE {
+                if count > MAX_SPACE_ITEMS {
                     return Err(limit());
                 }
                 current += step;
@@ -189,7 +182,7 @@ fn walk(expr: &ParameterExpr, budget: &mut Budget, depth: usize, expansion: bool
             let mut count = 0;
             while if *step > 0.0 { current < *stop } else { current > *stop } {
                 count += 1;
-                if count > MAX_SPACE {
+                if count > MAX_SPACE_ITEMS {
                     return Err(limit());
                 }
                 let next = current + step;
@@ -200,11 +193,15 @@ fn walk(expr: &ParameterExpr, budget: &mut Budget, depth: usize, expansion: bool
             }
         }
         ParameterExpr::Linspace { start, stop, count } => {
-            if (expansion && *count > MAX_SPACE) || !start.is_finite() || !stop.is_finite() || (expansion && !(stop - start).is_finite()) {
+            if (expansion && *count > MAX_SPACE_ITEMS)
+                || !start.is_finite()
+                || !stop.is_finite()
+                || (expansion && !(stop - start).is_finite())
+            {
                 return Err(limit());
             }
         }
-        ParameterExpr::Reference { parameter } => Budget::text(parameter)?,
+        ParameterExpr::Reference { parameter } => budget.text(parameter)?,
         ParameterExpr::DynamicDefault { fallback, .. } => {
             if let Some(fallback) = fallback {
                 walk(fallback, budget, depth + 1, expansion)?;
@@ -224,18 +221,18 @@ fn limit() -> crate::Error {
 }
 
 fn metadata(metadata: &crate::model::identity::Metadata) -> crate::Result<()> {
-    Budget::text(metadata.identifier.as_str())?;
-    Budget::text(&metadata.label)?;
+    let mut budget = Budget::new()?;
+    budget.text(metadata.identifier.as_str())?;
+    budget.text(&metadata.label)?;
     if let Some(description) = &metadata.description {
-        Budget::text(description)?;
+        budget.text(description)?;
     }
-    let mut budget = Budget::new();
     for tag in &metadata.tags {
-        Budget::text(tag)?;
+        budget.text(tag)?;
         budget.node(0)?;
     }
     for (key, value) in &metadata.attributes {
-        Budget::text(key)?;
+        budget.text(key)?;
         budget.value(value, 0)?;
     }
     Ok(())

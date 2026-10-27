@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 
@@ -47,85 +47,187 @@ use dokime_domain::model::values::value_matches_type;
 pub fn validate_telemetry_sample(
     contract: Option<&TelemetryContract>, sample: &TelemetrySample, default_mode: ValidationMode,
 ) -> crate::Result<BTreeMap<String, Value>> {
-    let Some(contract) = contract else {
-        if default_mode == ValidationMode::Prototype {
-            return Ok(sample.values.clone());
-        }
-        return Err(crate::Error::Telemetry(TelemetryFailure::UnknownStream { stream: sample.stream.to_string() }));
-    };
-
-    validate_normalized_telemetry_sample(&contract.normalized(), sample, default_mode)
+    check_telemetry_sample(contract, sample, default_mode)?;
+    Ok(resolved_values(contract, sample, default_mode))
 }
 
-// Validate against a contract already passed through `normalized`, so a batch
-// prepares its contract once instead of once per row.
 pub fn validate_normalized_telemetry_sample(
     contract: &TelemetryContract, sample: &TelemetrySample, default_mode: ValidationMode,
 ) -> crate::Result<BTreeMap<String, Value>> {
-    if contract.stream != sample.stream {
-        return Err(crate::Error::Telemetry(TelemetryFailure::UnknownStream { stream: sample.stream.to_string() }));
-    }
+    check_normalized_telemetry_sample(contract, sample, default_mode)?;
+    Ok(resolved_values(Some(contract), sample, default_mode))
+}
 
-    if contract.schema_version != sample.schema_version {
-        return Err(crate::Error::Telemetry(TelemetryFailure::SchemaVersionMismatch {
-            stream: sample.stream.to_string(),
-            expected: contract.schema_version,
-            actual: sample.schema_version,
-        }));
-    }
+pub fn check_telemetry_sample(
+    contract: Option<&TelemetryContract>, sample: &TelemetrySample, default_mode: ValidationMode,
+) -> crate::Result<()> {
+    let Some(contract) = contract else {
+        if default_mode == ValidationMode::Prototype {
+            return Ok(());
+        }
+        return Err(crate::Error::Telemetry(TelemetryFailure::UnknownStream { stream: sample.stream.as_str().to_owned() }));
+    };
+    check_sample(contract, sample, default_mode, true)
+}
 
-    if contract.validation_mode.unwrap_or(default_mode) == ValidationMode::Prototype {
-        return Ok(sample.values.clone());
-    }
+pub fn check_normalized_telemetry_sample(
+    contract: &TelemetryContract, sample: &TelemetrySample, default_mode: ValidationMode,
+) -> crate::Result<()> {
+    check_sample(contract, sample, default_mode, false)
+}
 
-    validate_columns(&sample.stream.to_string(), &sample.values, &contract.columns, contract.allow_extra_fields)
+/// The Borrowed Rule Index And Every Possible Direct Validation Diagnostic.
+/// This Excludes Caller Formatting And Native Typed-Payload Validation Workspaces.
+pub fn telemetry_sample_check_memory(contract: Option<&TelemetryContract>, sample: &TelemetrySample) -> usize {
+    let count = contract.map_or(0, |contract| contract.columns.len().saturating_add(1));
+    let mut bytes = harmos::btree_map_memory::<&str, Rule<'_>>(count);
+    let mut longest = "timestamp".len();
+    if let Some(contract) = contract {
+        for column in &contract.columns {
+            longest = longest.max(column.metadata.identifier.as_str().len());
+        }
+    }
+    bytes = bytes.saturating_add(sample.stream.as_str().len()).saturating_add(longest);
+    bytes = bytes.saturating_add(sample.values.len().saturating_mul(std::mem::size_of::<String>()));
+    for name in sample.values.keys() {
+        bytes = bytes.saturating_add(name.len());
+    }
+    bytes
 }
 
 /* === Private Functions === */
 
-fn validate_columns(
-    stream: &str, payload: &BTreeMap<String, Value>, columns: &[TelemetryColumn], allow_extra_fields: bool,
-) -> crate::Result<BTreeMap<String, Value>> {
-    let mut resolved = payload.clone();
-    let declared: BTreeMap<&str, &TelemetryColumn> = columns.iter().map(|column| (column.metadata.identifier.as_str(), column)).collect();
+enum Rule<'a> {
+    Column(&'a TelemetryColumn),
+    Timestamp,
+}
 
-    for (name, column) in &declared {
-        let Some(value) = resolved.get(*name) else {
-            if let Some(default) = &column.default {
-                resolved.insert((*name).to_owned(), default.clone());
-                continue;
-            }
-            if column.required {
-                return Err(crate::Error::Telemetry(TelemetryFailure::MissingColumn {
-                    stream: stream.to_owned(),
-                    column: (*name).to_owned(),
-                }));
-            }
-            continue;
-        };
-
-        if matches!(value, Value::Null) {
-            if column.nullable || !column.required {
-                continue;
-            }
-            return Err(crate::Error::Telemetry(TelemetryFailure::InvalidColumn { stream: stream.to_owned(), column: (*name).to_owned() }));
-        }
-
-        if !value_matches_type(value, &column.value_type) {
-            return Err(crate::Error::Telemetry(TelemetryFailure::InvalidColumn { stream: stream.to_owned(), column: (*name).to_owned() }));
+impl Rule<'_> {
+    fn default(&self) -> Option<&Value> {
+        match self {
+            Self::Column(column) => column.default.as_ref(),
+            Self::Timestamp => None,
         }
     }
+    fn required(&self) -> bool {
+        match self {
+            Self::Column(column) => column.required,
+            Self::Timestamp => true,
+        }
+    }
+    fn nullable(&self) -> bool {
+        match self {
+            Self::Column(column) => column.nullable,
+            Self::Timestamp => false,
+        }
+    }
+    fn value_type(&self) -> &dokime_domain::model::values::ValueType {
+        match self {
+            Self::Column(column) => &column.value_type,
+            Self::Timestamp => &dokime_domain::model::values::ValueType::Datetime,
+        }
+    }
+}
 
-    if !allow_extra_fields {
-        let declared_names: BTreeSet<&str> = declared.keys().copied().collect();
-        let extra: Vec<String> = resolved.keys().filter(|name| !declared_names.contains(name.as_str())).cloned().collect();
+fn check_sample(
+    contract: &TelemetryContract, sample: &TelemetrySample, default_mode: ValidationMode, implicit_timestamp: bool,
+) -> crate::Result<()> {
+    let stream = sample.stream.as_str();
+    if contract.stream != sample.stream {
+        return Err(crate::Error::Telemetry(TelemetryFailure::UnknownStream { stream: stream.to_owned() }));
+    }
+    if contract.schema_version != sample.schema_version {
+        return Err(crate::Error::Telemetry(TelemetryFailure::SchemaVersionMismatch {
+            stream: stream.to_owned(),
+            expected: contract.schema_version,
+            actual: sample.schema_version,
+        }));
+    }
+    if contract.validation_mode.unwrap_or(default_mode) == ValidationMode::Prototype {
+        return Ok(());
+    }
 
-        if !extra.is_empty() {
+    // A Borrowed Index Preserves Lexical Diagnostic Order And Last-Declaration Wins.
+    let mut declared = BTreeMap::new();
+    for column in &contract.columns {
+        declared.insert(column.metadata.identifier.as_str(), Rule::Column(column));
+    }
+    if implicit_timestamp {
+        declared.entry("timestamp").or_insert(Rule::Timestamp);
+    }
+    for (name, rule) in &declared {
+        let Some(value) = sample.values.get(*name) else {
+            if rule.default().is_some() || !rule.required() {
+                continue;
+            }
+            return Err(crate::Error::Telemetry(TelemetryFailure::MissingColumn { stream: stream.to_owned(), column: (*name).to_owned() }));
+        };
+        if matches!(value, Value::Null) {
+            if rule.nullable() || !rule.required() {
+                continue;
+            }
+        } else if value_matches_type(value, rule.value_type()) {
+            continue;
+        }
+        return Err(crate::Error::Telemetry(TelemetryFailure::InvalidColumn { stream: stream.to_owned(), column: (*name).to_owned() }));
+    }
+    if !contract.allow_extra_fields {
+        let count = sample.values.keys().filter(|name| !declared.contains_key(name.as_str())).count();
+        if count != 0 {
+            let mut extra = Vec::with_capacity(count);
+            for name in sample.values.keys().filter(|name| !declared.contains_key(name.as_str())) {
+                extra.push(name.to_owned());
+            }
             return Err(crate::Error::Telemetry(TelemetryFailure::UnexpectedColumns { stream: stream.to_owned(), columns: extra }));
         }
     }
+    Ok(())
+}
 
-    Ok(resolved)
+fn resolved_values(
+    contract: Option<&TelemetryContract>, sample: &TelemetrySample, default_mode: ValidationMode,
+) -> BTreeMap<String, Value> {
+    let mut values = sample.values.clone();
+    let Some(contract) = contract else { return values };
+    if contract.validation_mode.unwrap_or(default_mode) == ValidationMode::Prototype {
+        return values;
+    }
+    for (name, column) in contract.column_map() {
+        if !values.contains_key(name)
+            && let Some(default) = &column.default
+        {
+            values.insert(name.to_owned(), default.clone());
+        }
+    }
+    values
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::telemetry::contract::TelemetryRole;
+    use dokime_domain::model::values::ValueType;
+
+    #[test]
+    fn borrowed_check_preserves_defaults_and_sorted_extra_diagnostics() {
+        let mut contract = TelemetryContract::declared("fixture.validation", "Fixture").strict();
+        let mut column = TelemetryColumn::declared("reading", "Reading", ValueType::Number, TelemetryRole::Value);
+        column.default = Some(Value::Number(3.0));
+        contract.columns.push(column);
+        let at = dokime_domain::model::time::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH);
+        let mut sample = TelemetrySample::new(crate::model::identity::new_id(), contract.stream.clone(), 0, at, "fixture");
+        sample.values.insert("timestamp".into(), Value::Datetime(time::OffsetDateTime::UNIX_EPOCH));
+        check_normalized_telemetry_sample(&contract, &sample, ValidationMode::Strict).unwrap();
+        assert!(!sample.values.contains_key("reading"));
+        let resolved = validate_normalized_telemetry_sample(&contract, &sample, ValidationMode::Strict).unwrap();
+        assert_eq!(resolved.get("reading"), Some(&Value::Number(3.0)));
+
+        sample.values.insert("z".into(), Value::Bool(true));
+        sample.values.insert("a".into(), Value::Bool(true));
+        let error = check_normalized_telemetry_sample(&contract, &sample, ValidationMode::Strict).unwrap_err();
+        let crate::Error::Telemetry(TelemetryFailure::UnexpectedColumns { columns, .. }) = error else { panic!("unexpected error kind") };
+        assert_eq!(columns, ["a", "z"]);
+    }
+}

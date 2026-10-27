@@ -19,19 +19,16 @@ pub use history::CapturedRecord;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    num::NonZeroUsize,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
 };
 
 // Third Party Imports
 use futures_util::StreamExt;
 use harmos::{
     Identifier, Message,
-    storage::{ReadLimits, RecordWrite, SchemaKey},
+    storage::{RecordInput, SchemaKey},
 };
 use tokio::sync::watch;
 use tracing::Instrument;
@@ -45,9 +42,6 @@ use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
-const FRAME_BYTES: usize = 1024 * 1024;
-const MAX_GROUP_ROWS: usize = 256;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -55,6 +49,7 @@ const MAX_GROUP_ROWS: usize = 256;
 /* === Structs === */
 
 pub(crate) struct Source {
+    schema_settings: harmos::config::SchemaSettings,
     storage: crate::storage::Manager,
     schema: SchemaKey,
     epoch: Identifier,
@@ -70,8 +65,8 @@ struct PersistedRecord {
     payload: dokime_domain::model::records::evidence::Record,
 }
 
-#[derive(Default)]
 pub(crate) struct Process {
+    session: crate::storage::Manager,
     history: Option<history::History>,
     through: u64,
     before: u64,
@@ -87,8 +82,12 @@ pub(crate) struct Process {
 /* === Implementations === */
 
 impl Source {
-    pub(crate) fn new(epoch: &dokime_domain::model::identity::SessionId, storage: crate::storage::Manager) -> Result<Self> {
+    pub(crate) fn new(
+        epoch: &dokime_domain::model::identity::SessionId, storage: crate::storage::Manager,
+        schema_settings: harmos::config::SchemaSettings,
+    ) -> Result<Self> {
         Ok(Self {
+            schema_settings,
             storage,
             schema: records::schema(),
             epoch: Identifier::new(epoch.to_string()).map_err(error)?,
@@ -99,10 +98,9 @@ impl Source {
 
     pub(crate) async fn initialize(&self) -> Result<()> {
         use harmos::schema::Described;
-        let schema =
-            harmos::schema::graph::Schema::from_declaration(records::RecordRow::DEFINITION, &harmos::config::SchemaSettings::default())
-                .map_err(projection_error)?;
-        let declared = self.storage.write_schema(&self.schema, &schema).await.map_err(Error::from)?;
+        let schema = harmos::schema::graph::Schema::from_declaration(records::RecordRow::DEFINITION, &self.schema_settings)
+            .map_err(projection_error)?;
+        let declared = self.storage.write_schema(self.schema.clone(), schema).await.map_err(Error::from)?;
         self.storage.flush_until(&declared).await.map_err(Error::from)?;
         Ok(())
     }
@@ -113,6 +111,10 @@ impl Source {
 
     pub(crate) fn begin(&self, origin: harmos::state::Position) {
         self.origin.store(origin.0, Ordering::Release);
+    }
+
+    pub(crate) fn process(&self) -> Process {
+        Process::new(self.storage.clone())
     }
 
     pub(crate) fn epoch(&self) -> &str {
@@ -181,14 +183,15 @@ impl harmos::storage::RecordProjection for Projection {
                 let Some((item, payload)) = project(envelope)? else {
                     return Ok(());
                 };
+
                 output
-                    .push(RecordWrite {
-                        schema: &self.0.schema,
-                        scope: Some(&self.0.epoch),
-                        item: &item,
+                    .push(RecordInput {
+                        schema: self.0.schema.clone(),
+                        scope: Some(self.0.epoch.clone()),
+                        item,
                         source: None,
                         source_time: None,
-                        payload: &payload,
+                        payload,
                     })
                     .await
             }
@@ -204,6 +207,10 @@ impl Drop for Projection {
 }
 
 impl Process {
+    pub(crate) fn new(session: crate::storage::Manager) -> Self {
+        Self { session, history: None, through: 0, before: 0, position: 0, physical: 0, last: None }
+    }
+
     pub(crate) fn release_completed(&mut self, after: u64) {
         if after >= self.through {
             self.history = None;
@@ -244,7 +251,7 @@ impl Process {
             self.last = None;
             self.position = after;
             self.physical = 0;
-            self.history = Some(source.history_scoped(state_manager, start, through, Some(source.epoch.clone())).await?);
+            self.history = Some(source.history_scoped(&self.session, state_manager, start, through, Some(source.epoch.clone())).await?);
             self.through = through;
         }
         loop {
@@ -272,10 +279,6 @@ impl Process {
 }
 
 /* === Public Functions === */
-
-pub(crate) fn group_limits() -> ReadLimits {
-    ReadLimits { rows: NonZeroUsize::new(MAX_GROUP_ROWS).unwrap(), bytes: NonZeroUsize::new(4 * FRAME_BYTES).unwrap() }
-}
 
 /* === Private Functions === */
 
@@ -311,9 +314,6 @@ fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Re
     let record = RecordEntry::from_record(envelope.position.0, record);
     let row = records::RecordRow::from_entry(&record).map_err(projection_error)?;
     let payload = row.encode_to_vec();
-    if payload.len() > FRAME_BYTES {
-        return Err(projection_error("record capture frame exceeds byte limit"));
-    }
     let item = Identifier::new(record.record_id.as_str()).map_err(projection_error)?;
     Ok(Some((item, payload)))
 }

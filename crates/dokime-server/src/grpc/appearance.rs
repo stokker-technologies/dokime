@@ -32,6 +32,9 @@ use dokime::domain::operations::content;
 
 /* === Constants === */
 
+const SERVER_APPEARANCE_ASSET_BYTES: u64 = 8_388_608;
+const SERVER_APPEARANCE_SOURCE_BYTES: u64 = 4_194_304;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -75,27 +78,50 @@ impl Operation for Read {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, _: &mut wire::GetAppearance, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::appearance::wire::AppearanceSnapshot>, Status> {
-        let captured = self
-            .resources
-            .runtime
-            .capture_appearance(source_budget(self.resources.max_message_bytes))
-            .map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
-        let mut logos = Vec::with_capacity(captured.frame.logos.len());
-        for (logo, source) in captured.frame.logos.iter().zip(captured.logos) {
-            let source = source.ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
-            let asset = assets::capture(source, logo.plugin_id.to_string(), logo.asset_id.to_string()).await?;
-            logos.push(dokime::domain::model::appearance::wire::AppearanceLogo {
-                variant: logo.variant,
-                asset: Some(asset.metadata),
-                alt: logo.alt.clone(),
-            });
+        let session = self.resources.runtime.storage().clone();
+        let captured =
+            self.resources.runtime.capture_appearance(source_budget(self.resources.max_message_bytes)).map_err(assets::native_failure)?;
+
+        let mut logos = dokime::harmos::storage::ReadBatch::new(())
+            .try_map(|_| {
+                let mut logos = Vec::new();
+                logos
+                    .try_reserve_exact(captured.frame.logos.len())
+                    .map_err(|_| dokime::harmos::storage::Error::ResourceExhausted { resource: "appearance logo slots" })?;
+                Ok(logos)
+            })
+            .map_err(assets::native_failure)?;
+
+        for (logo, source) in captured.frame.logos.iter().zip(captured.logos.iter()) {
+            let source =
+                source.as_ref().ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
+            let asset = assets::capture(
+                &session,
+                source,
+                logo.plugin_id.as_str(),
+                logo.asset_id.as_str(),
+                usize::try_from(SERVER_APPEARANCE_ASSET_BYTES).expect("validated appearance asset size"),
+            )
+            .await?;
+
+            logos = logos
+                .try_map_with(asset.metadata, |mut logos, metadata| {
+                    logos.push(dokime::domain::model::appearance::wire::AppearanceLogo {
+                        variant: logo.variant,
+                        asset: Some(metadata),
+                        alt: logo.alt.clone(),
+                    });
+                    Ok(logos)
+                })
+                .map_err(assets::native_failure)?;
         }
-        let frame = convert::appearance(captured.frame, logos)
+        let frame = captured
+            .try_map_with(logos, |captured, logos| convert::appearance(captured.frame, logos))
             .map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
         if frame.wire_len()? > self.resources.max_message_bytes {
             return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
         }
-        Ok((frame).into())
+        Ok(dokime::harmos::operations::Response::from_owner(frame.owner()))
     }
 }
 
@@ -130,14 +156,13 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 pub(super) fn historical(
     frame: dokime::domains::installed_plugins::RuntimeAppearanceFrame,
 ) -> Result<dokime::domain::model::appearance::wire::AppearanceSnapshot, Status> {
-    convert::historical_memory(&frame).map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
     convert::appearance(frame, Vec::new()).map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))
 }
 
 /* === Private Functions === */
 
 fn source_budget(max_message_bytes: usize) -> usize {
-    max_message_bytes.min(4 * 1024 * 1024)
+    max_message_bytes.min(usize::try_from(SERVER_APPEARANCE_SOURCE_BYTES).expect("validated appearance source size"))
 }
 
 fn failure(kind: dokime::domain::model::appearance::wire::AppearanceFailureKind) -> Status {

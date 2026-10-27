@@ -27,7 +27,6 @@ use std::{
     collections::BTreeMap,
     fmt::Display,
     sync::{Arc, Mutex, Weak},
-    time::Duration,
 };
 
 // Third Party Imports
@@ -36,12 +35,6 @@ use std::{
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
-
-pub const SETTLED_RETENTION: Duration = Duration::from_secs(3);
-pub const MAX_OPERATIONS: usize = 32;
-pub const MAX_TEXT_CHARS: usize = 160;
-pub const MAX_PHASES: usize = 16;
-const FRACTION_STEP: f64 = 0.01;
 
 /* === Macros === */
 
@@ -109,21 +102,6 @@ pub enum OperationOutcome {
 
 /* === Implementations === */
 
-impl LiveOperation {
-    pub fn memory_size(&self) -> usize {
-        let failure = match &self.outcome {
-            OperationOutcome::Failed { failure, .. } => failure.len(),
-            _ => 0,
-        };
-        std::mem::size_of::<Self>()
-            .saturating_add(self.operation_id.len())
-            .saturating_add(self.label.len())
-            .saturating_add(self.phase.len())
-            .saturating_add(self.phases.iter().map(|phase| std::mem::size_of::<String>().saturating_add(phase.len())).sum::<usize>())
-            .saturating_add(failure)
-    }
-}
-
 impl OperationSnapshot {
     pub fn revision(&self) -> u64 {
         self.revision
@@ -148,7 +126,7 @@ impl OperationRegistry {
         let operation_id = uuid::Uuid::now_v7().to_string();
         let operation = LiveOperation {
             operation_id: operation_id.clone(),
-            label: bounded(label.into()),
+            label: bounded(label.into(), 160),
             phase: String::new(),
             phases: Vec::new(),
             fraction: None,
@@ -181,7 +159,7 @@ impl OperationRegistry {
     }
 
     fn settle(self: &Arc<Self>, operation_id: &str, outcome: OperationOutcome) {
-        let retires_at = tokio::time::Instant::now() + SETTLED_RETENTION;
+        let retires_at = tokio::time::Instant::now() + std::time::Duration::from_millis(3000);
         self.change(|entries| {
             let Some(entry) = entries.operations.get_mut(operation_id).filter(|entry| entry.operation.outcome == OperationOutcome::Running)
             else {
@@ -219,7 +197,7 @@ impl OperationRegistry {
                 return;
             }
             entries.revision = entries.revision.saturating_add(1);
-            entries.snapshot()
+            entries.snapshot(32)
         };
         self.sender.send_replace(snapshot);
     }
@@ -228,12 +206,12 @@ impl OperationRegistry {
 impl Entries {
     // Running operations first, then the most recently settled, each group
     // oldest first, so a burst of settled work never hides what still runs.
-    fn snapshot(&self) -> OperationSnapshot {
+    fn snapshot(&self, maximum: u64) -> OperationSnapshot {
         let mut shown: Vec<&Entry> = self.operations.values().collect();
         shown.sort_by(|left, right| {
             left.retires_at.is_some().cmp(&right.retires_at.is_some()).then_with(|| right.retires_at.cmp(&left.retires_at))
         });
-        shown.truncate(MAX_OPERATIONS);
+        shown.truncate(usize::try_from(maximum).expect("validated progress operation limit"));
         // Identifiers are time-ordered, so this restores start order.
         shown.sort_by(|left, right| left.operation.operation_id.cmp(&right.operation.operation_id));
         OperationSnapshot { revision: self.revision, operations: shown.into_iter().map(|entry| entry.operation.clone()).collect() }
@@ -257,12 +235,15 @@ impl Operation {
     }
 
     pub fn phase(&self, phase: impl Into<String>) {
-        let phase = bounded(phase.into());
+        let Some(_) = self.owner.registry.upgrade() else {
+            return;
+        };
+        let phase = bounded(phase.into(), 160);
         self.update(|operation| {
             if operation.phase == phase {
                 return false;
             }
-            if operation.phases.len() == MAX_PHASES {
+            if operation.phases.len() as u64 == 16 {
                 operation.phases.remove(0);
             }
             operation.phases.push(phase.clone());
@@ -272,10 +253,14 @@ impl Operation {
     }
 
     pub fn fraction(&self, fraction: f64) {
+        let Some(_) = self.owner.registry.upgrade() else {
+            return;
+        };
+        let step = 10000_f64 / 1_000_000.0;
         let fraction = fraction.is_finite().then(|| fraction.clamp(0.0, 1.0));
         self.update(|operation| {
             let visible = match (operation.fraction, fraction) {
-                (Some(previous), Some(next)) => (next - previous).abs() >= FRACTION_STEP || next >= 1.0,
+                (Some(previous), Some(next)) => (next - previous).abs() >= step || next >= 1.0,
                 (previous, next) => previous != next,
             };
             if visible {
@@ -302,7 +287,15 @@ impl Operation {
     }
 
     pub fn fail(&self, failure: impl Display) {
-        self.settle(OperationOutcome::Failed { at: crate::model::time::now_utc(), failure: bounded(failure.to_string()) });
+        self.settle(OperationOutcome::Failed {
+            at: crate::model::time::now_utc(),
+            failure: {
+                let Some(_) = self.owner.registry.upgrade() else {
+                    return;
+                };
+                bounded(failure.to_string(), 160)
+            },
+        });
     }
 
     pub fn track<T, E: Display>(&self, result: Result<T, E>) -> Result<T, E> {
@@ -343,8 +336,8 @@ impl std::fmt::Debug for Operation {
 
 /* === Private Functions === */
 
-fn bounded(mut text: String) -> String {
-    if let Some((end, _)) = text.char_indices().nth(MAX_TEXT_CHARS) {
+fn bounded(mut text: String, maximum: u64) -> String {
+    if let Some((end, _)) = text.char_indices().nth(usize::try_from(maximum).expect("validated progress text limit")) {
         text.truncate(end);
     }
     text

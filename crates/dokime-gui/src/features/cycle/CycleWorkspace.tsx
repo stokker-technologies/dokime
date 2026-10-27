@@ -11,7 +11,7 @@
  *
  * Two viewers share this workspace and stay separate components with their
  * own data hooks, composed from the same blocks in the same order: the shared
- * `NodeHeader` (breadcrumb, title with its pencil inline, status pill,
+ * `NodeSummary` (breadcrumb, title with its pencil inline, status pill,
  * progress), the `ControlCard` with the node's lifecycle actions in its fixed
  * slot, the node's `PromptQueue`, the evidence, and the shared Records
  * section. The page bar carries the shared `NodeActionCluster` on both: the
@@ -71,7 +71,7 @@ import { stepLabel } from "./ExecutionControl";
 import { ExecutionSections } from "./ExecutionSections";
 import { executionPagePrompts } from "./execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
-import { NodeHeader } from "./NodeHeader";
+import { NodeSummary } from "./NodeSummary";
 import type { ArchiveAction, CycleMenu, ExecutionMenu } from "./NodeMenu";
 import { answerablePrompts } from "./prompt-banner-model";
 import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
@@ -281,7 +281,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           live={live}
           menu={executionMenu}
           onSelectExecution={(next) => onSelectionChange({ executionId: next })}
-          onSelectCycle={() => onSelectionChange({ view: "cycle" })}
           plan={plan}
           prompts={prompts}
           row={selectedRow}
@@ -355,11 +354,10 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
             />
           ) : null
         }
-        trail={["Cycle"]}
+        trail={["Cycles", plan.test_cycle.title]}
         lead={
           <>
-            <NodeHeader
-              breadcrumb={[{ label: "Cycles", onSelect: () => void navigate({ to: "/cycles" }) }, { label: plan.test_cycle.title }]}
+            <NodeSummary
               description={
                 typeof plan.test_cycle.metadata.description === "string" && plan.test_cycle.metadata.description
                   ? plan.test_cycle.metadata.description

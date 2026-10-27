@@ -18,7 +18,7 @@
 // Standard Library Imports
 use std::{
     fs::File,
-    io::{self, Read, Seek, SeekFrom, Write},
+    io::{self, Seek, SeekFrom, Write},
     path::Path,
 };
 
@@ -31,10 +31,9 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 
 // Local Imports
 use super::{
-    InventoryBudget, MAX_INVENTORY_ENTRIES, MAX_MANIFEST_BYTES,
+    InventoryBudget,
     error::{Error, Result},
 };
-use dokime_domain::model::exports::EVIDENCE_EXPORT_MAX_BYTES;
 
 /* === Constants === */
 
@@ -53,6 +52,7 @@ pub(super) struct Writer {
 struct BoundedFile {
     file: File,
     cancellation: CancellationToken,
+    maximum_bytes: u64,
 }
 
 #[derive(Serialize)]
@@ -64,7 +64,10 @@ pub(super) struct Entry {
     pub relative_path: Option<String>,
 }
 
-struct LimitedBytes(Vec<u8>);
+struct LimitedBytes {
+    bytes: Vec<u8>,
+    maximum: usize,
+}
 
 #[derive(Serialize)]
 struct Document<'a, T> {
@@ -83,12 +86,12 @@ struct Document<'a, T> {
 impl Writer {
     pub fn open(path: &Path, cancellation: &CancellationToken) -> Result<Self> {
         let file = File::create_new(path)?;
-        let bounded = BoundedFile { file, cancellation: cancellation.clone() };
+        let bounded = BoundedFile { file, cancellation: cancellation.clone(), maximum_bytes: super::MAX_EXPORT_BYTES };
         Ok(Self { zip: ZipWriter::new(bounded), entries: Vec::new(), cancellation: cancellation.clone() })
     }
 
     fn start(&mut self, path: &str) -> Result<()> {
-        if self.entries.len() >= MAX_INVENTORY_ENTRIES {
+        if self.entries.len() as u64 >= super::MAX_INVENTORY_ENTRIES {
             return Err(Error::TooLarge);
         }
         let options =
@@ -98,12 +101,11 @@ impl Writer {
     }
 
     pub async fn stored_file(
-        &mut self, path: &str, relative_path: Option<&str>, mut reader: FileReader, budget: &mut InventoryBudget,
+        &mut self, path: &str, relative_path: Option<&str>, source: harmos::storage::FileReference, mut reader: FileReader,
+        budget: &mut InventoryBudget,
     ) -> Result<()> {
-        let source = reader.reference().clone();
         self.start(path)?;
         let mut length = 0_u64;
-        let mut hash = Sha256::new();
         loop {
             let batch = tokio::select! {
                 biased;
@@ -113,22 +115,21 @@ impl Writer {
             let Some(batch) = batch else {
                 break;
             };
-            if batch.offset != length {
+            if batch.offset() != length {
                 return Err(Error::Invalid("saved file has a noncontiguous batch"));
             }
-            length = length.checked_add(batch.bytes.len() as u64).ok_or(Error::TooLarge)?;
-            hash.update(&batch.bytes);
-            self.zip.write_all(&batch.bytes)?;
+            length = length.checked_add(batch.bytes().len() as u64).ok_or(Error::TooLarge)?;
+            self.zip.write_all(batch.bytes())?;
         }
         let completion = reader.completion()?;
-        let sha256: [u8; 32] = hash.finalize().into();
-        if length != source.length || completion.bytes != length || sha256 != source.sha256 {
+        if length != source.length || completion.bytes != length {
             return Err(Error::Invalid("saved file length or digest differs from its reference"));
         }
         let entry = Entry {
             path: path.to_owned(),
             size_bytes: length,
-            sha256: hex(&sha256),
+            // Harmos Verifies The Whole Immutable File Before Returning Its Final Batch.
+            sha256: hex(&source.sha256),
             source: Some(source),
             relative_path: relative_path.map(str::to_owned),
         };
@@ -137,39 +138,35 @@ impl Writer {
         Ok(())
     }
 
-    pub fn database(&mut self, path: &Path, budget: &mut InventoryBudget) -> Result<()> {
+    pub async fn database(&mut self, reader: FileReader, budget: &mut InventoryBudget) -> Result<()> {
         self.start("evidence.sqlite")?;
-        let mut input = File::open(path)?;
-        let (size_bytes, sha256) = copy(&mut input, &mut self.zip, &self.cancellation)?;
+        let (size_bytes, sha256) = copy(reader, &mut self.zip, &self.cancellation, super::MAX_EXPORT_BYTES).await?;
         let entry = Entry { path: "evidence.sqlite".into(), size_bytes, sha256, source: None, relative_path: None };
         budget.reserve(&entry)?;
         self.entries.push(entry);
         Ok(())
     }
 
-    pub fn finish(mut self, manifest: &impl Serialize) -> Result<(File, u64, String)> {
+    pub fn finish(mut self, manifest: &impl Serialize) -> Result<File> {
         // Payload Checksums Exclude The Manifest Itself.
         let document = Document { manifest, payloads: &self.entries };
-        let mut bytes = LimitedBytes(Vec::new());
+        let mut bytes = LimitedBytes { bytes: Vec::new(), maximum: super::MAX_MANIFEST_BYTES };
         serde_json::to_writer(&mut bytes, &document)?;
         self.start("manifest.json")?;
-        self.zip.write_all(&bytes.0)?;
+        self.zip.write_all(&bytes.bytes)?;
 
-        let mut output = self.zip.finish()?.file;
+        let output = self.zip.finish()?.file;
         output.sync_all()?;
-        output.seek(SeekFrom::Start(0))?;
-        let (length, sha256) = copy(&mut output, &mut io::sink(), &self.cancellation)?;
-        output.seek(SeekFrom::Start(0))?;
-        Ok((output, length, sha256))
+        Ok(output)
     }
 }
 
 impl Write for LimitedBytes {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        if bytes.len() > MAX_MANIFEST_BYTES.saturating_sub(self.0.len()) {
+        if bytes.len() > self.maximum.saturating_sub(self.bytes.len()) {
             return Err(io::Error::other("evidence manifest exceeds its byte limit"));
         }
-        self.0.extend_from_slice(bytes);
+        self.bytes.extend_from_slice(bytes);
         Ok(bytes.len())
     }
 
@@ -184,7 +181,7 @@ impl Write for BoundedFile {
             return Err(io::Error::other("evidence export cancelled"));
         }
         let position = self.file.stream_position()?;
-        if bytes.len() as u64 > EVIDENCE_EXPORT_MAX_BYTES.saturating_sub(position) {
+        if bytes.len() as u64 > self.maximum_bytes.saturating_sub(position) {
             return Err(io::Error::other("evidence archive exceeds its byte limit"));
         }
         self.file.write(bytes)
@@ -198,7 +195,7 @@ impl Write for BoundedFile {
 impl Seek for BoundedFile {
     fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
         let position = self.file.seek(position)?;
-        if position > EVIDENCE_EXPORT_MAX_BYTES {
+        if position > self.maximum_bytes {
             return Err(io::Error::other("evidence archive exceeds its byte limit"));
         }
         Ok(position)
@@ -206,6 +203,11 @@ impl Seek for BoundedFile {
 }
 
 /* === Public Functions === */
+
+pub(super) async fn hash(reader: FileReader, cancellation: &CancellationToken, maximum: u64) -> Result<(u64, String)> {
+    let mut sink = io::sink();
+    copy(reader, &mut sink, cancellation, maximum).await
+}
 
 pub(super) fn output_path(execution: &str, index: usize, relative: &str) -> String {
     let safe = super::super::storage::paths::safe_artifact_path(relative);
@@ -223,21 +225,28 @@ pub(super) fn hex(bytes: &[u8]) -> String {
 
 /* === Private Functions === */
 
-fn copy(input: &mut impl Read, output: &mut impl Write, cancellation: &CancellationToken) -> Result<(u64, String)> {
-    let mut buffer = [0_u8; 64 * 1024];
+async fn copy(mut reader: FileReader, output: &mut impl Write, cancellation: &CancellationToken, maximum: u64) -> Result<(u64, String)> {
     let mut length = 0_u64;
     let mut hash = Sha256::new();
     loop {
         if cancellation.is_cancelled() {
             return Err(Error::Cancelled);
         }
-        let read = input.read(&mut buffer)?;
-        if read == 0 {
-            break;
+        // Finish The Native Read Before Releasing Its Private Source Directory.
+        let batch = reader.next().await?;
+        if cancellation.is_cancelled() {
+            return Err(Error::Cancelled);
         }
-        length = length.checked_add(read as u64).filter(|length| *length <= EVIDENCE_EXPORT_MAX_BYTES).ok_or(Error::TooLarge)?;
-        hash.update(&buffer[..read]);
-        output.write_all(&buffer[..read])?;
+        let Some(batch) = batch else { break };
+        if batch.offset() != length {
+            return Err(Error::Invalid("private export read is not contiguous"));
+        }
+        length = length.checked_add(batch.bytes().len() as u64).filter(|length| *length <= maximum).ok_or(Error::TooLarge)?;
+        hash.update(batch.bytes());
+        output.write_all(batch.bytes())?;
+    }
+    if reader.completion()?.bytes != length {
+        return Err(Error::Invalid("private export read is incomplete"));
     }
     Ok((length, hex(&hash.finalize())))
 }

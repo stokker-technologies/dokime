@@ -17,7 +17,7 @@
 use std::path::Path;
 
 // Third Party Imports
-use regex::Regex;
+use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
@@ -27,8 +27,6 @@ use dokime_domain::model::time::Timestamp;
 /* === Constants === */
 
 const REGEX_SCAN_LIMIT_BYTES: usize = 2 * 1024 * 1024;
-pub(crate) const MAX_ARTIFACT_READ_BYTES: usize = 1024 * 1024;
-pub(crate) const MAX_EXECUTION_FILE_SNAPSHOT_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -131,7 +129,13 @@ pub(crate) fn regex_matches(content: &ExecutionFileContent, pattern: &str, first
     if content.offset != 0 || content.bytes.len() > REGEX_SCAN_LIMIT_BYTES {
         return Err(Error::Operation("execution output regex reads must start at zero and stay within 2 MiB".to_owned()));
     }
-    let regex = Regex::new(pattern).map_err(|error| Error::Operation(format!("invalid regex pattern: {error}")))?;
+    if pattern.len() as u64 > 1024 {
+        return Err(Error::Operation("regex pattern exceeds configured byte limit".into()));
+    }
+    let regex = RegexBuilder::new(pattern)
+        .size_limit(1 << 20)
+        .build()
+        .map_err(|error| Error::Operation(format!("invalid regex pattern: {error}")))?;
     let text = std::str::from_utf8(&content.bytes)
         .map_err(|error| Error::Operation(format!("execution output {} is not valid UTF-8: {error}", content.relative_path)))?;
     let mut matches = Vec::new();

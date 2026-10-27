@@ -82,6 +82,30 @@ struct Reduced<T> {
     returned: usize,
 }
 
+#[derive(Clone)]
+pub struct RuntimeTraceabilityRead(harmos::storage::ReadBatch<RuntimeTraceabilityFrame>);
+impl std::ops::Deref for RuntimeTraceabilityRead {
+    type Target = RuntimeTraceabilityFrame;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::fmt::Debug for RuntimeTraceabilityRead {
+    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&*self.0, output)
+    }
+}
+impl PartialEq for RuntimeTraceabilityRead {
+    fn eq(&self, other: &Self) -> bool {
+        *self.0 == *other.0
+    }
+}
+impl Serialize for RuntimeTraceabilityRead {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -109,17 +133,6 @@ impl From<Reduced<PromptInstance>> for RuntimePromptFrame {
 impl From<Reduced<HealthItem>> for RuntimeHealthFrame {
     fn from(reduced: Reduced<HealthItem>) -> Self {
         Self { truncated: reduced.truncated(), items: reduced.items, total_items: reduced.total, returned_items: reduced.returned }
-    }
-}
-
-impl From<Reduced<TraceabilitySnapshot>> for RuntimeTraceabilityFrame {
-    fn from(reduced: Reduced<TraceabilitySnapshot>) -> Self {
-        Self {
-            truncated: reduced.truncated(),
-            snapshots: reduced.items,
-            total_snapshots: reduced.total,
-            returned_snapshots: reduced.returned,
-        }
     }
 }
 
@@ -157,18 +170,22 @@ pub(crate) fn prompt_frame<'a>(
         .into()
 }
 
-pub(crate) fn traceability_frame<'a>(
-    snapshots: impl Iterator<Item = &'a TraceabilitySnapshot>, scope: Option<&RecordScope>, window: &RuntimeWindow,
+pub(crate) fn traceability_frame(
+    snapshots: harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>, scope: Option<&RecordScope>, window: &RuntimeWindow,
     resolution: &RuntimeResolution,
-) -> RuntimeTraceabilityFrame {
-    windowed(
-        snapshots,
-        |snapshot| scope.is_none_or(|scope| snapshot.scope.is_visible_in(scope)),
-        |snapshot| &snapshot.created_at,
-        window,
-        resolution,
-    )
-    .into()
+) -> crate::runtime::Result<RuntimeTraceabilityRead> {
+    let frame = snapshots.try_map(|mut snapshots| {
+        snapshots.retain(|snapshot| scope.is_none_or(|scope| snapshot.scope.is_visible_in(scope)));
+        let reduced = reduce_timestamped_items(snapshots, window, resolution, |snapshot| &snapshot.created_at, |_| None);
+        let returned = reduced.returned.len();
+        Ok::<_, crate::runtime::Error>(RuntimeTraceabilityFrame {
+            snapshots: reduced.returned,
+            total_snapshots: reduced.total,
+            returned_snapshots: returned,
+            truncated: returned < reduced.total,
+        })
+    })?;
+    Ok(RuntimeTraceabilityRead(frame))
 }
 
 pub(crate) fn note_frame<'a>(

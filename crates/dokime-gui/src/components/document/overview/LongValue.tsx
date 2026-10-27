@@ -48,7 +48,7 @@ export function LongValue({ alwaysCopy = false, label = "", value }: { alwaysCop
     const enabled = normalized === "true";
     return (
       <span
-        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${enabled ? "bg-success/10 text-success ring-1 ring-success/20" : "bg-destructive/10 text-destructive ring-1 ring-destructive/20"}`}
+        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${enabled ? "bg-success/10 text-success ring-1 ring-success/20" : "bg-destructive/10 text-destructive ring-1 ring-destructive/20"}`}
         title={value}
       >
         {enabled ? "True" : "False"}

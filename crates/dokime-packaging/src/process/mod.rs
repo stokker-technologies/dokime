@@ -9,7 +9,11 @@
 
 /* === Modules === */
 
+mod owner;
+
 /* === Re-Exports === */
+
+pub use owner::{Child, spawn, spawn_session};
 
 /* === Imports === */
 
@@ -25,6 +29,11 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 use crate::error::Error;
 
 /* === Constants === */
+
+const PROCESS_OUTPUT_BYTES: u64 = 33_554_432;
+const PROCESS_TAIL_BYTES: u64 = 65_536;
+const TERMINAL_TICK_MS: u64 = 120;
+const PROCESS_READ_BYTES: u64 = 4_096;
 
 /* === Macros === */
 
@@ -42,9 +51,10 @@ use crate::error::Error;
 
 pub async fn run(command: Command, name: &str, timeout: Option<Duration>, stdout: usize, stderr: usize) -> Result<Output, Error> {
     let mut command = tokio::process::Command::from(command);
-    let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true).spawn()?;
-    let output = child.stdout.take().expect("stdout is piped");
-    let diagnostics = child.stderr.take().expect("stderr is piped");
+    command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = spawn(command)?;
+    let output = child.stdout().take().expect("stdout is piped");
+    let diagnostics = child.stderr().take().expect("stderr is piped");
     let execution = async {
         tokio::try_join!(
             async { child.wait().await.map_err(Error::from) },
@@ -73,26 +83,20 @@ pub async fn run(command: Command, name: &str, timeout: Option<Duration>, stdout
 
 pub(crate) async fn cargo(command: Command, name: &str, timeout: Option<Duration>, compilation: bool) -> Result<Output, Error> {
     let mut command = tokio::process::Command::from(command);
-    use process_wrap::tokio::{CommandWrap, KillOnDrop};
     use std::time::Instant;
     let terminal = cargo_terminal(&mut command, dokime::terminal::color_mode());
-    let progress = terminal.progress(name);
+    let tick = Duration::from_millis(TERMINAL_TICK_MS);
+    let progress = terminal.progress(name, tick);
     let started = Instant::now();
     command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut command = CommandWrap::from(command);
-    command.wrap(KillOnDrop);
-    #[cfg(unix)]
-    command.wrap(process_wrap::tokio::ProcessGroup::leader());
-    #[cfg(windows)]
-    command.wrap(process_wrap::tokio::JobObject);
-    let mut child = command.spawn()?;
+    let mut child = spawn(command)?;
     let stdout = child.stdout().take().expect("piped Cargo output");
     let stderr = child.stderr().take().expect("piped Cargo diagnostics");
     let execution = async {
         tokio::try_join!(
             async { child.wait().await.map_err(Error::from) },
-            cargo_output(stdout, &progress, compilation),
-            cargo_diagnostics(stderr, &progress),
+            cargo_output(stdout, &progress, compilation, PROCESS_OUTPUT_BYTES as usize),
+            cargo_diagnostics(stderr, &progress, PROCESS_TAIL_BYTES as usize, PROCESS_READ_BYTES as usize),
         )
     };
     let deadline = async {
@@ -117,7 +121,7 @@ pub(crate) async fn cargo(command: Command, name: &str, timeout: Option<Duration
         }
         Err(error) => {
             // The wrapper kills the entire Unix group / Windows Job Object and awaits exit.
-            std::pin::Pin::from(child.kill()).await?;
+            child.kill().await?;
             progress.fail(format!("{name}: {error}"));
             Err(error)
         }
@@ -158,18 +162,19 @@ fn cargo_terminal(command: &mut tokio::process::Command, mode: dokime::terminal:
     terminal
 }
 
-async fn cargo_output(reader: impl AsyncRead + Unpin, progress: &dokime::terminal::Progress, compilation: bool) -> Result<Vec<u8>, Error> {
+async fn cargo_output(
+    reader: impl AsyncRead + Unpin, progress: &dokime::terminal::Progress, compilation: bool, limit: usize,
+) -> Result<Vec<u8>, Error> {
     use tokio::io::{AsyncBufReadExt, BufReader};
-    const LIMIT: usize = 32 * 1024 * 1024;
-    let mut reader = BufReader::new(reader.take(LIMIT as u64 + 1));
+    let mut reader = BufReader::new(reader.take((limit as u64).saturating_add(1)));
     let mut output = Vec::new();
     loop {
         let start = output.len();
         if reader.read_until(b'\n', &mut output).await? == 0 {
             break;
         }
-        if output.len() > LIMIT {
-            return Err(Error::Output("Cargo stdout".into(), LIMIT));
+        if output.len() > limit {
+            return Err(Error::Output("Cargo stdout".into(), limit));
         }
         if compilation {
             if let Ok(message) = serde_json::from_slice::<serde_json::Value>(&output[start..]) {
@@ -184,11 +189,12 @@ async fn cargo_output(reader: impl AsyncRead + Unpin, progress: &dokime::termina
     Ok(output)
 }
 
-async fn cargo_diagnostics(mut reader: impl AsyncRead + Unpin, progress: &dokime::terminal::Progress) -> Result<Vec<u8>, Error> {
+async fn cargo_diagnostics(
+    mut reader: impl AsyncRead + Unpin, progress: &dokime::terminal::Progress, tail: usize, read_bytes: usize,
+) -> Result<Vec<u8>, Error> {
     // Retain only an error tail; long successful builds must not fail due to log volume.
-    const TAIL: usize = 64 * 1024;
     let mut output = Vec::new();
-    let mut chunk = [0; 4096];
+    let mut chunk = vec![0; read_bytes];
     let mut pending = Vec::new();
     loop {
         let count = reader.read(&mut chunk).await?;
@@ -205,14 +211,14 @@ async fn cargo_diagnostics(mut reader: impl AsyncRead + Unpin, progress: &dokime
             .iter()
             .rposition(|byte| *byte == b'\n')
             .map(|index| index + 1)
-            .or_else(|| (pending.len() >= TAIL).then_some(pending.len()));
+            .or_else(|| (pending.len() >= tail).then_some(pending.len()));
         if let Some(complete) = complete {
             progress.log(String::from_utf8_lossy(&pending[..complete]).trim_end());
             pending.drain(..complete);
         }
         output.extend_from_slice(&chunk[..count]);
-        if output.len() > TAIL {
-            output.drain(..output.len() - TAIL);
+        if output.len() > tail {
+            output.drain(..output.len() - tail);
         }
     }
     Ok(output)

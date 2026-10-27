@@ -169,7 +169,7 @@ async fn admitted_catalog_is_durable_before_exposure() {
     let suite = dokime_runtime::storage::objects::suite::read(runtime.handle().storage(), "fixture.embedded.suite").await.unwrap();
     assert!(suite.is_some(), "first boot persists the newly admitted suite");
     let contract = provider().catalog().telemetry_contracts.remove(0);
-    let codec = dokime_runtime::storage::telemetry::codec(&contract).unwrap();
+    let codec = dokime_runtime::storage::telemetry::codec(&contract, &Default::default()).unwrap();
     runtime.handle().storage().lookup_schema(codec.schema()).await.expect("plugin-wide schema exists before any execution");
     runtime.shutdown().await.unwrap();
 

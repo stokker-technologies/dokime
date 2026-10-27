@@ -135,8 +135,8 @@ struct PulseResources {
 }
 
 #[dokime_runtime::stream(
-    id = "spike.pulses.rows",
     window = 4096,
+    id = "spike.pulses.rows",
     label = "Pulse Rows",
     description = "One row of the pulse stream, and with it the stream's own declaration."
 )]
@@ -482,7 +482,7 @@ fn template_declaration_declares() {
             &declaration,
             Default::default(),
             dokime_runtime::definition::CaseMaterializationOptions {
-                max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                max_cases: usize::try_from(1_000).unwrap(),
                 force: false,
                 registration_id: dokime_runtime::model::identity::new_id(),
                 first_label_number: 1

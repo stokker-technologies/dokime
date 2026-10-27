@@ -13,7 +13,6 @@
 
 mod browse;
 mod capture;
-mod construction;
 mod context;
 mod cycles;
 pub(super) mod document;
@@ -28,7 +27,7 @@ mod wire;
 /* === Re-Exports === */
 
 pub(super) use inspection::register;
-pub(crate) use wire::{traceability, traceability_memory};
+pub(crate) use wire::traceability;
 
 /* === Imports === */
 

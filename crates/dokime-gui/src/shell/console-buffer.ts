@@ -79,11 +79,15 @@ export type ConsoleRecordsStore = ConsoleRecordsState & ConsoleRecordsActions;
 
 /* === Constants === */
 
-export const RETAINED_RECORDS = 5_000;
-export const RETAINED_BYTES = 2 * 1024 * 1024;
+const GUI_CONSOLE_BUFFERS = 4;
+const GUI_CONSOLE_RECORDS = 5_000;
+const GUI_CONSOLE_RETENTION_BYTES = 2_097_152;
+
+export const RETAINED_RECORDS = GUI_CONSOLE_RECORDS;
+export const RETAINED_BYTES = GUI_CONSOLE_RETENTION_BYTES;
 
 /** Scopes kept at once; the least recently read one goes first. */
-export const RETAINED_BUFFERS = 4;
+export const RETAINED_BUFFERS = GUI_CONSOLE_BUFFERS;
 
 export const EMPTY_CONSOLE_BUFFER: ConsoleBuffer = {
   afterSequence: 0n,

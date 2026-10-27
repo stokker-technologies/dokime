@@ -57,10 +57,10 @@ export function ExecutionParameters({ rows }: ExecutionParametersProps) {
   } as CSSProperties;
 
   return (
-    <dl className="grid min-w-0 items-baseline gap-y-1.5 font-mono text-xs" data-testid="execution-parameters" style={style}>
+    <dl className="grid min-w-0 items-baseline gap-y-2 font-mono text-xs" data-testid="execution-parameters" style={style}>
       {rows.map((row) => (
         <div
-          className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--parameter-value)_var(--parameter-unit)] items-baseline gap-x-1.5 leading-5"
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--parameter-value)_var(--parameter-unit)] items-baseline gap-x-2 leading-5"
           data-parameter={row.key}
           key={row.key}
         >

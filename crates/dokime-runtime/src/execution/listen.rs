@@ -40,9 +40,6 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-const INBOX_POLL_INTERVAL: Duration = Duration::from_millis(5);
-pub(crate) const LISTEN_BUFFER: usize = 1024;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -72,7 +69,8 @@ pub struct ListeningEvidence {
     record_type: String,
     source: Arc<dyn RecordSource>,
     cursor: usize,
-    sleeping: Option<Pin<Box<tokio::time::Sleep>>>,
+    changed: Arc<tokio::sync::Notify>,
+    waiting: Option<Pin<Box<tokio::sync::futures::OwnedNotified>>>,
 }
 
 /* === Enums === */
@@ -134,7 +132,9 @@ impl ListeningValues {
 
 impl ListeningEvidence {
     pub fn new(deliveries: &Deliveries, record_type: String) -> Self {
-        Self { record_type, source: deliveries.source(), cursor: 0, sleeping: None }
+        let source = deliveries.source();
+        let changed = source.changed();
+        Self { record_type, source, cursor: 0, changed, waiting: None }
     }
 }
 
@@ -168,17 +168,25 @@ impl Stream for ListeningEvidence {
     fn poll_next(self: Pin<&mut Self>, context: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
         let listening = self.get_mut();
         loop {
-            if let Some(record) = listening.source.next_record(&mut listening.cursor) {
-                listening.sleeping = None;
+            let waiting = listening.waiting.get_or_insert_with(|| Box::pin(Arc::clone(&listening.changed).notified_owned()));
+            waiting.as_mut().enable();
+            let record = listening.source.next_record(&mut listening.cursor);
+            let closed = record.is_none() && listening.source.closed();
+            // Closure Follows Final Publication; Recheck After Observing It.
+            let record = if closed { listening.source.next_record(&mut listening.cursor) } else { record };
+            if let Some(record) = record {
+                listening.waiting = None;
                 if record.record_type.as_str() == listening.record_type {
                     return Poll::Ready(Some(record));
                 }
                 continue;
             }
-            // This is the execution's bounded inbox, shared with Rust authors.
-            let sleeping = listening.sleeping.get_or_insert_with(|| Box::pin(tokio::time::sleep(INBOX_POLL_INTERVAL)));
-            match sleeping.as_mut().poll(context) {
-                Poll::Ready(()) => listening.sleeping = None,
+            if closed {
+                return Poll::Ready(None);
+            }
+            let waiting = listening.waiting.as_mut().expect("the inbox change waiter is registered");
+            match waiting.as_mut().poll(context) {
+                Poll::Ready(()) => listening.waiting = None,
                 Poll::Pending => return Poll::Pending,
             }
         }
@@ -227,10 +235,58 @@ impl<R: DeclaredRecord + Unpin> Stream for ListeningRecords<R> {
 
 /* === Public Functions === */
 
-pub(crate) fn rows() -> broadcast::Sender<PublishedRow> {
-    broadcast::channel(LISTEN_BUFFER).0
+pub(crate) fn rows(capacity: usize) -> broadcast::Sender<PublishedRow> {
+    broadcast::channel(capacity).0
 }
 
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicBool;
+
+    struct ClosingSource {
+        published: AtomicBool,
+        changed: Arc<tokio::sync::Notify>,
+        record: Record,
+    }
+
+    impl RecordSource for ClosingSource {
+        fn delivered(&self, index: usize) -> Option<Record> {
+            (index == 0 && self.published.load(Ordering::Acquire)).then(|| self.record.clone())
+        }
+
+        fn changed(&self) -> Arc<tokio::sync::Notify> {
+            Arc::clone(&self.changed)
+        }
+
+        fn closed(&self) -> bool {
+            self.published.store(true, Ordering::Release);
+            true
+        }
+    }
+
+    #[test]
+    fn closure_drains_records() {
+        let request = dokime_domain::model::records::publication::RecordPublishRequest::new(
+            Identifier::new("fixture.final").unwrap(),
+            dokime_domain::model::records::RecordSeverity::Info,
+        );
+        let record = request.into_record(
+            dokime_domain::model::identity::RecordId::from_seed("final"),
+            1,
+            dokime_domain::model::time::Timestamp::new("2000-01-01T00:00:00Z"),
+            "fixture",
+        );
+        let source = Arc::new(ClosingSource { published: AtomicBool::new(false), changed: Arc::default(), record: record.clone() });
+        let deliveries = Deliveries::new(source);
+        let mut listening = ListeningEvidence::new(&deliveries, "fixture.final".into());
+        let mut context = TaskContext::from_waker(std::task::Waker::noop());
+
+        assert_eq!(Pin::new(&mut listening).poll_next(&mut context), Poll::Ready(Some(record)));
+        assert_eq!(Pin::new(&mut listening).poll_next(&mut context), Poll::Ready(None));
+    }
+}

@@ -70,7 +70,7 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn stored_cycle_exists(&self, id: &TestCycleId) -> Result<bool, Error> {
-        Ok(crate::storage::objects::cycle::read(self.storage(), id, harmos::storage::ObjectVersion::Latest).await?.is_some())
+        Ok(crate::storage::objects::cycle::read(&self.storage().clone(), id, harmos::storage::ObjectVersion::Latest).await?.is_some())
     }
 
     pub(crate) async fn stored_execution_exists(&self, id: &TestExecutionId) -> Result<bool, Error> {

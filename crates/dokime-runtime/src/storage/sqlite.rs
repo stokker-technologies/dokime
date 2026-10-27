@@ -11,10 +11,11 @@
 
 mod catalog;
 pub(crate) mod data;
+mod settings;
 
 /* === Re-Exports === */
 
-pub use crate::storage::error::Error;
+pub use crate::storage::Error;
 pub use catalog::Source;
 pub use data::Backend;
 pub use rusqlite;
@@ -44,8 +45,6 @@ pub const SCHEMA_VERSION: i64 = 1;
 
 // A runtime being replaced releases the root as it exits; a successor waits
 // this long for that before calling the root owned.
-const LEASE_WAIT: Duration = Duration::from_secs(5);
-const LEASE_POLL: Duration = Duration::from_millis(50);
 
 static COMMITTED_TRANSACTIONS: AtomicU64 = AtomicU64::new(0);
 static DATA_BATCHES: AtomicU64 = AtomicU64::new(0);
@@ -81,6 +80,7 @@ struct Owner {
     // The interruptible read running now, so a late cancellation cannot interrupt a successor.
     running: std::sync::Mutex<u64>,
     reads: AtomicU64,
+    files: std::sync::Mutex<std::collections::BTreeMap<harmos::Identifier, File>>,
 }
 
 struct Live {
@@ -136,6 +136,7 @@ impl State {
                 interrupt,
                 running: std::sync::Mutex::new(0),
                 reads: AtomicU64::new(1),
+                files: std::sync::Mutex::new(std::collections::BTreeMap::new()),
             })))
         })
         .await?
@@ -144,7 +145,9 @@ impl State {
     pub async fn close(&self) -> Result<(), Error> {
         self.0.closing.store(true, Ordering::Release);
         let mut live = self.0.live.clone().lock_owned().await;
+        let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
+            owner.files.lock().unwrap().clear();
             let Some(Live { connection, _lease }) = live.take() else {
                 return Ok(());
             };
@@ -214,13 +217,20 @@ fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
 // Takes the root's exclusive lease, waiting a bounded time for a departing
 // owner to let go. A lease still held after that belongs to a live runtime.
 fn acquire_lease(lease: &File) -> Result<(), Error> {
-    let deadline = Instant::now() + LEASE_WAIT;
+    let wait = Duration::from_secs(5);
+    let deadline = Instant::now()
+        .checked_add(wait)
+        .ok_or_else(|| Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "SQLite lease wait exceeds clock range")))?;
+    let poll = Duration::from_millis(25);
+    if poll.is_zero() {
+        return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "SQLite lease poll must be positive")));
+    }
     loop {
         match lease.try_lock() {
             Ok(()) => return Ok(()),
             Err(std::fs::TryLockError::Error(error)) => return Err(Error::Io(error)),
             Err(std::fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
-                std::thread::sleep(LEASE_POLL);
+                std::thread::sleep(poll.min(deadline.saturating_duration_since(Instant::now())));
             }
             Err(std::fs::TryLockError::WouldBlock) => return Err(Error::Owned),
         }

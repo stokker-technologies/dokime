@@ -144,7 +144,7 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
                     records.append(event)
 
             async def telemetry() -> None:
-                async for sample in handle.samples(follow=True, poll_interval=0.05, page_size=2):
+                async for sample in handle.samples(follow=True, page_size=2):
                     samples.append(sample)
                     live_sample.set()
 

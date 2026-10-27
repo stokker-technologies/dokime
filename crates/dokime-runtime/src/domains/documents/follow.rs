@@ -18,10 +18,11 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 // Third Party Imports
 use harmos::{
+    operations::Response,
     services::Fault,
     services::Resident,
     services::Service,
-    storage::{FileBatch, FileFollower, FilePhase, FileReference, StagedFile},
+    storage::{FilePhase, FileReadBatch, FileReference, ProductionFollower, StagedFile},
 };
 
 // Local Imports
@@ -39,8 +40,6 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
-const SOURCE_POLL: Duration = Duration::from_millis(250);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -48,13 +47,15 @@ const SOURCE_POLL: Duration = Duration::from_millis(250);
 /* === Structs === */
 
 pub struct ExecutionFileFollower {
-    reader: FileFollower,
+    poll_interval: Duration,
+    reader: ProductionFollower,
     source: Source,
-    metadata: dokime_domain::model::content::wire::ExecutionFileFollowMetadata,
+    metadata: harmos::storage::ReadBatch<dokime_domain::model::content::wire::ExecutionFileFollowMetadata>,
     finished: bool,
 }
 
 struct NativeCapture {
+    poll_interval: Duration,
     source: LiveOutput,
 }
 
@@ -69,8 +70,8 @@ struct Position {
 
 enum Source {
     Live(LiveOutput),
-    Saved(Box<SavedOutputFile>),
-    Captured(Box<FileReference>, bool),
+    Saved(SavedOutputFile),
+    Captured(harmos::storage::ReadBatch<FileReference>, bool),
 }
 
 /* === Traits === */
@@ -86,34 +87,39 @@ impl RuntimeHandle {
         if offset != 0 && expected.is_none() {
             return Err(invalid("resume offset requires original identity"));
         }
-        let expected_staged = expected
-            .map(|identity| {
-                if identity.execution_id != execution.as_str() || identity.relative_path != path {
-                    return Err(invalid("resume identity belongs to another registered output"));
-                }
-                let history = identity.history.as_ref().ok_or_else(|| invalid("resume identity has no original history"))?;
-                Ok(StagedFile {
-                    history: harmos::storage::StoreHistory {
-                        store: Identifier::new(&history.store).map_err(|_| invalid("invalid original store identity"))?,
-                        epoch: Identifier::new(&history.epoch).map_err(|_| invalid("invalid original store epoch"))?,
-                    },
-                    id: Identifier::new(&identity.file_id).map_err(|_| invalid("invalid original file identity"))?,
+        let session = self.storage().clone();
+        let expected_staged = harmos::storage::ReadBatch::new(()).try_map(|_| {
+            expected
+                .map(|identity| {
+                    if identity.execution_id != execution.as_str() || identity.relative_path != path {
+                        return Err(invalid("resume identity belongs to another registered output"));
+                    }
+                    let history = identity.history.as_ref().ok_or_else(|| invalid("resume identity has no original history"))?;
+                    Ok(StagedFile {
+                        history: harmos::storage::StoreHistory {
+                            store: Identifier::new(&history.store).map_err(|_| invalid("invalid original store identity"))?,
+                            epoch: Identifier::new(&history.epoch).map_err(|_| invalid("invalid original store epoch"))?,
+                        },
+                        id: Identifier::new(&identity.file_id).map_err(|_| invalid("invalid original file identity"))?,
+                    })
                 })
-            })
-            .transpose()?;
-        if let Some(saved) = SavedOutputs::open(self.storage(), execution, None).await? {
+                .transpose()
+        })?;
+        if let Some(saved) = SavedOutputs::open_in(&session, execution, None).await? {
             let Some(file) = saved.file(path)? else {
                 return Ok(None);
             };
             let reference = &file.descriptor().file;
-            let staged = StagedFile { history: reference.position.history.clone(), id: reference.metadata.id.clone() };
-            if expected_staged.as_ref().is_some_and(|expected| expected != &staged) {
+            let staged = harmos::storage::ReadBatch::new(()).try_map(|_| {
+                Ok::<_, Error>(StagedFile { history: reference.position.history.clone(), id: reference.metadata.id.clone() })
+            })?;
+            if (*expected_staged).as_ref().is_some_and(|expected| expected != &*staged) {
                 return Err(invalid("saved output replaced the selected identity"));
             }
             if offset > reference.length {
                 return Err(invalid("resume offset exceeds original saved length"));
             }
-            let reader = self.storage().follow_file(&staged, offset).await?;
+            let reader = session.follow_production(&staged, offset).await?;
             let output = file.descriptor();
             let phase = if output.stream_state == Some(SavedStreamState::Interrupted) {
                 dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
@@ -126,22 +132,30 @@ impl RuntimeHandle {
                 path,
                 &output.file.metadata.media_type,
                 Position { phase, length: output.file.length, offset },
-            );
-            return Ok(Some(ExecutionFileFollower { reader, source: Source::Saved(Box::new(file)), metadata, finished: false }));
+            )?;
+            return Ok(Some(ExecutionFileFollower {
+                poll_interval: self.storage().settings().filesystem.poll_interval,
+                reader,
+                source: Source::Saved(file),
+                metadata,
+                finished: false,
+            }));
         }
         let (reader, live, abandoned) =
-            match self.execution_storage.native_follower(execution, path, offset, expected_staged.as_ref()).await? {
+            match self.execution_storage.native_follower(&session, execution, path, offset, (*expected_staged).as_ref()).await? {
                 None => return Ok(None),
-                Some(NativeAdmission::Live { follower, output, abandoned }) => (follower, output, abandoned),
+                Some(NativeAdmission::Live(live)) => *live,
                 Some(NativeAdmission::Captured { reference, interrupted }) => {
-                    let staged = StagedFile { history: reference.position.history.clone(), id: reference.metadata.id.clone() };
-                    if expected_staged.as_ref().is_some_and(|expected| expected != &staged) {
+                    let staged = harmos::storage::ReadBatch::new(()).try_map(|_| {
+                        Ok::<_, Error>(StagedFile { history: reference.position.history.clone(), id: reference.metadata.id.clone() })
+                    })?;
+                    if (*expected_staged).as_ref().is_some_and(|expected| expected != &*staged) {
                         return Err(invalid("captured output replaced the selected identity"));
                     }
                     if offset > reference.length {
                         return Err(invalid("resume offset exceeds captured output length"));
                     }
-                    let reader = self.storage().follow_file(&staged, offset).await?;
+                    let reader = session.follow_production(&staged, offset).await?;
                     let phase = if interrupted {
                         dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
                     } else {
@@ -153,10 +167,11 @@ impl RuntimeHandle {
                         path,
                         &reference.metadata.media_type,
                         Position { phase, length: reference.length, offset },
-                    );
+                    )?;
                     return Ok(Some(ExecutionFileFollower {
+                        poll_interval: self.storage().settings().filesystem.poll_interval,
                         reader,
-                        source: Source::Captured(Box::new(reference), interrupted),
+                        source: Source::Captured(reference, interrupted),
                         metadata,
                         finished: false,
                     }));
@@ -181,8 +196,14 @@ impl RuntimeHandle {
                 length: progress.length,
                 offset,
             },
-        );
-        Ok(Some(ExecutionFileFollower { reader, source: Source::Live(live), metadata, finished: false }))
+        )?;
+        Ok(Some(ExecutionFileFollower {
+            poll_interval: self.storage().settings().filesystem.poll_interval,
+            reader,
+            source: Source::Live(live),
+            metadata,
+            finished: false,
+        }))
     }
 }
 
@@ -190,6 +211,7 @@ impl RuntimeHandle {
     async fn start_execution_file_capture(&self, execution: &TestExecutionId, source: &LiveOutput) -> Result<()> {
         let runtime = self.clone();
         let source = source.clone();
+        let poll_interval = self.storage().settings().filesystem.poll_interval;
         let name = format!("execution-log:{execution}:native-{}", source.file_id());
         tokio::spawn(async move {
             let mut stops = runtime.execution_storage.tail_stops.lock().await;
@@ -201,7 +223,7 @@ impl RuntimeHandle {
                 .operations
                 .register_service(
                     harmos::services::ServiceDefinition { id: name.clone(), policy: harmos::services::POLICY },
-                    move |_: Arc<()>| NativeCapture { source: source.clone() },
+                    move |_: Arc<()>| NativeCapture { poll_interval, source: source.clone() },
                 )
                 .map_err(Error::from)?;
             let lease = match runtime.operations.submit_resident(&name).await {
@@ -230,14 +252,14 @@ impl Resident<crate::app::Dokime> for NativeCapture {
                 return Ok(());
             }
             if !stable || self.source.caught_up().await.map_err(Fault::Application)? {
-                context.rest(SOURCE_POLL).await;
+                context.rest(self.poll_interval).await;
             }
         }
     }
     async fn cleanup(&mut self) -> Result<()> {
         while !self.source.caught_up().await? {
             if !self.source.synchronize().await? {
-                tokio::time::sleep(SOURCE_POLL).await;
+                tokio::time::sleep(self.poll_interval).await;
             }
         }
         Ok(())
@@ -249,18 +271,18 @@ impl ExecutionFileFollower {
         &self.metadata
     }
 
-    pub fn metadata_frame(&self) -> dokime_domain::model::content::wire::ExecutionFileFollowFrame {
-        dokime_domain::model::content::wire::ExecutionFileFollowFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Metadata(self.metadata.clone())),
-        }
+    pub fn metadata_frame(&self) -> Result<Response<dokime_domain::model::content::wire::ExecutionFileFollowFrame>> {
+        let frame = harmos::storage::ReadBatch::new(()).try_map(|_| {
+            let metadata = (*self.metadata).clone();
+            let payload = dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Metadata(metadata);
+            Ok::<_, Error>(dokime_domain::model::content::wire::ExecutionFileFollowFrame { payload: Some(payload) })
+        })?;
+        Ok(Response::from_owner(frame.owner()))
     }
 
     pub async fn next_frame(
         &mut self, maximum: NonZeroUsize,
-    ) -> Result<Option<dokime_domain::model::content::wire::ExecutionFileFollowFrame>> {
-        if maximum.get() > 64 * 1024 {
-            return Err(invalid("follow chunk exceeds 64 KiB"));
-        }
+    ) -> Result<Option<Response<dokime_domain::model::content::wire::ExecutionFileFollowFrame>>> {
         if self.finished {
             return Ok(None);
         }
@@ -279,12 +301,12 @@ impl ExecutionFileFollower {
                             let chunk = result?;
                             if let Some(chunk) = chunk { return self.chunk(offset, chunk).map(Some); }
                         }
-                        _ = tokio::time::sleep(SOURCE_POLL) => continue,
+                        _ = tokio::time::sleep(self.poll_interval) => continue,
                     }
                 } else if let Some(chunk) = self.reader.next_batch(maximum).await? {
                     return self.chunk(offset, chunk).map(Some);
                 }
-                return match live.settlement().await? {
+                let terminal = match live.settlement().await? {
                     Settlement::Abandoned => self.terminal(None, dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned),
                     Settlement::Finished(reference) => {
                         self.terminal(Some(&reference), dokime_domain::model::content::wire::ExecutionFilePhase::Finished)
@@ -294,48 +316,47 @@ impl ExecutionFileFollower {
                         self.terminal(None, dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned)
                     }
                     Settlement::Producing => Err(invalid("finished original production has no sealed reference")),
-                }
-                .map(Some);
+                }?;
+                self.finished = true;
+                return Ok(Some(terminal));
             }
             if let Some(chunk) = self.reader.next_batch(maximum).await? {
                 return self.chunk(offset, chunk).map(Some);
             }
-            if let Source::Captured(reference, interrupted) = &self.source {
-                let interrupted = *interrupted;
-                let reference = (**reference).clone();
-                let phase = if interrupted {
-                    dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
-                } else {
-                    dokime_domain::model::content::wire::ExecutionFilePhase::Finished
-                };
-                return self.terminal((!interrupted).then_some(&reference), phase).map(Some);
-            }
-            let Source::Saved(file) = &mut self.source else { unreachable!() };
-            let interrupted = file.descriptor().stream_state == Some(SavedStreamState::Interrupted);
-            let reference = file.descriptor().file.clone();
+            let (reference, interrupted) = match &self.source {
+                Source::Captured(reference, interrupted) => (&**reference, *interrupted),
+                Source::Saved(file) => (&file.descriptor().file, file.descriptor().stream_state == Some(SavedStreamState::Interrupted)),
+                Source::Live(_) => unreachable!(),
+            };
             let phase = if interrupted {
                 dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
             } else {
                 dokime_domain::model::content::wire::ExecutionFilePhase::Finished
             };
-            return self.terminal((!interrupted).then_some(&reference), phase).map(Some);
+            let frame = self.terminal((!interrupted).then_some(reference), phase)?;
+            self.finished = true;
+            return Ok(Some(frame));
         }
     }
 
-    fn chunk(&self, offset: u64, chunk: FileBatch) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowFrame> {
-        Ok(dokime_domain::model::content::wire::ExecutionFileFollowFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(
-                dokime_domain::model::content::wire::ArtifactChunk { offset, data: chunk.bytes },
-            )),
-        })
+    fn chunk(&self, offset: u64, chunk: FileReadBatch) -> Result<Response<dokime_domain::model::content::wire::ExecutionFileFollowFrame>> {
+        // No New Payload Allocation; Native Projection Admits Its Owner Growth.
+        let frame = chunk.try_map(|chunk| -> harmos::storage::Result<_> {
+            let chunk = dokime_domain::model::content::wire::ArtifactChunk { offset, data: chunk.bytes };
+            let payload = dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk);
+            let frame = dokime_domain::model::content::wire::ExecutionFileFollowFrame { payload: Some(payload) };
+            Ok(frame)
+        })?;
+        let response = Response::from_owner(frame.owner());
+        Ok(response)
     }
 
     fn terminal(
-        &mut self, reference: Option<&FileReference>, phase: dokime_domain::model::content::wire::ExecutionFilePhase,
-    ) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowFrame> {
+        &self, reference: Option<&FileReference>, phase: dokime_domain::model::content::wire::ExecutionFilePhase,
+    ) -> Result<Response<dokime_domain::model::content::wire::ExecutionFileFollowFrame>> {
         let length = self.reader.offset();
         let metadata = &self.metadata;
-        let frame = {
+        let frame = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
             let sealed = reference
                 .map(|reference| {
                     let identity = metadata.identity.as_ref().ok_or_else(|| refused("follow metadata has no original identity"))?;
@@ -358,14 +379,13 @@ impl ExecutionFileFollower {
                     })
                 })
                 .transpose()?;
-            dokime_domain::model::content::wire::ExecutionFileFollowFrame {
+            Ok(dokime_domain::model::content::wire::ExecutionFileFollowFrame {
                 payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(
                     dokime_domain::model::content::wire::ExecutionFileFollowTerminal { phase, length, sealed },
                 )),
-            }
-        };
-        self.finished = true;
-        Ok(frame)
+            })
+        })?;
+        Ok(Response::from_owner(frame.owner()))
     }
 }
 
@@ -375,21 +395,23 @@ impl ExecutionFileFollower {
 
 fn metadata(
     staged: &StagedFile, execution: &TestExecutionId, path: &str, media: &str, position: Position,
-) -> dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
-    let Position { phase, length, offset } = position;
-    dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
-        identity: Some(dokime_domain::model::content::wire::ExecutionFileIdentity {
-            history: Some(history(&staged.history)),
-            file_id: staged.id.as_str().to_owned(),
-            execution_id: execution.as_str().to_owned(),
-            relative_path: path.to_owned(),
-        }),
-        content_type: media.to_owned(),
-        kind: kind(path, media),
-        phase,
-        available_length: length,
-        offset,
-    }
+) -> Result<harmos::storage::ReadBatch<dokime_domain::model::content::wire::ExecutionFileFollowMetadata>> {
+    harmos::storage::ReadBatch::new(()).try_map(|_| {
+        let Position { phase, length, offset } = position;
+        Ok(dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
+            identity: Some(dokime_domain::model::content::wire::ExecutionFileIdentity {
+                history: Some(history(&staged.history)),
+                file_id: staged.id.as_str().to_owned(),
+                execution_id: execution.as_str().to_owned(),
+                relative_path: path.to_owned(),
+            }),
+            content_type: media.to_owned(),
+            kind: kind(path, media),
+            phase,
+            available_length: length,
+            offset,
+        })
+    })
 }
 
 fn kind(path: &str, media: &str) -> dokime_domain::model::content::wire::ExecutionFileKind {

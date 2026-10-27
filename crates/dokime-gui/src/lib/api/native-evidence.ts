@@ -38,12 +38,14 @@ type CapturedRecord = RecordPage["records"][number];
 
 /* === Constants === */
 
+const GUI_RECORD_TAIL_ITEMS = 1_000;
+
 /**
  * How many of a scope's latest records the GUI holds: the server's page
  * bound, so the tail arrives in one call and later records append from the
  * record stream instead of a fresh replay.
  */
-export const RECORD_TAIL = 1_000;
+export const RECORD_TAIL = GUI_RECORD_TAIL_ITEMS;
 
 /* === Public API === */
 

@@ -85,7 +85,7 @@ async fn execution_prompt_identity() {
     let execution = client.execution(execution_id.clone());
     let other = client.execution(dokime::TestExecutionId::from_uuid(&sibling).unwrap());
     let command = ["dokime", "execution", "start", &first, "--endpoint", &endpoint];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     gate.started.notified().await;
 
     // Recovery Must Name This Execution's Explicitly Owned Container.
@@ -107,7 +107,7 @@ async fn execution_prompt_identity() {
             "--endpoint",
             &endpoint,
         ]);
-        let refused = dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap_err();
+        let refused = dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap_err();
         assert_eq!(refused.exit_code(), std::process::ExitCode::from(2));
         assert!(refused.to_string().contains("not explicitly owned cycle"));
         assert_eq!(handle.watch_state().latest().state().cycles[cycle.id()].phase, model::execution::result::CyclePhase::Active);
@@ -133,19 +133,19 @@ async fn execution_prompt_identity() {
     pending.close().await;
     let foreign = other.prompt(&id).await.unwrap_err();
     assert!(matches!(foreign, dokime::client::Error::Rpc(status) if status.code() == Code::InvalidArgument));
-    let values = model::values::wire::Value::from(Value::Object(BTreeMap::new()));
+    let values = model::values::wire::Value::try_from(Value::Object(BTreeMap::new())).unwrap();
     assert!(other.respond_prompt(&id, "yes".into(), values, true).await.is_err());
     assert!(handle.prompt_response(&id).await.is_none());
     let id_text = id.to_string();
     let command = ["dokime", "execution", "prompt", "next", &first, "--wait-seconds", "5", "--id-only", "--endpoint", &endpoint];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let command = ["dokime", "execution", "prompt", "show", &first, &id_text, "--endpoint", &endpoint];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let command = ["dokime", "execution", "prompt", "answer", &first, &id_text, "--action", "yes", "--endpoint", &endpoint];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     assert_eq!(handle.prompt_response(&id).await.unwrap().action, "yes");
     assert!(
-        dokime_cli::Cli::try_parse_from(command).unwrap().run().await.is_err(),
+        dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.is_err(),
         "a duplicate answer cannot replace the committed response"
     );
     assert!(execution.prompt(&id).await.unwrap().response.is_some());
@@ -168,14 +168,14 @@ async fn execution_prompt_identity() {
         "--recovery-directory",
         recovery_path,
     ];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     assert_eq!(handle.watch_state().latest().state().cycles[cycle.id()].phase, model::execution::result::CyclePhase::Active);
     assert_eq!(std::fs::read_dir(&recovery_directory).unwrap().count(), 0, "normal wait never seals or exports the owned cycle");
 
     // === Stop A Different Execution While Its Question Waits === //
 
     let command = ["dokime", "execution", "start", &sibling, "--endpoint", &endpoint];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     gate.started.notified().await;
     let waiting_id = dokime::model::identity::new_id::<PromptId>();
     let other_id = dokime::TestExecutionId::from_uuid(&sibling).unwrap();
@@ -189,9 +189,9 @@ async fn execution_prompt_identity() {
         .await
         .unwrap();
     let command = ["dokime", "execution", "stop", &sibling, "--endpoint", &endpoint];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let command = ["dokime", "execution", "wait", &sibling, "--wait-seconds", "5", "--endpoint", &endpoint];
-    let cancelled = dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap_err();
+    let cancelled = dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap_err();
     assert_eq!(cancelled.exit_code(), std::process::ExitCode::from(1), "cancelled evidence is sealed without claiming success");
     assert!(handle.prompt_response(&waiting_id).await.is_none());
     assert!(handle.prompt_settled_at(&waiting_id).await.is_some());
@@ -200,7 +200,7 @@ async fn execution_prompt_identity() {
     assert!(stopped.summary.phase.terminal(), "a sealed Stop must settle its prepared request: {stopped:?}");
     assert_eq!((stopped.summary.prepared, stopped.summary.finished), (1, 1));
     drop(state);
-    let values = model::values::wire::Value::from(Value::Object(BTreeMap::new()));
+    let values = model::values::wire::Value::try_from(Value::Object(BTreeMap::new())).unwrap();
     assert!(other.respond_prompt(&waiting_id, "yes".into(), values, true).await.is_err());
     assert_eq!(execution.wait(None, None).await.unwrap().checkpoint, execution.checkpoint().await.ok());
 
@@ -219,7 +219,7 @@ async fn execution_prompt_identity() {
         "--endpoint",
         &endpoint,
     ];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let case_id = {
         let state = handle.watch_state().latest();
         state
@@ -232,7 +232,7 @@ async fn execution_prompt_identity() {
             .to_string()
     };
     let command = ["dokime", "cycle", "append", &cycle_text, "--case-id", &case_id, "--id-only", "--endpoint", &endpoint];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let members = cycle.executions().await.unwrap();
     assert_eq!(members.len(), 3);
     let prepared = members.iter().find(|member| member.id().as_str() != first && member.id().as_str() != sibling).unwrap();
@@ -335,7 +335,9 @@ async fn prompt_answers_identity() {
     let answer = |value| contracts::prompts::Respond {
         prompt_id: ids[0].to_string(),
         action: "submit".into(),
-        values: Some(model::values::wire::Value::from(&Value::Object(BTreeMap::from([("counter".into(), Value::Integer(value))])))),
+        values: Some(
+            model::values::wire::Value::try_from(&Value::Object(BTreeMap::from([("counter".into(), Value::Integer(value))]))).unwrap(),
+        ),
         accepted: true,
         context: None,
     };

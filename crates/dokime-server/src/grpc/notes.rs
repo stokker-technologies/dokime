@@ -18,15 +18,14 @@ pub(in crate::grpc) use wire::{health, note};
 
 /* === Imports === */
 
+use crate::grpc::transcode::Transcode;
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::domain::Portable;
-use dokime::harmos::{
-    MemorySize,
-    operations::{Context, Operation, Response},
-};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -40,6 +39,8 @@ use dokime::domains::evidence::notes as evidence;
 use dokime::domains::evidence::notes::NoteError;
 
 /* === Constants === */
+
+const SERVER_NOTE_RESPONSE_BYTES: u64 = 524_288;
 
 /* === Macros === */
 
@@ -236,11 +237,9 @@ impl Operation for EditNote {
 }
 
 impl Resources {
-    fn produce<T: MemorySize + Portable + Send + Sync + 'static>(
-        &self, build: impl FnOnce() -> Result<T, Status>,
-    ) -> Result<Response<T>, Status> {
+    fn produce<T: Portable + Send + Sync + 'static>(&self, build: impl FnOnce() -> Result<T, Status>) -> Result<Response<T>, Status> {
         let output = build()?;
-        if output.encoded_len() > self.maximum {
+        if output.wire_len()? > self.maximum {
             return Err(Status::resource_exhausted("annotation response exceeds byte budget"));
         }
         Ok(output.into())
@@ -250,7 +249,10 @@ impl Resources {
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(512 * 1024) });
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        maximum: maximum.min(usize::try_from(SERVER_NOTE_RESPONSE_BYTES).expect("validated note response size")),
+    });
     runtime.operations().register_wire_operation::<ListNotes>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<ListHealth>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<CreateNote>("dokime", dokime::app::Lanes::Open, resources.clone())?;

@@ -35,7 +35,7 @@ use crate::parameters::FromParameters;
 use crate::records::Deliveries;
 use crate::telemetry::{SampleSink, Streams};
 use crate::transport::ExecutionTransport;
-use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock};
+use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock, settled};
 use crate::transport::frame::{ExecutionSampleSink, FrameArtifactSink, FrameRecordSource, FrameTransport};
 use crate::transport::{SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome};
 use dokime_domain::model::execution::termination::TerminationReason;
@@ -43,7 +43,6 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-const CRITERION_BUDGET: Duration = Duration::from_secs(1);
 const INITIALIZATION: &str = "initialization";
 const TRACEABILITY: &str = "traceability";
 const PARAMETERS: &str = "resolving parameters";
@@ -376,7 +375,10 @@ async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut
             return Err(Diagnostic::of(format!("host did not settle execution inputs before the deadline; input progress: {progress}")));
         }
         tokio::select! {
-            _ = tokio::time::sleep(Duration::from_millis(5)) => {},
+            _ = settled(executions, token, || (), |state| {
+                (state.record_subscriptions_settled() || state.settlement_progress() != progress).then_some(())
+            }) => {},
+            _ = tokio::time::sleep_until(deadline) => {},
             _ = cancel.changed(), if !was_cancelled => {
                 return Err(Diagnostic::of("record subscription settlement was interrupted"));
             }
@@ -608,7 +610,7 @@ async fn conclude<T: SidecarTemplate>(
         let decided = if let Some(environment) = environment {
             let ctx = environment.criterion(evidence).selecting(Arc::clone(&selected_attempts)).deciding(transport, &identifier);
             let work = caught(T::evaluate(&identifier, &ctx)).instrument(tracing::info_span!("criterion", criterion = %identifier));
-            let result = match tokio::time::timeout(CRITERION_BUDGET, work).await {
+            let result = match tokio::time::timeout(Duration::from_secs(1), work).await {
                 Ok(result) => result.transpose(),
                 Err(_) => Some(Err(Diagnostic::of("criterion evaluation exceeded one second"))),
             };

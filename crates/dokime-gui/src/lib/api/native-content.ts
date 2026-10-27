@@ -13,6 +13,8 @@
 
 /* === Local Imports === */
 
+import { UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES } from "@generated/desktop-protocol";
+
 import type { Row3 as ArtifactDownloadFrame } from "@generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb";
 import type { Row3 as FileDownloadFrame } from "@generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb";
 import type { Row3 as FileFollowFrame } from "@generated/dokime/v1/ContentMessages/FollowExecutionFile/messages_pb";
@@ -32,6 +34,9 @@ import type {
 import { deliverNativeArtifact } from "./native-delivery";
 import { NATIVE_MAX_PAGES, NativeApiLimitError, nowIso, safeNumber, sha256Hex, timestampIso } from "./native-values";
 
+const GUI_CONTENT_BYTES = 2_147_483_648;
+const GUI_SMALL_PAGE_ITEMS = 100;
+
 /* === Canonical Types === */
 
 type ArtifactScope = NonNullable<ArtifactMetadata["scope"]>;
@@ -46,9 +51,8 @@ type ExecutionFileKind = ExecutionFileMetadata["kind"];
 type ExecutionFileState = ExecutionFileMetadata["state"];
 type ArtifactState = ArtifactMetadata["state"];
 
-const NATIVE_CONTENT_BYTES = 2 * 1024 * 1024 * 1024;
-const NATIVE_CONTENT_CHUNK_BYTES = 1024 * 1024;
-const NATIVE_UPLOAD_SLICE_BYTES = 1024 * 1024;
+const NATIVE_CONTENT_BYTES = GUI_CONTENT_BYTES;
+const NATIVE_UPLOAD_SLICE_BYTES = DESKTOP_UPLOAD_SLICE_BYTES;
 
 export interface NativeContentSession extends SessionIdentity {
   own(dispose: () => void): () => void;
@@ -66,7 +70,7 @@ export async function fetchNativeExecutionFiles(session: SessionIdentity, execut
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
     const reply = await rpc.contentListExecutionFiles(session, {
       executionId,
-      limit: 100,
+      limit: GUI_SMALL_PAGE_ITEMS,
       afterPath,
       cursor,
     });
@@ -353,7 +357,7 @@ export async function fetchNativeArtifacts(session: SessionIdentity): Promise<Ar
   let cursor: ArtifactCursor | undefined;
   for (let page = 0; page < NATIVE_MAX_PAGES; page += 1) {
     const response = await rpc.contentListArtifacts(session, {
-      limit: 100,
+      limit: GUI_SMALL_PAGE_ITEMS,
       afterArtifactId,
       cursor,
     });
@@ -627,7 +631,7 @@ async function assembleArtifactBytes(reader: NativeStream<ArtifactFrame>, artifa
           throw new Error("Artifact data arrived before metadata.");
         }
         const chunk = payload.value.field0;
-        if (chunk.data.byteLength === 0 || chunk.data.byteLength > NATIVE_CONTENT_CHUNK_BYTES) {
+        if (chunk.data.byteLength === 0) {
           throw new Error("Artifact chunk size is invalid.");
         }
         const offset = safeNumber(chunk.offset, "Content.ArtifactChunk offset");
@@ -710,7 +714,7 @@ async function assembleExecutionFileBytes(
           throw new Error("Content.DownloadExecutionFile sent data before metadata.");
         }
         const chunk = payload.value.field0;
-        if (chunk.data.byteLength === 0 || chunk.data.byteLength > NATIVE_CONTENT_CHUNK_BYTES) {
+        if (chunk.data.byteLength === 0) {
           throw new Error("Content.DownloadExecutionFile chunk size is invalid.");
         }
         const offset = safeNumber(chunk.offset, "Content.DownloadExecutionFile chunk offset");

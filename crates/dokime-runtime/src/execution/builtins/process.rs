@@ -40,8 +40,6 @@ use dokime_domain::operations::process::RunProcess;
 
 // How long the output readers may outlast the child, for a grandchild that
 // holds a pipe open.
-const DRAIN: Duration = Duration::from_secs(2);
-const READ_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
@@ -106,7 +104,7 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
     let duration = started.elapsed();
     for reader in [stdout, stderr] {
         let mut reader = reader;
-        if tokio::time::timeout(DRAIN, &mut reader).await.is_err() {
+        if tokio::time::timeout(Duration::from_secs(2), &mut reader).await.is_err() {
             reader.abort();
         }
     }
@@ -145,9 +143,10 @@ fn route(
             }
         }));
     };
+    let read_bytes = 64 * 1024;
     let mut writer = binding.artifacts.create(&artifact).map_err(|error| format!("artifact {artifact:?}: {error}"))?;
     Ok(tokio::spawn(async move {
-        let mut buffer = vec![0; READ_BYTES];
+        let mut buffer = vec![0; read_bytes];
         loop {
             match output.read(&mut buffer).await {
                 Ok(0) => break,

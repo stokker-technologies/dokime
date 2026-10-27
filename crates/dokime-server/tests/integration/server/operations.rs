@@ -134,7 +134,7 @@ async fn response_publication_faults() {
             ["dokime", "operation", "call", "fixture.output.mutate", "--endpoint", &endpoint, "--output", destination.to_str().unwrap()];
         let arguments = command.into_iter().chain(overwrite.then_some("--overwrite"));
         let args = dokime_cli::Cli::try_parse_from(arguments).unwrap();
-        let pending = args.run();
+        let pending = args.run(dokime::config::Config::local(root.path()));
         tokio::pin!(pending);
 
         // The Real Handler Has Acted, But Cannot Complete Before The Destination Changes.
@@ -204,7 +204,7 @@ async fn response_unavailable_after_effect() {
         "--overwrite",
     ];
     let args = dokime_cli::Cli::try_parse_from(command).unwrap();
-    let pending = args.run();
+    let pending = args.run(dokime::config::Config::local(root.path()));
     tokio::pin!(pending);
 
     tokio::select! {

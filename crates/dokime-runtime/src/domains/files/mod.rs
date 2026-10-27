@@ -67,21 +67,6 @@ pub const UNTRUSTED: &str = "file_watch_untrusted";
 
 // Error code of a source scheme this build does not support yet.
 pub const UNSUPPORTED: &str = "file_watch_unsupported";
-pub const DEFAULT_POLL: Duration = Duration::from_millis(1000);
-pub const MINIMUM_POLL: Duration = Duration::from_millis(50);
-pub const MAXIMUM_POLL: Duration = Duration::from_millis(60_000);
-
-// The longest bound one watch may ask for, matching the follow stream policy.
-pub const MAXIMUM_SECONDS: u32 = 86_400;
-pub const DEFAULT_FILES: usize = 64;
-
-// An execution holds at most 256 outputs; one watch may claim all of them.
-pub const MAXIMUM_FILES: usize = 256;
-pub const DEFAULT_BYTES: u64 = 256 * 1024 * 1024;
-pub const MAXIMUM_BYTES: u64 = 4 * 1024 * 1024 * 1024;
-
-// Bounds one discovery pass, so a vast or looping tree is refused, not walked.
-const SCAN_ENTRIES: usize = 100_000;
 
 /* === Macros === */
 
@@ -157,7 +142,12 @@ impl RuntimeHandle {
         }
         settings.artifact = request.artifact.clone();
         settings.single = true;
-        settings.lines = LineMatchers::compile(&request.matchers, &request.markers).map_err(|source| invalid(source.to_string()))?;
+        let matchers = 32;
+        let pattern_bytes = 1024;
+        let regex_bytes = 1 << 20;
+        settings.lines =
+            LineMatchers::compile(&request.matchers, &request.markers, matchers, pattern_bytes, regex_bytes, self.schema_settings())
+                .map_err(|source| invalid(source.to_string()))?;
         if !settings.lines.is_empty() && settings.policy != Policy::Stream {
             return Err(invalid("line matchers and markers need the Stream policy"));
         }
@@ -181,6 +171,8 @@ impl RuntimeHandle {
     }
 
     fn watch_settings(&self, request: &FileWatchRequest, context_execution: Option<&str>) -> Result<Settings> {
+        let maximum_seconds = 86_400u64;
+        let maximum_file_count = 256usize;
         // Resolve The Execution And Its Cycle
         let execution = match (request.execution_id.as_deref(), context_execution) {
             (Some(explicit), Some(context)) if explicit != context => {
@@ -213,29 +205,31 @@ impl RuntimeHandle {
         if request.policy == Policy::Unspecified {
             return Err(invalid("a file watch needs a policy"));
         }
-        let poll_interval = request.poll_interval_ms.map_or(DEFAULT_POLL, |milliseconds| Duration::from_millis(milliseconds.into()));
-        if !(MINIMUM_POLL..=MAXIMUM_POLL).contains(&poll_interval) {
-            return Err(invalid("the poll interval must be 50–60000 milliseconds"));
+        let default_poll_interval = self.config().storage.filesystem.poll_interval;
+        let poll_interval =
+            request.poll_interval_ms.map_or(default_poll_interval, |milliseconds| Duration::from_millis(milliseconds.into()));
+        if !(Duration::from_millis(50)..=Duration::from_secs(60)).contains(&poll_interval) {
+            return Err(invalid("the poll interval exceeds configured bounds"));
         }
         let deadline = match request.maximum_seconds {
-            Some(seconds) if seconds == 0 || seconds > MAXIMUM_SECONDS => {
-                return Err(invalid(format!("the watch bound must be 1–{MAXIMUM_SECONDS} seconds")));
+            Some(seconds) if seconds == 0 || u64::from(seconds) > maximum_seconds => {
+                return Err(invalid(format!("the watch bound must be 1–{maximum_seconds} seconds")));
             }
             seconds => seconds.map(|seconds| Duration::from_secs(seconds.into())),
         };
-        let maximum_files = request.maximum_files.map_or(DEFAULT_FILES, |files| files as usize);
+        let maximum_files = request.maximum_files.map_or(64, |files| files as usize);
         let wait_for_source = match request.wait_for_source_seconds {
-            Some(seconds) if seconds == 0 || seconds > MAXIMUM_SECONDS => {
-                return Err(invalid(format!("the source wait must be 1–{MAXIMUM_SECONDS} seconds")));
+            Some(seconds) if seconds == 0 || u64::from(seconds) > maximum_seconds => {
+                return Err(invalid(format!("the source wait must be 1–{maximum_seconds} seconds")));
             }
             seconds => seconds.map(|seconds| Duration::from_secs(seconds.into())),
         };
-        if maximum_files == 0 || maximum_files > MAXIMUM_FILES {
-            return Err(invalid(format!("a watch may track 1–{MAXIMUM_FILES} files")));
+        if maximum_files == 0 || maximum_files > maximum_file_count {
+            return Err(invalid(format!("a watch may track 1–{maximum_file_count} files")));
         }
-        let maximum_bytes = request.maximum_bytes.unwrap_or(DEFAULT_BYTES);
-        if maximum_bytes == 0 || maximum_bytes > MAXIMUM_BYTES {
-            return Err(invalid("a watch may capture 1 byte to 4 GiB"));
+        let maximum_bytes = request.maximum_bytes.unwrap_or(256 * 1024 * 1024);
+        if maximum_bytes == 0 || maximum_bytes > 4 * 1024 * 1024 * 1024 {
+            return Err(invalid("the watch byte cap exceeds configured bounds"));
         }
         Ok(Settings {
             scope,
@@ -259,11 +253,11 @@ impl RuntimeHandle {
     async fn watch_secret(&self, secret_id: &str) -> Result<String> {
         let secrets = self.secret_store();
         let id = secret_id.to_owned();
-        let read = tokio::task::spawn_blocking(move || secrets.get_secret(&id));
+        let read = secrets.get_secret(&id);
         match tokio::time::timeout(Duration::from_secs(5), read).await {
-            Ok(Ok(Ok(Some(secret)))) => Ok(secret.expose().to_owned()),
-            Ok(Ok(Ok(None))) => Err(Error::not_found("secret_not_found", format!("secret {secret_id:?} is not stored on this host"))),
-            Ok(Ok(Err(_))) | Ok(Err(_)) | Err(_) => {
+            Ok(Ok(Some(secret))) => Ok(secret.expose().to_owned()),
+            Ok(Ok(None)) => Err(Error::not_found("secret_not_found", format!("secret {secret_id:?} is not stored on this host"))),
+            Ok(Err(_)) | Err(_) => {
                 Err(Error::unavailable(UNREACHABLE, format!("secret {secret_id:?} could not be read from secret storage")))
             }
         }

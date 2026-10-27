@@ -28,6 +28,8 @@ use dokime::domain::model::planning::wire::SelectionPlan;
 
 /* === Constants === */
 
+const VALUE_INPUT_BYTES: u64 = 1_048_576;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -84,7 +86,7 @@ impl Args {
             })
             .collect::<crate::Result<Vec<_>>>()?;
         if let Some(template) = self.template {
-            let parameters = parameters(self.parameters_json.as_deref())?;
+            let parameters = parameters(self.parameters_json.as_deref(), VALUE_INPUT_BYTES as usize)?;
             selections.push(RegisteredSelection {
                 suite_id: dokime::client::template_suite(&template).unwrap_or_default().to_owned(),
                 template_id: template,
@@ -192,13 +194,15 @@ pub(super) async fn print(client: &dokime::client::Client, reply: &PreviewSelect
 
 /* === Private Functions === */
 
-fn parameters(input: Option<&str>) -> crate::Result<Vec<dokime::domain::model::planning::wire::RegisteredSelectionParametersEntry>> {
+fn parameters(
+    input: Option<&str>, maximum: usize,
+) -> crate::Result<Vec<dokime::domain::model::planning::wire::RegisteredSelectionParametersEntry>> {
     use dokime::domain::model::planning::wire::{RegisteredSelectionParametersEntry, SelectionValues};
     use dokime::domain::model::values::{Value, wire};
 
     let Some(input) = input else { return Ok(Vec::new()) };
-    if input.len() > 1024 * 1024 {
-        return Err(crate::Error::Input("template parameters exceed 1 MiB".into()));
+    if input.len() > maximum {
+        return Err(crate::Error::Input("template parameters exceed the configured byte limit".into()));
     }
     let json: serde_json::Value = serde_json::from_str(input).map_err(|error| crate::Error::Input(error.to_string()))?;
     let serde_json::Value::Object(entries) = json else {
@@ -207,8 +211,12 @@ fn parameters(input: Option<&str>) -> crate::Result<Vec<dokime::domain::model::p
     let mut parameters = Vec::with_capacity(entries.len());
     for (key, value) in entries {
         let value = Value::from_plain_json(value).map_err(|error| crate::Error::Input(error.to_string()))?;
-        parameters
-            .push(RegisteredSelectionParametersEntry { key, value: Some(SelectionValues { values: vec![wire::Value::from(value)] }) });
+        parameters.push(RegisteredSelectionParametersEntry {
+            key,
+            value: Some(SelectionValues {
+                values: vec![wire::Value::try_from(value).map_err(|error| crate::Error::Input(error.to_string()))?],
+            }),
+        });
     }
     Ok(parameters)
 }

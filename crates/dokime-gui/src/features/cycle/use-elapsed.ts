@@ -32,7 +32,9 @@ import { parseTimestampMs } from "@/lib/time-format";
 
 /* === Constants === */
 
-const TICK_MS = 1_000;
+const GUI_ELAPSED_TICK_MS = 1_000;
+
+const TICK_MS = GUI_ELAPSED_TICK_MS;
 
 /* === Types === */
 

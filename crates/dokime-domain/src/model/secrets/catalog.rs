@@ -23,8 +23,12 @@ use serde::{Deserialize, Serialize};
 
 /* === Constants === */
 
-pub const MAX_SECRETS: usize = 1024;
-pub const MAX_SECRET_BYTES: usize = 64 * 1024;
+pub const CATALOG_ITEMS: u64 = 1_024;
+pub const SECRET_BYTES: u64 = 65_536;
+pub const DOCUMENT_BYTES: u64 = 524_288;
+pub const NAME_BYTES: u64 = 128;
+pub const LABEL_BYTES: u64 = 256;
+pub const DESCRIPTION_BYTES: u64 = 2_048;
 
 /* === Macros === */
 
@@ -85,23 +89,41 @@ pub struct Value {
 /* === Implementations === */
 
 impl Metadata {
+    pub fn check_limits(&self) -> Result<(), &'static str> {
+        check_name_limit(&self.name)?;
+        if self.label.len() as u64 > LABEL_BYTES {
+            return Err("Secret label exceeds the configured byte limit");
+        }
+        if self.description.as_ref().is_some_and(|text| text.len() as u64 > DESCRIPTION_BYTES) {
+            return Err("Secret description exceeds the configured byte limit");
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), &'static str> {
         validate_name(&self.name)?;
-        if self.label.trim().is_empty() || self.label.len() > 256 || self.label.chars().any(char::is_control) {
-            return Err("Secret labels must contain 1–256 bytes without control characters");
+        if self.label.trim().is_empty() || self.label.chars().any(char::is_control) {
+            return Err("Secret labels must be nonempty without control characters");
         }
-        if self.description.as_ref().is_some_and(|text| text.len() > 2048 || text.contains('\0')) {
-            return Err("Secret descriptions must contain at most 2048 bytes without NUL");
+        if self.description.as_ref().is_some_and(|text| text.contains('\0')) {
+            return Err("Secret descriptions must not contain NUL");
         }
         Ok(())
     }
 }
 
 impl Catalog {
-    pub fn validate(&self) -> Result<(), &'static str> {
-        if self.entries.len() > MAX_SECRETS {
-            return Err("The host secret catalog exceeds its entry limit");
+    pub fn check_limits(&self) -> Result<(), &'static str> {
+        if self.entries.len() as u64 > CATALOG_ITEMS {
+            return Err("The host secret catalog exceeds its configured entry limit");
         }
+        for entry in self.entries.values() {
+            entry.metadata.check_limits()?;
+        }
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
         for (name, entry) in &self.entries {
             entry.metadata.validate()?;
             if name != &entry.metadata.name || crate::model::identity::id::validate_uuid("SecretSlot", &entry.slot).is_err() {
@@ -120,17 +142,31 @@ impl std::fmt::Debug for Value {
 
 /* === Public Functions === */
 
+pub fn check_name_limit(name: &str) -> Result<(), &'static str> {
+    if name.len() as u64 > NAME_BYTES {
+        return Err("Secret name exceeds the configured byte limit");
+    }
+    Ok(())
+}
+
+pub fn check_value_limit(value: &str) -> Result<(), &'static str> {
+    if value.len() as u64 > SECRET_BYTES {
+        return Err("Secret value exceeds the configured byte limit");
+    }
+    Ok(())
+}
+
 pub fn validate_name(name: &str) -> Result<(), &'static str> {
     let characters = name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'));
-    if name.is_empty() || name.len() > 128 || !characters || matches!(name, "." | "..") {
-        return Err("Secret names must contain 1–128 ASCII letters, digits, dots, underscores or hyphens");
+    if name.is_empty() || !characters || matches!(name, "." | "..") {
+        return Err("Secret names must contain ASCII letters, digits, dots, underscores or hyphens");
     }
     Ok(())
 }
 
 pub fn validate_value(value: &str) -> Result<(), &'static str> {
-    if value.is_empty() || value.len() > MAX_SECRET_BYTES {
-        return Err("Secret values must contain 1–65536 bytes");
+    if value.is_empty() {
+        return Err("Secret values must not be empty");
     }
     Ok(())
 }

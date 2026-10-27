@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createDokimeQueryClient } from "@/app/query-client";
 import { commands } from "@/lib/desktop/commands";
 import type { BackendSelection, DesktopSessionSnapshot } from "@/lib/desktop/session";
+import { preferencesCommands } from "@/lib/desktop/settings";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
@@ -11,8 +12,6 @@ export interface SessionControls {
   disconnect(): Promise<DesktopSessionSnapshot>;
   /** Development only: delete the owned backend's storage and restart it. */
   resetLocalStorage(directory: string): Promise<DesktopSessionSnapshot>;
-  /** After a failed owned start: archive the storage, reset it and restart. */
-  backupResetLocalStorage(archive: string): Promise<DesktopSessionSnapshot>;
 }
 export interface ConnectedSession {
   snapshot: DesktopSessionSnapshot;
@@ -23,16 +22,18 @@ export interface ConnectedSession {
 }
 export type SessionState =
   | { phase: "disconnected" }
-  /** `reset` marks a local storage reset: stop, delete, then start again;
-   * `archive` names the backup a backup reset writes first. */
-  | { phase: "connecting"; reset: boolean; archive: string | null }
+  /** `reset` marks an explicit development storage reset. */
+  | { phase: "connecting"; reset: boolean }
   | { phase: "connected"; session: ConnectedSession }
   | { phase: "failed"; error: unknown };
 const nativeControls: SessionControls = {
-  select: (selection) => commands.desktopSessionSelect(selection),
+  select: async (selection) => {
+    if (selection.kind !== "profile") return commands.desktopSessionSelect(selection);
+    await preferencesCommands.desktopBackendUse(selection.name);
+    return commands.desktopSessionStatus();
+  },
   disconnect: () => commands.desktopSessionDisconnect(),
   resetLocalStorage: (directory) => commands.desktopResetLocalStorage(directory),
-  backupResetLocalStorage: (archive) => commands.desktopBackupResetLocalStorage(archive),
 };
 
 /** One owner per desktop window. Inputs containing secrets are never retained. */
@@ -65,14 +66,9 @@ export class NativeSession {
   async resetLocalStorage(directory: string): Promise<void> {
     await this.connect(() => this.controls.resetLocalStorage(directory), true);
   }
-  /** Archives the owned backend's storage to `archive`, then resets it and
-   * reconnects as `resetLocalStorage` does. */
-  async backupResetLocalStorage(archive: string): Promise<void> {
-    await this.connect(() => this.controls.backupResetLocalStorage(archive), true, archive);
-  }
-  private async connect(start: () => Promise<DesktopSessionSnapshot>, reset: boolean, archive: string | null = null): Promise<void> {
+  private async connect(start: () => Promise<DesktopSessionSnapshot>, reset: boolean): Promise<void> {
     const revision = this.invalidate();
-    this.publish({ phase: "connecting", reset, archive });
+    this.publish({ phase: "connecting", reset });
     try {
       const snapshot = await start();
       if (revision !== this.revision) return;

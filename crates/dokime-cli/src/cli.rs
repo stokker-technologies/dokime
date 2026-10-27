@@ -46,9 +46,13 @@ pub struct Cli {
 /* === Implementations === */
 
 impl Cli {
-    pub async fn run(self) -> crate::Result<()> {
+    pub fn configuration(&self) -> crate::Result<dokime::config::Config> {
+        crate::commands::configuration(&self.command)
+    }
+
+    pub async fn run(self, configuration: dokime::config::Config) -> crate::Result<()> {
         crate::terminal::set_color_mode(self.color);
-        crate::commands::run(self.command).await
+        crate::commands::run(self.command, configuration).await
     }
 }
 

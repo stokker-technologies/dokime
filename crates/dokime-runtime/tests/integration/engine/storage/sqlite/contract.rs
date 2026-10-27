@@ -24,8 +24,8 @@ use harmos::storage::{query::FileSelection, *};
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use super::storage::{Store, id, key, page, read_records, rows, write_batch};
-use super::{Error, State};
+use super::storage::{Store, id, key, page, read_records, rows};
+use super::{Backend, Error, State};
 
 /* === Constants === */
 
@@ -47,10 +47,20 @@ use super::{Error, State};
 // A Store Holding The Fixture Schema And Records `2..=last`.
 async fn seeded(root: &std::path::Path, last: u64) -> (Store, Vec<StoredRecord>) {
     let store = Store::<()>::open(root).await;
-    store.backend.write(write_batch(&[StoragePart::Schemas(&[store.schema()])])).await.unwrap();
+    store.backend.write_schemas(store.batch(vec![store.schema()])).await.unwrap();
     let records = (2..=last).map(|sequence| store.record(sequence)).collect::<Vec<_>>();
-    store.backend.write(write_batch(&[StoragePart::Records(&records)])).await.unwrap();
+    store.backend.write_records(store.batch(records.clone())).await.unwrap();
     (store, records)
+}
+
+async fn exact_retry(store: &Store, records: &[StoredRecord], through: u64) {
+    let saved = store.backend.write_records(store.batch(records.to_vec())).await.unwrap();
+    assert_eq!(saved, store.at(through));
+    let mut conflicting = records.to_vec();
+    conflicting[1].payload = vec![8, 99];
+    assert!(store.backend.write_records(store.batch(conflicting)).await.is_err());
+    assert_eq!(store.backend.cursor_saved().await.unwrap(), store.at(through));
+    assert_eq!(store.records(through).await, records);
 }
 
 fn file_metadata(name: &str, bytes: &[u8]) -> FileMetadata {
@@ -92,14 +102,40 @@ async fn retries_are_exact() {
     let root = tempfile::tempdir().unwrap();
     let (store, records) = seeded(root.path(), 4).await;
     let backend = &store.backend;
-    let saved = backend.write(write_batch(&[StoragePart::Records(&records)])).await.unwrap();
-    assert_eq!(saved, store.at(4));
-    let mut conflicting = records.clone();
-    conflicting[1].payload = vec![8, 99];
-    assert!(backend.write(write_batch(&[StoragePart::Records(&conflicting)])).await.is_err());
-    assert_eq!(backend.cursor_saved().await.unwrap(), store.at(4));
-    assert_eq!(store.records(4).await, records);
+    exact_retry(&store, &records, 4).await;
     backend.close().await.unwrap();
+}
+
+// Distinct Records Share An Item Without Weakening Position Retry Integrity.
+#[tokio::test]
+async fn records_share_item_with_exact_retries() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::<()>::open(root.path()).await;
+    let schemas = [store.schema()];
+    store.backend.write_schemas(store.batch(schemas.to_vec())).await.unwrap();
+
+    let records = (2..=3).map(|sequence| StoredRecord { item: id("shared-item"), ..store.record(sequence) }).collect::<Vec<_>>();
+    for record in &records {
+        store.backend.write_records(store.batch(vec![record.clone()])).await.unwrap();
+    }
+    let saved = store.backend.write_records(store.batch(records.clone())).await.unwrap();
+    assert_eq!(saved, store.at(3));
+
+    let snapshot = store.backend.open_snapshot(&store.at(3)).await.unwrap();
+    let selection =
+        query::RecordSelection { schema: key(), scope: None, item: Some(id("shared-item")), source_start: None, source_end: None };
+    assert_eq!(store.backend.read_records(&snapshot, &selection, page(0, rows(2))).await.unwrap(), records);
+    store.backend.release_snapshot(&snapshot).await.unwrap();
+
+    exact_retry(&store, &records, 3).await;
+    store.backend.close().await.unwrap();
+    drop(store);
+
+    let reopened = Store::<()>::open(root.path()).await;
+    assert_eq!(reopened.records(3).await, records);
+    let saved = reopened.backend.write_records(reopened.batch(records.clone())).await.unwrap();
+    assert_eq!(saved, reopened.at(3));
+    reopened.backend.close().await.unwrap();
 }
 
 // A closed root reopens at its durable cursor with the same history and rows.
@@ -115,6 +151,116 @@ async fn durable_reopen() {
     assert_eq!(reopened.backend.cursor_saved().await.unwrap(), reopened.at(6));
     assert_eq!(reopened.records(6).await, records);
     reopened.backend.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn bootstrap_identity_survives_before_admitted_open() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    let history = backend.history().clone();
+    let local = backend.local_state();
+    let deferred = local
+        .call(|connection| {
+            let count = |row: &rusqlite::Row<'_>| row.get::<_, i64>(0);
+            connection.query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('storage_data_entries','storage_file_stages','storage_staging')",
+                [],
+                count,
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(deferred, 0);
+    local.close().await.unwrap();
+    drop(backend);
+
+    let reopened = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    assert_eq!(reopened.history(), &history);
+
+    let at = reopened.open().await.unwrap();
+    assert_eq!(at, StorageCursor { history, sequence: 0 });
+    let initialized = reopened
+        .local_state()
+        .call(|connection| {
+            let count = |row: &rusqlite::Row<'_>| row.get::<_, i64>(0);
+            connection.query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('storage_data_entries','storage_file_stages','storage_staging')",
+                [],
+                count,
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(initialized, 3);
+    reopened.local_state().close().await.unwrap();
+}
+
+#[tokio::test]
+async fn bootstrap_defers_saved_sequence_validation_to_admitted_open() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    let history = backend.history().clone();
+    backend.local_state().call(|connection| connection.execute("UPDATE storage_data_head SET saved='zzzzzzzzzzzzzzzz'", [])).await.unwrap();
+    backend.local_state().close().await.unwrap();
+    drop(backend);
+
+    let reopened = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    assert_eq!(reopened.history(), &history);
+
+    assert!(reopened.open().await.is_err());
+    let saved = reopened
+        .local_state()
+        .call(|connection| {
+            let text = |row: &rusqlite::Row<'_>| row.get::<_, String>(0);
+            connection.query_row("SELECT saved FROM storage_data_head", [], text)
+        })
+        .await
+        .unwrap();
+    assert_eq!(saved, "zzzzzzzzzzzzzzzz");
+    reopened.local_state().close().await.unwrap();
+}
+
+#[tokio::test]
+async fn bootstrap_rejects_invalid_history_without_initializing_data() {
+    for bytes in [br#"{"store":"store","epoch":"epoch","extra":0}"#.to_vec(), vec![b' '; 4097]] {
+        let root = tempfile::tempdir().unwrap();
+        let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+        let changed = bytes.clone();
+        backend
+            .local_state()
+            .call(move |connection| connection.execute("UPDATE storage_data_head SET history=?1", [changed]))
+            .await
+            .unwrap();
+        backend.local_state().close().await.unwrap();
+        drop(backend);
+
+        assert!(Backend::<()>::primary(root.path().to_path_buf()).await.is_err());
+        let connection = rusqlite::Connection::open(root.path().join("local.sqlite")).unwrap();
+        let blob = |row: &rusqlite::Row<'_>| row.get::<_, Vec<u8>>(0);
+        let retained = connection.query_row("SELECT history FROM storage_data_head", [], blob).unwrap();
+        assert_eq!(retained, bytes);
+        let count = |row: &rusqlite::Row<'_>| row.get::<_, i64>(0);
+        let initialized = connection.query_row("SELECT COUNT(*) FROM sqlite_master WHERE name='storage_data_entries'", [], count).unwrap();
+        assert_eq!(initialized, 0);
+    }
+}
+
+#[tokio::test]
+async fn bootstrap_refuses_missing_head_with_saved_entries() {
+    let root = tempfile::tempdir().unwrap();
+    let (store, records) = seeded(root.path(), 2).await;
+    let local = store.backend.local_state();
+    local.call(|connection| connection.execute("DELETE FROM storage_data_head", [])).await.unwrap();
+    store.backend.close().await.unwrap();
+    drop(store);
+
+    assert!(Backend::<()>::primary(root.path().to_path_buf()).await.is_err());
+    let connection = rusqlite::Connection::open(root.path().join("local.sqlite")).unwrap();
+    let count = |row: &rusqlite::Row<'_>| row.get::<_, i64>(0);
+    let heads = connection.query_row("SELECT COUNT(*) FROM storage_data_head", [], count).unwrap();
+    let entries = connection.query_row("SELECT COUNT(*) FROM storage_data_entries", [], count).unwrap();
+    assert_eq!(heads, 0);
+    assert_eq!(entries, 1 + records.len() as i64);
 }
 
 // A stored entry whose digest no longer matches its body is refused on read.
@@ -163,16 +309,16 @@ async fn finished_files_publish() {
     let bytes = b"charger evidence";
     let digest: [u8; 32] = Sha256::digest(bytes).into();
     let staging = backend.create_file(&file_metadata("trace", bytes)).await.unwrap();
-    backend.write_file(&staging, 0, &bytes[..4]).await.unwrap();
-    assert!(backend.write_file(&staging, 9, b"gap").await.is_err());
-    backend.write_file(&staging, 4, &bytes[4..]).await.unwrap();
+    backend.write_file(&staging, 0, store.batch(bytes[..4].to_vec())).await.unwrap();
+    assert!(backend.write_file(&staging, 9, store.batch(b"gap".to_vec())).await.is_err());
+    backend.write_file(&staging, 4, store.batch(bytes[4..].to_vec())).await.unwrap();
     assert!(backend.finish_file(&staging, &store.at(1), bytes.len() as u64, [0; 32]).await.is_err());
     let file = backend.finish_file(&staging, &store.at(1), bytes.len() as u64, digest).await.unwrap();
     assert_eq!(backend.finish_file(&staging, &store.at(1), bytes.len() as u64, digest).await.unwrap(), file, "finishing is idempotent");
     let aborted = backend.create_file(&file_metadata("aborted", b"x")).await.unwrap();
-    backend.write_file(&aborted, 0, b"x").await.unwrap();
+    backend.write_file(&aborted, 0, store.batch(b"x".to_vec())).await.unwrap();
     backend.abort_file(&aborted).await.unwrap();
-    backend.write(write_batch(&[StoragePart::Files(std::slice::from_ref(&file))])).await.unwrap();
+    backend.write_files(store.batch(vec![file.clone()])).await.unwrap();
 
     let snapshot = backend.open_snapshot(&store.at(1)).await.unwrap();
     let listed = backend.read_files(&snapshot, &FileSelection { scope: None, item: None }, page(0, rows(8))).await.unwrap();

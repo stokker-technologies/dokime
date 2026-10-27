@@ -65,7 +65,6 @@ impl Operation for Browse {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::BrowseExecutions, _: &mut (),
     ) -> Result<Response<dokime::domain::model::history::wire::ExecutionBrowsePage>, Status> {
-        value::text(&request.after_execution_id)?;
         let after = if request.after_execution_id.is_empty() {
             None
         } else {
@@ -81,7 +80,7 @@ impl Operation for Browse {
             order: execution_order(request.order.take())?,
         };
         let page = self.resources.runtime.browse_executions(query).await.map_err(super::wire::query_failure)?;
-        project(&page, self.resources.maximum).map(Into::into).map_err(|source| super::wire::query_failure(source.into()))
+        project(page, self.resources.maximum).map_err(|source| super::wire::query_failure(source.into()))
     }
 }
 
@@ -91,7 +90,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<Browse>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(4 * 1024 * 1024) }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
@@ -99,18 +98,20 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 
 fn project(
-    page: &ExecutionBrowsePage, maximum: usize,
-) -> dokime::harmos::Result<dokime::domain::model::history::wire::ExecutionBrowsePage> {
-    let projected = super::wire::browse_page(page).map_err(|source| {
-        if source.code() == tonic::Code::ResourceExhausted {
-            return exhausted();
-        }
-        dokime::harmos::Error::backend("project historical execution page", dokime::harmos::BackendFailure::Corrupt, source)
-    })?;
+    page: dokime::harmos::storage::ReadBatch<ExecutionBrowsePage>, maximum: usize,
+) -> dokime::harmos::Result<Response<dokime::domain::model::history::wire::ExecutionBrowsePage>> {
+    let projected = page.try_map(|page| super::wire::browse_page(page, maximum).map_err(projection_failure))?;
     if projected.wire_len()? > maximum {
         return Err(exhausted());
     }
-    Ok(projected)
+    Ok(Response::from_owner(projected.owner()))
+}
+
+fn projection_failure(source: Status) -> dokime::harmos::Error {
+    if source.code() == tonic::Code::ResourceExhausted {
+        return exhausted();
+    }
+    dokime::harmos::Error::backend("project historical execution page", dokime::harmos::BackendFailure::Corrupt, source)
 }
 
 fn exhausted() -> dokime::harmos::Error {
@@ -121,13 +122,9 @@ fn execution_filter(filter: Option<dokime::domain::model::history::wire::Executi
     let Some(filter) = filter else {
         return Ok(ExecutionFilter::default());
     };
-    value::text(&filter.text)?;
     value::collection(filter.statuses.len())?;
     value::collection(filter.template_ids.len())?;
     value::collection(filter.cycle_ids.len())?;
-    for identifier in filter.template_ids.iter().chain(filter.cycle_ids.iter()) {
-        value::text(identifier)?;
-    }
     Ok(ExecutionFilter {
         text: filter.text,
         statuses: filter.statuses.into_iter().map(execution_status).collect::<Result<_, Status>>()?,

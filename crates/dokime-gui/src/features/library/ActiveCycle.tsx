@@ -110,7 +110,7 @@ export function ActiveCyclePickerList({ activeId, cycles, loading, onChoose, onN
     <div className="grid min-h-0 gap-3">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[var(--bar-gap)]">
         <span className="relative">
-          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search Open Cycles"
             className="h-[var(--bar-control-height)] pl-8"
@@ -137,7 +137,7 @@ export function ActiveCyclePickerList({ activeId, cycles, loading, onChoose, onN
               aria-pressed={cycle.cycleId === activeId}
               className={cn(
                 PICKER_ROW,
-                "min-h-[var(--control-height)] rounded-md py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                "min-h-[var(--control-height)] rounded-lg py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
                 cycle.cycleId === activeId ? "bg-muted" : null,
               )}
               key={cycle.cycleId}

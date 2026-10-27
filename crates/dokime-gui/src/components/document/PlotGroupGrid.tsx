@@ -77,7 +77,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   const titleRepeated = groupRepeatsPlotTitle(title, documentPlots);
   if (!documentPlots.length) {
     return (
-      <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 text-center text-muted-foreground">
+      <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-lg bg-muted/20 text-center text-muted-foreground">
         <strong>Document plots are loading</strong>
         <span>The selected case document has not provided plot metadata yet.</span>
       </div>
@@ -183,7 +183,7 @@ function plotCardClassName(plot: PlotCardSpec): string {
   if (plot.plotType === "bar") {
     return `${baseClassName} min-h-0`;
   }
-  return plotHasNumericSamples(plot) || isChartLikePlot(plot) ? `${baseClassName} min-h-[18rem]` : `${baseClassName} min-h-44`;
+  return plotHasNumericSamples(plot) || isChartLikePlot(plot) ? `${baseClassName} min-h-72` : `${baseClassName} min-h-44`;
 }
 
 function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotViewportMode = "fit", actions?: ReactNode) {

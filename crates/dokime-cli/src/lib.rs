@@ -7,6 +7,8 @@
  * ***
  */
 
+#![recursion_limit = "256"]
+
 /* === Modules === */
 
 mod cli;

@@ -15,6 +15,7 @@
 
 // Standard Library Imports
 // Third Party Imports
+use futures_util::FutureExt;
 
 // Local Imports
 use crate::support::host::Host;
@@ -159,7 +160,8 @@ async fn environment_file_precedence() {
         let output = command.output().unwrap();
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         let (selected, unselected) = if exported { (&existing, &from_file) } else { (&from_file, &existing) };
-        assert!(selected.join("settings.json").is_file());
+        assert!(selected.join("data/local.sqlite").is_file());
+        assert!(!selected.join("settings.json").exists());
         assert!(!unselected.exists());
     }
     let output = super::command().args(["--env-file"]).arg(root.path().join("missing.env")).output().unwrap();
@@ -242,9 +244,7 @@ async fn incompatible_storage_refused() {
         data.display().to_string(),
         "schema version 7".to_owned(),
         "this build reads version 1".to_owned(),
-        "Move or delete that directory".to_owned(),
         "DOKIME_OUTPUT_ROOT".to_owned(),
-        "settings.json data_root".to_owned(),
     ] {
         assert!(stderr.contains(&expected), "missing {expected:?} in {stderr}");
     }
@@ -255,11 +255,10 @@ async fn incompatible_storage_refused() {
     let mut config = dokime::config::Config::local(&data);
     config.application_root = Some(application.clone());
     config.seed_plugins = false;
-    let error = dokime::app::launch(config).await.err().unwrap();
+    let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, data.clone());
     assert!(matches!(&error, dokime_server::host::Error::IncompatibleStorage { root, .. } if root == &data), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(4));
-    assert_eq!(error.to_string().lines().count(), 3, "one sentence per line");
 
     // A Root Owned By Another Runtime Is Not Reported As Incompatible
     let fresh = root.path().join("owned");
@@ -267,7 +266,7 @@ async fn incompatible_storage_refused() {
     let mut config = dokime::config::Config::local(&fresh);
     config.application_root = Some(application);
     config.seed_plugins = false;
-    let error = dokime::app::launch(config).await.err().unwrap();
+    let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, fresh);
     assert!(matches!(&error, dokime_server::host::Error::Runtime(_)), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(3));

@@ -11,18 +11,17 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArchiveRestore } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
-import { DataTable } from "@/components/data-table/DataTable";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
@@ -37,15 +36,16 @@ import {
 import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
-import { compactAgeLabel } from "@/lib/time-format";
-import { PageBleed, PageNotice, PageShell, PageToolbar } from "@/shell/PageShell";
+import { PageNotice, PageShell } from "@/shell/PageShell";
 
 /* === Constants === */
+
+const GUI_FILTER_DEBOUNCE_MS = 250;
 
 /* The Status track, in the pill's own type size so it follows every density:
    room for the longest state label (16 characters at under 0.7em each), the
    pill's padding and the cell's. */
-const STATUS_COLUMN_WIDTH = "w-[calc(var(--pill-text)_*_11_+_2_*_var(--pill-pad-x)_+_1.5rem)]";
+const STATUS_COLUMN_WIDTH = "w-[calc(var(--pill-text)_*_11_+_2_*_var(--pill-pad-x)_+_--spacing(6))]";
 
 /* === Components === */
 
@@ -72,15 +72,9 @@ export function CyclesHome() {
   const prompts = usePendingPromptsQuery();
   const [frozenIds, setFrozenIds] = useState<readonly string[]>([]);
   const frozen = useRef(false);
-  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const handle = window.setInterval(() => setNow(Date.now()), 15_000);
-    return () => window.clearInterval(handle);
-  }, []);
-
-  useEffect(() => {
-    const handle = window.setTimeout(() => setSelection(filter), 250);
+    const handle = window.setTimeout(() => setSelection(filter), GUI_FILTER_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
   }, [filter]);
 
@@ -119,25 +113,6 @@ export function CyclesHome() {
 
   return (
     <PageShell actions={actions} onPointerCancel={release} onPointerDown={freeze} onPointerUp={release} trail={["Cycles"]}>
-      <PageToolbar>
-        <Input
-          aria-label="Filter Cycles"
-          className="h-[var(--bar-control-height)] w-full sm:w-80"
-          onChange={(event) => setFilter(event.target.value)}
-          placeholder="Filter Cycles"
-          value={filter}
-        />
-        <Button
-          aria-pressed={showArchived}
-          className="h-[var(--bar-control-height)]"
-          onClick={() => setShowArchived((current) => !current)}
-          type="button"
-          variant={showArchived ? "secondary" : "outline"}
-        >
-          Archived
-        </Button>
-      </PageToolbar>
-
       {cycles.isError ? (
         <PageNotice tone="alert">The cycle list could not be read. Check the backend connection in the status bar.</PageNotice>
       ) : null}
@@ -145,9 +120,14 @@ export function CyclesHome() {
       {groups.map((group) => (
         <CycleGroupSection
           group={group}
+          search={{ label: "Filter Cycles", value: filter, onChange: setFilter }}
+          actions={
+            <Button aria-pressed={showArchived} variant="outline" onClick={() => setShowArchived((current) => !current)}>
+              Archived
+            </Button>
+          }
           key={group.id}
           loading={cycles.isPending}
-          now={now}
           onOpen={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
           onUnarchive={
             showArchived
@@ -176,22 +156,23 @@ export function CyclesHome() {
 
 function CycleGroupSection({
   group,
+  search,
+  actions,
   loading,
-  now,
   onOpen,
   onUnarchive,
 }: {
   group: CycleGroup;
+  search: import("@/components/data-table/data-table-model").DataTableSearch;
+  actions: import("react").ReactNode;
   loading: boolean;
-  now: number;
   onOpen: (cycleId: string) => void;
   /** Present in the Archived view: each row offers Unarchive. */
   onUnarchive: ((cycleId: string) => void) | null;
 }) {
-  const columns = useMemo(() => cycleColumns(now, onUnarchive), [now, onUnarchive]);
+  const columns = useMemo(() => cycleColumns(onOpen, onUnarchive), [onOpen, onUnarchive]);
 
-  // Every group heads with one row — title and count at the start, the empty
-  // statement at the end — so the three headings align whatever they hold.
+  // Section Counts Stay Outside The Table Card.
   const heading = (
     <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-[var(--bar-gap)]">
       <p className="flex items-baseline gap-2">
@@ -200,35 +181,23 @@ function CycleGroupSection({
         </span>
         <span className="font-mono text-sm tabular-nums text-muted-foreground">{group.rows.length}</span>
       </p>
-      {group.rows.length ? null : (
-        <span className="truncate text-right text-sm text-muted-foreground">{loading ? "Loading Cycles" : group.emptyText}</span>
-      )}
     </div>
   );
 
-  if (!group.rows.length) {
-    return (
-      <section aria-labelledby={`cycle-group-${group.id}`} className="grid">
-        {heading}
-      </section>
-    );
-  }
-
-  // The table bleeds to the page edges so a row's hover spans the page while
-  // its text, carried by the table inset, stays on the heading's line.
   return (
-    <section aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
+    <section id={group.id} aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
       {heading}
-      <PageBleed>
+      <div className="min-w-0">
         <DataTable
+          search={search}
+          actions={actions}
           columns={columns}
           data={group.rows}
-          emptyText={group.emptyText}
+          emptyText={loading ? "Loading Cycles" : group.emptyText}
           getRowId={rowId}
           onRowClick={(row) => onOpen(row.cycleId)}
-          stickyHeader={false}
         />
-      </PageBleed>
+      </div>
     </section>
   );
 }
@@ -245,34 +214,9 @@ function rowId(row: CycleRow): string {
   return row.cycleId;
 }
 
-/** The five columns every group shares; `now` ages the Updated column. The
-    Archived view adds Unarchive as the last column. */
-function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | null): DataTableColumns<CycleRow> {
+/** The five columns every group shares. The Archived view adds Unarchive. */
+function cycleColumns(onOpen: (id: string) => void, onUnarchive: ((cycleId: string) => void) | null): DataTableColumns<CycleRow> {
   const column = dataTableColumns<CycleRow>();
-  const unarchive = onUnarchive
-    ? [
-        column.display({
-          cell: ({ row }) => (
-            <Button
-              className="h-[var(--control-height)]"
-              onClick={(event) => {
-                event.stopPropagation();
-                onUnarchive(row.original.cycleId);
-              }}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <ArchiveRestore data-icon="inline-start" />
-              Unarchive
-            </Button>
-          ),
-          header: "",
-          id: "unarchive",
-          meta: { align: "end", label: "Unarchive", width: "w-36" },
-        }),
-      ]
-    : [];
   return column.columns([
     column.accessor("label", {
       cell: ({ row }) => <CycleTitle row={row.original} />,
@@ -306,33 +250,31 @@ function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | nu
     column.accessor((row) => row.updatedAtMs ?? undefined, {
       cell: ({ row }) => (
         <span className="font-mono text-xs tabular-nums text-muted-foreground" title={instantsLabel(row.original)}>
-          {relativeUpdatedLabel(row.original.updatedAtIso, now)}
+          {row.original.updatedAtIso ? new Date(row.original.updatedAtIso).toLocaleString() : "-"}
         </span>
       ),
       header: "Updated",
       id: "updated",
       meta: { align: "end", label: "Updated", width: "w-28" },
     }),
-    ...unarchive,
+    column.display({
+      id: "actions",
+      header: "Actions",
+      meta: { width: "w-36", align: "end" },
+      cell: ({ row }) => (
+        <DataTableRowActions label={row.original.label} primary={{ label: "Open", onSelect: () => onOpen(row.original.cycleId) }}>
+          {onUnarchive ? <DropdownMenuItem onSelect={() => onUnarchive(row.original.cycleId)}>Unarchive</DropdownMenuItem> : null}
+        </DataTableRowActions>
+      ),
+    }),
   ]);
 }
 
-/**
- * How long ago the cycle last moved.
- *
- * "5s" alone reads as a duration; "5s Ago" says which way it points. The
- * absolute instant stays available on the cell's title.
- */
-/** The absolute instants behind the relative age: updated, then created. */
+/** The absolute update and creation instants. */
 function instantsLabel(row: CycleRow): string | undefined {
   const instants = [
     row.updatedAtIso ? `Updated ${new Date(row.updatedAtIso).toLocaleString()}` : null,
     row.createdAtIso ? `Created ${new Date(row.createdAtIso).toLocaleString()}` : null,
   ].filter(Boolean);
   return instants.length ? instants.join("\n") : undefined;
-}
-
-function relativeUpdatedLabel(updatedAtIso: string | null, now: number): string {
-  const age = compactAgeLabel(updatedAtIso, now);
-  return age === "-" ? age : `${age} Ago`;
 }

@@ -113,7 +113,7 @@ async fn step_pages_selections() {
         client.unary::<contracts::execution::ListExecutionSteps>(authenticated(wrong_kind)).await.unwrap_err().code(),
         Code::InvalidArgument
     );
-    request.limit = dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1;
+    request.limit = 501;
     assert_eq!(
         client.unary::<contracts::execution::ListExecutionSteps>(authenticated(request.clone())).await.unwrap_err().code(),
         Code::InvalidArgument

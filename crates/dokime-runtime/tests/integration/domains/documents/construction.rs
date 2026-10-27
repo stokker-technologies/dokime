@@ -173,7 +173,7 @@ async fn current_cycle_state() {
         })
         .await
         .unwrap();
-    upload.send(b"abc").await.unwrap();
+    upload.send(b"abc".to_vec()).await.unwrap();
     upload.finish().await.unwrap();
     drop(upload);
     let error = original.capture().await.err().expect("later member must be refused");
@@ -384,7 +384,7 @@ async fn current_fact_frontiers() {
         })
         .await
         .unwrap();
-    upload.send(b"abc").await.unwrap();
+    upload.send(b"abc".to_vec()).await.unwrap();
     upload.finish().await.unwrap();
     drop(upload);
     let current = runtime.prepare_current_document(&cycle_id, execution_id, &document_id).unwrap().capture().await.unwrap();
@@ -452,9 +452,10 @@ async fn document_routes_samples() {
         assert_eq!(receipt.accepted, count as u64);
     }
 
+    runtime.storage().flush_until(&runtime.storage().cursor_accepted()).await.unwrap();
     let monitoring =
         TelemetrySelection { streams: vec![Identifier::new("host.wifi.channel_occupancy").unwrap().into()], ..Default::default() };
-    assert_eq!(runtime.collect_telemetry(&monitoring).await.len(), 14);
+    assert_eq!(runtime.collect_telemetry(&monitoring).await.unwrap().len(), 14);
     for test_cycle_id in [None, Some(cycle_id.clone())] {
         let captured = runtime
             .collect_telemetry(&TelemetrySelection {
@@ -465,7 +466,8 @@ async fn document_routes_samples() {
                 },
                 ..monitoring.clone()
             })
-            .await;
+            .await
+            .unwrap();
         assert_eq!(captured.len(), 2);
         assert!(captured.iter().all(|sample| sample.scope.as_ref() == Some(&execution.scope)));
     }
@@ -531,8 +533,12 @@ async fn repeated_sections_follow() {
     let mut batch = samples("host.wifi.channel_occupancy", channels.len(), Some(execution.scope.clone()));
     for (sample, channel) in batch.samples.iter_mut().zip(channels) {
         sample.values.insert("wifi_channel".to_owned(), Value::Integer(channel));
+        // Saved Rows Come From The Typed Payload, So The Edited Sample Is Encoded Again.
+        *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
     }
     runtime.publish_telemetry_batch(batch).await.unwrap();
+
+    runtime.storage().flush_until(&runtime.storage().cursor_accepted()).await.unwrap();
 
     // Materialized Sections Come Out In Ascending Channel Order
     let document = runtime
@@ -669,7 +675,8 @@ async fn saved_report_evidence() {
     assert_eq!(computed["selection"]["version"], 1);
     assert_eq!(computed["series"][0]["input_samples"], 1);
     assert_eq!(computed["series"][0]["output"]["outputs"][0]["values"][0], 1.0);
-    assert!(computed["source"]["cursor"]["telemetry_streams"].as_object().unwrap().values().all(serde_json::Value::is_string));
+    assert!(computed["source"]["position"]["sequence"].as_u64().is_some_and(|sequence| sequence > 0));
+    assert!(computed["source"].get("cursor").is_none());
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

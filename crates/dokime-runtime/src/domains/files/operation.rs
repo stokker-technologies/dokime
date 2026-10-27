@@ -88,7 +88,7 @@ impl Operation for Watching {
         {
             let mut entries = resources.readiness.lock().expect("watch readiness lock is healthy");
             if entries.len() >= 256 {
-                return Err(super::capped("at most 256 file watches may await readiness"));
+                return Err(super::capped("the configured file-watch readiness capacity is full"));
             }
             entries.insert(context.id().value(), Ready { execution, signal: ready.clone() });
         }
@@ -222,7 +222,7 @@ impl Operation for Awaiting {
                 signal.changed().await.map_err(|_| Error::conflict(super::UNREACHABLE, "file watch closed before arming"))?;
             }
         };
-        tokio::time::timeout(std::time::Duration::from_secs(super::MAXIMUM_SECONDS.into()), readiness)
+        tokio::time::timeout(std::time::Duration::from_secs(86_400), readiness)
             .await
             .map_err(|_| Error::conflict(super::UNREACHABLE, "file watch readiness deadline elapsed"))?
     }

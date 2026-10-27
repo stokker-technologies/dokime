@@ -33,14 +33,18 @@ import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from "
 
 /* === Constants === */
 
+const GUI_ROW_OVERSCAN = 16;
+const GUI_ROW_WINDOW_THRESHOLD = 200;
+const GUI_UNMEASURED_ROWS = 64;
+
 /** From this many rows on, only the visible slice renders. */
-export const ROW_WINDOW_THRESHOLD = 200;
+export const ROW_WINDOW_THRESHOLD = GUI_ROW_WINDOW_THRESHOLD;
 
 /** Rows rendered beyond each edge of the viewport, so scrolling never shows a gap. */
-const OVERSCAN = 16;
+const OVERSCAN = GUI_ROW_OVERSCAN;
 
 /** How many rows render before the row pitch is known. */
-const UNMEASURED_ROWS = 64;
+const UNMEASURED_ROWS = GUI_UNMEASURED_ROWS;
 
 /** The attribute every windowed row carries, so the pitch is read off a real row. */
 export const WINDOW_ROW_ATTRIBUTE = "data-window-row";

@@ -32,14 +32,13 @@ use uuid::Uuid;
 
 // Local Imports
 use super::model::{Installation, PluginSettings};
-use super::{PluginEntry, PluginLastBoot, PluginMetadata, PluginState, inspect};
+use super::{PluginEntry, PluginLastBoot, PluginMetadata, PluginState};
 use crate::config::Settings;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
 const BUNDLE_EXTENSION: &str = "dokime";
-const STAGE_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 /* === Macros === */
 
@@ -49,6 +48,8 @@ const STAGE_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 #[derive(Clone, Debug)]
 pub struct PluginStore {
+    pub(super) schema: harmos::config::SchemaSettings,
+    archive_bytes: usize,
     settings: Settings,
     root: PathBuf,
 }
@@ -83,6 +84,9 @@ pub enum PluginError {
 
     #[error("plugin storage failed: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Storage(#[from] crate::storage::Error),
 }
 
 /* === Traits === */
@@ -90,9 +94,17 @@ pub enum PluginError {
 /* === Implementations === */
 
 impl PluginStore {
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: Settings, schema: harmos::config::SchemaSettings) -> Self {
+        Self::with_archive_limit(settings, schema, harmos_packaging::bundle::Limits::default().archive_bytes)
+    }
+
+    pub fn with_archive_limit(settings: Settings, schema: harmos::config::SchemaSettings, archive_bytes: usize) -> Self {
         let root = settings.paths().plugins();
-        Self { settings, root }
+        Self { settings, root, schema, archive_bytes }
+    }
+
+    pub(crate) fn archive_bytes(&self) -> usize {
+        self.archive_bytes
     }
 
     pub fn root(&self) -> &Path {
@@ -103,14 +115,15 @@ impl PluginStore {
         self.root.join(format!("{id}.{BUNDLE_EXTENSION}"))
     }
 
-    pub fn list(&self) -> Result<Vec<PluginEntry>, PluginError> {
-        Ok(self.settings.read(|document| document.plugins.clone()).into_iter().map(|(id, plugin)| self.entry(id, &plugin)).collect())
+    pub async fn list(&self) -> Result<Vec<PluginEntry>, PluginError> {
+        Ok(self.settings.read(|document| document.plugins.clone()).await?.into_iter().map(|(id, plugin)| self.entry(id, &plugin)).collect())
     }
 
-    pub fn installed(&self) -> Result<Vec<super::PluginBundle>, PluginError> {
+    pub async fn installed(&self) -> Result<Vec<super::PluginBundle>, PluginError> {
         Ok(self
             .settings
             .read(|document| document.plugins.clone())
+            .await?
             .into_iter()
             .filter(|(_, plugin)| plugin.state == PluginState::Installed)
             .map(|(install_id, plugin)| super::PluginBundle {
@@ -121,8 +134,8 @@ impl PluginStore {
             .collect())
     }
 
-    pub fn stage(&self, bytes: &[u8]) -> Result<PluginEntry, PluginError> {
-        let (_, metadata) = inspect(bytes)?;
+    pub async fn stage(&self, bytes: &[u8]) -> Result<PluginEntry, PluginError> {
+        let (_, metadata) = super::inspect_with_archive_limit(bytes, &self.schema, self.archive_bytes)?;
         let install_id = Uuid::now_v7();
         let sha256 = digest(bytes);
 
@@ -146,121 +159,139 @@ impl PluginStore {
             state: PluginState::Staged,
             digest: sha256,
             staged_at,
-            expires_at: Some(Timestamp::from_system_time(SystemTime::now() + STAGE_RETENTION)),
+            expires_at: Some(Timestamp::from_system_time(SystemTime::now() + Duration::from_millis(86_400_000))),
             consented_at: None,
             last_boot: None,
             programs: Default::default(),
         };
-        self.settings.edit(|document| {
-            document.plugins.insert(install_id, plugin.clone());
-            Ok::<_, PluginError>(())
-        })?;
+        let stored = plugin.clone();
+        self.settings
+            .edit(move |document| {
+                document.plugins.insert(install_id, stored);
+                Ok::<_, PluginError>(())
+            })
+            .await?;
         Ok(entry(plugin.installation(install_id), Some(metadata), None))
     }
 
-    pub fn consent(&self, id: Uuid, configured: &[PluginMetadata], host_sources: &BTreeSet<String>) -> Result<PluginEntry, PluginError> {
-        self.consent_checked(id, configured, host_sources, |_| Ok(()))
+    pub async fn consent(
+        &self, id: Uuid, configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
+    ) -> Result<PluginEntry, PluginError> {
+        self.consent_checked(id, configured, host_sources, |_| Ok(())).await
     }
 
     /// Validates the freshly verified disclosure before publishing consent.
     /// The validator must perform only synchronous, nonblocking admission checks.
-    pub fn consent_checked<E: From<PluginError> + From<std::io::Error>>(
+    pub async fn consent_checked<E: From<PluginError> + From<std::io::Error> + From<crate::storage::Error> + Send + 'static>(
         &self, id: Uuid, configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
-        validate: impl FnOnce(&PluginEntry) -> Result<(), E>,
+        validate: impl FnOnce(&PluginEntry) -> Result<(), E> + Send + 'static,
     ) -> Result<PluginEntry, E> {
-        self.settings.edit(|document| {
-            let target = document.plugins.get(&id).ok_or(PluginError::Unknown(id))?;
-            if target.state == PluginState::RemovalPending {
-                return Err(PluginError::NotStaged(id).into());
-            }
-            let (_, metadata) = self.verified(id, target)?;
-            let reviewed = entry(target.installation(id), Some(metadata), None);
-            validate(&reviewed)?;
-            let metadata = reviewed.metadata.expect("freshly verified above");
-            let mut occupied = host_sources.clone();
-            for configured in configured {
-                if configured.identity.name == metadata.identity.name {
-                    return Err(PluginError::Collision(metadata.identity.name.clone()).into());
+        let store = self.clone();
+        let configured = configured.to_vec();
+        let host_sources = host_sources.clone();
+        self.settings
+            .edit(move |document| {
+                let target = document.plugins.get(&id).ok_or(PluginError::Unknown(id))?;
+                if target.state == PluginState::RemovalPending {
+                    return Err(PluginError::NotStaged(id).into());
                 }
-                occupied.extend(configured.owners.iter().cloned());
-            }
-            let mut replaced = Vec::new();
-            for (other_id, other) in &document.plugins {
-                if *other_id == id || !matches!(other.state, PluginState::Installed | PluginState::Disabled) {
-                    continue;
+                let (_, metadata) = store.verified(id, target)?;
+                let reviewed = entry(target.installation(id), Some(metadata), None);
+                validate(&reviewed)?;
+                let metadata = reviewed.metadata.expect("freshly verified above");
+                let mut occupied = host_sources.clone();
+                for configured in configured {
+                    if configured.identity.name == metadata.identity.name {
+                        return Err(PluginError::Collision(metadata.identity.name.clone()).into());
+                    }
+                    occupied.extend(configured.owners.iter().cloned());
                 }
-                // Unavailable installed bytes must be repaired or removed before
-                // consenting a potentially colliding package. Never trust a cache.
-                let (_, other_metadata) = self.verified(*other_id, other)?;
-                if other_metadata.identity.name == metadata.identity.name {
-                    replaced.push(*other_id);
-                } else {
-                    occupied.extend(other_metadata.owners);
+                let mut replaced = Vec::new();
+                for (other_id, other) in &document.plugins {
+                    if *other_id == id || !matches!(other.state, PluginState::Installed | PluginState::Disabled) {
+                        continue;
+                    }
+                    // Unavailable installed bytes must be repaired or removed before
+                    // consenting a potentially colliding package. Never trust a cache.
+                    let (_, other_metadata) = store.verified(*other_id, other)?;
+                    if other_metadata.identity.name == metadata.identity.name {
+                        replaced.push(*other_id);
+                    } else {
+                        occupied.extend(other_metadata.owners);
+                    }
                 }
-            }
-            if let Some(owner) = metadata.owners.iter().find(|owner| occupied.contains(*owner)) {
-                return Err(PluginError::Collision(owner.clone()).into());
-            }
+                if let Some(owner) = metadata.owners.iter().find(|owner| occupied.contains(*owner)) {
+                    return Err(PluginError::Collision(owner.clone()).into());
+                }
 
-            let mut inherited = Default::default();
-            for other_id in replaced {
-                let other = document.plugins.get_mut(&other_id).expect("listed above");
-                other.state = PluginState::RemovalPending;
-                inherited = std::mem::take(&mut other.programs);
-            }
-            let plugin = document.plugins.get_mut(&id).expect("checked above");
-            plugin.state = PluginState::Installed;
-            plugin.expires_at = None;
-            plugin.consented_at.get_or_insert_with(crate::model::time::now_utc);
-            if plugin.programs.is_empty() {
-                plugin.programs = inherited;
-            }
-            Ok(entry(plugin.installation(id), Some(metadata), None))
-        })
+                let mut inherited = Default::default();
+                for other_id in replaced {
+                    let other = document.plugins.get_mut(&other_id).expect("listed above");
+                    other.state = PluginState::RemovalPending;
+                    inherited = std::mem::take(&mut other.programs);
+                }
+                let plugin = document.plugins.get_mut(&id).expect("checked above");
+                plugin.state = PluginState::Installed;
+                plugin.expires_at = None;
+                plugin.consented_at.get_or_insert_with(crate::model::time::now_utc);
+                if plugin.programs.is_empty() {
+                    plugin.programs = inherited;
+                }
+                Ok(entry(plugin.installation(id), Some(metadata), None))
+            })
+            .await
     }
 
-    pub fn remove(&self, id: Uuid) -> Result<(), PluginError> {
+    pub async fn remove(&self, id: Uuid) -> Result<(), PluginError> {
         // Revoke first, so failed deletion cannot admit bytes.
-        let staged = self.settings.edit(|document| {
-            let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
-            plugin.state = PluginState::RemovalPending;
-            Ok::<_, PluginError>(plugin.consented_at.is_none())
-        })?;
+        let staged = self
+            .settings
+            .edit(move |document| {
+                let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
+                plugin.state = PluginState::RemovalPending;
+                Ok::<_, PluginError>(plugin.consented_at.is_none())
+            })
+            .await?;
         if staged {
-            self.discard(|candidate, _| candidate == id)?;
+            self.discard(|candidate, _| candidate == id).await?;
         }
         Ok(())
     }
 
-    pub fn set_enabled(&self, id: Uuid, enabled: bool) -> Result<(), PluginError> {
-        self.settings.edit(|document| {
-            let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
-            if !matches!(plugin.state, PluginState::Installed | PluginState::Disabled) {
-                return Err(PluginError::NotInstalled(id));
-            }
-            if enabled {
-                self.verified(id, plugin)?;
-            }
-            plugin.state = if enabled { PluginState::Installed } else { PluginState::Disabled };
-            Ok(())
-        })
+    pub async fn set_enabled(&self, id: Uuid, enabled: bool) -> Result<(), PluginError> {
+        let store = self.clone();
+        self.settings
+            .edit(move |document| {
+                let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
+                if !matches!(plugin.state, PluginState::Installed | PluginState::Disabled) {
+                    return Err(PluginError::NotInstalled(id));
+                }
+                if enabled {
+                    store.verified(id, plugin)?;
+                }
+                plugin.state = if enabled { PluginState::Installed } else { PluginState::Disabled };
+                Ok(())
+            })
+            .await
     }
 
-    pub fn sweep(&self) -> Result<(), PluginError> {
+    pub async fn sweep(&self) -> Result<(), PluginError> {
         let now = crate::model::time::now_utc();
-        self.settings.edit(|document| {
-            let expired = expired_stages(document.plugins.iter(), &now);
-            for id in expired {
-                if let Some(plugin) = document.plugins.get_mut(&id) {
-                    plugin.state = PluginState::RemovalPending;
+        self.settings
+            .edit(move |document| {
+                let expired = expired_stages(document.plugins.iter(), &now);
+                for id in expired {
+                    if let Some(plugin) = document.plugins.get_mut(&id) {
+                        plugin.state = PluginState::RemovalPending;
+                    }
                 }
-            }
-            Ok::<_, PluginError>(())
-        })?;
-        self.discard(|_, plugin| plugin.state == PluginState::RemovalPending)?;
+                Ok::<_, PluginError>(())
+            })
+            .await?;
+        self.discard(|_, plugin| plugin.state == PluginState::RemovalPending).await?;
 
         let authorized: BTreeSet<_> =
-            self.settings.read(|document| document.plugins.keys().map(|id| format!("{id}.{BUNDLE_EXTENSION}")).collect());
+            self.settings.read(|document| document.plugins.keys().map(|id| format!("{id}.{BUNDLE_EXTENSION}")).collect()).await?;
         let entries = match fs::read_dir(&self.root) {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -279,26 +310,28 @@ impl PluginStore {
         Ok(())
     }
 
-    pub fn record_boot(&self, id: Uuid, error: Option<String>) -> Result<(), PluginError> {
-        self.settings.edit(|document| {
-            let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
-            let at = crate::model::time::now_utc();
-            plugin.last_boot = Some(match error {
-                Some(error) => PluginLastBoot::Failed { error, at },
-                None => PluginLastBoot::Loaded { at },
-            });
-            Ok(())
-        })
+    pub async fn record_boot(&self, id: Uuid, error: Option<String>) -> Result<(), PluginError> {
+        self.settings
+            .edit(move |document| {
+                let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
+                let at = crate::model::time::now_utc();
+                plugin.last_boot = Some(match error {
+                    Some(error) => PluginLastBoot::Failed { error, at },
+                    None => PluginLastBoot::Loaded { at },
+                });
+                Ok(())
+            })
+            .await
     }
 
     pub(crate) fn verified(
         &self, id: Uuid, plugin: &PluginSettings,
     ) -> Result<(harmos_packaging::bundle::Bundle, PluginMetadata), PluginError> {
-        let bytes = read_bounded(&self.path(id), harmos_packaging::bundle::Limits::default().archive_bytes)?;
+        let bytes = read_bounded(&self.path(id), self.archive_bytes)?;
         if digest(&bytes) != plugin.digest {
             return Err(PluginError::Changed(id));
         }
-        inspect(&bytes)
+        super::inspect_with_archive_limit(&bytes, &self.schema, self.archive_bytes)
     }
 
     fn entry(&self, id: Uuid, plugin: &PluginSettings) -> PluginEntry {
@@ -314,10 +347,11 @@ impl PluginStore {
         }
     }
 
-    fn discard(&self, selected: impl Fn(Uuid, &PluginSettings) -> bool) -> Result<(), PluginError> {
+    async fn discard(&self, selected: impl Fn(Uuid, &PluginSettings) -> bool) -> Result<(), PluginError> {
         let candidates: Vec<Uuid> = self
             .settings
-            .read(|document| document.plugins.iter().filter(|(id, plugin)| selected(**id, plugin)).map(|(id, _)| *id).collect());
+            .read(|document| document.plugins.iter().filter(|(id, plugin)| selected(**id, plugin)).map(|(id, _)| *id).collect())
+            .await?;
         if candidates.is_empty() {
             return Ok(());
         }
@@ -330,19 +364,21 @@ impl PluginStore {
             }
         }
         sync_directory(&self.root)?;
-        self.settings.edit(|document| {
-            for id in &candidates {
-                if !failures.iter().any(|(failed, _)| failed == id) {
-                    document.plugins.remove(id);
+        self.settings
+            .edit(move |document| {
+                for id in &candidates {
+                    if !failures.iter().any(|(failed, _)| failed == id) {
+                        document.plugins.remove(id);
+                    }
                 }
-            }
-            for (id, error) in failures {
-                if let Some(plugin) = document.plugins.get_mut(&id) {
-                    plugin.last_boot = Some(PluginLastBoot::Failed { error, at: crate::model::time::now_utc() });
+                for (id, error) in failures {
+                    if let Some(plugin) = document.plugins.get_mut(&id) {
+                        plugin.last_boot = Some(PluginLastBoot::Failed { error, at: crate::model::time::now_utc() });
+                    }
                 }
-            }
-            Ok(())
-        })
+                Ok(())
+            })
+            .await
     }
 }
 

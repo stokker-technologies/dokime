@@ -18,10 +18,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::domain::Portable;
-use dokime::harmos::{
-    MemorySize,
-    operations::{Context, Operation, Response, StreamOutput},
-};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -34,8 +31,11 @@ use dokime::domain::operations::runtime as native;
 
 /* === Constants === */
 
-const DISCOVERY_PAGE_BYTES: usize = 4 * 1024 * 1024;
-const DISCOVERY_WORK_BYTES: usize = 16 * 1024 * 1024;
+const DOCUMENT_EVIDENCE_EXPORT_BYTES: u64 = 8_589_934_592;
+const PAGINATION_MAXIMUM_PAGE_ITEMS: u64 = 500;
+const PAGINATION_PAGE_ITEMS: u64 = 50;
+const SERVER_DISCOVERY_PAGE_BYTES: u64 = 4_194_304;
+const SERVER_DISCOVERY_WORK_BYTES: u64 = 16_777_216;
 
 /* === Macros === */
 
@@ -134,30 +134,28 @@ impl Operation for Availability {
     ) -> Result<Response<dokime::domain::model::backend::wire::BackendAvailability>, Status> {
         use dokime::harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
         let maximum = self.resources.maximum;
+        let page_items = usize::try_from(PAGINATION_PAGE_ITEMS).expect("validated discovery page count");
         let mut methods = Vec::new();
         let mut after = None;
         let mut read_bytes = 0usize;
-        let mut required = std::mem::size_of::<dokime::domain::model::backend::wire::BackendAvailability>()
-            .saturating_add(self.resources.identity.backend_id.len())
-            .saturating_add(self.resources.identity.epoch.len());
         loop {
             let page = context
                 .call(Catalog {
                     kind: CatalogKind::Operations,
                     schema: None,
                     after: after.clone(),
-                    rows: Some(64),
-                    bytes: Some(DISCOVERY_PAGE_BYTES),
+                    rows: Some(page_items),
+                    bytes: Some(usize::try_from(SERVER_DISCOVERY_PAGE_BYTES).expect("validated discovery page size")),
                 })
                 .await
                 .map_err(discovery_failure)?;
             read_bytes = read_bytes.saturating_add(page.entries.len());
-            if read_bytes > DISCOVERY_WORK_BYTES {
+            if read_bytes > usize::try_from(SERVER_DISCOVERY_WORK_BYTES).expect("validated discovery work size") {
                 return Err(Status::resource_exhausted("availability discovery exceeds configured work budget"));
             }
             let entries: Vec<DiscoveredOperation> =
                 serde_json::from_slice(&page.entries).map_err(|_| Status::data_loss("invalid shared operation discovery metadata"))?;
-            if entries.len() > 64 {
+            if entries.len() > page_items {
                 return Err(Status::data_loss("shared discovery exceeds requested page size"));
             }
             for entry in entries {
@@ -168,8 +166,7 @@ impl Operation for Availability {
                     return Err(Status::data_loss("shared discovery has no admitted gRPC binding"));
                 };
                 let path = binding.path();
-                // Account For Conservative Vector Growth Before Retaining This Path.
-                required = required.saturating_add(4 * std::mem::size_of::<String>()).saturating_add(path.capacity());
+                methods.try_reserve(1).map_err(|_| Status::resource_exhausted("availability allocation refused"))?;
                 methods.push(path);
             }
             let Some(next) = &page.next else {
@@ -191,11 +188,11 @@ impl Operation for Availability {
             limits: Some(dokime::domain::model::backend::wire::BackendLimits {
                 max_request_bytes: maximum as u64,
                 max_response_bytes: maximum as u64,
-                max_content_bytes: Some(super::super::content::MAX_CONTENT_BYTES),
-                max_evidence_bytes: Some(dokime::domain::model::exports::EVIDENCE_EXPORT_MAX_BYTES),
-                max_page_items: Some(dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS),
+                max_content_bytes: Some(i64::MAX as u64),
+                max_evidence_bytes: Some(DOCUMENT_EVIDENCE_EXPORT_BYTES),
+                max_page_items: Some(u32::try_from(PAGINATION_MAXIMUM_PAGE_ITEMS).expect("validated page size")),
                 max_stream_buffer_items: Some(1),
-                max_chunk_bytes: Some(super::super::content::transfer_chunk_bytes(maximum) as u32),
+                max_chunk_bytes: Some(super::super::content::transfer_chunk_bytes(&self.resources.runtime, maximum)? as u32),
             }),
         };
         if output.wire_len()? > maximum {
@@ -222,6 +219,7 @@ impl Operation for Logs {
             level => level,
         };
         crate::grpc::logs::Watch {
+            poll_interval: self.resources.runtime.storage().settings().filesystem.poll_interval,
             path: super::hub_log_path(&self.resources.runtime.application_root()),
             min_level,
             replay_lines: request.replay_lines,
@@ -291,11 +289,11 @@ pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -
     Ok(())
 }
 
-pub(super) fn produce_result<T: MemorySize + Portable + Send + Sync + 'static>(
+pub(super) fn produce_result<T: Portable + Send + Sync + 'static>(
     maximum: usize, build: impl FnOnce() -> Result<T, Status>,
 ) -> Result<Response<T>, Status> {
     let output = build()?;
-    if output.encoded_len() > maximum {
+    if output.wire_len()? > maximum {
         return Err(Status::resource_exhausted("backend status exceeds configured message budget"));
     }
     Ok(output.into())
@@ -303,7 +301,7 @@ pub(super) fn produce_result<T: MemorySize + Portable + Send + Sync + 'static>(
 
 /* === Private Functions === */
 
-fn produce<T: MemorySize + Portable + Send + Sync + 'static>(maximum: usize, build: impl FnOnce() -> T) -> Result<Response<T>, Status> {
+fn produce<T: Portable + Send + Sync + 'static>(maximum: usize, build: impl FnOnce() -> T) -> Result<Response<T>, Status> {
     produce_result(maximum, || Ok(build()))
 }
 

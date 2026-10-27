@@ -19,10 +19,11 @@ mod steps;
 /* === Re-Exports === */
 
 pub(super) use control::command_context;
-pub(super) use detail::Bounds;
 pub(crate) use detail::result as result_summary;
 
 /* === Imports === */
+
+use crate::grpc::transcode::Transcode;
 
 // Standard Library Imports
 use std::sync::Arc;
@@ -269,8 +270,7 @@ impl Resources {
         let id = cycle_id(&request.cycle_id)?;
         let snapshot = self.runtime.watch_state().latest();
         let cycle = snapshot.state().cycles.get(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-        let mut bounds = detail::Bounds::new(self.max_message_bytes);
-        let value = summary(snapshot.state(), cycle, canonical::cursor(&snapshot), &mut bounds)?;
+        let value = summary(snapshot.state(), cycle, canonical::cursor(&snapshot))?;
         inspection_reply(self, value)
     }
 
@@ -290,14 +290,10 @@ impl Resources {
         let (page, next_after_cycle_id) = cycle_page(&selected, after, limit).map_err(|error| match error {
             CyclePageError::UnknownContinuation => Status::invalid_argument(error.to_string()),
         })?;
-        let mut bounds = detail::Bounds::new(self.max_message_bytes);
-        bounds.bytes(std::mem::size_of::<dokime::domain::model::execution::wire::ListCyclesReply>())?;
-        if let Some(after) = &next_after_cycle_id {
-            bounds.text(after)?;
-        }
+
         let mut cycles = canonical::slots(page.len())?;
         for cycle in page {
-            cycles.push(summary(snapshot.state(), cycle, cursor.clone(), &mut bounds)?);
+            cycles.push(summary(snapshot.state(), cycle, cursor.clone())?);
         }
         inspection_reply(
             self,
@@ -311,8 +307,7 @@ impl Resources {
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_case_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-        let mut bounds = detail::Bounds::new(self.max_message_bytes);
-        let value = case_page(snapshot.state(), &cycle, &request.after_case_id, limit, cursor, &mut bounds)?;
+        let value = case_page(snapshot.state(), &cycle, &request.after_case_id, limit, cursor)?;
         inspection_reply(self, value)
     }
 
@@ -324,15 +319,8 @@ impl Resources {
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_execution_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let cycle = snapshot.state().cycles.get(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-        let mut bounds = detail::Bounds::new(self.max_message_bytes);
-        let value = execution_page(
-            snapshot.state(),
-            snapshot.state().executions_for_cycle(cycle),
-            &request.after_execution_id,
-            limit,
-            cursor,
-            &mut bounds,
-        )?;
+        let value =
+            execution_page(snapshot.state(), snapshot.state().executions_for_cycle(cycle), &request.after_execution_id, limit, cursor)?;
         inspection_reply(self, value)
     }
 }
@@ -353,6 +341,12 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 
 pub(super) fn status(error: Error) -> Status {
     let (grpc_code, code, message, issues) = match error {
+        Error::Storage(dokime::storage::Error::SettingsConflict { expected, actual }) => {
+            (Code::Aborted, "settings_conflict".into(), format!("expected settings revision {expected}, found {actual}"), vec![])
+        }
+        Error::Storage(dokime::storage::Error::InvalidSettings(message)) => {
+            (Code::InvalidArgument, "invalid_settings".into(), message, vec![])
+        }
         Error::Admission(AdmissionFailure::Validation { code, message, issues }) => (Code::InvalidArgument, code, message, issues),
         Error::Admission(AdmissionFailure::Conflict { code, message }) => (Code::FailedPrecondition, code, message, vec![]),
         Error::Admission(AdmissionFailure::Overload { code, message }) => (Code::ResourceExhausted, code, message, vec![]),
@@ -379,13 +373,8 @@ pub(super) fn status(error: Error) -> Status {
 }
 
 pub(super) fn summary(
-    state: &RuntimeState, cycle: &dokime::domain::model::execution::result::TestCycle, cursor: Cursor, bounds: &mut detail::Bounds,
+    state: &RuntimeState, cycle: &dokime::domain::model::execution::result::TestCycle, cursor: Cursor,
 ) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
-    bounds.bytes(std::mem::size_of::<dokime::domain::model::execution::wire::CycleSummary>())?;
-    bounds.text(cycle.test_cycle_id.as_str())?;
-    bounds.text(&cursor.epoch)?;
-    bounds.text(&cursor.stream)?;
-    bounds.bytes(canonical::metadata_memory(&cycle.metadata)?)?;
     let tally = case_tally(state, cycle);
     Ok(dokime::domain::model::execution::wire::CycleSummary {
         cycle_id: cycle.test_cycle_id.to_string(),
@@ -417,21 +406,8 @@ pub(super) fn summary(
 }
 
 pub(super) fn case_summary(
-    case: &TestCase, ordinal: usize, projection: CaseProjection, bounds: &mut detail::Bounds,
+    case: &TestCase, ordinal: usize, projection: CaseProjection,
 ) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
-    bounds.bytes(std::mem::size_of::<dokime::domain::model::execution::wire::CaseSummary>())?;
-    bounds.text(&case.suite_id)?;
-    bounds.text(case.test_case_id.as_str())?;
-    bounds.text(case.test_case_template_id.as_str())?;
-    bounds.bytes(canonical::metadata_memory(&case.metadata)?)?;
-    if let Some(id) = &projection.latest_execution_id {
-        bounds.text(id.as_str())?;
-    }
-    value::collection(projection.actions.unavailable_reasons.len())?;
-    bounds.bytes(projection.actions.unavailable_reasons.capacity().saturating_mul(std::mem::size_of::<String>()))?;
-    for reason in &projection.actions.unavailable_reasons {
-        bounds.text(reason)?;
-    }
     Ok(dokime::domain::model::execution::wire::CaseSummary {
         suite_id: case.suite_id.clone(),
         case_id: case.test_case_id.as_str().to_owned(),
@@ -450,9 +426,9 @@ pub(super) fn case_summary(
 }
 
 pub(super) fn historical_case_summary(
-    cycle: &CycleView, case: &TestCase, ordinal: usize, bounds: &mut detail::Bounds,
+    cycle: &CycleView, case: &TestCase, ordinal: usize,
 ) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
-    case_summary(case, ordinal, historical_case_projection(cycle, &case.test_case_id), bounds)
+    case_summary(case, ordinal, historical_case_projection(cycle, &case.test_case_id))
 }
 
 pub(super) fn execution_status(status: &ExecutionStatus) -> dokime::domain::model::execution::wire::ExecutionStatus {
@@ -496,7 +472,7 @@ pub(super) fn execution_summary(
 /* === Private Functions === */
 
 fn inspection_reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
-    if value.encoded_len() > service.max_message_bytes {
+    if value.wire_len()? > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));
     }
     Ok(value)
@@ -521,7 +497,7 @@ pub(super) fn cycle_filter(filter: Option<&dokime::domain::model::execution::wir
     let Some(filter) = filter else {
         return Ok(CycleFilter::default());
     };
-    value::text(&filter.text)?;
+
     value::collection(filter.statuses.len())?;
     Ok(CycleFilter {
         text: filter.text.clone(),
@@ -586,20 +562,18 @@ fn rejection(code: String, message: String, validation_issues: Vec<ValidationIss
 }
 
 fn case_page(
-    state: &RuntimeState, cycle: &CycleView, after: &str, limit: usize, cursor: Cursor, bounds: &mut detail::Bounds,
+    state: &RuntimeState, cycle: &CycleView, after: &str, limit: usize, cursor: Cursor,
 ) -> Result<dokime::domain::model::execution::wire::ListCasesReply, Status> {
     let start = after_position(after, cycle.cases().map(|case| case.test_case_id.as_str()))?;
     let count = cycle.cases().count();
-    bounds.bytes(std::mem::size_of::<dokime::domain::model::execution::wire::ListCasesReply>())?;
-    bounds.text(&cursor.epoch)?;
-    bounds.text(&cursor.stream)?;
+
     let mut cases = canonical::slots(count.saturating_sub(start).min(limit))?;
     for (ordinal, case) in cycle.cases().enumerate().skip(start).take(limit) {
-        cases.push(case_summary(case, ordinal, case_projection(state, cycle, &case.test_case_id), bounds)?);
+        cases.push(case_summary(case, ordinal, case_projection(state, cycle, &case.test_case_id))?);
     }
     let next_after_case_id = if start + cases.len() < count {
         let last = cases.last().ok_or_else(|| Status::internal("empty continued case page"))?;
-        bounds.text(&last.case_id)?;
+
         Some(last.case_id.clone())
     } else {
         None
@@ -609,23 +583,18 @@ fn case_page(
 
 fn execution_page<'a>(
     state: &RuntimeState, members: impl ExactSizeIterator<Item = &'a dokime::domain::model::execution::result::TestExecution> + Clone,
-    after: &str, limit: usize, cursor: Cursor, bounds: &mut detail::Bounds,
+    after: &str, limit: usize, cursor: Cursor,
 ) -> Result<dokime::domain::model::execution::wire::ListExecutionsReply, Status> {
     let start = after_position(after, members.clone().map(|execution| execution.test_execution_id.as_str()))?;
     let count = members.len();
-    bounds.bytes(std::mem::size_of::<dokime::domain::model::execution::wire::ListExecutionsReply>())?;
-    bounds.text(&cursor.epoch)?;
-    bounds.text(&cursor.stream)?;
+
     let mut executions = canonical::slots(count.saturating_sub(start).min(limit))?;
     for (ordinal, execution) in members.enumerate().skip(start).take(limit) {
-        bounds.bytes(std::mem::size_of::<dokime::domain::model::execution::wire::ExecutionSummary>())?;
-        bounds.text(execution.test_execution_id.as_str())?;
-        bounds.text(execution.test_case_id.as_str())?;
         executions.push(execution_summary(state, execution, ordinal));
     }
     let next_after_execution_id = if start + executions.len() < count {
         let last = executions.last().ok_or_else(|| Status::internal("empty continued execution page"))?;
-        bounds.text(&last.execution_id)?;
+
         Some(last.execution_id.clone())
     } else {
         None

@@ -133,15 +133,15 @@ fn field(sample: &model::telemetry::wire::TelemetrySample, name: &str) -> String
 }
 
 fn number(value: f64) -> model::values::wire::Value {
-    model::values::wire::Value::from(&Value::Number(value))
+    model::values::wire::Value::try_from(&Value::Number(value)).unwrap()
 }
 
 fn text(value: &str) -> model::values::wire::Value {
-    model::values::wire::Value::from(&Value::Text(value.to_owned()))
+    model::values::wire::Value::try_from(&Value::Text(value.to_owned())).unwrap()
 }
 
 fn boolean(value: bool) -> model::values::wire::Value {
-    model::values::wire::Value::from(&Value::Bool(value))
+    model::values::wire::Value::try_from(&Value::Bool(value)).unwrap()
 }
 
 fn selection(
@@ -255,7 +255,7 @@ async fn list_file(content: &mut Client, execution_id: &str, relative_path: &str
 
 fn value_object(fields: impl IntoIterator<Item = (&'static str, model::values::wire::Value)>) -> model::values::wire::Value {
     let values = fields.into_iter().map(|(key, value)| (key.to_owned(), value.to_core().unwrap())).collect();
-    model::values::wire::Value::from(&Value::Object(values))
+    model::values::wire::Value::try_from(&Value::Object(values)).unwrap()
 }
 
 async fn report_bytes(report: ResponseStream<model::reports::wire::ReportHtmlFrame>) -> Vec<u8> {

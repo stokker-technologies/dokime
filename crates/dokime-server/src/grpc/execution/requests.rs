@@ -62,7 +62,6 @@ impl Operation for Execution {
         &mut self, context: Self::Context<'a>, request: &mut wire::StartExecution, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::RunReply>, Status> {
         let context = super::control::command_context(&context, None)?;
-        value::text(&request.execution_id)?;
         let id = dokime::domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())
             .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         let mode = match request.mode {

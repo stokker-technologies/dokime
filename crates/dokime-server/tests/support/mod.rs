@@ -26,6 +26,7 @@ use std::{
     sync::Arc,
 };
 // Third Party Imports
+use futures_util::FutureExt;
 use tempfile::tempdir;
 use tonic::{Extensions, Request, Status};
 // Local Imports
@@ -99,7 +100,7 @@ impl TestEnvironment {
         if let Some((suite_id, dispatcher)) = action_dispatcher {
             runtime_config = runtime_config.with_action_dispatcher(suite_id, dispatcher);
         }
-        let runtime_owner = { dokime::Runtime::with_execution_fixture(runtime_config, "fixture", provider) }.await.unwrap();
+        let runtime_owner = dokime::Runtime::with_execution_fixture(runtime_config, "fixture", provider).boxed_local().await.unwrap();
         let runtime = runtime_owner.handle();
 
         Self { root, _runtime_owner: runtime_owner, runtime }
@@ -157,7 +158,7 @@ pub async fn cycle_with_cases(runtime: &RuntimeHandle, metadata: Metadata, cases
 pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
     let options = dokime::definition::CaseMaterializationOptions {
         force: true,
-        max_cases: dokime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        max_cases: usize::try_from(1_000).unwrap(),
         registration_id: dokime::model::identity::new_id(),
         first_label_number: 1,
     };
@@ -505,7 +506,6 @@ fn fixture_progress_contract() -> TelemetryContract {
         )],
         default_x: Some("timestamp".to_owned()),
         interval: None,
-        plot_window: None,
         allow_extra_fields: false,
         scalar: false,
         validation_mode: None,

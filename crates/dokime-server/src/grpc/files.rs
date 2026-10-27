@@ -20,10 +20,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{
-    MemorySize,
-    operations::{Context, Operation, Response, StreamOutput},
-};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
@@ -124,7 +121,7 @@ impl Operation for FileWatch {
             )),
         };
         self.watch = None;
-        output.send_with(completed.memory_size(), || Ok(completed)).await.map_err(stream_failure)?;
+        output.send_owned((completed).into()).await.map_err(stream_failure)?;
         Ok(().into())
     }
 
@@ -155,7 +152,7 @@ async fn send_events(
 ) -> Result<(), Status> {
     for event in events.drain(..) {
         let frame = frame(event)?;
-        output.send_with(frame.memory_size(), || Ok(frame)).await.map_err(stream_failure)?;
+        output.send_owned((frame).into()).await.map_err(stream_failure)?;
     }
     Ok(())
 }

@@ -26,6 +26,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { openLocalPath } from "@/lib/desktop-open";
 
+const GUI_COPIED_INDICATOR_MS = 1_500;
+
 /* === Types === */
 
 type SettingsPathFieldProps = {
@@ -43,7 +45,7 @@ export function SettingsPathField({ id, openable = false, placeholder = "Not set
   const [copied, setCopied] = useState(false);
 
   return (
-    <div className="flex h-[var(--control-height)] w-full min-w-0 items-center gap-1 rounded-md border bg-background pr-1 pl-2">
+    <div className="flex h-[var(--control-height)] w-full min-w-0 items-center gap-1 rounded-lg border bg-background pr-1 pl-2">
       <span className="min-w-0 flex-1 truncate text-left font-mono text-xs [direction:rtl]" id={id} title={value ?? undefined}>
         {value ? (
           /* bdi keeps the path readable while the box truncates from the left. */
@@ -59,7 +61,7 @@ export function SettingsPathField({ id, openable = false, placeholder = "Not set
           if (!value) return;
           void navigator.clipboard?.writeText(value).then(() => {
             setCopied(true);
-            setTimeout(() => setCopied(false), 1_500);
+            setTimeout(() => setCopied(false), GUI_COPIED_INDICATOR_MS);
           });
         }}
         size="icon-sm"

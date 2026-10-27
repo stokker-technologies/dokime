@@ -18,7 +18,6 @@ use std::future::Future;
 use std::time::Duration;
 
 // Third Party Imports
-use futures_util::{FutureExt, StreamExt};
 
 // Local Imports
 use dokime_domain::model::execution::result::CyclePhase;
@@ -67,14 +66,12 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Option<T>>,
 {
-    let mut rows = runtime.watch_plot_telemetry(&[]).await.unwrap().pop().expect("the durable telemetry stream is watchable");
+    let mut saved = runtime.storage().cursor_saved();
     loop {
         if let Some(value) = check().await {
             return value;
         }
-        rows.next().await.expect("the telemetry stream closes only with the runtime");
-        // Coalesce Rows That Arrived Together Into One Re-Check.
-        while let Some(Some(_)) = rows.next().now_or_never() {}
+        saved = runtime.storage().wait_saved_after(&saved).await.unwrap();
     }
 }
 

@@ -17,6 +17,7 @@
 use std::sync::{Arc, Mutex};
 // Third Party Imports
 use clap::Parser;
+use futures_util::FutureExt;
 use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
 // Local Imports
@@ -83,7 +84,7 @@ impl ExecutionFixture for Artifacts {
                     .await
                     .unwrap();
                 for chunk in bytes.chunks(64 * 1024) {
-                    upload.send(chunk).await.unwrap();
+                    upload.send(chunk.to_vec()).await.unwrap();
                 }
                 let record = if cancelled { upload.abandon().await } else { upload.finish().await }.unwrap();
                 self.records.lock().unwrap().push((record, bytes));
@@ -130,7 +131,7 @@ impl ExecutionFixture for LargeArtifact {
             let mut sent = 0_u64;
             while sent < LARGE_ARTIFACT_BYTES {
                 let remaining = (LARGE_ARTIFACT_BYTES - sent).min(chunk.len() as u64) as usize;
-                upload.send(&chunk[..remaining]).await.unwrap();
+                upload.send(chunk[..remaining].to_vec()).await.unwrap();
                 sent += remaining as u64;
             }
             upload.finish().await.unwrap();
@@ -146,12 +147,12 @@ impl ExecutionFixture for LargeArtifact {
 // A 4 KiB Frame Limit Pages Listings And Chunks Downloads Into Small Frames
 #[tokio::test]
 async fn small_frame_transfer() {
-    artifact_transfer(4096).await;
+    artifact_transfer(4096).boxed_local().await;
 }
 
 #[tokio::test]
 async fn large_frame_transfer() {
-    artifact_transfer(1024 * 1024).await;
+    artifact_transfer(1024 * 1024).boxed_local().await;
 }
 
 async fn artifact_transfer(message_bytes: usize) {
@@ -162,6 +163,7 @@ async fn artifact_transfer(message_bytes: usize) {
         "fixture",
         artifacts.clone(),
     )
+    .boxed_local()
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
@@ -324,7 +326,7 @@ async fn artifact_transfer(message_bytes: usize) {
             "--output",
             response_file.to_str().unwrap(),
         ];
-        dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+        dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
         let bytes = std::fs::read(&response_file).unwrap();
         let response: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         let events = response.as_array().unwrap();
@@ -352,6 +354,8 @@ async fn artifact_transfer(message_bytes: usize) {
         let downloaded = execution_handle.export(evidence.clone(), false).await.unwrap();
         assert_eq!(downloaded.metadata.subject, Some(model::exports::EvidenceSubject::Execution(execution_id.to_string())));
         let previous = std::fs::read(&evidence).unwrap();
+        assert_eq!(previous.len() as u64, downloaded.metadata.size_bytes);
+        assert_eq!(Sha256::digest(&previous).iter().map(|byte| format!("{byte:02x}")).collect::<String>(), downloaded.metadata.sha256);
         assert!(execution_handle.export(evidence.clone(), false).await.is_err());
         assert_eq!(std::fs::read(&evidence).unwrap(), previous);
         execution_handle.export(evidence.clone(), true).await.unwrap();
@@ -370,7 +374,7 @@ async fn artifact_transfer(message_bytes: usize) {
         std::fs::write(&key_file, TOKEN).unwrap();
         let command =
             ["dokime", "cycle", "export", &cycle_id, "--endpoint", &endpoint, "--key-file", key_file.to_str().unwrap(), "--output", output];
-        dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+        dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
         assert!(cycle_export.is_file());
         assert!(!root.path().join("cycle.zip.part").exists());
         // A sealed execution cannot acquire another mutable artifact producer.
@@ -504,6 +508,7 @@ async fn artifact_upload_owned() {
         "fixture",
         gate.clone(),
     )
+    .boxed_local()
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
@@ -783,6 +788,7 @@ async fn completion_harness()
         "fixture",
         gate.clone(),
     )
+    .boxed_local()
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
@@ -1076,7 +1082,7 @@ async fn large_artifact_buffering() {
     // Stream 300 MiB through the existing native file contract.
     let root = tempfile::tempdir().unwrap();
     let config = crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.bundle", "Content"));
-    let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact)).await.unwrap();
+    let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact)).boxed_local().await.unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
     let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();

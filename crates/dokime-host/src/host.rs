@@ -71,12 +71,6 @@ pub struct HostSnapshot {
 
 /* === Implementations === */
 
-impl Default for Host {
-    fn default() -> Self {
-        Self::new(HostTelemetryConfig::default())
-    }
-}
-
 impl Host {
     pub fn new(config: HostTelemetryConfig) -> Self {
         let options = config.options.clone();
@@ -86,17 +80,17 @@ impl Host {
             source: config.source,
             fixture: Arc::new(Mutex::new(FixtureHostTelemetrySource::new())),
             system: Arc::new(Mutex::new(SystemCollector::new())),
-            network: Arc::new(Mutex::new(NetworkCollector::new(config.network_link_interval))),
+            network: Arc::new(Mutex::new(NetworkCollector::new())),
             wifi_link: Arc::new(Mutex::new(WifiCollector::new(options.clone(), wifi_congestion_cache.clone()))),
             wifi_latency: Arc::new(Mutex::new(WifiCollector::new(options.clone(), wifi_congestion_cache.clone()))),
             wifi_occupancy: Arc::new(Mutex::new(WifiCollector::new(options.clone(), wifi_congestion_cache))),
-            bluetooth: Arc::new(Mutex::new(BluetoothCollector::new(options.clone(), config.bluetooth_deep_scan_interval))),
+            bluetooth: Arc::new(Mutex::new(BluetoothCollector::new(options.clone()))),
             options,
         }
     }
 
     pub fn fixture() -> Self {
-        Self::new(HostTelemetryConfig::default().with_source(HostTelemetrySourceKind::Fixture))
+        Self::new(HostTelemetryConfig { source: HostTelemetrySourceKind::Fixture, options: HostOptions::default() })
     }
 
     pub fn collect_stream(&self, stream: HostTelemetryStream) -> crate::Result<Option<TelemetryBatch>> {

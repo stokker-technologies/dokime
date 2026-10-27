@@ -16,6 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::operations::{Direction, OperationDeclaration};
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -24,10 +25,7 @@ use dokime_domain::model::plugins::wire;
 
 /* === Constants === */
 
-// Room for the frame, chunk and input envelope tags around one chunk's data.
-const FRAME_OVERHEAD_BYTES: usize = 64;
-// Chunk size when a backend advertises no chunk limit of its own.
-const FALLBACK_CHUNK_BYTES: usize = 64 * 1024;
+const PLUGIN_CHUNK_BYTES: usize = 65_536;
 
 /* === Macros === */
 
@@ -49,7 +47,16 @@ impl Client {
         if bytes.is_empty() || bytes.len() as u64 > wire::STAGE_ARCHIVE_MAX_BYTES {
             return Err(UploadError::Invalid("plugin archive size is outside the native limit"));
         }
-        let chunk_bytes = chunk_bytes(self.backend().limits.max_chunk_bytes, self.request_limit());
+        let template = wire::StagePluginFrame {
+            frame: Some(wire::StagePluginFrameFrame::Chunk(wire::StagePluginChunk { offset: bytes.len() as u64, data: Vec::new() })),
+        };
+        let chunk_bytes = chunk_bytes::<dokime_domain::operations::plugins::Stage>(
+            self.backend().limits.max_chunk_bytes,
+            self.request_limit(),
+            PLUGIN_CHUNK_BYTES,
+            &template,
+            &["frame", "Chunk", "field_0", "data"],
+        )?;
         if chunk_bytes == 0 {
             return Err(UploadError::Invalid("negotiated frame limit cannot carry upload data"));
         }
@@ -72,9 +79,12 @@ pub fn plugin_bundle_digest(bytes: &[u8]) -> String {
 
 /* === Private Functions === */
 
-pub(super) fn chunk_bytes(advertised: Option<u32>, request_limit: usize) -> usize {
-    let advertised = advertised.map_or(FALLBACK_CHUNK_BYTES, |bytes| bytes as usize);
-    advertised.min(request_limit.saturating_sub(FRAME_OVERHEAD_BYTES))
+pub(super) fn chunk_bytes<O: OperationDeclaration>(
+    advertised: Option<u32>, request_limit: usize, fallback: usize, template: &<O::Input as Direction>::Item, path: &[&str],
+) -> super::Result<usize> {
+    let advertised = advertised.map_or(fallback, |bytes| bytes as usize);
+    harmos::grpc::input_payload_limit::<O>(template, path, advertised, request_limit)
+        .map_err(|_| super::Error::Rpc(tonic::Status::invalid_argument("unable to size upload chunk for request limit")))
 }
 
 fn stage_frames(bytes: Vec<u8>, sha256: String, chunk_bytes: usize) -> impl Iterator<Item = wire::StagePluginFrame> + Send + 'static {
@@ -92,6 +102,12 @@ fn stage_frames(bytes: Vec<u8>, sha256: String, chunk_bytes: usize) -> impl Iter
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn chunk_template() -> wire::StagePluginFrame {
+        wire::StagePluginFrame {
+            frame: Some(wire::StagePluginFrameFrame::Chunk(wire::StagePluginChunk { offset: 10_000_000, data: Vec::new() })),
+        }
+    }
 
     #[test]
     fn stage_frames_lead_with_the_header_and_cover_the_bundle_contiguously() {
@@ -118,10 +134,23 @@ mod tests {
 
     #[test]
     fn chunk_size_follows_the_advertised_limit_within_the_request_limit() {
-        assert_eq!(chunk_bytes(Some(64 * 1024), 1024 * 1024), 64 * 1024);
-        assert_eq!(chunk_bytes(Some(4 * 1024 * 1024), 1024 * 1024), 1024 * 1024 - FRAME_OVERHEAD_BYTES);
-        assert_eq!(chunk_bytes(None, 1024 * 1024), FALLBACK_CHUNK_BYTES);
-        assert_eq!(chunk_bytes(Some(64 * 1024), FRAME_OVERHEAD_BYTES), 0);
+        let fallback = 32 * 1024;
+        let template = chunk_template();
+        let path = ["frame", "Chunk", "field_0", "data"];
+        let spacious_limit = 8 * 1024 * 1024;
+        assert_eq!(
+            chunk_bytes::<dokime_domain::operations::plugins::Stage>(Some(64 * 1024), spacious_limit, fallback, &template, &path).unwrap(),
+            64 * 1024
+        );
+        assert_eq!(
+            chunk_bytes::<dokime_domain::operations::plugins::Stage>(None, spacious_limit, fallback, &template, &path).unwrap(),
+            fallback
+        );
+        let constrained =
+            chunk_bytes::<dokime_domain::operations::plugins::Stage>(Some(4 * 1024 * 1024), 1024 * 1024, fallback, &template, &path)
+                .unwrap();
+        assert!(constrained > 0 && constrained < 1024 * 1024);
+        assert_eq!(chunk_bytes::<dokime_domain::operations::plugins::Stage>(Some(64 * 1024), 0, fallback, &template, &path).unwrap(), 0);
     }
 
     #[test]

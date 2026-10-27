@@ -34,6 +34,13 @@ use crate::model::values::ValueType;
 
 /* === Constants === */
 
+pub const MAX_SPACE_ITEMS: usize = 1_000;
+pub const MAX_MATERIALIZED_CASES: usize = 1_000;
+pub const MAX_NODES: usize = 4_096;
+pub const MAX_DEPTH: usize = 32;
+pub const MAX_TEXT_BYTES: usize = 4_096;
+pub const MAX_COLLECTION_ITEMS: usize = 256;
+
 /* === Macros === */
 
 product_error!(ParameterResolverError, formatter {

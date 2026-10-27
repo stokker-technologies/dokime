@@ -175,7 +175,7 @@ mod tests {
                 &template,
                 Default::default(),
                 dokime_runtime::definition::CaseMaterializationOptions {
-                    max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                    max_cases: dokime_domain::model::definition::parameters::MAX_MATERIALIZED_CASES,
                     force: false,
                     registration_id: dokime_domain::model::identity::CommandId::from_seed("parameters.registration.1"),
                     first_label_number: 1
@@ -192,7 +192,7 @@ mod tests {
             &template,
             selection,
             CaseMaterializationOptions {
-                max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                max_cases: dokime_domain::model::definition::parameters::MAX_MATERIALIZED_CASES,
                 force: false,
                 registration_id: dokime_domain::model::identity::CommandId::from_seed("parameters.registration.2"),
                 first_label_number: 1,
@@ -216,7 +216,7 @@ mod tests {
                     &template,
                     selection,
                     dokime_runtime::definition::CaseMaterializationOptions {
-                        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                        max_cases: dokime_domain::model::definition::parameters::MAX_MATERIALIZED_CASES,
                         force: false,
                         registration_id: dokime_domain::model::identity::CommandId::from_seed("parameters.registration.3"),
                         first_label_number: 1
@@ -258,7 +258,7 @@ mod tests {
                     &template,
                     filter,
                     dokime_runtime::definition::CaseMaterializationOptions {
-                        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                        max_cases: dokime_domain::model::definition::parameters::MAX_MATERIALIZED_CASES,
                         force: false,
                         registration_id: dokime_domain::model::identity::CommandId::from_seed("parameters.registration.4"),
                         first_label_number: 1
@@ -274,7 +274,7 @@ mod tests {
                     &template,
                     selection,
                     dokime_runtime::definition::CaseMaterializationOptions {
-                        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                        max_cases: dokime_domain::model::definition::parameters::MAX_MATERIALIZED_CASES,
                         force: false,
                         registration_id: dokime_domain::model::identity::CommandId::from_seed("parameters.registration.5"),
                         first_label_number: 1
@@ -306,7 +306,7 @@ mod tests {
             &template,
             Default::default(),
             dokime_runtime::definition::CaseMaterializationOptions {
-                max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                max_cases: dokime_domain::model::definition::parameters::MAX_MATERIALIZED_CASES,
                 force: false,
                 registration_id: dokime_domain::model::identity::CommandId::from_seed("parameters.registration.6"),
                 first_label_number: 1,
@@ -525,7 +525,7 @@ mod tests {
             &template(definitions),
             Default::default(),
             dokime_runtime::definition::CaseMaterializationOptions {
-                max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                max_cases: dokime_domain::model::definition::parameters::MAX_MATERIALIZED_CASES,
                 force: false,
                 registration_id: dokime_domain::model::identity::CommandId::from_seed("parameters.registration.7"),
                 first_label_number: 1,

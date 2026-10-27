@@ -19,7 +19,6 @@
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 // Local Imports
-use super::templates;
 use crate::storage::{Error, Result, records::ScopeRow};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::health::HealthItem;
@@ -198,13 +197,13 @@ impl Set {
     }
 
     pub(super) fn restore(&self) -> Result<TestRecordSet> {
-        let mut records = TestRecordSet::default();
+        let mut records = TestRecordSet::with_capacity(self.health.len(), self.notes.len());
         for note in &self.notes {
-            let note = templates::convert(note)?;
+            let note = note.clone().try_into()?;
             records.push_note(note);
         }
         for health in &self.health {
-            let health = templates::convert(health)?;
+            let health = health.clone().try_into()?;
             records.push_health(health);
         }
         for captured in &self.subscribed_records {
@@ -212,7 +211,7 @@ impl Set {
             if records.subscribed_records().contains_key(&id) {
                 return Err(Error::Invalid("duplicate captured record ownership"));
             }
-            let scope: RecordScope = templates::convert(&captured.scope)?;
+            let scope: RecordScope = captured.scope.clone().try_into()?;
             records.capture_record(id, scope);
         }
         if self.record_subscriptions_closed {
@@ -397,3 +396,73 @@ fn severity(value: &HealthSeverity) -> &'static str {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn annotations() -> Set {
+        let scope = ScopeRow::from(&RecordScope::default());
+        let note = Note {
+            note_id: "00000000-0000-0000-0000-000000000001".into(),
+            scope: scope.clone(),
+            author: Some("operator".into()),
+            message: "note".into(),
+            created_at: "1999-12-31T23:59:59Z".into(),
+        };
+        let health = Health {
+            health_item_id: "00000000-0000-0000-0000-000000000002".into(),
+            scope: scope.clone(),
+            severity: "warning".into(),
+            message: "health".into(),
+            detail: Some("detail".into()),
+            observed_at: "1999-12-31T23:59:59Z".into(),
+        };
+        let captured = Captured { record_id: "00000000-0000-0000-0000-000000000003".into(), scope };
+        Set { health: vec![health], notes: vec![note], subscribed_records: vec![captured], record_subscriptions_closed: true }
+    }
+
+    #[test]
+    fn typed_annotations_preserve_domain_serialization() {
+        let source = annotations();
+        let restored = source.restore().unwrap();
+        let owned = source.clone().restore_owned().unwrap();
+
+        assert_eq!(restored, owned);
+        assert!(Set::try_from(&restored).unwrap() == source);
+        let serialized = serde_json::to_value(&source).unwrap();
+        assert_eq!(serialized, serde_json::to_value(&restored).unwrap());
+        let decoded: Set = serde_json::from_value(serialized).unwrap();
+        assert!(decoded == source);
+    }
+
+    #[test]
+    fn typed_annotations_reject_invalid_leaf_fields() {
+        let mut source = annotations();
+        source.notes[0].created_at = "invalid".into();
+        assert!(source.restore().is_err());
+
+        let mut source = annotations();
+        source.health[0].severity = "invalid".into();
+        assert!(source.restore().is_err());
+
+        let mut source = annotations();
+        source.notes[0].scope.test_execution_id = Some("invalid".into());
+        assert!(source.restore().is_err());
+
+        let mut source = annotations();
+        source.notes[0].note_id = "invalid".into();
+        assert!(source.restore().is_err());
+    }
+
+    #[test]
+    fn typed_annotations_preserve_duplicate_refusals() {
+        let mut source = annotations();
+        source.subscribed_records.push(source.subscribed_records[0].clone());
+        assert!(source.restore().is_err());
+
+        let mut source = annotations();
+        source.health.push(source.health[0].clone());
+        assert!(source.restore().is_err());
+    }
+}

@@ -74,19 +74,21 @@ impl State {
     }
     pub(crate) async fn data_prune<C: ObjectCatalog>(
         &self, through: StorageCursor, after: u64, oldest_pin_generation: Option<u64>, maximum: NonZeroUsize,
+        retention: fn(&SchemaKey) -> harmos::domain::Result<ObjectRetention>,
     ) -> Result<(bool, bool), Error> {
+        let maximum = maximum.get();
+        i64::try_from(maximum).map_err(|_| Error::Data("retention count exceeds SQLite range"))?;
         let mut policies = Vec::with_capacity(C::definition_count());
         C::definitions().try_for_each(|definition| {
             let schema = definition.schema()?;
-            let (keep, released) = match definition.retention() {
+            let (keep, released) = match retention(&schema)? {
                 ObjectRetention::UntilReleased => (1, true),
                 policy => (i64::try_from(policy.versions().get()).map_err(|_| Error::Data("retention count exceeds SQLite range"))?, false),
             };
             policies.push((schema.id.to_string(), keep, released));
             Ok::<(), Error>(())
         })?;
-        let maximum = maximum.get();
-        i64::try_from(maximum).map_err(|_| Error::Data("retention count exceeds SQLite range"))?;
+
         self.call(move |connection| Ok((|| {
             let transaction = connection.transaction()?;
             let mut head = saved(&transaction)?;

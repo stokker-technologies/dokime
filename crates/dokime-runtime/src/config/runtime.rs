@@ -14,11 +14,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
 
 // Third Party Imports
 use harmos::storage::StorageSettings;
-use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::Dokime;
@@ -38,44 +37,35 @@ pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::services::Service<Dokime>, h
 
 /* === Structs === */
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct RuntimeConfig {
+    pub schema: harmos::config::SchemaSettings,
     pub session_id: SessionId,
     pub storage_root: PathBuf,
     pub application_root: PathBuf,
 
-    #[serde(default = "crate::config::storage_defaults")]
     pub storage: StorageSettings,
 
-    #[serde(default = "default_compaction_interval")]
-    pub compaction_interval: Duration,
+    pub managed_storage: harmos::config::ManagedStorageSettings,
 
-    #[serde(default)]
-    pub local_retention: Option<Duration>,
+    pub storage_state: harmos::config::StorageStateSettings,
 
     pub hub_metadata: Metadata,
 
     #[cfg(feature = "host")]
-    #[serde(skip)]
     pub(crate) credential_store: Option<Arc<keyring_core::CredentialStore>>,
 
     // A trusted bench is an isolated network where plain FTP sources are accepted.
-    #[serde(default)]
     pub trusted_bench: bool,
 
-    #[serde(skip)]
     pub installed_plugins: Vec<InstalledPlugin>,
 
-    #[serde(default)]
     pub plugins: Vec<crate::plugins::PluginBundle>,
 
-    #[serde(default)]
     pub plugin_lookup: Option<PathBuf>,
 
-    #[serde(skip)]
     pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
 
-    #[serde(skip)]
     pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
 }
 
@@ -89,10 +79,11 @@ impl RuntimeConfig {
     pub fn new(storage_root: impl Into<PathBuf>, hub_metadata: Metadata) -> Self {
         let storage_root = storage_root.into();
         Self {
+            schema: harmos::config::SchemaSettings::default(),
             session_id: crate::model::identity::new_id::<SessionId>(),
             storage: crate::config::storage_defaults(),
-            compaction_interval: default_compaction_interval(),
-            local_retention: None,
+            managed_storage: super::managed_storage_defaults(),
+            storage_state: super::storage_state_defaults(),
             // Programmatic configurations keep one disposable tree; shipped
             // shells always name a separate application root.
             application_root: storage_root.join("application"),
@@ -188,9 +179,5 @@ impl fmt::Debug for RuntimeConfig {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn default_compaction_interval() -> Duration {
-    Duration::from_secs(24 * 60 * 60)
-}
 
 /* === Tests === */

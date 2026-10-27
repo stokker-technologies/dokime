@@ -65,6 +65,7 @@ pub(crate) struct Session {
     replayed: tokio::sync::Mutex<bool>,
     cancelling: CancellationToken,
     refusal: tokio::sync::Mutex<Option<ProviderExecutionFailure>>,
+    changed: tokio::sync::watch::Sender<()>,
 }
 
 struct Pages {
@@ -105,6 +106,7 @@ impl Session {
             replayed: tokio::sync::Mutex::new(false),
             cancelling: CancellationToken::new(),
             refusal: tokio::sync::Mutex::new(None),
+            changed: tokio::sync::watch::channel(()).0,
         }
     }
 
@@ -188,6 +190,14 @@ impl Session {
         self.refusal.lock().await.is_some()
     }
 
+    pub(super) fn watch_changes(&self) -> tokio::sync::watch::Receiver<()> {
+        self.changed.subscribe()
+    }
+
+    pub(super) fn signal_change(&self) {
+        self.changed.send_replace(());
+    }
+
     fn release_run(&self) {
         let target = self.target.clone();
         let execution_token = self.execution.test_execution_id.to_string();
@@ -203,6 +213,7 @@ impl Session {
         let mut kept = self.refusal.lock().await;
         if kept.is_none() {
             *kept = Some(refusal);
+            self.signal_change();
         }
     }
 

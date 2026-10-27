@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos_domain::message(skip_default)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteListenerSettings {
     pub enabled: bool,
@@ -99,6 +99,39 @@ pub enum RemoteSessionOutcome {
 
 /* === Implementations === */
 
+impl Default for RemoteListenerSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            address: "0.0.0.0:8765".into(),
+            tls_enabled: true,
+            authentication_enabled: true,
+            certificate_names: Vec::new(),
+        }
+    }
+}
+
+impl RemoteListenerSettings {
+    pub fn validate(&self) -> Result<(), String> {
+        self.address.parse::<std::net::SocketAddr>().map_err(|_| "listener address must be an IP address and port")?;
+        if self.certificate_names.len() > 32 {
+            return Err("at most 32 certificate identities are allowed".into());
+        }
+        for (index, name) in self.certificate_names.iter().enumerate() {
+            if name.is_empty() || name.len() > 253 || self.certificate_names[..index].contains(name) {
+                return Err("certificate identities must be distinct bounded DNS names or IP addresses".into());
+            }
+            if name.parse::<std::net::IpAddr>().is_ok() {
+                continue;
+            }
+            if !name.split('.').all(valid_dns_label) {
+                return Err("certificate identities must be exact DNS names or IP addresses without wildcards or ports".into());
+            }
+        }
+        Ok(())
+    }
+}
+
 impl std::fmt::Debug for GeneratedAccessKey {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.debug_struct("GeneratedAccessKey").field("access_key", &"<redacted>").field("listener", &self.listener).finish()
@@ -108,5 +141,13 @@ impl std::fmt::Debug for GeneratedAccessKey {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn valid_dns_label(label: &str) -> bool {
+    !label.is_empty()
+        && label.len() <= 63
+        && label.as_bytes().first().is_some_and(u8::is_ascii_alphanumeric)
+        && label.as_bytes().last().is_some_and(u8::is_ascii_alphanumeric)
+        && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+}
 
 /* === Tests === */

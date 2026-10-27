@@ -28,7 +28,9 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Constants === */
 
-const MAX_ARCHIVE_BYTES = 4 * Math.ceil((512 * 1024) / 3);
+const SECRETS_DOCUMENT_BYTES = 524_288;
+
+const MAX_ARCHIVE_BYTES = 4 * Math.ceil(SECRETS_DOCUMENT_BYTES / 3);
 
 /* === Types === */
 

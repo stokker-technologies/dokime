@@ -15,6 +15,8 @@ mod wire;
 
 /* === Imports === */
 
+use crate::grpc::transcode::Transcode;
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -23,7 +25,6 @@ use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
-use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::domain::operations::history;
 
@@ -64,18 +65,20 @@ impl Operation for Get {
     ) -> Result<Response<dokime::domain::model::history::wire::CheckpointDocument>, Status> {
         let checkpoint = super::wire::checkpoint(request.checkpoint.take())?;
         let document = self.resources.runtime.execution_checkpoint_document(checkpoint).await.map_err(super::wire::checkpoint_failure)?;
-        let project = || -> dokime::harmos::Result<dokime::domain::model::history::wire::CheckpointDocument> {
-            let response = dokime::domain::model::history::wire::CheckpointDocument {
-                checkpoint: Some(super::wire::checkpoint_wire(document.checkpoint).map_err(original_error)?),
-                document: Some(wire::execution_document(document.document).map_err(original_error)?),
-                acquisition_finished: document.acquisition_finished,
-            };
-            if response.wire_len()? > self.resources.maximum {
-                return Err(exhausted());
-            }
-            Ok(response)
-        };
-        project().map(Into::into).map_err(|source| super::wire::checkpoint_failure(source.into()))
+        let response = document
+            .try_map(|document| -> dokime::runtime::Result<_> {
+                let response = dokime::domain::model::history::wire::CheckpointDocument {
+                    checkpoint: Some(super::wire::checkpoint_wire(document.checkpoint, self.resources.maximum).map_err(original_error)?),
+                    document: Some(wire::execution_document(document.document).map_err(original_error)?),
+                    acquisition_finished: document.acquisition_finished,
+                };
+                Ok(response)
+            })
+            .map_err(super::wire::checkpoint_failure)?;
+        if response.wire_len()? > self.resources.maximum {
+            return Err(Status::resource_exhausted("historical response exceeds transport limit"));
+        }
+        Ok(Response::from_owner(response.owner()))
     }
 }
 
@@ -85,7 +88,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(4 * 1024 * 1024) }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }

@@ -13,28 +13,18 @@ import { formatDuration } from "./format";
 
 /* === Constants === */
 
-/**
- * Wall-clock floor for plausible timestamps. The runtime emits epoch-relative
- * placeholders in transitional states (e.g. `1970-01-01T00:00:00.027Z`, a
- * few milliseconds past epoch zero); anything before this floor is a
- * placeholder, never a real test timestamp.
- */
-const MIN_VALID_TIMESTAMP_MS = Date.UTC(2000, 0, 1);
-
 /* === Public Functions === */
 
 /**
- * Parse a wire timestamp into epoch milliseconds, rejecting missing values,
- * unparseable strings, and epoch-relative placeholders that the runtime
- * emits in transitional states. Returns `null` for anything that should
- * render as "no timestamp".
+ * Parse a wire timestamp into epoch milliseconds. Missing and unparseable
+ * values render as "no timestamp"; valid historical dates remain dates.
  */
 export function parseTimestampMs(timestamp: string | null | undefined): number | null {
   if (!timestamp) {
     return null;
   }
   const parsed = Date.parse(timestamp);
-  if (!Number.isFinite(parsed) || parsed < MIN_VALID_TIMESTAMP_MS) {
+  if (!Number.isFinite(parsed)) {
     return null;
   }
   return parsed;

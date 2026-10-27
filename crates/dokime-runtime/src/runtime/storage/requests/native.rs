@@ -14,13 +14,12 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
-use harmos::storage::{ObjectRead, ObjectRevision, ObjectVersion, StoredObject, query::ObjectVersions};
+use harmos::storage::{ObjectRead, ObjectVersion, ReadBatch, StoredObject, query::ObjectVersions};
 
 // Local Imports
-use super::{Pending, RunReceipt, error, receipt_error};
+use super::{Pending, Receipt, RunReceipt, error, receipt_error};
 use crate::runtime::Result;
 use crate::storage::{
     Manager,
@@ -30,8 +29,6 @@ use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NodeId;
 
 /* === Constants === */
-
-const MAX_COMMANDS: usize = 4097;
 
 /* === Macros === */
 
@@ -47,42 +44,73 @@ const MAX_COMMANDS: usize = 4097;
 
 /* === Public Functions === */
 
-pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<RunReceipt>> {
-    let Some(parent) = storage.read_object::<Request>(id.as_str(), ObjectVersion::Latest).await.map_err(receipt_error)? else {
+pub(super) async fn read(storage: &Manager, session: &crate::storage::Manager, id: &CommandId) -> Result<Option<ReadBatch<RunReceipt>>> {
+    let Some(parent) = session.read_object::<Request>(id.as_str(), ObjectVersion::Latest).await.map_err(receipt_error)? else {
         return Ok(None);
     };
-    let mut receipt = parent.value.into_receipt()?;
+    let mut receipt = parent.try_map(|parent| -> Result<_> { Ok(parent.value.into_receipt()?) })?;
     if receipt.summary.request_id != *id {
         return Err(error("request key differs from payload identity"));
     }
-    let request = id.to_string();
-    let commands = latest::<Command>(storage, |command| command.request_id() == request).await?;
-    if commands.len() > MAX_COMMANDS {
-        return Err(error("command receipt history exceeded capacity"));
-    }
-    for command in commands {
-        let command = command.value.into_receipt(id)?;
-        receipt.commands.insert(command.command_id.clone(), command);
+    let mut commands =
+        session.read_objects::<Command>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest }).await?;
+    while let Some(page) = commands.next().await? {
+        let count = page.iter().filter(|row| row.value.request_id() == id.as_str()).count();
+        if count == 0 {
+            continue;
+        }
+        receipt = receipt.try_map_with(page, |mut receipt, commands| -> Result<_> {
+            for row in commands {
+                if row.value.request_id() != id.as_str() {
+                    continue;
+                }
+                let command = row.value.into_receipt(id)?;
+                if receipt.commands.insert(command.command_id.clone(), command).is_some() {
+                    return Err(error("duplicate stored command identity"));
+                }
+            }
+            Ok(receipt)
+        })?;
     }
     Ok(Some(receipt))
 }
 
-pub(super) async fn pending(storage: &Manager, node: &NodeId) -> Result<Vec<CommandId>> {
-    let node = node.to_string();
-    let requests = latest::<Request>(storage, |request| request.pending_on(&node)).await?;
-    let mut ids = requests
-        .into_iter()
-        .map(|request| CommandId::from_uuid(request.value.key()).map_err(|source| receipt_error(crate::storage::Error::from(source))))
-        .collect::<Result<Vec<_>>>()?;
-    ids.sort();
-    Ok(ids)
+pub(super) async fn pending(storage: &Manager, session: &crate::storage::Manager, node: &NodeId) -> Result<ReadBatch<Vec<CommandId>>> {
+    let seed = harmos::storage::ReadBatch::new(());
+    let mut ids = seed.try_map(|_| -> Result<_> { Ok(Vec::<CommandId>::new()) })?;
+    let mut requests =
+        session.read_objects::<Request>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest }).await?;
+    while let Some(page) = requests.next().await? {
+        let count = page.iter().filter(|row| row.value.pending_on(node.as_str())).count();
+        if count == 0 {
+            continue;
+        }
+        let total = ids.len().checked_add(count).ok_or_else(|| error("pending receipt count overflows"))?;
+        let capacity = if total > ids.capacity() {
+            total.max(ids.capacity().checked_mul(2).ok_or_else(|| error("pending receipt capacity overflows"))?)
+        } else {
+            ids.capacity()
+        };
+        ids = ids.try_map_with(page, |mut ids, page| -> Result<_> {
+            if capacity > ids.capacity() {
+                ids.try_reserve_exact(capacity - ids.len()).map_err(|_| error("pending receipt allocation failed"))?;
+            }
+            for row in page {
+                if row.value.pending_on(node.as_str()) {
+                    ids.push(CommandId::from_uuid(row.value.key()).map_err(crate::storage::Error::from)?);
+                }
+            }
+            Ok(ids)
+        })?;
+    }
+    ids.try_map(|mut ids| -> Result<_> {
+        ids.sort_unstable();
+        Ok(ids)
+    })
 }
 
-pub(super) async fn save(storage: &Manager, pending: &mut Pending<Arc<RunReceipt>>) -> Result<()> {
+pub(super) async fn save(storage: &Manager, pending: &mut Pending<Receipt>) -> Result<()> {
     if pending.position.is_none() {
-        if pending.receipt.commands.len() > MAX_COMMANDS {
-            return Err(error("command receipt history exceeded capacity"));
-        }
         let count = pending
             .changed_commands()
             .count()
@@ -92,11 +120,14 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Arc<RunReceipt
         if storage.status().failure.is_some() {
             storage.flush().await.map_err(receipt_error)?;
         }
-        let mut objects = Vec::new();
         for (id, command) in pending.changed_commands() {
             if id != &command.command_id || pending.receipt.commands.get(id) != Some(command) {
                 return Err(error("changed command differs from its parent receipt"));
             }
+        }
+        let mut objects = Vec::new();
+        objects.try_reserve_exact(count.get() - 1).map_err(|_| error("receipt object allocation failed"))?;
+        for (_, command) in pending.changed_commands() {
             objects.push(Command::new(&pending.receipt.summary.request_id, command)?);
         }
         // Publish The Parent After Its Command Dependencies
@@ -105,7 +136,7 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Arc<RunReceipt
         // changed command precedes the new parent, especially terminal.
         let parent = Request::new(&pending.receipt)?;
         let receipts = storage
-            .write_object_group(storage_group_bytes(), count, |group| {
+            .write_object_group(storage.settings().request.max_pending_write_bytes, count, |group| {
                 for command in &objects {
                     group.write(command)?;
                 }
@@ -113,7 +144,7 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Arc<RunReceipt
             })
             .await
             .map_err(receipt_error)?;
-        pending.position = Some(receipts.last().expect("nonempty admitted group").position.clone());
+        pending.position = Some(receipts.into_iter().last().expect("nonempty admitted group").position);
     }
 
     // Save Command Admission And Terminal Publication Before External Effects
@@ -129,24 +160,5 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Arc<RunReceipt
 }
 
 /* === Private Functions === */
-
-// One Receipt Group Is Bounded By Its Command History Cap.
-fn storage_group_bytes() -> std::num::NonZeroUsize {
-    std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap()
-}
-
-async fn latest<T>(storage: &Manager, select: impl Fn(&T) -> bool) -> Result<Vec<ObjectRevision<T>>>
-where
-    T: StoredObject,
-    crate::storage::objects::Objects: harmos::catalog::Contains<T>,
-{
-    let mut reader =
-        storage.read_objects::<T>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest }).await?;
-    let mut selected = Vec::new();
-    while let Some(page) = reader.next().await? {
-        selected.extend(page.into_iter().filter(|revision| select(&revision.value)));
-    }
-    Ok(selected)
-}
 
 /* === Tests === */

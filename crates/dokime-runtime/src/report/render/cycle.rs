@@ -37,6 +37,7 @@ type ReadMember<'a> = dyn Fn(usize) -> Result<crate::report::html::Member> + 'a;
 /* === Structs === */
 
 pub(in crate::report) struct Report<'a> {
+    pub report_defaults: &'a crate::config::ReportDefaults,
     pub header: Header<'a>,
     pub index: &'a Index,
     pub appearance: &'a crate::installed_plugins::RuntimeAppearanceFrame,
@@ -97,8 +98,9 @@ impl Serialize for DocumentWarningText<'_> {
 
 impl Serialize for Report<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields = serializer.serialize_map(Some(11))?;
+        let mut fields = serializer.serialize_map(Some(12))?;
         fields.serialize_entry("appearance", self.appearance)?;
+        fields.serialize_entry("report_defaults", self.report_defaults)?;
         fields.serialize_entry("case_runs", &Rows(self, Section::Cases))?;
         fields.serialize_entry("documents", &self.header.documents)?;
         fields.serialize_entry("generated_at", &self.header.generated_at)?;
@@ -238,7 +240,7 @@ impl Serialize for SnapshotRows<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let input = self.0.header;
         let snapshot = snapshot(input);
-        let mut fields = serializer.serialize_map(Some(11))?;
+        let mut fields = serializer.serialize_map(Some(12))?;
         fields.serialize_entry("run", &snapshot.run)?;
         fields.serialize_entry("session_id", &snapshot.session_id)?;
         fields.serialize_entry("title", &snapshot.title)?;
@@ -295,7 +297,7 @@ impl Serialize for Telemetry<'_, '_> {
             let count = remaining.iter().take_while(|sample| sample.stream == first.stream).count();
             let (samples, rest) = remaining.split_at(count);
             remaining = rest;
-            let returned = selection(count).len();
+            let returned = selection(count, self.0.report_defaults.plot_points as usize).count();
             #[derive(Serialize)]
             struct Stream<'a, 'r> {
                 stream: &'a str,
@@ -315,7 +317,7 @@ impl Serialize for Telemetry<'_, '_> {
                     spec: None,
                     summary: BTreeMap::new(),
                     samples: Samples(self.0, samples),
-                    max_samples: crate::document::DEFAULT_PLOT_MAX_POINTS,
+                    max_samples: self.0.report_defaults.plot_points as usize,
                     total_samples: count,
                     dropped_samples: count - returned,
                     downsampled: returned < count,
@@ -394,16 +396,22 @@ impl Serialize for Annotations<'_, '_> {
 
 impl Serialize for Samples<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let returned = selection(self.1.len()).len();
+        let returned = selection(self.1.len(), self.0.report_defaults.plot_points as usize).count();
         let mut rows = serializer.serialize_seq(Some(returned))?;
         // Consecutive Samples From One Member Share One Original Decoded Loan.
         let mut loaded = None;
-        for location in selected_samples(self.1) {
+        for location in selected_samples(self.1, self.0.report_defaults.plot_points as usize) {
             if loaded.as_ref().is_none_or(|(member, _)| *member != location.member) {
                 drop(loaded.take());
                 loaded = Some((location.member, (self.0.read)(location.member).map_err(serde::ser::Error::custom)?));
             }
-            let sample = &loaded.as_ref().unwrap().1.telemetry[location.sample];
+            let sample = loaded
+                .as_ref()
+                .unwrap()
+                .1
+                .telemetry
+                .get(location.sample)
+                .ok_or_else(|| serde::ser::Error::custom("report sample location is missing"))?;
             rows.serialize_element(&telemetry::SampleValues(sample))?;
         }
         rows.end()
@@ -412,18 +420,11 @@ impl Serialize for Samples<'_, '_> {
 
 /* === Public Functions === */
 
-pub(crate) fn selection(length: usize) -> Vec<usize> {
-    let mut indices = if length <= crate::document::DEFAULT_PLOT_MAX_POINTS {
-        (0..length).collect::<Vec<_>>()
-    } else {
-        harmos::signal::decimate(length, 1_999)
-    };
-    if let Some(last) = length.checked_sub(1)
-        && indices.last() != Some(&last)
-    {
-        indices.push(last);
-    }
-    indices
+pub(crate) fn selection(length: usize, maximum: usize) -> impl Iterator<Item = usize> + Clone {
+    let count = if length <= maximum { length } else { maximum.saturating_sub(1) };
+    let indices = harmos::signal::decimate_indices(length, count);
+    let endpoint = length.checked_sub(1).filter(|last| indices.clone().next_back() != Some(*last));
+    indices.chain(endpoint)
 }
 
 /* === Private Functions === */
@@ -433,8 +434,26 @@ fn member_status(status: &ExecutionStatus, planned: bool) -> &'static str {
     if planned && *status == ExecutionStatus::Skipped { "planned" } else { execution_status(status) }
 }
 
-fn selected_samples(samples: &[crate::report::cycle::Sample]) -> impl ExactSizeIterator<Item = &crate::report::cycle::Sample> {
-    selection(samples.len()).into_iter().map(move |index| &samples[index])
+fn selected_samples(samples: &[crate::report::cycle::Sample], maximum: usize) -> impl Iterator<Item = &crate::report::cycle::Sample> {
+    selection(samples.len(), maximum).map(move |index| &samples[index])
 }
 
 /* === Tests === */
+
+#[test]
+fn preview_selection_preserves_order_and_terminal_endpoint() {
+    for (length, maximum, expected) in [
+        (0, 0, vec![]),
+        (1, 0, vec![0]),
+        (5, 0, vec![4]),
+        (5, 1, vec![4]),
+        (5, 5, vec![0, 1, 2, 3, 4]),
+        (8, 4, vec![0, 3, 6, 7]),
+        (9, 4, vec![0, 3, 6, 8]),
+        (10, 4, vec![0, 4, 8, 9]),
+    ] {
+        let indices = selection(length, maximum);
+        assert_eq!(indices.clone().count(), expected.len());
+        assert_eq!(indices.collect::<Vec<_>>(), expected);
+    }
+}

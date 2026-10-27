@@ -34,6 +34,8 @@ import type {
 } from "@/lib/types/view-contracts";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey, isUnrunExecution } from "./explore-contracts";
 
+const GUI_CHECKPOINT_WINDOW_BYTES = 65_536;
+
 export function fetchExecutionPage(
   session: SessionIdentity,
   after: string | null,
@@ -83,7 +85,7 @@ export function readCheckpointOutput(
   offset: bigint,
   signal?: AbortSignal,
 ): Promise<ExecutionFileWindow> {
-  return readNativeCheckpointOutput(session, checkpoint, relativePath, { offset, maxBytes: 64 * 1024 }, signal);
+  return readNativeCheckpointOutput(session, checkpoint, relativePath, { offset, maxBytes: GUI_CHECKPOINT_WINDOW_BYTES }, signal);
 }
 /** The one suite label every entry of this cycle agrees on, or its identifier. */
 function suiteTitle(entries: ExecutionBrowseEntry[], cycleId: string): string {

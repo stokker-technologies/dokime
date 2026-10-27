@@ -9,6 +9,8 @@
 
 /* === Modules === */
 
+pub(super) mod desktop;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -25,15 +27,28 @@ use std::{
 use semver::Version;
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    process::{ChildStdin, ChildStdout, Command},
 };
 
 // Local Imports
 use super::build;
 use crate::error::Error;
 use dokime::terminal::{ColorMode, Terminal};
+use dokime_packaging::process::Child;
 
 /* === Constants === */
+
+const VERSION_TIMEOUT_MS: u64 = 10_000;
+const DEVELOPMENT_POLL_MS: u64 = 500;
+const DEVELOPMENT_RETRY_MS: u64 = 150;
+const DEVELOPMENT_COMMAND_ITEMS: u64 = 8;
+const DEVELOPMENT_DRAIN_MS: u64 = 30_000;
+const PROCESS_STOP_MS: u64 = 5_000;
+const GUI_STOP_MS: u64 = 10_000;
+const VERSION_STDOUT_BYTES: u64 = 16_384;
+const VERSION_STDERR_BYTES: u64 = 65_536;
+const DEVELOPMENT_COMMAND_BYTES: u64 = 16_384;
+const DEVELOPMENT_REPLY_BYTES: u64 = 65_536;
 
 /* === Macros === */
 
@@ -74,8 +89,8 @@ pub struct Args {
     )]
     cwd: Option<PathBuf>,
 
-    #[arg(long, default_value_t = 8765)]
-    port: u16,
+    #[arg(long, help = "Override The Development Server's Configured Listen Port.")]
+    port: Option<u16>,
 
     #[arg(long, help = "Re-run the most recently executed case from this plugin after each successful reload.")]
     rerun: bool,
@@ -159,11 +174,11 @@ impl ShutdownOwner for Host {
         let (gui, backend) = tokio::join!(
             async {
                 if let Some(gui) = self.gui.as_mut() {
-                    reap(&mut gui.process).await?;
+                    reap(&mut gui.process, PROCESS_STOP_MS).await?;
                 }
                 Ok::<_, Error>(())
             },
-            reap(&mut self.process),
+            reap(&mut self.process, PROCESS_STOP_MS),
         );
         gui?;
         backend
@@ -240,7 +255,7 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                             break;
                         }
                     },
-                    _ = tokio::time::sleep(Duration::from_millis(500)) => {}
+                    _ = tokio::time::sleep(Duration::from_millis(DEVELOPMENT_POLL_MS)) => {}
                 }
             }
             let changed = snapshot(&roots, &excluded)?;
@@ -254,7 +269,7 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
             observed = changed;
             let iteration_started = Instant::now();
             // Coalesce editor save bursts before starting a Cargo invocation.
-            tokio::time::sleep(Duration::from_millis(150)).await;
+            tokio::time::sleep(Duration::from_millis(DEVELOPMENT_RETRY_MS)).await;
             observed = snapshot(&roots, &excluded)?;
             // Process execution owns cancellation so compiler descendants are settled before host shutdown.
             let built = async {
@@ -333,18 +348,18 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
 /* === Private Functions === */
 
 async fn wait_for_exit(running: &mut Option<Host>) -> Result<ProcessExit, Error> {
-    loop {
-        if let Some(host) = running.as_mut() {
-            if let Some(status) = host.process.try_wait()? {
-                return Ok(ProcessExit::Backend(status));
-            }
-            if let Some(gui) = host.gui.as_mut()
-                && let Some(status) = gui.process.try_wait()?
-            {
-                return Ok(ProcessExit::Gui(status));
-            }
+    let Some(host) = running.as_mut() else {
+        return std::future::pending().await;
+    };
+    if let Some(gui) = host.gui.as_mut() {
+        tokio::select! {
+            biased;
+            status = host.process.wait_leader() => Ok(ProcessExit::Backend(status?)),
+            status = gui.process.wait_leader() => Ok(ProcessExit::Gui(status?)),
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+    } else {
+        let status = host.process.wait_leader().await?;
+        Ok(ProcessExit::Backend(status))
     }
 }
 
@@ -374,7 +389,7 @@ fn read_controls(mut input: impl std::io::BufRead, sender: tokio::sync::mpsc::Se
 }
 
 fn controls(shutdown_stdin: bool) -> Result<tokio::sync::mpsc::Receiver<Control>, Error> {
-    let (sender, receiver) = tokio::sync::mpsc::channel(8);
+    let (sender, receiver) = tokio::sync::mpsc::channel(DEVELOPMENT_COMMAND_ITEMS as usize);
     // Tokio stdin uses a blocking-pool read that can prevent runtime shutdown.
     // A dedicated reader can remain blocked on a terminal when the process exits.
     std::thread::Builder::new()
@@ -391,9 +406,10 @@ fn arguments(args: &Args, state: &Path, bundle: &Path) -> Vec<String> {
         state.display().to_string(),
         "--shutdown-stdin".to_owned(),
         "--dev-control".to_owned(),
-        "--port".to_owned(),
-        args.port.to_string(),
     ];
+    if let Some(port) = args.port {
+        arguments.extend(["--port".to_owned(), port.to_string()]);
+    }
     if let Some(env_file) = &args.env_file {
         arguments.push("--env-file".to_owned());
         arguments.push(env_file.display().to_string());
@@ -401,10 +417,10 @@ fn arguments(args: &Args, state: &Path, bundle: &Path) -> Vec<String> {
     arguments
 }
 
-async fn readiness_line(events: &mut (impl tokio::io::AsyncBufRead + Unpin)) -> Result<ReadinessLine, Error> {
+async fn readiness_line(events: &mut (impl tokio::io::AsyncBufRead + Unpin), maximum: u64) -> Result<ReadinessLine, Error> {
     let mut bytes = Vec::new();
-    events.take(16 * 1024 + 1).read_until(b'\n', &mut bytes).await?;
-    if bytes.len() > 16 * 1024 || !bytes.ends_with(b"\n") {
+    events.take(maximum.saturating_add(1)).read_until(b'\n', &mut bytes).await?;
+    if bytes.len() as u64 > maximum || !bytes.ends_with(b"\n") {
         return Err(Error::Invalid("Dokime did not report readiness; review the host diagnostics above".into()));
     }
     let value: serde_json::Value = serde_json::from_slice(&bytes)?;
@@ -422,9 +438,9 @@ async fn readiness_line(events: &mut (impl tokio::io::AsyncBufRead + Unpin)) -> 
     Ok(ReadinessLine::Ready(url.to_string()))
 }
 
-async fn read_readiness(events: &mut (impl tokio::io::AsyncBufRead + Unpin)) -> Result<String, Error> {
+async fn read_readiness(events: &mut (impl tokio::io::AsyncBufRead + Unpin), maximum: u64) -> Result<String, Error> {
     loop {
-        match readiness_line(events).await? {
+        match readiness_line(events, maximum).await? {
             ReadinessLine::Phase => continue,
             ReadinessLine::Ready(url) => return Ok(url),
         }
@@ -440,15 +456,15 @@ async fn launch(args: &Args, state: &Path, cwd: &Path, bundle: &Path) -> Result<
         // remain available through --verbose or an explicit RUST_LOG.
         command.env("RUST_LOG", "off,sidecar=debug");
     }
-    let mut child = command.spawn()?;
-    let stdout = child.stdout.take().expect("piped control output");
-    let control = child.stdin.take();
+    let mut child = dokime_packaging::process::spawn(command)?;
+    let stdout = child.stdout().take().expect("piped control output");
+    let control = child.stdin().take();
     let mut host = Host { process: child, control, events: BufReader::new(stdout), gui: None };
     // Keep the pipe open through cancellation drain: startup may still publish
     // readiness after Ctrl+C, before it observes the closed stdin control pipe.
     let result = tokio::select! {
         _ = tokio::signal::ctrl_c() => Err(Error::Cancelled),
-        result = read_readiness(&mut host.events) => result,
+        result = read_readiness(&mut host.events, DEVELOPMENT_COMMAND_BYTES) => result,
     };
     match result {
         Ok(url) => {
@@ -480,11 +496,12 @@ async fn launch_gui(args: &Args, endpoint: &str) -> Result<Gui, Error> {
         command.arg("--gui").arg(gui);
     }
     command.arg("--").arg("--shutdown-stdin").stdin(Stdio::piped()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
-    let mut process = command.spawn()?;
-    Ok(Gui { control: process.stdin.take(), process })
+    let mut process = dokime_packaging::process::spawn(command)?;
+    Ok(Gui { control: process.stdin().take(), process })
 }
 
 async fn reload(host: &mut Host, bundle: &Path, rerun: bool) -> Result<(), Error> {
+    let maximum = DEVELOPMENT_REPLY_BYTES;
     let request = serde_json::json!({"command":"reload", "path":bundle, "rerun":rerun});
     let control = host.control.as_mut().ok_or_else(|| Error::Invalid("host control is closed".into()))?;
     control.write_all(format!("{request}\n").as_bytes()).await?;
@@ -492,9 +509,9 @@ async fn reload(host: &mut Host, bundle: &Path, rerun: bool) -> Result<(), Error
     let mut bytes = Vec::new();
     tokio::select! {
         _ = tokio::signal::ctrl_c() => return Err(Error::Cancelled),
-        result = async { (&mut host.events).take(64 * 1024 + 1).read_until(b'\n', &mut bytes).await } => { result?; }
+        result = async { (&mut host.events).take(maximum.saturating_add(1)).read_until(b'\n', &mut bytes).await } => { result?; }
     }
-    if bytes.len() > 64 * 1024 || !bytes.ends_with(b"\n") {
+    if bytes.len() as u64 > maximum || !bytes.ends_with(b"\n") {
         return Err(Error::Invalid("host did not acknowledge plugin reload".into()));
     }
     let reply: serde_json::Value = serde_json::from_slice(&bytes)?;
@@ -515,19 +532,21 @@ async fn reload(host: &mut Host, bundle: &Path, rerun: bool) -> Result<(), Error
 }
 
 async fn stop(host: &mut Host, terminal: &Terminal) -> Result<(), Error> {
-    stop_with(host, terminal, tokio::signal::ctrl_c()).await
+    let deadline = Duration::from_millis(DEVELOPMENT_DRAIN_MS);
+    stop_with(host, terminal, tokio::signal::ctrl_c(), deadline).await
 }
 
 async fn stop_with(
     owner: &mut impl ShutdownOwner, terminal: &Terminal, interrupted: impl std::future::Future<Output = std::io::Result<()>>,
+    deadline: Duration,
 ) -> Result<(), Error> {
     terminal.status("Stopping Dokime. Press Ctrl-C again to terminate the development session.");
     let reason = tokio::select! {
-        result = tokio::time::timeout(Duration::from_secs(30), owner.drain(terminal)) => {
+        result = tokio::time::timeout(deadline, owner.drain(terminal)) => {
             match result {
                 Ok(Ok(())) => return Ok(()),
                 Ok(Err(error)) => format!("Orderly shutdown failed: {error}; terminating the development session"),
-                Err(_) => "Dokime did not finish within 30 seconds; terminating the development session".to_owned(),
+                Err(_) => "Dokime did not finish within the configured deadline; terminating the development session".to_owned(),
             }
         }
         _ = interrupted => "Interrupted again; terminating the development session".to_owned(),
@@ -538,10 +557,10 @@ async fn stop_with(
     owner.reap().await
 }
 
-async fn reap(process: &mut Child) -> Result<(), Error> {
-    tokio::time::timeout(Duration::from_secs(5), process.wait())
+async fn reap(process: &mut Child, timeout_ms: u64) -> Result<(), Error> {
+    tokio::time::timeout(Duration::from_millis(timeout_ms), process.wait())
         .await
-        .map_err(|_| Error::Invalid("terminated process did not exit within 5 seconds".into()))??;
+        .map_err(|_| Error::Invalid("terminated process did not exit within the configured deadline".into()))??;
     Ok(())
 }
 
@@ -550,14 +569,14 @@ async fn drain(host: &mut Host, terminal: &Terminal) -> Result<(), Error> {
     drop(host.control.take());
     if let Some(gui) = host.gui.as_mut() {
         drop(gui.control.take());
-        match tokio::time::timeout(Duration::from_secs(10), gui.process.wait()).await {
+        match tokio::time::timeout(Duration::from_millis(GUI_STOP_MS), gui.process.wait()).await {
             Ok(result) => {
                 result?;
             }
             Err(_) => {
                 terminal.warn("Dokime GUI did not close after stdin drain; terminating it");
                 gui.process.start_kill()?;
-                reap(&mut gui.process).await?;
+                reap(&mut gui.process, PROCESS_STOP_MS).await?;
             }
         }
     }
@@ -728,14 +747,18 @@ fn dokime(cli: &Path, subcommand: &str) -> Command {
 async fn inspect(cli: &Path) -> Result<Identity, Error> {
     let mut command = std::process::Command::new(cli);
     command.args(["server", "version", "--json"]);
-    let output = dokime_packaging::process::run(command, "Dokime version probe", Some(Duration::from_secs(10)), 16 * 1024, 64 * 1024)
-        .await
-        .map_err(|error| {
-            Error::Invalid(format!(
-                "cannot inspect the Dokime server through {}: {error}. Install Dokime or pass --dokime PATH",
-                cli.display()
-            ))
-        })?;
+    let timeout = Some(Duration::from_millis(VERSION_TIMEOUT_MS));
+    let output = dokime_packaging::process::run(
+        command,
+        "Dokime version probe",
+        timeout,
+        VERSION_STDOUT_BYTES as usize,
+        VERSION_STDERR_BYTES as usize,
+    )
+    .await
+    .map_err(|error| {
+        Error::Invalid(format!("cannot inspect the Dokime server through {}: {error}. Install Dokime or pass --dokime PATH", cli.display()))
+    })?;
     let identity: Identity = serde_json::from_slice(&output.stdout)
         .map_err(|error| Error::Invalid(format!("the Dokime server returned invalid version information: {error}; update Dokime")))?;
     if identity.dev_protocol != dokime::domain::DEV_PROTOCOL {

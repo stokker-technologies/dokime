@@ -38,8 +38,6 @@ use crate::model::values::ValueType;
 
 /* === Constants === */
 
-pub const DEFAULT_MATERIALIZED_CASE_CAP: usize = 1_000;
-
 /* === Macros === */
 
 product_error!(CaseMaterializationError, formatter {

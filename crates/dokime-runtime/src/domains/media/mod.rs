@@ -40,13 +40,6 @@ pub const UNAVAILABLE: &str = "media_unavailable";
 // Error code of a capture refused because this build has no native capture.
 pub const NOT_COMPILED: &str = "media_not_compiled";
 
-// Recordings stop and seal after this long unless the caller asks otherwise.
-pub const DEFAULT_RECORDING_SECONDS: u32 = 600;
-
-// The longest recording one request may ask for.
-pub const MAXIMUM_RECORDING_SECONDS: u32 = 3600;
-const CHUNK_BYTES: usize = 1024 * 1024;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -70,7 +63,9 @@ impl RuntimeHandle {
     // Captures one camera frame as `photos/<UTC timestamp>.jpg`.
     pub async fn capture_photo(&self, scope: RecordScope, camera: Option<u32>) -> Result<ArtifactRecord> {
         require_execution(&scope)?;
-        let jpeg = tokio::task::spawn_blocking(move || camera::capture_jpeg(camera)).await??;
+        let warmup_frames = 5;
+        let jpeg_quality = 90;
+        let jpeg = tokio::task::spawn_blocking(move || camera::capture_jpeg(camera, warmup_frames, jpeg_quality)).await??;
         self.store_capture(scope, capture_name("photos", "jpg"), "image/jpeg", jpeg).await
     }
 
@@ -91,14 +86,12 @@ impl RuntimeHandle {
         };
         let upload = self.begin_artifact_upload(input).await?;
 
-        // Send Bounded Chunks, Abandoning A Partial Capture
-        for chunk in bytes.chunks(CHUNK_BYTES) {
-            if let Err(source) = upload.send(chunk).await {
-                if let Err(cleanup) = upload.abandon().await {
-                    tracing::warn!(error = %cleanup, "media capture abandonment failed");
-                }
-                return Err(source);
+        // Transfer The Captured Allocation To Its Upload Owner.
+        if let Err(source) = upload.send(bytes).await {
+            if let Err(cleanup) = upload.abandon().await {
+                tracing::warn!(error = %cleanup, "media capture abandonment failed");
             }
+            return Err(source);
         }
         upload.finish().await
     }

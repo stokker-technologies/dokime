@@ -14,7 +14,6 @@ pub(crate) mod health;
 pub mod notes;
 pub(crate) mod publish;
 mod selection;
-pub(crate) mod state;
 mod summary;
 
 /* === Re-Exports === */
@@ -57,7 +56,7 @@ pub struct EvidenceSnapshot {
     pub record_contracts: Vec<RecordContract>,
     pub telemetry_contracts: Vec<TelemetryContract>,
     pub summaries: EvidenceSummaries,
-    pub records: Vec<RecordEntry>,
+    pub records: crate::storage::ReadRows<RecordEntry>,
     pub telemetry: Vec<TelemetrySample>,
     pub prompts: Vec<PromptInstance>,
     pub artifacts: Vec<ArtifactRecord>,

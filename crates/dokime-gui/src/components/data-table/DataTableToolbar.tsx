@@ -46,11 +46,11 @@ export function DataTableToolbar({ actions, filters, onClear, onClearAll, search
   }
 
   return (
-    <div className="grid auto-rows-[var(--sidebar-row-height)] gap-0.5 px-[var(--table-inset)] pt-2 pb-0.5">
+    <div className="grid gap-2 border-b px-[var(--table-inset)] py-3">
       {search || actions ? (
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[var(--shell-gap)]">
+        <div className="flex flex-wrap items-center justify-between gap-[var(--shell-gap)]">
           {search ? (
-            <div className="relative min-w-48">
+            <div className="relative w-64 min-w-32 max-w-full">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label={search.label}
@@ -63,12 +63,12 @@ export function DataTableToolbar({ actions, filters, onClear, onClearAll, search
           ) : (
             <span />
           )}
-          {actions ? <div className="flex items-center gap-[var(--shell-gap)]">{actions}</div> : null}
+          {actions ? <div className="flex flex-wrap items-center gap-[var(--shell-gap)]">{actions}</div> : null}
         </div>
       ) : null}
 
       {filters.length ? (
-        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto" role="status">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto" role="status">
           {filters.map((filter) => (
             <Badge className="h-6 gap-1 pr-1" key={filter.id} variant="secondary">
               <span className="max-w-64 truncate" title={filter.text}>
@@ -76,7 +76,7 @@ export function DataTableToolbar({ actions, filters, onClear, onClearAll, search
               </span>
               <button
                 aria-label={`Clear ${filter.text}`}
-                className="rounded-sm opacity-70 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+                className="rounded-lg opacity-70 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => onClear(filter.id)}
                 type="button"
               >

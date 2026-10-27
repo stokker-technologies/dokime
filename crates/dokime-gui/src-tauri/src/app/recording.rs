@@ -13,6 +13,8 @@
 
 /* === Imports === */
 
+use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,7 +27,7 @@ use super::desktop::ensure_main_window;
 
 /* === Constants === */
 
-const MP4_HEADER_PROBE_BYTES: u64 = 4 * 1024 * 1024;
+const DESKTOP_MP4_PROBE_BYTES: u64 = 4_194_304;
 
 /* === Macros === */
 
@@ -67,25 +69,27 @@ pub async fn desktop_recording_finish(
         .await
         .map_err(|error| format!("Native recording is no longer available: {error:?}"))?;
     if is_mp4(&media_type) {
-        patch_mp4_duration_in_place(&recording.path, duration_ms).await?;
+        patch_mp4_duration_in_place(&recording.path, duration_ms, DESKTOP_MP4_PROBE_BYTES).await?;
     }
-    let uploaded = content::push_verified(&recording.lease, &recording.path, recording.header).await.inspect_err(|_| {
-        let path = recording.path.clone();
-        tauri::async_runtime::spawn(async move {
-            let _ = tokio::fs::remove_file(&path).await;
-        });
-    })?;
+    let uploaded = content::push_verified(&recording.lease, &recording.path, recording.header, DESKTOP_FRAME_BYTES as usize)
+        .await
+        .inspect_err(|_| {
+            let path = recording.path.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = tokio::fs::remove_file(&path).await;
+            });
+        })?;
     let _ = tokio::fs::remove_file(&recording.path).await;
     Ok(uploaded.artifact_id)
 }
 
-pub(crate) async fn patch_mp4_duration_in_place(path: &std::path::Path, duration_ms: u64) -> Result<bool, String> {
+pub(crate) async fn patch_mp4_duration_in_place(path: &std::path::Path, duration_ms: u64, probe_bytes: u64) -> Result<bool, String> {
     if duration_ms == 0 {
         return Ok(false);
     }
     let file = tokio::fs::OpenOptions::new().read(true).write(true).open(path).await.map_err(|error| error.to_string())?;
     let file_len = file.metadata().await.map_err(|error| error.to_string())?.len();
-    patch_duration(file, file_len, duration_ms).await
+    patch_duration(file, file_len, duration_ms, probe_bytes).await
 }
 
 /* === Private Functions === */
@@ -97,8 +101,9 @@ fn is_mp4(media_type: &str) -> bool {
 
 async fn patch_duration(
     mut file: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + tokio::io::AsyncSeek + Unpin, file_len: u64, duration_ms: u64,
+    probe_bytes: u64,
 ) -> Result<bool, String> {
-    let probe_len = MP4_HEADER_PROBE_BYTES.min(file_len) as usize;
+    let probe_len = probe_bytes.min(file_len) as usize;
     let mut buffer = vec![0_u8; probe_len];
     file.read_exact(&mut buffer).await.map_err(|error| error.to_string())?;
     if !fix_mp4_duration(&mut buffer, duration_ms) {

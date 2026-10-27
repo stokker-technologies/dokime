@@ -225,7 +225,9 @@ impl ExecutionFixtureContext {
         self.runtime.update_execution_phase(scope, identifier, label, status).await
     }
 
-    pub async fn publish_telemetry_batch(&self, batch: TelemetryBatch) -> crate::runtime::Result<PublishReceipt> {
+    pub async fn publish_telemetry_batch(
+        &self, batch: TelemetryBatch,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<PublishReceipt>> {
         self.runtime.publish_telemetry_batch(batch).await
     }
 

@@ -138,7 +138,7 @@ impl Terminal {
     pub fn hint(&self, message: impl Display) {
         self.line("Hint", message, AnsiColor::Cyan);
     }
-    pub fn progress(&self, message: impl Into<String>) -> Progress {
+    pub fn progress(&self, message: impl Into<String>, tick: Duration) -> Progress {
         let message = message.into();
         let interactive = io::stderr().is_terminal();
         let bar =
@@ -150,7 +150,7 @@ impl Terminal {
         );
         bar.set_message(message.clone());
         if interactive {
-            bar.enable_steady_tick(Duration::from_millis(120));
+            bar.enable_steady_tick(tick);
         } else {
             self.status(&message);
         }

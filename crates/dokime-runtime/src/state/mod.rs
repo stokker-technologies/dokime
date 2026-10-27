@@ -11,7 +11,7 @@
 
 mod encoding;
 mod foreign_streams;
-mod notes;
+pub(crate) mod notes;
 mod ownership;
 mod record_history;
 
@@ -408,12 +408,11 @@ impl RuntimeState {
         }
     }
 
-    pub fn record_installed_plugin_error(&mut self, record: InstalledPluginErrorRecord) {
-        const MAX_INSTALLED_PLUGIN_ERRORS: usize = 256;
+    pub fn record_installed_plugin_error(&mut self, record: InstalledPluginErrorRecord, maximum: u64) {
         self.installed_plugin_errors.push(record);
-        if self.installed_plugin_errors.len() > MAX_INSTALLED_PLUGIN_ERRORS {
-            self.installed_plugin_errors.remove(0);
-        }
+        let maximum = usize::try_from(maximum).expect("validated plugin diagnostic count");
+        let excess = self.installed_plugin_errors.len().saturating_sub(maximum);
+        self.installed_plugin_errors.drain(..excess);
     }
 
     pub fn resource_records(&self) -> Vec<ResourceRecord> {

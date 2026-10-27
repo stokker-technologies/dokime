@@ -104,7 +104,7 @@ impl RuntimeHandle {
             return Ok(());
         };
         let records = self.records_at(&snapshot).await.map_err(|error| unavailable_rejection(error.to_string()))?;
-        let telemetry = self.collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default()).await;
+        let telemetry = self.collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default()).await?;
         let evaluation = crate::definition::evaluate_runtime_condition(&condition, &records, &telemetry);
         if evaluation.satisfied {
             return Ok(());

@@ -10,12 +10,11 @@
 /* === Modules === */
 
 mod aggregate;
-pub(crate) mod contracts;
 
 /* === Re-Exports === */
 
 pub use crate::state::RuntimeState;
-pub(crate) use aggregate::{contract_lookup, evidence_counts, overview_entity_counts, runtime_overview_snapshot};
+pub(crate) use aggregate::{evidence_counts, overview_entity_counts, runtime_overview_snapshot};
 
 /* === Imports === */
 

@@ -30,11 +30,6 @@ use dokime_domain::model::identity::PromptId;
 
 /* === Constants === */
 
-pub(crate) const MAX_BUFFERED_FRAMES: usize = 1024;
-const MAX_LOCAL_SAMPLES: usize = 1024;
-pub(crate) const MAX_BUFFERED_ARTIFACT_BYTES: u64 = 16 * 1024 * 1024;
-const MAX_DELIVERED_RECORDS: usize = 256;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -56,7 +51,7 @@ pub(crate) struct ExecutionState {
     pub(crate) changed: Arc<tokio::sync::Notify>,
 
     // Wakes every host-exchange waiter when a prompt, lease or step settles, the run is cancelled, or it is evicted.
-    settled: Arc<tokio::sync::Notify>,
+    pub(crate) settled: Arc<tokio::sync::Notify>,
 
     frames: VecDeque<BufferedFrame>,
     next_cursor: u64,
@@ -142,7 +137,7 @@ impl ExecutionState {
     }
 
     pub(crate) fn local_sample(&mut self, mut sample: crate::telemetry::TelemetrySample) -> Result<(), String> {
-        if self.local_samples.len() >= MAX_LOCAL_SAMPLES {
+        if self.local_samples.len() as u64 >= 1024 {
             return Err("local sample buffer is full; consume local evidence while executing".into());
         }
         if self.local_inputs {
@@ -161,7 +156,7 @@ impl ExecutionState {
         }
         self.local_samples.push(sample);
         // A Local Consumer Drains Samples As They Arrive, So Each One Wakes It.
-        self.changed.notify_one();
+        self.changed.notify_waiters();
         Ok(())
     }
 
@@ -181,8 +176,8 @@ impl ExecutionState {
             },
             local_admitted: 0,
             callbacks: crate::execution::Callbacks::default(),
-            listening: crate::execution::listening_rows(),
-            controls: Arc::new(super::control::Controls::new(request.mode == "interactive")),
+            listening: crate::execution::listening_rows(1024),
+            controls: Arc::new(super::control::Controls::new(request.mode == "interactive", 4096)),
             request,
             cancel,
             changed: Arc::new(tokio::sync::Notify::new()),
@@ -292,11 +287,15 @@ impl ExecutionState {
 
     pub(crate) fn begin_record_settle(&mut self) {
         self.subscriptions_settling = true;
-        self.changed.notify_one();
+        self.changed.notify_waiters();
     }
 
     pub(crate) fn record_subscriptions_settled(&self) -> bool {
         self.subscriptions_settled
+    }
+
+    pub(crate) fn record_inputs_closed(&self) -> bool {
+        self.terminal
     }
 
     pub(crate) fn settlement_progress(&self) -> usize {
@@ -307,6 +306,7 @@ impl ExecutionState {
         if self.subscriptions_settling {
             self.subscriptions_settled = true;
             self.subscriptions_settling = false;
+            self.settled.notify_waiters();
         }
     }
 
@@ -332,7 +332,7 @@ impl ExecutionState {
         {
             return false;
         }
-        if self.delivered.len() == MAX_DELIVERED_RECORDS {
+        if self.delivered.len() as u64 >= 256 {
             self.delivered.remove(0);
             self.dropped += 1;
         }
@@ -344,6 +344,7 @@ impl ExecutionState {
         if !own {
             self.delivered.push(record);
         }
+        self.settled.notify_waiters();
 
         true
     }
@@ -369,11 +370,12 @@ impl ExecutionState {
             test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(self.request.test_execution_id.clone()).ok(),
             ..Default::default()
         });
-        if self.delivered.len() == MAX_DELIVERED_RECORDS {
+        if self.delivered.len() as u64 >= 256 {
             self.delivered.remove(0);
             self.dropped += 1;
         }
         self.delivered.push(record);
+        self.settled.notify_waiters();
         self.publish_record(request);
         true
     }
@@ -484,7 +486,7 @@ impl ExecutionState {
                 frame.local_scope = Some(self.local_scope.clone());
             }
         }
-        if self.frames.len() == MAX_BUFFERED_FRAMES
+        if self.frames.len() as u64 >= 1024
             && let Some(evicted) = self.frames.pop_front()
         {
             self.oldest_cursor = evicted.cursor.saturating_add(1);
@@ -493,6 +495,7 @@ impl ExecutionState {
             // not merely acknowledged, so nothing will ever drain it.
             if let Some(chunk) = &evicted.artifact_chunk {
                 self.buffered_artifact_bytes = self.buffered_artifact_bytes.saturating_sub(chunk.bytes.len() as u64);
+                self.artifact_condvar.notify_all();
             }
         }
         frame.cursor = self.next_cursor;
@@ -503,12 +506,14 @@ impl ExecutionState {
             // Criteria are settled. Retain replay frames, not the staging copy
             // of cleanup or early-failure records until this run is evicted.
             self.captured_records.clear();
+            self.settled.notify_waiters();
         }
         if let Some(chunk) = &frame.artifact_chunk {
             self.buffered_artifact_bytes = self.buffered_artifact_bytes.saturating_add(chunk.bytes.len() as u64);
         }
         self.frames.push_back(frame);
-        self.changed.notify_one();
+        self.changed.notify_waiters();
+        self.settled.notify_waiters();
     }
 
     pub(crate) fn artifact_backlog(&self) -> u64 {
@@ -545,12 +550,16 @@ impl ExecutionState {
             let confirmed = self.subscriptions_settling && !position.confirmed;
             position.confirmed |= confirmed;
             self.confirmed_samples += usize::from(confirmed);
+            if confirmed {
+                self.settled.notify_waiters();
+            }
             return Ok(false);
         }
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
         let position = SamplePosition { index: self.stream_rows.len(), confirmed: false };
         self.sample_positions.insert(sample.sample_id.clone(), position);
         self.stream_rows.push(sample);
+        self.settled.notify_waiters();
         Ok(true)
     }
 
@@ -757,8 +766,7 @@ impl ExecutionState {
             }
             self.acknowledged_cursor = reply.cursor;
             // The producer parked on this execution's gate may now find it
-            // open; wake it up to re-check rather than leave it to the
-            // bounded poll `FrameArtifactSink::push` falls back to.
+            // open; wake it up to re-check the gate predicate.
             self.artifact_condvar.notify_all();
         }
 
@@ -770,6 +778,8 @@ impl ExecutionState {
 // An Evicted Run Settles Every Exchange Still Waiting On It.
 impl Drop for ExecutionState {
     fn drop(&mut self) {
+        self.artifact_condvar.notify_all();
+        self.changed.notify_waiters();
         self.settled.notify_waiters();
     }
 }
@@ -952,6 +962,22 @@ mod tests {
     use dokime_domain::model::identity::TestExecutionId;
     use dokime_domain::model::time::Timestamp;
     use dokime_domain::model::values::Value;
+
+    #[test]
+    fn output_wakes_readers() {
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let mut state = super::ExecutionState::new(Default::default(), cancel);
+        let changed = std::sync::Arc::clone(&state.changed);
+        let mut first = Box::pin(changed.notified());
+        let mut second = Box::pin(changed.notified());
+        first.as_mut().enable();
+        second.as_mut().enable();
+
+        state.push(super::BufferedFrame::log(crate::execution::log::Level::Info, String::new()));
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(std::future::Future::poll(first.as_mut(), &mut context).is_ready());
+        assert!(std::future::Future::poll(second.as_mut(), &mut context).is_ready());
+    }
 
     #[test]
     fn settlement_counts_each_live_sample_confirmation_once() {

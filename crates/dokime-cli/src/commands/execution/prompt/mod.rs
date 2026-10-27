@@ -53,11 +53,11 @@ pub(crate) enum Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
-        Command::Next(args) => next::run(args).await,
-        Command::Show(args) => show::run(args).await,
-        Command::Answer(args) => answer::run(args).await,
+        Command::Next(args) => next::run(args, settings).await,
+        Command::Show(args) => show::run(args, settings).await,
+        Command::Answer(args) => answer::run(args, settings).await,
     }
 }
 

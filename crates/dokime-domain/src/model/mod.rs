@@ -15,6 +15,7 @@ pub mod analysis;
 pub mod appearance;
 pub mod artifacts;
 pub mod backend;
+pub mod backends;
 pub mod catalog;
 pub mod content;
 pub mod definition;

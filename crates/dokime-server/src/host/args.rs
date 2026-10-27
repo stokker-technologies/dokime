@@ -35,11 +35,11 @@ pub struct NetworkArgs {
     #[arg(long, default_value = "127.0.0.1")]
     pub host: IpAddr,
 
-    #[arg(long, default_value_t = 8765, help = "Listen on this exact port; use zero to allocate an available port.")]
-    pub port: u16,
+    #[arg(long, help = "Listen On This Exact Port; Defaults To Local Configuration. Zero Allocates An Available Port.")]
+    pub port: Option<u16>,
 
-    #[arg(long, default_value_t = 2)]
-    pub message_limit_mib: usize,
+    #[arg(long, help = "Override The Configured Message Limit In MiB.")]
+    pub message_limit_mib: Option<usize>,
 
     #[arg(long, help = "Also serve gRPC-Web over HTTP/1.1 for browser clients. The desktop never needs it.")]
     pub grpc_web: bool,
@@ -71,10 +71,7 @@ pub struct Args {
     #[arg(long)]
     pub label: Option<String>,
 
-    #[arg(
-        long,
-        help = "Execution data directory for this process. Defaults to the data root saved in `settings.json`, or `data/` beneath the application root."
-    )]
+    #[arg(long, help = "Execution data directory for this process. Defaults to `data/` beneath the application root.")]
     pub output_root: Option<PathBuf>,
 
     #[arg(

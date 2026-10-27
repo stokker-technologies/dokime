@@ -21,10 +21,7 @@ use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::{Code, Status};
 
 // Local Imports
-use super::super::{
-    evidence::canonical as evidence,
-    value::{self, projection},
-};
+use super::super::{evidence::canonical as evidence, value::projection};
 use super::wire;
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
@@ -66,7 +63,6 @@ impl Operation for List {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut contract::ListCheckpointRecords, _: &mut (),
     ) -> Result<Response<dokime::domain::model::history::wire::CheckpointRecordPage>, Status> {
-        value::text(&request.after)?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         let query = dokime::runtime::query::checkpoint_records::ExecutionRecordQuery {
             after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),
@@ -77,7 +73,7 @@ impl Operation for List {
             .execution_checkpoint_records(checkpoint, query)
             .await
             .map_err(wire::query_failure)
-            .and_then(|page| project(&page, self.resources.maximum).map(Into::into).map_err(|source| wire::query_failure(source.into())))
+            .and_then(|page| project(page, self.resources.maximum).map_err(|source| wire::query_failure(source.into())))
     }
 }
 
@@ -95,7 +91,17 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 
 fn project(
-    page: &ExecutionRecordPage, maximum: usize,
+    page: dokime::harmos::storage::ReadBatch<ExecutionRecordPage>, maximum: usize,
+) -> dokime::harmos::Result<Response<dokime::domain::model::history::wire::CheckpointRecordPage>> {
+    let projected = page.try_map(|page| project_wire(page, maximum))?;
+    if projected.wire_len()? > maximum {
+        return Err(exhausted());
+    }
+    Ok(Response::from_owner(projected.owner()))
+}
+
+fn project_wire(
+    page: ExecutionRecordPage, maximum: usize,
 ) -> dokime::harmos::Result<dokime::domain::model::history::wire::CheckpointRecordPage> {
     let mut records = projection::slots(page.records.len())?;
     for row in &page.records {
@@ -105,23 +111,20 @@ fn project(
         });
     }
     let mut issues = projection::slots(page.issues.len())?;
-    for issue in &page.issues {
+    for issue in page.issues {
         issues.push(dokime::domain::model::history::wire::HistoryIssue {
-            source: issue.source.as_deref().map(projection::text).transpose()?,
-            dataset: issue.dataset.as_deref().map(projection::text).transpose()?,
-            message: projection::text(&issue.message)?,
+            source: issue.source,
+            dataset: issue.dataset,
+            message: issue.message,
         });
     }
     let wire = dokime::domain::model::history::wire::CheckpointRecordPage {
-        checkpoint: Some(super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?),
+        checkpoint: Some(super::wire::checkpoint_wire(page.checkpoint, maximum).map_err(original_error)?),
         records,
-        next_after: page.next.as_deref().map(projection::text).transpose()?,
+        next_after: page.next,
         issues,
         issues_truncated: page.issues_truncated,
     };
-    if wire.wire_len()? > maximum {
-        return Err(exhausted());
-    }
     Ok(wire)
 }
 

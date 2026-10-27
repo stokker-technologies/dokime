@@ -9,8 +9,6 @@
 
 // Shared Fixtures For SQLite Backend And Storage Manager Scenarios
 
-/* === Modules === */
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -19,6 +17,7 @@
 use std::{
     num::{NonZeroU32, NonZeroUsize},
     path::Path,
+    sync::Arc,
 };
 
 // Third Party Imports
@@ -42,7 +41,7 @@ use dokime_runtime::storage::sqlite::Backend;
 
 /* === Structs === */
 pub(crate) struct Store<C: ObjectCatalog = ()> {
-    pub backend: Backend<C>,
+    pub backend: Arc<Backend<C>>,
     pub history: StoreHistory,
 }
 
@@ -53,10 +52,14 @@ pub(crate) struct Store<C: ObjectCatalog = ()> {
 /* === Implementations === */
 impl<C: ObjectCatalog> Store<C> {
     pub(crate) async fn open(root: &Path) -> Self {
-        let backend = Backend::<C>::primary(root.to_path_buf()).await.unwrap();
-        backend.open().await.unwrap();
+        let backend = Arc::new(Backend::<C>::primary(root.to_path_buf()).await.unwrap());
         let history = backend.history().clone();
+        backend.open().await.unwrap();
         Self { backend, history }
+    }
+
+    pub(crate) fn batch<T>(&self, values: Vec<T>) -> StorageBatch<T> {
+        StorageBatch::new(values)
     }
 
     pub(crate) fn at(&self, sequence: u64) -> StorageCursor {
@@ -94,8 +97,9 @@ impl<C: ObjectCatalog> Store<C> {
 /* === Public Functions === */
 pub fn storage_settings() -> StorageSettings {
     StorageSettings {
-        budget: StorageBudget { read_memory_bytes: nonzero(16 * 1024 * 1024) },
+        filesystem: dokime_runtime::config::storage_defaults().filesystem,
         request: StorageRequestSettings {
+            max_active_file_operations: dokime_runtime::config::storage_defaults().request.max_active_file_operations,
             max_pending_queries: nonzero(64),
             max_active_queries: nonzero(4),
             max_pending_write_batches: nonzero(256),
@@ -149,10 +153,6 @@ pub(crate) fn graph(fields: Vec<Field>) -> Schema {
 // The Prepared Row Graph Of A Described Message
 pub(crate) fn declared<T: harmos::schema::Described>() -> Schema {
     Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap()
-}
-
-pub(crate) fn write_batch<'a>(parts: &'a [StoragePart<'a>]) -> StorageBatch<'a> {
-    StorageBatch::new(parts, NonZeroUsize::new(16 * 1024 * 1024).unwrap()).unwrap()
 }
 
 /* === Private Functions === */

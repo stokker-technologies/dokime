@@ -26,6 +26,7 @@ use std::{
 
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
+use futures_util::FutureExt;
 
 // Local Imports
 use dokime_domain::model;
@@ -142,7 +143,7 @@ async fn materialization(runtime: &RuntimeHandle, request: &MaterializeReport) -
     let elapsed = started.elapsed();
     assert!(report.report.length > 0);
     let bytes = dokime_runtime::storage::read_file_bytes(runtime.storage(), &report.report).await.unwrap();
-    let html = String::from_utf8(bytes).unwrap();
+    let html = std::str::from_utf8(bytes.as_slice()).unwrap();
     let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;
     let payload: serde_json::Value = serde_json::from_str(json).unwrap();
     assert!(plot_payload_count(&payload) >= 5, "steady report must materialize its five measurement plots");
@@ -176,7 +177,8 @@ fn plot_payload_count(value: &serde_json::Value) -> usize {
 
 async fn sealed_cycle(root: &Path) -> (Runtime, RuntimeHandle, Vec<TestExecutionId>) {
     let (owner, runtime, cycle, request) = started_cycle(root, 4, STEADY_DURATION_S).await;
-    let executions = tokio::time::timeout(SETTLE, settle(&runtime, &cycle, &request)).await.expect("the steady cycle seals");
+    let settled = settle(&runtime, &cycle, &request).boxed_local();
+    let executions = tokio::time::timeout(SETTLE, settled).await.expect("the steady cycle seals");
     (owner, runtime, executions)
 }
 
@@ -189,7 +191,7 @@ async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runti
     )
     .with_plugins([PluginBundle::new(bundle)]);
     config.storage.request.max_active_queries = NonZeroUsize::new(concurrency).unwrap();
-    let owner = Runtime::start(config).await.unwrap();
+    let owner = Runtime::start(config).boxed_local().await.unwrap();
     let runtime = owner.handle();
     let registration = runtime
         .test_suites()
@@ -199,7 +201,7 @@ async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runti
         .expect("the plugin's steady suite is registered");
     let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
-        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        max_cases: usize::try_from(1_000).unwrap(),
         registration_id: dokime_runtime::model::identity::new_id(),
         first_label_number: 1,
     };
@@ -244,6 +246,7 @@ async fn settle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, request: &
                     BTreeMap::from([("operator_note".to_owned(), Value::from("steady")), ("accepted".to_owned(), Value::from(true))]),
                     true,
                 )
+                .boxed_local()
                 .await;
         }
         let cycle =

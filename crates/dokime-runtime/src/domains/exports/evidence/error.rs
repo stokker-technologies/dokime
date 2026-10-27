@@ -51,7 +51,7 @@ pub enum Error {
     #[error("invalid saved evidence: {0}")]
     Invalid(&'static str),
 
-    #[error("evidence archive exceeds the {}-byte limit", dokime_domain::model::exports::EVIDENCE_EXPORT_MAX_BYTES)]
+    #[error("evidence archive exceeds its configured limit")]
     TooLarge,
 
     #[error("evidence export I/O failed: {0}")]

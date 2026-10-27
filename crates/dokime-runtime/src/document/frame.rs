@@ -21,7 +21,7 @@ use std::num::NonZeroU128;
 // Third Party Imports
 use harmos::Aggregate;
 use harmos::storage::query::{
-    Accumulator, Scratch,
+    Accumulator,
     scalar::{Agg, ExactNumber, ScalarValue},
 };
 
@@ -49,16 +49,21 @@ type Result<T> = crate::Result<T>;
 
 /* === Structs === */
 
-pub(super) struct Plan {
-    left: Vec<Column>,
-    right: Vec<Column>,
-    join: Join,
+pub(super) struct Plan<'a> {
+    left: Columns,
+    right: Columns,
+    join: Join<'a>,
     kind: Kind,
     shape: Shape,
     cases: Option<usize>,
     inner: Agg,
     measured: usize,
     outer: Option<Agg>,
+}
+
+struct Columns {
+    values: [Column; 7],
+    len: usize,
 }
 
 // One Projected Row: Its Capture Order And Typed Column Values.
@@ -100,10 +105,12 @@ struct Correlation {
     strategy: Strategy,
 }
 
-pub(crate) struct Lookup {
-    correlation: Correlation,
+pub(crate) struct Lookup<'a> {
+    rows: Vec<Side<'a>>,
+    strategy: Strategy,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Side<'a> {
     pub ordinal: usize,
     pub scope: Option<&'a RecordScope>,
@@ -121,11 +128,11 @@ enum Kind {
     Occurrence,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-enum Join {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Join<'a> {
     None,
-    Previous(String),
-    AtOrBefore { stream: String, field: String },
+    Previous(&'a str),
+    AtOrBefore { stream: &'a str, field: &'a str },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -163,8 +170,30 @@ pub(crate) enum Strategy {
 
 /* === Implementations === */
 
-impl Plan {
-    pub(super) fn compile(expression: &DataExpression, cases: Option<usize>) -> Result<Self> {
+impl Columns {
+    fn new() -> Self {
+        Self { values: [Column::Value; 7], len: 0 }
+    }
+    fn push(&mut self, value: Column) {
+        *self.values.get_mut(self.len).expect("a plan has at most one slot per column variant") = value;
+        self.len += 1;
+    }
+    fn extend(&mut self, values: impl IntoIterator<Item = Column>) {
+        for value in values {
+            self.push(value);
+        }
+    }
+}
+
+impl std::ops::Deref for Columns {
+    type Target = [Column];
+    fn deref(&self) -> &[Column] {
+        &self.values[..self.len]
+    }
+}
+
+impl<'plan> Plan<'plan> {
+    pub(super) fn compile(expression: &'plan DataExpression, cases: Option<usize>) -> Result<Self> {
         let transforms = &expression.transforms;
         let split = transforms.iter().position(|transform| matches!(transform, DataTransform::PerCase));
         let inner = &transforms[..split.unwrap_or(transforms.len())];
@@ -173,10 +202,10 @@ impl Plan {
         let selector = &inner[..inner.len() - usize::from(fold.is_some())];
         let join = match (&expression.source, selector.first()) {
             (DataSource::Record { .. }, Some(DataTransform::TimeBetween { previous_record_type })) => {
-                Join::Previous(previous_record_type.clone())
+                Join::Previous(previous_record_type.as_str())
             }
             (DataSource::Record { .. }, Some(DataTransform::TelemetryAtOrBefore { stream, field })) => {
-                Join::AtOrBefore { stream: stream.clone(), field: field.clone() }
+                Join::AtOrBefore { stream: stream.as_str(), field: field.as_str() }
             }
             _ => Join::None,
         };
@@ -192,11 +221,9 @@ impl Plan {
         if cases.is_some() != split.is_some() {
             return Err(failure("per-case bindings require the original execution context"));
         }
-        if cases.is_some_and(|cases| cases > 4096) {
-            return Err(DocumentFailure::Limit.into());
-        }
-        let mut left = Vec::new();
-        let mut right = Vec::new();
+        // One Slot Per Column Variant Is A Structural Upper Bound.
+        let mut left = Columns::new();
+        let mut right = Columns::new();
         let elapsed = matches!(join, Join::Previous(_));
 
         // The Left Scan Measures Its Own Value Unless A Correlation Supplies It.
@@ -246,14 +273,6 @@ impl Plan {
         };
         Ok(Self { left, right, join, kind, shape, cases, inner, measured, outer })
     }
-
-    // Projected Rows Of Both Sides And One Sorted Copy Of The Correlated Side.
-    pub(super) fn memory(&self, rows: usize) -> usize {
-        let width = self.left.len().max(self.right.len());
-        rows.saturating_mul(width.saturating_mul(std::mem::size_of::<ScalarValue>()).saturating_add(std::mem::size_of::<Projected>()))
-            .saturating_mul(2 * (1 + usize::from(!self.right.is_empty())))
-    }
-
     pub(super) fn work(&self, rows: usize) -> usize {
         let scans = 1 + usize::from(!self.right.is_empty());
         let sort = if self.right.is_empty() { 1 } else { rows.max(2).ilog2() as usize + 1 };
@@ -263,8 +282,9 @@ impl Plan {
     pub(super) fn evaluate<'a>(
         &self, expression: &DataExpression, evidence: Evidence<'a>, cases: &[Entry<'a>], selected: impl Fn(Row<'a>) -> bool,
     ) -> Result<Option<Value>> {
-        let mut left = Vec::new();
-        let mut right = Vec::new();
+        let capacity = evidence.upper_rows().saturating_mul(cases.len().max(1));
+        let mut left = Vec::with_capacity(capacity);
+        let mut right = Vec::with_capacity(capacity);
         match &self.join {
             Join::None if self.cases.is_some() => {
                 // A Case's Own Context Decides Whether Samples Or Context Supply It.
@@ -334,7 +354,7 @@ impl Plan {
             None => return Ok(None),
         };
         let left = vec![Selected::new(ordinal, None, Some(Keys::record(record)), None)];
-        let mut right = Vec::new();
+        let mut right = Vec::with_capacity(evidence.upper_rows());
         self.right_rows(expression, evidence, &mut right);
         let collected = self.collect(left, right)?;
         Ok(match self.output(&collected)? {
@@ -353,7 +373,7 @@ impl Plan {
         match &self.join {
             Join::Previous(previous) => {
                 for (ordinal, record) in evidence.records.iter().enumerate() {
-                    if record.entry.record_type.as_str() == previous
+                    if record.entry.record_type.as_str() == *previous
                         && evidence.selection.is_none_or(|selection| selection.matches_scope(record.scope))
                     {
                         right.push(Selected::new(ordinal, None, Some(Keys::record(record)), None));
@@ -425,9 +445,16 @@ impl Plan {
             self.kind == Kind::Numeric && rows.iter().any(|row| matches!(row.value.as_deref(), Some(Value::Number(_))))
         };
         let (left_float, right_float) = (floats(&left), floats(&right));
-        let mut left = left.iter().map(|row| self.project(&self.left, row, left_float)).collect::<Result<Vec<_>>>()?;
-        let right = right.iter().map(|row| self.project(&self.right, row, right_float)).collect::<Result<Vec<_>>>()?;
-        left.sort_by_key(|row| row.capture);
+        let project = |rows: &[Selected<'_>], columns: &[Column], float| -> Result<Vec<Projected>> {
+            let mut projected = Vec::with_capacity(rows.len());
+            for row in rows {
+                projected.push(self.project(columns, row, float)?);
+            }
+            Ok(projected)
+        };
+        let mut left = project(&left, &self.left, left_float)?;
+        let right = project(&right, &self.right, right_float)?;
+        left.sort_unstable_by_key(|row| row.capture);
 
         // Each Left Row Measures Its Own Columns Or Its Correlated Right Row.
         let correlation = match &self.join {
@@ -440,12 +467,15 @@ impl Plan {
         };
         let case = self.left.iter().position(|column| *column == Column::Case);
         let groups = self.cases.unwrap_or(1);
-        let mut scratch = Scratch::new(left.len().saturating_mul(self.measured));
-        let mut folds = (0..groups)
-            .map(|_| {
-                (0..self.measured).map(|index| Accumulator::new(if index == 0 { self.inner } else { flag(self.inner) })).collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
+
+        let mut folds = Vec::with_capacity(groups);
+        for _ in 0..groups {
+            let mut group = Vec::with_capacity(self.measured);
+            for index in 0..self.measured {
+                group.push(Accumulator::new(if index == 0 { self.inner } else { flag(self.inner) }));
+            }
+            folds.push(group);
+        }
         for row in &left {
             let group = match case {
                 Some(column) => match row.values[column] {
@@ -469,24 +499,26 @@ impl Plan {
                 }
             };
             for (accumulator, value) in folds[group].iter_mut().zip(&measured) {
-                accumulator.push(row.capture, value, &mut scratch).map_err(reduction)?;
+                accumulator.push(row.capture, value).map_err(reduction)?;
             }
         }
-        let groups = folds
-            .into_iter()
-            .map(|fold| {
-                fold.into_iter().map(|accumulator| accumulator.finish(&mut || Ok(())).map_err(reduction)).collect::<Result<Vec<_>>>()
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut groups = Vec::with_capacity(folds.len());
+        for fold in folds {
+            let mut values = Vec::with_capacity(fold.len());
+            for accumulator in fold {
+                values.push(accumulator.finish(&mut || Ok(())).map_err(reduction)?);
+            }
+            groups.push(values);
+        }
         let outer = match self.outer {
             None => None,
             Some(outer) => {
                 let mut values = Vec::with_capacity(self.measured);
-                let mut scratch = Scratch::new(groups.len().saturating_mul(self.measured));
+
                 for column in 0..self.measured {
                     let mut accumulator = Accumulator::new(if column == 0 { outer } else { Agg::Of(Aggregate::Max) });
                     for (position, group) in groups.iter().enumerate() {
-                        accumulator.push(position as u64, &group[column], &mut scratch).map_err(reduction)?;
+                        accumulator.push(position as u64, &group[column]).map_err(reduction)?;
                     }
                     values.push(accumulator.finish(&mut || Ok(())).map_err(reduction)?);
                 }
@@ -578,7 +610,7 @@ impl Correlation {
             matches!(row.values[keys + 2], ScalarValue::Datetime(_))
                 && !(strategy == Strategy::AtOrBefore && matches!(row.values[0], ScalarValue::Missing))
         });
-        rows.sort_by(|left, right| order(left, right, keys, strategy));
+        rows.sort_unstable_by(|left, right| order(left, right, keys, strategy));
         Self { rows, keys, strategy }
     }
 
@@ -610,39 +642,37 @@ impl Correlation {
     }
 }
 
-impl Lookup {
-    pub(crate) fn new<'a>(right: impl IntoIterator<Item = Side<'a>>, strategy: Strategy) -> Self {
-        let rows = right
-            .into_iter()
-            .map(|side| {
-                let mut values = vec![if side.present { ScalarValue::Unsigned(side.ordinal as u64) } else { ScalarValue::Missing }];
-                values.extend(keys(&side));
-                Projected { capture: side.ordinal as u64, values }
+impl<'a> Lookup<'a> {
+    pub(crate) fn try_new<I>(right: I, strategy: Strategy) -> std::result::Result<Self, harmos::Error>
+    where
+        I: IntoIterator<Item = Side<'a>>,
+        I::IntoIter: Clone,
+    {
+        let right = right.into_iter().filter(|side| side.time.is_some() && (strategy != Strategy::AtOrBefore || side.present));
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(right.clone().count()).map_err(|_| harmos::Error::ResourceExhausted { resource: "correlation lookup" })?;
+        rows.extend(right);
+        rows.sort_unstable_by(|left, right| {
+            lookup_keys(left).cmp(&lookup_keys(right)).then_with(|| match strategy {
+                Strategy::AtOrBefore => left.time.cmp(&right.time).then(left.ordinal.cmp(&right.ordinal)),
+                Strategy::Previous => left.ordinal.cmp(&right.ordinal),
             })
-            .collect::<Vec<_>>();
-        Self { correlation: Correlation::new(rows, 1, strategy) }
+        });
+        Ok(Self { rows, strategy })
     }
 
     pub(crate) fn find(&self, probe: &Side<'_>) -> Option<usize> {
-        self.find_many(std::slice::from_ref(probe)).pop().flatten()
-    }
-
-    pub(crate) fn find_many(&self, probes: &[Side<'_>]) -> Vec<Option<usize>> {
-        probes
-            .iter()
-            .enumerate()
-            .map(|(index, probe)| {
-                // Previous Pairs By Capture Order; Sample Probes Only By Time.
-                let capture = match self.correlation.strategy {
-                    Strategy::Previous => probe.ordinal as u64,
-                    Strategy::AtOrBefore => index as u64,
-                };
-                match self.correlation.find(&keys(probe), capture)?.values[0] {
-                    ScalarValue::Unsigned(ordinal) => Some(ordinal as usize),
-                    _ => None,
-                }
-            })
-            .collect()
+        let time = probe.time?;
+        let keys = lookup_keys(probe);
+        let end = self.rows.partition_point(|row| match lookup_keys(row).cmp(&keys) {
+            Ordering::Equal => match self.strategy {
+                Strategy::AtOrBefore => row.time.is_some_and(|at| at <= time),
+                Strategy::Previous => row.ordinal < probe.ordinal,
+            },
+            order => order.is_lt(),
+        });
+        let candidate = self.rows[..end].last()?;
+        (lookup_keys(candidate) == keys && candidate.present).then_some(candidate.ordinal)
     }
 }
 
@@ -653,6 +683,15 @@ pub(crate) fn nanos(timestamp: &dokime_domain::model::time::Timestamp) -> Option
 }
 
 /* === Private Functions === */
+
+fn lookup_keys<'a>(side: &Side<'a>) -> (&'a str, &'a str) {
+    let execution = side.scope.and_then(|scope| scope.test_execution_id.as_ref()).map_or("", |id| id.as_str());
+    let attempt = match side.scope.map(|scope| &scope.origin) {
+        Some(EvidenceOrigin::Step { attempt_id }) => attempt_id.as_str(),
+        _ => "",
+    };
+    (execution, attempt)
+}
 
 fn fold_of(transform: &DataTransform) -> Option<Agg> {
     match transform {
@@ -738,16 +777,6 @@ fn detail<'a>(mut value: Cow<'a, Value>, transforms: &[DataTransform]) -> Option
         };
     }
     Some(value)
-}
-
-fn keys(side: &Side<'_>) -> [ScalarValue; 3] {
-    let execution = side.scope.and_then(|scope| scope.test_execution_id.as_ref()).map_or("", |id| id.as_str());
-    let execution = ScalarValue::Text(execution.to_owned());
-    let attempt = match side.scope.map(|scope| &scope.origin) {
-        Some(EvidenceOrigin::Step { attempt_id }) => attempt_id.as_str(),
-        _ => "",
-    };
-    [execution, ScalarValue::Text(attempt.to_owned()), side.time.map_or(ScalarValue::Missing, ScalarValue::Datetime)]
 }
 
 fn floating(value: &Value) -> Result<ScalarValue> {

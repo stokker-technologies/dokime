@@ -24,8 +24,6 @@ use crate::{installed_plugins::RuntimeInstalledPluginAsset, runtime::Error, runt
 
 /* === Constants === */
 
-const MAX_BYTES: usize = 1024 * 1024;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -40,14 +38,15 @@ const MAX_BYTES: usize = 1024 * 1024;
 
 /* === Public Functions === */
 
-pub(in crate::runtime::storage) async fn capture_logo(asset: &RuntimeInstalledPluginAsset) -> Result<String> {
+pub(in crate::runtime::storage) async fn capture_logo(asset: &RuntimeInstalledPluginAsset, maximum: u64) -> Result<String> {
     validate_mime(&asset.mime_type)?;
     let path = asset.path.clone();
     let mime_type = asset.mime_type.clone();
     tokio::task::spawn_blocking(move || {
-        let raw = std::fs::read(&path).map_err(error)?;
+        let maximum_bytes = usize::try_from(maximum).map_err(error)?;
+        let raw = harmos::filesystem::input::read(&path, maximum_bytes).map_err(error)?;
         let before = std::fs::metadata(&path).map_err(error)?;
-        validate_file(&before)?;
+        validate_file(&before, maximum)?;
         if before.len() != raw.len() as u64 {
             return Err(error("appearance logo changed during capture"));
         }
@@ -68,9 +67,9 @@ pub(super) fn validate_mime(mime: &str) -> Result<()> {
     }
 }
 
-pub(super) fn validate_file(metadata: &std::fs::Metadata) -> Result<()> {
-    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_BYTES as u64 {
-        Err(error("appearance logo must be a regular file containing 1 byte to 1 MiB"))
+pub(super) fn validate_file(metadata: &std::fs::Metadata, maximum: u64) -> Result<()> {
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > maximum {
+        Err(error("appearance logo must be a nonempty regular file within the captured byte limit"))
     } else {
         Ok(())
     }

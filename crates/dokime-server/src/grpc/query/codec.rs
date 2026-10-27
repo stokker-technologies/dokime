@@ -41,15 +41,12 @@ use dokime::runtime::query::aggregate::AggregateOutcome;
 pub(super) fn project(
     outcome: &AggregateOutcome, maximum: usize,
 ) -> dokime::harmos::Result<dokime::domain::model::query::wire::AggregateReply> {
-    for column in &outcome.columns {
-        super::super::value::text(column).map_err(failure)?;
-    }
     let mut columns = canonical::slots(outcome.columns.len()).map_err(failure)?;
     for column in &outcome.columns {
         columns.push(column.clone());
     }
     let mut rows = canonical::slots(outcome.rows.len()).map_err(failure)?;
-    let mut budget = Budget::new();
+    let mut budget = Budget::new().map_err(failure)?;
     for row in &outcome.rows {
         let mut values = canonical::slots(row.len()).map_err(failure)?;
         for item in row {

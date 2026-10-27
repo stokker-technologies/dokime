@@ -111,23 +111,10 @@ pub struct PlotPayloadRequest {
     pub scope: Option<RecordScope>,
 
     #[serde(default)]
-    pub cursor: Option<PlotPayloadCursor>,
-
-    #[serde(default)]
     pub technique: DownsampleTechnique,
 
     #[serde(default)]
     pub summary_window: Option<PlotWindow>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct PlotPayloadCursor {
-    #[serde(default)]
-    pub telemetry_streams: BTreeMap<String, u64>,
-
-    #[serde(default)]
-    pub record_sequence: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -135,7 +122,6 @@ pub struct PlotPayloadCursor {
 pub struct PlotPayloadEnvelope {
     pub plot_id: String,
     pub revision: u64,
-    pub cursor: PlotPayloadCursor,
     pub payload: PlotPayload,
     pub diagnostics: PlotPayloadDiagnostics,
     pub warnings: Vec<String>,
@@ -208,12 +194,10 @@ pub struct PlotComputation {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PlotEvidence {
-    pub epoch: String,
     pub stream: String,
     pub scope: Option<RecordScope>,
 
-    #[serde(serialize_with = "serialize_analysis_cursor")]
-    pub cursor: PlotPayloadCursor,
+    pub position: harmos::storage::StorageCursor,
 
     pub window_s: Option<f64>,
     pub fields: Vec<String>,
@@ -264,7 +248,6 @@ pub struct PlotPayloadDiagnostics {
     pub point_count: usize,
     pub raw_point_count: usize,
     pub downsampled: bool,
-    pub delta: bool,
     pub max_points: usize,
     pub window_s: Option<f64>,
 }
@@ -310,7 +293,6 @@ pub struct PlotMarker {
 #[serde(rename_all = "snake_case")]
 pub enum PlotPayloadStreamKind {
     Snapshot,
-    Append,
     Replace,
     Error,
 }
@@ -341,19 +323,6 @@ where
         return Err(serde::de::Error::custom("window_s must be a finite, non-negative duration"));
     }
     Ok(window_s)
-}
-
-fn serialize_analysis_cursor<S: serde::Serializer>(cursor: &PlotPayloadCursor, serializer: S) -> Result<S::Ok, S::Error> {
-    #[derive(Serialize)]
-    struct Cursor {
-        telemetry_streams: BTreeMap<String, String>,
-        record_sequence: Option<String>,
-    }
-    Cursor {
-        telemetry_streams: cursor.telemetry_streams.iter().map(|(key, value)| (key.clone(), value.to_string())).collect(),
-        record_sequence: cursor.record_sequence.map(|value| value.to_string()),
-    }
-    .serialize(serializer)
 }
 
 /* === Tests === */

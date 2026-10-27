@@ -22,14 +22,13 @@ use tonic::Status;
 
 // Local Imports
 use super::loan;
-use super::value;
 use crate::grpc::value::canonical;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::StepId;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::domain::operations::execution as wire;
-use dokime::domains::execution::requests::{RunReceipt, StepCommand, StepCommandPhase, StepCommandReceipt};
+use dokime::domains::execution::requests::{Receipt, StepCommand, StepCommandPhase, StepCommandReceipt};
 use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
@@ -135,7 +134,7 @@ async fn get(
     charged_project(resources, &request_id, command)
 }
 
-async fn receipt(runtime: &RuntimeHandle, request_id: &CommandId) -> Result<std::sync::Arc<RunReceipt>, Status> {
+async fn receipt(runtime: &RuntimeHandle, request_id: &CommandId) -> Result<Receipt, Status> {
     let receipt = runtime
         .run_request(request_id)
         .await
@@ -145,7 +144,6 @@ async fn receipt(runtime: &RuntimeHandle, request_id: &CommandId) -> Result<std:
 }
 
 fn command_id(id: &str) -> Result<CommandId, Status> {
-    value::text(id)?;
     CommandId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid command UUID"))
 }
 
@@ -154,7 +152,6 @@ fn action(action: dokime::domain::model::execution::wire::ExecutionCommandAction
         (dokime::domain::model::execution::wire::ExecutionCommandAction::Next, None) => Ok(StepCommand::Next),
         (dokime::domain::model::execution::wire::ExecutionCommandAction::Finish, None) => Ok(StepCommand::Finish),
         (dokime::domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(id)) => {
-            value::text(id)?;
             let step_id = StepId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid frozen step UUID"))?;
             Ok(StepCommand::RunStep { step_id })
         }
@@ -180,9 +177,6 @@ fn project(
         }
         StepCommand::Finish => (dokime::domain::model::execution::wire::ExecutionCommandAction::Finish, None),
     };
-    if let Some(detail) = &receipt.detail {
-        value::text(detail)?;
-    }
     Ok(dokime::domain::model::execution::wire::ExecutionCommandReceipt {
         request_id: request_id.as_str().to_owned(),
         command_id: receipt.command_id.as_str().to_owned(),

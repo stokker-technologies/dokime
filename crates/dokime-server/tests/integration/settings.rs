@@ -192,10 +192,10 @@ async fn plugin_settings() {
 
     let update = contracts::settings::UpdatePluginSettings {
         plugin_id: "fixture.settings".into(),
-        values: Some(model::values::wire::Value::from(&Value::Object(BTreeMap::from([(
-            "workspace".into(),
-            Value::Text("Production".into()),
-        )])))),
+        values: Some(
+            model::values::wire::Value::try_from(&Value::Object(BTreeMap::from([("workspace".into(), Value::Text("Production".into()))])))
+                .unwrap(),
+        ),
     };
     let updated = client.unary::<contracts::settings::UpdatePluginSettings>(auth(update, TOKEN)).await.unwrap().into_inner();
     assert!(matches!(
@@ -285,42 +285,6 @@ fn metadata(identifier: &str, label: &str) -> Metadata {
 /* === Tests === */
 
 #[tokio::test]
-async fn backend_policy_revision() {
-    let (_environment, server, client) = fixture().await;
-    let initial = client
-        .unary::<contracts::settings::ReadStoragePolicy>(auth(contracts::settings::ReadStoragePolicy {}, super::TOKEN))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(initial.revision, 0);
-    let mut policy = initial.configured.unwrap();
-    policy.compaction_interval_ms = 7_200_000;
-    let request = contracts::settings::UpdateStoragePolicy { expected_revision: 0, policy: Some(policy.clone()) };
-    let saved = client.unary::<contracts::settings::UpdateStoragePolicy>(auth(request.clone(), TOKEN)).await.unwrap().into_inner();
-    assert_eq!(saved.revision, 1);
-    assert_eq!(saved.configured, Some(policy));
-    assert_eq!(saved.effective, initial.effective);
-    assert!(saved.restart_required);
-    assert_eq!(
-        client.unary::<contracts::settings::UpdateStoragePolicy>(auth(request, TOKEN)).await.unwrap_err().code(),
-        Code::FailedPrecondition
-    );
-    let invalid =
-        contracts::settings::UpdateStoragePolicy { expected_revision: 1, policy: Some(model::settings::wire::StoragePolicy::default()) };
-    assert_eq!(
-        client.unary::<contracts::settings::UpdateStoragePolicy>(auth(invalid, TOKEN)).await.unwrap_err().code(),
-        Code::InvalidArgument
-    );
-    let read = client
-        .unary::<contracts::settings::ReadStoragePolicy>(auth(contracts::settings::ReadStoragePolicy {}, super::TOKEN))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(read, saved);
-    server.shutdown().await.unwrap();
-}
-
-#[tokio::test]
 async fn application_settings() {
     let (environment, server, client) = fixture().await;
     let initial = client
@@ -328,29 +292,33 @@ async fn application_settings() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(initial.configured_data_root, None);
-
-    // Appearance Is Saved Without A Restart.
-    let appearance = contracts::settings::UpdateAppearance {
-        appearance: Some(model::settings::wire::AppearancePreference {
-            theme_mode: model::settings::wire::ThemeMode::Dark,
-            theme_family: Some("brand.theme".into()),
-            density: model::settings::wire::Density::Compact,
-        }),
+    let mut settings = initial.settings.clone();
+    settings.report.plot_points = 3_000;
+    settings.telemetry.interval_ms = 2_000;
+    let update = contracts::settings::UpdateApplicationSettings {
+        update: model::settings::application::UpdateSettings { expected_revision: initial.revision, settings },
     };
-    let saved = client.unary::<contracts::settings::UpdateAppearance>(auth(appearance, TOKEN)).await.unwrap().into_inner();
-    assert_eq!(saved.appearance.unwrap().theme_mode, model::settings::wire::ThemeMode::Dark);
-    assert_eq!(saved.restart_required, initial.restart_required);
+    let saved = client.unary::<contracts::settings::UpdateApplicationSettings>(auth(update.clone(), TOKEN)).await.unwrap().into_inner();
+    assert_eq!(saved.revision, initial.revision + 1);
+    assert_eq!(saved.settings, update.update.settings);
+    let conflict = client.unary::<contracts::settings::UpdateApplicationSettings>(auth(update, TOKEN)).await.unwrap_err();
+    assert_eq!(conflict.code(), Code::Aborted);
 
-    // The Data Root Applies On Restart.
-    let chosen = environment.root.path().join("chosen-data");
-    let data_root = contracts::settings::UpdateDataRoot { data_root: Some(chosen.display().to_string()) };
-    let relative = contracts::settings::UpdateDataRoot { data_root: Some("relative".into()) };
-    assert_eq!(client.unary::<contracts::settings::UpdateDataRoot>(auth(relative, TOKEN)).await.unwrap_err().code(), Code::InvalidArgument);
-    let saved = client.unary::<contracts::settings::UpdateDataRoot>(auth(data_root, TOKEN)).await.unwrap().into_inner();
-    assert_eq!(saved.configured_data_root, Some(chosen.display().to_string()));
-    assert!(saved.restart_required);
-    assert!(chosen.is_dir(), "the chosen root is proven writable");
-    assert_eq!(saved.effective_data_root, initial.effective_data_root);
+    let mut invalid = saved.settings.clone();
+    invalid.report.plot_points = 0;
+    let update = contracts::settings::UpdateApplicationSettings {
+        update: model::settings::application::UpdateSettings { expected_revision: saved.revision, settings: invalid },
+    };
+    assert_eq!(
+        client.unary::<contracts::settings::UpdateApplicationSettings>(auth(update, TOKEN)).await.unwrap_err().code(),
+        Code::InvalidArgument
+    );
+    let unchanged = client
+        .unary::<contracts::settings::ReadApplicationSettings>(auth(contracts::settings::ReadApplicationSettings {}, TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(unchanged, saved);
+    assert!(!environment.root.path().join("config.toml").exists());
     server.shutdown().await.unwrap();
 }

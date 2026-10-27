@@ -23,7 +23,6 @@ pub use column::Column;
 pub use definition::AxisScale;
 pub use definition::Band;
 pub use definition::Card;
-pub use definition::DEFAULT_PLOT_MAX_POINTS;
 pub use definition::DURATION_UNIT_SYMBOLS;
 pub use definition::Document;
 pub use definition::DocumentCard;

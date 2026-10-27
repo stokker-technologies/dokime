@@ -195,12 +195,12 @@ impl Runtime {
     async fn install_plugins_with(&mut self, progress: &Operation) -> Result<()> {
         let config = self.handle.config();
         let store = self.handle.plugin_store();
-        store.sweep().map_err(operation)?;
+        store.sweep().await.map_err(operation)?;
         let mut inputs = config.plugins.clone();
         if let Some(directory) = &config.plugin_lookup {
             inputs.extend(lookup_bundles(directory)?);
         }
-        inputs.extend(store.installed().map_err(operation)?);
+        inputs.extend(store.installed().await.map_err(operation)?);
         for input in &inputs {
             if let PluginProvenance::Installed { install_id, .. } = input.provenance {
                 self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, false);
@@ -219,14 +219,19 @@ impl Runtime {
                 PluginProvenance::Installed { sha256, .. } => Some(sha256.clone()),
                 PluginProvenance::Configured => None,
             });
-            let prepared = match read_bundle(input.clone(), cached_digest.as_deref()) {
+            let prepared = match read_bundle(
+                input.clone(),
+                cached_digest.as_deref(),
+                usize::try_from(dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES)
+                    .expect("validated server plugin bundle limit fits native address space"),
+            ) {
                 Ok(bundle) => prepare(bundle, &extraction, reuse, &self.handle).await,
                 Err(error) => Err(error),
             };
             match prepared {
                 Ok(package) => packages.push(package),
                 Err(error) => {
-                    if let Err(failure) = failed(&store, &input, &error.to_string()) {
+                    if let Err(failure) = failed(&store, &input, &error.to_string()).await {
                         self.pending_plugins.extend(packages);
                         return Err(failure);
                     }
@@ -252,7 +257,7 @@ impl Runtime {
         );
         let embedded_plugins: Vec<_> = self.embedded.values().map(|provider| provider.definition.clone()).collect();
         let embedded_catalogs: Vec<_> = self.embedded.values().map(|provider| provider.catalog.clone()).collect();
-        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins) {
+        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins).await {
             Ok(plan) => plan,
             Err(error) => {
                 self.pending_plugins.extend(packages);
@@ -288,7 +293,7 @@ impl Runtime {
             let Some((index, reason)) = refused else {
                 break;
             };
-            if let Err(error) = prune(&store, &packages.iter().collect::<Vec<_>>(), &mut removed, index, &reason) {
+            if let Err(error) = prune(&store, &packages.iter().collect::<Vec<_>>(), &mut removed, index, &reason).await {
                 self.pending_plugins.extend(packages);
                 return Err(error);
             }
@@ -355,7 +360,7 @@ impl Runtime {
                         .enumerate()
                         .filter_map(|(index, package)| excluded.contains(&package.catalog.package).then_some(index))
                         .collect();
-                    prune(&self.handle.plugin_store(), &packages, &mut removed, initial, &source.to_string())?;
+                    prune(&self.handle.plugin_store(), &packages, &mut removed, initial, &source.to_string()).await?;
                     excluded.extend(removed.iter().map(|index| packages[*index].catalog.package.clone()));
                     next = Some(graph(
                         self.plugins.iter().filter(|(name, _)| !excluded.contains(*name)).flat_map(|(_, active)| &active.package.programs),
@@ -382,11 +387,12 @@ impl Runtime {
         }
         self.capture_ready_catalogs().await?;
         self.recover_plugin_executions().await?;
-        for active in self.plugins.values() {
-            if let PluginProvenance::Installed { install_id, .. } = active.package.input.provenance {
+        let inputs: Vec<_> = self.plugins.values().map(|active| active.package.input.clone()).collect();
+        for input in inputs {
+            if let PluginProvenance::Installed { install_id, .. } = input.provenance {
                 self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, true);
             }
-            record(&store, &active.package.input, None);
+            record(&store, &input, None).await;
         }
         self.expose_plugins()?;
         Ok(())
@@ -451,7 +457,7 @@ impl Runtime {
     }
 
     pub async fn register(&mut self, provider: Arc<dyn super::EmbeddedProvider>) -> Result<()> {
-        let candidate = super::embedded::Active::prepare(provider)?;
+        let candidate = super::embedded::Active::prepare(provider, self.handle.schema_settings())?;
         let source = candidate.definition.id.clone();
         let catalogs: Vec<ProviderCatalog> = self
             .plugins
@@ -542,7 +548,12 @@ impl Runtime {
         // specifically to pick up bytes that just changed. The extraction
         // cache only ever applies to `Installed` bundles (see
         // `reusable_extraction`), never to this path.
-        let bundle = read_bundle(input, None)?;
+        let bundle = read_bundle(
+            input,
+            None,
+            usize::try_from(dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES)
+                .expect("validated server plugin bundle limit fits native address space"),
+        )?;
         if !matches!(bundle.input.provenance, PluginProvenance::Configured) {
             return Err(operation("only explicitly configured development plugins can be reloaded"));
         }
@@ -775,8 +786,8 @@ fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {
     Ok(paths.into_iter().map(PluginBundle::new).collect())
 }
 
-fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadBundle> {
-    let bytes = read_bounded(&input.path, harmos_packaging::bundle::Limits::default().archive_bytes).map_err(operation)?;
+fn read_bundle(input: PluginBundle, cached_digest: Option<&str>, archive_bytes: usize) -> Result<ReadBundle> {
+    let bytes = read_bounded(&input.path, archive_bytes).map_err(operation)?;
     let content_digest = match cached_digest {
         Some(digest) => digest.to_owned(),
         None => digest(&bytes),
@@ -794,7 +805,13 @@ fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadB
 
 async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<PathBuf>, handle: &super::RuntimeHandle) -> Result<Package> {
     let ReadBundle { input, bytes, content_digest } = read;
-    let (bundle, metadata) = crate::plugins::inspect(&bytes).map_err(operation)?;
+    let (bundle, metadata) = crate::plugins::inspect_with_archive_limit(
+        &bytes,
+        handle.schema_settings(),
+        usize::try_from(dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES)
+            .expect("validated server plugin bundle limit fits native address space"),
+    )
+    .map_err(operation)?;
     let selected = selected_files(&bundle).map_err(operation)?;
     if let Some(owner) = input.programs.keys().find(|owner| !metadata.owners.contains(owner)) {
         return Err(operation(format!("plugin `{}` configuration names unknown executable `{owner}`", input.path.display())));
@@ -825,8 +842,9 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
         dokime_domain::model::identity::Identifier::new(id).map_err(operation)?;
         let registrations = file.executable.as_ref().expect("selected executable").registrations.clone();
         let plugin = decode_registrations(id, &version.to_string(), description, &registrations)?;
-        super::native_telemetry::validate(&plugin, &declaration.streams).map_err(operation)?;
-        crate::plugins::dispatch::validate_analyses(&plugin, &declaration.contracts.provides).map_err(operation)?;
+        super::native_telemetry::validate(&plugin, &declaration.streams, handle.schema_settings()).map_err(operation)?;
+        crate::plugins::dispatch::validate_analyses(&plugin, &declaration.contracts.provides, handle.schema_settings())
+            .map_err(operation)?;
         let bindings = crate::plugins::dispatch::Bindings::inspect(&plugin, operations).map_err(operation)?;
         plugins.push(plugin.clone());
         let mut executable = harmos::sidecar::Executable::at(directory.path().join(&file.path)).map_err(operation)?;
@@ -967,8 +985,16 @@ fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::plugin::PluginD
     packages.iter().map(|package| package.programs.iter().map(|program| program.definition.clone()).collect()).collect()
 }
 
-fn plan(store: &PluginStore, packages: &[&Package], embedded: &[harmos::plugin::PluginDefinition]) -> Result<BTreeSet<usize>> {
-    plan_graph(&package_definitions(packages), embedded, |index, reason| failed(store, &packages[index].input, reason))
+async fn plan(store: &PluginStore, packages: &[&Package], embedded: &[harmos::plugin::PluginDefinition]) -> Result<BTreeSet<usize>> {
+    let mut refusals = Vec::new();
+    let result = plan_graph(&package_definitions(packages), embedded, |index, reason| {
+        refusals.push((index, reason.to_owned()));
+        Ok(())
+    });
+    for (index, reason) in refusals {
+        failed(store, &packages[index].input, &reason).await?;
+    }
+    result
 }
 
 fn plan_graph(
@@ -1016,9 +1042,9 @@ fn plan_graph(
     }
 }
 
-fn prune(store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize, reason: &str) -> Result<()> {
+async fn prune(store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize, reason: &str) -> Result<()> {
     for index in prune_graph(&package_definitions(packages), removed, initial) {
-        failed(store, &packages[index].input, reason)?;
+        failed(store, &packages[index].input, reason).await?;
     }
     Ok(())
 }
@@ -1052,7 +1078,7 @@ fn prune_graph(packages: &[Vec<harmos::plugin::PluginDefinition>], removed: &mut
     newly_removed
 }
 
-fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Result<()> {
+async fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Result<()> {
     let PluginProvenance::Installed { install_id, .. } = &input.provenance else {
         return Err(operation(format!("configured plugin `{}` failed: {reason}", input.path.display())));
     };
@@ -1062,13 +1088,13 @@ fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Result<()>
         reason,
         "plugin was not admitted"
     );
-    record(store, input, Some(reason.to_owned()));
+    record(store, input, Some(reason.to_owned())).await;
     Ok(())
 }
 
-fn record(store: &PluginStore, input: &PluginBundle, error: Option<String>) {
+async fn record(store: &PluginStore, input: &PluginBundle, error: Option<String>) {
     if let PluginProvenance::Installed { install_id, .. } = &input.provenance
-        && let Err(error) = store.record_boot(*install_id, error)
+        && let Err(error) = store.record_boot(*install_id, error).await
     {
         tracing::warn!(%install_id, %error, "could not record plugin boot outcome");
     }

@@ -13,6 +13,10 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { HubRecord, Severity } from "@/lib/types";
 
 /* === Constants === */
+
+const GUI_LOG_BYTES = 262_144;
+const GUI_LOG_EVENTS = 256;
+
 const MIN_LEVEL: Record<TraceLevel, LogLevel> = {
   debug: { HarmosVariant: { case: "Debug", value: {} } },
   error: { HarmosVariant: { case: "Error", value: {} } },
@@ -48,8 +52,8 @@ export async function openTraceStream(
     epoch: request.epoch,
     minLevel: MIN_LEVEL[request.minLevel],
     afterSequence: request.afterSequence,
-    maxEvents: 256,
-    maxBytes: 256 * 1024,
+    maxEvents: GUI_LOG_EVENTS,
+    maxBytes: GUI_LOG_BYTES,
     follow: true,
   });
   return {

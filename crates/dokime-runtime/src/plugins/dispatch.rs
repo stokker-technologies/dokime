@@ -164,7 +164,9 @@ impl ActionDispatcher for Dispatcher {
 
 /* === Public Functions === */
 
-pub(crate) fn validate_analyses(artifact: &InstalledPlugin, contracts: &[harmos::operations::Contract]) -> Result<(), String> {
+pub(crate) fn validate_analyses(
+    artifact: &InstalledPlugin, contracts: &[harmos::operations::Contract], settings: &harmos::config::SchemaSettings,
+) -> Result<(), String> {
     use harmos::schema::Described;
     for analysis in &artifact.analyses {
         let contract = contracts
@@ -173,12 +175,17 @@ pub(crate) fn validate_analyses(artifact: &InstalledPlugin, contracts: &[harmos:
             .ok_or_else(|| format!("analysis {} has no served wire contract", analysis.id))?;
         let schema = harmos::schema::graph::Schema::from_declarations(
             &[("request", crate::analysis::Request::DEFINITION), ("response", crate::analysis::Response::DEFINITION)],
-            &harmos::config::SchemaSettings::default(),
+            settings,
         )
         .map_err(|error| error.to_string())?;
-        let expected =
-            harmos::operations::Contract::new(contract.operation().clone(), analysis.version, harmos::operations::Codec::Postcard, schema)
-                .map_err(|error| error.to_string())?;
+        let expected = harmos::operations::Contract::new_with_settings(
+            contract.operation().clone(),
+            analysis.version,
+            harmos::operations::Codec::Postcard,
+            schema,
+            settings,
+        )
+        .map_err(|error| error.to_string())?;
         if contract != &expected {
             return Err(format!("analysis {} has an incompatible callback contract", analysis.id));
         }

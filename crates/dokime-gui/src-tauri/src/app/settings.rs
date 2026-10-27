@@ -18,8 +18,7 @@ use std::{env, path::PathBuf, sync::Arc};
 
 // Third Party Imports
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
-use tauri_plugin_dialog::DialogExt;
+use tauri::{Manager, State};
 
 // Local Imports
 use dokime::paths::ApplicationPaths;
@@ -98,27 +97,6 @@ pub async fn desktop_parameters_write(
     .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
 }
 
-pub async fn desktop_pick_execution_directory(app: AppHandle) -> Result<Option<String>, DesktopSettingsError> {
-    if remote_backend(&app) {
-        return Err("Execution storage is managed by the remote backend".to_owned().into());
-    }
-    tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
-            .file()
-            .blocking_pick_folder()
-            .map(|path| path.into_path().map(|path| path.display().to_string()).map_err(|error| error.to_string()))
-            .transpose()
-    })
-    .await
-    .map_err(|error| error.to_string())?
-    .map_err(DesktopSettingsError::from)
-}
-
 /* === Private Functions === */
-
-fn remote_backend(app: &AppHandle) -> bool {
-    app.try_state::<crate::native_session::DesktopSessionControl>()
-        .is_some_and(|state| state.status().ownership == crate::native_session::BackendOwnership::Attached)
-}
 
 /* === Tests === */

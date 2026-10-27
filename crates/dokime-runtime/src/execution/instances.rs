@@ -45,9 +45,6 @@ use dokime_domain::operations::process::RunProcess;
 // The JSON-RPC server error code of a refusal raised on the step side.
 const STEP_REFUSAL: i64 = -32_000;
 
-// How long the sweep waits for one cancelled instance to settle.
-const SETTLE: Duration = Duration::from_secs(30);
-
 // Local instance ids count down from the top, apart from the host's.
 const LOCAL_IDS: u64 = u64::MAX;
 
@@ -78,8 +75,11 @@ pub struct StepIdentity {
 }
 
 // The live instances of one execution's current step.
-#[derive(Clone, Default)]
-pub(crate) struct Handles(Arc<Mutex<Ledger>>);
+#[derive(Clone)]
+pub(crate) struct Handles {
+    ledger: Arc<Mutex<Ledger>>,
+    settlement: Duration,
+}
 
 #[derive(Default)]
 struct Ledger {
@@ -96,6 +96,7 @@ pub struct StepInstance<O: OperationDeclaration> {
 }
 
 struct Slot<O: OperationDeclaration> {
+    settlement: Duration,
     running: tokio::sync::Mutex<Option<Running<O>>>,
     kind: &'static str,
     name: String,
@@ -132,6 +133,10 @@ trait Sweep: Send + Sync {
 /* === Implementations === */
 
 impl Handles {
+    pub(crate) fn new() -> Self {
+        Self { ledger: Arc::new(Mutex::new(Ledger::default())), settlement: Duration::from_secs(30) }
+    }
+
     pub(crate) fn begin(&self, step: StepIdentity) {
         self.locked().step = Some(step);
     }
@@ -162,7 +167,7 @@ impl Handles {
     }
 
     fn locked(&self) -> std::sync::MutexGuard<'_, Ledger> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+        self.ledger.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -225,7 +230,7 @@ impl<O: OperationDeclaration> StepInstance<O> {
 
     fn tracked(handles: &Handles, id: Id, running: Running<O>, request: &[u8]) -> Self {
         let (kind, name) = label::<O>(request);
-        let slot = Arc::new(Slot { running: tokio::sync::Mutex::new(Some(running)), kind, name });
+        let slot = Arc::new(Slot { settlement: handles.settlement, running: tokio::sync::Mutex::new(Some(running)), kind, name });
         handles.track(Arc::clone(&slot) as Arc<dyn Sweep>);
         Self { id, slot, released: false, readiness: None }
     }
@@ -355,14 +360,14 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
                         // Settled on its own; dropping the handle releases it.
                         return None;
                     }
-                    tokio::time::timeout(SETTLE, instance.cancel_and_join()).await.is_ok()
+                    tokio::time::timeout(self.settlement, instance.cancel_and_join()).await.is_ok()
                 }
                 Running::Local(run) => {
                     if run.task.is_finished() {
                         return None;
                     }
                     run.request_cancel();
-                    tokio::time::timeout(SETTLE, run.join(O::ID)).await.is_ok()
+                    tokio::time::timeout(self.settlement, run.join(O::ID)).await.is_ok()
                 }
             };
             if !settled {

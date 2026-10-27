@@ -16,6 +16,7 @@
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
+use futures_util::FutureExt;
 
 // Local Imports
 use super::*;
@@ -269,7 +270,7 @@ async fn traceability_bounds_clone() {
     assert_eq!(receipt.accepted, 1);
 
     let snapshot = handle.watch_state().latest();
-    let error = handle.traceability_snapshots_page_at(&snapshot, None, "", 100, 0, 512 * 1024).await.unwrap_err();
+    let error = handle.traceability_snapshots_page_at(&snapshot, None, "", 100, 0, 512 * 1024).boxed_local().await.unwrap_err();
     assert!(error.to_string().contains("bounded page budget"));
 
     drop(handle);

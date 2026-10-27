@@ -53,9 +53,6 @@ use dokime_domain::model::records::publication::RecordPublishRequest;
 
 /* === Constants === */
 
-// Consecutive failed passes after which an unreachable source ends the watch.
-const FAILED_PASSES: u32 = 10;
-
 // The producer named on the rows and records line matchers publish.
 const SOURCE: &str = "dokime.files";
 
@@ -100,7 +97,7 @@ struct State {
     captured: u64,
     sealed: Vec<ArtifactRecord>,
     passes: u64,
-    failed_passes: u32,
+    failed_passes: u64,
     complete: bool,
     // A refused pass ends capture; sealing keeps only what was captured.
     failed: bool,
@@ -431,7 +428,7 @@ impl State {
     fn failed_pass(&mut self, source: Error) -> Result<()> {
         self.failed_passes += 1;
         tracing::warn!(error = %source, attempt = self.failed_passes, "file watch pass failed");
-        if self.failed_passes >= FAILED_PASSES {
+        if self.failed_passes >= 10 {
             return Err(source);
         }
         Ok(())
@@ -455,6 +452,8 @@ impl State {
         let spool = tempfile::NamedTempFile::new_in(self.spools.path())
             .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?
             .into_temp_path();
+        let line_bytes = 64 * 1024;
+        let line_bytes = std::num::NonZeroUsize::new(line_bytes).ok_or_else(|| invalid("line byte capacity must be nonzero"))?;
         self.tracked.insert(
             path.to_owned(),
             Tracked {
@@ -465,7 +464,7 @@ impl State {
                 entry,
                 mirrored: self.policy == Policy::Mirror,
                 synced: false,
-                pending: LineBuffer::default(),
+                pending: LineBuffer::new(line_bytes),
                 sealable: self.policy == Policy::Stream,
             },
         );
@@ -653,7 +652,7 @@ impl State {
             for found in self.lines.matches(&line) {
                 match found {
                     LineMatch::Row { stream, values, storage_schema } => {
-                        let payload = match crate::telemetry::capture_payload(&storage_schema, &values) {
+                        let payload = match crate::telemetry::capture_payload(&storage_schema, &values, self.runtime.schema_settings()) {
                             Ok(payload) => payload,
                             Err(error) => {
                                 tracing::warn!(%error, %stream, "file matcher row was rejected");

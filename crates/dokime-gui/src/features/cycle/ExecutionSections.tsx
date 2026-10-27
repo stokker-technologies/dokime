@@ -63,7 +63,6 @@ export type ExecutionSectionsProps = {
   prompts: PromptRequest[];
   onSelectExecution: (executionId: string) => void;
   /** Returns to the cycle viewer. */
-  onSelectCycle: () => void;
 };
 
 /* === Components === */
@@ -80,7 +79,6 @@ export function ExecutionSections({
   menu,
   prompts,
   onSelectExecution,
-  onSelectCycle,
 }: ExecutionSectionsProps) {
   const plotWindow = usePlotWindow();
   const started = row.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null;
@@ -159,7 +157,6 @@ export function ExecutionSections({
       titlePrefix={titlePrefix}
       label={label}
       onRename={onRename}
-      onSelectCycle={onSelectCycle}
       pageActions={pageActions}
       trail={["Cycle", `Execution ${row.ordinal}`]}
       started={started}

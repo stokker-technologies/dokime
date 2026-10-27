@@ -281,7 +281,7 @@ class Row24(_message.Message):
     def __init__(self, icon: _Optional[_Union[Row54, _Mapping]] = ..., tone: _Optional[_Union[Row55, _Mapping]] = ...) -> None: ...
 
 class Row25(_message.Message):
-    __slots__ = ("stream", "schema_version", "storage_schema", "metadata", "template_identifier", "owner_suite_id", "columns", "default_x", "plot_window_ms", "allow_extra_fields", "scalar", "validation_mode", "foreign")
+    __slots__ = ("stream", "schema_version", "storage_schema", "metadata", "template_identifier", "owner_suite_id", "columns", "default_x", "allow_extra_fields", "scalar", "validation_mode", "foreign")
     STREAM_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
     STORAGE_SCHEMA_FIELD_NUMBER: _ClassVar[int]
@@ -290,7 +290,6 @@ class Row25(_message.Message):
     OWNER_SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_X_FIELD_NUMBER: _ClassVar[int]
-    PLOT_WINDOW_MS_FIELD_NUMBER: _ClassVar[int]
     ALLOW_EXTRA_FIELDS_FIELD_NUMBER: _ClassVar[int]
     SCALAR_FIELD_NUMBER: _ClassVar[int]
     VALIDATION_MODE_FIELD_NUMBER: _ClassVar[int]
@@ -303,12 +302,11 @@ class Row25(_message.Message):
     owner_suite_id: str
     columns: _containers.RepeatedCompositeFieldContainer[Row57]
     default_x: str
-    plot_window_ms: int
     allow_extra_fields: bool
     scalar: bool
     validation_mode: Row23
     foreign: bool
-    def __init__(self, stream: _Optional[str] = ..., schema_version: _Optional[int] = ..., storage_schema: _Optional[_Union[Row56, _Mapping]] = ..., metadata: _Optional[_Union[Row20, _Mapping]] = ..., template_identifier: _Optional[str] = ..., owner_suite_id: _Optional[str] = ..., columns: _Optional[_Iterable[_Union[Row57, _Mapping]]] = ..., default_x: _Optional[str] = ..., plot_window_ms: _Optional[int] = ..., allow_extra_fields: _Optional[bool] = ..., scalar: _Optional[bool] = ..., validation_mode: _Optional[_Union[Row23, _Mapping]] = ..., foreign: _Optional[bool] = ...) -> None: ...
+    def __init__(self, stream: _Optional[str] = ..., schema_version: _Optional[int] = ..., storage_schema: _Optional[_Union[Row56, _Mapping]] = ..., metadata: _Optional[_Union[Row20, _Mapping]] = ..., template_identifier: _Optional[str] = ..., owner_suite_id: _Optional[str] = ..., columns: _Optional[_Iterable[_Union[Row57, _Mapping]]] = ..., default_x: _Optional[str] = ..., allow_extra_fields: _Optional[bool] = ..., scalar: _Optional[bool] = ..., validation_mode: _Optional[_Union[Row23, _Mapping]] = ..., foreign: _Optional[bool] = ...) -> None: ...
 
 class Row26(_message.Message):
     __slots__ = ("store", "epoch")

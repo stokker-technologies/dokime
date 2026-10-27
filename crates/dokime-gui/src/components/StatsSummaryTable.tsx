@@ -103,7 +103,6 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
     if (id === "trace") {
       return legend.accessor("label", {
         cell: ({ row }) => <TraceCell row={row.original} />,
-        enableSorting: false,
         header: heading,
         id,
         meta: { label: header, primary: true },
@@ -112,7 +111,6 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
     const read = (row: SeriesLegendRow) => (id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id]);
     return legend.accessor(read, {
       cell: ({ getValue, row }) => <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>{getValue()}</span>,
-      enableSorting: false,
       header: heading,
       id,
       meta: { align: "end", label: header, truncate: true, width: seriesLegendColumnWidth(id) },
@@ -138,17 +136,7 @@ function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled
     return <StatsSummaryGrid row={rows[0]} titled={titled} />;
   }
 
-  return (
-    <DataTable
-      className="rounded-md bg-muted/20 [--table-surface:transparent]"
-      columns={COLUMNS}
-      data={described}
-      emptyText="No statistics recorded."
-      getRowId={rowLabel}
-      inset="cell"
-      stickyHeader={false}
-    />
-  );
+  return <DataTable columns={COLUMNS} data={described} emptyText="No statistics recorded." getRowId={rowLabel} />;
 }
 
 function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
@@ -157,14 +145,12 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
   return (
     <DataTable
       aria-label="Trace statistics"
-      className={cn("rounded-md bg-muted/20 [--table-surface:transparent] transition-opacity", legend.pending && "opacity-50")}
+      className={cn("transition-opacity", legend.pending && "opacity-50")}
       columns={columns}
       data={legend.rows}
       emptyText="No traces recorded."
       getRowId={legendRowKey}
-      inset="cell"
       onRowClick={onToggle ? (row) => onToggle(row.key) : undefined}
-      stickyHeader={false}
     />
   );
 }
@@ -206,14 +192,14 @@ function StatsSummaryGrid({ row, titled }: { row: StatsSummaryRow; titled: boole
   return (
     <section
       aria-label={`${row.label} statistics`}
-      className="grid min-w-0 max-w-full overflow-hidden gap-2 rounded-md bg-muted/20 p-3"
+      className="grid min-w-0 max-w-full overflow-hidden gap-2 rounded-lg bg-muted/20 p-3"
       data-testid="stats-summary-grid"
     >
       {titled ? <strong className="text-sm [overflow-wrap:anywhere]">{row.label}</strong> : null}
       <dl className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,6.5rem),1fr))]">
         {items.map(([label, value]) => (
-          <div className="min-w-0 rounded-md bg-muted/35 p-2" key={label}>
-            <dt className="text-[0.68rem] font-bold uppercase text-muted-foreground">{label}</dt>
+          <div className="min-w-0 rounded-lg bg-muted/35 p-2" key={label}>
+            <dt className="text-xs font-bold uppercase text-muted-foreground">{label}</dt>
             <dd className="mt-1 truncate text-sm font-semibold tabular-nums" title={value}>
               {value}
             </dd>

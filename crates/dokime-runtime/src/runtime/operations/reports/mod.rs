@@ -51,7 +51,7 @@ struct Handler {
 
 pub(super) struct Resources {
     pub(super) execution_storage: Arc<ExecutionStorage>,
-    pub(super) settings: crate::config::Settings,
+    pub(super) settings: crate::storage::sqlite::State,
     pub(super) providers: Arc<crate::domains::execution::provider::ProviderExecutorRegistry>,
     pub(super) progress: Arc<crate::runtime::progress::OperationRegistry>,
 }
@@ -102,7 +102,7 @@ impl Operation for Handler {
 pub(crate) fn register(runtime: &RuntimeHandle) -> Result<()> {
     let resources = Resources {
         execution_storage: runtime.execution_storage.clone(),
-        settings: runtime.settings().clone(),
+        settings: runtime.local_storage.clone(),
         providers: runtime.providers.clone(),
         progress: runtime.operation_progress().clone(),
     };
@@ -118,19 +118,20 @@ async fn execution(
 ) -> Result<MaterializedReport> {
     progress.phase("Capturing Evidence");
     let app = ctx.scope().resources::<Dokime>();
-    let source = resources.execution_storage.report_source(id).await?;
-    let member = source
-        .test_executions
-        .iter()
-        .find(|member| member.test_execution_id == *id)
-        .ok_or_else(|| invalid("execution is not in its cycle"))?;
+    let session = resources.execution_storage.storage.clone();
     if resources.execution_storage.acquisition(id).await.is_none() {
+        let source = resources.execution_storage.report_source(&session, id).await?;
+        let member = source
+            .test_executions
+            .iter()
+            .find(|member| member.test_execution_id == *id)
+            .ok_or_else(|| invalid("execution is not in its cycle"))?;
         resources.execution_storage.acquire(&source, member).await?;
     }
     let gate = resources.execution_storage.materialization_gate(id).await?;
     let _guard = gate.lock().await;
     // Recheck Mutable Lifecycle After Admission; Sealing Uses This Same Gate.
-    let source = resources.execution_storage.report_source(id).await?;
+    let source = resources.execution_storage.report_source(&session, id).await?;
     let member = source
         .test_executions
         .iter()
@@ -140,8 +141,8 @@ async fn execution(
     if let Some(seal) = &member.saved {
         return Ok(MaterializedReport { report: seal.report.clone() });
     }
-    if let Some(seal) = resources.execution_storage.final_seal(id).await {
-        return Ok(MaterializedReport { report: seal.report });
+    if let Some(seal) = resources.execution_storage.final_seal(id).await? {
+        return Ok(MaterializedReport { report: seal.report.clone() });
     }
     if let Some(report) = resources.execution_storage.published_final_report(id, at).await? {
         return Ok(report);
@@ -162,24 +163,24 @@ async fn execution(
         resources.execution_storage.finish_outputs(id).await?;
     }
     let inputs = resources.execution_storage.prepare_capture(&source, member, at, final_report).await?;
-    let defaults = resources.settings.read(|settings| settings.report);
+    let defaults = resources.settings.read_application_settings().await?.settings.report;
     let inspection = resources.execution_storage.capture_execution_view(&source, &inputs, defaults).await?;
     if inspection.evidence_through()? != at {
         return Err(invalid("capture changed requested report boundary"));
     }
     let storage = &resources.execution_storage.storage;
-    let captured = Arc::new(crate::report::materialize::execution(ctx, &app.storage_settings, &inspection, final_report, progress).await?);
+    let captured = crate::report::materialize::execution(ctx, &inspection, final_report, progress).await?;
     progress.phase("Rendering");
-    let outputs = inspection.outputs()?.to_vec();
+    let outputs = inputs.outputs.clone();
     let renderer = app.renderer;
     let saved = storage.cursor_saved();
-    let mut prepared = tokio::task::spawn_blocking(move || renderer.execution(captured, outputs, &saved)).await??;
+    let mut prepared = tokio::task::spawn_blocking(move || renderer.execution_with_outputs(captured, outputs, &saved)).await??;
     progress.phase("Publishing Report");
     if final_report {
         resources.execution_storage.materialize_final_report(ctx, inspection, prepared, crate::model::time::now_utc()).await
     } else {
         let revision = resources.execution_storage.publication_revision(inspection.execution()).await?;
-        prepared.publish_current(storage, ctx, &revision).await
+        prepared.publish_current(storage, &revision, &ctx.scope().resources::<crate::app::Dokime>().schema_settings).await
     }
 }
 

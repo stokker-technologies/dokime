@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use super::*;
 use dokime::domain::model;
 use {
-    dokime::DurationMillis, dokime::MeasurementUnit, dokime::UnitFamily, dokime::Value, dokime::ValueType, dokime::records::RecordContract,
+    dokime::MeasurementUnit, dokime::UnitFamily, dokime::Value, dokime::ValueType, dokime::records::RecordContract,
     dokime::records::RecordField, dokime::records::RecordIconKey, dokime::records::RecordSeverity, dokime::records::RecordTone,
     dokime::telemetry::TelemetryColumn, dokime::telemetry::TelemetryContract, dokime::telemetry::TelemetryRole,
 };
@@ -73,7 +73,6 @@ async fn schemas_exact_pages() {
         .typed::<CountRow>()
         .column(TelemetryColumn::declared("count", "Count", ValueType::Integer, TelemetryRole::Counter))
         .strict();
-    telemetry.plot_window = Some(DurationMillis(u64::MAX));
     telemetry.columns[1].default = Some(Value::Integer(i64::MAX));
     telemetry.columns[1].unit =
         Some(MeasurementUnit { metadata: support::metadata("unit.tick", "Tick"), family: UnitFamily::Count, symbol: "tick".into() });
@@ -145,7 +144,6 @@ async fn schemas_exact_pages() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(telemetry.plot_window_ms, Some(u64::MAX));
     let unit = telemetry.columns[1].unit.as_ref().unwrap();
     assert_eq!(unit.family, model::definition::wire::UnitFamily::Count);
     assert_eq!(unit.symbol, "tick");
@@ -177,7 +175,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(contracts::catalog::ListTelemetrySchemas {
-                limit: dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1,
+                limit: u32::try_from(500).unwrap().checked_add(1).unwrap(),
                 ..Default::default()
             }))
             .await

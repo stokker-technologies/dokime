@@ -21,8 +21,7 @@ use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
-use crate::grpc::transcode::Transcode;
-use crate::grpc::{error::detailed, value};
+use crate::grpc::error::detailed;
 use dokime::domain::operations::content as wire;
 use dokime::{RuntimeHandle, runtime::Error};
 
@@ -63,26 +62,24 @@ impl Operation for Follow {
     ) -> Result<Response<()>, Status> {
         let runtime = &self.resources.runtime;
         let (execution, _) = super::files::execution(runtime, &request.execution_id)?;
-        value::text(&request.relative_path)?;
         if request.relative_path.is_empty() {
             return Err(Status::invalid_argument("output name is required"));
-        }
-        if request.max_bytes > 64 * 1024 {
-            return Err(Status::invalid_argument("follow chunk exceeds 64 KiB"));
         }
         if request.offset != 0 && request.identity.is_none() {
             return Err(Status::invalid_argument("resume offset requires original identity"));
         }
         if let Some(identity) = &request.identity {
-            value::text(&identity.file_id)?;
-            value::text(&identity.execution_id)?;
-            value::text(&identity.relative_path)?;
-            let history = identity.history.as_ref().ok_or_else(|| Status::invalid_argument("original history is required"))?;
-            value::text(&history.store)?;
-            value::text(&history.epoch)?;
+            identity.history.as_ref().ok_or_else(|| Status::invalid_argument("original history is required"))?;
         }
-        let requested = if request.max_bytes == 0 { 64 * 1024 } else { request.max_bytes as usize };
-        let maximum = NonZeroUsize::new(requested.min(super::transfer_chunk_bytes(self.resources.maximum)))
+        let cap = super::download_chunk_bytes(runtime, self.resources.maximum)?;
+        let template = dokime::domain::model::content::wire::ExecutionFileFollowFrame {
+            payload: Some(dokime::domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(
+                dokime::domain::model::content::wire::ArtifactChunk { offset: u64::MAX, data: Vec::new() },
+            )),
+        };
+        let transport_maximum = super::output_chunk_bytes(&template, cap, self.resources.maximum)?;
+        let requested = if request.max_bytes == 0 { transport_maximum } else { request.max_bytes as usize };
+        let maximum = NonZeroUsize::new(requested.min(transport_maximum))
             .ok_or_else(|| Status::resource_exhausted("listener cannot contain a follow chunk"))?;
         let mut follower = runtime
             .follow_execution_file(&execution, &request.relative_path, request.identity.as_ref(), request.offset)
@@ -91,7 +88,7 @@ impl Operation for Follow {
             .ok_or_else(|| Status::not_found("registered execution output not found"))?;
         let started = Instant::now();
         tracing::debug!(execution_id = %execution, offset = request.offset, "execution file follow admitted");
-        let metadata = follower.metadata_frame();
+        let metadata = follower.metadata_frame().map_err(failure)?;
         send(output, metadata, self.resources.maximum).await?;
         while let Some(frame) = follower.next_frame(maximum).await.map_err(failure)? {
             let terminal =
@@ -121,12 +118,16 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 async fn send(
     output: &mut StreamOutput<dokime::domain::model::content::wire::ExecutionFileFollowFrame>,
-    frame: dokime::domain::model::content::wire::ExecutionFileFollowFrame, maximum: usize,
+    frame: Response<dokime::domain::model::content::wire::ExecutionFileFollowFrame>, maximum: usize,
 ) -> Result<(), Status> {
-    if frame.wire_len()? > maximum {
+    if super::output_frame_len(&*frame)? > maximum {
         return Err(Status::resource_exhausted("follow frame exceeds listener message limit"));
     }
-    output.send_owned(frame.into()).await.map_err(|error| failure(error.into()))
+    let sent = output.send_owned(frame).await;
+    sent.map_err(|error| {
+        let source = error.into();
+        failure(source)
+    })
 }
 
 fn failure(error: Error) -> Status {
@@ -135,7 +136,6 @@ fn failure(error: Error) -> Status {
         Error::Harmos(dokime::harmos::Error::ResourceExhausted { resource }) => {
             Status::resource_exhausted(format!("execution file exceeds original {resource} budget"))
         }
-        Error::ExecutionFileTooLarge => Status::resource_exhausted("execution output exceeds native content limit"),
         Error::Operation(reason) => Status::failed_precondition(reason),
         Error::ShuttingDown | Error::Interrupted => Status::unavailable("file following interrupted"),
         _ => Status::internal("execution output could not be followed"),

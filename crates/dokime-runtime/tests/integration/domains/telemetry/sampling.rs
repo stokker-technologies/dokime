@@ -75,6 +75,10 @@ impl Sampler for CountingSampler {
 }
 
 impl SamplerSession for CountingSession {
+    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<()> {
+        std::task::Poll::Pending
+    }
+
     fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>> {
         Box::pin(async { Ok(()) })
     }
@@ -208,16 +212,17 @@ async fn host_collector_stream() {
     let root = tempfile::tempdir().unwrap();
     let artifact = dokime_host::installed_plugin();
     let source = artifact.source.clone();
-    let mut owner = Runtime::start(
-        crate::service_support::budgets::runtime_config(
-            root.path(),
-            Metadata::new(Identifier::new("fixture.host.sampling").unwrap(), "Host Sampling", None),
-        )
-        .with_installed_plugins([artifact]),
-    )
-    .await
-    .unwrap();
+    let identifier = Identifier::new("fixture.host.sampling").unwrap();
+    let metadata = Metadata::new(identifier, "Host Sampling", None);
+    let config = crate::service_support::budgets::runtime_config(root.path(), metadata).with_installed_plugins([artifact]);
+
+    let mut owner = Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
+    let state = runtime.watch_state().latest();
+    let system = Identifier::new("host.system").unwrap();
+    let contract = state.state().telemetry_definitions.get(&system).unwrap();
+    assert_eq!(contract.interval, Some(dokime_runtime::DurationMillis(1_000)));
+    drop(state);
     runtime.bind_host_telemetry_source(dokime_host::host_telemetry_collector(
         HostTelemetryConfig::default().with_source(HostTelemetrySourceKind::Fixture),
     ));
@@ -225,8 +230,9 @@ async fn host_collector_stream() {
     initial_request.source_id = source.clone();
     initial_request.stream = "host.system".into();
     let initial = runtime.request_host_sampling(scope(None), vec![initial_request]).await.unwrap();
+    assert_eq!(initial[0].request.interval, Some(dokime_runtime::DurationMillis(10)));
     let initial_selection = TelemetrySelection { streams: vec![Identifier::new("host.system").unwrap().into()], ..Default::default() };
-    until_telemetry(&runtime, || async { (!runtime.collect_telemetry(&initial_selection).await.is_empty()).then_some(()) }).await;
+    until_telemetry(&runtime, || async { (!runtime.collect_telemetry(&initial_selection).await.unwrap().is_empty()).then_some(()) }).await;
 
     let streams = ["host.system", "host.bluetooth"];
     let leases = runtime
@@ -252,7 +258,7 @@ async fn host_collector_stream() {
         ..Default::default()
     };
     until_telemetry(&runtime, || async {
-        let samples = runtime.collect_telemetry(&selection).await;
+        let samples = runtime.collect_telemetry(&selection).await.unwrap();
         streams.iter().all(|stream| samples.iter().any(|sample| sample.stream.as_str() == *stream)).then_some(())
     })
     .await;

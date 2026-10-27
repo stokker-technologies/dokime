@@ -14,6 +14,10 @@
 
 import type { ConnectionSnapshot, ConnectionTarget, ConnectRequest } from "./connection";
 
+/* === Constants === */
+
+export const DESKTOP_SESSION_STATUS_EVENT = "desktop://session-status";
+
 /* === Types === */
 
 export type BackendSelection = { kind: "owned_local" } | { kind: "profile"; name: string } | { kind: "attach"; request: ConnectRequest };
@@ -21,14 +25,14 @@ export type BackendSelection = { kind: "owned_local" } | { kind: "profile"; name
 export type BackendOwnership = "none" | "owned_local" | "attached";
 
 export type DesktopSessionSnapshot = {
+  /** Monotonic owner status sequence used to reconcile startup events with snapshots. */
+  statusRevision: number;
   ownership: BackendOwnership;
   /** The startup phase an owned local backend last reported while starting
    * (`"storage"`, `"plugins"`, `"requests"`, …, free-form so an older GUI
    * tolerates a name it does not recognize). `null` once connected or
    * disconnected, and throughout an attach selection. */
   phase: string | null;
-  /** The archive bytes a local storage backup has written, while it archives. */
-  archivedBytes: number | null;
   connection: ConnectionSnapshot;
 };
 

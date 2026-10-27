@@ -22,7 +22,7 @@ use tonic::Status;
 
 // Local Imports
 use super::{preferences::Resources, wire as projection};
-use crate::grpc::value::{self, Budget, canonical};
+use crate::grpc::value::{Budget, canonical};
 use dokime::domain::operations::settings as wire;
 use dokime::{
     RuntimeHandle,
@@ -107,9 +107,10 @@ impl Operation for UpdatePluginSettings {
         &mut self, _: Self::Context<'a>, request: &mut wire::UpdatePluginSettings, _: &mut (),
     ) -> Result<Response<dokime::domain::model::settings::wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
+        let mut budget = Budget::new()?;
         let values = match request.values.take() {
             None => Default::default(),
-            Some(value) => match canonical::decode(value, &mut Budget::new(), 0)? {
+            Some(value) => match canonical::decode(value, &mut budget, 0)? {
                 dokime::domain::model::values::Value::Object(values) => values,
                 _ => {
                     return Err(Status::invalid_argument("plugin settings values must be an object"));
@@ -135,8 +136,8 @@ impl Operation for UpdatePluginSecret {
         &mut self, _: Self::Context<'a>, request: &mut wire::UpdatePluginSecret, _: &mut (),
     ) -> Result<Response<dokime::domain::model::settings::wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
-        let secret_id = projection::bounded_text(std::mem::take(&mut request.secret_id), "secret_id")?;
-        let secret = projection::bounded_text(std::mem::take(&mut request.secret), "secret")?;
+        let secret_id = std::mem::take(&mut request.secret_id);
+        let secret = std::mem::take(&mut request.secret);
         let settings = self
             .resources
             .runtime
@@ -161,7 +162,6 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 
 fn plugin_id(id: &str) -> Result<dokime::domain::model::identity::Identifier, Status> {
-    value::text(id)?;
     projection::identifier(id.to_owned(), "plugin_id")
 }
 

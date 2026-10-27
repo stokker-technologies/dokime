@@ -69,7 +69,7 @@ async fn report_save_receipt() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let manager = Manager::new(StorageBackends { primary, state: recovery }, settings).unwrap();
     let runtime = crate::service_support::reports::storage_runtime(&manager).await;
@@ -135,11 +135,14 @@ async fn report_save_receipt() {
         documents: BTreeMap::new(),
         plots: BTreeMap::new(),
         case_documents: vec![],
-        records: vec![],
-        telemetry: vec![],
+        records: Default::default(),
+        telemetry: vec![].into(),
         traceability: vec![],
         artifact_links: vec![],
-        appearance: Some(dokime_runtime::report::value::Value::try_from(serde_json::json!({"app_name": "Later Renderer Brand"})).unwrap()),
+        appearance: Some(
+            dokime_runtime::report::value::Value::from_serializable(&serde_json::json!({"app_name": "Later Renderer Brand"}), 128_usize)
+                .unwrap(),
+        ),
         generated_at: finished_at.clone(),
     };
     let row = Execution::try_from(&original_execution).unwrap();
@@ -147,6 +150,7 @@ async fn report_save_receipt() {
     let mut grouping = input.cycle.clone();
     grouping.test_executions.clear();
     let context = dokime_runtime::execution::context::ExecutionContext {
+        appearance_policy: dokime_runtime::execution::context::captured::AppearancePolicy::capture(),
         scope: original_execution.scope.clone(),
         session_id: input.session_id.clone(),
         cycle: dokime_runtime::execution::context::ExecutionCycleContext {
@@ -179,6 +183,7 @@ async fn report_save_receipt() {
         .unwrap(),
     };
     let captured = CapturedExecutionReportInput {
+        report_defaults: Default::default(),
         final_report: true,
         owner_node_id: NodeId::from_seed("fixture.report.owner"),
         execution_id: original_execution.test_execution_id.clone(),
@@ -195,25 +200,25 @@ async fn report_save_receipt() {
         context,
     };
     let before = manager.status().accepted;
-    let captured = Arc::new(captured);
+    let captured = harmos::storage::ReadBatch::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = Vec::new();
     let mut prepared = dokime_runtime::report::Renderer.execution(captured.clone(), outputs, &manager.cursor_saved()).unwrap();
     assert_eq!(manager.status().accepted, before);
     let sealed_at = finished_at;
-    let original = prepared.save_dependencies(&manager, &runtime.operations, &sealed_at, &revision).await.unwrap();
+    let original = prepared.save_dependencies(&manager, &sealed_at, &revision).await.unwrap();
     let saved = manager.status().saved;
-    let repeated = prepared.save_dependencies(&manager, &runtime.operations, &sealed_at, &revision).await.unwrap();
+    let repeated = prepared.save_dependencies(&manager, &sealed_at, &revision).await.unwrap();
     assert_eq!(original, repeated);
     assert_eq!(manager.status().saved, saved);
-    assert!(prepared.save_dependencies(&manager, &runtime.operations, &Timestamp::new("2030-01-01T00:00:00Z"), &revision).await.is_err());
+    assert!(prepared.save_dependencies(&manager, &Timestamp::new("2030-01-01T00:00:00Z"), &revision).await.is_err());
     assert_eq!(manager.status().saved, saved);
 
     // Read The Original Native Captured File
     let bytes = dokime_runtime::storage::read_file_bytes(&manager, &original.source.context).await.unwrap();
     assert!(!bytes.is_empty());
     assert_eq!(bytes.len() as u64, original.source.context.length);
-    assert_eq!(sha2::Sha256::digest(&bytes).as_slice(), original.source.context.sha256.as_slice());
+    assert_eq!(sha2::Sha256::digest(bytes.as_slice()).as_slice(), original.source.context.sha256.as_slice());
 
     // Flush The Seal's Own Original Receipt
     let mut sealed_execution = original_execution;
@@ -393,7 +398,7 @@ async fn report_download_serves() {
             .await
             .unwrap_or_else(|error| panic!("download {attempt} of the sealed member: {error}"));
         assert_eq!(opened.origin, dokime_runtime::ReportOrigin::Sealed);
-        assert_eq!(opened.html, published, "download {attempt} serves the final report bytes");
+        assert_eq!(*opened.html, published, "download {attempt} serves the final report bytes");
     }
     let running = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(running.origin, dokime_runtime::ReportOrigin::Current);
@@ -408,10 +413,10 @@ async fn report_download_serves() {
     let cycle_seal = cycle.saved.clone().expect("the completed cycle is sealed");
     let sealed = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
-    assert_eq!(sealed.html, crate::service_support::reports::bytes(runtime.storage(), &cycle_seal.report).await);
+    assert_eq!(*sealed.html, crate::service_support::reports::bytes(runtime.storage(), &cycle_seal.report).await);
     let sealed = runtime.open_execution_report(&settled).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
-    assert_eq!(sealed.html, published, "finalization keeps the member's final report");
+    assert_eq!(*sealed.html, published, "finalization keeps the member's final report");
     owner.shutdown().await.unwrap();
 }
 
@@ -591,8 +596,8 @@ async fn cycle_report_reboot() {
         .unwrap();
     let mut after = Vec::new();
     while let Some(batch) = reader.next().await.unwrap() {
-        for row in batch {
-            let entry = row.payload.entry().unwrap();
+        let records = crate::service_support::native::record_page(batch).unwrap();
+        for entry in records.iter() {
             after.push((entry.record_id.clone(), entry.record_type.to_string()));
         }
     }

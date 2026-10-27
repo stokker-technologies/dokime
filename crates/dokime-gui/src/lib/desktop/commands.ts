@@ -20,7 +20,6 @@ import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
 
 import type { StagePluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
-import type { BackendProfiles } from "./connection";
 import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
 import type { OrganizationStatus } from "./organization";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
@@ -38,7 +37,7 @@ import type { PluginRelease, UpdateCheck, UpdateSelection, UpdateStatus } from "
  * build that gets this far is a defect in a caller's own guard, so it throws
  * rather than resolving with something invented.
  */
-function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+export function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   if (isReportBuild()) {
     return Promise.reject(new Error(`A frozen report cannot call the desktop command "${command}".`));
   }
@@ -55,16 +54,10 @@ export const commands = {
   desktopSessionSelect: (selection: BackendSelection) => invoke<DesktopSessionSnapshot>("desktop_session_select", { selection }),
   desktopSessionDisconnect: () => invoke<DesktopSessionSnapshot>("desktop_session_disconnect"),
   desktopSessionStatus: () => invoke<DesktopSessionSnapshot>("desktop_session_status"),
-  desktopProfilesList: () => invoke<BackendProfiles>("desktop_profiles_list"),
   /** Open the failed owned start's log; the shell supplies the path. */
   desktopOpenBackendLog: () => invoke<null>("desktop_open_backend_log"),
   /** Development only: delete the owned backend's storage and restart it. */
   desktopResetLocalStorage: (directory: string) => invoke<DesktopSessionSnapshot>("desktop_reset_local_storage", { directory }),
-  /** Name the archive a local storage backup writes: beside the data root, or
-   * where the operator picks; `null` when the operator cancels. */
-  desktopStorageBackupDestination: (choose: boolean) => invoke<string | null>("desktop_storage_backup_destination", { choose }),
-  /** After a failed owned start: archive the data root, reset it and restart. */
-  desktopBackupResetLocalStorage: (archive: string) => invoke<DesktopSessionSnapshot>("desktop_backup_reset_local_storage", { archive }),
   desktopOpenPath: (path: string) => invoke<null>("desktop_open_path", { path }),
   desktopOpenTarget: (target: string) => invoke<null>("desktop_open_target", { target }),
   /** Save a verified document through the native file picker: the saved path, `null` when the operator cancels. */
@@ -102,7 +95,6 @@ export const commands = {
   desktopRestart: () => invoke<null>("desktop_restart"),
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),
   desktopParametersWrite: (values: ParameterOverrides) => invoke<null>("desktop_parameters_write", { values }),
-  desktopPickExecutionDirectory: () => invoke<string | null>("desktop_pick_execution_directory"),
   desktopUpdatesStatus: () => invoke<UpdateStatus>("desktop_updates_status"),
   desktopUpdatesConfigure: (selection: UpdateSelection) => invoke<UpdateStatus>("desktop_updates_configure", { selection }),
   desktopUpdatesSignIn: () => invoke<UpdateStatus>("desktop_updates_sign_in"),

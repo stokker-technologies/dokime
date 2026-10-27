@@ -9,8 +9,6 @@
 
 // Report Dependency Retry Story
 
-/* === Modules === */
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -23,9 +21,7 @@ use std::sync::{Mutex, atomic::AtomicBool};
 
 // Local Imports
 use crate::service_support::prelude::*;
-use crate::service_support::publication::{
-    AdmissionClock, AdmissionWorker, MutationBoundary, MutationHost, PublicationBackend, PublicationFault,
-};
+use crate::service_support::publication::{AdmissionClock, AdmissionWorker, AppendBoundary, PublicationBackend, PublicationFault};
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_runtime::report::saved::CapturedExecutionReportInput;
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
@@ -63,6 +59,7 @@ async fn dependency_publication_retry() {
     member_cycle.test_executions = vec![lifecycle];
     // This Story Exercises Dependency Publication, Not Plot Materialization.
     let template = CapturedExecutionReportInput {
+        report_defaults: Default::default(),
         final_report: true,
         owner_node_id: source_seal.source.owner_node_id.clone(),
         execution_id: source_seal.source.execution.execution_id.clone(),
@@ -77,8 +74,8 @@ async fn dependency_publication_retry() {
             documents: Default::default(),
             plots: Default::default(),
             case_documents: Vec::new(),
-            records: Vec::new(),
-            telemetry: Vec::new(),
+            records: Default::default(),
+            telemetry: Vec::new().into(),
             traceability: context.traceability.clone(),
             artifact_links: Vec::new(),
             appearance: None,
@@ -117,7 +114,7 @@ async fn dependency_publication_retry() {
         let state = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-            dokime_runtime::storage::state_settings(),
+            dokime_runtime::config::storage_state_defaults(),
         ));
         let backend = Arc::new(PublicationBackend::new(primary, fault.clone()));
         let manager = Manager::new(StorageBackends { primary: backend, state }, settings).unwrap();
@@ -135,14 +132,11 @@ async fn dependency_publication_retry() {
         input.evidence_through = receipt.position.clone();
         manager.flush_until(&receipt.position).await.unwrap();
         let boundary = input.evidence_through.clone();
-        let input = Arc::new(input);
+        let input = harmos::storage::ReadBatch::new(input);
         let outputs = Vec::new();
         let mut report = dokime_runtime::report::Renderer.execution(input, outputs, &manager.cursor_saved()).unwrap();
         let sealed_at = execution.finished_at.as_ref().unwrap();
-        assert!(
-            report.save_dependencies(&manager, &owner.operations, sealed_at, &revision).await.is_err(),
-            "{suffix} must interrupt dependency publication"
-        );
+        assert!(report.save_dependencies(&manager, sealed_at, &revision).await.is_err(), "{suffix} must interrupt dependency publication");
         assert!(fault.failures() > 0, "the selected dependency must reach the real backend");
         let partial = fault.finished();
         assert!(partial.len() < 2);
@@ -157,7 +151,7 @@ async fn dependency_publication_retry() {
         drop(stored);
         fault.disarm();
         manager.retry_transient_persistence();
-        let seal = report.save_dependencies(&manager, &owner.operations, sealed_at, &revision).await.unwrap();
+        let seal = report.save_dependencies(&manager, sealed_at, &revision).await.unwrap();
         assert_eq!(seal.source.evidence_through, boundary, "retry keeps the original evidence cursor");
         assert_eq!(&seal.sealed_at, sealed_at);
         for reference in [&seal.source.context, &seal.report] {
@@ -177,15 +171,18 @@ async fn dependency_publication_retry() {
         owner.stop().await.unwrap();
     }
 
-    // Acknowledged Appends Permit A New Finish Identity After Window Expiry.
+    // Native Report Writers Outlive Public Mutation Windows Without Changing Their Files.
     let root = tempdir().unwrap();
     let primary = Arc::new(Backend::primary(root.path().to_owned()).await.unwrap());
     let state = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         primary.history().clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
-    let manager = Manager::new(StorageBackends { primary, state }, crate::service_support::budgets::story_settings()).unwrap();
+    let fault = Arc::new(PublicationFault::new(".report"));
+    fault.disarm();
+    let backend = Arc::new(PublicationBackend::new(primary, fault.clone()));
+    let manager = Manager::new(StorageBackends { primary: backend, state }, crate::service_support::budgets::story_settings()).unwrap();
     let owner = crate::service_support::reports::storage_runtime(&manager).await;
     let mut input = template;
     let execution = input.input.cycle.test_executions[0].clone();
@@ -195,30 +192,30 @@ async fn dependency_publication_retry() {
     input.execution = Some(revision.clone());
     input.evidence_through = stored.position.clone();
     manager.flush_until(&stored.position).await.unwrap();
-    let input = Arc::new(input);
-    let boundary = Arc::new(MutationBoundary {
+    let input = harmos::storage::ReadBatch::new(input);
+    let boundary = Arc::new(AppendBoundary {
         advance_after_append: AtomicBool::new(true),
         lose_append_reply: AtomicBool::new(false),
         calls: Mutex::new(Vec::new()),
         lengths: Mutex::new(Default::default()),
     });
-    let host = MutationHost { inner: owner.operations.clone(), storage: manager.clone(), boundary: boundary.clone() };
+    *fault.append_boundary.lock().unwrap() = Some(boundary.clone());
+    let initial_window = manager.mutation_window().unwrap().id;
     let mut report = dokime_runtime::report::Renderer.execution(input.clone(), Vec::new(), &manager.cursor_saved()).unwrap();
     let sealed_at = execution.finished_at.as_ref().unwrap();
-    // Age The Global Retry Window Before Creating Fresh Sixty-Second Producer Sessions.
+    // Age The Public Retry Window Before Writing The Native Report.
     tokio::time::pause();
     tokio::time::advance(Duration::from_secs(250)).await;
     tokio::time::resume();
-    let seal = report.save_dependencies(&manager, &host, sealed_at, &revision).await.unwrap();
+    let seal = report.save_dependencies(&manager, sealed_at, &revision).await.unwrap();
     for file in [&seal.source.context, &seal.report] {
         assert!(seal.dependencies_saved.covers(&file.position).unwrap());
         assert!(!crate::service_support::reports::bytes(&manager, file).await.is_empty());
     }
-    let calls = boundary.calls.lock().unwrap().clone();
-    let first = &calls[0].window;
-    assert!(calls.iter().filter(|call| call.key.as_str().ends_with(".finish")).all(|call| &call.window != first));
+    assert_ne!(manager.mutation_window().unwrap().id, initial_window);
+    assert!(!boundary.calls.lock().unwrap().is_empty());
 
-    // A Lost Append Reply Keeps Its Original Identity And Cannot Be Readmitted After Expiry.
+    // A Lost Native Append Reply Retries The Same Offset And Bytes After Window Expiry.
     boundary.calls.lock().unwrap().clear();
     boundary.advance_after_append.store(true, std::sync::atomic::Ordering::SeqCst);
     boundary.lose_append_reply.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -226,14 +223,19 @@ async fn dependency_publication_retry() {
     tokio::time::pause();
     tokio::time::advance(Duration::from_secs(250)).await;
     tokio::time::resume();
-    let lost = ambiguous.save_dependencies(&manager, &host, sealed_at, &revision).await.unwrap_err();
+    let lost = ambiguous.save_dependencies(&manager, sealed_at, &revision).await.unwrap_err();
     assert!(lost.to_string().contains("controlled append reply loss"), "{lost}");
     let prior = boundary.calls.lock().unwrap().clone();
-    let expired = ambiguous.save_dependencies(&manager, &host, sealed_at, &revision).await.unwrap_err();
-    assert!(expired.to_string().contains("retry window expired or unknown"), "{expired}");
+    boundary.lose_append_reply.store(false, std::sync::atomic::Ordering::SeqCst);
+    manager.retry_transient_persistence();
+    let recovered = ambiguous.save_dependencies(&manager, sealed_at, &revision).await.unwrap();
     let after = boundary.calls.lock().unwrap().clone();
-    assert!(after[prior.len()..].iter().any(|call| prior.contains(call)), "an ambiguous retry must reuse its mutation identity");
-    drop((seal, report, ambiguous, host));
+    assert!(after[prior.len()..].contains(prior.last().unwrap()), "an ambiguous retry must reuse its offset and bytes");
+    for file in [&recovered.source.context, &recovered.report] {
+        assert!(recovered.dependencies_saved.covers(&file.position).unwrap());
+        assert!(!crate::service_support::reports::bytes(&manager, file).await.is_empty());
+    }
+    drop((seal, report, ambiguous, recovered));
     owner.stop().await.unwrap();
 }
 
@@ -253,7 +255,7 @@ async fn admitted_create_window() {
     let state = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         primary.history().clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let fault = Arc::new(PublicationFault::new(".report"));
     fault.disarm();

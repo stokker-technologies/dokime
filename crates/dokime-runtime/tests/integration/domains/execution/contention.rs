@@ -55,8 +55,8 @@ async fn contended_reads_interactive() {
     let root = tempdir().unwrap();
     let provider = Smoke::new(Behaviour::new(PULSE_ROWS, 0, true));
     let behaviour = provider.behaviour();
-    let mut configuration = config(root.path()).register(Arc::new(provider));
-    configuration.storage.budget.read_memory_bytes = std::num::NonZeroUsize::new(256 * 1024 * 1024).unwrap();
+    let configuration = config(root.path()).register(Arc::new(provider));
+
     let (mut owner, handle) = started(configuration).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let queued = start(&handle, &suite, "contention.queued").await;
@@ -71,10 +71,11 @@ async fn contended_reads_interactive() {
         scope: ScopeSelection { test_execution_id: Some(execution.clone()), ..Default::default() },
         ..Default::default()
     };
-    until_telemetry(&handle, || async { (handle.selected_telemetry(selection.clone()).await.len() == PULSE_ROWS as usize).then_some(()) })
-        .await;
-    // Storage accepts a row before the window shows it; the running report
-    // reads only what is saved, so the accepted rows are flushed first.
+    until_telemetry(&handle, || async {
+        (handle.selected_telemetry(selection.clone()).await.unwrap().len() == PULSE_ROWS as usize).then_some(())
+    })
+    .await;
+    // Plot And Report Queries Read Saved Evidence At An Explicit Durable Cut.
     handle.storage().flush().await.unwrap();
 
     // Each Round Starts All Readers And The Operator Together; No Warmup Timer.
@@ -86,7 +87,7 @@ async fn contended_reads_interactive() {
         let barrier = barrier.clone();
         let scope = scope.clone();
         followers.push(tokio::spawn(async move {
-            let mut request = PlotPayloadRequest {
+            let request = PlotPayloadRequest {
                 plot_id: Some(format!("fixture.checks.smoke.pulse.{index}")),
                 stream: PULSE_STREAM.into(),
                 y_keys: vec!["value".into()],
@@ -97,10 +98,14 @@ async fn contended_reads_interactive() {
             };
             for round in 0..ROUNDS {
                 barrier.wait().await;
-                let mode = if round == 0 { RuntimePlotQueryMode::Snapshot } else { RuntimePlotQueryMode::Append };
-                let envelopes = handle.query_plot_payloads(vec![request.clone()], mode).await.unwrap();
+                let mode = if round == 0 { RuntimePlotQueryMode::Snapshot } else { RuntimePlotQueryMode::Replace };
+                let at = handle.storage().cursor_saved();
+                let envelopes = handle.query_plot_payloads_at(vec![request.clone()], mode, &at).await.unwrap();
                 assert_eq!(envelopes.len(), 1, "plot {index} round {round}");
-                request.cursor = Some(envelopes.into_iter().next().unwrap().cursor);
+                let envelope = &envelopes[0];
+                assert_eq!(envelope.revision, at.sequence);
+                assert_eq!(envelope.payload.stream, PULSE_STREAM);
+                assert_eq!(envelope.payload.series[0].raw_points, PULSE_ROWS as usize);
                 barrier.wait().await;
             }
         }));

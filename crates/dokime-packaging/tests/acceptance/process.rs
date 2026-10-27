@@ -155,6 +155,24 @@ async fn deadline_stops_descendants() {
     wait_gone(pid.trim()).await;
 }
 
+#[tokio::test]
+async fn leader_exit_keeps_descendants_owned() {
+    let directory = tempfile::tempdir().unwrap();
+    let pid = directory.path().join("descendant.pid");
+    let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+    command
+        .args(["--exact", "process::process_fixture_mode", "--nocapture"])
+        .env("DOKIME_PROCESS_TEST_MODE", "leader")
+        .env("DOKIME_PROCESS_TEST_PID", &pid);
+    let mut child = dokime_packaging::process::spawn_session(command).unwrap();
+    assert!(child.wait_leader().await.unwrap().success());
+
+    let pid = std::fs::read_to_string(&pid).unwrap();
+    assert!(alive(pid.trim()));
+    child.kill().await.unwrap();
+    wait_gone(pid.trim()).await;
+}
+
 // Fixture modes for `deadline_stops_descendants`; a no-op when run directly.
 #[tokio::test]
 async fn process_fixture_mode() {
@@ -162,6 +180,17 @@ async fn process_fixture_mode() {
         return;
     };
     match mode.as_str() {
+        "leader" => {
+            let pid = std::env::var_os("DOKIME_PROCESS_TEST_PID").unwrap();
+            let _child = Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "process::process_fixture_mode", "--nocapture"])
+                .env("DOKIME_PROCESS_TEST_MODE", "descendant")
+                .spawn()
+                .unwrap();
+            while !Path::new(&pid).is_file() {
+                std::thread::sleep(GONE_POLL);
+            }
+        }
         "build" => {
             let result = dokime_packaging::build::run(dokime_packaging::build::Options {
                 cargo_timeout: Some(Duration::from_secs(2)),

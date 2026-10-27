@@ -8,16 +8,22 @@
 import { create, type DescMessage, fromBinary, type MessageInitShape, type MessageShape, toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
+
+import { FRAME_BYTES as DESKTOP_FRAME_BYTES } from "@generated/desktop-protocol";
 import type { BackendLimits } from "../desktop/connection";
 import { isReportBuild } from "../ui-mode";
 import { normalizeRpcError } from "./errors";
 import type { NativeClientStream, NativeStream, SessionIdentity } from "./transport";
 
 /* === Constants === */
+
+const DESKTOP_STREAM_TIMEOUT_MS = 86_400_000;
+const DESKTOP_UNARY_TIMEOUT_MS = 10_000;
+
 // Keyed by connection generation: callers legitimately pass derived session
 // objects that carry the same generation, so object identity is not the key.
 const connections = new Map<string, Connection>();
-const maxFrameBytes = 4 * 1024 * 1024;
+const maxFrameBytes = DESKTOP_FRAME_BYTES;
 const text = new TextDecoder("utf-8", { fatal: true });
 
 /* === Types === */
@@ -59,7 +65,7 @@ export async function unary<I extends DescMessage, O extends DescMessage>(
   output: O,
   session: SessionIdentity,
   request: MessageInitShape<I>,
-  timeoutMs = 10_000,
+  timeoutMs = DESKTOP_UNARY_TIMEOUT_MS,
 ): Promise<MessageShape<O>> {
   const stream = await openStream(path, input, output, session, request, undefined, timeoutMs);
   let result: MessageShape<O> | undefined;
@@ -82,7 +88,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
   session: SessionIdentity,
   request: MessageInitShape<I>,
   envelope?: DescMessage,
-  timeoutMs = 86_400_000,
+  timeoutMs = DESKTOP_STREAM_TIMEOUT_MS,
 ): Promise<NativeStream<MessageShape<O>>> {
   if (isReportBuild()) throw new Error("A frozen report cannot connect to a backend.");
   current(session);
@@ -247,7 +253,7 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
   _session: SessionIdentity,
   _request: MessageInitShape<I>,
   _envelope: DescMessage,
-  _timeoutMs?: number,
+  _timeoutMs: number,
 ): Promise<NativeClientStream<I, O>> {
   throw new Error("gRPC-Web cannot carry client streams.");
 }

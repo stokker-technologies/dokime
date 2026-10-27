@@ -169,6 +169,9 @@ async fn collected_archive_material() {
     assert_eq!(listed.len(), header.entries.len());
     for entry in listed {
         let path = entry["path"].as_str().unwrap();
+        let declared = header.entries.iter().find(|entry| entry.path == path).unwrap();
+        assert_eq!(entry["note"].as_str(), declared.note.as_deref());
+        assert_eq!(entry["present"].as_bool(), Some(declared.present));
         if entry["present"] == serde_json::Value::Bool(true) {
             let mut member = zip.by_name(path).expect("a present entry is in the archive");
             let mut bytes = Vec::new();
@@ -209,6 +212,63 @@ async fn collected_archive_material() {
     // The discovered field is still reported as discovered; only its value went.
     assert_eq!(settings["discovered"]["api_token"], "<redacted>");
 
+    server.shutdown().await.unwrap();
+    drop(environment);
+}
+
+#[tokio::test]
+async fn collected_tail_preserves_selected_bytes() {
+    let (environment, server, client) = fixture().await;
+    let log = environment.root.path().join("application/logs").join("dokime.jsonl");
+    std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+    type TailCase = (&'static [u8], u64, Option<&'static [u8]>);
+    let cases: &[TailCase] = &[
+        (b"older\npart\xe2\x82\xac\nkept\xff", 8, Some(b"kept\xff")),
+        (b"prefix\xfftail", 5, Some(b"\xfftail")),
+        (b"", 8, Some(b"")),
+        (b"ignored", 0, None),
+    ];
+    for (input, maximum, expected) in cases {
+        std::fs::write(&log, input).unwrap();
+        let mut stream = client
+            .download::<contracts::backend::CollectDiagnostics>(contracts::backend::CollectDiagnostics {
+                max_log_tail_bytes: Some(*maximum),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let mut archive = Vec::new();
+        let mut selected = None;
+        while let Some(frame) = stream.message().await.unwrap() {
+            match frame.payload.unwrap() {
+                model::backend::wire::DiagnosticsBundleFramePayload::Header(header) => {
+                    selected = header.entries.into_iter().find(|entry| entry.path == "logs/dokime.jsonl");
+                }
+                model::backend::wire::DiagnosticsBundleFramePayload::Chunk(chunk) => {
+                    assert_eq!(chunk.offset, archive.len() as u64);
+                    archive.extend_from_slice(&chunk.data);
+                }
+                model::backend::wire::DiagnosticsBundleFramePayload::Complete(completion) => {
+                    assert_eq!(completion.size_bytes, archive.len() as u64);
+                    let hash = sha2::Sha256::digest(&archive).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+                    assert_eq!(completion.sha256, hash);
+                }
+            }
+        }
+        let selected = selected.unwrap();
+        assert_eq!(selected.present, expected.is_some());
+        assert_eq!(selected.size_bytes, expected.map_or(0, |bytes| bytes.len() as u64));
+        let mut archive = zip::ZipArchive::new(Cursor::new(archive)).unwrap();
+        assert_eq!(archive.by_index(0).unwrap().name().unwrap(), "manifest.json");
+        match expected {
+            Some(expected) => {
+                let mut bytes = Vec::new();
+                archive.by_name("logs/dokime.jsonl").unwrap().read_to_end(&mut bytes).unwrap();
+                assert_eq!(bytes, *expected);
+            }
+            None => assert!(archive.by_name("logs/dokime.jsonl").is_err()),
+        }
+    }
     server.shutdown().await.unwrap();
     drop(environment);
 }

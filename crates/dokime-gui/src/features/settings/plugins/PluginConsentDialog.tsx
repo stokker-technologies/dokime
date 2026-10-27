@@ -52,7 +52,7 @@ export function PluginConsentDialog({ busy, entry, error, onCancel, onInstall }:
 
         {entry ? (
           <div className="grid gap-4">
-            <dl className="grid grid-cols-[minmax(7rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 rounded-lg border p-3 text-sm">
+            <dl className="grid grid-cols-[minmax(--spacing(28),auto)_minmax(0,1fr)] gap-x-4 gap-y-2 rounded-lg border p-3 text-sm">
               <Fact label="Plugin" value={entry.metadata?.identity.name ?? entry.install_id} mono />
               <Fact label="Version" value={entry.metadata?.identity.version ?? "Unavailable"} />
               <Fact label="Description" value={entry.metadata?.identity.description || "No description declared."} />
@@ -83,7 +83,7 @@ export function PluginConsentDialog({ busy, entry, error, onCancel, onInstall }:
             ) : null}
 
             <div className="flex gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm" role="alert">
-              <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+              <ShieldAlert className="mt-1 size-4 shrink-0 text-warning" />
               <div className="grid gap-1">
                 <p className="font-medium text-foreground">
                   Installing runs these native executables with {brand.label}&apos;s privileges at every start — install only plugins you

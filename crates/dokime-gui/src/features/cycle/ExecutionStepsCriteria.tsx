@@ -43,7 +43,7 @@ export type ExecutionStepsCriteriaProps = {
 /* === Constants === */
 
 /** Ordinal, label, duration, status: the one row template of both lists. */
-const ROW_COLUMNS = "grid-cols-[1.75rem_minmax(0,1fr)_auto_var(--pill-width)]";
+const ROW_COLUMNS = "grid-cols-(--layout-step-record)";
 
 /* === Components === */
 
@@ -64,7 +64,7 @@ function RecordColumn({ empty, live, records, title }: { empty: string; live: bo
 
   return (
     <section aria-label={title} className="grid min-w-0 content-start gap-2">
-      <h3 className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 border-b pb-1.5 text-xs font-semibold text-muted-foreground uppercase">
+      <h3 className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 border-b pb-2 text-xs font-semibold text-muted-foreground uppercase">
         <span>{title}</span>
         <span className="tabular-nums">{ordered.length}</span>
       </h3>
@@ -94,7 +94,7 @@ function RecordRow({ live, ordinal, record }: { live: boolean; ordinal: string; 
     record.record_type === "criterion" && typeof record.result.details.message === "string" ? record.result.details.message : null;
 
   return (
-    <li className="col-span-4 grid min-w-0 grid-cols-subgrid items-baseline py-1 text-[0.8125rem] leading-5">
+    <li className="col-span-4 grid min-w-0 grid-cols-subgrid items-baseline py-1 text-sm leading-5">
       <span className="text-xs text-muted-foreground tabular-nums">{ordinal}</span>
       <div className="min-w-0">
         <span className="block font-medium [overflow-wrap:break-word]">{stepRecordLabel(record, false)}</span>

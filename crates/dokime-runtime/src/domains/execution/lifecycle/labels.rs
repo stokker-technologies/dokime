@@ -87,8 +87,8 @@ impl RuntimeHandle {
 
 fn admitted_label(label: &str) -> Result<String, Error> {
     let label = label.trim();
-    if label.is_empty() {
-        return Err(Error::validation("invalid_label", "label must not be empty", vec![]));
+    if label.is_empty() || label.len() > 4096 {
+        return Err(Error::validation("invalid_label", "label must contain 1 to 4096 bytes", vec![]));
     }
     Ok(label.to_owned())
 }

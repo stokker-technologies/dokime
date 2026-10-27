@@ -46,8 +46,8 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    super::super::evidence::run(args.input, dokime::domain::model::exports::EvidenceSubject::Execution, Some(args.recovery)).await
+pub(crate) async fn run(args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    super::super::evidence::run(args.input, dokime::domain::model::exports::EvidenceSubject::Execution, Some(args.recovery), settings).await
 }
 
 /* === Private Functions === */

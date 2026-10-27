@@ -15,16 +15,15 @@
 
 // Standard Library Imports
 use std::sync::Arc;
-use std::time::Duration;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response, StreamInput, StreamItem};
+use dokime::harmos::operations::{Context, Operation, Response, StreamInput};
 use tonic::Status;
 
 // Local Imports
-use super::{MAX_CONTENT_BYTES, metadata, transfer_chunk_bytes};
+use super::{metadata, transfer_chunk_bytes};
+use crate::grpc::error::detailed;
 use crate::grpc::transcode::Transcode;
-use crate::grpc::{error::detailed, value};
 use dokime::RuntimeHandle;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::execution::RecordScope;
@@ -36,8 +35,6 @@ use dokime::domains::evidence::ArtifactUploadInput;
 use dokime::runtime::ArtifactUpload;
 
 /* === Constants === */
-
-const IDLE_TRANSFER_TIMEOUT: Duration = Duration::from_secs(30);
 
 /* === Macros === */
 
@@ -73,7 +70,7 @@ impl Operation for Upload {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, _: &mut wire::UploadArtifact, input: &mut Self::Endpoints,
     ) -> Result<Response<dokime::domain::model::content::wire::ArtifactMetadata>, Status> {
-        let first = receive_upload_frame(input).await?.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
+        let first = input.recv().await.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
         let Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
             return Err(Status::invalid_argument("first artifact upload frame must be a header"));
         };
@@ -93,7 +90,7 @@ impl Operation for Upload {
             .map_err(content_failure)?;
         self.upload = Some(upload.clone());
         drop(first);
-        let chunk_bytes = transfer_chunk_bytes(self.resources.maximum);
+        let chunk_bytes = transfer_chunk_bytes(&self.resources.runtime, self.resources.maximum)?;
         if chunk_bytes == 0 {
             return Err(Status::resource_exhausted("artifact upload exceeds configured message limit"));
         }
@@ -159,26 +156,17 @@ pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime::domain::model::cont
     let cycle_id = scope
         .cycle_id
         .as_deref()
-        .map(|id| {
-            value::text(id)?;
-            TestCycleId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))
-        })
+        .map(|id| TestCycleId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid cycle UUID")))
         .transpose()?;
     let case_id = scope
         .case_id
         .as_deref()
-        .map(|id| {
-            value::text(id)?;
-            CaseId::from_wire(id.to_owned()).map_err(|_| Status::invalid_argument("invalid case ID"))
-        })
+        .map(|id| CaseId::from_wire(id.to_owned()).map_err(|_| Status::invalid_argument("invalid case ID")))
         .transpose()?;
     let execution_id = scope
         .execution_id
         .as_deref()
-        .map(|id| {
-            value::text(id)?;
-            TestExecutionId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid execution UUID"))
-        })
+        .map(|id| TestExecutionId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid execution UUID")))
         .transpose()?;
     Ok(RecordScope { test_cycle_id: cycle_id, test_case_id: case_id, test_execution_id: execution_id, ..RecordScope::default() })
 }
@@ -208,14 +196,6 @@ pub(in crate::grpc) fn content_failure(error: dokime::runtime::Error) -> Status 
 
 /* === Private Functions === */
 
-async fn receive_upload_frame(
-    input: &mut StreamInput<dokime::domain::model::content::wire::UploadArtifactFrame>,
-) -> Result<Option<StreamItem<dokime::domain::model::content::wire::UploadArtifactFrame>>, Status> {
-    tokio::time::timeout(IDLE_TRANSFER_TIMEOUT, input.recv())
-        .await
-        .map_err(|_| Status::deadline_exceeded("artifact upload idle deadline exceeded"))
-}
-
 fn upload_header(
     header: &dokime::domain::model::content::wire::UploadArtifactHeader,
 ) -> Result<(RecordScope, String, Option<String>, Option<String>), Status> {
@@ -223,12 +203,6 @@ fn upload_header(
     let filename = header.filename.trim();
     dokime::artifacts::name::validate(filename).map_err(|source| Status::invalid_argument(source.to_string()))?;
     let content_type = header.content_type.as_deref().filter(|value| !value.is_empty());
-    if content_type.as_ref().is_some_and(|value| value.len() > 255) {
-        return Err(Status::invalid_argument("artifact content type must not exceed 255 bytes"));
-    }
-    if header.size_bytes > MAX_CONTENT_BYTES {
-        return Err(Status::resource_exhausted("artifact exceeds native content limit"));
-    }
     let sha256 = header.sha256.as_deref();
     if sha256.as_ref().is_some_and(|digest| !valid_digest(digest)) {
         return Err(Status::invalid_argument("artifact sha256 must contain 64 lowercase hexadecimal characters"));
@@ -245,8 +219,11 @@ async fn receive_artifact(
     max_chunk_bytes: usize,
 ) -> Result<Option<String>, Status> {
     let mut offset = 0_u64;
-    while let Some(frame) = receive_upload_frame(input).await? {
-        match &frame.payload {
+    while let Some(frame) = input.recv().await {
+        let (frame, claims) = frame
+            .into_owned_request()
+            .map_err(|source| super::super::error::detailed_error(Status::internal("artifact upload frame ownership failed"), &source))?;
+        match frame.payload {
             Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk)) => {
                 if chunk.data.is_empty() || chunk.data.len() > max_chunk_bytes || chunk.offset != offset {
                     return Err(Status::invalid_argument("invalid artifact chunk offset or size"));
@@ -255,7 +232,7 @@ async fn receive_artifact(
                 if offset > expected_size {
                     return Err(Status::invalid_argument("artifact exceeds declared size"));
                 }
-                upload.send(&chunk.data).await.map_err(content_failure)?;
+                upload.send(chunk.data).await.map_err(content_failure)?;
             }
             Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Complete(completion)) => {
                 if completion.size_bytes != offset {
@@ -264,9 +241,9 @@ async fn receive_artifact(
                 if !valid_digest(&completion.sha256) {
                     return Err(Status::invalid_argument("artifact sha256 must contain 64 lowercase hexadecimal characters"));
                 }
-                let sha256 = completion.sha256.clone();
-                drop(frame);
-                if receive_upload_frame(input).await?.is_some() {
+                let sha256 = completion.sha256;
+                drop(claims);
+                if input.recv().await.is_some() {
                     return Err(Status::invalid_argument("no frame may follow the artifact upload completion"));
                 }
                 return Ok(Some(sha256));

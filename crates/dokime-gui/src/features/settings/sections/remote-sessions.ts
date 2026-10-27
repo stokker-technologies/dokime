@@ -25,9 +25,9 @@ import type * as rpc from "@/lib/rpc/generated/client";
 
 /* === Constants === */
 
-export const SESSION_PAGE_SIZE = 20;
-/** The table follows the host while the page is open; there is no refresh control. */
-export const SESSION_POLL_MS = 5_000;
+const GUI_REMOTE_SESSION_PAGE_ITEMS = 20;
+
+export const SESSION_PAGE_SIZE = GUI_REMOTE_SESSION_PAGE_ITEMS;
 
 /* === Types === */
 

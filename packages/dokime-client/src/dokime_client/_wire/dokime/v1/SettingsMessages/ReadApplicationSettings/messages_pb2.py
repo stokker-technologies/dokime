@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nUdokime_client/_wire/dokime/v1/SettingsMessages/ReadApplicationSettings/messages.proto\x12\x32\x64okime.v1.SettingsMessages.ReadApplicationSettings\"\x06\n\x04Row1\"\xd2\x03\n\x04Row2\x12[\n\nappearance\x18\xc7\xc5\xc7p \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row3R\nappearance\x12T\n\x06report\x18\xd4\xf1\xec\xcd\x01 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row4R\x06report\x12,\n\x10\x61pplication_root\x18\xf9\xd8\xc4| \x01(\tR\x0f\x61pplicationRoot\x12\x39\n\x14\x63onfigured_data_root\x18\x9b\xf9\xd1\xd1\x01 \x01(\tH\x00R\x12\x63onfiguredDataRoot\x88\x01\x01\x12.\n\x11\x64\x65\x66\x61ult_data_root\x18\xe9\xe0\xef\xa1\x01 \x01(\tR\x0f\x64\x65\x66\x61ultDataRoot\x12\x31\n\x13\x65\x66\x66\x65\x63tive_data_root\x18\xca\x87\x97T \x01(\tR\x11\x65\x66\x66\x65\x63tiveDataRoot\x12-\n\x10restart_required\x18\x81\xb9\xa8\xff\x01 \x01(\x08R\x0frestartRequiredB\x1c\n\x1a_harmos_presence_439647387\"\x84\x02\n\x04Row3\x12[\n\ntheme_mode\x18\xfd\xf5\xa2\xf2\x01 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row5R\tthemeMode\x12)\n\x0ctheme_family\x18\xa5\xae\xc6} \x01(\tH\x00R\x0bthemeFamily\x88\x01\x01\x12V\n\x07\x64\x65nsity\x18\xbf\xaa\xe4\x95\x01 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row6R\x07\x64\x65nsityB\x1c\n\x1a_harmos_presence_263296805\"\x91\x01\n\x04Row4\x12#\n\x0bplot_points\x18\xc3\xe2\xf7\xe3\x01 \x01(\rR\nplotPoints\x12\x64\n\x0fplot_downsample\x18\x88\x99\xb6| \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row7R\x0eplotDownsample\"\xfb\x02\n\x04Row5\x12_\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row8H\x00R\x0bUnspecified\x12U\n\x06System\x18\xc9\xb0\xc6y \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row9H\x00R\x06System\x12T\n\x05Light\x18\xdc\x98\xccV \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row10H\x00R\x05Light\x12R\n\x04\x44\x61rk\x18\xa0\x98\xdc* \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row11H\x00R\x04\x44\x61rkB\x11\n\x0f_harmos_variant\"\x8e\x03\n\x04Row6\x12`\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row12H\x00R\x0bUnspecified\x12`\n\x0b\x43omfortable\x18\xe1\xa4\x9d\x36 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row13H\x00R\x0b\x43omfortable\x12Y\n\x07\x43ompact\x18\xfc\x89\xfb\xc4\x01 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row14H\x00R\x07\x43ompact\x12T\n\x05Touch\x18\xe1\xfe\x93z \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row15H\x00R\x05TouchB\x11\n\x0f_harmos_variant\"\xcf\x03\n\x04Row7\x12`\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row16H\x00R\x0bUnspecified\x12P\n\x03Raw\x18\x87\x84\xa7\x34 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row17H\x00R\x03Raw\x12W\n\x06MinMax\x18\xa7\x96\x80\x88\x01 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row18H\x00R\x06MinMax\x12R\n\x04Lttb\x18\xa3\x83\xfbx \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row19H\x00R\x04Lttb\x12S\n\x04\x41uto\x18\x9f\xe7\xaf\x93\x01 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row20H\x00R\x04\x41utoB\x11\n\x0f_harmos_variant\"\x06\n\x04Row8\"\x06\n\x04Row9\"\x07\n\x05Row10\"\x07\n\x05Row11\"\x07\n\x05Row12\"\x07\n\x05Row13\"\x07\n\x05Row14\"\x07\n\x05Row15\"\x07\n\x05Row16\"\x07\n\x05Row17\"\x07\n\x05Row18\"\x07\n\x05Row19\"\x07\n\x05Row20\"\xb0\x01\n\x04Row0\x12R\n\x07request\x18\x01 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row1R\x07request\x12T\n\x08response\x18\x02 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nUdokime_client/_wire/dokime/v1/SettingsMessages/ReadApplicationSettings/messages.proto\x12\x32\x64okime.v1.SettingsMessages.ReadApplicationSettings\"\x06\n\x04Row1\"\x7f\n\x04Row2\x12\x1e\n\x08revision\x18\x8e\xcb\xd8\xbc\x01 \x01(\x04R\x08revision\x12W\n\x08settings\x18\xac\x95\x9a@ \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row3R\x08settings\"\xc3\x03\n\x04Row3\x12[\n\nappearance\x18\xc7\xc5\xc7p \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row4R\nappearance\x12T\n\x06report\x18\xd4\xf1\xec\xcd\x01 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row5R\x06report\x12S\n\x06\x63lient\x18\xab\xdf\xca| \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row6R\x06\x63lient\x12Y\n\ttelemetry\x18\xdf\x95\xc3\x06 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row7R\ttelemetry\x12X\n\x08listener\x18\xba\xf5\x87\x9c\x01 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row8R\x08listener\"\x85\x02\n\x04Row4\x12[\n\ntheme_mode\x18\xfd\xf5\xa2\xf2\x01 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row9R\tthemeMode\x12)\n\x0ctheme_family\x18\xa5\xae\xc6} \x01(\tH\x00R\x0bthemeFamily\x88\x01\x01\x12W\n\x07\x64\x65nsity\x18\xbf\xaa\xe4\x95\x01 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row10R\x07\x64\x65nsityB\x1c\n\x1a_harmos_presence_263296805\"\x92\x01\n\x04Row5\x12#\n\x0bplot_points\x18\xc3\xe2\xf7\xe3\x01 \x01(\rR\nplotPoints\x12\x65\n\x0fplot_downsample\x18\x88\x99\xb6| \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row11R\x0eplotDownsample\"j\n\x04Row6\x12\x30\n\x12\x63onnect_timeout_ms\x18\xbd\x92\xdf\x9d\x01 \x01(\x04R\x10\x63onnectTimeoutMs\x12\x30\n\x12request_timeout_ms\x18\xf8\x97\xae\x8d\x01 \x01(\x04R\x10requestTimeoutMs\"+\n\x04Row7\x12#\n\x0binterval_ms\x18\xda\xab\x91\xb1\x01 \x01(\x04R\nintervalMs\"\xd0\x01\n\x04Row8\x12\x1b\n\x07\x65nabled\x18\x87\xef\xce\x17 \x01(\x08R\x07\x65nabled\x12\x1b\n\x07\x61\x64\x64ress\x18\xa5\xe2\xa8\x63 \x01(\tR\x07\x61\x64\x64ress\x12\"\n\x0btls_enabled\x18\xe6\x8e\xb1\x03 \x01(\x08R\ntlsEnabled\x12\x39\n\x16\x61uthentication_enabled\x18\xc4\x88\xbe\xb4\x01 \x01(\x08R\x15\x61uthenticationEnabled\x12/\n\x11\x63\x65rtificate_names\x18\xed\xda\xae\xe2\x01 \x03(\tR\x10\x63\x65rtificateNames\"\x9b\x02\n\x04Row9\x12V\n\x06System\x18\xc9\xb0\xc6y \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row12H\x00R\x06System\x12T\n\x05Light\x18\xdc\x98\xccV \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row13H\x00R\x05Light\x12R\n\x04\x44\x61rk\x18\xa0\x98\xdc* \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row14H\x00R\x04\x44\x61rkB\x11\n\x0f_harmos_variant\"\xad\x02\n\x05Row10\x12`\n\x0b\x43omfortable\x18\xe1\xa4\x9d\x36 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row15H\x00R\x0b\x43omfortable\x12Y\n\x07\x43ompact\x18\xfc\x89\xfb\xc4\x01 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row16H\x00R\x07\x43ompact\x12T\n\x05Touch\x18\xe1\xfe\x93z \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row17H\x00R\x05TouchB\x11\n\x0f_harmos_variant\"\xd0\x03\n\x05Row11\x12`\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row18H\x00R\x0bUnspecified\x12P\n\x03Raw\x18\x87\x84\xa7\x34 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row19H\x00R\x03Raw\x12W\n\x06MinMax\x18\xa7\x96\x80\x88\x01 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row20H\x00R\x06MinMax\x12R\n\x04Lttb\x18\xa3\x83\xfbx \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row21H\x00R\x04Lttb\x12S\n\x04\x41uto\x18\x9f\xe7\xaf\x93\x01 \x01(\x0b\x32\x39.dokime.v1.SettingsMessages.ReadApplicationSettings.Row22H\x00R\x04\x41utoB\x11\n\x0f_harmos_variant\"\x07\n\x05Row12\"\x07\n\x05Row13\"\x07\n\x05Row14\"\x07\n\x05Row15\"\x07\n\x05Row16\"\x07\n\x05Row17\"\x07\n\x05Row18\"\x07\n\x05Row19\"\x07\n\x05Row20\"\x07\n\x05Row21\"\x07\n\x05Row22\"\xb0\x01\n\x04Row0\x12R\n\x07request\x18\x01 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row1R\x07request\x12T\n\x08response\x18\x02 \x01(\x0b\x32\x38.dokime.v1.SettingsMessages.ReadApplicationSettings.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -54,46 +54,50 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ROW1']._serialized_start=141
   _globals['_ROW1']._serialized_end=147
-  _globals['_ROW2']._serialized_start=150
-  _globals['_ROW2']._serialized_end=616
-  _globals['_ROW3']._serialized_start=619
-  _globals['_ROW3']._serialized_end=879
-  _globals['_ROW4']._serialized_start=882
-  _globals['_ROW4']._serialized_end=1027
-  _globals['_ROW5']._serialized_start=1030
-  _globals['_ROW5']._serialized_end=1409
-  _globals['_ROW6']._serialized_start=1412
-  _globals['_ROW6']._serialized_end=1810
-  _globals['_ROW7']._serialized_start=1813
-  _globals['_ROW7']._serialized_end=2276
-  _globals['_ROW8']._serialized_start=2278
-  _globals['_ROW8']._serialized_end=2284
-  _globals['_ROW9']._serialized_start=2286
-  _globals['_ROW9']._serialized_end=2292
-  _globals['_ROW10']._serialized_start=2294
-  _globals['_ROW10']._serialized_end=2301
-  _globals['_ROW11']._serialized_start=2303
-  _globals['_ROW11']._serialized_end=2310
-  _globals['_ROW12']._serialized_start=2312
-  _globals['_ROW12']._serialized_end=2319
-  _globals['_ROW13']._serialized_start=2321
-  _globals['_ROW13']._serialized_end=2328
-  _globals['_ROW14']._serialized_start=2330
-  _globals['_ROW14']._serialized_end=2337
-  _globals['_ROW15']._serialized_start=2339
-  _globals['_ROW15']._serialized_end=2346
-  _globals['_ROW16']._serialized_start=2348
-  _globals['_ROW16']._serialized_end=2355
-  _globals['_ROW17']._serialized_start=2357
-  _globals['_ROW17']._serialized_end=2364
-  _globals['_ROW18']._serialized_start=2366
-  _globals['_ROW18']._serialized_end=2373
-  _globals['_ROW19']._serialized_start=2375
-  _globals['_ROW19']._serialized_end=2382
-  _globals['_ROW20']._serialized_start=2384
-  _globals['_ROW20']._serialized_end=2391
-  _globals['_ROW0']._serialized_start=2394
-  _globals['_ROW0']._serialized_end=2570
+  _globals['_ROW2']._serialized_start=149
+  _globals['_ROW2']._serialized_end=276
+  _globals['_ROW3']._serialized_start=279
+  _globals['_ROW3']._serialized_end=730
+  _globals['_ROW4']._serialized_start=733
+  _globals['_ROW4']._serialized_end=994
+  _globals['_ROW5']._serialized_start=997
+  _globals['_ROW5']._serialized_end=1143
+  _globals['_ROW6']._serialized_start=1145
+  _globals['_ROW6']._serialized_end=1251
+  _globals['_ROW7']._serialized_start=1253
+  _globals['_ROW7']._serialized_end=1296
+  _globals['_ROW8']._serialized_start=1299
+  _globals['_ROW8']._serialized_end=1507
+  _globals['_ROW9']._serialized_start=1510
+  _globals['_ROW9']._serialized_end=1793
+  _globals['_ROW10']._serialized_start=1796
+  _globals['_ROW10']._serialized_end=2097
+  _globals['_ROW11']._serialized_start=2100
+  _globals['_ROW11']._serialized_end=2564
+  _globals['_ROW12']._serialized_start=2566
+  _globals['_ROW12']._serialized_end=2573
+  _globals['_ROW13']._serialized_start=2575
+  _globals['_ROW13']._serialized_end=2582
+  _globals['_ROW14']._serialized_start=2584
+  _globals['_ROW14']._serialized_end=2591
+  _globals['_ROW15']._serialized_start=2593
+  _globals['_ROW15']._serialized_end=2600
+  _globals['_ROW16']._serialized_start=2602
+  _globals['_ROW16']._serialized_end=2609
+  _globals['_ROW17']._serialized_start=2611
+  _globals['_ROW17']._serialized_end=2618
+  _globals['_ROW18']._serialized_start=2620
+  _globals['_ROW18']._serialized_end=2627
+  _globals['_ROW19']._serialized_start=2629
+  _globals['_ROW19']._serialized_end=2636
+  _globals['_ROW20']._serialized_start=2638
+  _globals['_ROW20']._serialized_end=2645
+  _globals['_ROW21']._serialized_start=2647
+  _globals['_ROW21']._serialized_end=2654
+  _globals['_ROW22']._serialized_start=2656
+  _globals['_ROW22']._serialized_end=2663
+  _globals['_ROW0']._serialized_start=2666
+  _globals['_ROW0']._serialized_end=2842
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

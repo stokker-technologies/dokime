@@ -25,6 +25,8 @@ use dokime_domain::model::telemetry::TelemetryContract;
 
 /* === Constants === */
 
+const SYSTEM_INTERVAL_MS: u64 = 1_000;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -34,7 +36,6 @@ use dokime_domain::model::telemetry::TelemetryContract;
 struct HostTelemetryCollectorImpl {
     host: Host,
     options: HostOptions,
-    config: HostTelemetryConfig,
 }
 
 /* === Enums === */
@@ -51,15 +52,16 @@ pub trait HostTelemetryCollector: Send + Sync + 'static {
 
 impl HostTelemetryCollectorImpl {
     fn new(config: HostTelemetryConfig) -> Self {
-        Self { host: Host::new(config.clone()), options: config.options.clone(), config }
+        let options = config.options.clone();
+        Self { host: Host::new(config), options }
     }
 }
 
 impl HostTelemetryCollector for HostTelemetryCollectorImpl {
     fn interval(&self, stream: &str) -> std::time::Duration {
         HostTelemetryStream::try_from(stream)
-            .map(|stream| std::time::Duration::from_millis(self.config.interval_for(stream).0.max(1)))
-            .unwrap_or(std::time::Duration::from_secs(1))
+            .map(|stream| std::time::Duration::from_millis(interval_ms(stream)))
+            .unwrap_or(std::time::Duration::from_millis(SYSTEM_INTERVAL_MS))
     }
 
     fn collect(&self, stream: &str) -> Result<Option<TelemetryBatch>, String> {
@@ -79,5 +81,14 @@ pub fn collector(config: HostTelemetryConfig) -> Arc<dyn HostTelemetryCollector>
 }
 
 /* === Private Functions === */
+
+pub(crate) fn interval_ms(stream: HostTelemetryStream) -> u64 {
+    match stream {
+        HostTelemetryStream::System | HostTelemetryStream::Network => 1_000,
+        HostTelemetryStream::Wifi | HostTelemetryStream::Bluetooth => 5_000,
+        HostTelemetryStream::WifiLatency => 10_000,
+        HostTelemetryStream::WifiChannelOccupancy => 30_000,
+    }
+}
 
 /* === Tests === */

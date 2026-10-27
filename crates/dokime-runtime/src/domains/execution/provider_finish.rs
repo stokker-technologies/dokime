@@ -29,8 +29,6 @@ use dokime_domain::model::execution::result::ExecutionStatus;
 
 /* === Constants === */
 
-const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -81,7 +79,7 @@ impl RuntimeHandle {
             loop {
                 match self.finish_saved_execution(&current, execution).await {
                     Ok(()) => break,
-                    Err(error) => match retry_after(&error) {
+                    Err(error) => match retry_after(&error, 250) {
                         Some(wait) => tokio::time::sleep(wait).await,
                         None => {
                             early_failure = Some(error);
@@ -91,11 +89,12 @@ impl RuntimeHandle {
                 }
             }
             let summary = self.state_read().run_requests[&request_id].summary.clone();
+
             loop {
                 match self.request_storage.update(&request_id, |receipt| receipt.summary = summary.clone()).await {
                     Ok(()) => break,
                     Err(error) if self.is_shutting_down() => return Err(error),
-                    Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
+                    Err(_) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
                 }
             }
         }
@@ -117,15 +116,14 @@ impl RuntimeHandle {
             .filter(|execution| {
                 selected_executions.contains(&execution.test_execution_id) && execution.saved.is_none() && execution.finished_at.is_some()
             })
-            .cloned()
             .collect::<Vec<_>>();
         let mut unsealed = Vec::new();
         let mut cause = early_failure.as_ref().map(|error| unsealed_cause("execution", error));
         while !pending.is_empty() {
-            let failures = match self.finish_saved_executions(&cycle, pending.clone()).await {
+            let failures = match self.finish_saved_executions(&cycle, &pending).await {
                 Ok(failures) => failures,
                 Err(error) if self.is_shutting_down() => return Err(error),
-                Err(error) => match retry_after(&error) {
+                Err(error) => match retry_after(&error, 250) {
                     Some(wait) => {
                         tracing::debug!(%error, %cycle_id, "final execution saves will retry");
                         tokio::time::sleep(wait).await;
@@ -134,7 +132,7 @@ impl RuntimeHandle {
                     None => {
                         tracing::debug!(%error, %cycle_id, "final execution saves failed");
                         cause.get_or_insert_with(|| unsealed_cause("execution", &error));
-                        unsealed.extend(pending.drain(..).map(|execution| execution.test_execution_id));
+                        unsealed.extend(pending.drain(..).map(|execution| execution.test_execution_id.clone()));
                         continue;
                     }
                 },
@@ -146,7 +144,7 @@ impl RuntimeHandle {
                     return Err(error);
                 }
                 tracing::debug!(%error, %cycle_id, execution_id = %id, "final execution save failed");
-                match retry_after(&error) {
+                match retry_after(&error, 250) {
                     Some(after) => {
                         wait = wait.max(Some(after));
                         retry.push(id);
@@ -174,7 +172,7 @@ impl RuntimeHandle {
             match self.execution_storage.save_cycle_header(cycle_id.clone()).await {
                 Ok(()) => break,
                 Err(error) if self.is_shutting_down() => return Err(error),
-                Err(_) => tokio::time::sleep(RETRY_INTERVAL).await,
+                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
             }
         }
         // The durable terminal receipt acknowledges both sealed executions and
@@ -185,6 +183,7 @@ impl RuntimeHandle {
             let request = &state.run_requests[&request_id];
             (request.summary.clone(), request.interruption())
         };
+
         loop {
             match self
                 .request_storage
@@ -196,7 +195,7 @@ impl RuntimeHandle {
             {
                 Ok(()) => break,
                 Err(error) if self.is_shutting_down() => return Err(error),
-                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
+                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
             }
         }
         self.continue_cycle(&request_id, &cycle_id).await;
@@ -236,7 +235,7 @@ impl RuntimeHandle {
         let execution_ids = finish.started_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
         let quiescence = self.quiesce_execution_sampling(&execution_ids).await?;
         let telemetry = prepare_finish_telemetry(&self.state_read(), &finish);
-        let admission = match self.prepare_sample_admission(&telemetry).await {
+        let admission = match self.prepare_sample_admission(telemetry).await {
             Ok(admission) => admission.within_quiescence(),
             Err(error) => {
                 self.resume_sampling(&quiescence).await;
@@ -280,8 +279,8 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-fn retry_after(error: &Error) -> Option<std::time::Duration> {
-    transient_persistence(error).then_some(RETRY_INTERVAL)
+fn retry_after(error: &Error, milliseconds: u64) -> Option<std::time::Duration> {
+    transient_persistence(error).then_some(std::time::Duration::from_millis(milliseconds))
 }
 
 fn unsealed_cause(subject: &str, error: &Error) -> String {

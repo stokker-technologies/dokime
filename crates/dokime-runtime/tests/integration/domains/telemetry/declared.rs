@@ -172,7 +172,7 @@ impl dokime_runtime::Plugin for Declaring {
     type Context = Supervisor;
     type Resources = ();
 
-    fn prepare(_: dokime_runtime::plugin::Configuration) -> Result<Self, Refusal> {
+    fn prepare(_config: dokime_runtime::plugin::Configuration) -> Result<Self, Refusal> {
         Ok(Self)
     }
 
@@ -277,7 +277,8 @@ async fn template_declarations_register() {
             scope: ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
             ..Default::default()
         })
-        .await;
+        .await
+        .unwrap();
     assert_eq!(rows.len(), 2, "both templates publish the shared stream");
     let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
     assert!(

@@ -29,8 +29,9 @@ use super::{Client, DownloadError as Error, contracts::content};
 
 /* === Constants === */
 
-const COMMIT_BYTES: u64 = 1024 * 1024;
-const BUFFER_BYTES: usize = 64 * 1024;
+const FOLLOW_BUFFER_BYTES: u64 = 65_536;
+const FOLLOW_COMMIT_BYTES: u64 = 1_048_576;
+const IDENTITY_BYTES: u64 = 4_096;
 
 /* === Macros === */
 
@@ -76,14 +77,14 @@ impl FileResume {
         &self.sha256
     }
 
-    pub fn request(&self, execution_id: String, relative_path: String) -> content::FollowExecutionFile {
-        content::FollowExecutionFile {
+    pub fn request(&self, execution_id: String, relative_path: String) -> Result<content::FollowExecutionFile, Error> {
+        Ok(content::FollowExecutionFile {
             execution_id,
             relative_path,
             identity: self.identity.clone(),
             offset: self.offset,
-            max_bytes: BUFFER_BYTES as u32,
-        }
+            max_bytes: FOLLOW_BUFFER_BYTES as u32,
+        })
     }
 }
 
@@ -106,16 +107,20 @@ impl Client {
     // before the next frame; the caller's previous external receipt remains the
     // resume authority. The initial content identity is committed before data.
     pub async fn follow_execution_file_with_commit<F, Fut, E>(
-        &self, request: content::FollowExecutionFile, resume: &mut FileResume, mut committed: F,
+        &self, mut request: content::FollowExecutionFile, resume: &mut FileResume, mut committed: F,
     ) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowTerminal, Error>
     where
         F: FnMut(FileResume) -> Fut + Send,
         Fut: Future<Output = Result<(), E>> + Send,
         E: std::error::Error + Send + Sync + 'static,
     {
+        let buffer_bytes = FOLLOW_BUFFER_BYTES as u32;
+        if request.max_bytes == 0 {
+            request.max_bytes = buffer_bytes;
+        }
         if request.offset != resume.offset
             || request.identity != resume.identity
-            || request.max_bytes > BUFFER_BYTES as u32
+            || request.max_bytes > buffer_bytes
             || resume.identity.is_none() && (resume.offset != 0 || resume.sha256 != hash(&Sha256::new()))
         {
             return Err(Error::Invalid("follow request differs from its local committed receipt"));
@@ -127,7 +132,7 @@ impl Client {
                 return Err(Error::Invalid("follow must begin with metadata"));
             };
             let identity = metadata.identity.as_ref().ok_or(Error::Invalid("follow metadata has no identity"))?;
-            validate_identity(identity, &request)?;
+            validate_identity(identity, &request, IDENTITY_BYTES)?;
             if metadata.offset != resume.offset
                 || metadata.available_length < metadata.offset
                 || metadata.kind == dokime_domain::model::content::wire::ExecutionFileKind::Unspecified
@@ -147,7 +152,7 @@ impl Client {
                 }
                 match frame.payload {
                     Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
-                        let limit = if request.max_bytes == 0 { BUFFER_BYTES } else { request.max_bytes as usize };
+                        let limit = usize::try_from(request.max_bytes).map_err(|_| Error::Invalid("follow buffer exceeds native size"))?;
                         if chunk.offset != position || chunk.data.is_empty() || chunk.data.len() > limit {
                             return Err(Error::Invalid("follow chunks are not contiguous or exceed their bound"));
                         }
@@ -155,7 +160,7 @@ impl Client {
                         output.write_all(&chunk.data).await?;
                         digest.update(&chunk.data);
                         position = next;
-                        if position - resume.offset >= COMMIT_BYTES {
+                        if position - resume.offset >= FOLLOW_COMMIT_BYTES {
                             commit(&mut output, &digest, position, resume).await?;
                             committed(resume.clone()).await.map_err(|source| Error::Receipt(Box::new(source)))?;
                         }
@@ -184,17 +189,17 @@ impl Client {
 /* === Private Functions === */
 
 fn validate_identity(
-    identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, request: &content::FollowExecutionFile,
+    identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, request: &content::FollowExecutionFile, maximum: u64,
 ) -> Result<(), Error> {
     let history = identity.history.as_ref().ok_or(Error::Invalid("follow identity has no history"))?;
     if identity.execution_id != request.execution_id
         || identity.relative_path != request.relative_path
         || identity.file_id.is_empty()
-        || identity.file_id.len() > 4096
+        || identity.file_id.len() as u64 > maximum
         || history.store.is_empty()
-        || history.store.len() > 4096
+        || history.store.len() as u64 > maximum
         || history.epoch.is_empty()
-        || history.epoch.len() > 4096
+        || history.epoch.len() as u64 > maximum
         || request.identity.as_ref().is_some_and(|expected| expected != identity)
     {
         return Err(Error::Invalid("follow returned a different original content identity"));
@@ -215,9 +220,10 @@ async fn open(resume: &FileResume) -> Result<(tokio::fs::File, Sha256), Error> {
     }
     let mut digest = Sha256::new();
     let mut remaining = resume.offset;
-    let mut buffer = vec![0; BUFFER_BYTES];
+    let maximum = FOLLOW_BUFFER_BYTES as usize;
+    let mut buffer = vec![0; remaining.min(maximum as u64) as usize];
     while remaining != 0 {
-        let count = remaining.min(BUFFER_BYTES as u64) as usize;
+        let count = remaining.min(buffer.len() as u64) as usize;
         file.read_exact(&mut buffer[..count]).await?;
         digest.update(&buffer[..count]);
         remaining -= count as u64;
@@ -271,3 +277,36 @@ fn hash(digest: &Sha256) -> String {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn configured_follow_request() {
+        let resume = FileResume::new(PathBuf::from("recording.bin"));
+        let request = resume.request("execution".into(), "output.bin".into()).unwrap();
+        assert_eq!(request.max_bytes, FOLLOW_BUFFER_BYTES as u32);
+        assert_eq!(request.offset, 0);
+    }
+
+    #[tokio::test]
+    async fn configured_prefix_reads_preserve_receipt_authority() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("recording.bin");
+        tokio::fs::write(&path, b"prefixsuffix").await.unwrap();
+
+        let mut digest = Sha256::new();
+        digest.update(b"prefix");
+        let resume = FileResume { path: path.clone(), identity: Some(Default::default()), offset: 6, sha256: hash(&digest) };
+
+        let (file, verified) = open(&resume).await.unwrap();
+        assert_eq!(hash(&verified), resume.sha256);
+        assert_eq!(file.metadata().await.unwrap().len(), resume.offset);
+        drop(file);
+
+        tokio::fs::write(&path, b"brokensuffix").await.unwrap();
+        assert!(open(&resume).await.is_err());
+        assert_eq!(tokio::fs::read(&path).await.unwrap(), b"brokensuffix");
+    }
+}

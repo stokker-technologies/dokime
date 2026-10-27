@@ -51,13 +51,14 @@ impl RuntimeHandle {
         let scope = query.scope.as_ref();
         let window = &query.window;
         let resolution = &query.resolution;
-        let payload = if let Some(mut payload) = state_payload(query, snapshot) {
+        let session = self.storage().clone();
+        let payload = if let Some(mut payload) = state_payload(query, snapshot)? {
             if let RuntimeViewPayload::Overview { frame } = &mut payload {
                 frame.artifacts = self.execution_storage.artifact_count().await?;
                 if matches!(resolution, RuntimeResolution::Raw) {
                     frame.shell = Some(self.runtime_overview().await?);
                 }
-                frame.installed_plugins = self.installed_plugins().len();
+                frame.installed_plugins = self.state_read().installed_plugins.len();
                 frame.telemetry_samples = self.telemetry_sample_count().await;
             }
             payload
@@ -82,7 +83,8 @@ impl RuntimeHandle {
                     );
                     let filter = crate::queries::records::view_filter(snapshot, scope, captured);
                     let records = self.record_source.saved_filtered_records(&self.state_manager, snapshot.revision(), filter).await?;
-                    let frame = crate::queries::records::record_frame(records.iter(), window, resolution, |record| {
+                    let records = records.iter().flat_map(|page| page.iter());
+                    let frame = crate::queries::records::record_frame(records, window, resolution, |record| {
                         captured.and_then(|captures| captures.subscribed_records().get(&record.record_id))
                     });
                     RuntimeViewPayload::Records { frame: Box::new(frame) }
@@ -96,50 +98,51 @@ impl RuntimeHandle {
                             streams: stream.clone().into_iter().map(Into::into).collect(),
                             ..crate::evidence_runtime::TelemetrySelection::default()
                         })
-                        .await;
+                        .await?;
                     let scope = query.scope.clone();
                     let window = window.clone();
                     let resolution = resolution.clone();
                     let request_cursor = query.cursor;
 
                     return tokio::task::spawn_blocking(move || {
-                        crate::queries::telemetry::telemetry_view_frame(
-                            &samples,
-                            None,
-                            scope.as_ref(),
-                            &window,
-                            &resolution,
-                            request_cursor,
-                        )
+                        crate::queries::telemetry::telemetry_view_frame(samples, None, scope.as_ref(), &window, &resolution, request_cursor)
                     })
                     .await
-                    .map_err(|error| crate::runtime::Error::Operation(format!("telemetry frame task failed: {error}")));
+                    .map_err(|error| crate::runtime::Error::Operation(format!("telemetry frame task failed: {error}")))?;
                 }
                 RuntimeViewTopic::Document { document_id } => {
                     // Documents embed telemetry, which lives on async durable streams —
                     // resolve it here so the live Document view stays byte-identical with
                     // the on-demand `resolve_cycle_document` route (same data seam).
+                    let session = self.storage().clone();
+                    let at = self.storage().cursor_saved();
                     let telemetry = self
-                        .collect_telemetry(&crate::evidence_runtime::TelemetrySelection {
-                            scope: crate::document::DocumentSelection { scope: query.scope.clone().unwrap_or_default() }.evidence_scope(),
-                            ..crate::evidence_runtime::TelemetrySelection::default()
-                        })
-                        .await;
-                    let records = self.records_at(snapshot).await?;
-                    let artifacts = self.artifacts().await?.to_vec();
+                        .collect_telemetry_at_in(
+                            &session,
+                            &crate::evidence_runtime::TelemetrySelection {
+                                scope: crate::document::DocumentSelection { scope: query.scope.clone().unwrap_or_default() }
+                                    .evidence_scope(),
+                                ..crate::evidence_runtime::TelemetrySelection::default()
+                            },
+                            None,
+                            None,
+                            &at,
+                        )
+                        .await?;
+                    let records = self.record_pages_at_in(&session, snapshot, &at).await?;
+                    let artifacts = self.artifacts_at_in(&session, &at).await?;
                     let state = snapshot.state();
-                    let cycles = state.cycle_views().map(crate::definition::TestCycleInstance::new).collect::<Vec<_>>();
                     let data = crate::documents::RuntimeDocumentData { records, telemetry, artifacts };
                     let selection = crate::document::DocumentSelection { scope: query.scope.clone().unwrap_or_default() };
 
                     RuntimeViewPayload::Document {
-                        frame: Box::new(crate::queries::documents::resolved_document_frame(
-                            &state.suites,
-                            cycles.iter(),
+                        frame: crate::queries::documents::resolved_document_frame(
+                            state,
                             document_id,
                             selection,
                             data,
-                        )),
+                            crate::document::bounded::DocumentLimits::default(),
+                        )?,
                     }
                 }
                 RuntimeViewTopic::Artifacts => {
@@ -150,12 +153,10 @@ impl RuntimeHandle {
                     }
                 }
                 RuntimeViewTopic::Traceability => {
-                    let mut snapshots = crate::evidence_runtime::state::traceability_snapshots(snapshot.state());
-                    self.enrich_host_traceability(&mut snapshots, scope).await;
-                    self.enrich_lease_traceability(&mut snapshots, scope).await;
-
+                    let at = self.storage().cursor_saved();
+                    let snapshots = self.retained_traceability_at_in(&session, snapshot.state(), scope, &at, true).await?;
                     RuntimeViewPayload::Traceability {
-                        frame: Box::new(crate::queries::projections::traceability_frame(snapshots.iter(), scope, window, resolution)),
+                        frame: crate::queries::projections::traceability_frame(snapshots, scope, window, resolution)?,
                     }
                 }
                 _ => unreachable!("state-backed topics were projected above"),
@@ -170,14 +171,18 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> Option<RuntimeViewPayload> {
+fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> crate::runtime::Result<Option<RuntimeViewPayload>> {
     let scope = query.scope.as_ref();
     let window = &query.window;
     let resolution = &query.resolution;
-    Some(match &query.topic {
-        RuntimeViewTopic::Overview => {
-            RuntimeViewPayload::Overview { frame: Box::new(crate::runtime_state::overview_entity_counts(snapshot.state(), 0)) }
-        }
+    Ok(Some(match &query.topic {
+        RuntimeViewTopic::Overview => RuntimeViewPayload::Overview {
+            frame: Box::new(crate::runtime_state::overview_entity_counts(
+                snapshot.state(),
+                0,
+                crate::traceability::count(snapshot.state())?,
+            )),
+        },
         RuntimeViewTopic::InstalledPlugins => RuntimeViewPayload::InstalledPlugins {
             frame: Box::new(crate::queries::installed_plugins::installed_plugin_frame(snapshot.state())),
         },
@@ -245,8 +250,8 @@ fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> O
         | RuntimeViewTopic::Telemetry { .. }
         | RuntimeViewTopic::Document { .. }
         | RuntimeViewTopic::Artifacts
-        | RuntimeViewTopic::Traceability => return None,
-    })
+        | RuntimeViewTopic::Traceability => return Ok(None),
+    }))
 }
 
 fn list_frame(items: impl Iterator<Item = String>) -> RuntimeListFrame {

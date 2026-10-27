@@ -15,6 +15,7 @@ import asyncio
 import hashlib
 import json
 import math
+import stat
 import os
 import re
 from collections.abc import AsyncIterator, Callable, Mapping
@@ -33,6 +34,7 @@ from ..dynamic import from_contract
 from ..operation import Operation
 from . import _contracts, _wire
 from .errors import BackendChanged, ClientClosed, ProtocolError, RpcError
+from .secrets import _validate_key
 from .models import Backend
 
 # Type Checking Imports
@@ -41,8 +43,21 @@ from .models import Backend
 
 # === Constants === #
 
-_MAX_MESSAGE_BYTES = 16 * 1024 * 1024
-_DISCOVERY_BYTES = 1024 * 1024
+CA_BYTES = 1048576
+CATALOG_BYTES = 16777216
+CATALOG_PAGE_BYTES = 4194304
+CATALOG_PAGE_ROWS = 64
+CATALOG_ROWS = 4096
+DISCOVERY_BYTES = 1048576
+KEEPALIVE_INTERVAL_MS = 10000
+KEEPALIVE_TIMEOUT_MS = 5000
+MAX_MESSAGE_BYTES = 16777216
+MAXIMUM_TIMEOUT_MS = 86400000
+PROFILE_ID_BYTES = 256
+PROJECTION_BYTES = 4194304
+PROJECTION_DEFINITIONS = 65536
+PROJECTION_WORK = 1048576
+
 
 # === Types === #
 
@@ -57,15 +72,15 @@ class Transport:
         ca_certificate: str | Path | None,
         timeout: float,
         *,
+        connect_timeout_ms: int,
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
     ) -> None:
         self._target, self._tls = _target(endpoint)
-        if token is not None and (not 32 <= len(token) <= 4096 or not all(33 <= ord(c) <= 126 for c in token)):
-            raise ValueError("bearer token must contain 32–4096 visible ASCII characters")
+        _validate_key(token)
         if expected_backend_id is not None and (
             not expected_backend_id
-            or len(expected_backend_id.encode("utf-8")) > 256
+            or len(expected_backend_id.encode("utf-8")) > PROFILE_ID_BYTES
             or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in expected_backend_id)
         ):
             raise ValueError("invalid expected backend identity")
@@ -74,15 +89,24 @@ class Transport:
             raise ValueError("CA certificate file and PEM text are mutually exclusive")
         if (ca_certificate is not None or ca_certificate_pem is not None) and not self._tls:
             raise ValueError("CA certificates require HTTPS")
-        if not math.isfinite(timeout) or timeout <= 0:
+        try:
+            valid_timeout = type(timeout) in (int, float) and math.isfinite(timeout) and 0 < timeout <= MAXIMUM_TIMEOUT_MS / 1000
+        except OverflowError:
+            valid_timeout = False
+        if not valid_timeout:
             raise ValueError("RPC timeout must be positive and finite")
         self._ca = (
-            Path(ca_certificate).read_bytes()
+            _certificate(Path(ca_certificate), CA_BYTES)
             if ca_certificate is not None
             else ca_certificate_pem.encode("utf-8")
             if ca_certificate_pem is not None
             else None
         )
+        if self._ca is not None and len(self._ca) > CA_BYTES:
+            raise ValueError("CA certificate exceeds the configured byte limit")
+        if type(connect_timeout_ms) is not int or not 0 < connect_timeout_ms <= MAXIMUM_TIMEOUT_MS:
+            raise ValueError("connection timeout must be a positive supported duration")
+        self.connect_timeout = connect_timeout_ms / 1000
         self._metadata = (("authorization", f"Bearer {token}"),) if token else ()
         self.timeout = timeout
         self._channel: grpc.aio.Channel | None = None
@@ -90,8 +114,8 @@ class Transport:
         self._calls: set[Any] = set()
         self.closed = False
         self.backend: Backend | None = None
-        self._request_limit = _MAX_MESSAGE_BYTES
-        self._response_limit = _DISCOVERY_BYTES
+        self._request_limit = MAX_MESSAGE_BYTES
+        self._response_limit = DISCOVERY_BYTES
         # Installed contracts verified against this backend's live catalog,
         # once each: the backend is fixed for the transport's lifetime.
         self._verified: dict[str, Operation] = {}
@@ -103,23 +127,24 @@ class Transport:
             if self.backend is not None:
                 return self.backend
             options = (
-                ("grpc.max_send_message_length", _MAX_MESSAGE_BYTES),
-                ("grpc.max_receive_message_length", _MAX_MESSAGE_BYTES),
-                ("grpc.keepalive_time_ms", 10000),
-                ("grpc.keepalive_timeout_ms", 5000),
+                ("grpc.max_send_message_length", MAX_MESSAGE_BYTES),
+                ("grpc.max_receive_message_length", MAX_MESSAGE_BYTES),
+                ("grpc.keepalive_time_ms", KEEPALIVE_INTERVAL_MS),
+                ("grpc.keepalive_timeout_ms", KEEPALIVE_TIMEOUT_MS),
                 ("grpc.keepalive_permit_without_calls", 1),
                 ("grpc.enable_retries", 0),
             )
             self._channel = (
                 grpc.aio.secure_channel(
                     self._target,
-                    grpc.ssl_channel_secrets(self._ca),
+                    grpc.ssl_channel_credentials(self._ca),
                     options=options,
                 )
                 if self._tls
                 else grpc.aio.insecure_channel(self._target, options=options)
             )
             try:
+                await asyncio.wait_for(self._channel.channel_ready(), timeout=self.connect_timeout)
                 identity = await self._invoke_operation(
                     _contracts.operation("Backend", "GetIdentity"),
                     _contracts.request("Backend", "GetIdentity"),
@@ -152,8 +177,8 @@ class Transport:
                     raise ProtocolError("backend availability is incomplete")
                 if not availability.limits.max_request_bytes or not availability.limits.max_response_bytes:
                     raise ProtocolError("backend message limits are invalid")
-                self._request_limit = min(availability.limits.max_request_bytes, _MAX_MESSAGE_BYTES)
-                self._response_limit = min(availability.limits.max_response_bytes, _MAX_MESSAGE_BYTES)
+                self._request_limit = min(availability.limits.max_request_bytes, MAX_MESSAGE_BYTES)
+                self._response_limit = min(availability.limits.max_response_bytes, MAX_MESSAGE_BYTES)
                 self.backend = Backend(
                     identity.backend_id,
                     identity.epoch,
@@ -254,18 +279,18 @@ class Transport:
                     discovery,
                     discovery.request(
                         after=after,
-                        rows=64,
-                        bytes=min(self._response_limit, 4 * 1024 * 1024),
+                        rows=CATALOG_PAGE_ROWS,
+                        bytes=min(self._response_limit, CATALOG_PAGE_BYTES),
                     ),
                 )
                 used += len(page.entries)
-                if used > 16 * 1024 * 1024:
+                if used > CATALOG_BYTES:
                     raise ProtocolError("operation catalog exceeds byte limit")
                 try:
                     batch = json.loads(page.entries, object_pairs_hook=_object)
                 except (ValueError, UnicodeError) as error:
                     raise ProtocolError("invalid caller operation catalog") from error
-                if not isinstance(batch, list) or len(batch) > 64 or seen_rows + len(batch) > 4096:
+                if not isinstance(batch, list) or len(batch) > CATALOG_PAGE_ROWS or seen_rows + len(batch) > CATALOG_ROWS:
                     raise ProtocolError("operation catalog exceeds row limit")
                 seen_rows += len(batch)
                 for row in batch:
@@ -286,7 +311,7 @@ class Transport:
                     if native_only:
                         continue
                     try:
-                        descriptor = from_contract(row["contract"])
+                        descriptor = from_contract(row["contract"], max_bytes=PROJECTION_BYTES, max_work=PROJECTION_WORK, max_definitions=PROJECTION_DEFINITIONS)
                     except (ValueError, TypeError, KeyError) as error:
                         raise ProtocolError("invalid operation contract") from error
                     key = descriptor.id, row["owner"]
@@ -306,7 +331,7 @@ class Transport:
                 if not page.HasField("next"):
                     return tuple(entries)
                 after = page.next
-                if not batch or not after or after in cursors or len(after.encode("utf-8")) > 4 * 1024 * 1024:
+                if not batch or not after or after in cursors or len(after.encode("utf-8")) > CATALOG_PAGE_BYTES:
                     raise ProtocolError("operation catalog does not progress")
                 cursors.add(after)
                 used += len(after.encode("utf-8"))
@@ -611,6 +636,18 @@ class _Stream:
 # === Public Functions === #
 
 # === Private Functions === #
+
+
+def _certificate(path: Path, maximum: int) -> bytes:
+    if not path.is_file():
+        raise ValueError("CA certificate must be a regular file")
+    with path.open("rb") as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError("CA certificate must be a regular file")
+        data = stream.read(maximum + 1)
+    if len(data) > maximum:
+        raise ValueError("CA certificate exceeds the configured byte limit")
+    return data
 
 
 def _stream_timeout(operation: Operation) -> float:

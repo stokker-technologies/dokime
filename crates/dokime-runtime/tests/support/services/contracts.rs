@@ -216,7 +216,6 @@ pub fn fixture_telemetry_contract() -> TelemetryContract {
         columns: vec![TelemetryColumn::new(metadata("value", "Value"), ValueType::Number, TelemetryRole::Value)],
         default_x: Some("timestamp".to_owned()),
         interval: None,
-        plot_window: None,
         allow_extra_fields: false,
         scalar: false,
         validation_mode: None,
@@ -328,7 +327,6 @@ pub fn fixture_host_contract(stream: &str, label: &str, columns: Vec<TelemetryCo
         // A host stream declares its cadence the way the real ones do, so a
         // fixture is leasable on the same terms.
         interval: Some(dokime_runtime::DurationMillis(1_000)),
-        plot_window: None,
         allow_extra_fields: true,
         scalar: false,
         validation_mode: None,
@@ -381,7 +379,6 @@ pub fn tracking_contract() -> TelemetryContract {
         ],
         default_x: Some("timestamp".to_owned()),
         interval: None,
-        plot_window: None,
         allow_extra_fields: false,
         scalar: false,
         validation_mode: None,
@@ -425,7 +422,6 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
         ],
         default_x: Some("sample_index".to_owned()),
         interval: None,
-        plot_window: None,
         allow_extra_fields: false,
         scalar: false,
         validation_mode: None,

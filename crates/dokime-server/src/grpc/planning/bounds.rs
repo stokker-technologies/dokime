@@ -52,7 +52,6 @@ pub(super) fn status(error: dokime::ApiError) -> Status {
     match error {
         ParameterLimitError::Structure => Status::resource_exhausted(error.to_string()),
         ParameterLimitError::Expansion => super::rejection("parameter_expansion_limit", error.to_string()),
-        ParameterLimitError::Payload => super::payload::limit(),
         ParameterLimitError::Invalid(message) => super::rejection("invalid_selection", message),
     }
 }

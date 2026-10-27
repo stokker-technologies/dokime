@@ -26,8 +26,7 @@ use dokime::domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
-pub(super) const MAX_ALTERNATIVES: usize = 64;
-pub(super) const MAX_SEVERITIES: usize = 4;
+const SERVER_EVIDENCE_SELECTION_ITEMS: u64 = 64;
 
 /* === Macros === */
 
@@ -51,11 +50,8 @@ impl Selection {
     pub(super) fn new(value: Option<dokime::domain::model::evidence::wire::CapturedRecordSelection>) -> Result<Self, Status> {
         let mut value = value.unwrap_or_default();
         for items in [&mut value.record_types, &mut value.sources] {
-            if items.len() > MAX_ALTERNATIVES {
-                return Err(Status::invalid_argument("selection exceeds 64 alternatives"));
-            }
-            for item in items.iter() {
-                super::super::value::text(item)?;
+            if items.len() as u64 > SERVER_EVIDENCE_SELECTION_ITEMS {
+                return Err(Status::invalid_argument("selection exceeds configured alternatives"));
             }
             items.sort();
             items.dedup();
@@ -65,11 +61,9 @@ impl Selection {
             .iter()
             .map(|kind| IdentifierPattern::new(kind).map_err(|_| Status::invalid_argument("invalid record type pattern")))
             .collect::<Result<_, _>>()?;
-        if value.severities.len() > MAX_SEVERITIES
-            || value.severities.iter().any(|severity| {
-                !matches!(*severity, common::Severity::Debug | common::Severity::Info | common::Severity::Warn | common::Severity::Error)
-            })
-        {
+        if value.severities.iter().any(|severity| {
+            !matches!(*severity, common::Severity::Debug | common::Severity::Info | common::Severity::Warn | common::Severity::Error)
+        }) {
             return Err(Status::invalid_argument("expected Debug, Info, Warn or Error severity"));
         }
         value.severities.sort_by_key(|severity| match severity {

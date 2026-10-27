@@ -101,6 +101,7 @@ macro_rules! host_rows {
                 const PUBLISHED: bool = false;
 
                 fn contract() -> TelemetryContract {
+                    // Static Authoring Has No Runtime Instance; Boot Applies Effective Cadence.
                     host_telemetry_contract(HostTelemetryStream::$stream).typed::<Self>()
                 }
             }
@@ -169,7 +170,9 @@ mod tests {
                 if let Some(list) = &list {
                     values.insert(field.to_owned(), list.clone());
                 }
-                let bytes = dokime_domain::model::telemetry::host_telemetry_payload(stream, &values).expect("encode host row");
+                let bytes = dokime_domain::model::telemetry::host::prepare_host_telemetry_payload(stream, &values)
+                    .expect("prepare host row")
+                    .into_bytes();
                 validator.validate(&bytes).expect("payload matches storage schema");
                 let row = T::decode(&bytes).expect("decode typed host row");
                 assert_eq!(row.encode_to_vec(), bytes);

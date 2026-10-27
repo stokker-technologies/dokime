@@ -20,7 +20,7 @@ use std::num::NonZeroUsize;
 use futures_util::{StreamExt, stream};
 use harmos::MemorySize;
 use harmos::domain::Portable;
-use harmos::grpc::{Codec, DecodeSettings, EncodeSettings, InputEnvelope, OutputEnvelope, Transcoded, Wire};
+use harmos::grpc::{Codec, DecodeSettings, Encode, EncodeSettings, InputEnvelope, OutputEnvelope, PreparedFrame, Transcoded, Wire};
 use harmos::operations::{Direction, OperationDeclaration, Response, StreamItem};
 use tonic::{
     metadata::{Ascii, MetadataValue},
@@ -31,6 +31,9 @@ use tonic::{
 use super::{Client, Error, ResponseStream, Result, request, stream::Input};
 
 /* === Constants === */
+
+const DECODE_RETAINED_BYTES: u64 = 67_108_864;
+const ENCODE_BUFFER_BYTES: u64 = 8_192;
 
 /* === Macros === */
 
@@ -53,7 +56,8 @@ impl Client {
         <O::Output as Direction>::Item: Portable + MemorySize,
     {
         self.require(path)?;
-        let codec = codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, O>(self.response_limit(), self.request_limit())?;
+        let codec =
+            codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, Response<O>>(self.response_limit(), self.request_limit())?;
         let mut client = tonic::client::Grpc::new(self.channel()?)
             .max_decoding_message_size(self.response_limit())
             .max_encoding_message_size(self.request_limit());
@@ -101,11 +105,32 @@ impl Client {
         S: tokio_stream::Stream<Item = <O::Input as Direction>::Item> + Send + 'static,
     {
         self.require(path)?;
-        let codec = codec::<O::Response, InputEnvelope<O, <O::Input as Direction>::Item>>(self.response_limit(), self.request_limit())?;
-        let cancellation = self.inner.cancellation.child_token();
-        let _cancel = cancellation.clone().drop_guard();
         let opening = stream::once(async move { Response::new(InputEnvelope::Request(message)) });
         let frames = opening.chain(items.map(|item| Response::new(InputEnvelope::Item(item))));
+        self.upload_frames::<O, _, _>(path, frames).await
+    }
+
+    pub(super) async fn upload_prepared<O, S>(&self, path: &'static str, message: O, items: S) -> Result<O::Response>
+    where
+        O: OperationDeclaration,
+        S: tokio_stream::Stream<Item = PreparedFrame> + Send + 'static,
+    {
+        self.require(path)?;
+        let opening = harmos::grpc::prepare_input_request::<O>(&message, self.request_limit()).map_err(Error::Rpc)?;
+        drop(message);
+        let frames = stream::once(async move { opening }).chain(items);
+        self.upload_frames::<O, _, _>(path, frames).await
+    }
+
+    async fn upload_frames<O, E, S>(&self, path: &'static str, frames: S) -> Result<O::Response>
+    where
+        O: OperationDeclaration,
+        E: Encode<Transcoded> + Sync,
+        S: tokio_stream::Stream<Item = E> + Send + 'static,
+    {
+        let codec = codec::<O::Response, E>(self.response_limit(), self.request_limit())?;
+        let cancellation = self.inner.cancellation.child_token();
+        let _cancel = cancellation.clone().drop_guard();
         let frames = Input::new(frames, cancellation);
         let mut client = tonic::client::Grpc::new(self.channel()?)
             .max_decoding_message_size(self.response_limit())
@@ -130,19 +155,25 @@ pub(super) fn value<T>(reply: StreamItem<T>) -> Result<T> {
     reply.into_request().map(|(value, _claims)| value).map_err(|error| Error::Rpc(tonic::Status::data_loss(error.to_string())))
 }
 
-pub(super) fn codec<D, E>(response_bytes: usize, request_bytes: usize) -> Result<Codec<Transcoded, D, Response<E>>>
+pub(super) fn codec<D, E>(response_bytes: usize, request_bytes: usize) -> Result<Codec<Transcoded, D, E>>
 where
-    Transcoded: Wire<D> + Wire<E>,
+    Transcoded: Wire<D>,
     D: MemorySize + Send + 'static,
-    E: Send + Sync + 'static,
+    E: Encode<Transcoded> + Sync,
 {
     let response_bytes = NonZeroUsize::new(response_bytes).ok_or(Error::IncompatibleApi)?;
     let request_bytes = NonZeroUsize::new(request_bytes).ok_or(Error::IncompatibleApi)?;
-    // Transcoding Decodes Through The Canonical Postcard Form, So A Message Retains Up To Four Times Its Wire Size.
-    let retained_bytes = NonZeroUsize::new(response_bytes.get().saturating_mul(4).min(u32::MAX as usize)).unwrap();
+    let retained_bytes =
+        NonZeroUsize::new(usize::try_from(DECODE_RETAINED_BYTES).map_err(|_| Error::IncompatibleApi)?).ok_or(Error::IncompatibleApi)?;
     Codec::new(
         DecodeSettings { message_bytes: response_bytes, retained_bytes },
-        EncodeSettings { message_bytes: request_bytes, buffer_bytes: NonZeroUsize::new(request_bytes.get().min(8192)).unwrap() },
+        EncodeSettings {
+            message_bytes: request_bytes,
+            buffer_bytes: NonZeroUsize::new(
+                request_bytes.get().min(usize::try_from(ENCODE_BUFFER_BYTES).map_err(|_| Error::IncompatibleApi)?),
+            )
+            .ok_or(Error::IncompatibleApi)?,
+        },
     )
     .map_err(Error::Rpc)
 }
@@ -155,7 +186,7 @@ where
     R: Portable + MemorySize + 'static,
     Q: Portable + Send + Sync + 'static,
 {
-    let codec = codec::<R, Q>(response_bytes, request_bytes)?;
+    let codec = codec::<R, Response<Q>>(response_bytes, request_bytes)?;
     let mut client = tonic::client::Grpc::new(channel).max_decoding_message_size(response_bytes).max_encoding_message_size(request_bytes);
     client.ready().await.map_err(|_| Error::Rpc(tonic::Status::unavailable("channel is not ready")))?;
     client

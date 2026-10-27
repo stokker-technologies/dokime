@@ -10,7 +10,7 @@
 /* The execution page: one execution's run and evidence as one column of
  * sections in a fixed order.
  *
- * The shared `NodeHeader` leads — breadcrumb back to the cycle, "Execution 1 ·
+ * The shared `NodeSummary` leads — breadcrumb back to the cycle, "Execution 1 ·
  * <case>" with its rename pencil inline, the status pill and step progress —
  * as it leads the cycle viewer. Below it, every section is the same
  * `ExecutionSectionCard`: Control (state line and lifecycle actions), Prompt
@@ -61,7 +61,7 @@ import { ExecutionParameters } from "./ExecutionParameters";
 import { ExecutionSectionCard } from "./ExecutionSectionCard";
 import { ExecutionStepsCriteria } from "./ExecutionStepsCriteria";
 import { executionDocumentSections, executionParameterRows, executionSectionOf } from "./execution-sections-model";
-import { NodeHeader } from "./NodeHeader";
+import { NodeSummary } from "./NodeSummary";
 import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
 import { PromptHistory } from "./PromptHistory";
 import { RecordsSection } from "./RecordsSection";
@@ -77,7 +77,6 @@ export type ExecutionSectionsViewProps = {
   label: string;
   onRename: ((label: string) => Promise<unknown>) | null;
   /** Returns to the cycle viewer from the breadcrumb. */
-  onSelectCycle?: () => void;
   /** The page bar's breadcrumb, `Cycle › Execution 2`. */
   trail: string[];
   /** The page bar's action cluster; none in a file. */
@@ -109,7 +108,6 @@ export function ExecutionSectionsView({
   titlePrefix,
   label,
   onRename,
-  onSelectCycle,
   trail,
   pageActions,
   started,
@@ -141,9 +139,8 @@ export function ExecutionSectionsView({
     : "";
   return (
     <div className="grid min-h-0">
-      <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={trail}>
-        <NodeHeader
-          breadcrumb={[{ label: plan?.test_cycle.title ?? "Cycle", onSelect: onSelectCycle }, { label: `Execution ${row.ordinal}` }]}
+      <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={[...trail.slice(0, -1), `${titlePrefix ?? ""}${label}`]}>
+        <NodeSummary
           description={template?.description ? <MarkdownText text={template.description} /> : null}
           live={live}
           onRename={onRename}

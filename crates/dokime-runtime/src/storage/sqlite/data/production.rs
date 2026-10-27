@@ -23,7 +23,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::{MemorySize, storage::*};
+use harmos::storage::*;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{
     Digest, Sha256,
@@ -45,7 +45,6 @@ CREATE TABLE IF NOT EXISTS storage_deleted_files (
     id TEXT PRIMARY KEY
 ) WITHOUT ROWID;
 ";
-const METADATA_BYTES: usize = 16 * 1024;
 const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
@@ -62,15 +61,20 @@ const CHUNK_BYTES: usize = 64 * 1024;
 
 impl State {
     pub(super) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
-        self.call(move |connection| Ok(files::create_file(connection, &root, metadata, true))).await?
+        self.call(move |connection| {
+            let result = files::create_file(connection, &root, metadata, true);
+            Ok(result)
+        })
+        .await?
     }
 
     pub(super) async fn production_fence(&self, file: StagedFile, expected: u64, next: u64) -> Result<(), Error> {
         if expected == 0 || expected.checked_add(1) != Some(next) {
             return Err(Error::Data("invalid producer generation transition"));
         }
+
         self.call(move |connection| {
-            Ok((|| {
+            let result = (|| {
                 let (generation, phase, _) = checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
                 if phase != FilePhase::Producing || !matches!(generation, value if value == expected || value == next) {
                     return Err(Error::Conflict("producer generation is fenced or terminal"));
@@ -78,52 +82,23 @@ impl State {
                 connection
                     .execute("UPDATE storage_productions SET generation=?1 WHERE id=?2", params![position(next), file.id.as_str()])?;
                 Ok(())
-            })())
+            })();
+            Ok(result)
         })
         .await?
     }
 
-    pub(super) async fn production_save(&self, root: PathBuf, requested: FileCheckpoint) -> Result<(), Error> {
-        requested.sha256()?;
-        let encoded = entry::encode(&requested, METADATA_BYTES)?;
+    pub(super) async fn production_save(&self, root: PathBuf, requested: StorageBatch<FileCheckpoint>) -> Result<(), Error> {
         self.call(move |connection| {
             Ok((|| {
-                let file = StagedFile { history: requested.session.history.clone(), id: requested.session.id.clone() };
-                // A Snapshot Captured While Producing Can Persist After A Longer
-                // Save, Completion, Abandonment Or Deletion. Durable State Already
-                // Covers That Prefix, So The Late Checkpoint Is A No-Op.
-                saved(connection)?.history.check(&file.history)?;
-                if deleted(connection, file.id.as_str())? {
-                    return Ok(());
+                for checkpoint in requested.as_slice() {
+                    entry::check_size(checkpoint, usize::MAX)?;
                 }
-                let (generation, phase, prior) = stored_checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
-                if requested.metadata != prior.metadata || requested.session.generation != generation {
-                    return Err(Error::Conflict("checkpoint identity differs or is fenced"));
+                let transaction = connection.transaction()?;
+                for requested in requested.as_slice() {
+                    save_checkpoint(&transaction, &root, requested)?;
                 }
-                match phase {
-                    FilePhase::Producing if requested.length < prior.length => return Ok(()),
-                    FilePhase::Producing => {}
-                    FilePhase::Finished => {
-                        let finished = files::stored_metadata(connection, &file.id)?
-                            .and_then(|(_, reference)| reference)
-                            .ok_or(Error::Corrupt("finished production has no reference"))?;
-                        if requested.length > finished.length {
-                            return Err(Error::Conflict("checkpoint exceeds finished production"));
-                        }
-                        return Ok(());
-                    }
-                    FilePhase::Abandoned => return Ok(()),
-                }
-                if requested.length == prior.length && requested.hash_state != prior.hash_state {
-                    return Err(Error::Conflict("checkpoint retry differs"));
-                }
-                let path = files::staging_path(connection, &root, &file.id)?;
-                files::regular(&path)?;
-                let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
-                verify_prefix(&mut physical, &requested, Some(&prior))?;
-                physical.sync_all()?;
-                files::confirm_durability(&path)?;
-                connection.execute("UPDATE storage_productions SET checkpoint=?1 WHERE id=?2", params![encoded, file.id.as_str()])?;
+                super::super::commit(transaction)?;
                 Ok(())
             })())
         })
@@ -132,23 +107,26 @@ impl State {
 
     pub(super) async fn production_recover(&self, root: PathBuf, limits: ReadLimits) -> Result<Vec<FileCheckpoint>, Error> {
         self.call(move |connection| {
-            Ok((|| {
+            let result = (|| {
                 let count: i64 = connection.query_row("SELECT count(*) FROM storage_productions WHERE phase=0", [], |row| row.get(0))?;
                 if count < 0 || count as u64 > limits.rows.get() as u64 {
                     return Err(Error::Data("production recovery exceeds count bound"));
                 }
                 let mut statement = connection.prepare("SELECT id FROM storage_productions WHERE phase=0 ORDER BY id")?;
                 let mut rows = statement.query([])?;
-                let mut checkpoints = Vec::with_capacity(count as usize);
+                let count = usize::try_from(count).map_err(|_| entry::read_exhausted())?;
+                let mut checkpoints = Vec::new();
+                checkpoints.try_reserve_exact(count).map_err(std::io::Error::other)?;
                 let mut bytes = 0usize;
                 while let Some(row) = rows.next()? {
-                    let id =
-                        harmos::Identifier::new(row.get::<_, String>(0)?).map_err(|_| Error::Corrupt("invalid production identifier"))?;
+                    let id = harmos::Identifier::new(entry::key(super::text(row, 0)?)?)
+                        .map_err(|_| Error::Corrupt("invalid production identifier"))?;
                     let file = StagedFile { id, history: saved(connection)?.history };
                     let (generation, _, mut value) =
                         checkpoint(connection, &file)?.ok_or(Error::Corrupt("missing production checkpoint"))?;
+                    let encoded = entry::check_size(&value, usize::MAX)?;
                     bytes = bytes
-                        .checked_add(value.memory_size())
+                        .checked_add(encoded)
                         .filter(|bytes| *bytes <= limits.bytes.get())
                         .ok_or(Error::Data("production recovery exceeds byte bound"))?;
                     value.session.generation = generation;
@@ -167,21 +145,27 @@ impl State {
                     physical.sync_all()?;
                 }
                 Ok(checkpoints)
-            })())
+            })();
+            Ok(result)
         })
         .await?
     }
 
     pub(super) async fn production_progress(&self, root: PathBuf, file: StagedFile) -> Result<FileProgress, Error> {
-        self.call(move |connection| Ok(progress(connection, &root, &file))).await?
+        self.call(move |connection| {
+            let result = progress(connection, &root, &file);
+            Ok(result)
+        })
+        .await?
     }
 
     pub(super) async fn production_read(
         &self, root: PathBuf, file: StagedFile, offset: u64, maximum: NonZeroUsize,
     ) -> Result<Vec<u8>, Error> {
-        let maximum = maximum.get().min(CHUNK_BYTES);
+        let maximum = maximum.get();
+
         self.call(move |connection| {
-            Ok((|| {
+            let result = (|| {
                 let progress = progress(connection, &root, &file)?;
                 if offset >= progress.length {
                     return Err(Error::Data("production read is outside its prefix"));
@@ -193,17 +177,21 @@ impl State {
                 files::regular(&path)?;
                 let mut physical = OpenOptions::new().read(true).open(path)?;
                 physical.seek(SeekFrom::Start(offset))?;
-                let mut bytes = vec![0; (progress.length - offset).min(maximum as u64) as usize];
+                let length = (progress.length - offset).min(maximum as u64) as usize;
+                let mut bytes = Vec::new();
+                bytes.try_reserve_exact(length).map_err(std::io::Error::other)?;
+                bytes.resize(length, 0);
                 physical.read_exact(&mut bytes)?;
                 Ok(bytes)
-            })())
+            })();
+            Ok(result)
         })
         .await?
     }
 
     pub(super) async fn production_abandon(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
         self.call(move |connection| {
-            Ok((|| {
+            let result = (|| {
                 let current = progress(connection, &root, &file)?;
                 if current.phase != FilePhase::Producing {
                     return Ok(());
@@ -212,21 +200,80 @@ impl State {
                 files::confirm_durability(&path)?;
                 connection.execute("UPDATE storage_productions SET phase=2 WHERE id=?1", [file.id.as_str()])?;
                 Ok(())
-            })())
+            })();
+            Ok(result)
         })
         .await?
     }
+}
 
+fn save_checkpoint(connection: &Connection, root: &Path, requested: &FileCheckpoint) -> Result<(), Error> {
+    requested.sha256()?;
+    let file = StagedFile { history: requested.session.history.clone(), id: requested.session.id.clone() };
+    // A Snapshot Captured While Producing Can Persist After A Longer
+    // Save, Completion, Abandonment Or Deletion. Durable State Already
+    // Covers That Prefix, So The Late Checkpoint Is A No-Op.
+    saved(connection)?.history.check(&file.history)?;
+    if deleted(connection, file.id.as_str())? {
+        return Ok(());
+    }
+    let (generation, phase, prior) = stored_checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
+    if requested.metadata != prior.metadata || requested.session.generation != generation {
+        return Err(Error::Conflict("checkpoint identity differs or is fenced"));
+    }
+    match phase {
+        FilePhase::Producing if requested.length < prior.length => return Ok(()),
+        FilePhase::Producing => {}
+        FilePhase::Finished => {
+            let finished = files::stored_metadata(connection, &file.id)?
+                .and_then(|(_, reference)| reference)
+                .ok_or(Error::Corrupt("finished production has no reference"))?;
+            if requested.length > finished.length {
+                return Err(Error::Conflict("checkpoint exceeds finished production"));
+            }
+            return Ok(());
+        }
+        FilePhase::Abandoned => return Ok(()),
+    }
+    if requested.length == prior.length && requested.hash_state != prior.hash_state {
+        return Err(Error::Conflict("checkpoint retry differs"));
+    }
+    let path = files::staging_path(connection, root, &file.id)?;
+    files::regular(&path)?;
+    let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
+    verify_prefix(&mut physical, requested, Some(&prior))?;
+    // The Identical Prefix Is Already Durable. Preserve Corruption Checks Without
+    // Reflushing Every Other Active File On Each Checkpoint Batch.
+    if requested == &prior {
+        return Ok(());
+    }
+    let encoded = entry::encode(requested)?;
+    physical.sync_all()?;
+    files::confirm_durability(&path)?;
+    connection.execute("UPDATE storage_productions SET checkpoint=?1 WHERE id=?2", params![encoded, file.id.as_str()])?;
+    Ok(())
+}
+
+impl State {
     pub(super) async fn production_delete(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
-        self.call(move |connection| Ok((|| {
+        self.call(move |connection| {
+            let result = (|| {
             saved(connection)?.history.check(&file.history)?;
             let active: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_productions p JOIN storage_file_stages s ON p.id=s.id WHERE p.id=?1 AND p.phase=0 AND s.finished IS NULL)",[file.id.as_str()],|row|row.get(0))?;
             if active { return Err(Error::Conflict("active production cannot be deleted")); }
-            let reference: Option<Vec<u8>> = connection.query_row("SELECT coalesce(finished,finish_intent) FROM storage_file_stages WHERE id=?1",[file.id.as_str()],|row| row.get(0)).optional()?.flatten();
-            let reference = reference.map(|body| {
-                if body.len()>METADATA_BYTES { return Err(Error::Corrupt("deleted reference exceeds bound")); }
-                serde_json::from_slice::<FileReference>(&body).map_err(Error::from)
-            }).transpose()?;
+            let mut statement = connection.prepare("SELECT coalesce(finished,finish_intent) FROM storage_file_stages WHERE id=?1")?;
+            let mut rows = statement.query([file.id.as_str()])?;
+            let reference = if let Some(row) = rows.next()? {
+                if row.get_ref(0)?.data_type() == rusqlite::types::Type::Null {
+                    None
+                } else {
+                    Some(serde_json::from_slice::<FileReference>(super::blob(row, 0)?)?)
+                }
+            } else {
+                None
+            };
+            drop(rows);
+            drop(statement);
             let transaction = connection.transaction()?;
             let added = transaction.execute("INSERT OR IGNORE INTO storage_deleted_files VALUES (?1)",[file.id.as_str()])?;
             if added!=0 {
@@ -255,7 +302,9 @@ impl State {
             }
             connection.execute("DELETE FROM storage_staging WHERE owner='local' AND id=?1",[file.id.as_str()])?;
             Ok(())
-        })())).await?
+            })();
+            Ok(result)
+        }).await?
     }
 }
 
@@ -293,9 +342,6 @@ pub(super) fn stored_checkpoint(connection: &Connection, file: &StagedFile) -> R
     let generation = sequence(row.get_ref(0)?.as_str().map_err(|_| Error::Corrupt("invalid producer generation"))?)?;
     let phase: u8 = row.get(1)?;
     let body = super::blob(row, 2)?;
-    if body.len() > METADATA_BYTES {
-        return Err(Error::Corrupt("checkpoint exceeds byte bound"));
-    }
     let value: FileCheckpoint = serde_json::from_slice(body)?;
     value.sha256()?;
     value.session.history.check(&file.history)?;

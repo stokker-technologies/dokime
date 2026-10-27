@@ -49,7 +49,7 @@ async fn remote_security_persistence() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let security = handle.application_settings().application_root.join("remote/access.json");
+    let security = root.path().join("application/remote/access.json");
     let server = Server::start(handle, Config::local()).await.unwrap();
     let client = connect(&server).await;
     let initial = client.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
@@ -297,13 +297,13 @@ async fn remote_cycle_seal() {
 
     let cycle_id = cycle.to_string();
     let command = ["dokime", "cycle", "seal", &cycle_id, "--endpoint", &endpoint, "--json"];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     assert_eq!(handle.watch_state().latest().state().cycles[&cycle], sealed);
 
     // Historical Repeats Remain Safe After The Live Header Retires.
     handle.create_cycle(definition, Default::default()).await.unwrap();
     assert!(!handle.watch_state().latest().state().cycles.contains_key(&cycle));
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -326,7 +326,7 @@ async fn operation_response_files() {
 
     let command =
         ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &request, "--output", output];
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let snapshot = handle.watch_state().latest();
     assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "First Call");
     let saved = std::fs::read(&destination).unwrap();
@@ -338,14 +338,14 @@ async fn operation_response_files() {
     let next = serde_json::json!({"cycleId": cycle.to_string(), "label": "Second Call"}).to_string();
     let command =
         ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &next, "--output", output];
-    let error = dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap_err();
+    let error = dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap_err();
     assert!(matches!(error, dokime_cli::Error::Input(_)));
     let snapshot = handle.watch_state().latest();
     assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "First Call", "output conflict must prevent the mutation");
     assert_eq!(std::fs::read(&destination).unwrap(), saved);
 
     let command = command.into_iter().chain(["--overwrite"]);
-    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let snapshot = handle.watch_state().latest();
     assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "Second Call");
     let replacement = std::fs::read(&destination).unwrap();
@@ -364,7 +364,7 @@ async fn operation_response_files() {
         output,
         "--overwrite",
     ];
-    assert!(dokime_cli::Cli::try_parse_from(command).unwrap().run().await.is_err());
+    assert!(dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.is_err());
     assert_eq!(std::fs::read(&destination).unwrap(), replacement, "failed streamed response must preserve the prior complete file");
 
     server.shutdown().await.unwrap();

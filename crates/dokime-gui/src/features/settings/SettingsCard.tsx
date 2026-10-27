@@ -19,28 +19,28 @@ import { cn } from "@/lib/utils";
 
 type SettingsCardProps = {
   children: ReactNode;
+  actions?: ReactNode;
   className?: string;
   description?: ReactNode;
   footer?: ReactNode;
-  /** "full" spans both columns of the settings grid, for tables and wide lists. */
-  span?: "full";
   title?: ReactNode;
 };
 
 /* === Components === */
 
 /** A grouped settings card: an optional header, a divided body of rows, and an optional footer. */
-export function SettingsCard({ children, className, description, footer, span, title }: SettingsCardProps) {
+export function SettingsCard({ actions, children, className, description, footer, title }: SettingsCardProps) {
   return (
     /* A column, so a card stretched to its grid row grows its body and keeps
        the footer on the row's bottom edge. */
-    <section
-      className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card", span === "full" && "wide:col-span-2", className)}
-    >
+    <section className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card", className)}>
       {title || description ? (
-        <header className="border-b px-4 py-3">
-          {title ? <h2 className="text-sm font-semibold">{title}</h2> : null}
-          {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
+        <header className="flex items-center justify-between gap-4 border-b px-4 py-3">
+          <div>
+            {title ? <h2 className="text-sm font-semibold">{title}</h2> : null}
+            {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+          </div>
+          {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
         </header>
       ) : null}
       <div className="flex-1 divide-y">{children}</div>

@@ -9,11 +9,14 @@ type AppearanceAssetMetadata = NonNullable<AppearanceSnapshot["logos"][number]["
 
 import type { SessionIdentity } from "./transport.js";
 
+const GUI_APPEARANCE_ASSET_BYTES = 8_388_608;
+const GUI_APPEARANCE_CHUNK_BYTES = 65_536;
+
 /* === Canonical Types === */
 
 type AppearanceSnapshot = Wire<Awaited<ReturnType<typeof rpc.appearanceGetAppearance>>>;
 
-const maxAssetBytes = 8n * 1024n * 1024n;
+const maxAssetBytes = BigInt(GUI_APPEARANCE_ASSET_BYTES);
 
 export interface AppearanceResource {
   appearance: AppearanceSnapshot;
@@ -121,7 +124,7 @@ async function downloadLogo(session: SessionIdentity, expected: AppearanceAssetM
             !header ||
             chunk.offset !== BigInt(offset) ||
             chunk.data.length === 0 ||
-            chunk.data.length > 65536 ||
+            chunk.data.length > GUI_APPEARANCE_CHUNK_BYTES ||
             offset + chunk.data.length > bytes.length
           )
             invalid();

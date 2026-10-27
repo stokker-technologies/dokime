@@ -16,6 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+
 use harmos::storage::{RecordRead, StoredRecord, query::RecordSelection};
 
 // Local Imports
@@ -68,7 +69,7 @@ impl RecordReader {
             return Err(invalid("record evidence exceeds the original saved view"));
         }
         let rows = view
-            .storage()
+            .session()
             .read_records::<RecordRow>(RecordRead {
                 at: through.clone(),
                 selection: RecordSelection { schema: records::schema(), scope: None, item: None, source_start: None, source_end: None },
@@ -78,19 +79,29 @@ impl RecordReader {
         Ok(Self { rows, view: view.clone(), context })
     }
 
-    pub async fn next(&mut self) -> Result<Option<Vec<ContextRecord>>> {
-        Ok(self.next_positioned().await?.map(|rows| rows.into_iter().map(|row| row.captured).collect()))
+    pub async fn next(&mut self) -> Result<Option<harmos::storage::ReadBatch<Vec<ContextRecord>>>> {
+        let Some(rows) = self.next_positioned().await? else {
+            return Ok(None);
+        };
+        let selected = rows.try_map(|rows| -> Result<_> {
+            let mut selected = Vec::new();
+            selected.try_reserve_exact(rows.len()).map_err(|_| invalid("record projection allocation failed"))?;
+            selected.extend(rows.into_iter().map(|row| row.captured));
+            Ok(selected)
+        })?;
+        Ok(Some(selected))
     }
 
-    pub(super) async fn next_positioned(&mut self) -> Result<Option<Vec<PositionedRecord>>> {
-        let mut selected = Vec::new();
-        while selected.is_empty() {
+    pub(super) async fn next_positioned(&mut self) -> Result<Option<harmos::storage::ReadBatch<Vec<PositionedRecord>>>> {
+        loop {
             let Some(rows) = self.rows.next().await? else {
                 return Ok(None);
             };
-            selected = self.select(rows)?;
+            let selected = rows.try_map(|rows| self.select(rows))?;
+            if !selected.is_empty() {
+                return Ok(Some(selected));
+            }
         }
-        Ok(Some(selected))
     }
 
     // One Page's Rows Owned By The Execution, Or Its Shared Context When Requested.

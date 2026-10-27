@@ -59,6 +59,7 @@ export type ConnectionSnapshot = {
 };
 
 export type ConnectionError =
+  | { kind: "registry"; message: string }
   | { kind: "invalid_target"; message: string }
   | { kind: "secrets_unavailable" }
   | { kind: "authentication_required" }
@@ -78,16 +79,3 @@ export type ConnectionError =
   | { kind: "superseded" }
   | { kind: "not_connected" }
   | { kind: "generation_exhausted" };
-
-/** Secret-Free Shared Profile Document. */
-export type BackendProfiles = {
-  version: 1;
-  default: string | null;
-  profiles: {
-    name: string;
-    endpoint: string;
-    expected_backend_id: string | null;
-    ca_certificate_pem: string | null;
-    secret: "none" | "keyring";
-  }[];
-};

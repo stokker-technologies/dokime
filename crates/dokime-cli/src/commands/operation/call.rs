@@ -22,12 +22,12 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use dokime::client::{
-    dynamic::{Event, MAX_INPUT_FRAMES},
-    operations::MAX_INPUT_BYTES,
-};
+use dokime::client::dynamic::Event;
 
 /* === Constants === */
+
+const INPUT_BYTES: u64 = 16_777_216;
+const INPUT_FRAMES: u64 = 4_096;
 
 /* === Macros === */
 
@@ -58,7 +58,7 @@ pub(crate) struct Args {
     #[arg(long, requires = "output", help = "Replace An Existing Regular Response File After Successful Completion.")]
     overwrite: bool,
 
-    #[arg(long, help = "Read Input Stream Items As One JSON Value Per Line; Bounded To 16 MiB In Total.")]
+    #[arg(long, help = "Read Input Stream Items As One JSON Value Per Line Within The Configured Input Limits.")]
     input_stream_file: Option<PathBuf>,
 }
 
@@ -70,9 +70,11 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let input = read_request(args.input.as_deref(), args.json.as_deref())?;
-    let items = read_items(args.input_stream_file.as_deref(), MAX_INPUT_BYTES - input.len())?;
+pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
+    let maximum = INPUT_BYTES as usize;
+    let input = read_request(args.input.as_deref(), args.json.as_deref(), maximum)?;
+    let items = read_items(args.input_stream_file.as_deref(), maximum - input.len(), INPUT_FRAMES as usize)?;
 
     // Reserve Writable Staging Before Any Device Dispatch.
     let staging = args.output.as_deref().map(|path| prepare_output(path, args.overwrite));
@@ -104,12 +106,12 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 
 /* === Private Functions === */
 
-fn read_request(path: Option<&Path>, inline: Option<&str>) -> crate::Result<Vec<u8>> {
+fn read_request(path: Option<&Path>, inline: Option<&str>, maximum: usize) -> crate::Result<Vec<u8>> {
     let input = match path {
-        Some(path) => dokime::harmos::filesystem::input::read(path, MAX_INPUT_BYTES)?,
+        Some(path) => dokime::harmos::filesystem::input::read(path, maximum)?,
         None => inline.unwrap_or("{}").as_bytes().to_vec(),
     };
-    if input.len() > MAX_INPUT_BYTES {
+    if input.len() > maximum {
         return Err(dokime::client::operations::Error::InputTooLarge.into());
     }
     // Reject Malformed JSON Before Selecting Or Opening A Connection.
@@ -117,14 +119,14 @@ fn read_request(path: Option<&Path>, inline: Option<&str>) -> crate::Result<Vec<
     Ok(input)
 }
 
-fn read_items(path: Option<&Path>, remaining: usize) -> crate::Result<Vec<Vec<u8>>> {
+fn read_items(path: Option<&Path>, remaining: usize, maximum_frames: usize) -> crate::Result<Vec<Vec<u8>>> {
     let Some(path) = path else { return Ok(Vec::new()) };
     let bytes = dokime::harmos::filesystem::input::read(path, remaining)?;
     let text = std::str::from_utf8(&bytes).map_err(|_| crate::Error::Input("Input stream must be UTF-8 JSON lines".into()))?;
 
     let mut items = Vec::new();
     for line in text.lines().filter(|line| !line.trim().is_empty()) {
-        if items.len() == MAX_INPUT_FRAMES {
+        if items.len() == maximum_frames {
             return Err(dokime::client::operations::Error::InputTooLarge.into());
         }
         let _: serde_json::Value = serde_json::from_str(line).map_err(|error| crate::Error::Input(error.to_string()))?;

@@ -155,22 +155,6 @@ impl Row<'_> {
 
 /* === Public Functions === */
 
-pub(super) fn row_text<'a>(row: Row<'a>, expression: &DataExpression) -> Option<&'a str> {
-    let Row::Artifact { artifact, .. } = row else {
-        return None;
-    };
-    let DataSource::Artifact { artifact: filename } = &expression.source else {
-        return None;
-    };
-    if &artifact.filename != filename {
-        return None;
-    }
-    let Some(DataTransform::Detail { name }) = expression.transforms.first() else {
-        return None;
-    };
-    artifact_text_field(artifact, name)
-}
-
 pub(crate) fn telemetry_needed(definition: &DocumentDefinition, context: Context<'_>) -> bool {
     bindings_need(definition, |expression| expression_needs_telemetry(expression, context))
 }
@@ -239,10 +223,6 @@ pub(super) fn validate_predicates<'a>(expression: &DataExpression, filters: impl
         validate_pair(expression, &filter.expression)?;
     }
     Ok(())
-}
-
-pub(super) fn scratch_memory(definition: &DocumentDefinition, rows: usize) -> usize {
-    summary_expressions(definition).map(|expression| plan(expression, rows).map_or(usize::MAX, |plan| plan.memory(rows))).max().unwrap_or(0)
 }
 
 pub(super) fn evaluation_work(definition: &DocumentDefinition, rows: usize, instances: usize) -> usize {
@@ -372,8 +352,8 @@ pub(super) fn evaluate(expression: &DataExpression, evidence: Evidence<'_>, sele
 
 /* === Private Functions === */
 
-fn plan(expression: &DataExpression, rows: usize) -> Result<Plan> {
-    let cases = expression.transforms.contains(&DataTransform::PerCase).then_some(rows.clamp(1, 4096));
+fn plan(expression: &DataExpression, rows: usize) -> Result<Plan<'_>> {
+    let cases = expression.transforms.contains(&DataTransform::PerCase).then_some(rows.max(1));
     Plan::compile(expression, cases)
 }
 

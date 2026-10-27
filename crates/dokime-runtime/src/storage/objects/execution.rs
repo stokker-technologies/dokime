@@ -301,10 +301,6 @@ impl Execution {
     pub fn is_sealed(&self) -> bool {
         self.saved.is_some()
     }
-
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        Ok(<Self as harmos::Message>::decoding_memory(bytes)?)
-    }
 }
 
 impl Execution {
@@ -1925,11 +1921,15 @@ impl Execution {
 
 /* === Public Functions === */
 
-pub async fn read(storage: &Manager, id: &TestExecutionId, version: ObjectVersion) -> Result<Option<ObjectRevision<TestExecution>>> {
+pub async fn read(
+    storage: &crate::storage::Manager, id: &TestExecutionId, version: ObjectVersion,
+) -> Result<Option<harmos::storage::ReadBatch<ObjectRevision<TestExecution>>>> {
     let Some(stored) = storage.read_object::<Execution>(id.as_str(), version).await? else {
         return Ok(None);
     };
-    Ok(Some(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version }))
+    Ok(Some(stored.try_map(|stored| -> Result<_> {
+        Ok(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version })
+    })?))
 }
 
 pub async fn flush_seal(storage: &Manager, execution: &TestExecution, receipt: &harmos::storage::ObjectReceipt) -> Result<StorageCursor> {

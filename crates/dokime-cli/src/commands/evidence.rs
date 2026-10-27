@@ -59,8 +59,10 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(
-    args: Args, subject: fn(String) -> EvidenceSubject, recovery_args: Option<super::execution::recovery::Args>,
+    mut args: Args, subject: fn(String) -> EvidenceSubject, recovery_args: Option<super::execution::recovery::Args>,
+    settings: &dokime::domain::model::settings::application::ClientPreferences,
 ) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
     let id = dokime::domain::model::identity::TestCycleId::from_uuid(&args.id)
         .map_err(|_| crate::Error::Input("Evidence identity must be a UUID".into()))?;
     dokime::client::validate_download_destination(&args.output, args.overwrite)?;

@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
@@ -43,9 +42,19 @@ pub struct Renderer;
 
 impl Renderer {
     pub fn execution(
-        &self, captured: Arc<CapturedExecutionReportInput>, outputs: Vec<ExecutionOutput>, saved: &harmos::storage::StorageCursor,
+        &self, captured: harmos::storage::ReadBatch<CapturedExecutionReportInput>, outputs: Vec<ExecutionOutput>,
+        saved: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<PreparedExecutionReport> {
-        let source = Arc::new(captured.source(&outputs));
+        let outputs = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::runtime::Error>(outputs))?;
+        self.execution_with_outputs(captured, std::sync::Arc::new(outputs), saved)
+    }
+
+    pub(crate) fn execution_with_outputs(
+        &self, captured: harmos::storage::ReadBatch<CapturedExecutionReportInput>,
+        outputs: std::sync::Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>, saved: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<PreparedExecutionReport> {
+        let source =
+            harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::runtime::Error>(captured.source(outputs.as_slice())))?;
         let html = HtmlReport::from_capture(captured, source)?;
         PreparedExecutionReport::prepare_html(html, outputs, saved)
     }

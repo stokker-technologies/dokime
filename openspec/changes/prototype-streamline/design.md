@@ -1,0 +1,81 @@
+# Prototype Streamline Design
+
+## Settings Contract
+
+Proposed, not landed. `dokime-domain/src/model/settings/application.rs` owns the following model and its validation; existing `model/settings::Settings` remains the plugin schema catalog, not another application-settings model. Domain-owned constituent types are referenced, never redeclared by runtime, server, TS or Python.
+
+```rust
+pub struct ApplicationSettings {
+    pub appearance: Appearance, // theme_mode, theme_family, density
+    pub report: ReportDefaults, // plot_points, plot_downsample
+    pub client: ClientPreferences, // connect_timeout_ms, request_timeout_ms
+    pub telemetry: TelemetryPreferences, // interval_ms
+    pub listener: RemoteListenerSettings, // enabled, address, tls_enabled,
+                                         // authentication_enabled, certificate_names
+}
+pub enum SettingsScope { Local, Backend }
+pub struct SettingsSnapshot { pub revision: u64, pub settings: ApplicationSettings }
+pub struct UpdateSettings { pub expected_revision: u64, pub settings: ApplicationSettings }
+// Domain operations: ReadApplicationSettings {} -> SettingsSnapshot;
+// UpdateApplicationSettings { update: UpdateSettings } -> SettingsSnapshot.
+// Runtime methods use crate::runtime::Result; conflict is a typed error.
+async fn read_application_settings(&self) -> Result<SettingsSnapshot>;
+async fn update_application_settings(&self, update: UpdateSettings) -> Result<SettingsSnapshot>;
+```
+
+There are 13 fixed editable leaf fields in the resulting model, plus dynamically declared plugin settings and secret-reference records. Four of the 409 operational leaves survive: `client.connect_timeout_ms` (10,000), `client.default_timeout_ms` -> `client.request_timeout_ms` (30,000), `telemetry.default_interval_ms` -> `telemetry.interval_ms` (1,000), and `server.listen_port` -> the port within existing `listener.address` (default 8765). No separate listener port field survives. Baseline leaf counts by file: analysis 5, client 42, desktop 51, documents 18, execution 33, files 20, gui 60, host 15, notes 8, packaging 20, pagination 3, parameters 7, presentation 14, secrets 6, server 88, sqlite 2, telemetry 10, transport 7 = 409. `schema.rs` contains serialization adapters, not public leaf declarations.
+
+All other operational leaves become constants beside the implementation using them; accounting-only limits disappear with their mechanism. Preserve queue bounds, protocol frame/decoded-input limits, cancellation deadlines and file-validation constraints as constants. Remove `OperationalSettings`, `InterfaceSettings`, policy-only sidecar bootstrap copies, `Configuration`, the TS mirror and Python `ClientSettings`/`client-settings.json`; constructors take only retained user preferences or actual resources. A protocol constant shared across languages is generated from its owning contract, never a second configurable policy table.
+
+Simple: theme mode/family, density, report points/downsampling, Backends, plugin fields and secret references. Advanced includes Simple plus both client timeouts, telemetry interval and all five listener fields. Duration values are positive integers within the existing monotonic/transport range; report points use the existing semantic range, not an admission budget. Keep listener TLS/authentication validation and certificate-name checks. UI validation supplements domain validation. Apply appearance immediately, client settings to new connections/requests, telemetry at the next sample scheduling boundary, report defaults to new materializations, and listener edits through the existing explicit restart operation. Show effective listener state and failures separately from saved intent.
+
+## Persistence And Bootstrap
+
+Reuse `storage/sqlite.rs`'s `local.sqlite`, lease and serialized transaction executor. Add `application_settings` singleton `(id=1, revision, body)` via `storage/sqlite/settings.rs`; initialize absent settings atomically. On the existing `storage::sqlite::State`, provide `async fn read_application_settings(&self) -> Result<SettingsSnapshot, storage::Error>` and `async fn update_application_settings(&self, update: UpdateSettings) -> Result<SettingsSnapshot, storage::Error>` with compare-and-update transactions. B adds `storage::Error::SettingsConflict { expected: u64, actual: u64 }` and `storage::Error::InvalidSettings(String)`; A consumes these variants. No second connection owner or JSON-file cache. Validation errors and conflicts leave the stored body unchanged; runtime operations delegate here.
+
+Resolve application/storage/plugins roots from existing explicit startup options/environment and `ApplicationPaths::default_data()` before opening SQLite. Roots are bootstrap inputs, displayed read-only, not persisted settings; remove `SettingsDocument.data_root` and its GUI edit operation. This avoids requiring the database to locate itself. Node identity is durable identity metadata, not editable preferences. Move plugin saved values and secret catalog metadata from `SettingsDocument` into application database records using their existing domain types; keep credential bytes in their existing protected stores. Remove `settings.json` and `config.toml` code paths without deleting users' files. Ignore legacy configuration files without reading or deleting them; settings and identity come from the database; keep schema baseline v1 and never auto-reset an incompatible database.
+
+The desktop's existing local runtime opens its local database even when the selected connection is remote; local appearance/client preferences remain available offline. Native commands use explicit `SettingsScope`: Local edits appearance/client, Backend edits report/telemetry/listener; reject changes to fields outside that scope. Backend requests fail visibly when disconnected. Local backend selection resolves both scopes to the same owner. Plugin and secret editors retain their typed operations and authorization, backed by the same database owner.
+
+## Backend Contract
+
+`dokime-client/src/profiles.rs::Store::discover` already resolves `DOKIME_PROFILES_FILE` or platform `dokime/backends.json`; CLI add/list/remove/use share this store and its locked atomic update. Preserve this connection registry as the explicitly requested existing storage, separate from application settings. Move portable `Profile`, `Document`, `Secret` declarations into `dokime-domain/src/model/backends.rs` and re-export them at their current client paths. Preserve `Profile { name, endpoint, expected_backend_id, ca_certificate_pem, secret }`, `Document { version, default, profiles }`, and `Secret::{None,Keyring}`; strip only `ClientSettings` arguments in their methods, using owner constants instead. Preserve `Store::{discover,load,update,remember}` semantics.
+
+Native GUI commands: `desktop_backends_list() -> Result<Document, ConnectionError>`, `desktop_backend_add(profile: Profile) -> Result<Document, ConnectionError>`, `desktop_backend_remove(name: String) -> Result<Document, ConnectionError>`, `desktop_backend_use(name: String) -> Result<ConnectionSnapshot, ConnectionError>`, `desktop_settings_read(scope: SettingsScope) -> Result<SettingsSnapshot, SettingsCommandError>`, `desktop_settings_update(scope: SettingsScope, update: UpdateSettings) -> Result<SettingsSnapshot, SettingsCommandError>`. `SettingsCommandError` preserves validation/conflict/disconnected/persistence categories. Generate TS bindings for these commands and domain types, and Python types only where a client consumes the settings operations.
+
+Use the existing `connection::Manager::connect(ConnectRequest)` unchanged in shape; retain generation cancellation, expected identity, CA validation and keyring access. On startup attempt `Document.default` once; absent/default-deleted/failed selection opens the same Backends table used in Settings. Rows show name, endpoint, last-selected state and actions; Add dialog collects profile fields, never persists bearer text. Delete requires confirmation and calls the same registry mutation as CLI remove, clearing default when necessary; deleting the active row disconnects that generation. Selection writes `default` only after successful connect and after checking that the profile still matches the selected snapshot. CLI `backend use` retains its offline default-selection behavior. Do not silently fall back to local or retry forever. A first-run local runtime can be added as a named profile using its actual endpoint.
+
+## Accounting Removal And Preserved Behavior
+
+Replace `ReadSession` use with the existing storage manager and ordinary owned/borrowed payloads; remove `RetainedMemory`, `Held`, `Pool`, reservations and grow/retain estimators from Dokime paths. `ReadBatch<T>` remains a cheap shared immutable batch with slicing/iteration/serialization, not a charge carrier. Preserve fallible allocation and checked arithmetic where correctness needs them. Remove `SampleAdmission` but retain telemetry channel backpressure, saved frontiers and capture errors. Keep validation/authorization errors named Admission where unrelated to memory; do not globally erase admission concepts.
+
+Locked Harmos interface transformation: in `harmos-storage/src/backend.rs`, remove every `RetainedMemory` parameter and `Inner::backend_memory`; keep every other parameter, return type, lifetime, cursor, limit and durability guarantee. Exact examples: `fn open(&self) -> StorageFuture<'_, StorageCursor>`; `fn read_records<'a>(&'a self, snapshot: &'a BackendSnapshot, selection: &'a RecordSelection, page: ScanPage) -> StorageFuture<'a, Vec<StoredRecord>>`. For Dokime payload constructors, remove session/claim-only arguments, retaining remaining order and return/error types. For methods that perform reads, replace `&ReadSession` with `&Manager` in the same argument position and invoke its ordinary read methods; for example `async fn read_file_bytes(storage: &Manager, file: &FileReference) -> Result<ReadBatch<Vec<u8>>>`. Never replace removed reservations with dummy claims or no-op compatibility types.
+
+Preserve `read_opened_file(file: std::fs::File, range: ByteRange)` behavior and opened capture/follow lifecycle, including original inode, growth/truncation checks, acknowledged prefixes and cancellation settlement. Preserve one borrowed SQLite row encoding per transaction iteration, position-based record identity for repeated items, rollback, exact retry comparison, borrowed canonical/JSON serializers, Harmos waveform reduction without allocations, exact full-envelope `wire_len`, time-range filtering at storage query construction and live plot reads from saved storage. Delete only estimator/claim portions of mixed files; never revert whole files to HEAD.
+
+## Later Layering
+
+Dependency arrows point from lower provider to higher consumer: `dokime-domain -> resource libraries -> dokime-operations[runtime] -> dokime-runtime -> dokime facade -> shells`. Resource libraries can depend on domain and other resource libraries only in the order below; never on operations/runtime/facade. Contract-only operations depend only on domain plus Harmos authoring contracts. Packaging/generation depends on domain and contract-only operations, never runtime. Align with `../../harmos.wt/authoring-streamline/openspec/changes/authoring-streamline/`: flat concern operations, standalone messages, runtime-gated fields/impl, automatic fingerprints, typed lanes declared below runtime, services owned by runtime. Its unresolved context/concurrency/reload contracts remain a real execution dependency.
+
+| Current Runtime Modules | Later Owner And Cycle Cut |
+| --- | --- |
+| `model/`, pure parts of `definition/`, `parameters.rs`, `diagnostics.rs`, `error.rs`, `state/`, `transactions/` | Domain owns shared values, errors, state and transaction declarations/pure rules; execution effects stay above. No domain import of host/runtime. |
+| `storage/`, `paths.rs`, `persistence.rs`, DB portion of `config/` | `dokime-storage`, lowest resource library; accept domain values, not `RuntimeHandle` or `StateWatcher`. |
+| `artifacts/`, `files/`, `records/`, `streams/`, `telemetry/`, `publication.rs`, `evidence.rs` | `dokime-evidence` above storage; inject storage handle and captured state/record scope, not execution context; existing `dokime-host` supplies platform collection. |
+| `analysis/`, `plot/`, `document/`, `report/`, `traceability/` | `dokime-reporting` above evidence/storage; query with explicit immutable cut/scope/catalog snapshots. Cut `report`/`document` calls into `domains`/`RuntimeHandle`, and telemetry-to-report callbacks. |
+| `execution/`, `plugin/`, `plugins/`, `prompts/`, `transport/`, `process.rs`, `host/`, implementation parts of `definition/` | `dokime-execution` above reporting/evidence/storage; inject operation dispatcher and contribution registry interfaces defined below operations. Never import concrete runtime or operation implementations. |
+| `domains/`, operation declarations currently in domain, `catalog.rs` operation catalog | `dokime-operations` flat concern files; gate implementation/resources with runtime. Replace `impl RuntimeHandle` handlers with injected resource fields; callers in resource libraries use domain ports/messages, cutting the operations-to-runtime cycle. |
+| `app.rs`, `runtime/`, `services/`, `contributions.rs`, launch/organization `config/`, runtime parts of `state/transactions` | `dokime-runtime` composition, lifecycle, registration and services; inject resources into operations and own scheduling. Split mixed files before moving; runtime owns no duplicate domain model. |
+| `lib.rs`, `prelude.rs`, `macros.rs`, `__answer` helpers | Curated facade exports/authoring support; domain-safe helpers move down, host composition stays runtime; remove obsolete runtime re-exports after consumers migrate. |
+
+Do not create lower-level catch-all context traits that reproduce `RuntimeHandle`. Extract only the narrow read/dispatch contracts needed at the named cuts. Move files and consumers together after upstream lands; no temporary reverse dependency, compatibility facade or second declaration tree.
+
+Stream rows use the same length-prefixed metadata plus native payload layout as object rows in SQLite. This development format requires a fresh storage root for older stream data; existing roots are never reset. File checkpoints persist receipts incrementally, acknowledging saved receipt identities only after backend success, and submit active file checkpoints as one batch.
+
+Reports retain native staged file writers through cancellation and retry, writing bounded chunks with exact offsets and publishing durably at finish. Frozen inputs regenerate interrupted reports after restart; public resumable-upload receipts are not created for internal report chunks. Identical durable file checkpoints still verify their prefix but do not repeat durable publication. Plot transport fitting reduces the collected payload without rereading storage and uses the same streamed-envelope sizing for unary and watch budgets.
+
+SQLite file finish records durable publication before committing its finished row. Admission rechecks immutable bytes and the exact reference without republishing those bytes; an interrupted install without a finished row still confirms durability on retry. Existing staging-path lookups are read-only. Logo validation decodes bounded blocks while retaining canonical padding and decoded-byte checks.
+
+The SQLite owner retains private staging handles through bounded writes, finish verification and reference admission; successful reference commit, abort and store close release them. Resumable public productions retain their existing checkpoint/reopen behavior. This avoids reopening every chunk and the just-written file while preserving content verification.
+
+Telemetry decoding preserves the producer sequence used for identity checks. Stream listings and evidence snapshots expose admission ordinals, while runtime live-view cursors and selected history use global storage positions so restart boundaries remain monotonic. Admission ordinals restart with each runtime session; they are not restored from historical rows.

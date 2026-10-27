@@ -20,12 +20,13 @@ use tonic::Status;
 
 // Local Imports
 use super::super::value::canonical;
-use super::value;
 use crate::grpc::transcode::Transcode;
 use dokime::domain::model::plugins::wire as plugins_model;
 use dokime::plugins::{PluginEntry, PluginLastBoot, PluginState};
 
 /* === Constants === */
+
+const SERVER_VALUE_DEPTH: u64 = 32;
 
 /* === Macros === */
 
@@ -100,7 +101,7 @@ pub(super) fn disclosure(entry: &PluginEntry, limit: usize) -> Result<(), Status
     if entry.metadata.is_none() {
         return Err(Status::failed_precondition("verified permission metadata is unavailable; consent refused"));
     }
-    dokime::document::bounded::document_size(entry, limit / 2, 32)
+    dokime::document::bounded::document_size(entry, limit, SERVER_VALUE_DEPTH as usize)
         .map_err(|_| Status::resource_exhausted("complete permission metadata exceeds response budget; consent refused"))?;
     Ok(())
 }
@@ -110,47 +111,9 @@ pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Sta
         entry.metadata = None;
         entry.error = Some("Verified permission metadata exceeds response budget; consent is unavailable. Installation identity and state remain accessible.".into());
     }
-    dokime::document::bounded::document_size(&entry, limit / 2, 32)
+    dokime::document::bounded::document_size(&entry, limit, SERVER_VALUE_DEPTH as usize)
         .map_err(|_| Status::resource_exhausted("plugin installation state exceeds response budget"))?;
     Ok(())
-}
-
-pub(super) fn memory(entry: &PluginEntry) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<plugins_model::PluginInstallation>() + 36;
-    let mut add = |text: &str| -> Result<(), Status> {
-        value::text(text)?;
-        bytes = bytes.saturating_add(text.len());
-        Ok(())
-    };
-    add(&entry.installation.sha256)?;
-    if let Some(text) = &entry.error {
-        add(text)?;
-    }
-    if let Some(text) = &entry.boot_error {
-        add(text)?;
-    }
-    if let Some(PluginLastBoot::Failed { error, .. }) = &entry.installation.last_boot {
-        add(error)?;
-    }
-    if let Some(metadata) = &entry.metadata {
-        for text in [&metadata.identity.name, &metadata.identity.version, &metadata.identity.description] {
-            add(text)?;
-        }
-        for text in &metadata.owners {
-            add(text)?;
-        }
-        for reference in &metadata.environment_references {
-            for text in [&reference.owner, &reference.setting, &reference.variable] {
-                add(text)?;
-            }
-        }
-    }
-    if let Some(metadata) = &entry.metadata {
-        bytes = bytes.saturating_add(metadata.owners.len().saturating_mul(4 * std::mem::size_of::<String>())).saturating_add(
-            metadata.environment_references.len().saturating_mul(4 * std::mem::size_of::<plugins_model::PluginEnvironmentReference>()),
-        );
-    }
-    Ok(bytes)
 }
 
 /* === Private Functions === */

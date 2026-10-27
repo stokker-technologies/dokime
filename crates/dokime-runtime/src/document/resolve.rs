@@ -20,6 +20,7 @@ use std::{borrow::Cow, cmp::Ordering, collections::BTreeMap};
 
 // Local Imports
 use super::binding::{self, Evidence, Row, row as expression_value};
+use super::bounded::DocumentLimits;
 use crate::artifacts::media_kind_for;
 use crate::document::capture::{Capture, CardBinding, CardBindingResult, RepeatInstance, SectionBinding};
 use crate::document::{
@@ -55,6 +56,7 @@ const VALUE_PLACEHOLDER: &str = "{value}";
 /* === Structs === */
 
 struct DocumentMaterializer<'a> {
+    unavailable_reason_bytes: usize,
     capture: Option<&'a mut CaptureBindings>,
     artifact_lists: &'a mut Vec<ArtifactListDescriptor>,
     card_definitions: BTreeMap<Identifier, DocumentCardDefinition>,
@@ -104,7 +106,7 @@ impl DocumentMaterializer<'_> {
                     if let Some(repeat) = &section.repeat
                         && let Err(error) = binding::validate_repeat(repeat)
                     {
-                        let reason = unavailable_reason(error)?;
+                        let reason = unavailable_reason(error, self.unavailable_reason_bytes)?;
                         let capture = self.capture.as_mut().expect("capture assembly is active");
                         if capture.repeats.insert(section.node_id.clone(), Vec::new()).is_some()
                             || capture
@@ -142,27 +144,30 @@ impl DocumentMaterializer<'_> {
     }
 
     fn materialize_nodes(&mut self, nodes: Vec<DocumentNode>) -> Result<Vec<DocumentNodePayload>> {
-        let mut output = Vec::new();
+        let mut output = Vec::with_capacity(nodes.len());
         for node in nodes {
-            output.extend(self.materialize_node(node)?);
+            self.materialize_node(node, &mut output)?;
         }
         Ok(output)
     }
 
-    fn materialize_node(&mut self, node: DocumentNode) -> Result<Vec<DocumentNodePayload>> {
+    fn materialize_node(&mut self, node: DocumentNode, output: &mut Vec<DocumentNodePayload>) -> Result<()> {
         match node {
             DocumentNode::Section(section) => {
                 let sections = self.expanded_section_nodes(*section);
-                let mut output = Vec::new();
                 for section in sections {
                     if let Some(section) = self.materialize_section_node(section)? {
-                        output.push(section);
+                        push_exact(output, section)?;
                     }
                 }
-                Ok(output)
             }
-            DocumentNode::Card(placement) => Ok(self.materialize_card_placement(placement)?.into_iter().collect()),
+            DocumentNode::Card(placement) => {
+                if let Some(card) = self.materialize_card_placement(placement)? {
+                    push_exact(output, card)?;
+                }
+            }
         }
+        Ok(())
     }
 
     fn materialize_section_node(&mut self, section: DocumentSectionNode) -> Result<Option<DocumentNodePayload>> {
@@ -192,9 +197,9 @@ impl DocumentMaterializer<'_> {
         if let Some(capture) = self.capture.as_mut() {
             let card = self.card_definitions.get(card_id).expect("declared card exists");
             let result = match &card.body {
-                DocumentCardBody::TelemetrySummary { summary } => {
-                    CardBindingResult::Summary { groups: telemetry_summary_payload(summary, &card.filters, self.evidence)? }
-                }
+                DocumentCardBody::TelemetrySummary { summary } => CardBindingResult::Summary {
+                    groups: telemetry_summary_payload(summary, &card.filters, self.evidence, self.unavailable_reason_bytes)?,
+                },
                 DocumentCardBody::Plot { plot } => {
                     let input = plot_input_for_definition(plot, &[], self.markers_len, self.selection);
                     CardBindingResult::Plot { descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())) }
@@ -204,24 +209,28 @@ impl DocumentMaterializer<'_> {
             let source_id = capture.source_ids.get(card_id).expect("captured card source exists").clone();
             let binding = CardBinding { source_id, metadata: card.metadata.clone(), result };
             self.card_payload_ids.insert(card_id.clone(), capture.cards.len());
-            capture.cards.push(binding);
+            push_exact(&mut capture.cards, binding)?;
             return Ok(());
         }
-        let Some(card) = self.card_definitions.get(card_id).cloned() else {
+        // Payload Construction Does Not Re-enter The Definition Registry.
+        // Move Its Header Aside So The Source Card Can Stay Borrowed.
+        let definitions = std::mem::take(&mut self.card_definitions);
+        let result = definitions.get(card_id).map(|card| self.card_payload_for_definition(card)).transpose();
+        self.card_definitions = definitions;
+        let Some(payload) = result? else {
             return Ok(());
         };
-        let payload = self.card_payload_for_definition(&card)?;
         self.card_payload_ids.insert(card_id.clone(), self.card_payloads.len());
-        self.card_payloads.push(payload);
+        push_exact(&mut self.card_payloads, payload)?;
         Ok(())
     }
 
     fn card_payload_for_definition(&mut self, card: &DocumentCardDefinition) -> Result<DocumentCardPayload> {
         let body = match &card.body {
             DocumentCardBody::Text { markdown } => DocumentCardBodyPayload::Text { markdown: markdown.clone() },
-            DocumentCardBody::TelemetrySummary { summary } => {
-                DocumentCardBodyPayload::TelemetrySummary { groups: telemetry_summary_payload(summary, &card.filters, self.evidence)? }
-            }
+            DocumentCardBody::TelemetrySummary { summary } => DocumentCardBodyPayload::TelemetrySummary {
+                groups: telemetry_summary_payload(summary, &card.filters, self.evidence, self.unavailable_reason_bytes)?,
+            },
             DocumentCardBody::Plot { plot } => {
                 let plot_input = plot_input_for_definition(
                     plot,
@@ -231,8 +240,8 @@ impl DocumentMaterializer<'_> {
                 );
                 let descriptor = plot_descriptor_for_definition(plot_input.clone(), plot.metadata.clone());
                 if self.materialize_plots {
-                    self.plot_inputs.push(plot_input);
-                    self.plot_descriptors.push(descriptor.clone());
+                    push_exact(self.plot_inputs, plot_input)?;
+                    push_exact(self.plot_descriptors, descriptor.clone())?;
                 }
 
                 DocumentCardBodyPayload::Plot { descriptor: Box::new(descriptor) }
@@ -251,7 +260,7 @@ impl DocumentMaterializer<'_> {
                         .filter(|artifact| scope_matches(Some(&artifact.scope), self.selection))
                         .map(|artifact| artifact.status.clone()),
                 );
-                self.artifact_lists.push(descriptor.clone());
+                push_exact(self.artifact_lists, descriptor.clone())?;
 
                 DocumentCardBodyPayload::Artifacts { descriptor: Box::new(descriptor) }
             }
@@ -266,7 +275,7 @@ impl DocumentMaterializer<'_> {
                         })
                         .map(|artifact| artifact.status.clone()),
                 );
-                self.artifact_lists.push(descriptor.clone());
+                push_exact(self.artifact_lists, descriptor.clone())?;
 
                 DocumentCardBodyPayload::Media { descriptor: Box::new(descriptor) }
             }
@@ -385,17 +394,14 @@ impl DocumentMaterializer<'_> {
 
 /* === Public Functions === */
 
-pub fn resolve_document(input: DocumentResolveInput) -> Result<DocumentPayload> {
-    resolve(input, true)
+pub fn resolve_document(input: DocumentResolveInput, limits: DocumentLimits) -> Result<DocumentPayload> {
+    super::bounded::resolve_bounded(input, limits, true)
 }
 
-pub(super) fn resolve_current(input: DocumentResolveInput) -> Result<DocumentPayload> {
-    resolve(input, false)
-}
-
-pub(crate) fn capture_borrowed(input: BorrowedInput<'_>) -> Result<Capture> {
+pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits) -> Result<Capture> {
     let (mut cards, layout) = input.definition.normalized_parts();
-    validate_normalized_parts(&cards, &layout).map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
+    validate_normalized_parts(&cards, &layout, limits.layout_depth, limits.maximum_plot_points)
+        .map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
     // Captures Freeze Stored IDs And Discard Builder-Only Automatic ID State.
     for card in &mut cards {
         if let DocumentCardBody::Plot { plot } = &mut card.body {
@@ -409,24 +415,20 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>) -> Result<Capture> {
         layout,
         sections: Vec::new(),
     };
-    let mut capture = CaptureBindings {
-        source_ids: definition
-            .cards
-            .iter()
-            .map(|card| {
-                let id = card.metadata.identifier.clone();
-                (id.clone(), id)
-            })
-            .collect(),
-        ..Default::default()
-    };
+    let mut source_ids = BTreeMap::new();
+    for card in &definition.cards {
+        let id = card.metadata.identifier.clone();
+        source_ids.insert(id.clone(), id);
+    }
+    let mut capture = CaptureBindings { source_ids, ..Default::default() };
     let mut artifact_lists = Vec::new();
     let mut plot_descriptors = Vec::new();
     let mut plot_inputs = Vec::new();
     let mut materializer = DocumentMaterializer {
+        unavailable_reason_bytes: limits.unavailable_reason_bytes,
         capture: Some(&mut capture),
         artifact_lists: &mut artifact_lists,
-        card_definitions: definition.cards.iter().cloned().map(|card| (card.metadata.identifier.clone(), card)).collect(),
+        card_definitions: index_cards(definition.cards.iter().cloned()),
         card_payload_ids: BTreeMap::new(),
         card_payloads: Vec::new(),
         input_artifacts: input.data.artifacts,
@@ -456,85 +458,15 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>) -> Result<Capture> {
         warnings: Vec::new(),
     })
 }
-
-pub(super) fn repeat_label_bound(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) -> usize {
-    evidence.rows(&repeat.value).filter_map(|row| expression_label_size(row, &repeat.value, evidence)).max().unwrap_or(0)
-}
-
-pub(super) fn repeat_filter_memory(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) -> usize {
-    use harmos::MemorySize;
-    let bytes = repeat.value.memory_size();
-    if bytes == usize::MAX {
-        return usize::MAX;
-    }
-    let expression = bytes.saturating_sub(std::mem::size_of::<DataExpression>());
-    let value = evidence
-        .rows(&repeat.value)
-        .filter_map(|row| {
-            binding::row_text(row, &repeat.value)
-                .map(|text| std::mem::size_of::<Value>().saturating_add(text.len()))
-                .or_else(|| expression_value(row, &repeat.value, evidence).map(|value| value.memory_size()))
-        })
-        .max()
-        .unwrap_or(std::mem::size_of::<Value>());
-    if value == usize::MAX {
-        return usize::MAX;
-    }
-    std::mem::size_of::<DocumentFilter>().saturating_add(expression).saturating_add(value.saturating_sub(std::mem::size_of::<Value>()))
-}
-
-pub(super) fn repeat_selection_memory(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) -> usize {
-    let labels = repeat
-        .order_by
-        .as_ref()
-        .map_or(0, |order| evidence.rows(&repeat.value).filter_map(|row| expression_label_size(row, order, evidence)).max().unwrap_or(0));
-    let (owned, temporary) = evidence.rows(&repeat.value).fold((0usize, 0usize), |(total, largest), row| {
-        let value = binding::row_text(row, &repeat.value).map_or(0, str::len);
-        let order = repeat.order_by.as_ref().and_then(|order| binding::row_text(row, order)).map_or(0, str::len);
-        let heap = value.saturating_add(order);
-        (total.saturating_add(heap), largest.max(heap))
-    });
-    std::mem::size_of::<Vec<RepeatValue<'_>>>()
-        .saturating_add(evidence.upper_rows().saturating_mul(std::mem::size_of::<RepeatValue<'_>>()))
-        .saturating_add(std::mem::size_of::<RepeatValue<'_>>())
-        .saturating_add(owned)
-        .saturating_add(temporary)
-        .saturating_add(labels)
-        .saturating_add(labels)
-}
-
-pub(super) fn repeat_template_memory(repeat: &DocumentSectionRepeat, node_id_bytes: usize, evidence: Evidence<'_>) -> usize {
-    evidence
-        .rows(&repeat.value)
-        .filter_map(|row| expression_label_size(row, &repeat.value, evidence))
-        .map(|label| {
-            let labels = template_memory(&repeat.label_template, &repeat.value, label)?;
-            let identifiers = if let Some(template) = &repeat.id_template {
-                template_memory(template, &repeat.value, label)?
-            } else {
-                // Default Identifier Template Is "<Node Id>.{value}".
-                let template = node_id_bytes.checked_add(1)?.checked_add(VALUE_PLACEHOLDER.len())?;
-                let first = node_id_bytes.checked_add(1)?.checked_add(label)?;
-                let field = expression_field_name(&repeat.value)?.len().checked_add(2)?;
-                let second = first.checked_add((first / field).checked_mul(label.saturating_sub(field))?)?;
-                template.checked_add(first)?.checked_add(second)?.checked_add(field)?.checked_add(label)?
-            };
-            labels.checked_add(identifiers)
-        })
-        .map(|memory| memory.unwrap_or(usize::MAX))
-        .max()
-        .unwrap_or(0)
-}
-
 /* === Private Functions === */
 
-fn expression_label_size(row: Row<'_>, expression: &DataExpression, evidence: Evidence<'_>) -> Option<usize> {
-    binding::row_text(row, expression)
-        .map(str::len)
-        .or_else(|| expression_value(row, expression, evidence).map(|value| value_label_size(&value)))
+fn push_exact<T>(values: &mut Vec<T>, value: T) -> Result<()> {
+    values.try_reserve_exact(1).map_err(|_| DocumentFailure::Limit)?;
+    values.push(value);
+    Ok(())
 }
 
-fn resolve(input: DocumentResolveInput, materialize_plots: bool) -> Result<DocumentPayload> {
+pub(super) fn resolve(input: DocumentResolveInput, materialize_plots: bool, limits: DocumentLimits) -> Result<DocumentPayload> {
     let selection = input.selection;
     let definition = input.definition;
     let mut telemetry = input.data.telemetry;
@@ -544,20 +476,37 @@ fn resolve(input: DocumentResolveInput, materialize_plots: bool) -> Result<Docum
         selection,
         BorrowedData {
             context: super::input::Context::default(),
-            records: super::input::Records::Native(&input.data.records),
+            records: super::input::Records::Native((&input.data.records).into()),
             telemetry: &telemetry,
             artifacts: Artifacts::Native(&input.data.artifacts),
         },
         materialize_plots,
+        limits,
     )
 }
 
 fn resolve_parts(
     definition: crate::document::DocumentDefinition, selection: crate::document::DocumentSelection, data: BorrowedData<'_>,
-    materialize_plots: bool,
+    materialize_plots: bool, limits: DocumentLimits,
 ) -> Result<DocumentPayload> {
-    let (card_definitions, layout_definition) = definition.normalized_parts();
-    validate_normalized_parts(&card_definitions, &layout_definition).map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
+    resolve_normalized(normalize_definition(definition), selection, data, materialize_plots, limits)
+}
+
+pub(crate) fn normalize_definition(mut definition: crate::document::DocumentDefinition) -> crate::document::DocumentDefinition {
+    let (cards, layout) = definition.normalized_parts();
+    definition.cards = cards;
+    definition.layout = layout;
+    definition.sections.clear();
+    definition
+}
+
+pub(crate) fn resolve_normalized(
+    definition: crate::document::DocumentDefinition, selection: crate::document::DocumentSelection, data: BorrowedData<'_>,
+    materialize_plots: bool, limits: DocumentLimits,
+) -> Result<DocumentPayload> {
+    let crate::document::DocumentDefinition { document_id, metadata, cards: card_definitions, layout: layout_definition, .. } = definition;
+    validate_normalized_parts(&card_definitions, &layout_definition, limits.layout_depth, limits.maximum_plot_points)
+        .map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
     binding::validate(&card_definitions, &layout_definition.nodes)?;
     let markers = super::markers::selected_markers(data.records, &selection)?;
     let mut plot_descriptors = Vec::new();
@@ -565,11 +514,12 @@ fn resolve_parts(
     let mut artifact_lists = Vec::new();
     let (cards, layout) = {
         let mut materializer = DocumentMaterializer {
+            unavailable_reason_bytes: limits.unavailable_reason_bytes,
             capture: None,
             artifact_lists: &mut artifact_lists,
             card_payloads: Vec::new(),
             card_payload_ids: BTreeMap::new(),
-            card_definitions: card_definitions.into_iter().map(|card| (card.metadata.identifier.clone(), card)).collect(),
+            card_definitions: index_cards(card_definitions),
             input_artifacts: data.artifacts,
             markers_len: markers.len(),
             materialize_plots,
@@ -590,8 +540,8 @@ fn resolve_parts(
     let warnings = if materialize_plots { warnings(&plot_descriptors, data.telemetry)? } else { Vec::new() };
 
     Ok(DocumentPayload {
-        document_id: definition.document_id,
-        metadata: definition.metadata,
+        document_id,
+        metadata,
         selection,
         cards,
         layout,
@@ -695,26 +645,21 @@ fn repeat_telemetry_summary(summary: &mut TelemetrySummaryDefinition, repeat_fil
 }
 
 fn telemetry_summary_payload(
-    summary: &TelemetrySummaryDefinition, card_filters: &[DocumentFilter], evidence: Evidence<'_>,
+    summary: &TelemetrySummaryDefinition, card_filters: &[DocumentFilter], evidence: Evidence<'_>, unavailable_reason_bytes: usize,
 ) -> Result<Vec<TelemetrySummaryGroupPayload>> {
-    summary
-        .groups
-        .iter()
-        .map(|group| {
-            Ok(TelemetrySummaryGroupPayload {
-                metadata: group.metadata.clone(),
-                tiles: group
-                    .tiles
-                    .iter()
-                    .map(|tile| telemetry_summary_tile_payload(tile, card_filters, evidence))
-                    .collect::<Result<_>>()?,
-            })
-        })
-        .collect()
+    let mut groups = Vec::with_capacity(summary.groups.len());
+    for group in &summary.groups {
+        let mut tiles = Vec::with_capacity(group.tiles.len());
+        for tile in &group.tiles {
+            tiles.push(telemetry_summary_tile_payload(tile, card_filters, evidence, unavailable_reason_bytes)?);
+        }
+        groups.push(TelemetrySummaryGroupPayload { metadata: group.metadata.clone(), tiles });
+    }
+    Ok(groups)
 }
 
 fn telemetry_summary_tile_payload(
-    tile: &TelemetrySummaryTileDefinition, card_filters: &[DocumentFilter], evidence: Evidence<'_>,
+    tile: &TelemetrySummaryTileDefinition, card_filters: &[DocumentFilter], evidence: Evidence<'_>, unavailable_reason_bytes: usize,
 ) -> Result<TelemetrySummaryTilePayload> {
     let result = (|| {
         binding::validate_predicates(&tile.value, card_filters.iter().chain(tile.filters.iter()))?;
@@ -727,7 +672,7 @@ fn telemetry_summary_tile_payload(
     })();
     let (value, unavailable) = match result {
         Ok(value) => (value, None),
-        Err(error) => (None, Some(unavailable_reason(error)?)),
+        Err(error) => (None, Some(unavailable_reason(error, unavailable_reason_bytes)?)),
     };
     let state = value.as_ref().and_then(|value| matching_summary_state(value, &tile.conditions));
     Ok(TelemetrySummaryTilePayload {
@@ -742,9 +687,11 @@ fn telemetry_summary_tile_payload(
     })
 }
 
-fn unavailable_reason(error: crate::Error) -> Result<String> {
+fn unavailable_reason(error: crate::Error, maximum_bytes: usize) -> Result<String> {
     match error {
-        crate::Error::Document(DocumentFailure::Evaluation { message }) if super::payload::valid_unavailable_reason(message) => {
+        crate::Error::Document(DocumentFailure::Evaluation { message })
+            if super::payload::valid_unavailable_reason(message) && message.len() <= maximum_bytes =>
+        {
             Ok(message.to_owned())
         }
         error => Err(error),
@@ -855,18 +802,6 @@ fn replacement_size(source: usize, count: usize, placeholder: usize, label: usiz
     source.checked_sub(count.checked_mul(placeholder)?)?.checked_add(count.checked_mul(label)?)
 }
 
-fn template_memory(template: &str, expression: &DataExpression, label: usize) -> Option<usize> {
-    let first = replacement_size(template.len(), template.matches(VALUE_PLACEHOLDER).count(), VALUE_PLACEHOLDER.len(), label)?;
-    let second = if let Some(field) = expression_field_name(expression) {
-        let placeholder = field.len().checked_add(2)?;
-        let growth = (first / placeholder).checked_mul(label.saturating_sub(placeholder))?;
-        first.checked_add(growth)?.checked_add(placeholder)?
-    } else {
-        0
-    };
-    first.checked_add(second)?.checked_add(label)
-}
-
 fn expression_field_name(expression: &DataExpression) -> Option<&str> {
     match &expression.source {
         DataSource::Telemetry { field, .. } => Some(field),
@@ -876,7 +811,7 @@ fn expression_field_name(expression: &DataExpression) -> Option<&str> {
     }
 }
 
-fn value_label_size(value: &Value) -> usize {
+pub(super) fn value_label_size(value: &Value) -> usize {
     struct Counter(usize);
     impl std::fmt::Write for Counter {
         fn write_str(&mut self, value: &str) -> std::fmt::Result {
@@ -1006,6 +941,14 @@ fn identifier_segment_size(value: &str) -> usize {
 
 fn identifier_segment_identifier(value: &str) -> Identifier {
     identifier_from_generated(value)
+}
+
+fn index_cards(cards: impl IntoIterator<Item = DocumentCardDefinition>) -> BTreeMap<Identifier, DocumentCardDefinition> {
+    let mut definitions = BTreeMap::new();
+    for card in cards {
+        definitions.insert(card.metadata.identifier.clone(), card);
+    }
+    definitions
 }
 
 /* === Tests === */

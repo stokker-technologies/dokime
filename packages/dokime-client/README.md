@@ -50,8 +50,8 @@ Profiles marked `keyring` require a key supplied by the Python caller.
 Secret precedence is explicit `key_file=`, process `DOKIME_KEY`, then the
 key in an explicitly selected `env_file=`. Selected files are validated before
 any connection, even when a higher-priority source supplies the key. Keys are
-UTF-8 text with 32–4096 visible ASCII characters. Dotenv files are bounded to
-64 KiB, never searched for automatically, and never overwrite process values.
+UTF-8 text with 32–4096 visible ASCII characters. Dotenv files use the configured
+`environment_bytes` bound, are never searched for automatically, and never overwrite process values.
 Constructor arguments read these local files; they open no network channel.
 
 The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
@@ -64,6 +64,36 @@ files apply only to HTTPS; certificate verification is never disabled.
 async with DokimeClient(endpoint, env_file=".env", ca_certificate="server.pem") as client:
     backend = await client.connect()
 ```
+
+## Client Configuration
+
+Each connection captures an immutable `ClientSettings` snapshot before reading
+credentials, profiles or CA certificates. Defaults are packaged from Rust's
+canonical client settings. When `settings` is omitted, Python overlays the local
+Dokime `config.toml` table `[operational.client]`; an absent file uses packaged
+defaults. Invalid or unknown client fields fail with the file path. Other
+application sections stay under their existing owners, and Python creates no
+configuration file.
+
+The default file is `LOCALAPPDATA/com.stokker.dokime/config.toml` on Windows,
+or `XDG_DATA_HOME/com.stokker.dokime/config.toml` on Unix, falling back to
+`HOME/.local/share/com.stokker.dokime/config.toml`. This is policy for the machine
+running Python; it does not load the remote backend's TOML. Named backend
+profiles remain in their separate `backends.json` document.
+
+```python
+from dokime_client import ClientSettings, DokimeClient
+
+settings = ClientSettings.load("client-config.toml")
+async with DokimeClient(endpoint, settings=settings) as client:
+    backend = await client.connect()
+```
+
+Explicit `ClientSettings()` construction uses packaged defaults without local
+TOML lookup and accepts typed field overrides. Pass the same snapshot to
+`from_profile(..., settings=settings)` to bound profile and credential reads.
+An explicit `rpc_timeout` remains an override; streaming operation deadlines
+come from their declared contracts.
 
 ## Creating Cycles
 
@@ -135,7 +165,8 @@ The execution export works while its cycle is Active; a cycle export requires
 a durable seal. Both use the runtime's saved revisions and include a manifest,
 SQLite evidence, captured files and saved HTML reports. Inspect `streams` and
 `stream_columns` in `evidence.sqlite` for typed table/column mappings and units.
-The server allows one export at a time and limits each archive to 8 GiB.
+The server enforces its configured export concurrency and archive byte allowance;
+the client uses the backend's declared byte bound.
 Missing required evidence fails explicitly. Downloads verify size, SHA-256 and
 successful terminal transport status before atomic publication. Existing files
 require `overwrite=True`; failure preserves the old destination and removes the

@@ -54,7 +54,9 @@ struct Download {
     resources: Arc<Resources>,
 }
 
-struct ExportFrames(EvidenceExportFrame);
+struct ExportFrames {
+    metadata: Response<EvidenceExportFrame>,
+}
 
 /* === Enums === */
 
@@ -83,10 +85,15 @@ impl Operation for Download {
         };
         valid.map_err(|_| Status::invalid_argument("evidence subject must contain a UUID"))?;
         let bundle = self.resources.runtime.export_evidence(subject).await.map_err(|error| failure(&error))?;
-        let metadata = bundle.metadata().clone();
+        let metadata = bundle.retained_metadata().map_err(|error| failure(&error))?;
         let size_bytes = metadata.size_bytes;
         let sha256 = Some(metadata.sha256.clone());
-        let frames = ExportFrames(EvidenceExportFrame { payload: Some(EvidenceExportPayload::Metadata(metadata)) });
+        let metadata = metadata
+            .try_map(|metadata| {
+                Ok::<_, dokime::harmos::storage::Error>(EvidenceExportFrame { payload: Some(EvidenceExportPayload::Metadata(metadata)) })
+            })
+            .map_err(|error| failure(&Error::Dependency(error)))?;
+        let frames = ExportFrames { metadata: Response::from_owner(metadata.owner()) };
         chunked::Download {
             frames,
             source: chunked::Source::Evidence(Box::new(bundle)),
@@ -94,7 +101,7 @@ impl Operation for Download {
             sha256,
             noun: "evidence export",
             read_failure: "saved evidence export could not be read",
-            chunk_bytes: super::download_chunk_bytes(self.resources.maximum),
+            chunk_bytes: super::download_chunk_bytes(&self.resources.runtime, self.resources.maximum)?,
             message_limit: self.resources.maximum,
         }
         .run(output)
@@ -106,7 +113,10 @@ impl Operation for Download {
 impl Frames for ExportFrames {
     type Frame = EvidenceExportFrame;
     fn metadata(&self) -> Self::Frame {
-        self.0.clone()
+        (*self.metadata).clone()
+    }
+    fn metadata_owned(&self) -> Option<Response<Self::Frame>> {
+        Some(self.metadata.clone())
     }
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
         EvidenceExportFrame { payload: Some(EvidenceExportPayload::Chunk(ArtifactChunk { offset, data })) }
@@ -129,7 +139,9 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 pub(in crate::grpc) fn failure(error: &Error) -> Status {
     let status = match error {
-        Error::Busy | Error::TooLarge => Status::resource_exhausted("evidence export capacity exceeded"),
+        Error::Busy | Error::TooLarge | Error::Dependency(dokime::harmos::storage::Error::ResourceExhausted { .. }) => {
+            Status::resource_exhausted("evidence export capacity exceeded")
+        }
         Error::Cancelled => Status::cancelled("evidence export cancelled"),
         Error::Missing { .. } => Status::not_found("saved evidence not found"),
         Error::Unsealed(_) => Status::failed_precondition("evidence must be durably sealed before export"),

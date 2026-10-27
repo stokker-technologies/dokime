@@ -41,7 +41,7 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
   }
 
   return (
-    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-5 rounded-md bg-muted/20 p-4">
+    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-4 rounded-lg bg-muted/20 p-4">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="truncate text-sm font-semibold">{plot.title}</h4>
@@ -52,15 +52,15 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
       <div className="grid gap-3 pt-1">
         {bars.map((bar) => (
           <div
-            className="grid min-h-10 min-w-0 grid-cols-[minmax(6.5rem,10rem)_minmax(8rem,1fr)_max-content] items-center gap-3"
+            className="grid min-h-10 min-w-0 grid-cols-[minmax(--spacing(26),--spacing(40))_minmax(--spacing(32),1fr)_max-content] items-center gap-3"
             key={bar.key}
           >
             <span className="min-w-0 truncate text-xs font-semibold tabular-nums" title={bar.label}>
               {bar.label}
             </span>
-            <div className="relative h-8 min-w-0 overflow-hidden rounded-md bg-background ring-1 ring-border">
+            <div className="relative h-8 min-w-0 overflow-hidden rounded-lg bg-background ring-1 ring-border">
               <div
-                className="absolute h-full rounded-md"
+                className="absolute h-full rounded-lg"
                 style={{
                   left: `${((Math.min(0, bar.value) - minimum) / span) * 100}%`,
                   width: `${(Math.abs(bar.value) / span) * 100}%`,

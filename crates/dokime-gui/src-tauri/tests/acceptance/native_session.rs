@@ -50,8 +50,8 @@ fn arguments(root: &Path) -> Args {
         dev_control: false,
         network: NetworkArgs {
             host: std::net::Ipv4Addr::LOCALHOST.into(),
-            port: 0,
-            message_limit_mib: 2,
+            port: Some(0),
+            message_limit_mib: Some(2),
             grpc_web: false,
             allowed_origins: Vec::new(),
         },
@@ -144,7 +144,7 @@ async fn failed_start_releases() {
     let root = tempfile::tempdir().unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let mut args = arguments(root.path());
-    args.network.port = listener.local_addr().unwrap().port();
+    args.network.port = Some(listener.local_addr().unwrap().port());
     let log = root.path().join("application.log");
     let failed = DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(args).with_log(Some(log.clone())));
     let Err(DesktopSessionError::Startup { diagnostics: Some(diagnostics), .. }) = failed.select(BackendSelection::OwnedLocal).await else {

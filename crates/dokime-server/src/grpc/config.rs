@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{net::SocketAddr, num::NonZeroUsize, time::Duration};
+use std::{net::SocketAddr, num::NonZeroUsize, sync::Arc, time::Duration};
 
 // Third Party Imports
 use zeroize::Zeroizing;
@@ -27,7 +27,21 @@ use super::{
 
 /* === Constants === */
 
-const OUTPUT_DECODED_FACTOR: usize = 4;
+const SERVER_ALLOWED_ORIGINS: u64 = 32;
+const SERVER_CALLS: u64 = 32;
+const SERVER_CALLS_PER_CONNECTION: u64 = 32;
+const SERVER_CONNECTIONS: u64 = 64;
+const SERVER_DECODE_RETAINED_BYTES: u64 = 4_194_304;
+const SERVER_ENCODE_BUFFER_BYTES: u64 = 8_192;
+const SERVER_INPUT_STREAM_BYTES: u64 = 1_048_576;
+const SERVER_MAXIMUM_MESSAGE_BYTES: u64 = 16_777_216;
+const SERVER_MESSAGE_BYTES: u64 = 1_048_576;
+const SERVER_OPENING_TIMEOUT_MS: u64 = 5_000;
+const SERVER_OUTPUT_STREAM_BYTES: u64 = 4_194_304;
+const SERVER_REQUEST_TIMEOUT_MS: u64 = 86_400_000;
+const SERVER_SHUTDOWN_TIMEOUT_MS: u64 = 5_000;
+const SERVER_STREAM_ITEMS: u64 = 1;
+const SERVER_TLS_TIMEOUT_MS: u64 = 10_000;
 
 /* === Macros === */
 
@@ -47,6 +61,7 @@ pub struct Config {
     pub(crate) policy: Policy,
     pub(crate) tls: Option<TlsIdentity>,
     pub(crate) max_message_bytes: usize,
+    pub(crate) trace_journal: Option<Arc<crate::trace::Journal>>,
     remote: bool,
     web: Option<Vec<dokime::harmos::grpc::Origin>>,
 }
@@ -83,7 +98,8 @@ impl Config {
             bind_addr: ([127, 0, 0, 1], 0).into(),
             policy: Policy::TrustedLocal,
             tls: None,
-            max_message_bytes: 1024 * 1024,
+            max_message_bytes: SERVER_MESSAGE_BYTES as usize,
+            trace_journal: None,
             remote: false,
             web: None,
         }
@@ -91,15 +107,33 @@ impl Config {
 
     pub fn remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, key: Option<&str>) -> Result<Self, Error> {
         let digest = key.map(access::verifier).transpose()?;
-        Ok(Self::managed_remote(bind_addr, tls, digest, 1024 * 1024))
+        let mut config = Self::local();
+        config.bind_addr = bind_addr;
+        config.tls = tls;
+        config.policy = digest.map_or(Policy::Open, Policy::Key);
+        config.remote = true;
+        Ok(config)
     }
 
     pub(super) fn managed_remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, digest: Option<[u8; 32]>, maximum: usize) -> Self {
-        Self { bind_addr, policy: digest.map_or(Policy::Open, Policy::Key), tls, max_message_bytes: maximum, remote: true, web: None }
+        Self {
+            bind_addr,
+            policy: digest.map_or(Policy::Open, Policy::Key),
+            tls,
+            max_message_bytes: maximum,
+            remote: true,
+            web: None,
+            trace_journal: None,
+        }
     }
 
     pub fn with_bind_addr(mut self, address: SocketAddr) -> Self {
         self.bind_addr = address;
+        self
+    }
+
+    pub fn with_trace_journal(mut self, journal: Arc<crate::trace::Journal>) -> Self {
+        self.trace_journal = Some(journal);
         self
     }
 
@@ -109,8 +143,8 @@ impl Config {
     }
 
     pub fn with_grpc_web(mut self, origins: Vec<dokime::harmos::grpc::Origin>) -> Result<Self, Error> {
-        if origins.len() > 32 || origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
-            return Err(Error::Configuration("allowed origins require at most 32 distinct exact origins"));
+        if origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
+            return Err(Error::Configuration("allowed origins must be distinct exact origins"));
         }
         self.web = Some(origins);
         Ok(self)
@@ -119,46 +153,45 @@ impl Config {
     pub(crate) fn into_listener_settings(mut self) -> Result<dokime::harmos::grpc::Settings, Error> {
         self.validate()?;
         let bytes = NonZeroUsize::new(self.max_message_bytes).ok_or(Error::Configuration("message limit must be positive"))?;
-        let stream = dokime::harmos::operations::StreamSettings { items: NonZeroUsize::new(1).unwrap(), bytes };
-        // An output item is charged at its decoded size, which outgrows its
-        // encoding; the queue holds one message's worth of decoded frame.
+        let stream = dokime::harmos::operations::StreamSettings {
+            items: NonZeroUsize::new(SERVER_STREAM_ITEMS as usize).unwrap(),
+            bytes: NonZeroUsize::new(SERVER_INPUT_STREAM_BYTES as usize).unwrap(),
+        };
         let output = dokime::harmos::operations::StreamSettings {
             items: stream.items,
-            bytes: NonZeroUsize::new(output_stream_bytes(self.max_message_bytes))
-                .ok_or(Error::Configuration("message limit must be positive"))?,
+            bytes: NonZeroUsize::new(SERVER_OUTPUT_STREAM_BYTES as usize).ok_or(Error::Configuration("message limit must be positive"))?,
         };
         let tls = self.tls.take().map(|identity| {
             // Preserve The Host's Chosen TLS Provider When One Is Already Installed.
             let _ = rustls::crypto::ring::default_provider().install_default();
-            tonic::transport::ServerTlsConfig::new().identity(identity.into_tonic()).timeout(Duration::from_secs(10))
+            tonic::transport::ServerTlsConfig::new().identity(identity.into_tonic()).timeout(Duration::from_millis(SERVER_TLS_TIMEOUT_MS))
         });
         Ok(dokime::harmos::grpc::Settings {
             address: self.bind_addr,
             operations: dokime::harmos::grpc::server::Settings {
-                calls: NonZeroUsize::new(32).unwrap(),
-                // Transcoding Decodes Through The Canonical Postcard Form, So A Message Retains Up To Four Times Its Wire Size.
+                calls: NonZeroUsize::new(SERVER_CALLS as usize).unwrap(),
                 decode: dokime::harmos::grpc::DecodeSettings {
                     message_bytes: bytes,
-                    retained_bytes: NonZeroUsize::new(bytes.get().saturating_mul(4).min(u32::MAX as usize)).unwrap(),
+                    retained_bytes: NonZeroUsize::new(SERVER_DECODE_RETAINED_BYTES as usize).unwrap(),
                 },
                 encode: dokime::harmos::grpc::EncodeSettings {
                     message_bytes: bytes,
-                    buffer_bytes: NonZeroUsize::new(self.max_message_bytes.min(8192)).unwrap(),
+                    buffer_bytes: NonZeroUsize::new(self.max_message_bytes.min(SERVER_ENCODE_BUFFER_BYTES as usize)).unwrap(),
                 },
                 input: stream,
                 output,
-                opening_timeout: Duration::from_secs(5),
+                opening_timeout: Duration::from_millis(SERVER_OPENING_TIMEOUT_MS),
             },
             reflection: false,
             web: self.web.is_some(),
             allowed_origins: self.web.unwrap_or_default(),
             tls,
-            connections: NonZeroUsize::new(64).unwrap(),
-            calls_per_connection: NonZeroUsize::new(32).unwrap(),
+            connections: NonZeroUsize::new(SERVER_CONNECTIONS as usize).unwrap(),
+            calls_per_connection: NonZeroUsize::new(SERVER_CALLS_PER_CONNECTION as usize).unwrap(),
             // Individual Operations Enforce Their Own Shorter Policies.
             // Do Not Cut Off A Valid Follow Stream At The Library's Ordinary Default.
-            request_timeout: Duration::from_secs(86_400),
-            shutdown_timeout: Duration::from_secs(5),
+            request_timeout: Duration::from_millis(SERVER_REQUEST_TIMEOUT_MS),
+            shutdown_timeout: Duration::from_millis(SERVER_SHUTDOWN_TIMEOUT_MS),
         })
     }
 
@@ -173,8 +206,11 @@ impl Config {
         if self.remote && matches!(self.policy, Policy::TrustedLocal) {
             return Err(Error::Configuration("remote listeners cannot use native local trust"));
         }
-        if self.max_message_bytes == 0 || self.max_message_bytes > 16 * 1024 * 1024 {
-            return Err(Error::Configuration("message limit must be between 1 byte and 16 MiB"));
+        if self.max_message_bytes == 0 || self.max_message_bytes as u64 > SERVER_MAXIMUM_MESSAGE_BYTES {
+            return Err(Error::Configuration("message limit must be positive and within the configured maximum"));
+        }
+        if self.web.as_ref().is_some_and(|origins| origins.len() as u64 > SERVER_ALLOWED_ORIGINS) {
+            return Err(Error::Configuration("allowed origins exceed the configured maximum"));
         }
         Ok(())
     }
@@ -187,10 +223,6 @@ impl Default for Config {
 }
 
 /* === Public Functions === */
-
-pub(crate) fn output_stream_bytes(max_message_bytes: usize) -> usize {
-    max_message_bytes.saturating_mul(OUTPUT_DECODED_FACTOR)
-}
 
 /* === Private Functions === */
 

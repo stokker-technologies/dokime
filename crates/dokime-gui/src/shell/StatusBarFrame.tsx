@@ -16,14 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
 import { type CycleLifecycle, cycleState, STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import type { TestCycle } from "@/lib/types/test";
-import { useSidebarState } from "./use-sidebar-state";
 
 // Local Imports
 
@@ -38,31 +36,8 @@ export type FrozenCycleStatus = { phase: TestCycle["phase"]; lifecycle: CycleLif
 
 /* === Components === */
 export function StatusBarFrame({ children }: { children: ReactNode }) {
-  const sidebar = useSidebarState();
   return (
-    <footer
-      className="grid shrink-0 border-t bg-card text-xs text-muted-foreground"
-      style={{
-        gridTemplateColumns: `${sidebar.width} minmax(0,1fr)`,
-        height: "var(--status-bar-height)",
-      }}
-    >
-      <div className="grid place-items-center border-r">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              aria-label={sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-              className="size-[var(--status-bar-height)] rounded-none"
-              onClick={sidebar.toggle}
-              size="icon-sm"
-              variant="ghost"
-            >
-              {sidebar.collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">{sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}</TooltipContent>
-        </Tooltip>
-      </div>
+    <footer className="flex min-w-0 shrink-0 border-t bg-card text-xs text-muted-foreground" style={{ height: "var(--status-bar-height)" }}>
       {children}
     </footer>
   );

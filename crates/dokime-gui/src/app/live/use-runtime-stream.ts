@@ -29,8 +29,11 @@ import {
 
 /* === Constants === */
 
+const GUI_DOCUMENT_REFRESH_MS = 5_000;
+const GUI_RECONNECT_MS = 1_000;
+
 /** The most often a running cycle re-reads its open documents. */
-const DOCUMENT_REFRESH_MS = 5_000;
+const DOCUMENT_REFRESH_MS = GUI_DOCUMENT_REFRESH_MS;
 
 /* === Runtime stream ===
    The single live subscription. Native frames carry an observed cursor and
@@ -98,7 +101,7 @@ export function useRuntimeStream(): void {
         stream = undefined;
         if (active && session.identity.isCurrent()) {
           setHubState({ connection: "reconnecting", operations: [] });
-          retry = window.setTimeout(() => void connect(), 1_000);
+          retry = window.setTimeout(() => void connect(), GUI_RECONNECT_MS);
         }
       }
     };

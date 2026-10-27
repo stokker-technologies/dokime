@@ -20,7 +20,7 @@ use std::{cmp::Ordering, collections::BTreeMap};
 use harmos::{
     Aggregate,
     storage::query::{
-        Accumulator, Scratch,
+        Accumulator,
         scalar::{Agg, ScalarValue},
     },
 };
@@ -32,11 +32,6 @@ use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-
-const MAX_COLUMNS: usize = 32;
-const MAX_FILTERS: usize = 64;
-const MAX_FILTER_VALUES: usize = 1024;
-const MAX_NAME_BYTES: usize = 256;
 
 /* === Macros === */
 
@@ -58,18 +53,17 @@ struct Key(Vec<Value>);
 /* === Implementations === */
 
 impl Groups {
-    pub(super) fn fold(query: &AggregateQuery, rows: &[Row<'_>]) -> Result<Self> {
-        validate(query)?;
+    pub(super) fn fold<'a>(query: &AggregateQuery, rows: impl Iterator<Item = Row<'a>> + Clone) -> Result<Self> {
         let mut selected = Self { entries: BTreeMap::new(), omitted: false };
         if query.group_by.is_empty() {
             selected.entries.insert(Key(Vec::new()), reductions(query));
         }
-        let mut scratch = Scratch::new(rows.len().saturating_mul(query.aggregates.len()));
-        for (ordinal, row) in rows.iter().enumerate() {
+
+        for (ordinal, row) in rows.enumerate() {
             if row.source() != query.source {
                 return Err(invalid("aggregate row source differs from its query"));
             }
-            if !matches(row, query)? {
+            if !matches(&row, query)? {
                 continue;
             }
             let mut key = Vec::with_capacity(query.group_by.len());
@@ -83,7 +77,7 @@ impl Groups {
                 } else {
                     scalar(&row.field(&column.column)?.project()?, column.aggregate)?
                 };
-                reduction.push(ordinal as u64, &value, &mut scratch).map_err(reduction_error)?;
+                reduction.push(ordinal as u64, &value).map_err(reduction_error)?;
             }
             // Retain The First Limit+1 Groups; An Evicted Larger Key Never Returns.
             if query.limit != 0 && selected.entries.len() > query.limit + 1 {
@@ -136,11 +130,7 @@ impl Ord for Key {
 /* === Public Functions === */
 
 pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
-    if query.group_by.len() > MAX_COLUMNS
-        || query.aggregates.is_empty()
-        || query.aggregates.len() > MAX_COLUMNS
-        || query.filters.len() > MAX_FILTERS
-    {
+    if query.aggregates.is_empty() || query.aggregates.len() as u64 > 64 || query.filters.len() as u64 > 64 {
         return Err(invalid("aggregate request exceeds its column or filter bound"));
     }
     for (index, name) in query.group_by.iter().enumerate() {
@@ -151,7 +141,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
     }
     for (index, column) in query.aggregates.iter().enumerate() {
         if column.alias.is_empty()
-            || column.alias.len() > MAX_NAME_BYTES
+            || column.alias.len() as u64 > 256
             || query.group_by.contains(&column.alias)
             || query.aggregates[..index].iter().any(|prior| prior.alias == column.alias)
         {
@@ -175,7 +165,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
             AggregateOperator::IsNull if count != 0 => {
                 return Err(invalid("is_null requires no values"));
             }
-            AggregateOperator::In if count == 0 || count > MAX_FILTER_VALUES => {
+            AggregateOperator::In if count == 0 || count as u64 > 1024 => {
                 return Err(invalid("in filter exceeds its value bound"));
             }
             AggregateOperator::IsNull | AggregateOperator::In => {}
@@ -361,9 +351,6 @@ fn numeric(value: &Value) -> bool {
 }
 
 fn column(query: &AggregateQuery, name: &str) -> Result<()> {
-    if name.len() > MAX_NAME_BYTES {
-        return Err(invalid("aggregate column name exceeds its byte bound"));
-    }
     if !fields::known(query.source, name) {
         let mut message = format!("unknown column {name}; available:");
         for column in fields::columns(query.source) {

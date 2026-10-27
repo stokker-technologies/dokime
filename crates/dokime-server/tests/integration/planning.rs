@@ -51,7 +51,7 @@ fn selection(suite: &dokime::definition::TestSuite) -> model::planning::wire::Re
 }
 
 fn integer(value: i64) -> model::values::wire::Value {
-    model::values::wire::Value::from(&Value::Integer(value))
+    model::values::wire::Value::try_from(&Value::Integer(value)).unwrap()
 }
 
 fn field(value: &model::values::wire::Value, key: &str) -> Value {
@@ -91,7 +91,7 @@ async fn assert_no_cases(owner: &Runtime) {
 
 fn error_code(status: &tonic::Status) -> String {
     let envelope = tonic_types::Status::decode(status.details()).unwrap();
-    <model::execution::wire::Rejection as WireMessage>::from_wire(envelope.details[0].value.as_slice()).unwrap().code
+    <model::execution::wire::Rejection as WireMessage>::from_wire(envelope.details[0].value.as_slice()).unwrap().code.clone()
 }
 
 #[tokio::test]
@@ -138,11 +138,14 @@ async fn ordered_selections_provider() {
     multiple.parameters.push(model::planning::wire::RegisteredSelectionParametersEntry {
         key: "fixture.result".into(),
         value: Some(model::planning::wire::SelectionValues {
-            values: vec![model::values::wire::Value::from(&Value::Array(vec![
-                Value::Integer(i64::MIN),
-                Value::Integer(i64::MAX),
-                Value::Integer(i64::MIN),
-            ]))],
+            values: vec![
+                model::values::wire::Value::try_from(&Value::Array(vec![
+                    Value::Integer(i64::MIN),
+                    Value::Integer(i64::MAX),
+                    Value::Integer(i64::MIN),
+                ]))
+                .unwrap(),
+            ],
         }),
     });
     let input = plan(vec![selected.clone(), multiple, selected]);
@@ -255,8 +258,8 @@ async fn planning_refuses_inputs() {
         key: "fixture.result".into(),
         value: Some(model::planning::wire::SelectionValues {
             values: vec![
-                model::values::wire::Value::from(&Value::Text("a".into())),
-                model::values::wire::Value::from(&Value::Text("b".into())),
+                model::values::wire::Value::try_from(&Value::Text("a".into())).unwrap(),
+                model::values::wire::Value::try_from(&Value::Text("b".into())).unwrap(),
             ],
         }),
     });
@@ -486,16 +489,13 @@ async fn payload_budget_allocation() {
     template.parameters.push(other);
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
     let input = plan(vec![selection(&suite)]);
-    assert_eq!(
-        error_code(
-            &planning
-                .unary::<contracts::planning::PreviewSelection>(contracts::planning::PreviewSelection { plan: Some(input.clone()) })
-                .await
-                .unwrap_err()
-        ),
-        "planning_payload_limit"
-    );
-    assert_eq!(error_code(&execution.append_selection(append(&target, input)).await.unwrap_err()), "planning_payload_limit");
+    let failure = planning
+        .unary::<contracts::planning::PreviewSelection>(contracts::planning::PreviewSelection { plan: Some(input.clone()) })
+        .await
+        .unwrap_err();
+    // Without Heap Admission, The Invalid Nested Array Is Rejected By Its Value Contract.
+    assert_eq!(error_code(&failure), "invalid_selection");
+    assert_eq!(error_code(&execution.append_selection(append(&target, input)).await.unwrap_err()), "invalid_selection");
     assert_no_cases(&owner).await;
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
@@ -529,7 +529,7 @@ async fn materialization_rejects_nonfinite_parameters_before_registration() {
             let mut selected = selection(&suite);
             selected.parameters.push(model::planning::wire::RegisteredSelectionParametersEntry {
                 key: "fixture.result".into(),
-                value: Some(model::planning::wire::SelectionValues { values: vec![model::values::wire::Value::from(&value)] }),
+                value: Some(model::planning::wire::SelectionValues { values: vec![model::values::wire::Value::try_from(&value).unwrap()] }),
             });
             let request = contracts::planning::MaterializeTemplate { selection: Some(selected) };
             let refused = client.unary::<contracts::planning::MaterializeTemplate>(request).await.unwrap_err();
@@ -548,7 +548,7 @@ async fn materialization_rejects_nonfinite_parameters_before_registration() {
     let mut selected = selection(&suite);
     selected.parameters.push(model::planning::wire::RegisteredSelectionParametersEntry {
         key: "fixture.result".into(),
-        value: Some(model::planning::wire::SelectionValues { values: vec![model::values::wire::Value::from(&value)] }),
+        value: Some(model::planning::wire::SelectionValues { values: vec![model::values::wire::Value::try_from(&value).unwrap()] }),
     });
     let reply = client
         .unary::<contracts::planning::MaterializeTemplate>(contracts::planning::MaterializeTemplate { selection: Some(selected) })

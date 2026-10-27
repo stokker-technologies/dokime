@@ -79,7 +79,6 @@ export function useCycleDetailQuery(cycleId: string, enabled = true) {
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeTestCycleDetail(identityOf(session), cycleId),
     queryKey: [...workflowQueryKeys.cycleDetail(cycleId), generationOf(session)],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery({ plan: snapshot.plan, executions: snapshot.executions }) : query;
 }
@@ -92,7 +91,6 @@ export function useCycleRuntimeShellQuery(cycleId: string) {
     enabled: session !== null,
     queryFn: () => fetchNativeRuntimeShell(identityOf(session), cycleId),
     queryKey: [...workflowQueryKeys.runtimeShell(), cycleId, generationOf(session)],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.runtimeShell) : query;
 }
@@ -106,7 +104,6 @@ export function useCyclePendingPromptsQuery(cycleId: string) {
     enabled: session !== null,
     queryFn: () => fetchNativePendingPrompts(identityOf(session), { cycleId }),
     queryKey: [...workflowQueryKeys.prompts(), cycleId, generationOf(session)],
-    staleTime: 500,
   });
   return snapshot ? frozenQuery(EMPTY_PROMPTS) : query;
 }

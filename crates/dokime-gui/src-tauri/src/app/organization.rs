@@ -35,8 +35,9 @@ use tauri_plugin_dialog::DialogExt;
 
 /* === Constants === */
 
-const ARCHIVE_BYTES: u64 = 20 * 1024 * 1024;
-const ARCHIVE_ENTRIES: usize = 200;
+const DESKTOP_ORGANIZATION_ARCHIVE_BYTES: u64 = 20_971_520;
+const DESKTOP_ORGANIZATION_ENTRIES: u64 = 200;
+
 const MANIFEST: &str = "organization.toml";
 const LEGACY_MANIFEST: &str = "brand.toml";
 const ACTIVE: &str = "active";
@@ -344,8 +345,8 @@ fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
 /// Validates an archive, extracts it beside the packs and replaces the pending pack only when it loads.
 fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
     let metadata = std::fs::metadata(archive).map_err(|error| error.to_string())?;
-    if metadata.len() > ARCHIVE_BYTES {
-        return Err(format!("the organization pack exceeds {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+    if metadata.len() > DESKTOP_ORGANIZATION_ARCHIVE_BYTES {
+        return Err(format!("the organization pack exceeds {} MiB", DESKTOP_ORGANIZATION_ARCHIVE_BYTES / 1024 / 1024));
     }
     let bytes = std::fs::read(archive).map_err(|error| error.to_string())?;
     let files = validate_archive(&bytes)?;
@@ -366,12 +367,13 @@ fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
 
 /// The runtime files of an organization folder zipped as is, keyed by their path inside the pack.
 fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
-    if bytes.len() as u64 > ARCHIVE_BYTES {
-        return Err(format!("the organization pack exceeds {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+    if bytes.len() as u64 > DESKTOP_ORGANIZATION_ARCHIVE_BYTES {
+        return Err(format!("the organization pack exceeds {} MiB", DESKTOP_ORGANIZATION_ARCHIVE_BYTES / 1024 / 1024));
     }
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|error| format!("not a zip archive: {error}"))?;
-    if archive.len() > ARCHIVE_ENTRIES {
-        return Err(format!("the organization pack has more than {ARCHIVE_ENTRIES} entries"));
+    let maximum_entries = DESKTOP_ORGANIZATION_ENTRIES;
+    if archive.len() as u64 > maximum_entries {
+        return Err(format!("the organization pack has more than {maximum_entries} entries"));
     }
     let mut names = Vec::with_capacity(archive.len());
     for index in 0..archive.len() {
@@ -409,11 +411,11 @@ fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
         }
         let mut entry = archive.by_index(index).map_err(|error| error.to_string())?;
         let mut contents = Vec::new();
-        let remaining = ARCHIVE_BYTES - total;
+        let remaining = DESKTOP_ORGANIZATION_ARCHIVE_BYTES - total;
         (&mut entry).take(remaining + 1).read_to_end(&mut contents).map_err(|error| error.to_string())?;
         total += contents.len() as u64;
-        if total > ARCHIVE_BYTES {
-            return Err(format!("the organization pack expands beyond {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+        if total > DESKTOP_ORGANIZATION_ARCHIVE_BYTES {
+            return Err(format!("the organization pack expands beyond {} MiB", DESKTOP_ORGANIZATION_ARCHIVE_BYTES / 1024 / 1024));
         }
         if files.insert(path, contents).is_some() {
             return Err(format!("the organization pack repeats {relative}"));
@@ -590,6 +592,18 @@ fn remove_folder(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn boot(root: &Path) -> Boot {
+        super::boot(root)
+    }
+    fn load(path: &Path) -> Result<LoadedPack, String> {
+        super::load(path)
+    }
+    fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
+        super::stage(root, archive)
+    }
+    fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+        super::validate_archive(bytes)
+    }
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
@@ -655,10 +669,11 @@ mod tests {
         for name in ["../organization.toml", "/etc/organization.toml", "logos\\mark.svg", "C:/organization.toml"] {
             assert!(validate_archive(&archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), (name, LOGO)])).is_err(), "{name}");
         }
-        let many: Vec<(String, &[u8])> = (0..=ARCHIVE_ENTRIES).map(|index| (format!("logos/{index}.svg"), LOGO)).collect();
+        let many: Vec<(String, &[u8])> =
+            (0..=DESKTOP_ORGANIZATION_ENTRIES as usize).map(|index| (format!("logos/{index}.svg"), LOGO)).collect();
         let many: Vec<(&str, &[u8])> = many.iter().map(|(name, contents)| (name.as_str(), *contents)).collect();
         assert!(validate_archive(&archive(&many)).unwrap_err().contains("entries"));
-        let large = vec![b' '; ARCHIVE_BYTES as usize + 1];
+        let large = vec![b' '; DESKTOP_ORGANIZATION_ARCHIVE_BYTES as usize + 1];
         assert!(
             validate_archive(&archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("theme/base.css", &large)])).unwrap_err().contains("MiB")
         );

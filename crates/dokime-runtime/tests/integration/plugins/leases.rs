@@ -71,9 +71,11 @@ impl RecordingSidecar {
 
 impl dokime_host::HostTelemetryCollector for CountingCollector {
     fn interval(&self, stream: &str) -> Duration {
-        let config = dokime_host::HostTelemetryConfig::default();
-        dokime_host::HostTelemetryStream::try_from(stream)
-            .map(|stream| Duration::from_millis(config.interval_for(stream).0.max(1)))
+        dokime_host::host_telemetry_contracts()
+            .into_iter()
+            .find(|contract| contract.stream.as_str() == stream)
+            .and_then(|contract| contract.interval)
+            .map(|interval| Duration::from_millis(interval.0))
             .unwrap_or(Duration::from_secs(1))
     }
 
@@ -92,8 +94,11 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
         if host_stream == dokime_host::HostTelemetryStream::System {
             sample.values.insert("cpu_load_percent".to_owned(), dokime_runtime::Value::from(1.0));
         }
-        sample.storage_payload =
-            Some(model::telemetry::host_telemetry_payload(host_stream, &sample.values).map_err(|error| error.to_string())?);
+        sample.storage_payload = Some(
+            model::telemetry::host::prepare_host_telemetry_payload(host_stream, &sample.values)
+                .map_err(|error| error.to_string())?
+                .into_bytes(),
+        );
         Ok(Some(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier, vec![sample])))
     }
 }
@@ -234,6 +239,7 @@ async fn stored(handle: &dokime_runtime::RuntimeHandle) -> usize {
             ..Default::default()
         })
         .await
+        .unwrap()
         .iter()
         .filter(|sample| sample.stream == foreign_stream())
         .count()
@@ -455,9 +461,10 @@ async fn foreign_stream_refuses() {
             ..Default::default()
         })
         .await
-        .into_iter()
+        .unwrap()
+        .iter()
         .filter(|sample| sample.stream == foreign_stream())
-        .map(|sample| sample.scope.and_then(|scope| scope.test_execution_id).map(|id| id.to_string()))
+        .map(|sample| sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.to_string()))
         .collect::<Vec<_>>();
     assert_eq!(stored.len(), 2, "the reader does not re-publish its rows");
     assert!(stored.contains(&None), "the unscoped measurement is stored");

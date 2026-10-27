@@ -289,7 +289,7 @@ pub fn materialized_case(suite_id: &str, suite: Option<&TestSuite>, identifier: 
 pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
     let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
-        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        max_cases: usize::try_from(1_000).unwrap(),
         registration_id: dokime_runtime::model::identity::new_id(),
         first_label_number: 1,
     };

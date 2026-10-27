@@ -36,7 +36,6 @@ pub use host::UnknownHostStream;
 pub use host::host_stream_identifiers;
 pub use host::host_telemetry_contract;
 pub use host::host_telemetry_contracts;
-pub use host::host_telemetry_payload;
 pub use row::TelemetryRow;
 pub use sampling::SamplingScope;
 pub use sampling::TelemetryCaptureLease;

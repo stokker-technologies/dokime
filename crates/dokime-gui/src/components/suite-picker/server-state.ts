@@ -36,7 +36,6 @@ export function useTestSuitesQuery() {
   return useQuery({
     queryFn: () => fetchNativeSuites(session.identity),
     queryKey: [...suiteQueryKeys.suites(), session.identity.generation],
-    staleTime: 60_000,
   });
 }
 

@@ -10,7 +10,6 @@
 /* === Modules === */
 pub(crate) mod commands;
 pub(crate) mod config_application;
-pub(crate) mod config_settings;
 pub(crate) mod identity;
 pub(crate) mod lifecycle;
 pub(crate) mod queries;

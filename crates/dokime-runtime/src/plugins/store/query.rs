@@ -42,16 +42,15 @@ pub struct PluginPage {
 /* === Implementations === */
 
 impl PluginStore {
-    pub fn get(&self, id: Uuid) -> Result<PluginEntry, PluginError> {
-        let plugin = self.settings.read(|document| document.plugins.get(&id).cloned()).ok_or(PluginError::Unknown(id))?;
+    pub async fn get(&self, id: Uuid) -> Result<PluginEntry, PluginError> {
+        let plugin = self.settings.read(|document| document.plugins.get(&id).cloned()).await?.ok_or(PluginError::Unknown(id))?;
         Ok(self.entry(id, &plugin))
     }
 
-    pub fn page(&self, after: Option<(Uuid, &str)>, limit: usize) -> Result<PluginPage, PluginError> {
-        if limit == 0 || limit > 100 {
-            return Err(PluginError::Limit);
-        }
-        let plugins = self.settings.read(|document| document.plugins.clone());
+    pub async fn page(&self, after: Option<(Uuid, &str)>, limit: usize) -> Result<PluginPage, PluginError> {
+        let limit = u32::try_from(limit).map_err(|_| PluginError::Limit)?;
+        let limit = dokime_domain::model::execution::wire_cursor::page_size(limit, "").map_err(|_| PluginError::Limit)?;
+        let plugins = self.settings.read(|document| document.plugins.clone()).await?;
         let identity = digest(&serde_json::to_vec(&plugins).map_err(std::io::Error::other)?);
         if let Some((id, expected)) = after
             && (expected != identity || !plugins.contains_key(&id))
@@ -70,8 +69,7 @@ impl PluginStore {
                 if !fs::symlink_metadata(&path)?.file_type().is_file() {
                     return Err(PluginError::Invalid("bundle must be a regular file".into()));
                 }
-                let native_limit = harmos_packaging::bundle::Limits::default().archive_bytes;
-                let allowed = remaining.min(native_limit);
+                let allowed = remaining.min(self.archive_bytes);
                 let file = File::open(path)?;
                 let mut bytes = Vec::new();
                 let read = file.take(allowed as u64 + 1).read_to_end(&mut bytes);
@@ -79,13 +77,13 @@ impl PluginStore {
                 // concurrent external rewrite, before inspection/metadata copies.
                 remaining = remaining.checked_sub(bytes.len()).ok_or(PluginError::Limit)?;
                 read?;
-                if bytes.len() > native_limit {
+                if bytes.len() > self.archive_bytes {
                     return Err(PluginError::Invalid("bundle exceeds byte limit".into()));
                 }
                 if digest(&bytes) != plugin.digest {
                     return Err(PluginError::Changed(id));
                 }
-                inspect(&bytes)
+                super::super::inspect_with_archive_limit(&bytes, &self.schema, self.archive_bytes)
             })();
             if matches!(verified, Err(PluginError::Limit)) {
                 return Err(PluginError::Limit);

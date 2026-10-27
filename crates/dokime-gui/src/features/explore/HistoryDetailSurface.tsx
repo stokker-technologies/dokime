@@ -8,9 +8,12 @@
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, FileText, Loader2, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { FileText, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
+import { dataTableColumns } from "@/components/data-table/data-table-model";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -39,7 +42,7 @@ export function HistoryDetailSurface(props: HistoryDetailProps) {
   return <SessionHistoryDetail key={session.identity.generation} {...props} />;
 }
 
-function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProps) {
+function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
   const query = useExploreHistoryQuery("", "All");
   const session = useNativeSession();
   const queryClient = useQueryClient();
@@ -56,8 +59,10 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
+  const actions = useMemo(() => (target.kind === "cycle" ? <CycleReportActions cycleId={target.id} /> : null), [target.kind, target.id]);
   // The page bar carries the title, so the surface never repeats it.
   usePageChrome({
+    actions,
     title: selected?.metadata.title ?? entry?.title ?? (target.kind === "cycle" ? `Cycle ${target.id}` : `Execution ${target.id}`),
   });
 
@@ -109,16 +114,6 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
   return (
     <div className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
-        {/* One toolbar row: Back on the left column, the report action on the
-            right, both on the same fixed control height. */}
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[var(--shell-gap)]">
-          <Button className="h-[var(--control-height)]" variant="ghost" onClick={onBack}>
-            <ArrowLeft />
-            History Library
-          </Button>
-          <span />
-          {target.kind === "cycle" ? <CycleReportActions cycleId={target.id} /> : null}
-        </div>
         {query.isPending ? <p>Loading executions…</p> : null}
         {query.isError ? (
           <p role="alert" className="text-destructive">
@@ -130,7 +125,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
         ) : null}
         {deleteNotice ? <p role="status">{deleteNotice}</p> : null}
         {unrun ? (
-          <section aria-label="Case never run" className="grid gap-2 rounded-md border p-3">
+          <section aria-label="Case never run" className="grid gap-2 rounded-lg border p-3">
             <h2 className="font-medium">This case was never run</h2>
             <p className="max-w-[var(--prose-measure)] text-sm text-muted-foreground">
               {unrun.metadata.title} was planned and never started, so this execution has no acquisition, no steps and no records behind it.
@@ -142,38 +137,46 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
             ) : null}
           </section>
         ) : null}
-        {entry?.executions?.map((execution) => (
-          <section
-            key={execution.metadata.execution_id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
-          >
-            <div className="min-w-0">
-              <h2 className="font-medium">{execution.metadata.title}</h2>
-              <p className="break-all text-xs text-muted-foreground">{execution.metadata.execution_id}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{execution.availability === "interrupted" ? "Interrupted" : execution.metadata.status}</Badge>
-              <Button variant="outline" size="sm" disabled={!execution.checkpoint} onClick={() => setSelected(execution)}>
-                Inspect checkpoint
-              </Button>
-              {isDeletableExecution(execution) ? (
-                <Button
-                  aria-label={`Delete ${execution.metadata.title}`}
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    setDeleteError(null);
-                    setDeleteNotice(null);
-                    setDeleteTarget(execution);
-                  }}
+        <DataTable
+          aria-label="History Executions"
+          data={entry?.executions ?? []}
+          getRowId={(execution) => execution.metadata.execution_id}
+          emptyText="No executions in the loaded history."
+          columns={dataTableColumns<ExecutionBrowseEntry>().columns([
+            dataTableColumns<ExecutionBrowseEntry>().accessor((execution) => execution.metadata.title, {
+              id: "title",
+              header: "Execution",
+              meta: { filter: "text" },
+            }),
+            dataTableColumns<ExecutionBrowseEntry>().accessor(
+              (execution) => (execution.availability === "interrupted" ? "Interrupted" : execution.metadata.status),
+              { id: "status", header: "Status", meta: { filter: "facet", width: "w-36" } },
+            ),
+            dataTableColumns<ExecutionBrowseEntry>().display({
+              id: "actions",
+              header: "Actions",
+              meta: { width: "w-48", align: "end" },
+              cell: ({ row }) => (
+                <DataTableRowActions
+                  label={row.original.metadata.title}
+                  primary={{ label: "Inspect", disabled: !row.original.checkpoint, onSelect: () => setSelected(row.original) }}
                 >
-                  <Trash2 data-icon="inline-start" />
-                  Delete
-                </Button>
-              ) : null}
-            </div>
-          </section>
-        ))}
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={!isDeletableExecution(row.original)}
+                    onSelect={() => {
+                      setDeleteError(null);
+                      setDeleteNotice(null);
+                      setDeleteTarget(row.original);
+                    }}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </DataTableRowActions>
+              ),
+            }),
+          ])}
+        />
         {/* The cases with nothing behind them are one line, not rows: the
             count stays visible without pretending each is inspectable. */}
         {!unrun && entry?.unrun_count ? (
@@ -293,7 +296,7 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
     );
   }
   return (
-    <section className="grid gap-3 rounded-md border bg-card p-4" aria-label="Captured execution">
+    <section className="grid gap-3 rounded-lg border bg-card p-4" aria-label="Captured execution">
       <h2 className="font-semibold">{query.data.document?.cycle?.metadata?.label ?? entry.metadata.title}</h2>
       <p className="break-all text-xs text-muted-foreground">
         Checkpoint {(query.data.checkpoint?.position?.sequence ?? checkpoint?.position.sequence)?.toString()}

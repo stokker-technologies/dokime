@@ -21,7 +21,6 @@ use tonic::Status;
 
 // Local Imports
 use super::super::value::{self, canonical};
-use crate::grpc::transcode::Transcode;
 use dokime::domain::model::documents::wire::DocumentFrameFrame as Frame;
 use dokime::{CurrentDocumentCapture, document as native};
 
@@ -35,7 +34,6 @@ use dokime::{CurrentDocumentCapture, document as native};
 
 struct Frames {
     frames: VecDeque<dokime::domain::model::documents::wire::DocumentFrame>,
-    bytes: usize,
     limit: usize,
 }
 
@@ -48,11 +46,11 @@ struct Frames {
 impl Frames {
     fn push(&mut self, frame: Frame) -> Result<(), Status> {
         let frame = dokime::domain::model::documents::wire::DocumentFrame { frame: Some(frame) };
-        let bytes = frame.wire_len()?;
-        if bytes > self.limit || self.bytes.saturating_add(bytes) > 32 * 1024 * 1024 || self.frames.len() >= 20_000 {
-            return Err(Status::resource_exhausted("document response budget exceeded"));
+        let bytes = crate::grpc::content::output_frame_len(&frame)?;
+        if bytes > self.limit {
+            return Err(Status::resource_exhausted("document frame exceeds transport budget"));
         }
-        self.bytes += bytes;
+        self.frames.try_reserve_exact(1).map_err(|_| Status::resource_exhausted("document response allocation refused"))?;
         self.frames.push_back(frame);
         Ok(())
     }
@@ -65,25 +63,14 @@ pub(super) fn frames(
 ) -> Result<VecDeque<dokime::domain::model::documents::wire::DocumentFrame>, Status> {
     use super::super::{enums::canonical as enums, history::document::canonical as authoring, plots};
     use native::capture::CardBindingResult;
-    let mut output = Frames { frames: VecDeque::new(), bytes: 0, limit: limit.min(512 * 1024) };
+    let mut output = Frames { frames: VecDeque::new(), limit };
     let capture = captured.capture;
     let definition = capture.definition;
     let scope = canonical::scope(&capture.selection.scope)?;
-    let telemetry = captured.telemetry_cut.map(|cut| {
-        use dokime::CurrentDocumentTelemetryCut as ReadCut;
-        let (delivered, source, ordinal) = match cut {
-            ReadCut::Window { delivered } => {
-                (delivered, dokime::domain::model::documents::wire::DocumentTelemetryCutSource::RetainedWindow(true), None)
-            }
-            ReadCut::Series { epoch, delivered, ordinal } => {
-                (delivered, dokime::domain::model::documents::wire::DocumentTelemetryCutSource::SeriesEpoch(epoch), Some(ordinal))
-            }
-        };
-        dokime::domain::model::documents::wire::DocumentTelemetryCut {
-            delivered_cursor: delivered,
-            source: Some(source),
-            series_ordinal: ordinal,
-        }
+    let telemetry = captured.telemetry_cut.map(|cut| dokime::domain::model::documents::wire::DocumentTelemetryCut {
+        store: cut.history.store.as_str().to_owned(),
+        epoch: cut.history.epoch.as_str().to_owned(),
+        position: cut.sequence,
     });
     output.push(Frame::Header(dokime::domain::model::documents::wire::DocumentHeader {
         document_id: definition.document_id.to_string(),
@@ -152,8 +139,7 @@ pub(super) fn frames(
             for (ordinal, fields) in rows.into_iter().enumerate() {
                 native::bounded::document_size(&fields, output.limit.saturating_sub(8192) / 2, 32)
                     .map_err(|_| Status::resource_exhausted("document row exceeds frame budget"))?;
-                value::collection(fields.len())?;
-                let mut budget = value::Budget::new();
+                let mut budget = value::Budget::new()?;
                 output.push(Frame::TableRow(dokime::domain::model::documents::wire::DocumentTableRow {
                     card_id: id.clone(),
                     ordinal: ordinal as u64,
@@ -177,7 +163,7 @@ pub(super) fn frames(
                         .map(|condition| {
                             Ok(dokime::domain::model::documents::wire::DocumentSummaryCondition {
                                 operator: enums::filter_operator(&condition.operator),
-                                value: Some(canonical::encode(&condition.value, &mut value::Budget::new(), 0)?),
+                                value: Some(canonical::encode(&condition.value, &mut value::Budget::new()?, 0)?),
                                 state: summary_state(condition.state),
                             })
                         })
@@ -230,7 +216,7 @@ pub(super) fn frames(
                     if !tile.valid_result() {
                         return Err(Status::internal("invalid summary unavailable result"));
                     }
-                    let encoded = tile.value.as_ref().map(|item| canonical::encode(item, &mut value::Budget::new(), 0)).transpose()?;
+                    let encoded = tile.value.as_ref().map(|item| canonical::encode(item, &mut value::Budget::new()?, 0)).transpose()?;
                     output.push(Frame::SummaryTile(dokime::domain::model::documents::wire::DocumentSummaryTile {
                         card_id: id.clone(),
                         group_ordinal: group_ordinal as u64,

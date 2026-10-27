@@ -339,18 +339,20 @@ async fn shutdown_preserves_prompts() {
         .read_records::<dokime_runtime::storage::records::RecordRow>(harmos::storage::RecordRead { at, selection, after: 0 })
         .await
         .unwrap();
-    let mut settlements = Vec::new();
+    let mut pages = Vec::new();
     while let Some(rows) = reader.next().await.unwrap() {
-        for row in rows {
-            let record = row.payload.entry().unwrap();
-            if record.details.get("prompt_id") == Some(&Value::from(id.as_str()))
-                && record.details.get("responder") == Some(&Value::from("runtime"))
-            {
-                settlements.push((record.record_type.to_string(), record.details["reason"].clone()));
-            }
-        }
+        pages.push(crate::service_support::native::record_page(rows).unwrap());
     }
-    assert_eq!(settlements, vec![("prompt.response.expired".to_owned(), Value::from("runtime_restarted"))]);
+    let prompt_id = Value::from(id.as_str());
+    let responder = Value::from("runtime");
+    let settlements = pages
+        .iter()
+        .flat_map(|page| page.iter())
+        .filter(|record| record.details.get("prompt_id") == Some(&prompt_id) && record.details.get("responder") == Some(&responder))
+        .map(|record| (record.record_type.as_str(), &record.details["reason"]))
+        .collect::<Vec<_>>();
+    let expected_reason = Value::from("runtime_restarted");
+    assert_eq!(settlements, vec![("prompt.response.expired", &expected_reason)]);
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

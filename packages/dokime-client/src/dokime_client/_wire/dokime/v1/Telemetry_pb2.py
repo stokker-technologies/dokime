@@ -22,6 +22,7 @@ from google.protobuf.internal import builder as _builder
 from dokime_client._wire import _pool
 # @@protoc_insertion_point(imports)
 from dokime_client._wire.dokime.v1.TelemetryMessages.ListSamples import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_TelemetryMessages_dot_ListSamples_dot_messages__pb2
+from dokime_client._wire.dokime.v1.TelemetryMessages.WatchSamples import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_TelemetryMessages_dot_WatchSamples_dot_messages__pb2
 
 # Type Checking Imports
 
@@ -46,15 +47,17 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n-dokime_client/_wire/dokime/v1/Telemetry.proto\x12\tdokime.v1\x1aJdokime_client/_wire/dokime/v1/TelemetryMessages/ListSamples/messages.proto2x\n\tTelemetry\x12k\n\x0bListSamples\x12-.dokime.v1.TelemetryMessages.ListSamples.Row1\x1a-.dokime.v1.TelemetryMessages.ListSamples.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n-dokime_client/_wire/dokime/v1/Telemetry.proto\x12\tdokime.v1\x1aJdokime_client/_wire/dokime/v1/TelemetryMessages/ListSamples/messages.proto\x1aKdokime_client/_wire/dokime/v1/TelemetryMessages/WatchSamples/messages.proto\"\xba\x01\n\x1bTelemetryWatchSamplesOutput\x12\x44\n\x04item\x18\x01 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row3H\x00R\x04item\x12L\n\x08response\x18\x02 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row2H\x00R\x08responseB\x07\n\x05value2\xe2\x01\n\tTelemetry\x12k\n\x0bListSamples\x12-.dokime.v1.TelemetryMessages.ListSamples.Row1\x1a-.dokime.v1.TelemetryMessages.ListSamples.Row2\x12h\n\x0cWatchSamples\x12..dokime.v1.TelemetryMessages.WatchSamples.Row1\x1a&.dokime.v1.TelemetryWatchSamplesOutput0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Telemetry_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_TELEMETRY']._serialized_start=136
-  _globals['_TELEMETRY']._serialized_end=256
+  _globals['_TELEMETRYWATCHSAMPLESOUTPUT']._serialized_start=214
+  _globals['_TELEMETRYWATCHSAMPLESOUTPUT']._serialized_end=400
+  _globals['_TELEMETRY']._serialized_start=403
+  _globals['_TELEMETRY']._serialized_end=629
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

@@ -17,15 +17,12 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{
-    MemorySize,
-    operations::{Context, Operation, StreamOutput},
-};
+use dokime::harmos::operations::{Context, Operation, StreamOutput};
 use tonic::Status;
 
 // Local Imports
+use super::execution;
 use super::value::canonical;
-use super::{execution, value};
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
@@ -35,9 +32,11 @@ use dokime::runtime::query::RuntimeChange;
 
 /* === Constants === */
 
+const SERVER_SHELL_RESPONSE_BYTES: u64 = 524_288;
+const SERVER_TRACEABILITY_RESPONSE_BYTES: u64 = 524_288;
+const SERVER_TRACEABILITY_SCAN_ITEMS: u64 = 8_192;
+
 pub(super) const STREAM: &str = "runtime.state";
-const MAX_SHELL_RESPONSE_BYTES: usize = 512 * 1024;
-const MAX_TRACEABILITY_RESPONSE_BYTES: usize = 512 * 1024;
 
 /* === Macros === */
 
@@ -97,23 +96,20 @@ impl Operation for Shell {
         let observed = canonical::cursor(&snapshot);
         let limit = observed.page(request.limit, &request.after_cycle_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let start = after_cycle_position(state, &request.after_cycle_id)?;
-        let response_limit = self.resources.max_message_bytes.min(MAX_SHELL_RESPONSE_BYTES);
-        let mut bounds = execution::Bounds::new(response_limit);
-        bounds.bytes(std::mem::size_of::<dokime::domain::model::observation::wire::RuntimeShellSnapshot>())?;
-        bounds.text(state.session_id.as_str())?;
-        bounds.text(&observed.epoch)?;
-        bounds.text(&observed.stream)?;
+        let response_limit =
+            self.resources.max_message_bytes.min(usize::try_from(SERVER_SHELL_RESPONSE_BYTES).expect("validated shell response size"));
+
         let hub = self.resources.runtime.hub_metadata();
-        bounds.bytes(canonical::metadata_memory(&hub)?)?;
+
         let mut entries = state.cycles.values().skip(start);
         let count = state.cycles.len().saturating_sub(start).min(limit);
         let mut cycle_summaries = canonical::slots(count)?;
         for cycle in entries.by_ref().take(limit) {
-            cycle_summaries.push(execution::summary(state, cycle, observed.clone(), &mut bounds)?);
+            cycle_summaries.push(execution::summary(state, cycle, observed.clone())?);
         }
         let next_after_cycle_id = if entries.next().is_some() {
             let last = cycle_summaries.last().ok_or_else(|| Status::internal("empty continued cycle page"))?;
-            bounds.text(&last.cycle_id)?;
+
             Some(last.cycle_id.clone())
         } else {
             None
@@ -156,26 +152,18 @@ impl Operation for Runtime {
         let mut resynchronized = true;
         loop {
             let observed = canonical::cursor(&snapshot);
-            let bytes = std::mem::size_of::<dokime::domain::model::observation::wire::RuntimeStateFrame>()
-                .saturating_add(observed.epoch.len())
-                .saturating_add(observed.stream.len());
-            // The frames are built first: they are bounded, and measured exactly.
             let frames = operation_frames(&operations)?;
-            let bytes = bytes.saturating_add(
-                frames
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<Vec<dokime::domain::model::observation::wire::OperationProgress>>()),
-            );
             output
-                .send_with(bytes, || {
-                    Ok(dokime::domain::model::observation::wire::RuntimeStateFrame {
+                .send_owned(
+                    (dokime::domain::model::observation::wire::RuntimeStateFrame {
                         cursor: Some(observed),
                         resynchronized,
                         shutting_down: snapshot.state().shutting_down,
                         cycle_count: snapshot.state().cycles.len() as u64,
                         operations: frames,
                     })
-                })
+                    .into(),
+                )
                 .await
                 .map_err(stream_failure)?;
             match watch.next_change().await {
@@ -212,11 +200,7 @@ impl Operation for Progress {
         loop {
             let current = snapshot.get(&execution);
             if resynchronized || current != previous.as_ref() {
-                let bytes = progress_memory(current)?;
-                output
-                    .send_with(bytes, || Ok(progress_frame(snapshot.revision(), resynchronized, current)))
-                    .await
-                    .map_err(stream_failure)?;
+                output.send_owned((progress_frame(snapshot.revision(), resynchronized, current)).into()).await.map_err(stream_failure)?;
                 previous = current.cloned();
             }
             let Some(next) = watch.next().await else {
@@ -256,7 +240,14 @@ impl Operation for Traceability {
         let (source, has_more, host_traceability_fingerprint) = self
             .resources
             .runtime
-            .traceability_snapshots_page_at(&snapshot, requested_scope.as_ref(), after, limit, 8_192, MAX_TRACEABILITY_RESPONSE_BYTES)
+            .traceability_snapshots_page_at(
+                &snapshot,
+                requested_scope.as_ref(),
+                after,
+                limit,
+                usize::try_from(SERVER_TRACEABILITY_SCAN_ITEMS).expect("validated traceability scan count"),
+                usize::try_from(SERVER_TRACEABILITY_RESPONSE_BYTES).expect("validated traceability response size"),
+            )
             .await
             .map_err(|error| Status::resource_exhausted(error.to_string()))?;
         if !after.is_empty()
@@ -264,21 +255,14 @@ impl Operation for Traceability {
         {
             return Err(Status::aborted("host traceability changed; restart pagination from the first page"));
         }
-        let response_limit = self.resources.max_message_bytes.min(MAX_TRACEABILITY_RESPONSE_BYTES);
-        let mut bounds = execution::Bounds::new(response_limit);
-        bounds.bytes(std::mem::size_of::<dokime::domain::model::observation::wire::TraceabilityPage>())?;
-        bounds.text(&observed.epoch)?;
-        bounds.text(&observed.stream)?;
-        bounds.text(&host_traceability_fingerprint)?;
-        if let Some(scope) = &request.scope {
-            bounds.bytes(dokime::harmos::MemorySize::memory_size(scope))?;
-        }
-        for snapshot in &source {
-            bounds.bytes(super::history::traceability_memory(snapshot)?)?;
-        }
+        let response_limit = self
+            .resources
+            .max_message_bytes
+            .min(usize::try_from(SERVER_TRACEABILITY_RESPONSE_BYTES).expect("validated traceability response size"));
+
         let next_after_traceability_id = if has_more {
             let last = source.last().ok_or_else(|| Status::internal("empty continued traceability page"))?;
-            bounds.text(last.traceability_id.as_str())?;
+
             last.traceability_id.to_string()
         } else {
             String::new()
@@ -328,11 +312,6 @@ fn operation_frames(operations: &OperationSnapshot) -> Result<Vec<dokime::domain
         .operations()
         .iter()
         .map(|operation| {
-            value::text(&operation.label)?;
-            value::text(&operation.phase)?;
-            for phase in &operation.phases {
-                value::text(phase)?;
-            }
             let (status, finished_at, failure) = match &operation.outcome {
                 OperationOutcome::Running => (dokime::domain::model::observation::wire::OperationStatus::Running, None, None),
                 OperationOutcome::Finished { at } => {
@@ -357,20 +336,6 @@ fn operation_frames(operations: &OperationSnapshot) -> Result<Vec<dokime::domain
             })
         })
         .collect()
-}
-
-fn progress_memory(value: Option<&dokime::domains::execution::progress::LiveExecutionProgress>) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<dokime::domain::model::observation::wire::ExecutionProgressFrame>();
-    if let Some(value) = value {
-        value::text(value.test_execution_id.as_str())?;
-        value::text(value.step.as_str())?;
-        value::text(&value.progress.phase)?;
-        bytes = bytes
-            .saturating_add(value.test_execution_id.as_str().len())
-            .saturating_add(value.step.as_str().len())
-            .saturating_add(value.progress.phase.len());
-    }
-    Ok(bytes)
 }
 
 fn progress_frame(

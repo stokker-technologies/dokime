@@ -102,7 +102,11 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
         let result = operations.submit_from(owner, ReadSecret { name: metadata.name.clone() }).unwrap().await;
         assert!(result.is_err());
     }
-    let settings = std::fs::read_to_string(root.path().join("application/settings.json")).unwrap();
+    let connection =
+        rusqlite::Connection::open_with_flags(handle.storage_root().join("local.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .unwrap();
+    let body: Vec<u8> = connection.query_row("SELECT body FROM application_metadata WHERE id=1", [], |row| row.get(0)).unwrap();
+    let settings = String::from_utf8(body).unwrap();
     assert!(!settings.contains("first-test-value"));
     assert!(!settings.contains("replacement-test-value"));
     drop(handle);

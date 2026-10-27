@@ -785,7 +785,8 @@ async fn watch_file_matchers() {
             scope: ScopeSelection { test_execution_id: Some(execution.clone()), ..Default::default() },
             ..Default::default()
         })
-        .await;
+        .await
+        .unwrap();
     assert_eq!(
         rows.iter().map(|row| (row.values.get("elapsed_s").cloned(), row.values.get("target_locked").cloned())).collect::<Vec<_>>(),
         vec![(Some(Value::Number(1.5)), Some(Value::Bool(true))), (Some(Value::Number(2.5)), Some(Value::Bool(false))),]

@@ -27,7 +27,7 @@ use dokime::domain::operations::settings as wire;
 
 /* === Constants === */
 
-const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+const SERVER_SETTINGS_RESPONSE_BYTES: u64 = 4_194_304;
 
 /* === Macros === */
 
@@ -114,7 +114,10 @@ impl Operation for SetStorageSourceEnabled {
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(MAX_RESPONSE_BYTES) });
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        maximum: maximum.min(usize::try_from(SERVER_SETTINGS_RESPONSE_BYTES).expect("validated settings response size")),
+    });
     runtime.operations().register_wire_operation::<ListStorageSources>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<ReorderStorageSources>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<SetStorageSourceEnabled>("dokime", dokime::app::Lanes::Open, resources.clone())?;

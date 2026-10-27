@@ -12,6 +12,8 @@
 
 # Standard Library Imports
 from collections.abc import AsyncIterator, Mapping
+import json
+from importlib.resources import files
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
@@ -37,6 +39,8 @@ from .secrets import load_key
 
 # === Constants === #
 
+PAGE_ITEMS = 100
+
 # === Types === #
 
 # === Classes === #
@@ -58,16 +62,19 @@ class DokimeClient:
         key_file: str | Path | None = None,
         env_file: str | Path | None = None,
         ca_certificate: str | Path | None = None,
-        rpc_timeout: float = 30,
+        rpc_timeout: float | None = None,
+        preferences: Message | None = None,
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
     ) -> None:
+        preferences = preferences if preferences is not None else _client_preferences()
         token = load_key(key_file=key_file, env_file=env_file)
         self._transport = Transport(
             endpoint,
             token,
             ca_certificate,
-            rpc_timeout,
+            preferences.request_timeout_ms / 1000 if rpc_timeout is None else rpc_timeout,
+            connect_timeout_ms=preferences.connect_timeout_ms,
             expected_backend_id=expected_backend_id,
             ca_certificate_pem=ca_certificate_pem,
         )
@@ -80,17 +87,20 @@ class DokimeClient:
         path: str | Path | None = None,
         key_file: str | Path | None = None,
         env_file: str | Path | None = None,
-        rpc_timeout: float = 30,
+        rpc_timeout: float | None = None,
+        preferences: Message | None = None,
     ) -> Self:
         """Read a named profile once; callers provide secrets separately."""
         from .profiles import load
 
+        preferences = preferences if preferences is not None else _client_preferences()
         profile = load(name, path=path)
         client = cls(
             profile.endpoint,
             key_file=key_file,
             env_file=env_file,
             rpc_timeout=rpc_timeout,
+            preferences=preferences,
             expected_backend_id=profile.expected_backend_id,
             ca_certificate_pem=profile.ca_certificate_pem,
         )
@@ -158,7 +168,7 @@ class DokimeClient:
 
     async def _suite_identities(self):
         backend = await self.connect()
-        request = _wire.request("Catalog", "ListSuites", limit=100)
+        request = _wire.request("Catalog", "ListSuites", limit=PAGE_ITEMS)
         while True:
             await self._transport.verify(backend, live=True)
             page = await self._transport.unary("Catalog", "ListSuites", request)
@@ -285,6 +295,15 @@ class DokimeClient:
 # === Public Functions === #
 
 # === Private Functions === #
+
+
+def _client_preferences() -> Message:
+    resource = files("dokime_client").joinpath("application-settings.json")
+    defaults = json.loads(resource.read_text(encoding="utf-8"))
+    request = _wire.request("Settings", "UpdateApplicationSettings")
+    request.update.settings.client.connect_timeout_ms = defaults["client"]["connect_timeout_ms"]
+    request.update.settings.client.request_timeout_ms = defaults["client"]["request_timeout_ms"]
+    return request.update.settings.client
 
 
 def _readable(value: str) -> bool:

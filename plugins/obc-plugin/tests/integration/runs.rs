@@ -76,7 +76,7 @@ fn road(resources: &Connections) -> Caller {
 }
 
 fn workflow<T: SidecarTemplate>(suite: &str) -> Workflow<T> {
-    Workflow::new(suite, obc_plugin::SOURCE)
+    Workflow::new(suite, obc_plugin::SOURCE, &Default::default())
 }
 
 fn start<T: SidecarTemplate>(workflow: &Workflow<T>, resources: &Connections, request: RunExecution) -> Result<(), dokime::Refusal> {

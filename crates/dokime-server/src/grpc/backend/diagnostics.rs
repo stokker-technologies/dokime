@@ -23,7 +23,7 @@ use tonic::Status;
 
 // Local Imports
 use crate::diagnostics_assembly::{self, DiagnosticCheckStatus, DiagnosticsSnapshot, StartupDoctorCheck, StartupDoctorCheckKey};
-use crate::grpc::value::{self, canonical};
+use crate::grpc::value::canonical;
 use dokime::domain::operations::backend as wire;
 use dokime::{
     RuntimeHandle,
@@ -32,7 +32,7 @@ use dokime::{
 
 /* === Constants === */
 
-const MAX_RESPONSE_BYTES: usize = 512 * 1024;
+const SERVER_DIAGNOSTICS_RESPONSE_BYTES: u64 = 524_288;
 
 /* === Macros === */
 
@@ -90,7 +90,10 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<Read>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(MAX_RESPONSE_BYTES) }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            maximum: maximum.min(usize::try_from(SERVER_DIAGNOSTICS_RESPONSE_BYTES).expect("validated diagnostics response size")),
+        }),
     )?;
     Ok(())
 }
@@ -118,10 +121,6 @@ pub(super) fn process_diagnostics() -> dokime::domain::model::backend::wire::Pro
 /* === Private Functions === */
 
 fn runtime_diagnostics(diagnostics: &DiagnosticsSnapshot) -> Result<dokime::domain::model::backend::wire::RuntimeDiagnostics, Status> {
-    value::text(&diagnostics.storage_root)?;
-    value::collection(diagnostics.path_conventions.len())?;
-    value::collection(diagnostics.startup_doctor.checks.len())?;
-    value::collection(diagnostics.installed_plugin_errors.len())?;
     Ok(dokime::domain::model::backend::wire::RuntimeDiagnostics {
         captured_at: Some(canonical::timestamp(&diagnostics.captured_at)?),
         session_id: diagnostics.session_id.to_string(),
@@ -165,10 +164,6 @@ fn startup_doctor(
 }
 
 fn startup_doctor_check(check: &StartupDoctorCheck) -> Result<dokime::domain::model::backend::wire::StartupDoctorCheck, Status> {
-    value::text(&check.message)?;
-    if let Some(detail) = check.detail.as_deref() {
-        value::text(detail)?;
-    }
     Ok(dokime::domain::model::backend::wire::StartupDoctorCheck {
         key: startup_doctor_key(check.key),
         status: diagnostic_status(check.status),
@@ -193,10 +188,6 @@ fn startup_doctor_key(key: StartupDoctorCheckKey) -> dokime::domain::model::back
 }
 
 fn path_convention(path: &DiagnosticPathConvention) -> Result<dokime::domain::model::backend::wire::DiagnosticPathConvention, Status> {
-    value::text(&path.relative_path)?;
-    if let Some(absolute_path) = path.absolute_path.as_deref() {
-        value::text(absolute_path)?;
-    }
     Ok(dokime::domain::model::backend::wire::DiagnosticPathConvention {
         key: diagnostic_path_key(path.key),
         // Every convention the runtime produces sits at a fixed path under the
@@ -240,29 +231,10 @@ fn diagnostics_counts(counts: &diagnostics_assembly::DiagnosticsCounts) -> dokim
 fn installed_plugin_error(
     error: &dokime::domains::installed_plugins::InstalledPluginErrorRecord,
 ) -> Result<dokime::domain::model::backend::wire::InstalledPluginErrorRecord, Status> {
-    value::text(error.plugin_id.as_str())?;
-    if let Some(id) = error.contribution_id.as_ref() {
-        value::text(id.as_str())?;
-    }
-    value::text(&error.message)?;
-    if let Some(code) = error.code.as_deref() {
-        value::text(code)?;
-    }
-    if let Some(source) = error.source.as_deref() {
-        value::text(source)?;
-    }
-    value::collection(error.cause_chain.len())?;
     let cause_chain = error
         .cause_chain
         .iter()
         .map(|cause| {
-            value::text(&cause.message)?;
-            if let Some(code) = cause.code.as_deref() {
-                value::text(code)?;
-            }
-            if let Some(source) = cause.source.as_deref() {
-                value::text(source)?;
-            }
             Ok(dokime::domain::model::backend::wire::ErrorCause {
                 message: cause.message.clone(),
                 code: cause.code.clone(),

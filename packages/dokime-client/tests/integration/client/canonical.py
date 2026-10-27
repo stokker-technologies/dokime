@@ -87,10 +87,10 @@ def _value(**fields: Any) -> Message:
     elif kind == "datetime_value":
         item = DatetimeValue.from_rfc3339(item)
     elif kind == "object_value":
-        item = _wire.decode(item)
+        item = _wire.decode(item, 64)
     elif kind == "array_value":
-        item = [_wire.decode(value) for value in item]
-    return _message("Evidence", "ListRecords", path="records.details", **_wire.encode(item))
+        item = [_wire.decode(value, 64) for value in item]
+    return _message("Evidence", "ListRecords", path="records.details", **_wire.encode(item, 64))
 
 
 def _value_object(*, fields: Mapping[str, Message]) -> Message:
@@ -98,7 +98,7 @@ def _value_object(*, fields: Mapping[str, Message]) -> Message:
         "Evidence",
         "ListRecords",
         path="records.details",
-        **_wire.encode({key: _wire.decode(value) for key, value in fields.items()}),
+        **_wire.encode({key: _wire.decode(value, 64) for key, value in fields.items()}, 64),
     )
 
 

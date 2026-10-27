@@ -27,7 +27,10 @@ use crate::app::organization::policy::{Mode, Source, UpdatePolicy, https_url};
 
 /* === Constants === */
 
-pub(super) const MANIFEST_BYTES: usize = 1024 * 1024;
+const DESKTOP_ORGANIZATION_URL_BYTES: u64 = 4_096;
+const DESKTOP_UPDATE_MANIFEST_BYTES: u64 = 1_048_576;
+const DESKTOP_UPDATE_REDIRECTS: u64 = 10;
+const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
 
 /* === Macros === */
 
@@ -92,16 +95,18 @@ impl Authorization {
 
 pub(super) fn client(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     // Reqwest Removes Authorization On Origin Changes, Including Scheme And Port.
-    let redirects = reqwest::redirect::Policy::custom(|attempt| {
-        if https_url(attempt.url().as_str()).is_err() {
+    let maximum = DESKTOP_ORGANIZATION_URL_BYTES;
+    let redirects_maximum = DESKTOP_UPDATE_REDIRECTS;
+    let redirects = reqwest::redirect::Policy::custom(move |attempt| {
+        if https_url(attempt.url().as_str(), maximum).is_err() {
             return attempt.error("Release redirects require HTTPS without embedded credentials");
         }
-        if attempt.previous().len() >= 10 {
+        if attempt.previous().len() as u64 >= redirects_maximum {
             return attempt.error("Release redirect limit exceeded");
         }
         attempt.follow()
     });
-    builder.redirect(redirects).referer(false).timeout(Duration::from_secs(300)).user_agent("Dokime Desktop")
+    builder.redirect(redirects).referer(false).timeout(Duration::from_millis(DESKTOP_UPDATE_TIMEOUT_MS)).user_agent("Dokime Desktop")
 }
 
 pub(super) fn headers(auth: Option<&Authorization>, target: &Url) -> Result<HeaderMap, String> {
@@ -112,7 +117,7 @@ pub(super) fn headers(auth: Option<&Authorization>, target: &Url) -> Result<Head
 }
 
 pub(super) async fn fetch(url: &Url, auth: Option<&Authorization>, maximum: usize) -> Result<Vec<u8>, String> {
-    https_url(url.as_str())?;
+    https_url(url.as_str(), DESKTOP_ORGANIZATION_URL_BYTES)?;
     let headers = headers(auth, url)?;
     let client = client(reqwest::Client::builder()).build().map_err(|_| "Release HTTP client initialization failed")?;
     let response = client.get(url.clone()).headers(headers).send().await.map_err(|_| "Release request failed")?;
@@ -141,18 +146,18 @@ pub(super) async fn resolve(policy: &UpdatePolicy, asset: &str, auth: Option<&Au
         Source::Direct { manifest, plugins, .. } => {
             let location =
                 if asset == "latest.json" { manifest } else { plugins.as_ref().ok_or("This source has no plugin release feed")? };
-            https_url(location)
+            https_url(location, DESKTOP_ORGANIZATION_URL_BYTES)
         }
         Source::Github { repository } => {
-            let url = https_url(&format!("https://api.github.com/repos/{repository}/releases/latest"))?;
-            let bytes = fetch(&url, auth, MANIFEST_BYTES).await?;
+            let url = https_url(&format!("https://api.github.com/repos/{repository}/releases/latest"), DESKTOP_ORGANIZATION_URL_BYTES)?;
+            let bytes = fetch(&url, auth, DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
             let release: GithubRelease = serde_json::from_slice(&bytes).map_err(|_| "GitHub release metadata is invalid")?;
             let assets = release.assets.into_iter().map(|entry| (entry.name, entry.browser_download_url));
-            named_asset(assets, asset)
+            named_asset(assets, asset, DESKTOP_ORGANIZATION_URL_BYTES)
         }
         Source::Gitlab { connection, project } => {
             let connection = policy.connections.get(connection).ok_or("The release connection is unavailable")?;
-            let mut url = https_url(&connection.host)?;
+            let mut url = https_url(&connection.host, DESKTOP_ORGANIZATION_URL_BYTES)?;
             url.path_segments_mut().map_err(|_| "The GitLab origin cannot hold a release path")?.extend([
                 "api",
                 "v4",
@@ -162,23 +167,23 @@ pub(super) async fn resolve(policy: &UpdatePolicy, asset: &str, auth: Option<&Au
                 "permalink",
                 "latest",
             ]);
-            let bytes = fetch(&url, auth, MANIFEST_BYTES).await?;
+            let bytes = fetch(&url, auth, DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
             let release: GitlabRelease = serde_json::from_slice(&bytes).map_err(|_| "GitLab release metadata is invalid")?;
             let assets = release.assets.links.into_iter().map(|entry| (entry.name, entry.direct_asset_url.unwrap_or(entry.url)));
-            named_asset(assets, asset)
+            named_asset(assets, asset, DESKTOP_ORGANIZATION_URL_BYTES)
         }
     }
 }
 
 /* === Private Functions === */
 
-fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str) -> Result<Url, String> {
+fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str, maximum: u64) -> Result<Url, String> {
     let mut matching = assets.filter(|(name, _)| name == wanted);
     let (_, location) = matching.next().ok_or_else(|| format!("The release has no {wanted} asset"))?;
     if matching.next().is_some() {
         return Err(format!("The release has more than one {wanted} asset"));
     }
-    https_url(&location)
+    https_url(&location, maximum)
 }
 
 /* === Tests === */
@@ -186,6 +191,9 @@ fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn https_url(value: &str) -> Result<Url, String> {
+        super::https_url(value, DESKTOP_ORGANIZATION_URL_BYTES)
+    }
 
     #[tokio::test]
     async fn disabled_sources_are_local_and_authorization_is_origin_scoped() {
@@ -201,6 +209,6 @@ mod tests {
         let headers = auth.headers(&target).unwrap();
         assert!(headers[AUTHORIZATION].is_sensitive());
         let duplicate = vec![("latest.json".into(), target.to_string()), ("latest.json".into(), target.to_string())];
-        assert!(named_asset(duplicate.into_iter(), "latest.json").is_err());
+        assert!(named_asset(duplicate.into_iter(), "latest.json", DESKTOP_ORGANIZATION_URL_BYTES).is_err());
     }
 }

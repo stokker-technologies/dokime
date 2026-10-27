@@ -64,10 +64,10 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "re
 
 # Utilities
 blake2 = { version = "0.11.0" }
-harmos = "=0.1.5"
-harmos-domain = "=0.1.5"
-harmos-packaging = "=0.1.5"
-harmos-sdk = "=0.1.5"
+harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "d228a0dd16c6cfca5c09e5ae22ef75a72bfba3d5" }
+harmos-domain = { git = "https://github.com/stokker-technologies/harmos.git", rev = "d228a0dd16c6cfca5c09e5ae22ef75a72bfba3d5" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "d228a0dd16c6cfca5c09e5ae22ef75a72bfba3d5" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "d228a0dd16c6cfca5c09e5ae22ef75a72bfba3d5" }
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
@@ -155,7 +155,7 @@ unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }
 
 # Storage
-rusqlite = { version = "0.40.2", features = ["bundled", "functions"] }
+rusqlite = { version = "0.40.2", features = ["bundled", "functions", "limits"] }
 
 # UI
 anstream = { version = "1.0.0" }
@@ -181,6 +181,13 @@ criterion = { version = "0.8.2", default-features = false, features = ["cargo_be
 # === Lints === #
 
 # === Profiles === #
+
+# Keep Development Debug Archives Small While Retaining Workspace Source Locations.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
 
 # === Patches === #
 

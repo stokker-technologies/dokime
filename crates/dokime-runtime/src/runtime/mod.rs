@@ -47,6 +47,7 @@ pub use storage::{context_records::ContextRecord, execution::ExecutionView, reco
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
+use futures_util::future::BoxFuture;
 
 // Local Imports
 use crate::app::HarmosRuntime;
@@ -54,9 +55,6 @@ use crate::{config::RuntimeConfig, execution_runtime::provider::ExecutionFixture
 use query::RuntimeOverviewSnapshot;
 
 /* === Constants === */
-
-// How long a stopping plugin may take before its sidecar is ended.
-const PLUGIN_STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
 
 /* === Macros === */
 
@@ -122,7 +120,7 @@ impl Runtime {
     pub async fn start(mut config: RuntimeConfig) -> Result<Self> {
         let mut providers = BTreeMap::new();
         for provider in std::mem::take(&mut config.embedded_providers) {
-            let provider = embedded::Active::prepare(provider)?;
+            let provider = embedded::Active::prepare(provider, &config.schema)?;
             let source = provider.definition.id.clone();
             if providers.insert(source.clone(), provider).is_some() {
                 return Err(crate::runtime::Error::Operation(format!("duplicate embedded provider `{source}`")));
@@ -233,6 +231,11 @@ impl Runtime {
     }
 
     pub async fn shutdown(&mut self) -> Result<RuntimeOverviewSnapshot> {
+        let stopping: BoxFuture<'_, Result<RuntimeOverviewSnapshot>> = Box::pin(self.shutdown_inner());
+        stopping.await
+    }
+
+    async fn shutdown_inner(&mut self) -> Result<RuntimeOverviewSnapshot> {
         if self.shutdown.complete {
             self.handle.provider_completion_result()?;
             if let Some(source) = &self.shutdown.task_failure {
@@ -304,9 +307,11 @@ impl Runtime {
                     embedded: &mut self.embedded,
                 };
                 // A plugin that outstays its grace loses its sidecar: dropping the manager ends it.
-                match tokio::time::timeout(PLUGIN_STOP_GRACE, manager.shutdown(&mut lifecycle)).await {
+                let grace_ms = 5000;
+                let grace = std::time::Duration::from_millis(grace_ms);
+                match tokio::time::timeout(grace, manager.shutdown(&mut lifecycle)).await {
                     Ok(stopped) => stopped?,
-                    Err(_) => tracing::warn!(grace_s = PLUGIN_STOP_GRACE.as_secs(), "plugins did not stop in time; ending their sidecars"),
+                    Err(_) => tracing::warn!(grace_ms, "plugins did not stop in time; ending their sidecars"),
                 }
             }
             self.embedded.clear();
@@ -346,7 +351,6 @@ impl Runtime {
                     let _evidence = self.handle.evidence_admission.lock().await;
                     let _admission = self.handle.telemetry_admission.lock().await;
                     self.handle.execution_storage.checkpoint_shutdown().await?;
-                    self.handle.streams.seal::<crate::telemetry_runtime::TelemetryRow>().await;
                     self.handle.runtime_overview().await
                 };
                 let overview = tokio::select! {

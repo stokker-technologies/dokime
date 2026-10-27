@@ -64,14 +64,14 @@ pub(crate) enum Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
-        Command::Start(args) => start::run(args).await,
-        Command::Run(args) => run::run(args).await,
-        Command::Wait(args) => wait::run(args).await,
-        Command::Prompt(command) => prompt::run(command).await,
-        Command::Stop(args) => stop::run(args).await,
-        Command::Export(args) => export::run(args).await,
+        Command::Start(args) => start::run(args, settings).await,
+        Command::Run(args) => run::run(args, settings).await,
+        Command::Wait(args) => wait::run(args, settings).await,
+        Command::Prompt(command) => prompt::run(command, settings).await,
+        Command::Stop(args) => stop::run(args, settings).await,
+        Command::Export(args) => export::run(args, settings).await,
     }
 }
 

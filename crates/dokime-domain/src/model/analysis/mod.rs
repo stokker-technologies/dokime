@@ -30,6 +30,10 @@ use crate::model::values::Value;
 
 /* === Constants === */
 
+pub const MAX_OUTPUTS: u64 = 32;
+pub const MAX_PARAMETERS: u64 = 64;
+pub const MAX_UNIT_BYTES: u64 = 128;
+
 pub const MAX_SAMPLES: u32 = 262_144;
 pub const MAX_PARAMETER_BYTES: usize = 65_536;
 
@@ -94,13 +98,37 @@ impl harmos_domain::MemorySize for Selection {
 }
 
 impl Definition {
+    pub fn check_limits(&self) -> Result<(), String> {
+        if self.outputs.len() as u64 > MAX_OUTPUTS || self.parameters.len() as u64 > MAX_PARAMETERS {
+            return Err("analysis declaration exceeds configured output or parameter counts".into());
+        }
+        self.check()?;
+        let parameters = serde_json::to_vec(&self.parameters).map_err(|error| error.to_string())?;
+        if parameters.len() as u64 > MAX_PARAMETER_BYTES as u64 {
+            return Err("analysis parameter declarations exceed their configured byte budget".into());
+        }
+        let units = self.outputs.iter().flat_map(|output| output.unit.iter().chain(output.axis.iter().flat_map(|axis| axis.unit.iter())));
+        if units.into_iter().any(|unit| unit.len() as u64 > MAX_UNIT_BYTES) {
+            return Err("analysis output units exceed their configured byte budget".into());
+        }
+        Ok(())
+    }
+
+    pub fn check_selection_limits(&self, selection: &Selection) -> Result<(), String> {
+        let parameters = serde_json::to_vec(&selection.parameters).map_err(|error| error.to_string())?;
+        if parameters.len() as u64 > MAX_PARAMETER_BYTES as u64 {
+            return Err("analysis parameters exceed their configured byte budget".into());
+        }
+        Ok(())
+    }
+
     pub fn check(&self) -> Result<(), String> {
         if self.id.is_empty() || self.version == 0 || self.label.is_empty() {
             return Err("analysis requires an identity, positive version and label".into());
         }
         self.limits.check()?;
-        if self.outputs.is_empty() || self.outputs.len() > 32 {
-            return Err("analysis must declare between one and 32 outputs".into());
+        if self.outputs.is_empty() {
+            return Err("analysis must declare at least one output".into());
         }
         let mut keys = BTreeSet::new();
         for output in &self.outputs {
@@ -110,11 +138,6 @@ impl Definition {
             if output.axis.as_ref().is_some_and(|axis| axis.key.is_empty()) {
                 return Err("analysis output axis requires a key".into());
             }
-        }
-        if self.parameters.len() > 64
-            || serde_json::to_vec(&self.parameters).map_err(|error| error.to_string())?.len() > MAX_PARAMETER_BYTES
-        {
-            return Err("analysis parameter declarations exceed their budget".into());
         }
         let mut parameters = BTreeSet::new();
         for parameter in &self.parameters {
@@ -132,9 +155,6 @@ impl Definition {
         self.check()?;
         if selection.id != self.id || selection.version != self.version {
             return Err("analysis identity or version is unavailable".into());
-        }
-        if serde_json::to_vec(&selection.parameters).map_err(|error| error.to_string())?.len() > MAX_PARAMETER_BYTES {
-            return Err("analysis parameters exceed the configuration budget".into());
         }
         if selection.parameters.keys().any(|key| !self.parameters.iter().any(|definition| parameter_name(definition) == key)) {
             return Err("analysis received an undeclared parameter".into());
@@ -159,9 +179,16 @@ impl Definition {
 }
 
 impl Limits {
+    pub fn constrained(self) -> Self {
+        Self {
+            max_samples: u64::from(self.max_samples).min(u64::from(MAX_SAMPLES)) as u32,
+            max_output_values: u64::from(self.max_output_values).min(u64::from(MAX_SAMPLES)) as u32,
+        }
+    }
+
     pub fn check(self) -> Result<(), String> {
-        if self.max_samples == 0 || self.max_samples > MAX_SAMPLES || self.max_output_values == 0 || self.max_output_values > MAX_SAMPLES {
-            return Err("analysis sample and output budgets must be positive and within the host allowance".into());
+        if self.max_samples == 0 || self.max_output_values == 0 {
+            return Err("analysis sample and output budgets must be positive".into());
         }
         Ok(())
     }

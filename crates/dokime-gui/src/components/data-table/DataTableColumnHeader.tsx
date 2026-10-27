@@ -47,7 +47,7 @@ export function DataTableColumnHeader<TData extends RowData>({ header }: DataTab
     <div className={cn("flex min-w-0 items-center gap-1", meta?.align === "end" && "flex-row-reverse")}>
       {column.getCanSort() ? (
         <button
-          className="inline-flex min-w-0 items-center gap-1 rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex min-w-0 items-center gap-1 rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           onClick={column.getToggleSortingHandler()}
           type="button"
         >

@@ -8,6 +8,7 @@
  */
 
 /* === External Imports === */
+
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -49,7 +50,10 @@ type MediaDownloadRequest = {
 };
 
 /* === Constants === */
-const MAX_ACTIVE_MEDIA_DOWNLOADS = 2;
+
+const GUI_MEDIA_DOWNLOADS = 2;
+
+const MAX_ACTIVE_MEDIA_DOWNLOADS = GUI_MEDIA_DOWNLOADS;
 
 /* === Components === */
 export function MediaGallery({ artifacts, emptyMessage, runDir }: MediaGalleryProps) {

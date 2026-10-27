@@ -60,20 +60,45 @@ fn spill_removed(root: &Path) {
     }
 }
 
+// These Export Fixtures Run On The Current-Thread Executor. The Newly Spawned
+// Accepted Read Cannot Run Until This First Poll Releases The Caller.
+async fn cancel_export_read(bundle: &mut dokime_runtime::domains::exports::evidence::Bundle, maximum: std::num::NonZeroUsize) {
+    use std::{future::Future, task::Poll};
+    let read = bundle.next_chunk(maximum);
+    tokio::pin!(read);
+    std::future::poll_fn(|context| {
+        assert!(read.as_mut().poll(context).is_pending());
+        Poll::Ready(())
+    })
+    .await;
+}
+
 async fn export_zip(
     runtime: &RuntimeHandle, subject: dokime_domain::model::exports::EvidenceSubject, destination: &Path,
 ) -> serde_json::Value {
     use sha2::{Digest, Sha256};
     use std::io::{Read, Write};
+    let maximum = match &subject {
+        dokime_domain::model::exports::EvidenceSubject::Execution(_) => 2 * 1024 * 1024,
+        dokime_domain::model::exports::EvidenceSubject::Cycle(_) => 257,
+    };
+    let maximum = std::num::NonZeroUsize::new(maximum).unwrap();
     let mut bundle = runtime.export_evidence(subject.clone()).await.unwrap();
+    cancel_export_read(&mut bundle, maximum).await;
+    assert!(matches!(
+        bundle.next_chunk(std::num::NonZeroUsize::new(maximum.get() + 1).unwrap()).await,
+        Err(dokime_runtime::domains::exports::evidence::Error::Invalid(_))
+    ));
     assert_eq!(bundle.metadata().subject.as_ref(), Some(&subject));
     let metadata = bundle.metadata().clone();
     assert!(matches!(runtime.export_evidence(subject).await, Err(dokime_runtime::domains::exports::evidence::Error::Busy)));
     let mut output = std::fs::File::create_new(destination).unwrap();
     let mut digest = Sha256::new();
     let mut offset = 0;
-    while let Some(chunk) = bundle.next_chunk(std::num::NonZeroUsize::new(32_768).unwrap()).await.unwrap() {
+    while let Some(chunk) = bundle.next_chunk(maximum).await.unwrap() {
         assert_eq!(chunk.offset, offset);
+        assert!(!chunk.data.is_empty());
+        assert!(chunk.data.len() <= maximum.get());
         offset += chunk.data.len() as u64;
         digest.update(&chunk.data);
         output.write_all(&chunk.data).unwrap();
@@ -152,13 +177,20 @@ async fn saved_evidence_export() {
     owner.shutdown().await.unwrap();
     drop(runtime);
     let (mut owner, runtime) = started(config(root.path())).await;
-    let historical = export_zip(&runtime, execution_subject, &root.path().join("historical.zip")).await;
+    let historical = export_zip(&runtime, execution_subject.clone(), &root.path().join("historical.zip")).await;
     assert_eq!(historical["executions"].as_array().unwrap().len(), 1);
     assert_eq!(historical["executions"][0], manifest["executions"][0]);
     let historical_cycle = export_zip(&runtime, cycle_subject, &root.path().join("historical-cycle.zip")).await;
     assert_eq!(historical_cycle["executions"], manifest["executions"]);
     assert_eq!(historical_cycle["cycle_revision"], manifest["cycle_revision"]);
+    let mut pending = runtime.export_evidence(execution_subject.clone()).await.unwrap();
+    cancel_export_read(&mut pending, std::num::NonZeroUsize::new(4096).unwrap()).await;
+    drop(pending);
+    let cache = runtime.application_root().join("cache/exports");
+    assert_eq!(std::fs::read_dir(&cache).unwrap().count(), 1);
+    assert!(matches!(runtime.export_evidence(execution_subject).await, Err(dokime_runtime::domains::exports::evidence::Error::Busy)));
     owner.shutdown().await.unwrap();
+    assert_eq!(std::fs::read_dir(&cache).unwrap().count(), 0);
 }
 
 #[tokio::test]
@@ -280,7 +312,7 @@ async fn abandoned_transfer_slots() {
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
     let log = files.iter().find(|file| file.relative_path.ends_with("stream.log")).unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 16_384).await.unwrap().unwrap();
-    let log = String::from_utf8(log.bytes).unwrap();
+    let log = std::str::from_utf8(&log.bytes).unwrap();
     let received = dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES;
     for index in 0..17 {
         assert!(

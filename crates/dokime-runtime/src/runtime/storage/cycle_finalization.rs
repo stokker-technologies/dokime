@@ -57,14 +57,24 @@ pub(crate) struct Materialization {
 }
 
 pub(crate) struct CompletedCycle {
-    pub header: TestCycle,
+    pub header: CompletedHeader,
 }
+
+pub(crate) struct CompletedHeader(harmos::storage::ReadBatch<TestCycle>);
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl std::ops::Deref for CompletedHeader {
+    type Target = TestCycle;
+
+    fn deref(&self) -> &TestCycle {
+        &self.0
+    }
+}
 
 impl super::executions::ExecutionStorage {
     pub(crate) async fn cycle_finalization_intent(&self, id: &TestCycleId) -> Result<Option<crate::transactions::CycleReportFinalization>> {
@@ -153,7 +163,8 @@ impl RuntimeHandle {
         if cycle.saved.is_none() {
             return Err(invalid("unsealed cycle cannot release its history"));
         }
-        let key_bytes = std::num::NonZeroUsize::new(1024).unwrap();
+        let key_bytes =
+            std::num::NonZeroUsize::new(cycle.test_cycle_id.as_str().len()).ok_or_else(|| invalid("cycle identity is empty"))?;
         let cycle_schema = <ObjectDefinitions as Member<Cycle>>::ENTRY.schema()?;
         let key = ObjectKey::new(cycle.test_cycle_id.as_str(), key_bytes)?;
         self.storage().release_object_history(&cycle_schema, &key, through).await?;
@@ -161,8 +172,8 @@ impl RuntimeHandle {
     }
 
     async fn recover_saved_cycle(&self, intent: &crate::transactions::CycleReportFinalization) -> Result<Option<Arc<CompletedCycle>>> {
-        let Some(revision) =
-            crate::storage::objects::cycle::read(self.storage(), &intent.source.test_cycle_id, ObjectVersion::Latest).await?
+        let session = self.storage().clone();
+        let Some(revision) = crate::storage::objects::cycle::read(&session, &intent.source.test_cycle_id, ObjectVersion::Latest).await?
         else {
             return Ok(None);
         };
@@ -185,7 +196,8 @@ impl RuntimeHandle {
             }
         }
         self.release_cycle_history(&revision.value, &revision.position).await?;
-        Ok(Some(Arc::new(CompletedCycle { header: revision.value })))
+        let header = revision.try_map(|revision| Ok::<_, Error>(revision.value))?;
+        Ok(Some(Arc::new(CompletedCycle { header: CompletedHeader(header) })))
     }
 
     pub(crate) async fn finish_saved_cycle(&self, source: &CycleView, operation: &Operation) -> Result<Arc<CompletedCycle>> {
@@ -308,20 +320,30 @@ impl RuntimeHandle {
                 inputs: &inputs,
                 file: &seal.report,
             },
+            self.schema_settings(),
         )?
         .finish()
         .await?;
 
         operation.phase("Saving Seal");
-        let mut cycle = (**pending.snapshot.source()).clone();
-        cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealed;
-        cycle.saved = Some(seal);
-        let receipt = self.storage().write_object(&Cycle::try_from(&cycle)?).await?;
+        let source = &**pending.snapshot.source();
+        let cycle = harmos::storage::ReadBatch::new(()).try_map(|_| {
+            let mut cycle = source.clone();
+            cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealed;
+            cycle.saved = Some(seal);
+            Ok::<_, Error>(cycle)
+        })?;
+        let prepared = cycle.try_map(|cycle| {
+            let row = Cycle::try_from(&cycle)?;
+            Ok::<_, Error>((cycle, row))
+        })?;
+        let receipt = self.storage().write_object(&prepared.1).await?;
         let saved = self.storage().flush_until(&receipt.position).await?;
         if !saved.covers(&receipt.position)? {
             return Err(invalid("cycle seal is not saved"));
         }
-        let completed = Arc::new(CompletedCycle { header: cycle });
+        let header = prepared.try_map(|(cycle, _row)| Ok::<_, Error>(cycle))?;
+        let completed = Arc::new(CompletedCycle { header: CompletedHeader(header) });
         self.release_cycle_history(&completed.header, &saved).await?;
         Ok(completed)
     }
@@ -332,6 +354,7 @@ impl super::executions::ExecutionStorage {
         &self, source: Arc<TestCycle>, at: &StorageCursor, operation: &Operation,
     ) -> Result<PendingCycle> {
         operation.phase("Collecting Sealed Members");
+        let session = self.storage.clone();
         let mut revisions = Vec::with_capacity(source.execution_ids.len());
         let mut executions = Vec::with_capacity(source.execution_ids.len());
         let mut appearance = None;
@@ -367,7 +390,7 @@ impl super::executions::ExecutionStorage {
         };
         // The Native Seal May Have Committed Before Managed Adoption Failed.
         // Current-Report Opens Reuse That Exact File Rather Than Publishing Again.
-        let latest = crate::storage::objects::cycle::read(&self.storage, &source.test_cycle_id, ObjectVersion::Latest).await?;
+        let latest = crate::storage::objects::cycle::read(&session, &source.test_cycle_id, ObjectVersion::Latest).await?;
         let published = match latest.as_ref().and_then(|latest| latest.value.saved.as_ref()) {
             Some(seal) => {
                 let latest = &latest.as_ref().expect("selected saved cycle").value;

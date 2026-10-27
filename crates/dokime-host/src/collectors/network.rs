@@ -24,13 +24,14 @@ use sysinfo::Networks;
 
 // Local Imports
 use crate::{
-    DEFAULT_NETWORK_LINK_INTERVAL, HostStreamSample, HostTelemetryStream, Result,
+    HostStreamSample, HostTelemetryStream, Result,
     collectors::{integer, maybe_insert},
 };
-use dokime_domain::model::time::DurationMillis;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
+const NETWORK_LINK_INTERVAL_MS: u64 = 5_000;
 
 const BYTES_PER_MEGABYTE: f64 = 1_000_000.0;
 
@@ -72,17 +73,17 @@ struct PrimaryNetwork {
 
 impl Default for NetworkCollector {
     fn default() -> Self {
-        Self::new(DEFAULT_NETWORK_LINK_INTERVAL)
+        Self::new()
     }
 }
 
 impl NetworkCollector {
-    pub fn new(route_refresh_interval: DurationMillis) -> Self {
+    pub fn new() -> Self {
         Self {
             sample_index: 0,
             networks: Networks::new_with_refreshed_list(),
             last_refresh: Instant::now(),
-            route_refresh_interval: Duration::from_millis(route_refresh_interval.0.max(1)),
+            route_refresh_interval: Duration::from_millis(NETWORK_LINK_INTERVAL_MS),
             last_route_refresh: None,
             route: RouteContext::default(),
         }

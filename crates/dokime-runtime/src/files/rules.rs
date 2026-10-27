@@ -27,10 +27,7 @@ use dokime_domain::model::files::wire::FileRuleAction;
 
 /* === Constants === */
 
-// The most rules one watch may carry.
 pub const MAX_RULES: usize = 64;
-
-// The longest glob one rule may carry, in UTF-8 bytes.
 pub const MAX_GLOB_BYTES: usize = 1024;
 
 /* === Macros === */
@@ -48,13 +45,13 @@ pub struct FileMatcher {
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum InvalidRule {
-    #[error("a watch needs at least one include rule and at most {MAX_RULES} rules")]
+    #[error("a watch needs at least one include rule within its configured rule limit")]
     Count,
 
     #[error("rule {index} must include or exclude")]
     Action { index: usize },
 
-    #[error("rule {index} glob must contain 1–{MAX_GLOB_BYTES} bytes without a leading '/'")]
+    #[error("rule {index} glob must be nonempty, within its configured byte limit and without a leading '/'")]
     Shape { index: usize },
 
     #[error("rule {index} glob is invalid: {reason}")]
@@ -116,7 +113,11 @@ mod tests {
     }
 
     fn matcher(rules: &[FileRule]) -> FileMatcher {
-        FileMatcher::compile(rules).expect("the rules compile")
+        compile(rules).expect("the rules compile")
+    }
+
+    fn compile(rules: &[FileRule]) -> Result<FileMatcher, InvalidRule> {
+        FileMatcher::compile(rules)
     }
 
     #[test]
@@ -159,15 +160,15 @@ mod tests {
 
     #[test]
     fn malformed_rules_refused() {
-        assert_eq!(FileMatcher::compile(&[]).unwrap_err(), InvalidRule::Count);
-        assert_eq!(FileMatcher::compile(&[exclude("**/*.log")]).unwrap_err(), InvalidRule::Count);
+        assert_eq!(compile(&[]).unwrap_err(), InvalidRule::Count);
+        assert_eq!(compile(&[exclude("**/*.log")]).unwrap_err(), InvalidRule::Count);
         assert_eq!(
-            FileMatcher::compile(&[include("**"), FileRule { glob: "*.log".into(), action: FileRuleAction::Unspecified },]).unwrap_err(),
+            compile(&[include("**"), FileRule { glob: "*.log".into(), action: FileRuleAction::Unspecified },]).unwrap_err(),
             InvalidRule::Action { index: 1 }
         );
         for shape in ["", "/var/log/*.log", "logs\\*.log"] {
-            assert_eq!(FileMatcher::compile(&[include(shape)]).unwrap_err(), InvalidRule::Shape { index: 0 }, "{shape:?}");
+            assert_eq!(compile(&[include(shape)]).unwrap_err(), InvalidRule::Shape { index: 0 }, "{shape:?}");
         }
-        assert!(matches!(FileMatcher::compile(&[include("logs/[a-.log")]).unwrap_err(), InvalidRule::Glob { index: 0, .. }));
+        assert!(matches!(compile(&[include("logs/[a-.log")]).unwrap_err(), InvalidRule::Glob { index: 0, .. }));
     }
 }

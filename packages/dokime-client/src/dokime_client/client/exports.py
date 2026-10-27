@@ -33,7 +33,6 @@ from .models import Backend
 
 # === Constants === #
 
-_MAXIMUM_BYTES = 8 * 1024**3
 
 # === Types === #
 
@@ -57,7 +56,7 @@ async def export_evidence(
     _destination(path, overwrite)
     if backend.max_evidence_bytes is None or backend.max_evidence_bytes <= 0:
         raise ProtocolError("backend did not declare evidence export capacity")
-    maximum = min(backend.max_evidence_bytes, _MAXIMUM_BYTES)
+    maximum = backend.max_evidence_bytes
     subject = {kind: {"field_0": identity}}
     request = _wire.request("Content", "DownloadEvidence", subject=subject)
 

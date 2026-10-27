@@ -7,6 +7,9 @@
  * ***
  */
 
+// Match The Runtime's Nested Native Startup Future Layout.
+#![recursion_limit = "256"]
+
 /* === Modules === */
 
 mod app;

@@ -36,10 +36,8 @@ export function PlotPlaceholder({ actions, description, detail, label, title, to
   return (
     <div
       className={cn(
-        "plot-empty relative grid place-content-center justify-items-center gap-2 rounded-md p-4 text-center",
-        failed
-          ? "min-h-[230px] border border-destructive/30 bg-destructive/10 text-destructive"
-          : "min-h-44 bg-muted/20 text-muted-foreground",
+        "plot-empty relative grid place-content-center justify-items-center gap-2 rounded-lg p-4 text-center",
+        failed ? "min-h-60 border border-destructive/30 bg-destructive/10 text-destructive" : "min-h-44 bg-muted/20 text-muted-foreground",
       )}
       data-testid="plot-placeholder"
       data-tone={tone}

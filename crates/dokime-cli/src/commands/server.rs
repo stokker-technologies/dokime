@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Write, net::SocketAddr, path::Path};
+use std::{future::Future, io::Write, net::SocketAddr, path::Path, pin::Pin};
 
 // Third Party Imports
 
@@ -23,6 +23,9 @@ use dokime::domain::{DEV_PROTOCOL, READINESS_PROTOCOL};
 use dokime_server::host;
 
 /* === Constants === */
+
+const DEVELOPMENT_COMMAND_ITEMS: u64 = 8;
+const DEVELOPMENT_COMMAND_BYTES: u64 = 16_384;
 
 /* === Macros === */
 
@@ -53,25 +56,36 @@ enum Command {
 
 /* === Public Functions === */
 
-pub async fn run(args: Args) -> crate::Result<()> {
+pub(super) fn configuration(args: &Args) -> crate::Result<dokime::config::Config> {
+    let loaded = load_environment(args.runtime.env_file.as_deref());
+    loaded
+        .and_then(|()| args.runtime.configuration())
+        .map_err(|error| crate::Error::Process { exit_code: error.exit_code(), source: Box::new(error) })
+}
+
+pub async fn run(args: Args, configuration: dokime::config::Config) -> crate::Result<()> {
     if let Some(Command::Version(args)) = args.command {
         host::version::run(args);
         return Ok(());
     }
-    run_server(args.runtime).await.map_err(|error| crate::Error::Process { exit_code: error.exit_code(), source: Box::new(error) })
+    run_server(args.runtime, configuration)
+        .await
+        .map_err(|error| crate::Error::Process { exit_code: error.exit_code(), source: Box::new(error) })
 }
 
 /* === Private Functions === */
 
-async fn run_server(args: host::Args) -> host::Result<()> {
+async fn run_server(args: host::Args, config: dokime::config::Config) -> host::Result<()> {
     let network = args.network.config()?;
-    load_environment(args.env_file.as_deref())?;
-    let config = args.configuration()?;
     let application_root = config.application_root.clone().expect("resolved application root");
     let storage_root = config.output_root.clone();
     let terminal = dokime::terminal::Terminal::new(crate::terminal::color_mode());
     let _guards = host::install_logging(&application_root, terminal.color_enabled())?;
-    let mut session = host::Session::start(&args, config, network, |name| emit_phase(args.dev_control, name)).await?;
+    let network = network.with_trace_journal(_guards.journal());
+
+    let start = host::Session::start(&args, config, network, |name| emit_phase(args.dev_control, name));
+    let starting: Pin<Box<dyn Future<Output = host::Result<host::Session>> + '_>> = Box::pin(start);
+    let mut session = starting.await?;
     let endpoint = session.endpoint();
     if args.dev_control {
         let ready = serde_json::json!({
@@ -104,15 +118,16 @@ fn load_environment(env_file: Option<&Path>) -> host::Result<()> {
 
 async fn development_control(session: &mut host::Session) {
     use std::io::{BufRead, Write};
-    let (send, mut commands) = tokio::sync::mpsc::channel(8);
+    let (send, mut commands) = tokio::sync::mpsc::channel(DEVELOPMENT_COMMAND_ITEMS as usize);
+    let maximum = DEVELOPMENT_COMMAND_BYTES;
     std::thread::spawn(move || {
         let mut input = std::io::stdin().lock();
         loop {
             let mut line = String::new();
             // Bound each request independently; EOF still owns host shutdown.
-            match std::io::Read::take(&mut input, 16 * 1024 + 1).read_line(&mut line) {
+            match std::io::Read::take(&mut input, maximum.saturating_add(1)).read_line(&mut line) {
                 Ok(0) | Err(_) => break,
-                Ok(_) if line.len() > 16 * 1024 || !line.ends_with('\n') => break,
+                Ok(_) if line.len() as u64 > maximum || !line.ends_with('\n') => break,
                 Ok(_) => {
                     if send.blocking_send(line).is_err() {
                         break;
@@ -137,7 +152,9 @@ async fn development_control(session: &mut host::Session) {
                 return Err(host::Error::Input("unsupported development command".into()));
             }
             let path = request["path"].as_str().ok_or_else(|| host::Error::Input("reload path is required".into()))?;
-            let rerun = session.reload(Path::new(path), request["rerun"].as_bool() == Some(true)).await?;
+            let reloading = session.reload(Path::new(path), request["rerun"].as_bool() == Some(true));
+            let reload: Pin<Box<dyn Future<Output = host::Result<Option<String>>> + '_>> = Box::pin(reloading);
+            let rerun = reload.await?;
             Ok::<_, host::Error>(serde_json::json!({"event":"reloaded", "rerun_message":rerun}))
         }
         .await;

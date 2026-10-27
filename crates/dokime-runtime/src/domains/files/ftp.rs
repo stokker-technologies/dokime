@@ -35,17 +35,15 @@ use tokio::io::AsyncReadExt;
 
 // Local Imports
 use super::source::{Entry, Listing, ReadFailure};
-use super::{SCAN_ENTRIES, UNSUPPORTED, UNTRUSTED, capped, invalid, unreachable_source};
+use super::{UNSUPPORTED, UNTRUSTED, capped, invalid, unreachable_source};
 use crate::files::FileMatcher;
 use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
 
-// Bounds one FTP command, including a data transfer's setup.
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
-
-// Bounds one ranged retrieval's data transfer.
 const TRANSFER_TIMEOUT: Duration = Duration::from_secs(300);
+const SCAN_ENTRIES: usize = 100_000;
 const DEFAULT_PORT: u16 = 21;
 
 /* === Macros === */
@@ -108,7 +106,7 @@ impl FtpSource {
             for line in lines {
                 visited += 1;
                 if visited > SCAN_ENTRIES {
-                    return Err(capped(format!("the watch root holds more than {SCAN_ENTRIES} entries")));
+                    return Err(capped(format!("the watch root holds more than {} entries", SCAN_ENTRIES)));
                 }
                 let Some(listed) = self.parse(&line) else {
                     continue;
@@ -202,11 +200,14 @@ impl FtpSource {
             return Ok(connection);
         }
         let endpoint = &self.endpoint;
-        let connection = bounded(AsyncRustlsFtpStream::connect((endpoint.host.as_str(), endpoint.port))).await?;
-        let mut connection =
-            if endpoint.secure { bounded(connection.into_secure(tls_connector()?, &endpoint.host)).await? } else { connection };
-        bounded(connection.login(endpoint.user.as_str(), endpoint.password.as_str())).await?;
-        bounded(connection.transfer_type(FileType::Binary)).await?;
+        let connection = bounded(COMMAND_TIMEOUT, AsyncRustlsFtpStream::connect((endpoint.host.as_str(), endpoint.port))).await?;
+        let mut connection = if endpoint.secure {
+            bounded(COMMAND_TIMEOUT, connection.into_secure(tls_connector()?, &endpoint.host)).await?
+        } else {
+            connection
+        };
+        bounded(COMMAND_TIMEOUT, connection.login(endpoint.user.as_str(), endpoint.password.as_str())).await?;
+        bounded(COMMAND_TIMEOUT, connection.transfer_type(FileType::Binary)).await?;
         Ok(connection)
     }
 
@@ -328,8 +329,8 @@ fn tls_connector() -> Result<AsyncRustlsConnector> {
 }
 
 // Bounds one FTP command; a refusal or timeout means the source is unreachable.
-async fn bounded<T>(command: impl Future<Output = suppaftp::FtpResult<T>>) -> Result<T> {
-    match tokio::time::timeout(COMMAND_TIMEOUT, command).await {
+async fn bounded<T>(timeout: Duration, command: impl Future<Output = suppaftp::FtpResult<T>>) -> Result<T> {
+    match tokio::time::timeout(timeout, command).await {
         Ok(Ok(value)) => Ok(value),
         Ok(Err(source)) => Err(unreachable_source(source)),
         Err(_) => Err(unreachable_source("the FTP command timed out")),

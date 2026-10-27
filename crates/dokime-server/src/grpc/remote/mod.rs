@@ -34,6 +34,9 @@ use dokime::domain::model::remote::{GeneratedAccessKey, RemoteListenerSettings, 
 
 /* === Constants === */
 
+const SERVER_REMOTE_HEARTBEAT_MS: u64 = 5_000;
+const SERVER_REMOTE_NAMES: u64 = 32;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -41,6 +44,7 @@ use dokime::domain::model::remote::{GeneratedAccessKey, RemoteListenerSettings, 
 /* === Structs === */
 
 pub(super) struct Controller {
+    runtime: RuntimeHandle,
     service: Service,
     path: PathBuf,
     sessions: Arc<sessions::SessionLog>,
@@ -50,6 +54,7 @@ pub(super) struct Controller {
 struct State {
     document: store::Document,
     server: Option<Server>,
+    bound: Option<Config>,
     error: Option<String>,
     closing: bool,
 }
@@ -86,7 +91,16 @@ impl Controller {
             return;
         }
         let started = match self.config(&state.document) {
-            Ok(Some(config)) => self.service.listen_with(config).await.map(Some),
+            Ok(Some(config)) => {
+                let bound = config.clone();
+                match self.service.listen_with(config).await {
+                    Ok(server) => {
+                        state.bound = Some(bound);
+                        Ok(Some(server))
+                    }
+                    Err(error) => Err(error),
+                }
+            }
             Ok(None) => Ok(None),
             Err(error) => Err(error),
         };
@@ -110,6 +124,7 @@ impl Controller {
         if let Some(server) = state.server.take() {
             server.detach().await?;
         }
+        state.bound = None;
         Ok(())
     }
 
@@ -118,7 +133,12 @@ impl Controller {
     }
 
     async fn status(&self) -> RemoteListenerStatus {
-        self.state.lock().await.status()
+        let mut status = self.state.lock().await.status();
+        match self.runtime.read_application_settings().await {
+            Ok(snapshot) => status.settings = Some(snapshot.settings.listener),
+            Err(error) => status.error = Some(error.to_string()),
+        }
+        status
     }
 
     fn config(&self, document: &store::Document) -> Result<Option<Config>, Error> {
@@ -142,16 +162,51 @@ impl Controller {
         Ok(Some(Config::managed_remote(address, tls, digest, self.service.message_limit())))
     }
 
-    async fn persist(&self, document: &store::Document) -> Result<(), Error> {
+    async fn write_security(&self, document: &store::Document) -> Result<(), Error> {
         let document = document.clone();
         let path = self.path.clone();
         tokio::task::spawn_blocking(move || store::write(&path, &document)).await?
     }
 
+    async fn persist(
+        &self, document: &store::Document, previous: &store::Document, snapshot: dokime::domain::model::settings::wire::SettingsSnapshot,
+    ) -> Result<(), Error> {
+        let saved_listener = document.settings.clone();
+        let result = async {
+            self.write_security(document).await?;
+            if snapshot.settings.listener != saved_listener {
+                let mut settings = snapshot.settings;
+                settings.listener = saved_listener;
+                self.runtime
+                    .update_application_settings(dokime::domain::model::settings::wire::UpdateSettings {
+                        expected_revision: snapshot.revision,
+                        settings,
+                    })
+                    .await?;
+            }
+            Ok::<_, Error>(())
+        }
+        .await;
+        if let Err(change) = result {
+            return match self.write_security(previous).await {
+                Ok(()) => Err(change),
+                Err(restoration) => Err(Error::RemoteRollback { change: Box::new(change), restoration: Box::new(restoration) }),
+            };
+        }
+        Ok(())
+    }
+
     async fn change(self: &Arc<Self>, change: Change) -> Result<GeneratedAccessKey, Error> {
         // Own The Whole Transition After Client Cancellation, Including Rollback.
         let controller = self.clone();
-        tokio::spawn(async move { controller.apply(change).await }).await?
+        tokio::spawn(async move {
+            let result = controller.apply(change).await;
+            if let Err(error) = &result {
+                controller.state.lock().await.error = Some(error.to_string());
+            }
+            result
+        })
+        .await?
     }
 
     async fn apply(&self, change: Change) -> Result<GeneratedAccessKey, Error> {
@@ -159,12 +214,14 @@ impl Controller {
         if state.closing {
             return Err(dokime::harmos::Error::Closing { domain: "remote listener management" }.into());
         }
+        let snapshot = self.runtime.read_application_settings().await?;
         let mut candidate = state.document.clone();
+        candidate.settings = snapshot.settings.listener.clone();
         let mut access_key = Zeroizing::new(String::new());
         match change {
             Change::Settings(settings) => {
                 store::validate(&settings)?;
-                if settings == candidate.settings && state.error.is_none() && state.server.is_some() == settings.enabled {
+                if settings == state.document.settings && state.error.is_none() && state.server.is_some() == settings.enabled {
                     return Ok(GeneratedAccessKey { access_key: String::new(), listener: Some(state.status()) });
                 }
                 let mut settings = settings;
@@ -175,7 +232,10 @@ impl Controller {
                 } else if settings.tls_enabled || !settings.certificate_names.is_empty() {
                     // TLS Never Waits On Typed Names; The Host's Own Identities Seed The Certificate.
                     if settings.certificate_names.is_empty() {
-                        settings.certificate_names = store::host_names(store::validate(&settings)?);
+                        settings.certificate_names = store::host_names(
+                            store::validate(&settings)?,
+                            usize::try_from(SERVER_REMOTE_NAMES).expect("validated remote identity count"),
+                        );
                     }
                     candidate.identity = Some(store::Identity::generate(settings.certificate_names.clone())?);
                 }
@@ -193,16 +253,19 @@ impl Controller {
                 candidate.settings.certificate_names = names;
                 let address = store::validate(&candidate.settings)?;
                 if candidate.settings.certificate_names.is_empty() {
-                    candidate.settings.certificate_names = store::host_names(address);
+                    candidate.settings.certificate_names =
+                        store::host_names(address, usize::try_from(SERVER_REMOTE_NAMES).expect("validated remote identity count"));
                 }
                 candidate.identity = Some(store::Identity::generate(candidate.settings.certificate_names.clone())?);
             }
         }
         let next = self.config(&candidate)?;
-        let previous = match &state.server {
-            Some(server) => self.config(&state.document)?.map(|config| config.with_bind_addr(server.address())),
-            None => None,
-        };
+        let previous = state.bound.clone();
+        if let Err(error) = self.persist(&candidate, &state.document, snapshot).await {
+            state.error = Some(error.to_string());
+            return Err(error);
+        }
+        state.document = candidate.clone();
 
         // Detach Only Remote Transport; Runtime Work And Native Access Retain Ownership.
         if let Some(server) = state.server.take()
@@ -210,6 +273,8 @@ impl Controller {
         {
             return self.restore(&mut state, previous, error).await;
         }
+        state.bound = None;
+        let next_bound = next.clone();
         let server = match next {
             Some(config) => match self.service.listen_with(config).await {
                 Ok(server) => Some(server),
@@ -217,22 +282,9 @@ impl Controller {
             },
             None => None,
         };
-        if let Err(mut error) = self.persist(&candidate).await {
-            if let Some(server) = server
-                && let Err(cleanup) = server.detach().await
-            {
-                error = Error::RemoteRollback { change: Box::new(error), restoration: Box::new(cleanup) };
-            }
-            // An Atomic Rename May Have Succeeded Before A Directory Sync Failed.
-            if let Err(restoration) = self.persist(&state.document).await {
-                let failure = Error::RemoteRollback { change: Box::new(error), restoration: Box::new(restoration) };
-                return self.restore(&mut state, previous, failure).await;
-            }
-            return self.restore(&mut state, previous, error).await;
-        }
-
         state.document = candidate;
         state.server = server;
+        state.bound = next_bound;
         state.error = None;
         tracing::info!(
             enabled = state.document.settings.enabled,
@@ -245,8 +297,12 @@ impl Controller {
 
     async fn restore(&self, state: &mut State, previous: Option<Config>, change: Error) -> Result<GeneratedAccessKey, Error> {
         if let Some(config) = previous {
+            let bound = config.clone();
             match self.service.listen_with(config).await {
-                Ok(server) => state.server = Some(server),
+                Ok(server) => {
+                    state.server = Some(server);
+                    state.bound = Some(bound);
+                }
                 Err(restoration) => {
                     let error = Error::RemoteRollback { change: Box::new(change), restoration: Box::new(restoration) };
                     state.error = Some(error.to_string());
@@ -262,16 +318,22 @@ impl Controller {
 /* === Public Functions === */
 
 pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Result<Arc<Controller>, Error> {
-    let path = runtime.application_settings().application_root.join("remote").join("access.json");
+    let path = runtime.application_root().join("remote").join("access.json");
     let read_path = path.clone();
-    let document = tokio::task::spawn_blocking(move || store::read(&read_path)).await??;
+    let settings = runtime.read_application_settings().await?.settings.listener;
+    let document = tokio::task::spawn_blocking(move || store::read(&read_path, settings)).await??;
     let sessions = service.sessions();
     let log = sessions.clone();
     let log_path = path.with_file_name("sessions.json");
     tokio::task::spawn_blocking(move || log.attach(log_path)).await?;
-    spawn_session_flush(Arc::downgrade(&sessions));
-    let controller =
-        Arc::new(Controller { service, path, sessions, state: Mutex::new(State { document, server: None, error: None, closing: false }) });
+    spawn_session_flush(Arc::downgrade(&sessions), std::time::Duration::from_millis(SERVER_REMOTE_HEARTBEAT_MS));
+    let controller = Arc::new(Controller {
+        runtime: runtime.clone(),
+        service,
+        path,
+        sessions,
+        state: Mutex::new(State { document, server: None, bound: None, error: None, closing: false }),
+    });
     operations::register(runtime, controller.clone())?;
     Ok(controller)
 }
@@ -279,9 +341,9 @@ pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Resul
 /* === Private Functions === */
 
 // Calls Only Mark The Log; Writes Are Batched So Authentication Never Waits On Storage.
-fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>) {
+fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>, heartbeat: std::time::Duration) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        let mut interval = tokio::time::interval(heartbeat);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             interval.tick().await;

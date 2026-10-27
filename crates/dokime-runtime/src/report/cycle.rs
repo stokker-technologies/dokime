@@ -20,10 +20,7 @@ pub(crate) use index::{AnnotationKind, Index, Member, Sample};
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{
-    operations::Host,
-    storage::{FileMetadata, FileReference},
-};
+use harmos::storage::FileReference;
 
 // Local Imports
 use super::html::HtmlReport;
@@ -33,7 +30,6 @@ use crate::{
     runtime::{progress::Operation, storage::cycle::CycleSnapshot},
 };
 use dokime_domain::model::execution::result::TestExecution;
-use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -52,7 +48,7 @@ pub(crate) struct CycleReport {
 
 // One Cycle Member In Cycle Order: Captured Evidence, Or A Planned Row Nobody Started.
 pub(crate) enum CycleMember {
-    Captured(Box<super::CapturedExecutionReportInput>),
+    Captured(harmos::storage::ReadBatch<super::CapturedExecutionReportInput>),
     Planned(Box<TestExecution>),
 }
 
@@ -63,26 +59,21 @@ pub(crate) enum CycleMember {
 impl CycleReport {
     pub(crate) async fn prepare(
         manager: &Manager, snapshot: CycleSnapshot, members: Vec<CycleMember>, operation: &Operation,
+        report_defaults: &crate::config::ReportDefaults,
     ) -> Result<Self> {
-        let source = HtmlReport::from_cycle(snapshot, members, operation)?;
-        let cycle = source.header().cycle.test_cycle_id.to_string();
-        let metadata = FileMetadata {
-            id: Identifier::new(format!("{cycle}.{}.cycle-report", uuid::Uuid::now_v7())).map_err(crate::storage::Error::from)?,
-            scope: Some(Identifier::new(cycle).map_err(crate::storage::Error::from)?),
-            media_type: "text/html".into(),
-            expected_length: None,
-            expected_sha256: None,
-        };
+        let source = HtmlReport::from_cycle(snapshot, members, operation, report_defaults)?;
+        let nonce = uuid::Uuid::now_v7();
         let manager = manager.clone();
         tokio::task::spawn_blocking(move || {
-            let file = super::saved::ReportFile::render(&source, metadata)?;
+            let owner = source.header().cycle.test_cycle_id.as_str();
+            let file = super::saved::ReportFile::render(&source, owner, nonce, ".cycle-report")?;
             Ok(Self { manager, file })
         })
         .await?
     }
 
-    pub(crate) async fn finish(mut self, operations: &impl Host<Error = harmos::Error>) -> Result<FileReference> {
-        self.file.finish(&self.manager, operations).await
+    pub(crate) async fn finish(mut self) -> Result<FileReference> {
+        self.file.finish(&self.manager).await
     }
 }
 

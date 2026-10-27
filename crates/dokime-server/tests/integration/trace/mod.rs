@@ -40,8 +40,8 @@ use dokime_server::trace::{Capture, Journal};
 
 /* === Private Functions === */
 
-fn emit(execution_id: &str, count: usize) {
-    let subscriber = tracing_subscriber::registry().with(Capture::new(Journal::global().clone()));
+fn emit(journal: std::sync::Arc<Journal>, execution_id: &str, count: usize) {
+    let subscriber = tracing_subscriber::registry().with(Capture::new(journal));
     tracing::subscriber::with_default(subscriber, || {
         for index in 0..count {
             tracing::info!(execution_id, api_token = "trace-fake-secret", index, "fixture trace");
@@ -66,10 +66,11 @@ fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::
 #[tokio::test]
 async fn trace_watch_replays() {
     let environment = support::TestEnvironment::with_installed_plugins(Vec::new()).await;
-    let server = Server::start(environment.runtime.clone(), Config::default()).await.unwrap();
+    let journal = Journal::new(dokime_server::trace::Limits::default());
+    let server = Server::start(environment.runtime.clone(), Config::default().with_trace_journal(journal.clone())).await.unwrap();
     let client = connect(&server).await;
     let execution = uuid::Uuid::now_v7().to_string();
-    emit(&execution, 3);
+    emit(journal.clone(), &execution, 3);
     let mut stream = client.download::<contracts::backend::WatchTrace>(request(&execution, 0, false)).await.unwrap().into_inner();
     let first = stream.message().await.unwrap().unwrap();
     assert_eq!(first.epoch, environment.runtime.process_epoch().to_string());
@@ -113,14 +114,15 @@ async fn trace_watch_replays() {
 #[tokio::test]
 async fn trace_watch_follows() {
     let environment = support::TestEnvironment::with_installed_plugins(Vec::new()).await;
-    let server = Server::start(environment.runtime.clone(), Config::default()).await.unwrap();
+    let journal = Journal::new(dokime_server::trace::Limits::default());
+    let server = Server::start(environment.runtime.clone(), Config::default().with_trace_journal(journal.clone())).await.unwrap();
     let client = connect(&server).await;
     let execution = uuid::Uuid::now_v7().to_string();
-    emit(&execution, 1);
+    emit(journal.clone(), &execution, 1);
     let mut stream = client.download::<contracts::backend::WatchTrace>(request(&execution, 0, true)).await.unwrap().into_inner();
     let initial = stream.message().await.unwrap().unwrap();
     assert_eq!(initial.events.len(), 1);
-    emit(&execution, 1);
+    emit(journal.clone(), &execution, 1);
     let live = stream.message().await.unwrap().unwrap();
     assert_eq!(live.events.len(), 1);
     assert!(live.next_sequence > initial.next_sequence);

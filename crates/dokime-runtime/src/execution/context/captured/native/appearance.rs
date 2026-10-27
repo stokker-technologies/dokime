@@ -112,8 +112,6 @@ struct Radii {
 
 /* === Implementations === */
 
-impl Appearance {}
-
 impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
     type Error = Error;
     fn try_from(frame: &RuntimeAppearanceFrame) -> Result<Self> {
@@ -158,6 +156,13 @@ impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
 impl TryFrom<Appearance> for RuntimeAppearanceFrame {
     type Error = Error;
     fn try_from(frame: Appearance) -> Result<Self> {
+        frame.into_frame(&crate::execution::context::captured::AppearancePolicy::capture())
+    }
+}
+
+impl Appearance {
+    pub(super) fn into_frame(self, policy: &crate::execution::context::captured::AppearancePolicy) -> Result<RuntimeAppearanceFrame> {
+        let frame = self;
         let mut themes = slots(frame.themes.len())?;
         for theme in frame.themes {
             themes.push(theme.try_into()?);
@@ -172,7 +177,7 @@ impl TryFrom<Appearance> for RuntimeAppearanceFrame {
                 alt: value.alt,
             });
         }
-        let result = Self {
+        let result = RuntimeAppearanceFrame {
             app_name: frame.app_name,
             organization: frame.organization.map(|value| OrganizationIdentity {
                 name: value.name,
@@ -192,12 +197,10 @@ impl TryFrom<Appearance> for RuntimeAppearanceFrame {
                 .transpose()
                 .map_err(|_| invalid("appearance source identifier is invalid"))?,
         };
-        crate::execution::context::captured::validate_appearance(&result)?;
+        crate::execution::context::captured::validate_appearance(&result, policy)?;
         Ok(result)
     }
 }
-
-impl Theme {}
 
 impl TryFrom<&RuntimeThemeFamily> for Theme {
     type Error = Error;
@@ -249,8 +252,6 @@ impl TryFrom<Variant> for ThemeVariant {
     }
 }
 
-impl Radii {}
-
 impl From<&ThemeCornerRadii> for Radii {
     fn from(value: &ThemeCornerRadii) -> Self {
         Self {
@@ -288,9 +289,6 @@ impl From<Radii> for ThemeCornerRadii {
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| invalid("appearance slot allocation failed"))?;
-    if values.capacity() > count {
-        return Err(invalid("appearance slots exceed admission"));
-    }
     Ok(values)
 }
 

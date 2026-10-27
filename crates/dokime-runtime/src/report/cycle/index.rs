@@ -17,7 +17,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
-use harmos::MemorySize;
 
 // Local Imports
 use crate::{report::saved::CapturedExecutionReportInput, runtime::Error, runtime::Result};
@@ -116,37 +115,16 @@ pub(crate) enum AnnotationKind {
 
 /* === Implementations === */
 
-impl MemorySize for Member {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (self.id.memory_size(), std::mem::size_of_val(&self.id)),
-            (self.case.memory_size(), std::mem::size_of_val(&self.case)),
-            (self.template.memory_size(), std::mem::size_of_val(&self.template)),
-            (self.started_at.memory_size(), std::mem::size_of_val(&self.started_at)),
-            (self.finished_at.memory_size(), std::mem::size_of_val(&self.finished_at)),
-            (self.parameters.memory_size(), std::mem::size_of_val(&self.parameters)),
-            (self.scope.memory_size(), std::mem::size_of_val(&self.scope)),
-            (self.steps.memory_size(), std::mem::size_of_val(&self.steps)),
-            (self.generated_at.memory_size(), std::mem::size_of_val(&self.generated_at)),
-        ];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-        })
-    }
-}
-
 impl Annotation {}
 
 impl Member {
     fn new(execution: &TestExecution, generated_at: &Timestamp, planned: bool) -> Self {
         let input = execution.snapshot.parameters();
         let output = &execution.output_parameters;
-        let parameters = input
-            .iter()
-            .filter(|(key, _)| !output.contains_key(*key))
-            .chain(output.iter())
-            .map(|(key, value)| (key.clone(), value.value.clone()))
-            .collect();
+        let mut parameters = BTreeMap::new();
+        for (key, value) in input.iter().filter(|(key, _)| !output.contains_key(*key)).chain(output.iter()) {
+            parameters.insert(key.clone(), value.value.clone());
+        }
         Self {
             id: execution.test_execution_id.clone(),
             case: execution.test_case_id.clone(),
@@ -161,82 +139,6 @@ impl Member {
             generated_at: generated_at.clone(),
             planned,
         }
-    }
-}
-
-impl MemorySize for Sample {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(self.stream.memory_size().saturating_sub(std::mem::size_of::<Identifier>()))
-            .saturating_add(self.timestamp.memory_size().saturating_sub(std::mem::size_of::<Timestamp>()))
-            .saturating_add(self.received_at.memory_size().saturating_sub(std::mem::size_of::<Timestamp>()))
-            .saturating_add(self.id.capacity())
-    }
-}
-
-impl MemorySize for Annotation {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(self.id.capacity())
-            .saturating_add(self.at.memory_size().saturating_sub(std::mem::size_of::<Timestamp>()))
-    }
-}
-
-impl MemorySize for Index {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(self.annotations.capacity().saturating_mul(std::mem::size_of::<Annotation>()))
-            .saturating_add(
-                self.annotations
-                    .iter()
-                    .map(|annotation| annotation.memory_size().saturating_sub(std::mem::size_of::<Annotation>()))
-                    .fold(0usize, usize::saturating_add),
-            )
-            .saturating_add(self.executions.memory_size().saturating_sub(std::mem::size_of::<Vec<Member>>()))
-            .saturating_add(self.counts.capacity().saturating_mul(std::mem::size_of::<[usize; 3]>()))
-            .saturating_add(
-                self.cases
-                    .iter()
-                    .map(|case| {
-                        case.id
-                            .memory_size()
-                            .saturating_sub(std::mem::size_of::<CaseId>())
-                            .saturating_add(case.template.memory_size().saturating_sub(std::mem::size_of::<TemplateId>()))
-                            .saturating_add(case.metadata.memory_size().saturating_sub(std::mem::size_of::<Metadata>()))
-                            .saturating_add(case.parameters.memory_size().saturating_sub(std::mem::size_of::<BTreeMap<String, Value>>()))
-                            .saturating_add(case.definitions.memory_size().saturating_sub(std::mem::size_of::<Vec<ParameterDefinition>>()))
-                            .saturating_add(case.latest_id.memory_size().saturating_sub(std::mem::size_of::<TestExecutionId>()))
-                    })
-                    .fold(0usize, usize::saturating_add),
-            )
-            .saturating_add(self.cases.capacity().saturating_mul(std::mem::size_of::<Case>()))
-            .saturating_add(self.samples.capacity().saturating_mul(std::mem::size_of::<Sample>()))
-            .saturating_add(
-                self.samples
-                    .iter()
-                    .map(|sample| sample.memory_size().saturating_sub(std::mem::size_of::<Sample>()))
-                    .fold(0usize, usize::saturating_add),
-            )
-            .saturating_add(
-                harmos::btree_map_memory::<CaseId, usize>(self.seen.len())
-                    .saturating_sub(std::mem::size_of_val(&self.seen))
-                    .saturating_add(
-                        self.seen
-                            .keys()
-                            .map(|id| id.memory_size().saturating_sub(std::mem::size_of::<CaseId>()))
-                            .fold(0usize, usize::saturating_add),
-                    ),
-            )
-            .saturating_add(
-                harmos::btree_map_memory::<TemplateId, ()>(self.templates.len())
-                    .saturating_sub(std::mem::size_of::<BTreeMap<TemplateId, ()>>())
-                    .saturating_add(
-                        self.templates
-                            .iter()
-                            .map(|id| id.memory_size().saturating_sub(std::mem::size_of::<TemplateId>()))
-                            .fold(0usize, usize::saturating_add),
-                    ),
-            )
     }
 }
 
@@ -265,7 +167,7 @@ impl Index {
                 stream: value.stream.clone(),
                 timestamp: value.timestamp.clone(),
                 received_at: value.received_at.clone(),
-                id: value.sample_id.to_string(),
+                id: value.sample_id.as_str().to_owned(),
             });
         }
         let context = &captured.context;
@@ -277,7 +179,7 @@ impl Index {
                 kind: AnnotationKind::Note,
                 member: self.members,
                 position,
-                id: note.note_id.to_string(),
+                id: note.note_id.as_str().to_owned(),
                 at: note.created_at.clone(),
             });
         }
@@ -286,7 +188,7 @@ impl Index {
                 kind: AnnotationKind::Health,
                 member: self.members,
                 position,
-                id: item.health_item_id.to_string(),
+                id: item.health_item_id.as_str().to_owned(),
                 at: item.observed_at.clone(),
             });
         }

@@ -230,7 +230,7 @@ async fn cycle_crash_recovery() {
                     expected_length: Some(1),
                     expected_sha256: None,
                 },
-                &[1],
+                vec![1],
             )
             .await
             .unwrap();

@@ -29,10 +29,6 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-// The longest a buffered row waits before its sink is flushed.
-#[cfg(feature = "native")]
-const FLUSH_WINDOW: std::time::Duration = std::time::Duration::from_millis(10);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -42,6 +38,8 @@ const FLUSH_WINDOW: std::time::Duration = std::time::Duration::from_millis(10);
 #[derive(Clone)]
 pub struct Streams {
     sink: Arc<dyn SampleSink>,
+    #[cfg(feature = "native")]
+    flush_window: std::time::Duration,
 
     #[cfg(feature = "native")]
     admission: Option<Arc<Admission>>,
@@ -103,14 +101,18 @@ pub trait OwnedStream: TelemetryStream {}
 
 impl Streams {
     pub fn new(sink: Arc<dyn SampleSink>) -> Self {
+        // Native streams own the flush timer and listener queue; the portable
+        // stream facade delegates publication directly to its supplied sink.
         Self {
             sink,
+            #[cfg(feature = "native")]
+            flush_window: std::time::Duration::from_millis(10),
             #[cfg(feature = "native")]
             admission: None,
             #[cfg(feature = "native")]
             failure: tokio::sync::watch::channel(None).0,
             #[cfg(feature = "native")]
-            listening: crate::execution::listening_rows(),
+            listening: crate::execution::listening_rows(1024),
             #[cfg(feature = "native")]
             flushing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
@@ -237,7 +239,7 @@ impl Streams {
         {
             let streams = self.clone();
             runtime.spawn(async move {
-                tokio::time::sleep(FLUSH_WINDOW).await;
+                tokio::time::sleep(streams.flush_window).await;
                 streams.flushing.store(false, std::sync::atomic::Ordering::Release);
                 streams.flush().await;
             });

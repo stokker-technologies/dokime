@@ -101,7 +101,7 @@ fn host_stream_row() {
 fn collected_battery_columns() {
     // Whatever this machine reports — every reading, or none on a host
     // without a battery — is a declared, correctly typed `host.system` column.
-    let batch = Host::default().collect_stream(HostTelemetryStream::System).unwrap().unwrap();
+    let batch = Host::new(dokime_host::HostTelemetryConfig::default()).collect_stream(HostTelemetryStream::System).unwrap().unwrap();
     let contract = host_telemetry_contract(HostTelemetryStream::System);
     let declared = contract.columns.iter().map(|column| column.metadata.identifier.as_str()).collect::<Vec<_>>();
     for sample in batch.samples {

@@ -50,7 +50,7 @@ pub struct ExecutionTelemetryTable {
 pub struct ExecutionTelemetryPage {
     pub checkpoint: ExecutionCheckpoint,
     pub table: String,
-    pub rows: Vec<ExecutionTelemetryRow>,
+    pub rows: crate::storage::ReadRows<ExecutionTelemetryRow>,
     pub next: Option<String>,
     pub issues: Vec<ExecutionBrowseIssue>,
     pub issues_truncated: bool,
@@ -65,9 +65,9 @@ pub struct ExecutionTelemetryPage {
 impl RuntimeHandle {
     pub async fn execution_checkpoint_telemetry(
         &self, checkpoint: ExecutionCheckpoint, stream: &Identifier, query: ExecutionTelemetryQuery,
-    ) -> Result<ExecutionTelemetryPage> {
+    ) -> Result<harmos::storage::ReadBatch<ExecutionTelemetryPage>> {
         let view = self.checkpoint_execution(&checkpoint).await?;
-        crate::runtime::storage::telemetry_pages::read(&view, stream, query).await
+        crate::runtime::storage::telemetry_pages::read(&view, stream, query, self.schema_settings()).await
     }
 }
 

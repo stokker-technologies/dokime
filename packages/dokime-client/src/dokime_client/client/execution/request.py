@@ -34,7 +34,11 @@ from uuid import UUID
 
 
 def _interval(value: float) -> None:
-    if not math.isfinite(value) or value <= 0:
+    try:
+        valid = type(value) in (int, float) and math.isfinite(value) and value > 0
+    except OverflowError:
+        valid = False
+    if not valid:
         raise ValueError("interval/timeout must be positive and finite")
 
 

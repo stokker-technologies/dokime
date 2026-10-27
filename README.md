@@ -101,10 +101,52 @@ Dokime is pre-1.0. Pin matching application, client and plugin revisions;
 public APIs and development storage formats may change. See the
 [product guide](docs/product-guide.md) for the detailed model and limitations.
 
+### Configuration
+
+Dokime stores application preferences in its SQLite storage root. Use Settings
+in the desktop application to change appearance, client timeouts, report plot
+defaults, telemetry cadence and remote listener preferences. Updates carry a
+revision; conflicting edits require refreshing before saving again.
+
+The application folder defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows
+or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
+`dokime server --application-root <directory>` selects another application folder;
+storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
+Development roots containing the older JSON stream-row format require a fresh storage root. Dokime reports incompatible data and never resets an existing root.
+
+The Backends table and CLI backend commands share `backends.json`. Add a named
+backend, connect to it, or remove it from the registry without connecting first.
+Credentials remain in protected credential stores. Plugin settings and secret
+catalog metadata persist in SQLite; credential values are not stored there.
+
+Implementation limits use domain and subsystem constants. See the
+[application settings model](crates/dokime-domain/src/model/settings/application.rs)
+and [storage defaults](crates/dokime-runtime/src/config/storage/defaults.rs).
+
+Live plots display saved telemetry. The time-range slider filters storage queries:
+selecting a wider range retrieves older saved samples, and selecting a narrower
+range changes only what is displayed. It does not change storage retention.
+
+Client sample following watches saved storage progress and resumes from delivered
+stream cursors after reconnecting. Execution-scoped follows drain the saved seal
+before ending; they do not poll a second live-sample history.
+
+Plot Default uses each plot's authored window; All queries its full saved history.
+
+Plot groups show numeric labels in ascending order, then text labels alphabetically.
+Different labels with equal numeric values remain separate and sort alphabetically.
+
+Diagnostics and remote sessions refresh when opened or focused; remote sessions
+also provide Refresh. Cycle history shows absolute update times. Busy document
+reads continue retrying, while other document failures retry once.
+
 ## Contributing
 
 Bug reports, focused fixes, clearer examples and equipment integrations are
 welcome. Read [Contributing](CONTRIBUTING.md) for setup and the review workflow.
+The [storage benchmarks](CONTRIBUTING.md#storage-benchmarks) mirror Harmos's storage
+suite using Dokime's default settings and SQLite backend, including writes, reads,
+queries, filesystem operations and concurrent workloads.
 
 ## About
 

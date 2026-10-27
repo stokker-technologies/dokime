@@ -23,12 +23,13 @@ use futures_util::{StreamExt, stream};
 use harmos::grpc::dynamic::Operation;
 
 // Local Imports
-use super::operations::{Error, MAX_INPUT_BYTES, Result};
+use super::operations::{Error, Result};
 use super::{Client, ResponseStream, stream::Input};
 
 /* === Constants === */
 
-pub const MAX_INPUT_FRAMES: usize = 4096;
+const INPUT_BYTES: u64 = 16_777_216;
+const INPUT_FRAMES: u64 = 4_096;
 
 /* === Macros === */
 
@@ -47,7 +48,7 @@ impl Client {
         &self, identifier: &str, owner: Option<&str>, request: &[u8], inputs: Vec<Vec<u8>>,
     ) -> Result<ResponseStream<Event>> {
         let bytes = inputs.iter().try_fold(request.len(), |total, frame| total.checked_add(frame.len()).ok_or(Error::InputTooLarge))?;
-        if bytes > MAX_INPUT_BYTES || inputs.len() > MAX_INPUT_FRAMES {
+        if bytes > INPUT_BYTES as usize || inputs.len() > INPUT_FRAMES as usize {
             return Err(Error::InputTooLarge);
         }
         self.verify(true).await?;

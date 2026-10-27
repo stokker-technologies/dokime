@@ -141,7 +141,7 @@ impl VerifiedContent {
 /* === Public Functions === */
 
 pub(crate) async fn fetch_verified(
-    lease: &SessionLease, source: &ArtifactSource, destination: &Path,
+    lease: &SessionLease, source: &ArtifactSource, destination: &Path, frame_bytes: usize,
 ) -> Result<VerifiedContent, DeliveryError> {
     if let Some(parent) = destination.parent() {
         tokio::fs::create_dir_all(parent).await.map_err(|error| {
@@ -149,7 +149,7 @@ pub(crate) async fn fetch_verified(
             DeliveryError::local(DeliveryStage::Write, message)
         })?;
     }
-    let frame_limit = std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit");
+    let frame_limit = std::num::NonZeroUsize::new(frame_bytes).expect("desktop frame limit");
     let client = lease.client().with_frame_limit(frame_limit);
     let destination = destination.to_path_buf();
     let result = match source {
@@ -200,9 +200,9 @@ pub(crate) async fn fetch_verified(
 }
 
 pub(crate) async fn push_verified(
-    lease: &SessionLease, source: &Path, header: dokime::domain::model::content::wire::UploadArtifactHeader,
+    lease: &SessionLease, source: &Path, header: dokime::domain::model::content::wire::UploadArtifactHeader, frame_bytes: usize,
 ) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, String> {
-    let frame_limit = std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit");
+    let frame_limit = std::num::NonZeroUsize::new(frame_bytes).expect("desktop frame limit");
     let client = lease.client().with_frame_limit(frame_limit);
     let result = client.upload_artifact_file(source, header).await;
     match result {

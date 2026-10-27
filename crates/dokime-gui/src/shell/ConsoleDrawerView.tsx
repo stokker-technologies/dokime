@@ -38,11 +38,14 @@ import { consoleFollowsTail, consoleTailPinned, consoleWindow } from "./console-
 /* === Re-Exports === */
 
 /* === Constants === */
+
+const GUI_CONSOLE_OVERSCAN = 12;
+
 /** One row height, so the window can be computed instead of measured. */
 const ROW_HEIGHT = 22;
 
 /** Rows drawn beyond the viewport on each side, to cover a fast scroll. */
-const OVERSCAN = 12;
+const OVERSCAN = GUI_CONSOLE_OVERSCAN;
 
 const LEVEL_ORDER: Record<ConsoleLevel, number> = {
   trace: 0,
@@ -119,7 +122,7 @@ export function LiveConsoleView({
     >
       <HeightHandle height={drawer.height} onHeightChange={(height) => setConsoleState({ height })} />
 
-      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-b px-[var(--shell-inset)] py-1.5">
+      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-b px-[var(--shell-inset)] py-2">
         <ToggleGroup
           onValueChange={(next) => next && setConsoleState({ scope: next as ConsoleScope })}
           type="single"
@@ -221,7 +224,7 @@ export function FrozenConsole({ records }: { records: HubRecord[] }) {
           </SelectContent>
         </Select>
       </div>
-      <div className="rounded-md border">
+      <div className="rounded-lg border">
         <RecordWindow className="h-96" empty="No records at this level." follow={follow} onFollowChange={setFollow} rows={rows} />
       </div>
     </section>
@@ -329,7 +332,7 @@ function ConsoleRow({ record }: { record: HubRecord }) {
   return (
     <button
       className={cn(
-        "grid w-full grid-cols-[5rem_3.75rem_9rem_minmax(0,1fr)] items-start gap-2 px-[var(--shell-inset)] text-left font-mono text-xs tabular-nums hover:bg-muted/40",
+        "grid w-full grid-cols-[--spacing(20)_--spacing(15)_--spacing(36)_minmax(0,1fr)] items-start gap-2 px-[var(--shell-inset)] text-left font-mono text-xs tabular-nums hover:bg-muted/40",
         expanded ? "py-1" : "overflow-hidden",
       )}
       onClick={() => setExpanded((current) => !current)}

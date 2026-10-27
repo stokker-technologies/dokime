@@ -16,17 +16,13 @@ mod fixture;
 mod host;
 pub(crate) mod platform;
 mod sample;
-mod tasks;
 mod telemetry;
 mod telemetry_domain;
 
 /* === Re-Exports === */
 
 // The stream set is a contract both ends compile; it lives in the api crate.
-pub use config::{
-    DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL, DEFAULT_BLUETOOTH_INTERVAL, DEFAULT_HOST_INTERVAL, DEFAULT_NETWORK_LINK_INTERVAL,
-    DEFAULT_WIFI_LATENCY_INTERVAL, DEFAULT_WIFI_SCAN_INTERVAL, HostOptions, HostTelemetryConfig, HostTelemetrySourceKind,
-};
+pub use config::{HostOptions, HostTelemetryConfig, HostTelemetrySourceKind};
 pub use dokime_domain::model::telemetry::HOST_STREAMS;
 pub use dokime_domain::model::telemetry::HostTelemetryStream;
 pub use dokime_domain::model::telemetry::host_stream_identifiers;
@@ -36,9 +32,8 @@ pub use error::{Error, Result};
 pub use fixture::{FixtureHostTelemetrySource, HOST_FIXTURE_SOURCE};
 pub use host::{Host, HostSnapshot};
 pub use sample::HostStreamSample;
-pub use tasks::HostTelemetryTaskSpec;
 pub use telemetry::HostTelemetryCollector;
-pub use telemetry_domain::{default_host_telemetry_collector, host_telemetry_collector, installed_plugin};
+pub use telemetry_domain::{HOST_PLUGIN_SOURCE, configure_contracts, host_telemetry_collector, installed_plugin};
 
 /* === Imports === */
 
@@ -50,6 +45,7 @@ pub use telemetry_domain::{default_host_telemetry_collector, host_telemetry_coll
 
 /* === Constants === */
 
+/// Stored Sample Producer Identity, Distinct From The Installation Catalog Source.
 pub const HOST_SOURCE_ID: &str = "host.telemetry";
 
 /* === Macros === */

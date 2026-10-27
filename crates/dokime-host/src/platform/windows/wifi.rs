@@ -197,13 +197,13 @@ impl WlanClient {
         rssi_dbm
     }
 
-    fn bss_entries(&self, interface: &WifiInterface, request_scan: bool) -> Result<Vec<WLAN_BSS_ENTRY>> {
+    fn bss_entries(&self, interface: &WifiInterface, request_scan: bool, scan_wait: Duration) -> Result<Vec<WLAN_BSS_ENTRY>> {
         if request_scan {
             let scan = unsafe { WlanScan(self.handle, &interface.guid, None, None, None) };
             if scan != 0 {
                 return Err(Error::Probe(format!("WlanScan failed with {scan}")));
             }
-            thread::sleep(Duration::from_secs(4));
+            thread::sleep(scan_wait);
         }
 
         let mut list: *mut WLAN_BSS_LIST = null_mut();
@@ -282,13 +282,13 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     }))
 }
 
-pub fn scan_channel_occupancy(options: &HostOptions) -> Result<Vec<WifiChannelOccupancy>> {
+pub fn scan_channel_occupancy(options: &HostOptions, scan_wait: Duration) -> Result<Vec<WifiChannelOccupancy>> {
     let client = WlanClient::open()?;
     let interfaces = client.interfaces()?;
     let Some(interface) = select_interface(&interfaces, options) else {
         return Ok(Vec::new());
     };
-    let entries = client.bss_entries(&interface, true)?;
+    let entries = client.bss_entries(&interface, true, scan_wait)?;
     if entries.is_empty() {
         return Ok(Vec::new());
     }

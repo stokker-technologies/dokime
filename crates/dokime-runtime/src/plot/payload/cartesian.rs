@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde_json::Value as JsonValue;
@@ -58,97 +58,95 @@ impl Ord for OrderedFloat {
 
 pub(super) fn cartesian_frame(
     series: &[PlotSeries], plot_type: Option<&PlotType>, x_scale: &AxisScale, y_scale: &AxisScale,
-) -> Option<PlotCartesianFrame> {
-    let mode = plot_type.and_then(cartesian_mode)?;
+) -> Result<Option<PlotCartesianFrame>, String> {
+    let Some(mode) = plot_type.and_then(cartesian_mode) else { return Ok(None) };
     match mode {
-        PlotCartesianMode::Aligned => Some(aligned_cartesian_frame(series, x_scale, y_scale)),
-        PlotCartesianMode::Faceted => Some(faceted_cartesian_frame(series, x_scale, y_scale)),
+        PlotCartesianMode::Aligned => aligned_cartesian_frame(series, x_scale, y_scale).map(Some),
+        PlotCartesianMode::Faceted => faceted_cartesian_frame(series, x_scale, y_scale).map(Some),
     }
-}
-
-pub(super) fn draws_cartesian(plot_type: &PlotType) -> bool {
-    cartesian_mode(plot_type).is_some()
 }
 
 /* === Private Functions === */
 
-fn aligned_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: &AxisScale) -> PlotCartesianFrame {
-    let mut x_values = Vec::<f64>::new();
-    let mut x_seen = BTreeSet::<OrderedFloat>::new();
-    let series_maps = series
-        .iter()
-        .map(|series| {
-            let mut points = BTreeMap::<OrderedFloat, Option<f64>>::new();
-            for (index, point) in series.points.iter().enumerate() {
-                let Some(x) = plot_point_x_value(&point.x, index) else {
-                    continue;
-                };
-                if matches!(x_scale, AxisScale::Log) && x <= 0.0 {
-                    continue;
-                }
-                let y = plot_y_value(point.y, y_scale);
-                if y.is_none() {
-                    continue;
-                }
-                let ordered = OrderedFloat(x);
-                if x_seen.insert(ordered) {
-                    x_values.push(x);
-                }
-                points.insert(ordered, y);
-            }
-            points
-        })
-        .collect::<Vec<_>>();
+fn cartesian_point(point: &super::PlotPoint, index: usize, x_scale: &AxisScale, y_scale: &AxisScale) -> Option<(f64, f64)> {
+    let x = plot_point_x_value(&point.x, index)?;
+    if matches!(x_scale, AxisScale::Log) && x <= 0.0 {
+        return None;
+    }
+    Some((x, plot_y_value(point.y, y_scale)?))
+}
 
-    x_values.sort_by(f64::total_cmp);
-    let frames = series_maps
-        .iter()
-        .map(|points| PlotCartesianSeriesFrame {
-            x: x_values.clone(),
-            y: x_values.iter().map(|x| points.get(&OrderedFloat(*x)).copied().flatten()).collect(),
-        })
-        .collect::<Vec<_>>();
+fn reserved<T>(count: usize) -> Result<Vec<T>, String> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|error| error.to_string())?;
+    Ok(values)
+}
 
+fn aligned_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: &AxisScale) -> Result<PlotCartesianFrame, String> {
+    let total = series
+        .iter()
+        .try_fold(0usize, |total, entry| {
+            total.checked_add(
+                entry.points.iter().enumerate().filter(|(index, point)| cartesian_point(point, *index, x_scale, y_scale).is_some()).count(),
+            )
+        })
+        .ok_or_else(|| "plot point count overflows".to_owned())?;
+    let mut x_values = reserved(total)?;
+    let mut series_maps = reserved(series.len())?;
+    for series in series {
+        let mut points = BTreeMap::<OrderedFloat, Option<f64>>::new();
+        for (index, point) in series.points.iter().enumerate() {
+            let Some((x, y)) = cartesian_point(point, index, x_scale, y_scale) else {
+                continue;
+            };
+            x_values.push(x);
+            points.insert(OrderedFloat(x), Some(y));
+        }
+        series_maps.push(points);
+    }
+    x_values.sort_unstable_by(f64::total_cmp);
+    x_values.dedup_by(|left, right| left.total_cmp(right).is_eq());
+    let mut frames = reserved(series_maps.len())?;
+    for points in &series_maps {
+        let mut x = reserved(x_values.len())?;
+        x.extend_from_slice(&x_values);
+        let mut y = reserved(x_values.len())?;
+        y.extend(x_values.iter().map(|x| points.get(&OrderedFloat(*x)).copied().flatten()));
+        frames.push(PlotCartesianSeriesFrame { x, y });
+    }
     cartesian_frame_from_series(PlotCartesianMode::Aligned, frames)
 }
 
-fn faceted_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: &AxisScale) -> PlotCartesianFrame {
-    let frames = series
-        .iter()
-        .map(|series| {
-            let mut x_values = Vec::<f64>::new();
-            let mut y_values = Vec::<Option<f64>>::new();
-            for (index, point) in series.points.iter().enumerate() {
-                let Some(x) = plot_point_x_value(&point.x, index) else {
-                    continue;
-                };
-                if matches!(x_scale, AxisScale::Log) && x <= 0.0 {
-                    continue;
-                }
-                let Some(y) = plot_y_value(point.y, y_scale) else {
-                    continue;
-                };
-                x_values.push(x);
-                y_values.push(Some(y));
-            }
-            PlotCartesianSeriesFrame { x: x_values, y: y_values }
-        })
-        .collect::<Vec<_>>();
-
+fn faceted_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: &AxisScale) -> Result<PlotCartesianFrame, String> {
+    let mut frames = reserved(series.len())?;
+    for series in series {
+        let count =
+            series.points.iter().enumerate().filter(|(index, point)| cartesian_point(point, *index, x_scale, y_scale).is_some()).count();
+        let mut x = reserved(count)?;
+        let mut y = reserved(count)?;
+        for (index, point) in series.points.iter().enumerate() {
+            let Some((value, ordinate)) = cartesian_point(point, index, x_scale, y_scale) else {
+                continue;
+            };
+            x.push(value);
+            y.push(Some(ordinate));
+        }
+        frames.push(PlotCartesianSeriesFrame { x, y });
+    }
     cartesian_frame_from_series(PlotCartesianMode::Faceted, frames)
 }
 
-fn cartesian_frame_from_series(mode: PlotCartesianMode, series: Vec<PlotCartesianSeriesFrame>) -> PlotCartesianFrame {
+fn cartesian_frame_from_series(mode: PlotCartesianMode, series: Vec<PlotCartesianSeriesFrame>) -> Result<PlotCartesianFrame, String> {
     let point_count = series.iter().map(|series| series.y.iter().filter(|value| value.is_some()).count()).sum();
-    let signature = cartesian_signature(&series);
-    PlotCartesianFrame {
+    let signature = cartesian_signature(&series)?;
+    Ok(PlotCartesianFrame {
         mode,
         x_domain: plot_domain(series.iter().flat_map(|series| series.x.iter().copied())),
         y_domain: plot_domain(series.iter().flat_map(|series| series.y.iter().flatten().copied())),
         series,
         point_count,
         signature,
-    }
+    })
 }
 
 fn cartesian_mode(plot_type: &PlotType) -> Option<PlotCartesianMode> {
@@ -187,7 +185,7 @@ fn plot_domain(values: impl Iterator<Item = f64>) -> Option<PlotDomain> {
     min.is_finite().then_some(PlotDomain { min, max })
 }
 
-fn cartesian_signature(series: &[PlotCartesianSeriesFrame]) -> String {
+fn cartesian_signature(series: &[PlotCartesianSeriesFrame]) -> Result<String, String> {
     use std::hash::{Hash, Hasher};
 
     let mut hash = std::collections::hash_map::DefaultHasher::new();
@@ -200,7 +198,11 @@ fn cartesian_signature(series: &[PlotCartesianSeriesFrame]) -> String {
             value.map(f64::to_bits).hash(&mut hash);
         }
     }
-    format!("{:016x}", hash.finish())
+    use std::fmt::Write;
+    let mut signature = String::new();
+    signature.try_reserve_exact(16).map_err(|error| error.to_string())?;
+    write!(&mut signature, "{:016x}", hash.finish()).map_err(|error| error.to_string())?;
+    Ok(signature)
 }
 
 /* === Tests === */

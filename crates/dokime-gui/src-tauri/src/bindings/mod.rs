@@ -49,6 +49,27 @@ macro_rules! native_commands {
 }
 
 native_commands! {
+    async desktop_backends_list [] () -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backends_list;
+    async desktop_backend_add [registry: tauri::State<'_, crate::connection::registry::Registry>]
+        (profile: dokime::client::profiles::Profile) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backend_add;
+    async desktop_backend_remove
+        [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (name: String) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backend_remove;
+    async desktop_backend_use
+        [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (name: String) -> Result<crate::connection::ConnectionSnapshot, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backend_use;
+    async desktop_settings_read [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+        (scope: dokime::domain::model::settings::application::SettingsScope) -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
+        => crate::app::preferences::desktop_settings_read;
+    async desktop_settings_update [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+        (scope: dokime::domain::model::settings::application::SettingsScope, update: dokime::domain::model::settings::application::UpdateSettings)
+        -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
+        => crate::app::preferences::desktop_settings_update;
+
     // Secret-free native launch preferences.
     sync desktop_session_launch
         [state: tauri::State<'_, crate::native_session::launch::DesktopLaunch>]
@@ -71,11 +92,6 @@ native_commands! {
         () -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
         => crate::native_session::desktop_session_status;
 
-
-    sync desktop_profiles_list
-        []
-        () -> Result<dokime::client::profiles::Document, String>
-        => crate::native_session::desktop_profiles_list;
 
     // Open the failed owned start's log; the shell supplies the path.
     async desktop_open_backend_log
@@ -199,11 +215,6 @@ native_commands! {
         [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>]
         (values: crate::parameters::Values) -> Result<(), crate::app::settings::DesktopSettingsError>
         => crate::app::settings::desktop_parameters_write;
-
-    async desktop_pick_execution_directory
-        [app: tauri::AppHandle]
-        () -> Result<Option<String>, crate::app::settings::DesktopSettingsError>
-        => crate::app::settings::desktop_pick_execution_directory;
 
     async desktop_updates_status
         [state: tauri::State<'_, crate::app::updates::UpdateState>]

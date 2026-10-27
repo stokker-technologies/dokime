@@ -25,7 +25,7 @@
 // Standard Library Imports
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 // Third Party Imports
 use time::OffsetDateTime;
@@ -35,8 +35,13 @@ use tokio::sync::watch;
 
 /* === Constants === */
 
-const EVENT_OVERHEAD_BYTES: usize = 96;
-const FIELD_OVERHEAD_BYTES: usize = 16;
+const SERVER_TRACE_CYCLES: u64 = 32;
+const SERVER_TRACE_EXECUTIONS: u64 = 128;
+const SERVER_TRACE_INSTANCE_BYTES: u64 = 8_388_608;
+const SERVER_TRACE_INSTANCE_EVENTS: u64 = 8_192;
+const SERVER_TRACE_LINEAGE: u64 = 1_024;
+const SERVER_TRACE_SCOPE_BYTES: u64 = 2_097_152;
+const SERVER_TRACE_SCOPE_EVENTS: u64 = 4_096;
 
 /* === Macros === */
 
@@ -132,22 +137,34 @@ pub enum Scope {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            instance_events: 8_192,
-            instance_bytes: 8 * 1024 * 1024,
-            scope_events: 4_096,
-            scope_bytes: 2 * 1024 * 1024,
-            cycles: 32,
-            executions: 128,
-            lineage: 1_024,
+            instance_events: usize::try_from(SERVER_TRACE_INSTANCE_EVENTS).expect("validated trace instance count"),
+            instance_bytes: usize::try_from(SERVER_TRACE_INSTANCE_BYTES).expect("validated trace instance bytes"),
+            scope_events: usize::try_from(SERVER_TRACE_SCOPE_EVENTS).expect("validated trace scope count"),
+            scope_bytes: usize::try_from(SERVER_TRACE_SCOPE_BYTES).expect("validated trace scope bytes"),
+            cycles: usize::try_from(SERVER_TRACE_CYCLES).expect("validated trace cycle count"),
+            executions: usize::try_from(SERVER_TRACE_EXECUTIONS).expect("validated trace execution count"),
+            lineage: usize::try_from(SERVER_TRACE_LINEAGE).expect("validated trace lineage count"),
         }
+    }
+}
+
+impl std::fmt::Debug for Journal {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("Journal").field("limits", &self.limits).field("installed", &self.installed()).finish_non_exhaustive()
     }
 }
 
 impl Event {
     pub fn bytes(&self) -> usize {
-        let ids = [&self.plugin, &self.cycle, &self.execution].into_iter().flatten().map(String::len).sum::<usize>();
-        let fields = self.fields.iter().map(|(name, value)| name.len() + value.len() + FIELD_OVERHEAD_BYTES).sum::<usize>();
-        EVENT_OVERHEAD_BYTES + self.target.len() + self.message.len() + ids + fields
+        let bytes = std::mem::size_of::<Self>()
+            .saturating_add(self.target.capacity())
+            .saturating_add(self.message.capacity())
+            .saturating_add(self.fields.capacity().saturating_mul(std::mem::size_of::<(String, String)>()));
+        let bytes = [&self.plugin, &self.cycle, &self.execution]
+            .into_iter()
+            .flatten()
+            .fold(bytes, |bytes, value| bytes.saturating_add(value.capacity()));
+        self.fields.iter().fold(bytes, |bytes, (name, value)| bytes.saturating_add(name.capacity()).saturating_add(value.capacity()))
     }
 }
 
@@ -165,11 +182,6 @@ impl Journal {
             head: watch::Sender::new(0),
             installed: AtomicBool::new(false),
         })
-    }
-
-    pub fn global() -> &'static Arc<Self> {
-        static GLOBAL: OnceLock<Arc<Journal>> = OnceLock::new();
-        GLOBAL.get_or_init(|| Self::new(Limits::default()))
     }
 
     pub fn installed(&self) -> bool {
@@ -382,6 +394,16 @@ mod tests {
         }
     }
 
+    #[test]
+    fn journal_counts_retained_capacity() {
+        let mut retained = event(None, None, "x");
+        retained.message.reserve_exact(1024);
+        let journal = Journal::new(Limits { instance_bytes: 512, ..Limits::default() });
+        journal.record(retained);
+        let page = journal.read(&Scope::Instance, 0, |_| true, 1, 512).unwrap();
+        assert!(page.events.is_empty());
+        assert_eq!(page.missed, 1);
+    }
     #[test]
     fn journal_bounds_retention() {
         let journal = Journal::new(Limits { instance_events: 2, scope_events: 2, cycles: 1, executions: 1, ..Limits::default() });

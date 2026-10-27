@@ -69,7 +69,6 @@ pub struct PlotRequest {
     pub max_points: Option<u64>,
     pub window_s: Option<f64>,
     pub scope: Option<EvidenceScope>,
-    pub cursor: Option<PlotCursor>,
     pub technique: DownsampleTechnique,
     pub z_expression: Option<DataExpression>,
     pub fft: Option<PlotFftOptions>,
@@ -177,33 +176,11 @@ pub struct TelemetryAtOrBeforeTransform {
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotCursorTelemetryStreamsEntry {
-    pub key: String,
-    pub value: u64,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotCursor {
-    pub telemetry_streams: Vec<PlotCursorTelemetryStreamsEntry>,
-    pub record_sequence: Option<u64>,
-
-    // Cursors are process-local. The backend rejects a cursor from another
-    // runtime epoch or another plot selection instead of silently resuming it.
-    #[row(
-        description = "Cursors are process-local. The backend rejects a cursor from another runtime epoch or another plot selection instead of silently resuming it."
-    )]
-    pub epoch: String,
-
-    pub selection: String,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotEnvelope {
     pub plot_id: String,
     pub revision: u64,
-    pub cursor: Option<PlotCursor>,
+    pub epoch: String,
+    pub selection: String,
     pub payload: Option<PlotPayload>,
     pub diagnostics: Option<PlotPayloadDiagnostics>,
     pub warnings: Vec<String>,
@@ -315,7 +292,6 @@ pub struct PlotPayloadDiagnostics {
     pub point_count: u64,
     pub raw_point_count: u64,
     pub downsampled: bool,
-    pub delta: bool,
     pub max_points: u64,
     pub window_s: Option<f64>,
 }
@@ -585,19 +561,12 @@ pub struct AnalysisComputation {
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct AnalysisEvidenceTelemetryStreamsEntry {
-    pub key: String,
-    pub value: u64,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisEvidence {
+    pub store: String,
     pub epoch: String,
+    pub position: u64,
     pub stream: String,
     pub scope: Option<EvidenceScope>,
-    pub telemetry_streams: Vec<AnalysisEvidenceTelemetryStreamsEntry>,
-    pub record_sequence: Option<u64>,
     pub window_s: Option<f64>,
     pub fields: Vec<String>,
     pub x_key: String,
@@ -683,7 +652,6 @@ pub enum FilterOperator {
 pub enum PlotStreamKind {
     Unspecified,
     Snapshot,
-    Append,
     Replace,
     Error,
 }

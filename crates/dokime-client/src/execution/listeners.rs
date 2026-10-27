@@ -26,6 +26,11 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
+const FILTER_BYTES: u64 = 4_096;
+const FILTER_ITEMS: u64 = 64;
+const MAXIMUM_SAMPLE_PAGE_ITEMS: u64 = 5_000;
+const REQUEST_POLL_MS: u64 = 200;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -43,7 +48,7 @@ impl TestExecutionHandle {
         &self, record_types: Vec<String>, follow: bool, interval: Option<Duration>,
     ) -> Result<ResponseStream<dokime_domain::model::evidence::wire::RecordPage>> {
         validate_filters(&record_types)?;
-        let interval = poll_interval(interval)?;
+        let interval = poll_interval(interval, REQUEST_POLL_MS)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let result = async {
@@ -59,25 +64,15 @@ impl TestExecutionHandle {
     }
 
     pub fn samples(
-        &self, streams: Vec<String>, follow: bool, page_size: u32, interval: Option<Duration>,
+        &self, streams: Vec<String>, follow: bool, page_size: u32,
     ) -> Result<ResponseStream<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>> {
         validate_filters(&streams)?;
-        let interval = sample_interval(page_size, interval)?;
+        validate_sample_page(page_size)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let result = async {
                 handle.snapshot().await?;
-                let completion = || async {
-                    if !follow {
-                        return Ok(true);
-                    }
-                    match handle.checkpoint().await {
-                        Ok(_) => Ok(true),
-                        Err(Error::Rpc(status)) if status.code() == tonic::Code::NotFound => Ok(false),
-                        Err(error) => Err(error),
-                    }
-                };
-                read_samples(&handle.client, record_scope(&handle.id), streams, page_size, interval, completion, &sender).await
+                read_samples(&handle.client, record_scope(&handle.id), streams, page_size, follow, &sender).await
             }
             .await;
             if let Err(error) = result {
@@ -90,8 +85,9 @@ impl TestExecutionHandle {
 /* === Public Functions === */
 
 pub(crate) fn validate_filters(filters: &[String]) -> Result<Vec<IdentifierPattern>> {
-    if filters.len() > 64 || filters.iter().map(String::len).sum::<usize>() > 4096 {
-        return Err(Error::Rpc(tonic::Status::invalid_argument("filters exceed 64 patterns or 4096 characters")));
+    let bytes = filters.iter().fold(0usize, |bytes, filter| bytes.saturating_add(filter.len()));
+    if filters.len() as u64 > FILTER_ITEMS || bytes as u64 > FILTER_BYTES {
+        return Err(Error::Rpc(tonic::Status::invalid_argument("filters exceed configured item or byte limits")));
     }
     filters
         .iter()
@@ -101,62 +97,81 @@ pub(crate) fn validate_filters(filters: &[String]) -> Result<Vec<IdentifierPatte
         .collect()
 }
 
-pub(crate) fn sample_interval(page_size: u32, interval: Option<Duration>) -> Result<Duration> {
-    if !(1..=5000).contains(&page_size) {
-        return Err(Error::Rpc(tonic::Status::invalid_argument("page size must be between 1 and 5000")));
+pub(crate) fn validate_sample_page(page_size: u32) -> Result<()> {
+    if page_size == 0 || page_size as u64 > MAXIMUM_SAMPLE_PAGE_ITEMS {
+        return Err(Error::Rpc(tonic::Status::invalid_argument("page size must be positive and within the configured maximum")));
     }
-    poll_interval(interval)
+    Ok(())
 }
 
-pub(crate) async fn read_samples<F, Fut>(
-    client: &Client, scope: dokime_domain::model::identity::wire::EvidenceScope, streams: Vec<String>, page_size: u32, interval: Duration,
-    mut completion: F, sender: &mpsc::Sender<Result<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>>,
-) -> Result<()>
-where
-    F: FnMut() -> Fut + Send,
-    Fut: Future<Output = Result<bool>> + Send,
-{
+pub(crate) async fn read_samples(
+    client: &Client, scope: dokime_domain::model::identity::wire::EvidenceScope, streams: Vec<String>, page_size: u32, follow: bool,
+    sender: &mpsc::Sender<Result<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>>,
+) -> Result<()> {
     let mut positions: HashMap<String, u64> = HashMap::new();
-    let mut draining = false;
+    let mut reconnect = true;
     loop {
-        if !draining {
-            draining = completion().await?;
-        }
         client.verify(true).await?;
-        let page = client
-            .telemetry_list_samples(contracts::telemetry::ListSamples {
-                scope: Some(scope.clone()),
-                streams: streams.clone(),
-                limit: page_size,
-                after_stream_cursors: positions
-                    .iter()
-                    .map(|(key, value)| dokime_domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
-                        key: key.clone(),
-                        value: *value,
-                    })
-                    .collect(),
-                latest: false,
-
-                schema_versions: Vec::new(),
-                sources: Vec::new(),
-                signals: Vec::new(),
-                start: None,
-                end: None,
+        let opened = client
+            .telemetry_watch_samples(contracts::telemetry::WatchSamples {
+                selection: Some(contracts::telemetry::ListSamples {
+                    scope: Some(scope.clone()),
+                    streams: streams.clone(),
+                    limit: page_size,
+                    after_stream_cursors: positions
+                        .iter()
+                        .map(|(key, value)| dokime_domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
+                            key: key.clone(),
+                            value: *value,
+                        })
+                        .collect(),
+                    latest: false,
+                    schema_versions: Vec::new(),
+                    sources: Vec::new(),
+                    signals: Vec::new(),
+                    start: None,
+                    end: None,
+                }),
+                follow,
             })
-            .await?;
-        // Raw Telemetry Cursors Have No Epoch; Fence Both Sides Of The Read.
-        client.verify(true).await?;
-        if page.samples.len() > page_size as usize {
-            return Err(invalid("telemetry page exceeds the requested limit"));
+            .await;
+        let reader = match opened {
+            Ok(reader) => reader,
+            Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable && reconnect => {
+                reconnect = false;
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        let result = async {
+            loop {
+                let page = match reader.message().await {
+                    Ok(Some(page)) => page,
+                    Ok(None) => return Ok(false),
+                    Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable && reconnect => {
+                        reconnect = false;
+                        return Ok(true);
+                    }
+                    Err(error) => return Err(error),
+                };
+                // Raw Track Cursors Have No Epoch; Fence Every Delivered Page.
+                client.verify(true).await?;
+                if page.samples.len() > page_size as usize {
+                    return Err(invalid("telemetry page exceeds the requested limit"));
+                }
+                validate_samples(&scope, &streams, &positions, &page)?;
+                let through = page.through_stream_cursors.clone();
+                if sender.send(Ok(page)).await.is_err() {
+                    return Ok(false);
+                }
+                positions.extend(through.into_iter().map(|entry| (entry.key, entry.value)));
+                reconnect = true;
+            }
         }
-        validate_samples(&scope, &streams, &positions, &page)?;
-        positions.extend(page.through_stream_cursors.iter().map(|entry| (entry.key.clone(), entry.value)));
-        let complete = page.complete;
-        if sender.send(Ok(page)).await.is_err() || draining && complete {
+        .await;
+        reader.close().await;
+        if !result? {
             return Ok(());
-        }
-        if complete {
-            tokio::time::sleep(interval).await;
         }
     }
 }

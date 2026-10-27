@@ -29,8 +29,11 @@ from dotenv.parser import parse_stream
 
 # === Constants === #
 
-_ENVIRONMENT_BYTES = 64 * 1024
-_KEY_BYTES = 4098
+ENVIRONMENT_BYTES = 65536
+
+_MIN_REMOTE_KEY_BYTES = 32
+_MAX_REMOTE_KEY_BYTES = 4096
+
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*\Z")
 
 # === Types === #
@@ -44,17 +47,25 @@ def load_key(*, key_file: str | Path | None = None, env_file: str | Path | None 
     """Validate explicit files, then select key file, process key or dotenv key."""
     values = _environment(env_file) if env_file is not None else {}
     if key_file is not None:
-        key = _read(Path(key_file), _KEY_BYTES).strip()
+        key = _read(Path(key_file), _MAX_REMOTE_KEY_BYTES + len(b"\r\n")).strip()
     elif "DOKIME_KEY" in os.environ:
         key = os.environ["DOKIME_KEY"]
     else:
         key = values.get("DOKIME_KEY")
-    if key is not None and (not 32 <= len(key) <= 4096 or not all(33 <= ord(character) <= 126 for character in key)):
-        raise ValueError("Remote key must contain 32–4096 visible ASCII characters.")
+    _validate_key(key)
     return key
 
 
 # === Private Functions === #
+
+
+def _validate_key(key: str | None) -> None:
+    if key is None:
+        return
+    if not isinstance(key, str) or not _MIN_REMOTE_KEY_BYTES <= len(key) <= _MAX_REMOTE_KEY_BYTES:
+        raise ValueError("remote key does not match its credential format")
+    if not all(33 <= ord(character) <= 126 for character in key):
+        raise ValueError("remote key does not match its credential format")
 
 
 def _read(path: Path, limit: int) -> str:
@@ -73,7 +84,7 @@ def _read(path: Path, limit: int) -> str:
 
 
 def _environment(path: str | Path) -> dict[str, str]:
-    text = _read(Path(path), _ENVIRONMENT_BYTES)
+    text = _read(Path(path), ENVIRONMENT_BYTES)
     if "\0" in text:
         raise ValueError("The selected dotenv file contains an invalid entry.")
     # Validate Before Parsing Values; Default Dotenv Logging Tolerates Errors.

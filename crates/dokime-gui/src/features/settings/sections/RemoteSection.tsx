@@ -17,7 +17,7 @@
 
 // Third Party Imports
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 // Local Imports
@@ -25,15 +25,13 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
+import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { AccessKeyDialog } from "@/features/settings/sections/AccessKeyDialog";
 import { RemoteSessionsCard } from "@/features/settings/sections/RemoteSessionsCard";
 import {
   certificateIssue,
-  certificateNames,
   commitListener,
   keyIssue,
   type ListenerChange,
@@ -51,19 +49,11 @@ import * as rpc from "@/lib/rpc/generated/client";
 
 /* === Types === */
 
-type CommitInputProps = {
-  id: string;
-  value: string;
-  disabled: boolean;
-  placeholder?: string;
-  /** Resolves true when the host accepted the value; a refused value reverts to the host's. */
-  commit: (value: string) => Promise<boolean>;
-};
-
 /* === Components === */
 
-export function RemoteSection() {
+export function RemoteSection({ advanced = false }: { advanced?: boolean }) {
   const session = useNativeSessionOptional();
+  const [preferencesPending, setPreferencesPending] = useState(false);
   const canManage = session?.snapshot.connection.backend?.methods.includes("/dokime.v1.Remote/ReadListener") ?? false;
   if (!isTauriDesktop() || !session || !canManage) {
     return (
@@ -74,10 +64,15 @@ export function RemoteSection() {
       </SettingsCard>
     );
   }
-  return <ConnectedRemoteSection key={session.identity.generation} session={session} />;
+  return (
+    <>
+      <ApplicationPreferences section="remote" advanced={advanced} onPendingChange={setPreferencesPending} />
+      <ConnectedRemoteSection key={session.identity.generation} session={session} preferencesPending={preferencesPending} />
+    </>
+  );
 }
 
-function ConnectedRemoteSection({ session }: { session: ConnectedSession }) {
+function ConnectedRemoteSection({ session, preferencesPending }: { session: ConnectedSession; preferencesPending: boolean }) {
   const queryKey = ["settings", "remote-listener", session.identity.generation];
   const query = useQuery({ queryKey, queryFn: () => rpc.remoteReadListener(session.identity, {}), retry: false });
   if (query.isPending) {
@@ -100,15 +95,21 @@ function ConnectedRemoteSection({ session }: { session: ConnectedSession }) {
       </SettingsCard>
     );
   }
-  return <ListenerControls session={session} status={query.data} />;
+  return <ListenerControls session={session} status={query.data} preferencesPending={preferencesPending} />;
 }
 
-function ListenerControls({ session, status }: { session: ConnectedSession; status: ListenerStatus }) {
+function ListenerControls({
+  session,
+  status,
+  preferencesPending,
+}: {
+  session: ConnectedSession;
+  status: ListenerStatus;
+  preferencesPending: boolean;
+}) {
   const client = useQueryClient();
-  const id = useId();
   const queryKey = ["settings", "remote-listener", session.identity.generation];
   const [busy, setBusy] = useState(false);
-  const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
   const [rotating, setRotating] = useState(false);
   const [accessKey, setAccessKey] = useState<string | null>(null);
   const [keySaved, setKeySaved] = useState(false);
@@ -146,13 +147,6 @@ function ListenerControls({ session, status }: { session: ConnectedSession; stat
       });
       return next !== status;
     });
-
-  const toggleEnabled = async (enabled: boolean) => {
-    setPendingEnabled(enabled);
-    const accepted = await commit({ enabled });
-    setPendingEnabled(null);
-    if (accepted) toast.success(enabled ? "Remote Access Enabled" : "Remote Access Disabled");
-  };
 
   const regenerate = (names: string[]) =>
     run(async () => {
@@ -208,77 +202,21 @@ function ListenerControls({ session, status }: { session: ConnectedSession; stat
   return (
     <>
       <SettingsCard
-        title="Listener"
-        description="Let another PC control this host. Listener changes disconnect remote clients; admitted executions continue."
+        title="Effective Listener State"
+        footer={
+          <Button variant="outline" disabled={busy || preferencesPending} onClick={() => void commit({})}>
+            Restart Listener
+          </Button>
+        }
       >
-        <SettingsRow
-          label="Enable Remote Access"
-          htmlFor={`${id}-enabled`}
-          description={running ? `Listening on ${status.listeningAddress}.` : "Remote clients can connect only while this is on."}
-          error={status.error}
-        >
-          <Switch
-            id={`${id}-enabled`}
-            checked={pendingEnabled ?? running}
-            disabled={busy}
-            onCheckedChange={(enabled) => void toggleEnabled(enabled)}
-          />
-        </SettingsRow>
-        <SettingsRow
-          label="Listen Address"
-          htmlFor={`${id}-address`}
-          description="An IP address and port, such as 0.0.0.0:8765 or [::]:8765. It applies when you press Enter or leave the field."
-        >
-          <CommitInput id={`${id}-address`} value={settings.address} disabled={busy} commit={(address) => commit({ address })} />
-        </SettingsRow>
-        <SettingsRow
-          label="TLS Encryption"
-          htmlFor={`${id}-tls`}
-          description="Clients verify the public certificate. Turning it on without one generates a certificate for this host."
-          error={
-            settings.tlsEnabled ? null : "Traffic, including the access key, is sent without encryption. Use this only in an isolated lab."
-          }
-        >
-          <Switch
-            id={`${id}-tls`}
-            checked={settings.tlsEnabled}
-            disabled={busy}
-            onCheckedChange={(tlsEnabled) => void commit({ tlsEnabled })}
-          />
-        </SettingsRow>
-        <SettingsRow
-          label="Require An Access Key"
-          htmlFor={`${id}-auth`}
-          description="One key gives full control of this host."
-          error={
-            settings.authenticationEnabled ? null : "Anyone who can reach this listener has full control. Use this only in an isolated lab."
-          }
-        >
-          <Switch
-            id={`${id}-auth`}
-            checked={settings.authenticationEnabled}
-            disabled={busy}
-            onCheckedChange={(authenticationEnabled) => void commit({ authenticationEnabled })}
-          />
+        <SettingsRow label="Status" description="Saved preferences take effect when the listener restarts." error={status.error}>
+          <span role="status">{running ? status.listeningAddress : "Stopped"}</span>
         </SettingsRow>
       </SettingsCard>
       <SettingsCard
-        title="Secrets"
+        title="Access Credentials"
         description="Clients present the access key and trust the public certificate. The TLS private key stays on this host."
       >
-        <SettingsRow
-          label="Certificate DNS Names And IP Addresses"
-          htmlFor={`${id}-names`}
-          description="The names clients connect to, separated by commas. Leave it empty to use this host's name and addresses. A change regenerates the certificate."
-        >
-          <CommitInput
-            id={`${id}-names`}
-            value={settings.certificateNames.join(", ")}
-            placeholder="This host's name and addresses"
-            disabled={busy}
-            commit={(text) => regenerate(certificateNames(text))}
-          />
-        </SettingsRow>
         <SettingsRow
           label="Access Key"
           description={
@@ -347,31 +285,6 @@ function ListenerControls({ session, status }: { session: ConnectedSession; stat
         />
       ) : null}
     </>
-  );
-}
-
-/** A text field that applies on Enter or blur and otherwise shows the host's value. */
-function CommitInput({ id, value, disabled, placeholder, commit }: CommitInputProps) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  return (
-    <Input
-      id={id}
-      value={draft}
-      disabled={disabled}
-      placeholder={placeholder}
-      onChange={(event) => setDraft(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-      }}
-      onBlur={() => {
-        const next = draft.trim();
-        if (next === value) return setDraft(value);
-        void commit(next).then((accepted) => {
-          if (!accepted) setDraft(value);
-        });
-      }}
-    />
   );
 }
 

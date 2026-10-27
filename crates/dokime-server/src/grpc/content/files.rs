@@ -23,7 +23,6 @@ use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
-use super::super::value;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::domain::operations::content as wire;
@@ -66,16 +65,15 @@ impl Operation for Read {
         let runtime = &self.resources.runtime;
         let message_limit = self.resources.maximum;
         let (id, _) = execution(runtime, &request.execution_id)?;
-        value::text(&request.relative_path)?;
         if request.relative_path.is_empty() {
             return Err(Status::invalid_argument("output name is required"));
         }
         if request.max_bytes > 64 * 1024 {
-            return Err(Status::invalid_argument("read limit exceeds 64 KiB"));
+            return Err(Status::invalid_argument("file window exceeds 65536 bytes"));
         }
         let limit = if request.max_bytes == 0 { 64 * 1024 } else { request.max_bytes as usize };
-        // Reserve room for the selected name, media type and scalar metadata.
-        let limit = limit.min(message_limit.saturating_sub(request.relative_path.len() + 512));
+        // The Projection Fits The Complete Encoded Window After Reading.
+        let limit = limit.min(message_limit);
         if limit == 0 {
             return Err(Status::resource_exhausted("configured message limit cannot contain file window"));
         }
@@ -84,7 +82,7 @@ impl Operation for Read {
             .await
             .map_err(read_failure)?
             .ok_or_else(|| Status::not_found("registered execution output not found"))?;
-        super::window::project(&page, message_limit).map(Into::into).map_err(|source| read_failure(source.into()))
+        super::window::owned(page, message_limit).map_err(|source| read_failure(source.into()))
     }
 }
 
@@ -116,7 +114,7 @@ pub(super) fn read_failure(error: dokime::runtime::Error) -> Status {
         dokime::runtime::Error::Harmos(dokime::harmos::Error::InvalidInput { field: "execution files after path", .. }) => {
             Status::invalid_argument("after path not found")
         }
-        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) | dokime::runtime::Error::ExecutionFileTooLarge => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("execution output exceeds its original budget")
         }
         _ => Status::internal("cannot read execution output"),

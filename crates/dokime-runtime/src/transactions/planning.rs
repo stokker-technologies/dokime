@@ -60,6 +60,7 @@ pub struct CycleDefinition {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegisterCases {
     pub registration_id: CommandId,
+    pub max_cases: u64,
     pub cases: Vec<TestCase>,
     pub definition_revisions: BTreeMap<dokime_domain::model::identity::CaseId, String>,
 }
@@ -84,8 +85,8 @@ impl Transaction<RuntimeState> for RegisterCases {
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         ensure_runtime_active(state)?;
-        if self.cases.is_empty() || self.cases.len() > 1000 {
-            return Err("registration requires 1 to 1000 cases".into());
+        if self.cases.is_empty() || self.cases.len() as u64 > self.max_cases {
+            return Err("registration requires a nonempty selection within the configured case limit".into());
         }
         if self.definition_revisions.len() != self.cases.len() {
             return Err("registration requires one authoritative revision per case".into());

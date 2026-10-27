@@ -34,7 +34,7 @@ import {
 import { evidencePaneState } from "@/features/cycle/document-query-model";
 import { type DocumentSurfaceOptions, documentSurface, documentView } from "@/features/cycle/document-view-model";
 import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
-import { NodeHeader } from "@/features/cycle/NodeHeader";
+import { NodeSummary } from "@/features/cycle/NodeSummary";
 import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
 
@@ -48,7 +48,6 @@ export type ReportCycleWorkspaceProps = {
   source: CycleSnapshotSource;
   selection: CycleSelection;
   /** Moves the report's selection, as its sidebar does. */
-  onSelect: (selection: CycleSelection) => void;
 };
 
 /* === Classes === */
@@ -56,7 +55,7 @@ export type ReportCycleWorkspaceProps = {
 /* === Components === */
 
 /** Captured data drives the same cycle and execution presentation used live. */
-export function ReportCycleWorkspace({ onSelect, selection, source }: ReportCycleWorkspaceProps) {
+export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspaceProps) {
   const plotWindow = usePlotWindow();
   const plan = source.plan;
   const cases = buildCycleCases(plan);
@@ -121,7 +120,6 @@ export function ReportCycleWorkspace({ onSelect, selection, source }: ReportCycl
         titlePrefix={`Execution ${row.ordinal} · `}
         label={row.case.label}
         onRename={null}
-        onSelectCycle={() => onSelect({ view: "cycle" })}
         trail={["Cycle", `Execution ${row.ordinal}`]}
         started={started}
         surface={surface}
@@ -133,8 +131,7 @@ export function ReportCycleWorkspace({ onSelect, selection, source }: ReportCycl
   return (
     <CycleEvidenceView
       lead={
-        <NodeHeader
-          breadcrumb={[{ label: "Cycle" }]}
+        <NodeSummary
           live={false}
           onRename={null}
           progress={`${finishedCaseCount(cases)} of ${cases.length} cases finished`}
@@ -147,7 +144,7 @@ export function ReportCycleWorkspace({ onSelect, selection, source }: ReportCycl
       pane={pane}
       plotWindow={plotWindow}
       surface={surface}
-      trail={["Cycle"]}
+      trail={["Cycles", plan.test_cycle.title]}
     />
   );
 }

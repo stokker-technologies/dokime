@@ -72,7 +72,7 @@ export function DocumentMetricFlow({ groups, storageKey }: { groups: OverviewMet
         <div className="flex justify-end">
           <button
             aria-label="Reset Metric Group Order"
-            className="inline-flex size-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="inline-flex size-8 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             title="Reset Metric Group Order"
             type="button"
             onClick={resetOrder}

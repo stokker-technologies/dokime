@@ -51,7 +51,7 @@ pub(crate) struct Args {
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
     let document = args.config.store()?.load()?;
-    let profile = document.get(&args.name)?;
+    let profile = dokime::client::profiles::get(&document, &args.name)?;
     if args.json {
         println!("{}", serde_json::to_string(profile)?);
     } else {

@@ -220,7 +220,7 @@ async fn composed_plugin_process() {
     assert_ne!(
         recovered.values["workspace_id"],
         dokime_runtime::Value::from("recovered-workspace"),
-        "values of plugins without an install ID are not written to settings.json"
+        "values of plugins without an install ID are not persisted"
     );
     drop(runtime);
     rebooted.shutdown().await.unwrap();

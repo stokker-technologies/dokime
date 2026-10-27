@@ -27,6 +27,8 @@ use dokime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
 
+const NOTE_SCAN_ITEMS: u64 = 10_000;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -66,12 +68,8 @@ impl Page {
             Sha256::digest(dokime::harmos::Message::encode_to_vec(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
         let cursor = Cursor { epoch: snapshot.state().process_epoch().to_string(), stream, position: snapshot.revision() };
-        if limit > 100 {
-            return Err(Status::invalid_argument("page limit exceeds 100"));
-        }
-        if after_id.len() > 64 {
-            return Err(Status::invalid_argument("invalid after_id"));
-        }
+        let limit = dokime::domain::model::execution::wire_cursor::page_size(limit, &after_id)
+            .map_err(crate::grpc::value::canonical::cursor_failure)?;
         if !after_id.is_empty() && given_cursor.is_none() {
             return Err(Status::invalid_argument("subsequent page requires cursor"));
         }
@@ -100,23 +98,15 @@ impl Page {
             let executions = snapshot
                 .state()
                 .executions_for_cycle(cycle)
-                .take(dokime::domain::model::execution::notes::NOTE_SCAN_LIMIT + 1)
+                .take(usize::try_from(NOTE_SCAN_ITEMS).expect("validated note scan limit") + 1)
                 .collect::<Vec<_>>();
-            if executions.len() > dokime::domain::model::execution::notes::NOTE_SCAN_LIMIT {
+            if executions.len() > usize::try_from(NOTE_SCAN_ITEMS).expect("validated note scan limit") {
                 return Err(Status::resource_exhausted("annotation owner scan budget exceeded"));
             }
             case_executions
                 .extend(executions.iter().filter(|item| &item.test_case_id == case_id).map(|item| item.test_execution_id.clone()));
         }
-        Ok(Self {
-            owner,
-            context: selection.include_context,
-            limit: if limit == 0 { 50 } else { limit as usize },
-            after,
-            cursor,
-            scope,
-            case_executions,
-        })
+        Ok(Self { owner, context: selection.include_context, limit, after, cursor, scope, case_executions })
     }
     pub fn matches(&self, actual: &RecordScope) -> bool {
         let Some(selected) = &self.scope else {

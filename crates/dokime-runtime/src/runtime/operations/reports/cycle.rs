@@ -26,7 +26,6 @@ use harmos::{operations::Context, storage::StorageCursor};
 use super::Resources;
 use crate::{
     app::Dokime,
-    config::StorageSettings,
     report::CapturedExecutionReportInput,
     report::cycle::CycleMember,
     runtime::Error,
@@ -43,9 +42,6 @@ use dokime_domain::model::reports::wire::MaterializedReport;
 
 /* === Constants === */
 
-// Members This Process No Longer Retains Re-Query Their Evidence, At Most This Many At Once.
-const ACTIVE_MEMBER_QUERIES: usize = 4;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -57,7 +53,7 @@ const ACTIVE_MEMBER_QUERIES: usize = 4;
 // How One Member Of An Active Cycle Enters Its Current Report.
 enum Member {
     Planned(Box<TestExecution>),
-    Sealed(Box<ExecutionSeal>),
+    Sealed(harmos::storage::ReadBatch<ExecutionSeal>),
     // Its Materialization Gate Stays Held Until Its Evidence Is Materialized.
     Captured(crate::runtime::storage::execution::ExecutionView, tokio::sync::OwnedMutexGuard<()>),
 }
@@ -92,28 +88,34 @@ async fn sealed(
     progress: &Operation,
 ) -> Result<MaterializedReport> {
     let storage = &resources.execution_storage.storage;
-    let settings = &ctx.scope().resources::<Dokime>().storage_settings;
     if let Some(report) = finalization.published {
         return Ok(MaterializedReport { report });
     }
     let mut members = Vec::with_capacity(finalization.executions.len());
     let mut pending = FuturesOrdered::new();
     for execution in finalization.executions.iter() {
-        if pending.len() == ACTIVE_MEMBER_QUERIES
+        if pending.len() as u64 == 8_u64
             && let Some(member) = pending.next().await
         {
-            members.push(CycleMember::Captured(Box::new(member?)));
+            members.push(CycleMember::Captured(member?));
         }
-        pending.push_back(sealed_member(ctx, resources, storage, settings, execution, at, progress));
+        pending.push_back(sealed_member(ctx, storage, execution, at, progress));
     }
     while let Some(member) = pending.next().await {
-        members.push(CycleMember::Captured(Box::new(member?)));
+        members.push(CycleMember::Captured(member?));
     }
     drop(pending);
     progress.phase("Rendering");
-    let prepared = crate::report::cycle::CycleReport::prepare(storage, finalization.snapshot, members, progress).await?;
+    let prepared = crate::report::cycle::CycleReport::prepare(
+        storage,
+        finalization.snapshot,
+        members,
+        progress,
+        &resources.settings.read_application_settings().await?.settings.report,
+    )
+    .await?;
     progress.phase("Publishing Report");
-    let report = prepared.finish(ctx).await?;
+    let report = prepared.finish().await?;
     storage.flush_until(&report.position).await?;
     resources.execution_storage.retain_cycle_report(id, at, report.clone()).await?;
     Ok(MaterializedReport { report })
@@ -126,7 +128,6 @@ async fn current(
     gate: tokio::sync::MutexGuard<'_, ()>,
 ) -> Result<MaterializedReport> {
     let storage = &resources.execution_storage.storage;
-    let settings = &ctx.scope().resources::<Dokime>().storage_settings;
     let state = ctx.scope().state::<Dokime>();
     let current = state
         .state()
@@ -163,14 +164,14 @@ async fn current(
             continue;
         }
         let seal = match &execution.saved {
-            Some(seal) => Some(seal.clone()),
-            None => match resources.execution_storage.published_seal(&execution.test_execution_id).await {
+            Some(seal) => Some(resources.execution_storage.retain_seal(seal)?),
+            None => match resources.execution_storage.published_seal(&execution.test_execution_id).await? {
                 Some(seal) => Some(seal),
                 None => resources.execution_storage.durable_seal(&execution.test_execution_id).await?,
             },
         };
         let plan = if let Some(seal) = seal {
-            Member::Sealed(Box::new(seal))
+            Member::Sealed(seal)
         } else {
             progress.phase("Capturing Evidence");
             let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
@@ -183,17 +184,17 @@ async fn current(
             }
             let guard = resources.execution_storage.materialization_gate(&execution.test_execution_id).await?.lock_owned().await;
             // Finalization May Publish This Member's Final Report While The Gate Was Awaited.
-            if let Some(seal) = resources.execution_storage.published_seal(&execution.test_execution_id).await {
-                plans.push(Member::Sealed(Box::new(seal)));
+            if let Some(seal) = resources.execution_storage.published_seal(&execution.test_execution_id).await? {
+                plans.push(Member::Sealed(seal));
                 continue;
             }
-            let inspection = match resources.execution_storage.retained_report_view(&execution.test_execution_id).await {
+            let inspection = match resources.execution_storage.published_report_view(&execution.test_execution_id).await? {
                 Some(inspection) => inspection,
                 None => {
                     let inputs = resources.execution_storage.prepare_capture(&source, execution, boundary, false).await?;
                     resources
                         .execution_storage
-                        .capture_execution_view(&source, &inputs, resources.settings.read(|settings| settings.report))
+                        .capture_execution_view(&source, &inputs, resources.settings.read_application_settings().await?.settings.report)
                         .await?
                 }
             };
@@ -209,11 +210,9 @@ async fn current(
     for plan in plans {
         members.push(match plan {
             Member::Planned(execution) => CycleMember::Planned(execution),
-            Member::Sealed(seal) => {
-                CycleMember::Captured(Box::new(sealed_member(ctx, resources, storage, settings, &seal, at, progress).await?))
-            }
+            Member::Sealed(seal) => CycleMember::Captured(sealed_member(ctx, storage, &seal, at, progress).await?),
             Member::Captured(inspection, _guard) => {
-                CycleMember::Captured(Box::new(crate::report::materialize::execution(ctx, settings, &inspection, false, progress).await?))
+                CycleMember::Captured(crate::report::materialize::execution(ctx, &inspection, false, progress).await?)
             }
         });
     }
@@ -227,25 +226,28 @@ async fn current(
     };
     let snapshot = CycleSnapshot::current(storage.cursor_saved(), Arc::new(header), Arc::new(appearance), &owner)?;
     progress.phase("Rendering");
-    let prepared = crate::report::cycle::CycleReport::prepare(storage, snapshot, members, progress).await?;
+    let prepared = crate::report::cycle::CycleReport::prepare(
+        storage,
+        snapshot,
+        members,
+        progress,
+        &resources.settings.read_application_settings().await?.settings.report,
+    )
+    .await?;
     progress.phase("Publishing Report");
-    let report = prepared.finish(ctx).await?;
+    let report = prepared.finish().await?;
     storage.flush_until(&report.position).await?;
     Ok(MaterializedReport { report })
 }
 
-// A Member Sealed By This Process Reuses Its Materialized Report Input; Others Re-Query Their Evidence.
+// Every Sealed Member Re-Queries Its Durable Context And Evidence In The Cycle Session.
 async fn sealed_member(
-    ctx: &Context<'_>, resources: &Resources, storage: &Manager, settings: &StorageSettings, seal: &ExecutionSeal, at: &StorageCursor,
-    progress: &Operation,
-) -> Result<CapturedExecutionReportInput> {
+    ctx: &Context<'_>, storage: &Manager, seal: &ExecutionSeal, at: &StorageCursor, progress: &Operation,
+) -> Result<harmos::storage::ReadBatch<CapturedExecutionReportInput>> {
     if !at.covers(&seal.source.evidence_through)? {
         return Err(invalid("sealed member evidence exceeds cycle report boundary"));
     }
-    if let Some(input) = resources.execution_storage.retained_member_input(seal).await {
-        return Ok((*input).clone());
-    }
-    crate::report::materialize::sealed_member(ctx, storage, settings, seal, progress).await
+    crate::report::materialize::sealed_member(ctx, storage, seal, progress).await
 }
 
 // Nothing Dispatched It: Queued, Or Planned As The Runtime Spells It (An Unsealed Skip Never Started).

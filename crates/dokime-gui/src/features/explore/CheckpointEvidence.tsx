@@ -40,6 +40,8 @@ import {
   readCheckpointOutput,
 } from "./explore-data-source";
 
+const GUI_ERROR_PREVIEW_CHARS = 500;
+
 type Severity = Wire<GeneratedSeverity>;
 type CheckpointContext = Wire<GeneratedCheckpointContext>;
 type CheckpointTelemetryPage = Wire<GeneratedCheckpointTelemetryPage>;
@@ -152,7 +154,7 @@ function Records({ checkpoint, session }: SessionProps) {
                 {text.timestamp} · {text.severity} · {row.epoch}
               </span>
               <span className="block font-medium">{record.recordType || "Record"}</span>
-              {message.slice(0, 500)}
+              {message.slice(0, GUI_ERROR_PREVIEW_CHARS)}
             </summary>
             <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all pt-2 text-xs">
               {message}

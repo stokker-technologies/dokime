@@ -15,8 +15,9 @@
 
 // Standard Library Imports
 
-// Third Party Imports
 import { useQuery } from "@tanstack/react-query";
+// Third Party Imports
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 // Local Imports
@@ -33,7 +34,6 @@ import {
   olderPage,
   type RemoteSessionRow,
   SESSION_PAGE_SIZE,
-  SESSION_POLL_MS,
   sessionRow,
 } from "@/features/settings/sections/remote-sessions";
 import * as rpc from "@/lib/rpc/generated/client";
@@ -76,14 +76,14 @@ const COLUMNS: DataTableColumns<RemoteSessionRow> = column.columns([
 
 /* === Components === */
 
-/** Who reached this host remotely, newest first, following the host while the page is open. */
+/** Who reached this host remotely, newest first, with mount, focus and manual refresh. */
 export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
   const [pager, setPager] = useState(firstPage);
   const cursor = currentCursor(pager);
   const query = useQuery({
     queryKey: ["settings", "remote-sessions", session.identity.generation, cursor ?? null],
     queryFn: () => rpc.remoteListSessions(session.identity, { cursor, limit: SESSION_PAGE_SIZE }),
-    refetchInterval: SESSION_POLL_MS,
+    refetchOnWindowFocus: true,
     retry: false,
   });
   const rows = (query.data?.sessions ?? []).map((entry) => sessionRow(entry));
@@ -91,36 +91,36 @@ export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
   const page = pager.cursors.length;
   return (
     <SettingsCard
-      span="full"
       title="Recent Remote Sessions"
       description="Admitted and refused remote clients, newest first. A session ends after a minute without calls; the host keeps the last 500."
-      footer={
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="mr-auto text-xs text-muted-foreground">Page {page}</span>
-          <Button disabled={page === 1} onClick={() => setPager(newerPage)} size="sm" variant="outline">
-            Newer
-          </Button>
-          <Button disabled={!next} onClick={() => next && setPager(olderPage(pager, next))} size="sm" variant="outline">
-            Older
-          </Button>
-        </div>
-      }
     >
       {query.error ? (
         <p className="px-4 py-3 text-sm text-destructive" role="alert">
           {query.error instanceof Error ? query.error.message : "Remote sessions are unavailable."}
         </p>
-      ) : (
-        <DataTable
-          aria-label="Recent Remote Sessions"
-          className="[--table-inset:1rem] [--table-surface:var(--card)]"
-          columns={COLUMNS}
-          data={rows}
-          emptyText={query.isPending ? "Loading remote sessions…" : "No remote sessions yet."}
-          getRowId={rowKey}
-          stickyHeader={false}
-        />
-      )}
+      ) : null}
+      <DataTable
+        aria-label="Recent Remote Sessions"
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="mr-auto text-xs text-muted-foreground">Page {page}</span>
+            <Button disabled={query.isFetching} onClick={() => void query.refetch()} size="sm" variant="outline">
+              <RefreshCw data-icon="inline-start" />
+              Refresh
+            </Button>
+            <Button disabled={page === 1} onClick={() => setPager(newerPage)} size="sm" variant="outline">
+              Newer
+            </Button>
+            <Button disabled={!next} onClick={() => next && setPager(olderPage(pager, next))} size="sm" variant="outline">
+              Older
+            </Button>
+          </div>
+        }
+        columns={COLUMNS}
+        data={rows}
+        emptyText={query.isPending ? "Loading remote sessions…" : "No remote sessions yet."}
+        getRowId={rowKey}
+      />
     </SettingsCard>
   );
 }

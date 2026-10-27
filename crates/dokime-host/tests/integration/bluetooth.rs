@@ -80,7 +80,7 @@ fn collect_case(mode: &str) -> HostStreamSample {
     }
 
     // Collection And Reaped Child
-    let sample = BluetoothCollector::default().collect().unwrap();
+    let sample = BluetoothCollector::new(dokime_host::HostOptions::default()).collect().unwrap();
     let pid = std::fs::read_to_string(root.path().join("pid")).unwrap();
     assert!(!std::path::Path::new("/proc").join(pid).exists(), "probe must be reaped before collection returns");
     sample

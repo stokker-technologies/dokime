@@ -73,7 +73,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
 
   return (
     <article
-      className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3 rounded-md bg-muted/20 p-3"
+      className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3 rounded-lg bg-muted/20 p-3"
       data-testid="wifi-channel-occupancy-plot"
     >
       <header className="flex items-start justify-between gap-3">
@@ -83,11 +83,11 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
           {onlyActiveChannelReported ? (
-            <span className="rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-xs font-semibold text-warning">
+            <span className="rounded-lg border border-warning/40 bg-warning/10 px-2 py-1 text-xs font-semibold text-warning">
               Only Active Channel Reported
             </span>
           ) : null}
-          <span className="rounded-md border bg-background px-2 py-1 text-xs font-semibold tabular-nums">{activeLabel}</span>
+          <span className="rounded-lg border bg-background px-2 py-1 text-xs font-semibold tabular-nums">{activeLabel}</span>
         </div>
       </header>
       <div className="grid gap-3">
@@ -154,7 +154,7 @@ function BandHeatmap({
 
   return (
     <section
-      className={`grid min-w-0 max-w-full gap-2 overflow-hidden rounded-md border p-2.5 ${
+      className={`grid min-w-0 max-w-full gap-2 overflow-hidden rounded-lg border p-3 ${
         isActiveBand ? "border-primary/50 bg-primary/5" : "border-transparent bg-background/60"
       }`}
     >
@@ -166,11 +166,11 @@ function BandHeatmap({
         </span>
       </div>
       <div className="overflow-x-auto pb-1">
-        <div className="grid min-w-[640px] gap-1" style={{ gridTemplateColumns: columns }}>
+        <div className="grid min-w-160 gap-1" style={{ gridTemplateColumns: columns }}>
           <span />
           {band.channels.map((channel) => (
             <span
-              className={`text-center text-[0.62rem] tabular-nums ${
+              className={`text-center text-xs tabular-nums ${
                 band.label === activeBand && channel === activeChannel ? "font-bold text-primary" : "text-muted-foreground"
               }`}
               key={channel}
@@ -200,7 +200,7 @@ function HeatmapRow({
 }) {
   return (
     <>
-      <span className="truncate text-right text-[0.65rem] text-muted-foreground">Occupancy</span>
+      <span className="truncate text-right text-xs text-muted-foreground">Occupancy</span>
       {band.channels.map((channel) => {
         const count = scan?.counts.get(channel) ?? 0;
         const isActiveChannel = band.label === activeBand && channel === activeChannel;
@@ -217,7 +217,7 @@ function HeatmapRow({
             title={occupancyTitle(channel, count, scan)}
           >
             {count > 0 ? (
-              <span className="grid h-full place-items-center text-[0.62rem] font-semibold leading-none tabular-nums">{count}</span>
+              <span className="grid h-full place-items-center text-xs font-semibold leading-none tabular-nums">{count}</span>
             ) : null}
           </span>
         );
@@ -266,7 +266,7 @@ function ScanSlider({
   );
 
   return (
-    <div className="grid gap-1.5 border-t pt-2.5">
+    <div className="grid gap-2 border-t pt-2">
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">
           {followLatest ? "Latest Scan" : "Selected Scan"} {clampedSelectedIndex + 1}/{scans.length}
@@ -292,7 +292,7 @@ function ScanSlider({
         onValueChange={handleValueChange}
         onValueCommit={handleValueCommit}
       />
-      <div className="flex items-center justify-between gap-3 text-[0.65rem] text-muted-foreground">
+      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span className="truncate">{scans[0]?.label ?? ""}</span>
         <button
           className="text-xs font-semibold text-primary disabled:text-muted-foreground"

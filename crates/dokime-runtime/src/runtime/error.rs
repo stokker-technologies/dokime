@@ -66,9 +66,6 @@ pub enum Error {
         source: crate::exports::storage::StorageError,
     },
 
-    #[error("{0}")]
-    LocalState(#[from] crate::storage::sqlite::Error),
-
     #[error("execution request receipt: {0}")]
     RequestReceipt(#[source] Box<dyn std::error::Error + Send + Sync>),
 
@@ -112,9 +109,6 @@ pub enum Error {
 
     #[error("runtime operation was interrupted")]
     Interrupted,
-
-    #[error("execution output exceeds native content limit")]
-    ExecutionFileTooLarge,
 
     #[error("invalid checkpoint report inputs: {0}")]
     InvalidReportInputs(String),

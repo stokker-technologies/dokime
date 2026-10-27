@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::io::Write;
+use std::{io::Write, path::Path};
 
 // Third Party Imports
 use clap::Parser;
@@ -41,6 +41,10 @@ use dokime_cli::{Cli, Error};
 
 /* === Private Functions === */
 
+fn configuration(root: &Path) -> dokime::config::Config {
+    dokime::config::ApplicationOptions { application_root: Some(root.to_owned()), ..Default::default() }.resolve().unwrap()
+}
+
 /* === Tests === */
 
 #[test]
@@ -65,6 +69,8 @@ fn execution_lifecycle_parser() {
 
 #[tokio::test]
 async fn interrupt_recovery_boundaries() {
+    let application = tempfile::tempdir().unwrap();
+    let configuration = configuration(application.path());
     let execution = "00000000-0000-0000-0000-000000000001";
     let cycle = "00000000-0000-0000-0000-000000000002";
     let directory = tempfile::tempdir().unwrap();
@@ -91,12 +97,18 @@ async fn interrupt_recovery_boundaries() {
         let recovery = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
         let arguments = command.iter().copied().chain(recovery);
         let parsed = Cli::try_parse_from(arguments).unwrap();
-        assert!(matches!(parsed.run().await, Err(Error::Client(_))), "complete choices pass offline validation before endpoint parsing");
+        assert!(
+            matches!(parsed.run(configuration.clone()).await, Err(Error::Client(_))),
+            "complete choices pass offline validation before endpoint parsing"
+        );
         let destination = directory.path().join(format!("execution-{execution}.zip"));
         std::fs::write(&destination, b"previous evidence").unwrap();
         let arguments = command.iter().copied().chain(recovery);
         let parsed = Cli::try_parse_from(arguments).unwrap();
-        assert!(matches!(parsed.run().await, Err(Error::Download(_))), "output conflicts must be refused before endpoint parsing");
+        assert!(
+            matches!(parsed.run(configuration.clone()).await, Err(Error::Download(_))),
+            "output conflicts must be refused before endpoint parsing"
+        );
         assert_eq!(std::fs::read(&destination).unwrap(), b"previous evidence");
         std::fs::remove_file(destination).unwrap();
     }
@@ -107,14 +119,16 @@ async fn interrupt_recovery_boundaries() {
     }
     let flags = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
     let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
-    assert!(matches!(parsed.run().await, Err(Error::Client(_))));
+    assert!(matches!(parsed.run(configuration.clone()).await, Err(Error::Client(_))));
     let flags = ["--cancel-on-interrupt", "--owned-cycle", execution, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
     let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
-    assert!(matches!(parsed.run().await, Err(Error::Input(_))), "append cannot authorize recovery of another cycle");
+    assert!(matches!(parsed.run(configuration.clone()).await, Err(Error::Input(_))), "append cannot authorize recovery of another cycle");
 }
 
 #[tokio::test]
 async fn json_files_connection() {
+    let application = tempfile::tempdir().unwrap();
+    let configuration = configuration(application.path());
     assert!(Cli::try_parse_from(["dokime", "server"]).is_ok());
     for arguments in [
         vec!["plan", "preview", "--template", "checks.probe", "--case-id", "case"],
@@ -170,14 +184,14 @@ async fn json_files_connection() {
         file.path().to_str().unwrap(),
     ])
     .unwrap();
-    assert!(matches!(args.run().await, Err(Error::Input(_))));
+    assert!(matches!(args.run(configuration.clone()).await, Err(Error::Input(_))));
 
     let args = Cli::try_parse_from(["dokime", "operation", "call", "missing.operation", "--endpoint", "invalid-endpoint"]).unwrap();
-    assert!(matches!(args.run().await, Err(Error::Client(_))));
+    assert!(matches!(args.run(configuration.clone()).await, Err(Error::Client(_))));
 
     let args =
         Cli::try_parse_from(["dokime", "operation", "call", "dokime.evidence.watch_records", "--endpoint", "invalid-endpoint"]).unwrap();
-    let refused = args.run().await.unwrap_err();
+    let refused = args.run(configuration.clone()).await.unwrap_err();
     assert_eq!(refused.exit_code(), std::process::ExitCode::from(2));
     assert!(matches!(refused, Error::Client(_)));
 
@@ -229,7 +243,7 @@ async fn json_files_connection() {
         vec!["cycle", "append", "--input-file", file.path().to_str().unwrap()],
     ] {
         let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "invalid-endpoint"])).unwrap();
-        assert!(matches!(args.run().await, Err(Error::Input(_))));
+        assert!(matches!(args.run(configuration.clone()).await, Err(Error::Input(_))));
     }
 
     for arguments in [
@@ -244,12 +258,14 @@ async fn json_files_connection() {
         ],
     ] {
         let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "invalid-endpoint"])).unwrap();
-        assert!(matches!(args.run().await, Err(Error::Client(_))));
+        assert!(matches!(args.run(configuration.clone()).await, Err(Error::Client(_))));
     }
 }
 
 #[tokio::test]
 async fn operation_files() {
+    let application = tempfile::tempdir().unwrap();
+    let configuration = configuration(application.path());
     for arguments in
         [vec!["--json", "{}", "--input", "request.json"], vec!["--input-file", "request.json"], vec!["--json"], vec!["--overwrite"]]
     {
@@ -264,12 +280,12 @@ async fn operation_files() {
     let path = destination.to_str().unwrap();
     let command = ["dokime", "operation", "call", "device.enable", "--endpoint", "invalid-endpoint", "--json", "{}", "--output", path];
     let args = Cli::try_parse_from(command).unwrap();
-    let error = args.run().await.unwrap_err();
+    let error = args.run(configuration.clone()).await.unwrap_err();
     assert!(matches!(error, Error::Input(_)), "existing output must be refused before connection");
     assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
 
     let args = Cli::try_parse_from(command.into_iter().chain(["--overwrite"])).unwrap();
-    let error = args.run().await.unwrap_err();
+    let error = args.run(configuration.clone()).await.unwrap_err();
     assert!(matches!(error, Error::Client(_)), "explicit overwrite may proceed to connection");
     assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
     assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1, "failed calls remove their staged output");
@@ -288,7 +304,7 @@ async fn operation_files() {
         "--overwrite",
     ])
     .unwrap();
-    assert!(matches!(args.run().await.unwrap_err(), Error::Input(_)));
+    assert!(matches!(args.run(configuration.clone()).await.unwrap_err(), Error::Input(_)));
     assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
 
     let directory_output = directory.path().join("directory.json");
@@ -305,36 +321,44 @@ async fn operation_files() {
         "--overwrite",
     ])
     .unwrap();
-    assert!(matches!(args.run().await.unwrap_err(), Error::Input(_)));
+    assert!(matches!(args.run(configuration.clone()).await.unwrap_err(), Error::Input(_)));
     assert!(directory_output.is_dir());
 }
 
 #[tokio::test]
 async fn offline_backend_profiles() {
+    let application = tempfile::tempdir().unwrap();
+    let configuration = configuration(application.path());
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("backends.json");
     let filename = path.to_str().unwrap();
     let command = |arguments: &[&str]| Cli::try_parse_from(std::iter::once("dokime").chain(arguments.iter().copied())).unwrap();
-    command(&["backend", "list", "--profiles-file", filename, "--json"]).run().await.unwrap();
+    command(&["backend", "list", "--profiles-file", filename, "--json"]).run(configuration.clone()).await.unwrap();
     assert!(!path.exists());
     let invalid = command(&["backend", "add", "lab", "--endpoint", "http://remote.example/path", "--profiles-file", filename]);
-    assert_eq!(invalid.run().await.unwrap_err().exit_code(), std::process::ExitCode::from(2));
+    assert_eq!(invalid.run(configuration.clone()).await.unwrap_err().exit_code(), std::process::ExitCode::from(2));
     assert!(!path.exists());
-    command(&["backend", "add", "lab", "--endpoint", "http://remote.example:8765", "--profiles-file", filename]).run().await.unwrap();
-    let selection = Store::new(&path).load().unwrap().select(Some("lab"), None, None).unwrap();
+    command(&["backend", "add", "lab", "--endpoint", "http://remote.example:8765", "--profiles-file", filename])
+        .run(configuration.clone())
+        .await
+        .unwrap();
+    let selection = dokime::client::profiles::select(&Store::new(&path).load().unwrap(), Some("lab"), None, None).unwrap();
     assert!(selection.target.is_remote());
     assert_eq!(selection.target.endpoint(), "http://remote.example:8765/");
     let original = std::fs::read(&path).unwrap();
     let duplicate = command(&["backend", "add", "lab", "--endpoint", "http://127.0.0.1:9000", "--profiles-file", filename]);
-    assert!(matches!(duplicate.run().await, Err(Error::Input(_))));
+    assert!(matches!(duplicate.run(configuration.clone()).await, Err(Error::Input(_))));
     assert_eq!(std::fs::read(&path).unwrap(), original);
-    command(&["backend", "use", "lab", "--profiles-file", filename]).run().await.unwrap();
+    command(&["backend", "use", "lab", "--profiles-file", filename]).run(configuration.clone()).await.unwrap();
     assert_eq!(Store::new(&path).load().unwrap().default.as_deref(), Some("lab"));
-    command(&["backend", "show", "lab", "--profiles-file", filename, "--json"]).run().await.unwrap();
+    command(&["backend", "show", "lab", "--profiles-file", filename, "--json"]).run(configuration.clone()).await.unwrap();
     let selected = std::fs::read(&path).unwrap();
-    assert!(matches!(command(&["backend", "use", "unknown", "--profiles-file", filename]).run().await, Err(Error::Input(_))));
+    assert!(matches!(
+        command(&["backend", "use", "unknown", "--profiles-file", filename]).run(configuration.clone()).await,
+        Err(Error::Input(_))
+    ));
     assert_eq!(std::fs::read(&path).unwrap(), selected);
-    command(&["backend", "remove", "lab", "--profiles-file", filename]).run().await.unwrap();
+    command(&["backend", "remove", "lab", "--profiles-file", filename]).run(configuration.clone()).await.unwrap();
     let document = Store::new(&path).load().unwrap();
     assert!(document.default.is_none());
     assert!(document.profiles.is_empty());
@@ -342,6 +366,8 @@ async fn offline_backend_profiles() {
 
 #[tokio::test]
 async fn secrets_precede_operations() {
+    let application = tempfile::tempdir().unwrap();
+    let configuration = configuration(application.path());
     for option in ["--ca", "--expected-backend"] {
         assert!(Cli::try_parse_from(["dokime", "status", option, "value"]).is_err());
         assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "https://host:8765", option, "value",]).is_ok());
@@ -351,9 +377,9 @@ async fn secrets_precede_operations() {
     assert!(Cli::try_parse_from(["dokime", "status", "--backend", "lab", "--expected-backend", "machine"]).is_err());
     assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "http://127.0.0.1", "--timeout-seconds", "0"]).is_err());
     let login = Cli::try_parse_from(["dokime", "auth", "login", "--endpoint", "http://127.0.0.1"]).unwrap();
-    assert!(matches!(login.run().await, Err(Error::Input(_))));
+    assert!(matches!(login.run(configuration.clone()).await, Err(Error::Input(_))));
     let logout = Cli::try_parse_from(["dokime", "auth", "logout", "--endpoint", "http://127.0.0.1", "--key-file", "missing-key"]).unwrap();
-    assert!(matches!(logout.run().await, Err(Error::Input(_))));
+    assert!(matches!(logout.run(configuration.clone()).await, Err(Error::Input(_))));
     let check = Error::Check(Box::new(Error::Client(dokime::client::Error::IncompatibleApi)));
     assert_eq!(check.exit_code(), std::process::ExitCode::from(1));
     let exhausted = dokime::client::Error::Rpc(tonic::Status::resource_exhausted("response budget"));

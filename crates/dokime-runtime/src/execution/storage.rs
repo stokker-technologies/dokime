@@ -129,21 +129,6 @@ impl MemorySize for ExecutionDocument {
 }
 
 impl ExecutionMetadata {
-    pub fn construction_memory(execution: &TestExecution) -> usize {
-        let case = execution.snapshot.case();
-        let fields = [
-            execution.test_execution_id.as_str().len(),
-            execution.test_cycle_id.as_str().len(),
-            execution.test_case_id.as_str().len(),
-            case.metadata.label.len(),
-            execution.started_at.as_ref().map_or(0, |at| at.as_str().len()),
-            execution.finished_at.as_ref().map_or(0, |at| at.as_str().len()),
-            case.test_case_template_id.as_str().len(),
-            execution.snapshot.suite().map_or(0, |suite| suite.label.len()),
-        ];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add)
-    }
-
     pub fn new(execution: &TestExecution) -> Self {
         Self {
             execution_id: execution.test_execution_id.clone(),

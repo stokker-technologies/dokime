@@ -304,12 +304,14 @@ impl RuntimeHandle {
             Err(error) => {
                 let problem = error.to_string();
                 let at = crate::model::time::now_utc();
+                let interruption = format!("request did not enter runtime state: {problem}");
+
                 if let Err(storage_error) = self
                     .request_storage
                     .update(&command_id, |receipt| {
                         receipt.summary.phase = crate::transactions::provider::request::RunPhase::Interrupted;
                         receipt.summary.finished_at = Some(at);
-                        receipt.interruption = Some(format!("request did not enter runtime state: {problem}"));
+                        receipt.interruption = Some(interruption);
                     })
                     .await
                 {

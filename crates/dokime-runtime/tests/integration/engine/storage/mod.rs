@@ -24,9 +24,7 @@ pub(crate) mod sqlite;
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::storage::{
-    ScanPage, StorageBackend, StorageBatch, StorageCursor, StoragePart, StorageSchema, StoredRecord, query::RecordSelection,
-};
+use harmos::storage::{ScanPage, StorageBackend, StorageCursor, StorageSchema, StoredRecord, query::RecordSelection};
 
 // Local Imports
 use dokime_domain::model;
@@ -76,23 +74,18 @@ fn entry(sequence: u64, volts: f64) -> RecordEntry {
 #[tokio::test]
 async fn portable_records_identity() {
     let root = tempfile::tempdir().unwrap();
-    let writer = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    let store = sqlite::storage::Store::<()>::open(root.path()).await;
+    let writer = &store.backend;
     writer.open().await.unwrap();
     let history = writer.history().clone();
     let position = |sequence| StorageCursor { history: history.clone(), sequence };
     let schema = records::schema();
     writer
-        .write(
-            StorageBatch::new(
-                &[StoragePart::Schemas(&[StorageSchema::new(
-                    position(1),
-                    schema.clone(),
-                    sqlite::storage::declared::<records::RecordRow>(),
-                )])],
-                (16 * 1024 * 1024).try_into().unwrap(),
-            )
-            .unwrap(),
-        )
+        .write_schemas(store.batch(vec![StorageSchema::new(
+            position(1),
+            schema.clone(),
+            sqlite::storage::declared::<records::RecordRow>(),
+        )]))
         .await
         .unwrap();
     let expected = [entry(17, 229.5), entry(29, 230.5)];
@@ -109,7 +102,7 @@ async fn portable_records_identity() {
             payload: records::encode(entry, FRAME_BYTES).unwrap(),
         })
         .collect::<Vec<_>>();
-    writer.write(StorageBatch::new(&[StoragePart::Records(&stored)], (16 * 1024 * 1024).try_into().unwrap()).unwrap()).await.unwrap();
+    writer.write_records(store.batch(stored.clone())).await.unwrap();
     let saved = writer.cursor_saved().await.unwrap();
     writer.close().await.unwrap();
 
@@ -130,7 +123,7 @@ async fn portable_records_identity() {
     }
     assert!(
         reader
-            .read_records(&snapshot, &selection, ScanPage { after, rows: 1.try_into().unwrap(), bytes: FRAME_BYTES.try_into().unwrap() },)
+            .read_records(&snapshot, &selection, ScanPage { after, rows: 1.try_into().unwrap(), bytes: FRAME_BYTES.try_into().unwrap() })
             .await
             .unwrap()
             .is_empty()

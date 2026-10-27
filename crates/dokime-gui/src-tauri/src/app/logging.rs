@@ -23,7 +23,6 @@ use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, 
 
 /* === Constants === */
 
-const KEEP_LOG_FILES: usize = 14;
 static ACTIVE_LOG: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 /* === Macros === */
@@ -51,14 +50,14 @@ pub(crate) fn active_log() -> Option<PathBuf> {
     ACTIVE_LOG.get().cloned()
 }
 
-pub(crate) fn init(identifier: &str) -> LoggingGuards {
+pub(crate) fn init(identifier: &str, retained_files: usize) -> LoggingGuards {
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
     let stderr_layer: BoxedLayer = fmt::layer().with_writer(stderr_writer).with_filter(env_filter()).boxed();
     let mut layers: Vec<BoxedLayer> = vec![stderr_layer];
 
     let mut file_guard = None;
     let mut log_path = None;
-    match app_log_dir(identifier).and_then(|dir| file_fmt_layer(&dir)) {
+    match app_log_dir(identifier).and_then(|dir| file_fmt_layer(&dir, retained_files)) {
         Ok((layer, guard, path)) => {
             layers.push(layer);
             file_guard = Some(guard);
@@ -111,13 +110,13 @@ fn app_log_dir(identifier: &str) -> Result<PathBuf, String> {
     }
 }
 
-fn file_fmt_layer(dir: &Path) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard, PathBuf), String> {
+fn file_fmt_layer(dir: &Path, retained_files: usize) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard, PathBuf), String> {
     std::fs::create_dir_all(dir).map_err(|error| format!("failed to create log directory {}: {error}", dir.display()))?;
     let appender = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("dokime-gui")
         .filename_suffix("log")
-        .max_log_files(KEEP_LOG_FILES)
+        .max_log_files(retained_files)
         .build(dir)
         .map_err(|error| format!("failed to open a log file under {}: {error}", dir.display()))?;
     let (writer, guard) = tracing_appender::non_blocking(appender);

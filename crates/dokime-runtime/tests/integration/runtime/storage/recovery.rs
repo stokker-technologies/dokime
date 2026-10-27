@@ -194,7 +194,7 @@ fn wide_batch(scope: RecordScope) -> TelemetryBatch {
 // State Policy Derives From Its Checkpoint.
 async fn shut_down(mut owner: Runtime, handle: RuntimeHandle, logs: &Captured) -> usize {
     let root = handle.storage_root();
-    let limits = dokime_runtime::storage::state_settings();
+    let limits = dokime_runtime::config::storage_state_defaults();
     let journal = std::fs::read(root.join("state.jsonl")).unwrap();
     let largest = journal.split_inclusive(|byte| *byte == b'\n').map(<[u8]>::len).max().unwrap();
     // A Wide Member's Finalized Aggregates Are The Largest Entry, Near 344 KB.

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -98,16 +96,17 @@ async fn managed_records_kill() {
     let mut count = 0;
     let mut identities = std::collections::BTreeSet::new();
     let mut positions = std::collections::BTreeSet::new();
-    for row in crate::service_support::backend::records(&backend, &saved, dokime_runtime::storage::records::schema()).await {
+    crate::service_support::backend::for_each_record(&backend, &saved, dokime_runtime::storage::records::schema(), |row| {
         let record = dokime_runtime::storage::records::RecordRow::decode_entry(&row.payload).unwrap();
         if record.source != "runtime" || record.record_type.as_str() != "calibration.field.completed" {
-            continue;
+            return;
         }
         assert_eq!(row.item.as_str(), record.record_id.as_str());
         count += 1;
         identities.insert(record.record_id.clone());
         positions.insert(record.sequence);
-    }
+    })
+    .await;
     assert_eq!(count, 64, "both process histories remain in primary storage");
     assert_eq!(identities.len(), 64);
     assert_eq!(positions.len(), 64, "managed journal positions survive the kill");

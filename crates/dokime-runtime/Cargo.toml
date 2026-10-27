@@ -28,6 +28,7 @@ default = ["native", "derive"]
 native = [
   "harmos/plugin-sidecar",
   "dep:file-id",
+  "dep:futures-util",
   "dep:globset",
   "dep:tempfile",
   "dep:tokio",
@@ -36,14 +37,15 @@ native = [
   "dep:tracing-error",
 ]
 derive = ["dep:dokime-macros"]
+configuration = ["dep:base64", "dep:cssparser", "dep:sysinfo", "dep:tempfile", "dep:tokio", "dep:toml"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [
+  "configuration",
   "native",
   "derive",
   "storage",
   "dep:async-trait",
   "dep:base64",
-  "dep:cssparser",
   "dep:dokime-host",
   "dep:futures-util",
   "dep:keyring",
@@ -51,11 +53,9 @@ host = [
   "dep:rustls-platform-verifier",
   "dep:sha2",
   "dep:suppaftp",
-  "dep:sysinfo",
   "dep:tokio",
   "dep:tokio-util",
   "dep:tonic",
-  "dep:toml",
   "dep:walkdir",
   "dep:zip",
   "dep:zeroize",
@@ -348,6 +348,12 @@ required-features = ["host"]
 [[bench]]
 name = "system-runtime"
 path = "benches/system/main.rs"
+harness = false
+required-features = ["host"]
+
+[[bench]]
+name = "integration-storage"
+path = "benches/storage/main.rs"
 harness = false
 required-features = ["host"]
 

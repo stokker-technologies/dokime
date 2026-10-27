@@ -24,6 +24,8 @@ use dokime::client::profiles::{Error, Profile, Secret};
 
 /* === Constants === */
 
+const CA_BYTES: u64 = 1_048_576;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -64,7 +66,7 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
         .ca
         .as_deref()
         .map(|path| {
-            let bytes = dokime::harmos::filesystem::input::read(path, 1024 * 1024)?;
+            let bytes = dokime::harmos::filesystem::input::read(path, CA_BYTES as usize)?;
             String::from_utf8(bytes).map_err(|_| crate::Error::Input("CA certificate must be UTF-8 PEM".into()))
         })
         .transpose()?;
@@ -75,7 +77,7 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
         ca_certificate_pem,
         secret: if args.keyring { Secret::Keyring } else { Secret::None },
     };
-    profile.selection()?;
+    dokime::client::profiles::selection(&profile)?;
     args.config.store()?.update(move |document| {
         if document.profiles.iter().any(|existing| existing.name == profile.name) {
             return Err(Error::Invalid("profile already exists".into()));

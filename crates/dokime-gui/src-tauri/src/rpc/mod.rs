@@ -11,17 +11,19 @@
 
 mod artifact_upload;
 mod calls;
+pub mod protocol;
 
 /* === Re-Exports === */
 
 pub use crate::Error as RpcError;
 pub use artifact_upload::RecordingHandle;
 pub use calls::{
-    CHANNEL_HEADER, CREDIT_HEADER, DEADLINE_HEADER, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, INPUT_HEADER, PATH_HEADER, STREAM_CREDIT,
-    STREAM_HEADER,
+    CHANNEL_HEADER, CREDIT_HEADER, DEADLINE_HEADER, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, INPUT_HEADER, PATH_HEADER, STREAM_HEADER,
 };
 
 /* === Imports === */
+
+use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 
 // Standard Library Imports
 use std::{
@@ -31,7 +33,6 @@ use std::{
 };
 
 // Third Party Imports
-use dokime::harmos::MemorySize;
 use dokime::harmos::domain::Portable;
 use dokime::harmos::grpc::{Transcoded, Wire};
 use harmos_sdk::grpc::DecodeInput;
@@ -46,8 +47,10 @@ use calls::Streams;
 
 /* === Constants === */
 
+const DESKTOP_CALLS: u64 = 8;
+const DESKTOP_STREAMS: u64 = 24;
+
 pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
-pub const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 pub const COMMANDS: &[&str] = &[
     "rpc",
     "rpc_stream_open",
@@ -64,13 +67,8 @@ pub const COMMANDS: &[&str] = &[
     "recording_cancel",
 ];
 
-// Every call shares the session's single HTTP/2 connection, and a backend
-// listener admits 32 concurrent calls on it. Long-lived calls, streams and
-// uploads alike, own most of that budget and are refused beyond it rather than
-// queued behind each other; unary calls queue for the rest, so long-lived calls
-// never starve them.
-const MAX_CALLS: usize = 8;
-const MAX_STREAMS: usize = 24;
+// Calls Share The Session's HTTP/2 Connection And Configured Admission Budget.
+// Long-Lived Streams And Uploads Have Separate Admission From Unary Calls.
 const REQUEST_HEADER: usize = 40;
 
 /* === Macros === */
@@ -104,13 +102,7 @@ struct Context {
 
 impl Default for Bridge {
     fn default() -> Self {
-        Self {
-            owners: Arc::default(),
-            calls: Arc::new(Semaphore::new(MAX_CALLS)),
-            streams: Streams::new(MAX_STREAMS),
-            uploads: ArtifactUploads::default(),
-            recordings: RecordingSinks::default(),
-        }
+        Self::new()
     }
 }
 
@@ -131,7 +123,9 @@ impl From<dokime::client::Error> for RpcError {
 
 impl Context {
     fn client(&self) -> dokime::client::Client {
-        self.lease.client().with_frame_limit(std::num::NonZeroUsize::new(MAX_FRAME_BYTES).expect("positive desktop frame bound"))
+        self.lease
+            .client()
+            .with_frame_limit(std::num::NonZeroUsize::new(DESKTOP_FRAME_BYTES as usize).expect("positive desktop frame bound"))
     }
 
     async fn execute<T, E: Into<RpcError>>(&self, future: impl Future<Output = Result<T, E>>) -> Result<T, RpcError> {
@@ -140,6 +134,12 @@ impl Context {
             _ = self.owner_cancel.cancelled() => Err(RpcError::Cancelled),
             result = self.lease.guard(future) => result.map_err(RpcError::from)?.map_err(Into::into),
         };
+        let result = result.map_err(|error| match &error {
+            RpcError::Grpc { message, details, .. } if message.len().saturating_add(details.len()) > DESKTOP_FRAME_BYTES as usize => {
+                RpcError::LimitExceeded
+            }
+            _ => error,
+        });
         if let Err(error) = &result {
             tracing::debug!(
                 owner = %self.owner,
@@ -174,7 +174,7 @@ impl Context {
 
     fn reply_bytes(&self, payload: &[u8]) -> Result<tauri::ipc::Response, RpcError> {
         self.check()?;
-        if payload.len() > MAX_FRAME_BYTES {
+        if payload.len() > DESKTOP_FRAME_BYTES as usize {
             return Err(RpcError::LimitExceeded);
         }
         let mut bytes = self.generation.to_le_bytes().to_vec();
@@ -184,6 +184,16 @@ impl Context {
 }
 
 impl Bridge {
+    pub fn new() -> Self {
+        Self {
+            calls: Arc::new(Semaphore::new(DESKTOP_CALLS as usize)),
+            streams: Streams::new(DESKTOP_STREAMS as usize),
+            owners: Arc::default(),
+            uploads: ArtifactUploads::default(),
+            recordings: RecordingSinks::default(),
+        }
+    }
+
     pub fn cancel_owner(&self, owner: &str) {
         if let Some(token) = self.owners.lock().expect("RPC owners poisoned").remove(owner) {
             token.cancel();
@@ -212,13 +222,13 @@ impl Bridge {
         Arc::clone(budget).try_acquire_owned().map_err(|_| RpcError::Busy)
     }
 
-    fn prepare<M: Portable + MemorySize>(
+    fn prepare<M: Portable>(
         &self, session: &ConnectionSession, owner: &str, body: &tauri::ipc::InvokeBody,
     ) -> Result<(Context, M), RpcError> {
-        let (generation, payload) = request(body)?;
+        let (generation, payload) = request(body, DESKTOP_FRAME_BYTES as usize)?;
         let permit = self.admit(self.streams.budget())?;
         let context = self.context(session, owner, generation, Some(permit))?;
-        let message = decode(payload)?;
+        let message = decode(payload, DESKTOP_FRAME_BYTES as usize)?;
         Ok((context, message))
     }
 }
@@ -246,20 +256,17 @@ pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + 
 /* === Private Functions === */
 
 fn rpc_error(status: tonic::Status) -> RpcError {
-    if status.message().len() + status.details().len() > MAX_FRAME_BYTES {
-        return RpcError::LimitExceeded;
-    }
     RpcError::Grpc { code: status.code() as i32, message: status.message().into(), details: status.details().to_vec() }
 }
 
-fn request(body: &tauri::ipc::InvokeBody) -> Result<(u64, &[u8]), RpcError> {
+fn request(body: &tauri::ipc::InvokeBody, maximum: usize) -> Result<(u64, &[u8]), RpcError> {
     let tauri::ipc::InvokeBody::Raw(bytes) = body else {
         return Err(RpcError::InvalidRequest);
     };
     if bytes.len() < REQUEST_HEADER {
         return Err(RpcError::InvalidRequest);
     }
-    if bytes.len() > MAX_FRAME_BYTES + REQUEST_HEADER {
+    if bytes.len() > maximum.saturating_add(REQUEST_HEADER) {
         return Err(RpcError::LimitExceeded);
     }
     let compiled = Sha256::digest(FILE_DESCRIPTOR_SET);
@@ -273,13 +280,11 @@ fn read_u64(bytes: &[u8]) -> Result<u64, RpcError> {
     Ok(u64::from_le_bytes(bytes.get(..8).ok_or(RpcError::InvalidRequest)?.try_into().map_err(|_| RpcError::InvalidRequest)?))
 }
 
-fn decode<M: Portable + MemorySize>(bytes: &[u8]) -> Result<M, RpcError> {
-    if bytes.len() > MAX_FRAME_BYTES
-        || <Transcoded as Wire<M>>::decoding_memory(DecodeInput::new(bytes)).map_err(|_| RpcError::InvalidRequest)? > MAX_FRAME_BYTES * 8
-    {
+fn decode<M: Portable>(bytes: &[u8], maximum: usize) -> Result<M, RpcError> {
+    if bytes.len() > maximum {
         return Err(RpcError::LimitExceeded);
     }
-    <Transcoded as Wire<M>>::decode(DecodeInput::new(bytes)).map_err(|_| RpcError::InvalidRequest)
+    harmos_sdk::grpc::decode::<M>(DecodeInput::new(bytes)).map_err(|_| RpcError::InvalidRequest)
 }
 
 /* === Tests === */

@@ -67,7 +67,6 @@ struct Contract {
     storage_schema: Option<harmos::schema::graph::Schema>,
     default_x: Option<String>,
     interval: Option<u64>,
-    plot_window: Option<u64>,
     allow_extra_fields: bool,
     scalar: bool,
     validation_mode: Option<u32>,
@@ -93,8 +92,6 @@ struct Column {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Contracts {}
 
 impl TryFrom<&Declarations> for Contracts {
     type Error = Error;
@@ -128,8 +125,6 @@ impl TryFrom<Contracts> for Declarations {
     }
 }
 
-impl Contract {}
-
 impl TryFrom<&TelemetryContract> for Contract {
     type Error = Error;
     fn try_from(value: &TelemetryContract) -> Result<Self> {
@@ -147,7 +142,6 @@ impl TryFrom<&TelemetryContract> for Contract {
             storage_schema: value.storage_schema.clone(),
             default_x: value.default_x.clone(),
             interval: value.interval.map(|duration| duration.0),
-            plot_window: value.plot_window.map(|duration| duration.0),
             allow_extra_fields: value.allow_extra_fields,
             scalar: value.scalar,
             validation_mode: value.validation_mode.as_ref().map(validation_mode_code),
@@ -173,7 +167,6 @@ impl TryFrom<Contract> for TelemetryContract {
             storage_schema: value.storage_schema,
             default_x: value.default_x,
             interval: value.interval.map(DurationMillis),
-            plot_window: value.plot_window.map(DurationMillis),
             allow_extra_fields: value.allow_extra_fields,
             scalar: value.scalar,
             validation_mode: value.validation_mode.map(validation_mode).transpose()?,
@@ -181,8 +174,6 @@ impl TryFrom<Contract> for TelemetryContract {
         })
     }
 }
-
-impl Column {}
 
 impl TryFrom<&TelemetryColumn> for Column {
     type Error = Error;
@@ -271,9 +262,6 @@ fn invalid(message: &str) -> Error {
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| invalid("telemetry declaration allocation failed"))?;
-    if values.capacity() > count {
-        return Err(invalid("telemetry declaration slots exceed admission"));
-    }
     Ok(values)
 }
 

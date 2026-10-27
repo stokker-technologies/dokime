@@ -24,15 +24,14 @@ pub use error::{Error, Result};
 
 // Standard Library Imports
 use std::{
-    fs::File,
-    io::{self, Read, Seek, SeekFrom, Write},
+    io::{self, Write},
     num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
 };
 
 // Third Party Imports
-use harmos::storage::{ByteRange, operations::ReadFile};
+use harmos::storage::{ByteRange, FileReadBatch, FileReader, FileSource, ReadBatch, operations::ReadFile};
 use serde::Serialize;
 use tempfile::TempDir;
 use tokio::{
@@ -53,9 +52,9 @@ use dokime_domain::model::{
 
 /* === Constants === */
 
-const MAX_INVENTORY_ENTRIES: usize = 65_536;
+const MAX_INVENTORY_ENTRIES: u64 = 65_536;
 const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
-const MAX_CHUNK_BYTES: usize = 1024 * 1024;
+const MAX_EXPORT_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -71,8 +70,10 @@ pub(crate) struct Manager {
 
 pub struct Bundle {
     source: Arc<Source>,
-    // The archive is read front to back; a read in flight holds the file.
-    file: Option<File>,
+    session: crate::storage::Manager,
+    reader: Option<FileReader>,
+    batch: Option<FileReadBatch>,
+    batch_offset: usize,
     offset: u64,
     pending: Option<Pending>,
 }
@@ -86,7 +87,7 @@ struct Source {
 
 struct Pending {
     maximum: NonZeroUsize,
-    task: JoinHandle<(File, Result<ArtifactChunk>)>,
+    task: JoinHandle<(FileReader, Result<Option<FileReadBatch>>)>,
 }
 
 #[derive(Serialize)]
@@ -138,7 +139,8 @@ impl Write for InventoryBudget {
 
 impl Manager {
     pub(crate) fn new(root: PathBuf) -> Self {
-        Self { root, admission: Arc::new(Semaphore::new(1)) }
+        let admission = Arc::new(Semaphore::new(1));
+        Self { root, admission }
     }
 
     async fn export(&self, runtime: &RuntimeHandle, subject: EvidenceSubject) -> Result<Bundle> {
@@ -146,11 +148,15 @@ impl Manager {
         let permit = self.admission.clone().try_acquire_owned().map_err(|_| Error::Busy)?;
         let cancellation = CancellationToken::new();
         let _cancel_on_drop = cancellation.clone().drop_guard();
-        let root = self.root.clone();
+        let manager = self.clone();
         let storage = runtime.storage().clone();
+        let schema_settings = *runtime.schema_settings();
         let executor = tokio::runtime::Handle::current();
         // SQLite And ZIP I/O Stay On The Blocking Worker; Native Reads Remain Async.
-        tokio::task::spawn_blocking(move || executor.block_on(build(root, storage, subject, cancellation, permit, work))).await?
+        tokio::task::spawn_blocking(move || {
+            executor.block_on(build(manager, storage, subject, cancellation, permit, work, schema_settings))
+        })
+        .await?
     }
 }
 
@@ -165,36 +171,62 @@ impl Bundle {
         &self.source.metadata
     }
 
-    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<ArtifactChunk>> {
-        if maximum.get() > MAX_CHUNK_BYTES {
-            return Err(Error::Invalid("export transfer chunk exceeds 1 MiB"));
-        }
-        if let Some(pending) = &self.pending {
-            if pending.maximum != maximum {
-                return Err(Error::Invalid("pending export read has another maximum"));
-            }
-        } else {
-            if self.offset == self.source.metadata.size_bytes {
-                return Ok(None);
-            }
-            let mut file = self.file.take().ok_or(Error::Invalid("export archive is unavailable"))?;
-            let offset = self.offset;
-            let length = (self.source.metadata.size_bytes - offset).min(maximum.get() as u64) as usize;
-            let task = tokio::task::spawn_blocking(move || {
-                let mut bytes = vec![0; length];
-                let read = file.read_exact(&mut bytes).map(|()| ArtifactChunk { offset, data: bytes });
-                (file, read.map_err(Error::from))
-            });
-            self.pending = Some(Pending { maximum, task });
-        }
+    pub fn session(&self) -> &crate::storage::Manager {
+        &self.session
+    }
 
-        let pending = self.pending.as_mut().expect("accepted export read retained");
-        let result = (&mut pending.task).await;
-        self.pending = None;
-        let (file, chunk) = result?;
-        self.file = Some(file);
-        let chunk = chunk?;
-        self.offset = chunk.offset.checked_add(chunk.data.len() as u64).ok_or(Error::TooLarge)?;
+    pub fn retained_metadata(&self) -> Result<ReadBatch<EvidenceExportMetadata>> {
+        Ok(harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, harmos::storage::Error>(self.source.metadata.clone()))?)
+    }
+
+    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<ReadBatch<ArtifactChunk>>> {
+        if self.pending.as_ref().is_some_and(|pending| pending.maximum != maximum) {
+            return Err(Error::Invalid("pending export read has another maximum"));
+        }
+        if self.offset == self.source.metadata.size_bytes {
+            return Ok(None);
+        }
+        if self.batch.as_ref().is_none_or(|batch| self.batch_offset == batch.bytes().len()) {
+            self.batch = None;
+            if self.pending.is_none() {
+                let reader = self.reader.take().ok_or(Error::Invalid("export archive is unavailable"))?;
+                let future = read_source(reader, Arc::clone(&self.source));
+                let task = tokio::spawn(future);
+                self.pending = Some(Pending { maximum, task });
+            }
+            let result = (&mut self.pending.as_mut().expect("accepted export read retained").task).await;
+            self.pending = None;
+            let (reader, batch) = result?;
+            self.reader = Some(reader);
+            let batch = batch?.ok_or(Error::Invalid("export archive ended before declared length"))?;
+            self.batch = Some(batch);
+            self.batch_offset = 0;
+        }
+        let batch = self.batch.as_ref().expect("native export batch retained");
+        let expected = batch.offset().checked_add(self.batch_offset as u64).ok_or(Error::TooLarge)?;
+        if expected != self.offset {
+            return Err(Error::Invalid("export batch differs from delivered offset"));
+        }
+        let end = batch.bytes().len().min(self.batch_offset.saturating_add(maximum.get()));
+        let length = end - self.batch_offset;
+        let next =
+            self.offset.checked_add(length as u64).filter(|offset| *offset <= self.source.metadata.size_bytes).ok_or(Error::TooLarge)?;
+        let offset = self.offset;
+        let chunk = if self.batch_offset == 0 && end == batch.bytes().len() {
+            self.batch
+                .take()
+                .expect("native export batch retained")
+                .try_map(|batch| Ok::<_, harmos::storage::Error>(ArtifactChunk { offset, data: batch.bytes }))?
+        } else {
+            harmos::storage::ReadBatch::new(()).try_map(|_| {
+                let mut data = Vec::new();
+                data.try_reserve_exact(length).map_err(|_| Error::TooLarge)?;
+                data.extend_from_slice(&batch.bytes()[self.batch_offset..end]);
+                Ok::<_, Error>(ArtifactChunk { offset, data })
+            })?
+        };
+        self.batch_offset = end;
+        self.offset = next;
         Ok(Some(chunk))
     }
 }
@@ -203,10 +235,17 @@ impl Bundle {
 
 /* === Private Functions === */
 
+async fn read_source(mut reader: FileReader, source: Arc<Source>) -> (FileReader, Result<Option<FileReadBatch>>) {
+    let _source = source;
+    let result = reader.next().await.map_err(Error::from);
+    (reader, result)
+}
+
 async fn build(
-    root: PathBuf, storage: crate::storage::Manager, subject: EvidenceSubject, cancellation: CancellationToken,
-    permit: OwnedSemaphorePermit, work: TaskTrackerToken,
+    manager: Manager, storage: crate::storage::Manager, subject: EvidenceSubject, cancellation: CancellationToken,
+    permit: OwnedSemaphorePermit, work: TaskTrackerToken, schema_settings: harmos::config::SchemaSettings,
 ) -> Result<Bundle> {
+    let Manager { root, .. } = manager;
     let mut directory = std::fs::DirBuilder::new();
     directory.recursive(true);
     #[cfg(unix)]
@@ -217,12 +256,13 @@ async fn build(
     directory.create(&root)?;
     let directory = tempfile::Builder::new().prefix("evidence-").tempdir_in(root)?;
     let snapshot = snapshot::Snapshot::open(&storage, subject).await?;
-    if snapshot.executions.len() > MAX_INVENTORY_ENTRIES {
+    if snapshot.executions.len() as u64 > MAX_INVENTORY_ENTRIES {
         return Err(Error::TooLarge);
     }
     let path = directory.path().join("evidence.sqlite");
     let mut database = database::Writer::open(&path, &snapshot)?;
-    let mut archive = archive::Writer::open(&directory.path().join("evidence.zip"), &cancellation)?;
+    let archive_path = directory.path().join("evidence.zip");
+    let mut archive = archive::Writer::open(&archive_path, &cancellation)?;
     let mut executions = Vec::new();
     let mut budget = InventoryBudget { remaining: MAX_MANIFEST_BYTES };
 
@@ -231,28 +271,35 @@ async fn build(
             return Err(Error::Cancelled);
         }
         let view = snapshot.execution(selected).await?;
-        let counts = database.execution(&view, &cancellation, &mut budget).await?;
+        let counts = database.execution(&view, &cancellation, &mut budget, &schema_settings).await?;
         let id = selected.execution_id.as_str();
         for (index, output) in view.outputs()?.iter().enumerate() {
             let archive_path = archive::output_path(id, index, &output.relative_path);
             let reader = view.read_file(&output.file, ByteRange { offset: 0, limit: None }).await?;
-            archive.stored_file(&archive_path, Some(&output.relative_path), reader, &mut budget).await?;
+            archive.stored_file(&archive_path, Some(&output.relative_path), output.file.clone(), reader, &mut budget).await?;
             database.output(id, index, &archive_path, output)?;
         }
         let report = &view.execution().saved.as_ref().ok_or(Error::Unsealed("execution"))?.report;
         let reader = view.read_file(report, ByteRange { offset: 0, limit: None }).await?;
-        archive.stored_file(&format!("reports/execution-{id}.html"), None, reader, &mut budget).await?;
+        archive.stored_file(&format!("reports/execution-{id}.html"), None, report.clone(), reader, &mut budget).await?;
         let inventory = ExecutionInventory { revision: view.checkpoint()?, captured_at: view.captured_at()?.clone(), counts };
         budget.reserve(&inventory)?;
         executions.push(inventory);
     }
 
     if let Some(report) = &snapshot.cycle_report {
-        let reader = snapshot.storage().read_file(ReadFile { file: report.clone(), range: ByteRange { offset: 0, limit: None } }).await?;
-        archive.stored_file(&format!("reports/cycle-{}.html", snapshot.cycle_id), None, reader, &mut budget).await?;
+        let reader = snapshot
+            .storage()
+            .read_file(ReadFile {
+                source: harmos::storage::FileSource::Stored(report.clone()),
+                range: ByteRange { offset: 0, limit: None },
+            })
+            .await?;
+        archive.stored_file(&format!("reports/cycle-{}.html", snapshot.cycle_id), None, report.clone(), reader, &mut budget).await?;
     }
     let streams = database.finish()?;
-    archive.database(&path, &mut budget)?;
+    let reader = storage.read_file(ReadFile { source: FileSource::Local(path), range: ByteRange { offset: 0, limit: None } }).await?;
+    archive.database(reader, &mut budget).await?;
     let manifest = Manifest {
         schema_version: EVIDENCE_EXPORT_SCHEMA_VERSION,
         complete: true,
@@ -263,7 +310,13 @@ async fn build(
         executions,
         streams,
     };
-    let (file, size_bytes, sha256) = archive.finish(&manifest)?;
+    let file = archive.finish(&manifest)?;
+    let session = storage.clone();
+    let reader = session.read_opened_file(file.try_clone()?, ByteRange { offset: 0, limit: None }).await?;
+    let (size_bytes, sha256) = archive::hash(reader, &cancellation, MAX_EXPORT_BYTES).await?;
+    if file.metadata()?.len() != size_bytes {
+        return Err(Error::Invalid("finalized archive length changed"));
+    }
     let metadata = EvidenceExportMetadata {
         subject: Some(snapshot.subject),
         filename: snapshot.filename,
@@ -271,10 +324,9 @@ async fn build(
         size_bytes,
         sha256,
     };
-    let mut file = file;
-    file.seek(SeekFrom::Start(0))?;
+    let reader = session.read_opened_file(file, ByteRange { offset: 0, limit: Some(size_bytes) }).await?;
     let source = Source { metadata, _directory: directory, _permit: permit, _work: work };
-    Ok(Bundle { source: Arc::new(source), file: Some(file), offset: 0, pending: None })
+    Ok(Bundle { source: Arc::new(source), session, reader: Some(reader), batch: None, batch_offset: 0, offset: 0, pending: None })
 }
 
 /* === Tests === */

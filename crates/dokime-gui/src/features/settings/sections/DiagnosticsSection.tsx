@@ -28,7 +28,6 @@ import { SettingsRow } from "@/features/settings/SettingsRow";
 import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
 import { saveNativeDiagnosticsBundle } from "@/lib/api/native-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
-import { useApplicationSettings } from "@/lib/application-settings";
 import { bootOrganization, organizationPack } from "@/lib/brand";
 import { organizationPackError } from "@/lib/desktop/organization";
 import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
@@ -59,13 +58,10 @@ const pathConventionLabels: Record<Exclude<DiagnosticPathKey, "collect_bundle">,
 export function DiagnosticsSection() {
   const diagnosticsQuery = useDiagnosticsQuery();
   const session = useNativeSessionOptional();
-  const applicationSettings = useApplicationSettings();
   const snapshot = diagnosticsQuery.data ?? null;
 
   /* Only an owned local backend shares this machine's file system. */
   const openable = isTauriDesktop() && session?.snapshot?.ownership === "owned_local";
-  const applicationRoot = applicationSettings.data?.applicationRoot;
-  const settingsPath = applicationRoot ? `${applicationRoot}/settings.json` : null;
 
   if (diagnosticsQuery.isPending) {
     return (
@@ -150,11 +146,6 @@ export function DiagnosticsSection() {
             <SettingsPathField openable={openable} value={convention.absolute_path} />
           </SettingsRow>
         ))}
-        {settingsPath ? (
-          <SettingsRow label="Settings File">
-            <SettingsPathField openable={openable} value={settingsPath} />
-          </SettingsRow>
-        ) : null}
       </SettingsCard>
 
       {resettable ? (
@@ -283,7 +274,7 @@ function StorageResetRow({ directory }: { directory: string }) {
                 directory. This cannot be undone.
               </DialogDescription>
             </DialogHeader>
-            <code className="block rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs break-all text-destructive">
+            <code className="block rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs break-all text-destructive">
               {directory}
             </code>
             <div className="grid gap-2">

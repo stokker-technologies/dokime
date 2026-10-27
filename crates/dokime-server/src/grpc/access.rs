@@ -43,7 +43,6 @@ pub struct Principal {
     local: bool,
 }
 
-#[derive(Default)]
 pub(super) struct Listeners {
     policies: RwLock<BTreeMap<SocketAddr, (Policy, bool)>>,
     sessions: Arc<SessionLog>,
@@ -109,6 +108,10 @@ impl Policy {
 }
 
 impl Listeners {
+    pub(super) fn new() -> Self {
+        Self { policies: RwLock::new(BTreeMap::new()), sessions: Arc::new(SessionLog::new()) }
+    }
+
     pub(super) fn insert(&self, address: SocketAddr, policy: Policy, local: bool) {
         self.policies.write().unwrap_or_else(std::sync::PoisonError::into_inner).insert(address, (policy, local));
     }
@@ -191,7 +194,7 @@ mod tests {
 
     #[test]
     fn socket_policy_isolation() {
-        let listeners = Listeners::default();
+        let listeners = Listeners::new();
         let native: SocketAddr = "127.0.0.1:45670".parse().unwrap();
         let remote: SocketAddr = "0.0.0.0:45671".parse().unwrap();
         let key = "a".repeat(64);

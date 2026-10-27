@@ -42,7 +42,6 @@ export function usePluginsQuery() {
   return useQuery({
     queryFn: () => listNativePlugins(session.identity),
     queryKey: pluginQueryKeys.list(session.identity.generation),
-    staleTime: 5_000,
   });
 }
 

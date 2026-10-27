@@ -9,7 +9,11 @@
 
 /* === Modules === */
 
+mod construction;
+
 /* === Re-Exports === */
+
+pub(crate) use construction::{slots, text};
 
 /* === Imports === */
 
@@ -94,6 +98,12 @@ pub enum ValueKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ValueError {
+    #[error("value construction exceeds supported capacity")]
+    Capacity,
+
+    #[error("value construction allocation failed")]
+    Allocation,
+
     #[error("value has no root node")]
     Empty,
 
@@ -121,10 +131,6 @@ pub enum ValueError {
 /* === Implementations === */
 
 impl Value {
-    pub fn null() -> Self {
-        Self::from(&crate::model::values::Value::Null)
-    }
-
     pub fn to_core(&self) -> Result<crate::model::values::Value, ValueError> {
         if self.nodes.is_empty() {
             return Err(ValueError::Empty);
@@ -182,49 +188,26 @@ impl Value {
             }
         })
     }
+}
 
-    fn push(&mut self, value: &crate::model::values::Value) -> u32 {
-        let index = self.nodes.len();
-        self.nodes.push(ValueNode { kind: None });
-        let kind = match value {
-            Core::Null => ValueKind::Null,
-            Core::Bool(value) => ValueKind::Bool(*value),
-            Core::Integer(value) => ValueKind::Integer(*value),
-            Core::Unsigned(value) => ValueKind::Unsigned(*value),
-            Core::Number(value) => ValueKind::Number(*value),
-            Core::Text(value) => ValueKind::Text(value.clone()),
-            Core::Datetime(value) => ValueKind::Datetime(Timestamp::from(*value)),
-            Core::Array(values) => ValueKind::Array(ValueItems { items: values.iter().map(|value| self.push(value)).collect() }),
-            Core::Object(entries) => ValueKind::Object(ValueFields {
-                fields: entries.iter().map(|(key, value)| ValueField { key: key.clone(), value: self.push(value) }).collect(),
-            }),
-        };
-        self.nodes[index].kind = Some(kind);
-        u32::try_from(index).expect("a value never exceeds u32 nodes")
+impl TryFrom<&Core> for Value {
+    type Error = ValueError;
+    fn try_from(value: &Core) -> Result<Self, Self::Error> {
+        construction::value(value)
     }
 }
 
-impl From<&crate::model::values::Value> for Value {
-    fn from(value: &crate::model::values::Value) -> Self {
-        let mut wire = Self::default();
-        wire.push(value);
-        wire
+impl TryFrom<&BTreeMap<String, Core>> for Value {
+    type Error = ValueError;
+    fn try_from(values: &BTreeMap<String, Core>) -> Result<Self, Self::Error> {
+        construction::object(values)
     }
 }
 
-impl From<&BTreeMap<String, crate::model::values::Value>> for Value {
-    fn from(entries: &BTreeMap<String, crate::model::values::Value>) -> Self {
-        let mut wire = Self::default();
-        wire.nodes.push(ValueNode { kind: None });
-        let fields = entries.iter().map(|(key, value)| ValueField { key: key.clone(), value: wire.push(value) }).collect();
-        wire.nodes[0].kind = Some(ValueKind::Object(ValueFields { fields }));
-        wire
-    }
-}
-
-impl From<crate::model::values::Value> for Value {
-    fn from(value: crate::model::values::Value) -> Self {
-        Self::from(&value)
+impl TryFrom<Core> for Value {
+    type Error = ValueError;
+    fn try_from(value: Core) -> Result<Self, Self::Error> {
+        construction::value(&value)
     }
 }
 

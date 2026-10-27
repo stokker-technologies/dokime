@@ -252,7 +252,7 @@ async fn explicit_append_retries() {
     invalid.executions[0].execution_id = dokime::model::identity::new_id::<dokime::TestExecutionId>().to_string();
     invalid.executions[0].case_id = dokime::model::identity::new_id::<dokime::CaseId>().to_string();
     assert!(wire.unary::<contracts::execution::AppendExecutions>(auth(invalid, TOKEN)).await.is_err());
-    let oversized = contracts::execution::AppendExecutions {
+    let large_append = contracts::execution::AppendExecutions {
         cycle_id: cycle.clone(),
         executions: (0..1001)
             .map(|_| contracts::execution::ExecutionBinding {
@@ -261,8 +261,8 @@ async fn explicit_append_retries() {
             })
             .collect(),
     };
-    let error = wire.unary::<contracts::execution::AppendExecutions>(auth(oversized, TOKEN)).await.unwrap_err();
-    assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+    let added = wire.unary::<contracts::execution::AppendExecutions>(auth(large_append, TOKEN)).await.unwrap().into_inner();
+    assert_eq!(added.execution_ids.len(), 1001);
     assert_eq!(
         handle
             .watch_state()
@@ -272,7 +272,7 @@ async fn explicit_append_retries() {
             .unwrap()
             .test_executions
             .len(),
-        2
+        1003
     );
 
     // A Retired Attempt Cannot Be Rebound To Another Active Container.

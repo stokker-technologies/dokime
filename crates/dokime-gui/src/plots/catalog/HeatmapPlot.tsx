@@ -86,21 +86,21 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
     : (plot.stateDetail ?? "No XY samples with numeric Z values are available.");
 
   return (
-    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3 rounded-md bg-muted/20 p-3" data-testid="heatmap-plot">
+    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3 rounded-lg bg-muted/20 p-3" data-testid="heatmap-plot">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="truncate text-sm font-semibold">{plot.title}</h4>
           {plot.description ? <p className="text-xs text-muted-foreground">{plot.description}</p> : null}
           <p className="text-xs text-muted-foreground">{summary}</p>
         </div>
-        <span className="rounded-md border bg-background px-2 py-1 text-xs font-semibold">Heatmap</span>
+        <span className="rounded-lg border bg-background px-2 py-1 text-xs font-semibold">Heatmap</span>
       </header>
 
       {points.length ? (
         <div className="grid min-w-0 max-w-full gap-2 overflow-hidden">
           <svg
             aria-label={`${plot.title}. ${summary}`}
-            className="aspect-[12/7] min-h-64 min-w-0 max-w-full rounded-md bg-background"
+            className="aspect-[12/7] min-h-64 min-w-0 max-w-full rounded-lg bg-background"
             role="img"
             viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
           >
@@ -307,7 +307,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
           </svg>
         </div>
       ) : (
-        <div className="grid min-h-56 place-content-center rounded-md bg-background text-center text-sm text-muted-foreground">
+        <div className="grid min-h-56 place-content-center rounded-lg bg-background text-center text-sm text-muted-foreground">
           {plot.stateLabel ?? "Waiting For Numeric Samples"}
         </div>
       )}

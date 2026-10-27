@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::{MemorySize, storage::StorageCursor};
+use harmos::storage::StorageCursor;
 
 // Local Imports
 use super::ExecutionContext;
@@ -40,6 +40,7 @@ use dokime_domain::model::identity::NodeId;
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CapturedSource {
+    pub report_defaults: crate::config::ReportDefaults,
     pub captured_at: dokime_domain::model::time::Timestamp,
     pub owner_node_id: NodeId,
     pub execution_id: dokime_domain::model::identity::TestExecutionId,
@@ -58,27 +59,6 @@ pub(crate) struct CapturedSource {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl MemorySize for CapturedSource {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (self.execution_id.memory_size(), std::mem::size_of_val(&self.execution_id)),
-            (self.lifecycle_id.memory_size(), std::mem::size_of_val(&self.lifecycle_id)),
-            (self.lifecycle.memory_size(), std::mem::size_of_val(&self.lifecycle)),
-            (self.captured_at.memory_size(), std::mem::size_of_val(&self.captured_at)),
-            (self.owner_node_id.memory_size(), std::mem::size_of_val(&self.owner_node_id)),
-            (self.execution.memory_size(), std::mem::size_of_val(&self.execution)),
-            (self.evidence_through.memory_size(), std::mem::size_of_val(&self.evidence_through)),
-            (self.outputs.memory_size(), std::mem::size_of_val(&self.outputs)),
-            (self.context.memory_size(), std::mem::size_of_val(&self.context)),
-            (self.record_contracts.memory_size(), std::mem::size_of_val(&self.record_contracts)),
-            (self.telemetry_contracts.memory_size(), std::mem::size_of_val(&self.telemetry_contracts)),
-        ];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-        })
-    }
-}
 
 impl CapturedSource {
     pub(crate) fn validate_header(&self) -> Result<()> {

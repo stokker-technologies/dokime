@@ -15,7 +15,7 @@
 
 import { TimerReset } from "lucide-react";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // Local Imports
 
@@ -27,25 +27,14 @@ import { elapsedWindowLabel } from "@/plots/axis";
 
 /* === Constants === */
 
-export const PLOT_WINDOW_OPTIONS: PlotWindowOption[] = [
-  { label: "30 s", detail: "last 30 seconds", value: 30 },
-  { label: "1 min", detail: "last minute", value: 60 },
-  { label: "2 min", detail: "last 2 minutes", value: 120 },
-  { label: "5 min", detail: "last 5 minutes", value: 300 },
-  { label: "10 min", detail: "last 10 minutes", value: 600 },
-  { label: "30 min", detail: "last 30 minutes", value: 1800 },
-  { label: "60 min", detail: "last 60 minutes", value: 3600 },
-  { label: "All", detail: "all retained samples", value: null },
-];
-
-export const DEFAULT_PLOT_WINDOW_INDEX = 2;
+const GUI_PLOT_WINDOW_PRESETS_S = [30, 60, 120, 300, 600, 1_800, 3_600];
 
 /* === Types === */
 
 export type PlotWindowOption = {
   label: string;
   detail: string;
-  value: number | null;
+  value: number | null | undefined;
 };
 
 /** The operator's plot window: the chosen option and whether they chose it. */
@@ -71,7 +60,8 @@ export function PlotWindowSlider({
   onIndexChange: (index: number) => void;
 }) {
   const [draftIndex, setDraftIndex] = useState(index);
-  const draftOption = PLOT_WINDOW_OPTIONS[draftIndex] ?? option ?? PLOT_WINDOW_OPTIONS[DEFAULT_PLOT_WINDOW_INDEX];
+  const options = usePlotWindowOptions();
+  const draftOption = options[draftIndex] ?? option;
   const title = plotWindowTitle(elapsedUnit);
   const detail = plotWindowDetail(draftOption, elapsedUnit);
 
@@ -81,9 +71,9 @@ export function PlotWindowSlider({
 
   return (
     /* Label, slider and value sit on one baseline; the value keeps a fixed
-       64px slot so the slider never resizes as the label text changes. */
-    <div className="grid h-full min-w-0 grid-cols-[auto_minmax(0,1fr)_4rem] items-center gap-2">
-      <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-bold uppercase text-muted-foreground">
+       6rem slot so the slider never resizes as the label text changes. */
+    <div className="grid h-full min-w-0 grid-cols-(--layout-plot-window) items-center gap-2">
+      <span className="inline-flex min-w-0 items-center gap-2 text-xs font-bold uppercase text-muted-foreground">
         <TimerReset className="shrink-0" size={14} />
         <span className="truncate">{title}</span>
       </span>
@@ -91,20 +81,20 @@ export function PlotWindowSlider({
         aria-label={title}
         aria-valuetext={detail}
         className="min-w-0"
-        max={PLOT_WINDOW_OPTIONS.length - 1}
+        max={options.length - 1}
         min={0}
         step={1}
         value={[draftIndex]}
         onValueChange={(value) => {
-          setDraftIndex(value[0] ?? DEFAULT_PLOT_WINDOW_INDEX);
+          setDraftIndex(value[0] ?? 0);
         }}
         onValueCommit={(value) => {
-          const next = value[0] ?? DEFAULT_PLOT_WINDOW_INDEX;
+          const next = value[0] ?? 0;
           setDraftIndex(next);
           onIndexChange(next);
         }}
       />
-      <span className="text-right text-sm font-semibold tabular-nums" title={detail}>
+      <span className="whitespace-nowrap text-right text-sm font-semibold tabular-nums" title={detail}>
         {plotWindowValueLabel(draftOption, elapsedUnit)}
       </span>
     </div>
@@ -135,18 +125,17 @@ export function PlotWindowControl({ elapsedUnit, live, window }: { elapsedUnit: 
 
 /** The plot window one document view scales its plots by. */
 export function usePlotWindow(): PlotWindowState {
-  const [index, setIndex] = useState(DEFAULT_PLOT_WINDOW_INDEX);
-  const [overridden, setOverridden] = useState(false);
-  const option = PLOT_WINDOW_OPTIONS[index] ?? PLOT_WINDOW_OPTIONS[DEFAULT_PLOT_WINDOW_INDEX];
+  const options = usePlotWindowOptions();
+  const [index, setIndex] = useState(0);
+  const option = options[index] ?? options[0];
 
   return {
     choose: (next) => {
-      setIndex(next);
-      setOverridden(true);
+      setIndex(options[next] ? next : 0);
     },
     index,
     option,
-    overridden,
+    overridden: option.value !== undefined,
   };
 }
 
@@ -166,11 +155,30 @@ export function plotWindowTitle(elapsedUnit: string | null | undefined): string 
 }
 
 export function plotWindowValueLabel(option: PlotWindowOption, elapsedUnit: string | null | undefined): string {
-  return elapsedUnit && option.value !== null ? elapsedWindowLabel(option.value, elapsedUnit) : option.label;
+  return elapsedUnit && typeof option.value === "number" ? elapsedWindowLabel(option.value, elapsedUnit) : option.label;
 }
 
 export function plotWindowDetail(option: PlotWindowOption, elapsedUnit: string | null | undefined): string {
-  return elapsedUnit && option.value !== null ? `last ${elapsedWindowLabel(option.value, elapsedUnit)} of elapsed time` : option.detail;
+  return elapsedUnit && typeof option.value === "number"
+    ? `last ${elapsedWindowLabel(option.value, elapsedUnit)} of elapsed time`
+    : option.detail;
+}
+
+export function plotWindowOptions(presets: readonly number[]): [PlotWindowOption, ...PlotWindowOption[]] {
+  const durations = presets.map((seconds) => {
+    const unit = seconds % 60 === 0 ? "min" : "s";
+    const label = elapsedWindowLabel(seconds, unit);
+    return { label, detail: `last ${label}`, value: seconds };
+  });
+  return [
+    { label: "Plot Default", detail: "the window declared by each plot", value: undefined },
+    ...durations,
+    { label: "All", detail: "all stored samples", value: null },
+  ];
 }
 
 /* === Private Functions === */
+
+function usePlotWindowOptions(): [PlotWindowOption, ...PlotWindowOption[]] {
+  return useMemo(() => plotWindowOptions(GUI_PLOT_WINDOW_PRESETS_S), []);
+}

@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{Message, storage::SchemaKey};
@@ -238,14 +237,6 @@ impl<'de> serde::Deserialize<'de> for OriginRow {
 }
 
 impl RecordRow {
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        let native = <Self as Message>::decoding_memory(bytes)?;
-        native
-            .checked_add(std::mem::size_of::<Vec<u8>>())
-            .and_then(|bound| bound.checked_add(bytes.len()))
-            .ok_or_else(|| error("record decoding memory overflows"))
-    }
-
     pub fn sequence(&self) -> u64 {
         self.sequence
     }
@@ -259,9 +250,7 @@ impl RecordRow {
     }
 
     pub fn entry(self) -> Result<RecordEntry> {
-        let bound = self.projection_memory()?;
-        let allowance = NonZeroUsize::new(bound).ok_or_else(|| error("record projection memory is invalid"))?;
-        self.into_entry(allowance)
+        self.into_entry()
     }
 
     pub fn from_bytes(bytes: &[u8], max_bytes: usize) -> Result<Self> {
@@ -367,16 +356,12 @@ impl RecordRow {
         Ok(bytes)
     }
 
-    pub fn into_entry(self, allowance: NonZeroUsize) -> Result<RecordEntry> {
+    pub fn into_entry(self) -> Result<RecordEntry> {
         use crate::records::RecordSeverity;
         use dokime_domain::model::identity::ArtifactId;
         use dokime_domain::model::identity::RecordId;
         use dokime_domain::model::identity::TelemetrySampleId;
         use dokime_domain::model::identity::TelemetryStreamId;
-        let bound = self.projection_memory()?;
-        if bound == usize::MAX || bound > allowance.get() {
-            return Err(error("record projection exceeds memory allowance"));
-        }
         let timestamp = Timestamp::new(self.timestamp);
         let received_at = Timestamp::new(self.received_at);
         received_at.to_datetime()?;
@@ -391,7 +376,7 @@ impl RecordRow {
             "error" => RecordSeverity::Error,
             _ => return Err(error("invalid native record severity")),
         };
-        let details = values::decode_owned(self.details, allowance)?;
+        let details = values::decode_owned(self.details)?;
         Ok(RecordEntry::from_record(
             self.sequence,
             Record {
@@ -542,18 +527,12 @@ fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
 fn exact_slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| error("record allocation failed"))?;
-    if values.capacity() > count {
-        return Err(error("record slot capacity exceeds admission"));
-    }
     Ok(values)
 }
 
 fn copy_text(source: &str) -> Result<String> {
     let mut text = String::new();
     text.try_reserve_exact(source.len()).map_err(|_| error("record text allocation failed"))?;
-    if text.capacity() > source.len() {
-        return Err(error("record text capacity exceeds admission"));
-    }
     text.push_str(source);
     Ok(text)
 }

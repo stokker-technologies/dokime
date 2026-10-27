@@ -19,10 +19,12 @@ import { normalizeDeliveryError } from "@/lib/rpc/errors";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { NativeApiUnsupportedError } from "./native-values";
 
+const GUI_DOCUMENT_BYTES = 33_554_432;
+
 /* === Limits and public types === */
 
 /** Documents assembled in the WebView remain bounded before crossing IPC. */
-export const NATIVE_DOCUMENT_BYTES = 32 * 1024 * 1024;
+export const NATIVE_DOCUMENT_BYTES = GUI_DOCUMENT_BYTES;
 
 export type NativeDeliveryRequest = {
   kind: DesktopSaveKind;

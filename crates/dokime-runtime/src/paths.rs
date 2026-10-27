@@ -50,10 +50,6 @@ impl ApplicationPaths {
         Self { root: root.into() }
     }
 
-    pub fn settings(&self) -> PathBuf {
-        self.root.join("settings.json")
-    }
-
     pub fn logs(&self) -> PathBuf {
         self.root.join("logs")
     }

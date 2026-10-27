@@ -66,8 +66,14 @@ async fn kill_recovers_cycle() {
         .collect()
         .await
         .unwrap();
-    assert_eq!(cycles.len(), 1, "admitted cycle remains saved");
-    let cycle = dokime_domain::model::execution::result::TestCycle::try_from(cycles[0].value.clone()).expect("saved cycle is canonical");
+    assert_eq!(cycles.iter().map(|batch| batch.len()).sum::<usize>(), 1);
+    let cycle = cycles
+        .try_map(|batches| {
+            let batch = batches.into_iter().find(|batch| !batch.is_empty()).unwrap();
+
+            batch.try_map(|mut revisions| dokime_domain::model::execution::result::TestCycle::try_from(revisions.pop().unwrap().value))
+        })
+        .unwrap();
     assert_eq!(cycle.metadata.identifier.as_str(), "fixture.cycle");
     assert!(cycle.execution_ids.is_empty());
     assert_eq!(cycle.lifecycle, CycleStatus::Stopped);
@@ -79,7 +85,7 @@ async fn kill_recovers_cycle() {
     runtime_owner.shutdown().await.unwrap();
 
     let (mut runtime_owner, runtime) = booted(root.path()).await;
-    let cycle = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &id, harmos::storage::ObjectVersion::Latest)
+    let cycle = dokime_runtime::storage::objects::cycle::read(&runtime.storage(), &id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .expect("saved cycle survives another boot");

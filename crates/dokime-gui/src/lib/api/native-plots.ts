@@ -36,7 +36,6 @@ import type {
   PlotCartesianFrame,
   PlotMarker,
   PlotPayload,
-  PlotPayloadCursor,
   PlotPayloadDiagnostics,
   PlotPayloadEnvelope,
   PlotPayloadStreamMessage,
@@ -75,31 +74,36 @@ type NativePlotMarker = NativePlotPayload["markers"][number];
 type NativePlotPayloadDiagnostics = NonNullable<PlotEnvelope["diagnostics"]>;
 type NativePlotSeries = NativePlotPayload["series"][number];
 type NativePlotPoint = NativePlotSeries["points"][number];
-type PlotCursor = NonNullable<PlotEnvelope["cursor"]>;
+
 type PlotType = NonNullable<PlotRequest["plotType"]>;
 type AxisScale = NonNullable<PlotRequest["xScale"]>;
 type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
 type PlotCartesianMode = NonNullable<NativePlotCartesianFrame["mode"]>;
-const AnalysisSelectionSchema = plotWire.Row15Schema;
+const AnalysisSelectionSchema = plotWire.Row14Schema;
 const DataExpressionSchema = plotWire.Row8Schema;
-const DataTransformSchema = plotWire.Row44Schema;
-const PlotCursorSchema = plotWire.Row10Schema;
-const PlotFftOptionsSchema = plotWire.Row12Schema;
+const DataTransformSchema = plotWire.Row43Schema;
+
+const PlotFftOptionsSchema = plotWire.Row11Schema;
 const PlotFilterSchema = plotWire.Row7Schema;
-const PlotHistogramOptionsSchema = plotWire.Row14Schema;
-const PlotIntervalOptionsSchema = plotWire.Row13Schema;
+const PlotHistogramOptionsSchema = plotWire.Row13Schema;
+const PlotIntervalOptionsSchema = plotWire.Row12Schema;
 const PlotRequestSchema = plotWire.Row3Schema;
-const PlotWindowSchema = plotWire.Row16Schema;
+const PlotWindowSchema = plotWire.Row15Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamKind = PlotStreamFrame["kind"];
 type NativeTelemetrySample = Wire<Awaited<ReturnType<typeof rpc.telemetryListSamples>>>["samples"][number];
 
 /* === Constants === */
 
-export const NATIVE_PLOT_MAX_REQUESTS = 32;
-export const NATIVE_TELEMETRY_MAX_LIMIT = 5_000;
-const MAX_PLOT_TRANSFORMS = 32;
+const GUI_NATIVE_TELEMETRY_ITEMS = 5_000;
+const GUI_PAGE_ITEMS = 500;
+const GUI_PLOT_REQUESTS = 32;
+const GUI_PLOT_TRANSFORMS = 32;
+
+export const NATIVE_PLOT_MAX_REQUESTS = GUI_PLOT_REQUESTS;
+export const NATIVE_TELEMETRY_MAX_LIMIT = GUI_NATIVE_TELEMETRY_ITEMS;
+const MAX_PLOT_TRANSFORMS = GUI_PLOT_TRANSFORMS;
 
 /* === Types === */
 
@@ -133,14 +137,10 @@ export type PlotPayloadRequestInput = {
   /** The x range a zoomed time series or scatter plot summarizes. */
   summaryWindow?: { from: number; to: number } | null;
   scope?: RecordScope | null;
-  /** Legacy cursors are accepted only when they carry native epoch identity. */
-  cursor?: PlotPayloadCursor | null;
 };
 
-/** Renderer envelope plus the exact native cursor used for a follow-up watch. */
-export type NativePlotPayloadEnvelope = PlotPayloadEnvelope & {
-  nativeCursor: PlotCursor;
-};
+/** Renderer envelope for one storage query. */
+export type NativePlotPayloadEnvelope = PlotPayloadEnvelope;
 
 /**
  * The watch's word that a plot is subscribed and still reading its first
@@ -152,8 +152,8 @@ export type NativePlotPendingMessage = {
   plot_id: string;
 };
 
-/** Renderer stream message plus its exact native cursor, or a plot's pending notice. */
-export type NativePlotStreamMessage = (PlotPayloadStreamMessage & { nativeCursor: PlotCursor }) | NativePlotPendingMessage;
+/** Renderer snapshot or a plot's pending notice. */
+export type NativePlotStreamMessage = PlotPayloadStreamMessage | NativePlotPendingMessage;
 
 export interface NativePlotStream extends AsyncIterable<NativePlotStreamMessage> {
   cancel(): Promise<void>;
@@ -180,20 +180,14 @@ export type NativeTelemetrySamplesOptions = {
 
 export type NativePlotReadOptions = {
   signal?: AbortSignal;
-  /** Exact cursors returned by an earlier native snapshot, indexed by request. */
-  cursors?: readonly (PlotCursor | undefined)[];
 };
 
-export type NativePlotWatchOptions = NativePlotReadOptions & {
-  /** Exact cursors returned by an earlier native snapshot, indexed by request. */
-  cursors?: readonly (PlotCursor | undefined)[];
-};
+export type NativePlotWatchOptions = NativePlotReadOptions;
 
 /* === Public API === */
 
 /** Build one typed protobuf plot request from the document-facing input. */
-export function toNativePlotRequest(input: PlotPayloadRequestInput, cursor?: PlotCursor): PlotRequest {
-  const nativeCursor = cursor ?? nativeCursorFromInput(input.cursor);
+export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest {
   const nativeScope = nativeEvidenceScope(input.scope);
   return create(PlotRequestSchema, {
     ...(input.plotId == null ? {} : { plotId: input.plotId }),
@@ -265,7 +259,6 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput, cursor?: Plo
     ...(input.windowS == null ? {} : { windowS: boundedWindow(input.windowS) }),
     ...(input.summaryWindow == null ? {} : { summaryWindow: create(PlotWindowSchema, summaryWindow(input.summaryWindow)) }),
     ...(nativeScope ? { scope: nativeScope } : {}),
-    ...(nativeCursor ? { cursor: nativeCursor } : {}),
     technique: downsampleTechnique(input.technique),
   });
 }
@@ -280,7 +273,7 @@ export async function queryNativePlotPayloads(
   ensureActive(session, options.signal);
   try {
     const reply = await rpc.plotsQuerySnapshots(session, {
-      requests: requests.map((request, index) => toNativePlotRequest(request, options.cursors?.[index])),
+      requests: requests.map((request) => toNativePlotRequest(request)),
     });
     ensureActive(session, options.signal);
     return reply.envelopes.map(mapNativePlotEnvelope);
@@ -289,7 +282,7 @@ export async function queryNativePlotPayloads(
   }
 }
 
-/** Read one plot payload while preserving the native snapshot cursor internally. */
+/** Read one plot payload from a storage snapshot. */
 export async function fetchNativePlotPayload(
   session: SessionIdentity,
   request: PlotPayloadRequestInput,
@@ -311,7 +304,7 @@ export async function fetchNativePlotPayloadBatch(
 }
 
 /**
- * Open the subscribed plot watch. Cursorless requests receive the server's
+ * Open the subscribed plot watch. Each request receives the server's
  * initial snapshots after subscription, so callers cannot miss a racing
  * evidence commit between a separate snapshot and watch setup.
  */
@@ -322,7 +315,7 @@ export async function openNativePlotStream(
 ): Promise<NativePlotStream> {
   boundedRequestCount(requests.length, "Plots.Watch");
   ensureActive(session, options.signal);
-  const nativeRequests = requests.map((request, index) => toNativePlotRequest(request, options.cursors?.[index]));
+  const nativeRequests = requests.map((request) => toNativePlotRequest(request));
 
   let source: Awaited<ReturnType<typeof rpc.plotsWatch>> | null = null;
   try {
@@ -391,7 +384,7 @@ export async function listNativeTelemetrySamples(
   stream: string,
   options: NativeTelemetrySamplesOptions = {},
 ): Promise<NativeTelemetrySamples> {
-  const limit = boundedTelemetryLimit(options.limit ?? 500);
+  const limit = boundedTelemetryLimit(options.limit ?? GUI_PAGE_ITEMS);
   const latest = options.latest ?? false;
   const afterStreamCursors = { ...(options.afterStreamCursors ?? {}) };
   if (latest && Object.keys(afterStreamCursors).length > 0) {
@@ -437,14 +430,13 @@ export async function fetchNativeTelemetrySamples(
 
 /** Map one protobuf envelope into the payload family used by the renderer. */
 export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayloadEnvelope {
-  if (!envelope.cursor) throw new Error("Native plot envelope has no cursor.");
   if (!envelope.payload) throw new Error("Native plot envelope has no payload.");
   if (!envelope.diagnostics) throw new Error("Native plot envelope has no diagnostics.");
   return {
     plot_id: envelope.plotId,
     revision: safeNumber(envelope.revision, "Plots envelope revision"),
-    cursor: mapPlotCursor(envelope.cursor),
-    nativeCursor: envelope.cursor,
+    epoch: requiredText(envelope.epoch, "plot runtime epoch"),
+    selection: requiredText(envelope.selection, "plot selection"),
     payload: mapNativePlotPayload(envelope.payload),
     diagnostics: mapNativePlotDiagnostics(envelope.diagnostics),
     warnings: [...envelope.warnings],
@@ -452,10 +444,10 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayload
 }
 
 /**
- * Map one protobuf stream frame into the renderer's append/replace model.
+ * Map one protobuf storage-query snapshot into the renderer.
  *
  * An error frame reports one plot's failure while the watch stays open, so it
- * may carry no payload, cursor or diagnostics; it maps to an empty payload
+ * may carry no payload or diagnostics; it maps to an empty payload
  * with its warnings rather than ending the whole stream on a mapping throw.
  */
 export function mapNativePlotStreamFrame(frame: PlotStreamFrame): NativePlotStreamMessage {
@@ -479,15 +471,14 @@ export function mapNativePlotStreamFrame(frame: PlotStreamFrame): NativePlotStre
 }
 
 function mapNativePlotErrorEnvelope(envelope: PlotEnvelope): NativePlotPayloadEnvelope {
-  if (envelope.cursor && envelope.payload && envelope.diagnostics) {
+  if (envelope.payload && envelope.diagnostics) {
     return mapNativePlotEnvelope(envelope);
   }
-  const cursor = envelope.cursor ?? create(PlotCursorSchema, {});
   return {
     plot_id: envelope.plotId,
     revision: safeNumber(envelope.revision, "Plots envelope revision"),
-    cursor: mapPlotCursor(cursor),
-    nativeCursor: cursor,
+    epoch: requiredText(envelope.epoch, "plot runtime epoch"),
+    selection: requiredText(envelope.selection, "plot selection"),
     payload: envelope.payload
       ? mapNativePlotPayload(envelope.payload)
       : { stream: "", x_key: "", max_points: 0, generated_at: "", series: [] },
@@ -620,26 +611,6 @@ function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]) {
   });
 }
 
-function nativeCursorFromInput(cursor?: PlotPayloadCursor | null): PlotCursor | undefined {
-  if (!cursor) return undefined;
-  if (!("epoch" in cursor) || !("selection" in cursor)) {
-    throw new Error("Native plot cursors must come from a current native envelope.");
-  }
-  const candidate = cursor;
-  if (typeof candidate.epoch !== "string" || typeof candidate.selection !== "string") {
-    throw new Error("Native plot cursors must come from a current native envelope.");
-  }
-  return create(PlotCursorSchema, {
-    telemetryStreams: Object.entries(cursor.telemetry_streams ?? {}).map(([key, value]) => ({
-      key,
-      value: boundedUint64(value, "plot cursor telemetry sequence"),
-    })),
-    ...(cursor.record_sequence == null ? {} : { recordSequence: boundedUint64(cursor.record_sequence, "plot cursor record sequence") }),
-    epoch: candidate.epoch,
-    selection: candidate.selection,
-  });
-}
-
 function plotType(value?: DocumentPlotType | null): PlotType {
   switch (value) {
     case undefined:
@@ -724,15 +695,6 @@ function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number][
 }
 
 /* === Response mapping === */
-
-function mapPlotCursor(cursor: PlotCursor): PlotPayloadCursor {
-  return {
-    telemetry_streams: Object.fromEntries(
-      cursor.telemetryStreams.map(({ key, value }) => [key, safeNumber(value, "Plots cursor telemetry sequence")]),
-    ),
-    record_sequence: cursor.recordSequence === undefined ? null : safeNumber(cursor.recordSequence, "Plots cursor record sequence"),
-  };
-}
 
 function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
   return {
@@ -926,7 +888,6 @@ function mapNativePlotDiagnostics(diagnostics: NativePlotPayloadDiagnostics): Pl
     point_count: safeNumber(diagnostics.pointCount, "Plots diagnostics point_count"),
     raw_point_count: safeNumber(diagnostics.rawPointCount, "Plots diagnostics raw_point_count"),
     downsampled: diagnostics.downsampled,
-    delta: diagnostics.delta,
     max_points: safeNumber(diagnostics.maxPoints, "Plots diagnostics max_points"),
     window_s: diagnostics.windowS ?? null,
   };
@@ -950,8 +911,6 @@ function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"]
   switch (value?.HarmosVariant.case) {
     case "Snapshot":
       return "snapshot";
-    case "Append":
-      return "append";
     case "Replace":
       return "replace";
     case "Error":
@@ -1073,11 +1032,11 @@ function mapNativeComputation(value?: NativeAnalysisComputation): EvidenceAnalys
       parameters: nativeValueObjectToJson(value.selection.parameters),
     },
     source: {
+      store: value.source.store,
       epoch: value.source.epoch,
+      position: value.source.position.toString(),
       stream: value.source.stream,
       scope: recordScopeFromNative(value.source.scope),
-      telemetryStreams: Object.fromEntries(value.source.telemetryStreams.map(({ key, value: cursor }) => [key, cursor.toString()])),
-      recordSequence: value.source.recordSequence?.toString(),
       windowS: value.source.windowS,
       fields: [...value.source.fields],
       xKey: value.source.xKey,

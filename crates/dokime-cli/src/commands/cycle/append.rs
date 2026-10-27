@@ -25,6 +25,8 @@ use dokime::domain::operations::execution::{AppendExecutions, ExecutionBinding};
 
 /* === Constants === */
 
+const INPUT_BYTES: u64 = 16_777_216;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -78,10 +80,11 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
+pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
     let request = match args.input_file {
         Some(path) => {
-            let bytes = dokime::harmos::filesystem::input::read(&path, 16 * 1024 * 1024)?;
+            let bytes = dokime::harmos::filesystem::input::read(&path, INPUT_BYTES as usize)?;
             serde_json::from_slice::<AppendExecutions>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid append input: {error}")))?
         }

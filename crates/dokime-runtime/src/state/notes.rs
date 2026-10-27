@@ -21,16 +21,21 @@
 use super::RuntimeState;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::health::HealthItem;
-use dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES;
-use dokime_domain::model::execution::notes::NOTE_OWNER_BYTES;
 use dokime_domain::model::execution::notes::NOTE_OWNER_SEALED;
-use dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT;
-use dokime_domain::model::execution::notes::NOTE_TEXT_BYTES;
 use dokime_domain::model::execution::notes::NoteOwner;
 use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::identity::NoteId;
 
 /* === Constants === */
+
+pub(crate) const NOTE_TEXT_BYTES: usize = 16 * 1024;
+pub(crate) const NOTE_OWNER_BYTES: usize = 4096;
+pub(crate) const NOTE_ACTOR_BYTES: usize = 256;
+pub(crate) const NOTE_RECEIPT_LIMIT: usize = 4096;
+pub(crate) const NOTE_RECEIPT_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const NOTE_CHECKPOINT_LIMIT: usize = 64;
+pub(crate) const NOTE_SCAN_LIMIT: usize = 10_000;
+pub(crate) const NOTE_TIMESTAMP_BYTES: usize = 128;
 
 /* === Macros === */
 
@@ -168,7 +173,7 @@ impl RuntimeState {
             return Err("runtime is shutting down".into());
         }
         if note.scope.test_case_id.as_ref().is_some_and(|id| id.as_str().len() > NOTE_OWNER_BYTES)
-            || note.created_at.as_str().len() > 128
+            || note.created_at.as_str().len() > NOTE_TIMESTAMP_BYTES
             || note.message.trim().is_empty()
             || note.message.len() > NOTE_TEXT_BYTES
             || note.author.as_ref().is_some_and(|author| author.len() > NOTE_ACTOR_BYTES)
@@ -287,6 +292,7 @@ impl RuntimeState {
 
 #[cfg(test)]
 mod tests {
+    use super::{NOTE_RECEIPT_LIMIT, NOTE_SCAN_LIMIT, NOTE_TEXT_BYTES};
     use harmos::state::Transaction;
     // Local Imports
     use crate::state::RuntimeState;

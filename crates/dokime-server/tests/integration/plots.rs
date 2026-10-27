@@ -20,7 +20,6 @@
 // Local Imports
 use super::*;
 use dokime::domain::model;
-use tracing_subscriber::layer::SubscriberExt;
 use {dokime::Identifier, dokime::Timestamp, dokime::Value, dokime::telemetry::TelemetryBatch, dokime::telemetry::TelemetrySample};
 
 /* === Constants === */
@@ -35,48 +34,76 @@ const STORED: u64 = 300;
 
 /* === Structs === */
 
-// The plot ids of each batched stream query the watch logs, in order.
-#[derive(Clone, Default)]
-struct QueryLog(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl QueryLog {
-    fn take(&self) -> Vec<String> {
-        std::mem::take(&mut *self.0.lock().unwrap())
-    }
-}
-
-impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for QueryLog {
-    fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
-        struct Fields {
-            message: String,
-            plot_ids: Option<String>,
-        }
-        impl tracing::field::Visit for Fields {
-            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-                match field.name() {
-                    "message" => self.message = format!("{value:?}"),
-                    "plot_ids" => self.plot_ids = Some(format!("{value:?}")),
-                    _ => {}
-                }
-            }
-        }
-        let mut fields = Fields { message: String::new(), plot_ids: None };
-        event.record(&mut fields);
-        if fields.message == "plot stream query"
-            && let Some(plot_ids) = fields.plot_ids
-        {
-            self.0.lock().unwrap().push(plot_ids);
-        }
-    }
-}
-
 /* === Public Functions === */
+
+#[tokio::test]
+async fn sample_watch_fixed_frontier_and_resume() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"])).await;
+    let id = Identifier::new("fixture.progress").unwrap();
+    publish(&handle, &id, 0, 2).await;
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let selection = contracts::telemetry::ListSamples {
+        streams: vec![id.to_string()],
+        limit: 1,
+        schema_versions: Vec::new(),
+        sources: Vec::new(),
+        signals: Vec::new(),
+        scope: None,
+        after_stream_cursors: Vec::new(),
+        start: None,
+        end: None,
+        latest: false,
+    };
+    let mut watch = client
+        .download::<contracts::telemetry::WatchSamples>(contracts::telemetry::WatchSamples {
+            selection: Some(selection.clone()),
+            follow: false,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let first = watch.message().await.unwrap().unwrap();
+    assert_eq!(first.samples.len(), 1);
+    // A New Durable Row Must Not Extend An Already Open Finite Replay.
+    publish(&handle, &id, 2, 1).await;
+    let mut count = first.samples.len();
+    let mut through = first.through_stream_cursors;
+    while let Some(page) = watch.message().await.unwrap() {
+        count += page.samples.len();
+        through = page.through_stream_cursors;
+    }
+    assert_eq!(count, 2);
+    let after = through
+        .into_iter()
+        .map(|entry| model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry { key: entry.key, value: entry.value })
+        .collect();
+    let mut resumed = client
+        .download::<contracts::telemetry::WatchSamples>(contracts::telemetry::WatchSamples {
+            selection: Some(contracts::telemetry::ListSamples { after_stream_cursors: after, ..selection }),
+            follow: false,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let mut count = 0;
+    while let Some(page) = resumed.message().await.unwrap() {
+        count += page.samples.len();
+    }
+    assert_eq!(count, 1);
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
 
 // A 10,000-point window is served; the 100,000-point cap does not fit one
 // message, so the server reads the plot again under what fits, says so in a
@@ -148,9 +175,7 @@ async fn plot_points_admission() {
     owner.shutdown().await.unwrap();
 }
 
-// A running execution's watch opens with the snapshot of every plot it names,
-// then follows with appends. Once sealed and reopened after a restart, the
-// in-memory window is empty, yet window All still opens with the stored rows.
+// Running And Reopened Sealed Executions Read Complete Saved Storage Snapshots.
 #[tokio::test]
 async fn sealed_window_all() {
     use dokime::runtime::command::CommandContext;
@@ -206,13 +231,27 @@ async fn sealed_window_all() {
     for _ in 0..2 {
         let frame = data_frame(&mut watch).await;
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
-        assert_eq!(served_points(&frame), STORED as usize, "a running execution opens with its window");
+        assert_eq!(served_points(&frame), STORED as usize, "a running execution opens with its saved rows");
     }
     publish_scoped(&handle, &id, &scope, STORED, 1).await;
+    let saved = handle.storage().cursor_saved();
+    let mut replacement_cut = None;
     for _ in 0..2 {
-        let frame = data_frame(&mut watch).await;
-        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Append);
-        assert_eq!(served_points(&frame), 1, "a running execution follows with the new row");
+        let frame = loop {
+            let frame = data_frame(&mut watch).await;
+            if frame.envelope.as_ref().is_some_and(|envelope| envelope.revision >= saved.sequence) {
+                break frame;
+            }
+        };
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Replace);
+        assert_eq!(served_points(&frame), STORED as usize + 1);
+        let envelope = frame.envelope.unwrap();
+        let payload = envelope.payload.unwrap();
+        assert_eq!(payload.series[0].points.last().unwrap().y, Some(STORED as f64));
+        if let Some(cut) = replacement_cut {
+            assert_eq!(envelope.revision, cut);
+        }
+        replacement_cut = Some(envelope.revision);
     }
     drop(watch);
     gate.release.notify_one();
@@ -239,12 +278,9 @@ async fn sealed_window_all() {
     owner.shutdown().await.unwrap();
 }
 
-// A watch over several plots reads every plot whose stream advanced in one
-// query per tick, and leaves a plot on an idle stream unread.
+// A Saved Frontier Refreshes Every Watched Plot With A Complete Snapshot.
 #[tokio::test]
-async fn batched_stream_queries() {
-    let queries = QueryLog::default();
-    let _subscriber = tracing::subscriber::set_default(tracing_subscriber::registry().with(queries.clone()));
+async fn saved_frontier_refreshes_all_plots() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
@@ -253,35 +289,55 @@ async fn batched_stream_queries() {
     publish(&handle, &id, 0, 10).await;
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-
     let progress = ["fixture.progress.a", "fixture.progress.b", "fixture.progress.c"];
+    let idle = "fixture.idle.plot";
     let mut requests =
         progress.map(|plot_id| model::plots::wire::PlotRequest { plot_id: Some(plot_id.into()), ..request(10_000) }).to_vec();
-    requests.push(model::plots::wire::PlotRequest {
-        plot_id: Some("fixture.idle.plot".into()),
-        stream: "fixture.idle".into(),
-        ..request(10_000)
-    });
+    requests.push(model::plots::wire::PlotRequest { plot_id: Some(idle.into()), stream: "fixture.idle".into(), ..request(10_000) });
     let mut watch = client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests }).await.unwrap().into_inner();
+    let mut initial = std::collections::BTreeMap::new();
+    let mut initial_cut = None;
     for _ in 0..4 {
         let frame = data_frame(&mut watch).await;
-        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot);
+        let envelope = frame.envelope.unwrap();
+        if let Some(cut) = initial_cut {
+            assert_eq!(envelope.revision, cut);
+        }
+        initial_cut = Some(envelope.revision);
+        let series = envelope.payload.unwrap().series;
+        let points: usize = series.iter().map(|series| series.points.len()).sum();
+        assert_eq!(points, if envelope.plot_id == idle { 0 } else { 10 });
+        assert!(initial.insert(envelope.plot_id, series).is_none());
     }
-
-    // One Row On The Progress Stream Is One Batched Query Of Its Three Plots
     publish(&handle, &id, 10, 1).await;
-    let mut appended = Vec::new();
-    for _ in 0..3 {
+    let saved = handle.storage().cursor_saved();
+    let mut refreshed = std::collections::BTreeSet::new();
+    let mut replacement_cut = None;
+    while refreshed.len() < initial.len() {
         let frame = data_frame(&mut watch).await;
-        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Append);
-        appended.push(frame.envelope.unwrap().plot_id);
+        let envelope = frame.envelope.unwrap();
+        if envelope.revision < saved.sequence {
+            continue;
+        }
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Replace);
+        if let Some(cut) = replacement_cut {
+            assert_eq!(envelope.revision, cut);
+        }
+        replacement_cut = Some(envelope.revision);
+        let series = envelope.payload.unwrap().series;
+        let previous = &initial[&envelope.plot_id];
+        if envelope.plot_id == idle {
+            assert_eq!(series, *previous);
+        } else {
+            assert!(progress.contains(&envelope.plot_id.as_str()));
+            assert_eq!(series[0].points.len(), 11);
+            assert_eq!(series[0].points[..10], previous[0].points);
+            assert_eq!(series[0].points.last().unwrap().y, Some(10.0));
+        }
+        assert!(refreshed.insert(envelope.plot_id));
     }
-    appended.sort();
-    assert_eq!(appended, progress);
-    let logged = queries.take();
-    assert_eq!(logged.len(), 1, "one query per tick for every advanced plot: {logged:?}");
-    assert_eq!(logged[0], progress.join(","), "the idle plot is not queried");
-
+    assert_eq!(refreshed.len(), 4);
     drop(watch);
     server.shutdown().await.unwrap();
     drop(handle);
@@ -311,7 +367,6 @@ fn request(max_points: u64) -> model::plots::wire::PlotRequest {
         unit: None,
         window_s: None,
         scope: None,
-        cursor: None,
         technique: contracts::plots::DownsampleTechnique::Unspecified,
         z_expression: None,
         fft: None,
@@ -366,6 +421,7 @@ async fn publish(handle: &dokime::RuntimeHandle, id: &Identifier, start: u64, co
         })
         .collect();
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
+    handle.storage().flush().await.unwrap();
 }
 
 async fn publish_scoped(handle: &dokime::RuntimeHandle, id: &Identifier, scope: &model::execution::RecordScope, start: u64, count: u64) {
@@ -379,6 +435,7 @@ async fn publish_scoped(handle: &dokime::RuntimeHandle, id: &Identifier, scope: 
         })
         .collect();
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
+    handle.storage().flush().await.unwrap();
 }
 
 fn maximum_points(message: &str) -> usize {

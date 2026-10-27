@@ -21,11 +21,9 @@ use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
-use crate::grpc::transcode::Transcode;
 use crate::grpc::{
     chunked::{self, ArtifactFrames},
     error::detailed,
-    value,
 };
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::ArtifactId;
@@ -67,7 +65,6 @@ impl Operation for Download {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut content_wire::DownloadArtifact, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        value::text(&request.artifact_id)?;
         let id = ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
         let reader = self
             .resources
@@ -83,7 +80,8 @@ impl Operation for Download {
                 detailed(status, &source)
             })?
             .ok_or_else(|| Status::not_found("artifact not found"))?;
-        deliver(reader, self.resources.maximum, super::download_chunk_bytes(self.resources.maximum), output).await?;
+        deliver(reader, self.resources.maximum, super::download_chunk_bytes(&self.resources.runtime, self.resources.maximum)?, output)
+            .await?;
         Ok(().into())
     }
 }
@@ -112,7 +110,7 @@ pub(in crate::grpc) async fn deliver(
     let frame = dokime::domain::model::content::wire::ArtifactFrame {
         payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Metadata(super::metadata(reader.record())?)),
     };
-    if frame.wire_len()? > maximum {
+    if super::output_frame_len(&frame)? > maximum {
         return Err(Status::resource_exhausted("artifact metadata exceeds the message limit"));
     }
     let size_bytes = reader.record().size_bytes;

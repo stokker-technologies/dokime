@@ -47,6 +47,8 @@ fn main() {
 
     if env::var_os("CARGO_FEATURE_HOST").is_some() {
         embed_report_template();
+    }
+    if env::var_os("CARGO_FEATURE_CONFIGURATION").is_some() {
         embed_brand_bundle();
     }
 }

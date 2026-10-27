@@ -26,6 +26,9 @@ use dokime_domain::model::{evidence::wire::RecordPage, execution::ExecutionMode,
 
 /* === Constants === */
 
+const REQUEST_POLL_MS: u64 = 200;
+const SAMPLE_PAGE_ITEMS: u64 = 1_000;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -48,7 +51,7 @@ pub struct RunOptions {
     pub streams: Option<Vec<String>>,
     pub timeout: Option<Duration>,
     pub interval: Option<Duration>,
-    pub page_size: u32,
+    pub page_size: Option<u32>,
 }
 
 // Callbacks Run In The Caller's Task; Errors Stop Observation And Are Returned.
@@ -66,15 +69,16 @@ pub struct RunCallbacks<'a> {
 
 impl Default for RunOptions {
     fn default() -> Self {
-        Self { mode: ExecutionMode::Automatic, record_types: None, streams: None, timeout: None, interval: None, page_size: 1000 }
+        Self { mode: ExecutionMode::Automatic, record_types: None, streams: None, timeout: None, interval: None, page_size: None }
     }
 }
 
 impl RunOptions {
     // Validate Every Local Option Before Any Execution Can Be Admitted.
     pub fn validate(&self) -> Result<()> {
-        poll_interval(self.interval)?;
-        super::listeners::sample_interval(self.page_size, self.interval)?;
+        poll_interval(self.interval, REQUEST_POLL_MS)?;
+        let page_size = self.page_size.unwrap_or(SAMPLE_PAGE_ITEMS as u32);
+        super::listeners::validate_sample_page(page_size)?;
         if let Some(patterns) = &self.record_types {
             super::listeners::validate_filters(patterns)?;
         }
@@ -92,6 +96,7 @@ impl TestExecutionHandle {
         &self, options: RunOptions, mut callbacks: RunCallbacks<'_>,
     ) -> Result<dokime_domain::model::history::wire::CheckpointDocument> {
         options.validate()?;
+        let page_size = options.page_size.unwrap_or(SAMPLE_PAGE_ITEMS as u32);
         let operation = async {
             self.start(options.mode).await?;
             let records = if let Some(filters) = options.record_types {
@@ -101,7 +106,7 @@ impl TestExecutionHandle {
                 None
             };
             let samples = if let Some(filters) = options.streams {
-                let listener = self.samples(filters, true, options.page_size, options.interval)?;
+                let listener = self.samples(filters, true, page_size)?;
                 Some(listener)
             } else {
                 None
@@ -149,8 +154,8 @@ mod tests {
             RunOptions { record_types: Some(vec!["bad[regex]".into()]), ..Default::default() },
             RunOptions { streams: Some(vec!["obc.*".into(); 65]), ..Default::default() },
             RunOptions { interval: Some(Duration::ZERO), ..Default::default() },
-            RunOptions { page_size: 0, ..Default::default() },
-            RunOptions { page_size: 5001, ..Default::default() },
+            RunOptions { page_size: Some(0), ..Default::default() },
+            RunOptions { page_size: Some(5001), ..Default::default() },
         ] {
             let error = options.validate().unwrap_err();
             assert!(matches!(error, super::super::Error::Rpc(status) if status.code() == tonic::Code::InvalidArgument));

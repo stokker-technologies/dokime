@@ -17,20 +17,22 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { type NativePlotStream, openNativePlotStream, type PlotPayloadRequestInput } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import { summaryInFlight } from "@/lib/statistics";
-import type { DocumentDownsampleTechnique, DocumentViewPlot, PlotPayloadStreamMessage, RecordScope } from "@/lib/types";
+import type { DocumentViewPlot, PlotPayloadStreamMessage, RecordScope } from "@/lib/types";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
-import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS, type ReduceTechnique } from "@/plots/reduce";
+import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Constants === */
 
-const HIDDEN_PLOT_STREAM_FLUSH_MS = 1_000;
-const RECONNECT_INITIAL_MS = 1_000;
-const RECONNECT_MAX_MS = 10_000;
+const GUI_HIDDEN_PLOT_FLUSH_MS = 1_000;
+const GUI_RECONNECT_INITIAL_MS = 1_000;
+const GUI_RECONNECT_MAX_MS = 10_000;
+
+const HIDDEN_PLOT_STREAM_FLUSH_MS = GUI_HIDDEN_PLOT_FLUSH_MS;
+const RECONNECT_INITIAL_MS = GUI_RECONNECT_INITIAL_MS;
+const RECONNECT_MAX_MS = GUI_RECONNECT_MAX_MS;
 
 /* === Types === */
-
-type TechniqueByPlot = Record<string, ReduceTechnique>;
 
 /* === Public Functions === */
 
@@ -52,10 +54,8 @@ export function useLivePlotPayloads({
   if (enabled && !nativeSession) {
     throw new Error("A connected native backend is required for live plots.");
   }
-  const streamEnabled = enabled && pageVisible;
   const [state, setState] = useState<LivePlotStateMap>({});
-  // The retained frames live here and are committed to React state whole, so
-  // a frame is applied exactly once and its arrays can grow in place.
+  // The latest query snapshot waits here until React paints it.
   const modelRef = useRef<LivePlotStateMap>({});
   const plotRequestKey = useMemo(() => plots.map(documentPlotRequestKey).join(";"), [plots]);
   // A zoom changes which rows a plot's statistics cover, not the rows it
@@ -95,12 +95,10 @@ export function useLivePlotPayloads({
     [scopeKey, windowS],
   );
   const dataKey = useMemo(() => [plotRequestKey, scopeWindowKey].join("|"), [plotRequestKey, scopeWindowKey]);
-  const _descriptorKey = useMemo(() => [dataKey, streamEnabled ? "enabled" : "disabled"].join("|"), [dataKey, streamEnabled]);
 
   const plotsRef = useRef(plots);
   plotsRef.current = plots;
   const dataKeyRef = useRef<string | null>(null);
-  const pendingMessagesRef = useRef<PlotPayloadStreamMessage[]>([]);
   const flushFrameRef = useRef<number | null>(null);
   const flushTimerRef = useRef<number | null>(null);
   const renderActiveRef = useRef(renderActive);
@@ -114,7 +112,6 @@ export function useLivePlotPayloads({
       modelRef.current = update(modelRef.current);
       setState(modelRef.current);
     };
-    pendingMessagesRef.current = [];
     clearScheduledFlush(flushFrameRef, flushTimerRef);
     const activePlots = plotsRef.current;
     const dataChanged = dataKeyRef.current !== dataKey;
@@ -159,7 +156,6 @@ export function useLivePlotPayloads({
         summaryWindow: requestedSummaryWindows[plot.plot_id] ?? null,
       }),
     );
-    const techniques: TechniqueByPlot = Object.fromEntries(activePlots.map((plot) => [plot.plot_id, reduceTechnique(plot.downsample)]));
     let active = true;
     let stream: NativePlotStream | null = null;
     let releaseStream: (() => void) | undefined;
@@ -188,12 +184,7 @@ export function useLivePlotPayloads({
     const flush = () => {
       flushFrameRef.current = null;
       flushTimerRef.current = null;
-      const messages = pendingMessagesRef.current;
-      pendingMessagesRef.current = [];
-      if (!messages.length || !active) {
-        return;
-      }
-      commit((current) => applyMessagesById(current, messages, techniques));
+      if (active) setState(modelRef.current);
     };
 
     const enqueue = (message: PlotPayloadStreamMessage) => {
@@ -202,11 +193,11 @@ export function useLivePlotPayloads({
       }
       // A frame of any kind proves the watch is healthy again.
       reopenDelayMs = RECONNECT_INITIAL_MS;
-      pendingMessagesRef.current.push(message);
+      modelRef.current = applyMessageById(modelRef.current, message);
       if (flushFrameRef.current !== null || flushTimerRef.current !== null) {
         return;
       }
-      if (message.kind === "snapshot" || message.kind === "replace" || message.kind === "error") {
+      if (message.kind === "error") {
         flushTimerRef.current = window.setTimeout(flush, 0);
         return;
       }
@@ -239,7 +230,7 @@ export function useLivePlotPayloads({
     };
 
     /**
-     * A failed watch keeps the last frame on screen and reopens cursorless with
+     * A failed watch keeps the last frame on screen and reopens with
      * backoff; only an admission refusal is terminal, since no retry changes it.
      */
     const markStreamError = (error: unknown) => {
@@ -281,7 +272,7 @@ export function useLivePlotPayloads({
         return;
       }
       try {
-        // Cursorless watch requests receive initial snapshots from the server
+        // Watch requests receive initial snapshots from the server
         // after subscription, avoiding a snapshot/watch race.
         stream = await openNativePlotStream(nativeSession.identity, requests, {
           signal: controller.signal,
@@ -331,7 +322,6 @@ export function useLivePlotPayloads({
       releaseStream = undefined;
       if (stream) void stream.cancel().catch(() => undefined);
       clearScheduledFlush(flushFrameRef, flushTimerRef);
-      pendingMessagesRef.current = [];
     };
   }, [dataKey, requestedSummaryWindows, requestScope?.test_cycle_id, enabled, requestScope, windowS, pageVisible, nativeSession]);
 
@@ -370,7 +360,7 @@ export function plotRequestForDocumentPlot(
     unit: plot.unit ?? undefined,
     // The display budget applies to EVERY window, including "All": the canvas
     // cannot resolve more points than this, and an unbounded request made the
-    // full-range window ship every retained raw sample (slow payload, slow
+    // full-range window ship every stored raw sample (slow payload, slow
     // render) instead of a server-downsampled frame.
     maxPoints: displayPointBudget(plot.display_points),
     technique: plot.downsample ?? "auto",
@@ -390,57 +380,17 @@ export function displayPointBudget(displayPoints: number | null | undefined): nu
 
 /* === Private Functions === */
 
-function applyMessagesById(current: LivePlotStateMap, messages: PlotPayloadStreamMessage[], techniques: TechniqueByPlot): LivePlotStateMap {
-  const messagesByPlot = new Map<string, PlotPayloadStreamMessage[]>();
-  for (const message of messages) {
-    const plotMessages = messagesByPlot.get(message.plot_id);
-    if (plotMessages) {
-      plotMessages.push(message);
-    } else {
-      messagesByPlot.set(message.plot_id, [message]);
-    }
+function applyMessageById(current: LivePlotStateMap, message: PlotPayloadStreamMessage): LivePlotStateMap {
+  const previous = current[message.plot_id] ?? emptyLivePlotState();
+  try {
+    return { ...current, [message.plot_id]: applyPlotMessages(previous, [message]) };
+  } catch (failure) {
+    return { ...current, [message.plot_id]: { ...previous, status: "error", error: errorMessage(failure) } };
   }
-
-  const next = { ...current };
-  messagesByPlot.forEach((plotMessages, plotId) => {
-    const previous = next[plotId] ?? emptyLivePlotState();
-    try {
-      next[plotId] = applyPlotMessages(previous, plotMessages, techniques[plotId] ?? "auto");
-    } catch (failure) {
-      next[plotId] = { ...previous, status: "error", error: errorMessage(failure) };
-    }
-  });
-  return next;
-}
-
-function reduceTechnique(value: DocumentDownsampleTechnique | null | undefined): ReduceTechnique {
-  return value ?? "auto";
 }
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {
-  return [
-    plot.plot_id,
-    plot.stream,
-    plot.plot_type,
-    plot.style,
-    plot.x_scale,
-    plot.y_scale,
-    plot.x ?? "",
-    plot.z_stream ?? "",
-    plot.z_field ?? "",
-    plot.x_expression ? JSON.stringify(plot.x_expression) : "",
-    plot.y_expressions ? JSON.stringify(plot.y_expressions) : "",
-    plot.series_by_expression ? JSON.stringify(plot.series_by_expression) : "",
-    plot.filters ? JSON.stringify(plot.filters) : "",
-    plot.analysis ? JSON.stringify(plot.analysis) : "",
-    plot.unit ?? "",
-    plot.series_by ?? "",
-    plot.live_window_s ?? "",
-    plot.display_points ?? "",
-    plot.downsample ?? "",
-    plot.y.join(","),
-    (plot.marker_record_types ?? []).join(","),
-  ].join(":");
+  return JSON.stringify(plotRequestForDocumentPlot(plot, { scope: null }));
 }
 
 function recordScopeKey(scope: RecordScope | null): string {

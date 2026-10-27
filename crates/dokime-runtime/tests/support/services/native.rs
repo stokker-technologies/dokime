@@ -34,6 +34,24 @@ use {dokime_domain::model::execution::saved::ExecutionCheckpoint, dokime_runtime
 /* === Implementations === */
 
 /* === Public Functions === */
+
+pub fn record_page(
+    rows: harmos::storage::ReadBatch<Vec<harmos::storage::StoredRecord<dokime_runtime::storage::records::RecordRow>>>,
+) -> dokime_runtime::storage::Result<harmos::storage::ReadBatch<Vec<model::records::evidence::RecordEntry>>> {
+    use dokime_runtime::storage::Error;
+    rows.try_map(|rows| {
+        let mut records = Vec::new();
+        let allocation = records.try_reserve_exact(rows.len());
+        let allocation_failed = Error::Invalid("fixture record allocation failed");
+        allocation.map_err(|_| allocation_failed)?;
+        for row in rows {
+            let record = row.payload.entry()?;
+            records.push(record);
+        }
+        Ok(records)
+    })
+}
+
 pub async fn checkpoint(handle: &RuntimeHandle, id: &TestExecutionId) -> ExecutionCheckpoint {
     super::waits::settle(handle, || async { handle.execution_saved_checkpoint(id.clone()).await.ok() }).await
 }
@@ -90,7 +108,7 @@ pub async fn report(handle: &RuntimeHandle, id: &TestExecutionId) -> String {
     let view = open(handle, &checkpoint).await;
     let file = &view.execution().saved.as_ref().unwrap().report;
     let bytes = dokime_runtime::storage::read_file_bytes(handle.storage(), file).await.unwrap();
-    String::from_utf8(bytes).unwrap()
+    String::from_utf8(bytes.as_slice().to_vec()).unwrap()
 }
 
 /* === Private Functions === */

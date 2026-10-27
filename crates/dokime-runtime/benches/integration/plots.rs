@@ -7,7 +7,7 @@
  * ***
  */
 
-// Plot Benchmarks: Live Telemetry Delta Delivery To A Plot Watch
+// Plot Benchmarks: Durable Telemetry Visibility Through Native Storage
 
 /* === Modules === */
 
@@ -19,7 +19,6 @@ use std::time::{Duration, Instant};
 
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
-use futures_util::StreamExt;
 use harmos::{Message, schema::Described};
 
 // Local Imports
@@ -54,9 +53,8 @@ pub fn benchmark(criterion: &mut Criterion) {
     let root = tempfile::tempdir().unwrap();
     let mut owner = executor.block_on(Runtime::start(config(root.path()))).unwrap();
     let runtime = owner.handle();
-    let mut watch = executor.block_on(runtime.watch_plot_telemetry(&[])).unwrap().pop().expect("the telemetry stream is watchable");
 
-    let mut group = criterion.benchmark_group("plot_pushes_deltas");
+    let mut group = criterion.benchmark_group("plot_saved_visibility");
     for rows in [1_usize, 64] {
         group.throughput(Throughput::Elements(rows as u64));
         group.bench_function(BenchmarkId::from_parameter(rows), |bencher| {
@@ -65,11 +63,14 @@ pub fn benchmark(criterion: &mut Criterion) {
                     let mut elapsed = Duration::ZERO;
                     for _ in 0..iterations {
                         let batch = batch(rows);
+                        let prior = runtime.storage().cursor_saved();
                         let started = Instant::now();
-                        let receipt = runtime.publish_telemetry_batch(batch).await.unwrap();
-                        let last = receipt.stream_cursors.values().copied().max().unwrap();
-                        while watch.next().await.expect("the watch closes only with the runtime").0 < last {}
+                        runtime.publish_telemetry_batch(batch).await.unwrap();
+                        let accepted = runtime.storage().cursor_accepted();
+                        runtime.storage().await_durable(&accepted).await.unwrap();
+                        let saved = runtime.storage().wait_saved_after(&prior).await.unwrap();
                         elapsed += started.elapsed();
+                        assert!(saved.covers(&accepted).unwrap());
                     }
                     elapsed
                 })
@@ -78,7 +79,6 @@ pub fn benchmark(criterion: &mut Criterion) {
     }
     group.finish();
 
-    drop(watch);
     drop(runtime);
     executor.block_on(owner.shutdown()).unwrap();
 }
@@ -89,7 +89,7 @@ fn config(root: &std::path::Path) -> RuntimeConfig {
     let plugin = InstalledPlugin {
         source: STREAM.into(),
         version: "bench".into(),
-        description: "Plot delta benchmark".into(),
+        description: "Stored plot visibility benchmark".into(),
         enabled: true,
         telemetry_contracts: vec![TelemetryContract {
             stream: identifier(STREAM),
@@ -101,7 +101,6 @@ fn config(root: &std::path::Path) -> RuntimeConfig {
             columns: vec![TelemetryColumn::new(metadata("value", "Value"), ValueType::Number, TelemetryRole::Value)],
             default_x: Some("timestamp".to_owned()),
             interval: None,
-            plot_window: None,
             allow_extra_fields: false,
             scalar: false,
             validation_mode: None,

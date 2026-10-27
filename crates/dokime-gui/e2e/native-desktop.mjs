@@ -3154,39 +3154,6 @@ async function settingsJourney(session, notes) {
     "Storage Sources must render its rows or say there are none",
   );
 
-  /* The attached desktop saves policy in the backend's execution root. */
-  const interval = await until("backend policy input", () =>
-    session.execute(
-      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Compaction Interval (Hours)');
-     return label?.control ?? null;`,
-    ),
-  );
-  await session.type(interval, "2");
-  assert.equal(
-    await session.execute("return arguments[0].value", [interval]),
-    "2",
-    "Native typing replaces the entire backend policy value",
-  );
-  await session.type(interval, "");
-  assert.equal(await session.execute("return arguments[0].value", [interval]), "", "Native deletion clears the controlled value");
-  assert.equal(
-    await session.execute("return arguments[0].getAttribute('aria-invalid')", [interval]),
-    "true",
-    "Deletion updates React's draft state",
-  );
-  await session.type(interval, "2");
-  /* The backend keeps the policy in its own state store: the save is proven by
-     its restart notice and by the value it reads back after navigation. */
-  await until("policy restart requirement", async () => hasText(await session.text(), "Restart the connected backend"), 120000);
-  await session.goto("/settings/appearance");
-  await session.goto("/settings/general");
-  await until("saved backend policy reread", () =>
-    session.execute(
-      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Compaction Interval (Hours)');
-     return label?.control?.value === '2';`,
-    ),
-  );
-
   /* Plugins: rows with a Settings button, and the plugin page behind it. */
   await session.goto("/settings/plugins");
   await until("the plugins section", async () => hasText(await session.text(), "Install A Plugin"), 120000);
@@ -3253,6 +3220,62 @@ async function settingsJourney(session, notes) {
     await session.clickNamed("button", "Confirm Delete");
     await until("shared keyring entry removed", async () => !(await session.exists("button", `Edit ${name}`)));
   }
+
+  /* Backend Dialog Validation, Cancelled Deletion And Selection Recovery. */
+  await session.goto("/settings/general");
+  await until("backend registry", () => session.exists("button", "Add Backend"));
+  const original = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
+  const endpoint = original.connection.endpoint;
+  assert.ok(endpoint);
+  const field = (label) => session.find("css selector", `[aria-label="${label}"]`);
+  const rowAction = (name, action) =>
+    session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='${action}']`);
+  const add = async (name, identity = "") => {
+    await session.clickNamed("button", "Add Backend");
+    await session.type(await field("Backend Name"), name);
+    await session.type(await field("Backend Endpoint"), endpoint);
+    if (identity) await session.type(await field("Expected Backend ID"), identity);
+    await session.clickNamed("button", "Add");
+    await until(`saved backend ${name}`, () => rowAction(name, "Select"));
+  };
+  await session.clickNamed("button", "Add Backend");
+  await session.type(await field("Backend Name"), "native-invalid");
+  await session.type(await field("Backend Endpoint"), "http://operator:private@127.0.0.1/");
+  await session.clickNamed("button", "Add");
+  await until("invalid origin refused", () => session.find("css selector", '[role="dialog"] [role="alert"]'));
+  const unchanged = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
+  assert.ok(!unchanged.profiles.some((profile) => profile.name === "native-invalid"));
+  await session.clickNamed("button", "Cancel");
+
+  await add("native-recovery");
+  await add("native-stale", "deliberately-wrong-native-identity");
+  await session.click(await rowAction("native-stale", "Delete"));
+  await session.clickNamed("button", "Cancel");
+  assert.ok(await rowAction("native-stale", "Select"));
+  await session.click(await rowAction("native-recovery", "Select"));
+  await until("saved selection connected", async () => {
+    const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
+    return status.connection.phase === "connected";
+  });
+  await session.goto("/settings/general");
+  await until("registry after selection", () => rowAction("native-stale", "Select"));
+  await session.click(await rowAction("native-stale", "Select"));
+  await until("failed selection displays the registry", () => session.find("css selector", 'main [role="alert"]'));
+  const afterFailure = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
+  assert.equal(afterFailure.default, "native-recovery");
+  await session.click(await rowAction("native-recovery", "Select"));
+  await until("explicit profile recovery", async () => {
+    const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
+    return status.connection.phase === "connected";
+  });
+  await session.goto("/settings/general");
+  await until("stale profile deletion", () => rowAction("native-stale", "Delete"));
+  await session.click(await rowAction("native-stale", "Delete"));
+  await session.clickNamed("button", "Confirm Delete");
+  await until("stale profile removed", async () => {
+    const document = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
+    return !document.profiles.some((profile) => profile.name === "native-stale");
+  });
 
   /* Diagnostics: read-only paths with Copy and Open, then the bundle itself. */
   await session.goto("/settings/diagnostics");

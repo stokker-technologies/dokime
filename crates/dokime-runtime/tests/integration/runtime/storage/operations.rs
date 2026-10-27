@@ -50,16 +50,14 @@ use dokime_runtime::storage::objects::{Objects, suite::Suite};
 async fn storage_operations_view() {
     let root = tempdir().unwrap();
     let config = config(root.path());
-    // An in-process storage client claims the runtime's read budget, as report
-    // queries do: one nested object schema expands into far more Arrow fields
-    // than any single message-sized budget holds.
-    let budget = config.storage.budget.read_memory_bytes.min(NonZeroUsize::new(u32::MAX as usize).unwrap());
+    let budget = NonZeroUsize::new(16 * 1024 * 1024).unwrap();
     let (mut runtime, handle) = started(config).await;
     let maximum = NonZeroUsize::new(64 * 1024).unwrap();
     let suite = Suite::new("fixture.storage.operations", &empty_suite()).unwrap();
-    let encoded = Objects::encode(&suite, maximum).unwrap();
-    let receipt = handle.storage().write_object(&suite).await.unwrap();
+    let encoded = Objects::encode(&*suite, maximum).unwrap();
+    let receipt = handle.storage().write_object(&*suite).await.unwrap();
     handle.storage().flush().await.unwrap();
+    drop(suite);
 
     let info = handle.operations().call(StorageStatus {}).await.unwrap();
     assert_eq!(info.saved, handle.storage().cursor_saved());
@@ -88,9 +86,10 @@ async fn storage_operations_view() {
         let QueryOutput::Batch(batch) = &*row else {
             panic!("expected an Arrow suite batch");
         };
-        let batch = harmos::storage::arrow::ArrowBatch::from_ipc(batch.bytes()).unwrap();
+        let batch = harmos::storage::arrow::ArrowBatch::from_ipc(batch.bytes().to_vec()).unwrap();
         assert_eq!(batch.as_record_batch().num_rows(), 1);
         assert!(batch.as_record_batch().column_by_name("payload").is_some());
+        drop(batch);
         drop(row);
         assert!(input.recv().await.is_none());
         query.await.unwrap()

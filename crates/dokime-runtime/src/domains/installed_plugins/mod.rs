@@ -10,7 +10,6 @@
 /* === Modules === */
 
 pub(crate) mod appearance;
-pub(crate) mod brand;
 mod bundled;
 pub(crate) mod contributions;
 mod handle;
@@ -18,6 +17,8 @@ pub(crate) mod management;
 pub(crate) mod module_preferences;
 
 /* === Re-Exports === */
+
+pub(crate) use crate::config::organization as brand;
 
 pub use appearance::{
     AppearanceLimitExceeded, CapturedAppearance, RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeInstalledPluginAsset, RuntimeThemeFamily,

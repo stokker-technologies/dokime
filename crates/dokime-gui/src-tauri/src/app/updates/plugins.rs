@@ -29,9 +29,15 @@ use crate::app::{
 };
 use crate::connection::ConnectionSession;
 use dokime::client::contracts;
-use dokime::domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES;
 
 /* === Constants === */
+
+const DESKTOP_ORGANIZATION_IDENTIFIER_BYTES: u64 = 128;
+const DESKTOP_ORGANIZATION_URL_BYTES: u64 = 4_096;
+const DESKTOP_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
+const DESKTOP_PLUGIN_RELEASE_ASSETS: u64 = 32;
+const DESKTOP_PLUGIN_RELEASE_VERSION_BYTES: u64 = 256;
+const DESKTOP_UPDATE_MANIFEST_BYTES: u64 = 1_048_576;
 
 /* === Macros === */
 
@@ -85,13 +91,13 @@ pub struct Release {
 impl Manifest {
     fn select(&self, host_version: &str, target: &str) -> Result<Asset, String> {
         let package_valid = !self.package.is_empty()
-            && self.package.len() <= 128
+            && self.package.len() as u64 <= DESKTOP_ORGANIZATION_IDENTIFIER_BYTES
             && self.package.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'));
         if self.format_version != 1
             || !package_valid
-            || self.assets.len() > 32
-            || self.version.len() > 256
-            || self.requires_dokime.len() > 256
+            || self.assets.len() as u64 > DESKTOP_PLUGIN_RELEASE_ASSETS
+            || self.version.len() as u64 > DESKTOP_PLUGIN_RELEASE_VERSION_BYTES
+            || self.requires_dokime.len() as u64 > DESKTOP_PLUGIN_RELEASE_VERSION_BYTES
         {
             return Err("Plugin release metadata has an unsupported format or exceeds its limits".into());
         }
@@ -103,10 +109,13 @@ impl Manifest {
         }
         let mut targets = BTreeSet::new();
         for asset in &self.assets {
-            if asset.target.is_empty() || asset.target.len() > 128 || !targets.insert(&asset.target) {
+            if asset.target.is_empty()
+                || asset.target.len() as u64 > DESKTOP_ORGANIZATION_IDENTIFIER_BYTES
+                || !targets.insert(&asset.target)
+            {
                 return Err("Plugin releases require distinct nonempty targets".into());
             }
-            https_url(&asset.url)?;
+            https_url(&asset.url, DESKTOP_ORGANIZATION_URL_BYTES)?;
             if asset.sha256.len() != 64 || !asset.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
                 return Err("Plugin release SHA-256 is invalid".into());
             }
@@ -131,7 +140,7 @@ pub async fn desktop_plugin_release_check(
     }
     let auth = state.authorization(&policy).await?;
     let feed = sources::resolve(&policy, "plugins.json", auth.as_ref()).await?;
-    let bytes = sources::fetch(&feed, auth.as_ref(), sources::MANIFEST_BYTES).await?;
+    let bytes = sources::fetch(&feed, auth.as_ref(), DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
     let manifest: Manifest = serde_json::from_slice(&bytes).map_err(|_| "The plugin release feed is invalid")?;
     let client = lease.client();
     let backend = client.backend();
@@ -171,8 +180,8 @@ pub async fn desktop_plugin_release_stage(
         return Err("The plugin release source changed".into());
     }
     let auth = state.authorization(&policy).await?;
-    let url = https_url(&selected.asset.url)?;
-    let bytes = sources::fetch(&url, auth.as_ref(), STAGE_ARCHIVE_MAX_BYTES as usize).await?;
+    let url = https_url(&selected.asset.url, DESKTOP_ORGANIZATION_URL_BYTES)?;
+    let bytes = sources::fetch(&url, auth.as_ref(), DESKTOP_PLUGIN_BUNDLE_BYTES as usize).await?;
     let client = lease.client();
     selected.manifest.select(&client.backend().product_version, &client.backend().target)?;
     if state.snapshot()?.1 != policy_generation {

@@ -23,15 +23,13 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
-use crate::grpc::value::{self, projection};
+use crate::grpc::value::projection;
 use dokime::ExecutionFileEntry;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::domain::operations::content as wire;
 
 /* === Constants === */
-
-const INVENTORY_LIMIT: usize = 512;
 
 /* === Macros === */
 
@@ -73,10 +71,8 @@ impl Operation for List {
         &mut self, _: Self::Context<'a>, request: &mut wire::ListExecutionFiles, _: &mut (),
     ) -> Result<Response<dokime::domain::model::content::wire::ListExecutionFilesReply>, Status> {
         let (id, epoch) = super::files::execution(&self.resources.runtime, &request.execution_id)?;
-        value::text(&request.after_path)?;
-        if request.limit > 100 {
-            return Err(Status::invalid_argument("page limit exceeds 100"));
-        }
+        let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_path)
+            .map_err(crate::grpc::value::canonical::cursor_failure)?;
         if !request.after_path.is_empty() && request.cursor.is_none() {
             return Err(Status::invalid_argument("subsequent page requires cursor"));
         }
@@ -86,7 +82,7 @@ impl Operation for List {
             return Err(Status::failed_precondition("file cursor epoch or execution mismatch"));
         }
         let entries = self.resources.runtime.execution_files(&id).await.map_err(super::files::read_failure)?;
-        project(&entries, &id, &epoch, request, self.resources.maximum)
+        project(&entries, &id, &epoch, request, limit, self.resources.maximum)
             .map(Into::into)
             .map_err(|source| super::files::read_failure(source.into()))
     }
@@ -106,27 +102,29 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 
 fn project(
-    entries: &[ExecutionFileEntry], id: &TestExecutionId, epoch: &str, request: &wire::ListExecutionFiles, maximum: usize,
+    entries: &[ExecutionFileEntry], id: &TestExecutionId, epoch: &str, request: &wire::ListExecutionFiles, limit: usize, maximum: usize,
 ) -> dokime::harmos::Result<dokime::domain::model::content::wire::ListExecutionFilesReply> {
-    let counted = count(entries, request)?;
-    let mut files = projection::slots(entries.len())?;
-    for entry in entries {
-        files.push(metadata(entry)?);
-    }
+    let counted = count(entries, request, limit)?;
+    let mut selected = projection::slots(counted.returned)?;
     let mut hash = Sha256::new();
-    for file in &files {
+    for (index, entry) in entries.iter().enumerate() {
+        let file = metadata(entry)?;
         let encoded = file.wire_bytes()?;
+        if encoded.len() > maximum {
+            return Err(exhausted());
+        }
         let mut prefix = Vec::with_capacity(10);
         prost::encoding::encode_varint(encoded.len() as u64, &mut prefix);
         hash.update(&prefix);
         hash.update(&encoded);
+        if (counted.after..counted.after + counted.returned).contains(&index) {
+            selected.push(file);
+        }
     }
     let digest = hash.finalize();
     if request.cursor.as_ref().is_some_and(|cursor| cursor.metadata_sha256.as_slice() != digest.as_slice()) {
         return Err(dokime::harmos::Error::InvalidInput { field: "execution files cursor", reason: "metadata fingerprint differs" });
     }
-    let mut selected = projection::slots(counted.returned)?;
-    selected.extend(files.into_iter().skip(counted.after).take(counted.returned));
     let next_after_path =
         if counted.more { Some(projection::text(&selected.last().ok_or_else(invalid_wire)?.relative_path)?) } else { None };
     let mut metadata_sha256 = projection::slots(digest.len())?;
@@ -146,10 +144,7 @@ fn project(
     Ok(page)
 }
 
-fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> dokime::harmos::Result<Count> {
-    if entries.len() > INVENTORY_LIMIT {
-        return Err(exhausted());
-    }
+fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles, limit: usize) -> dokime::harmos::Result<Count> {
     if entries.windows(2).any(|pair| pair[0].relative_path >= pair[1].relative_path) {
         return Err(invalid_wire());
     }
@@ -162,15 +157,8 @@ fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> 
             .map(|index| index + 1)
             .ok_or(dokime::harmos::Error::InvalidInput { field: "execution files after path", reason: "after path not found" })?
     };
-    let limit = if request.limit == 0 { 50 } else { request.limit as usize };
     let returned = entries.len().saturating_sub(after).min(limit);
     let more = entries.len().saturating_sub(after) > returned;
-    for entry in entries {
-        value::text(&entry.relative_path).map_err(|_| exhausted())?;
-        if let Some(content_type) = &entry.content_type {
-            value::text(content_type).map_err(|_| exhausted())?;
-        }
-    }
     Ok(Count { after, returned, more })
 }
 

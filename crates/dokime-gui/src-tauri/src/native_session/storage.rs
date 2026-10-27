@@ -29,6 +29,8 @@ use dokime::paths::ApplicationPaths;
 
 /* === Constants === */
 
+const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
+
 // The same override the backend reads; the owned backend inherits it.
 const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
 
@@ -36,7 +38,6 @@ const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
 const LEASE: &str = "local.lock";
 
 // How many archive bytes pass between two progress reports.
-const PROGRESS_STEP: u64 = 1 << 20;
 
 /* === Macros === */
 
@@ -46,11 +47,13 @@ const PROGRESS_STEP: u64 = 1 << 20;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StorageRoot {
+    progress_step: u64,
     data: PathBuf,
     application: PathBuf,
 }
 
 struct Counted<W, F> {
+    progress_step: u64,
     inner: W,
     position: u64,
     written: u64,
@@ -66,19 +69,16 @@ struct Counted<W, F> {
 
 impl StorageRoot {
     pub fn new(data: PathBuf, application: PathBuf) -> Self {
-        Self { data, application }
+        Self { data, application, progress_step: DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES }
     }
 
-    pub fn resolve(application: PathBuf) -> Result<Self, String> {
-        let configured = match std::env::var_os(DATA_ROOT_ENV).filter(|value| !value.is_empty()) {
-            Some(root) => Some(PathBuf::from(root)),
-            None => configured_data_root(&ApplicationPaths::new(&application).settings())?,
-        };
+    pub fn resolve(application: PathBuf, progress_step: u64) -> Result<Self, String> {
+        let configured = std::env::var_os(DATA_ROOT_ENV).filter(|value| !value.is_empty()).map(PathBuf::from);
         // Keep the root in the form it was configured, as the backend does;
         // canonicalizing would give Windows a verbatim prefix it never uses.
         let data = configured.unwrap_or_else(|| ApplicationPaths::new(&application).default_data());
         let data = std::path::absolute(data).map_err(|error| error.to_string())?;
-        Ok(Self::new(data, application))
+        Ok(Self { data, application, progress_step })
     }
 
     pub fn path(&self) -> &Path {
@@ -199,8 +199,14 @@ impl StorageRoot {
     }
 
     fn write_archive(&self, file: File, progress: impl FnMut(u64)) -> Result<(), Error> {
-        let mut zip =
-            ZipWriter::new(Counted { inner: std::io::BufWriter::new(file), position: 0, written: 0, reported: 0, report: progress });
+        let mut zip = ZipWriter::new(Counted {
+            progress_step: self.progress_step,
+            inner: std::io::BufWriter::new(file),
+            position: 0,
+            written: 0,
+            reported: 0,
+            report: progress,
+        });
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
 
         // Walk The Root Depth First Without Following Links
@@ -250,7 +256,7 @@ impl<W: Write, F: FnMut(u64)> Write for Counted<W, F> {
         let written = self.inner.write(buffer)?;
         self.position += written as u64;
         self.written = self.written.max(self.position);
-        if self.written - self.reported >= PROGRESS_STEP {
+        if self.written - self.reported >= self.progress_step {
             self.reported = self.written;
             (self.report)(self.written);
         }
@@ -271,17 +277,6 @@ impl<W: Seek, F> Seek for Counted<W, F> {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn configured_data_root(settings: &Path) -> Result<Option<PathBuf>, String> {
-    let bytes = match std::fs::read(settings) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("{} could not be read: {error}", settings.display())),
-    };
-    let document: serde_json::Value =
-        serde_json::from_slice(&bytes).map_err(|error| format!("{} could not be parsed: {error}", settings.display()))?;
-    Ok(document["data_root"].as_str().map(PathBuf::from))
-}
 
 fn refusal(reason: Reason, message: String) -> Error {
     Error::StorageReset { reason, message }

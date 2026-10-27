@@ -273,17 +273,16 @@ matrix! {
     "/dokime.v1.Settings/GetPluginSettings", unary, contracts::settings::GetPluginSettings;
     "/dokime.v1.Settings/GetSettings", unary, contracts::settings::GetSettings;
     "/dokime.v1.Settings/ReadApplicationSettings", unary, contracts::settings::ReadApplicationSettings;
-    "/dokime.v1.Settings/ReadStoragePolicy", unary, contracts::settings::ReadStoragePolicy;
-    "/dokime.v1.Settings/UpdateStoragePolicy", unary, contracts::settings::UpdateStoragePolicy;
     "/dokime.v1.Settings/ListStorageSources", unary, contracts::settings::ListStorageSources;
     "/dokime.v1.Settings/ReorderStorageSources", unary, contracts::settings::ReorderStorageSources;
     "/dokime.v1.Settings/SetStorageSourceEnabled", unary, contracts::settings::SetStorageSourceEnabled;
-    "/dokime.v1.Settings/UpdateAppearance", unary, contracts::settings::UpdateAppearance;
-    "/dokime.v1.Settings/UpdateDataRoot", unary, contracts::settings::UpdateDataRoot;
-    "/dokime.v1.Settings/UpdateReportDefaults", unary, contracts::settings::UpdateReportDefaults;
+    "/dokime.v1.Settings/UpdateApplicationSettings", unary, contracts::settings::UpdateApplicationSettings = contracts::settings::UpdateApplicationSettings {
+        update: model::settings::application::UpdateSettings { expected_revision: 0, settings: Default::default() },
+    };
     "/dokime.v1.Settings/UpdatePluginSecret", unary, contracts::settings::UpdatePluginSecret;
     "/dokime.v1.Settings/UpdatePluginSettings", unary, contracts::settings::UpdatePluginSettings;
     "/dokime.v1.Telemetry/ListSamples", unary, contracts::telemetry::ListSamples;
+    "/dokime.v1.Telemetry/WatchSamples", download, contracts::telemetry::WatchSamples;
 }
 
 /* === Type Aliases === */

@@ -69,7 +69,8 @@ where
 {
     install_panic_hook();
     install_subscriber();
-    crate::process::block_on(harmos::sidecar::run_plugin::<P>(invocation_capacity()))?
+    let capacity = std::num::NonZeroUsize::new(128).expect("native invocation capacity is positive");
+    crate::process::block_on(harmos::sidecar::run_plugin::<P>(capacity))?
 }
 
 #[cfg(feature = "native")]
@@ -85,10 +86,5 @@ where
 }
 
 /* === Private Functions === */
-
-#[cfg(feature = "native")]
-fn invocation_capacity() -> std::num::NonZeroUsize {
-    std::num::NonZeroUsize::new(128).expect("native invocation capacity is positive")
-}
 
 /* === Tests === */

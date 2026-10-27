@@ -37,7 +37,7 @@ import {
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
 import {
-  BUSY_RETRY_MAX_MS,
+  RECONNECT_MAX_MS,
   DOCUMENT_FAILED_FALLBACK,
   documentRetry,
   documentRetryDelay,
@@ -561,7 +561,7 @@ test("Evidence Pane", () => {
   assert.ok(!documentRetry(1, failed));
   assert.equal(documentRetryDelay(0, busy), 1_000);
   assert.equal(documentRetryDelay(2, busy), 4_000);
-  assert.equal(documentRetryDelay(20, busy), BUSY_RETRY_MAX_MS);
+  assert.equal(documentRetryDelay(20, busy), RECONNECT_MAX_MS);
 
   // A Read Document Stays On Screen Whatever Later Reads Do
   const pane = (fields: Partial<Parameters<typeof evidencePaneState>[0]>) =>

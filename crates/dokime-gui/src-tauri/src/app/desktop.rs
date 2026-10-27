@@ -13,6 +13,8 @@
 
 /* === Imports === */
 
+use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 
@@ -46,11 +48,12 @@ use crate::connection::ConnectionSession;
 
 /* === Constants === */
 
-const MAX_REPORT_FILENAME_CHARS: usize = 128;
-const MAX_DIAGNOSTICS_BUNDLE_BYTES: usize = 32 * 1024 * 1024;
-const MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS: usize = MAX_DIAGNOSTICS_BUNDLE_BYTES.div_ceil(3) * 4;
-const MAX_JSON_DOCUMENT_BYTES: usize = 32 * 1024 * 1024;
-const MAX_JSON_DOCUMENT_BASE64_CHARS: usize = MAX_JSON_DOCUMENT_BYTES.div_ceil(3) * 4;
+const DESKTOP_DIAGNOSTICS_BUNDLE_BYTES: u64 = 33_554_432;
+const DESKTOP_DOCUMENT_TIMEOUT_MS: u64 = 30_000;
+const DESKTOP_JSON_DOCUMENT_BYTES: u64 = 33_554_432;
+const DESKTOP_PUBLIC_CERTIFICATE_BYTES: u64 = 65_536;
+const DESKTOP_REMOTE_KEY_BYTES: u64 = 4_098;
+const DESKTOP_REPORT_FILENAME_CHARS: u64 = 128;
 
 /* === Macros === */
 
@@ -181,7 +184,7 @@ pub async fn desktop_pick_secret_archive(
         let Some(picked) = picked else { return Ok(None) };
         ensure_document_session(&session, &generation)?;
         let path = picked.into_path().map_err(|error| error.to_string())?;
-        let maximum = dokime::domain::model::secrets::transfer::MAX_ARCHIVE_BYTES;
+        let maximum = 699_052u64 as usize;
         let bytes = dokime::harmos::filesystem::input::read(&path, maximum).map_err(|_| "Secret archive is unreadable or oversized")?;
         ensure_document_session(&session, &generation)?;
         Ok(Some(BASE64.encode(bytes)))
@@ -221,7 +224,7 @@ pub async fn desktop_artifact_deliver(
     let session = state.inner().clone();
     let lease =
         session.lease(&generation).map_err(|error| prepare(format!("Native artifact delivery lost its owning connection: {error:?}")))?;
-    let filename = sanitize_filename(&request.filename, request.kind).map_err(prepare)?;
+    let filename = sanitize_filename(&request.filename, request.kind, DESKTOP_REPORT_FILENAME_CHARS as usize).map_err(prepare)?;
     let cache = app.path().app_cache_dir().map_err(|error| prepare(error.to_string()))?.join("documents");
     tauri::async_runtime::spawn_blocking({
         let cache = cache.clone();
@@ -233,7 +236,7 @@ pub async fn desktop_artifact_deliver(
 
     // Request, Stream, Write: The Shared Client Pulls And Verifies Into The Cache
     let staged = cache.join(format!("{generation}-{}-{filename}", random::<u64>()));
-    let verified = content::fetch_verified(&lease, &request.source, &staged).await?;
+    let verified = content::fetch_verified(&lease, &request.source, &staged, DESKTOP_FRAME_BYTES as usize).await?;
     let cleanup = tempfile::TempPath::try_from_path(staged).map_err(|error| prepare(error.to_string()))?;
     ensure_document_session(&session, &generation).map_err(prepare)?;
 
@@ -293,7 +296,7 @@ pub async fn desktop_artifact_deliver(
                 let response = client
                     .post(endpoint)
                     .json(&serde_json::json!({ "path": launched }))
-                    .timeout(std::time::Duration::from_secs(30))
+                    .timeout(std::time::Duration::from_millis(DESKTOP_DOCUMENT_TIMEOUT_MS))
                     .send()
                     .await
                     .map_err(|error| open(error.to_string()))?;
@@ -366,22 +369,18 @@ fn set_window_title(window: &WebviewWindow, title: &str) -> tauri::Result<()> {
 
 fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> Result<(String, Vec<u8>, DesktopSaveKind), String> {
     ensure_generation_token(generation)?;
-    let (max_encoded_chars, max_bytes, label) = match document.kind {
+    let (max_bytes, label) = match document.kind {
         DesktopSaveKind::HtmlReport => return Err("Report HTML is delivered through desktop_artifact_deliver".into()),
-        DesktopSaveKind::DiagnosticsBundle => (MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS, MAX_DIAGNOSTICS_BUNDLE_BYTES, "Diagnostics bundle"),
-        DesktopSaveKind::JsonDocument => (MAX_JSON_DOCUMENT_BASE64_CHARS, MAX_JSON_DOCUMENT_BYTES, "JSON document"),
-        DesktopSaveKind::RemoteKey => (4098usize.div_ceil(3) * 4, 4098, "Remote key"),
-        DesktopSaveKind::PublicCertificate => ((64usize * 1024).div_ceil(3) * 4, 64 * 1024, "Public certificate"),
-        DesktopSaveKind::SecretArchive => {
-            let maximum = dokime::domain::model::secrets::transfer::MAX_ARCHIVE_BYTES;
-            (maximum.div_ceil(3) * 4, maximum, "Secret archive")
-        }
-        DesktopSaveKind::Artifact => {
-            return Err("Artifact is delivered through desktop_artifact_deliver".into());
-        }
+        DesktopSaveKind::DiagnosticsBundle => (DESKTOP_DIAGNOSTICS_BUNDLE_BYTES as usize, "Diagnostics bundle"),
+        DesktopSaveKind::JsonDocument => (DESKTOP_JSON_DOCUMENT_BYTES as usize, "JSON document"),
+        DesktopSaveKind::RemoteKey => (DESKTOP_REMOTE_KEY_BYTES as usize, "Remote key"),
+        DesktopSaveKind::PublicCertificate => (DESKTOP_PUBLIC_CERTIFICATE_BYTES as usize, "Public certificate"),
+        DesktopSaveKind::SecretArchive => (699_052u64 as usize, "Secret archive"),
+        DesktopSaveKind::Artifact => return Err("Artifact is delivered through desktop_artifact_deliver".into()),
     };
+    let max_encoded_chars = max_bytes.div_ceil(3).saturating_mul(4);
 
-    let filename = sanitize_filename(&document.filename, document.kind)?;
+    let filename = sanitize_filename(&document.filename, document.kind, DESKTOP_REPORT_FILENAME_CHARS as usize)?;
     let bytes = decode_bounded(&document.bytes_base64, max_encoded_chars, max_bytes, label)?;
     if document.kind == DesktopSaveKind::RemoteKey {
         let key = std::str::from_utf8(&bytes).map_err(|_| "Remote key must be UTF-8 text")?.trim();
@@ -449,12 +448,15 @@ fn ensure_document_session(session: &ConnectionSession, generation: &str) -> Res
     session.lease(generation).map(|_| ()).map_err(|error| format!("Native document delivery lost its owning connection: {error:?}"))
 }
 
-fn sanitize_filename(filename: &str, kind: DesktopSaveKind) -> Result<String, String> {
+fn sanitize_filename(filename: &str, kind: DesktopSaveKind, maximum: usize) -> Result<String, String> {
+    if maximum < 5 {
+        return Err("Document filename bound cannot preserve its extension".into());
+    }
     let trimmed = filename.trim();
     if trimmed.is_empty() {
         return Err("Document filename is empty".into());
     }
-    if trimmed.chars().count() > MAX_REPORT_FILENAME_CHARS * 2 {
+    if trimmed.chars().count() > maximum.saturating_mul(2) {
         return Err("Document filename is too long".into());
     }
     let mut safe = trimmed
@@ -478,25 +480,25 @@ fn sanitize_filename(filename: &str, kind: DesktopSaveKind) -> Result<String, St
             if !safe.to_ascii_lowercase().ends_with(suffix) {
                 safe.push_str(suffix);
             }
-            bound_with_suffix(safe, suffix)
+            bound_with_suffix(safe, suffix, maximum)
         }
         ExtensionPolicy::Require(suffix) => {
             let lowered = safe.to_ascii_lowercase();
             if !lowered.ends_with(suffix) || lowered.len() == suffix.len() {
                 return Err(format!("Document filename must name a {suffix} file"));
             }
-            bound_with_suffix(safe, suffix)
+            bound_with_suffix(safe, suffix, maximum)
         }
-        ExtensionPolicy::Free if safe.chars().count() > MAX_REPORT_FILENAME_CHARS => safe.chars().take(MAX_REPORT_FILENAME_CHARS).collect(),
+        ExtensionPolicy::Free if safe.chars().count() > maximum => safe.chars().take(maximum).collect(),
         ExtensionPolicy::Free => safe,
     })
 }
 
-fn bound_with_suffix(safe: String, suffix: &str) -> String {
-    if safe.chars().count() <= MAX_REPORT_FILENAME_CHARS {
+fn bound_with_suffix(safe: String, suffix: &str, maximum: usize) -> String {
+    if safe.chars().count() <= maximum {
         return safe;
     }
-    let prefix = safe.chars().take(MAX_REPORT_FILENAME_CHARS - suffix.chars().count()).collect::<String>();
+    let prefix = safe.chars().take(maximum - suffix.chars().count()).collect::<String>();
     format!("{prefix}{suffix}")
 }
 
@@ -677,7 +679,7 @@ mod tests {
     #[test]
     fn json_document_stays_bounded() {
         let mut document = json_document("trace.json", b"{}");
-        document.bytes_base64 = "A".repeat(MAX_JSON_DOCUMENT_BASE64_CHARS + 4);
+        document.bytes_base64 = "A".repeat((DESKTOP_JSON_DOCUMENT_BYTES as usize).div_ceil(3) * 4 + 4);
 
         let error = validate_save_document("7", &document).unwrap_err();
 

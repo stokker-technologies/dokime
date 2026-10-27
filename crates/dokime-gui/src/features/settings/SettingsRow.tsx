@@ -45,7 +45,7 @@ export function SettingsRow({ children, className, control, description, error, 
   return (
     <div
       className={cn(
-        "grid min-h-[var(--settings-row-height)] grid-cols-[var(--settings-label-width)_minmax(0,1fr)] items-center gap-x-6 px-4 py-1.5",
+        "grid min-h-[var(--settings-row-height)] grid-cols-1 xl:grid-cols-(--layout-settings-row) items-center gap-x-6 gap-y-3 px-4 py-3",
         className,
       )}
     >
@@ -59,11 +59,11 @@ export function SettingsRow({ children, className, control, description, error, 
         )}
         {description ? <p className="text-xs leading-snug text-pretty text-muted-foreground">{description}</p> : null}
       </div>
-      <div className="grid min-w-0 gap-1.5">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex min-w-0 max-w-[var(--settings-value-max)] flex-1 flex-wrap items-center gap-2">{control ?? children}</div>
-          {status ? <div className="shrink-0">{status}</div> : null}
+      <div className="grid min-w-0 gap-2">
+        <div className="flex min-w-0 items-center justify-end gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">{control ?? children}</div>
         </div>
+        {status ? <div className="text-right">{status}</div> : null}
         {error ? (
           <div className="max-w-[var(--settings-value-max)] text-xs leading-snug text-destructive" role="alert">
             {error}

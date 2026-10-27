@@ -16,7 +16,7 @@ pub mod table;
 
 pub use contracts::host_telemetry_contract;
 pub use contracts::host_telemetry_contracts;
-pub use contracts::host_telemetry_payload;
+pub use contracts::{PreparedHostPayload, prepare_host_telemetry_payload};
 
 /* === Imports === */
 
@@ -95,15 +95,6 @@ impl HostTelemetryStream {
 
     pub fn identifier(self) -> Identifier {
         identifier(self.as_str())
-    }
-
-    pub fn interval_ms(self) -> u64 {
-        match self {
-            Self::System | Self::Network => 1_000,
-            Self::Wifi | Self::Bluetooth => 5_000,
-            Self::WifiLatency => 10_000,
-            Self::WifiChannelOccupancy => 30_000,
-        }
     }
 }
 

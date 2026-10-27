@@ -45,6 +45,7 @@ import {
   operationsCountLabel,
   summarizeOperations,
 } from "@/shell/status-bar-operations";
+import { RunIndicator } from "./RunIndicator";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
 import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
@@ -52,7 +53,7 @@ import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./Statu
 /* === Constants === */
 
 const statusItemClassName =
-  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const CONNECTION_LABEL = {
   connected: "Connected",
@@ -79,29 +80,23 @@ type AttentionEntry = {
 
 /* === Components === */
 
-/**
- * The bar across the whole window, on the shell's two columns.
- *
- * Its first cell is the sidebar's column and carries the one collapse toggle,
- * at the bar's own height — so the sidebar simply ends where this bar begins
- * and nothing stands taller than the band beside it. The remaining column
- * holds its facts in two groups on one baseline: what the backend is and
- * what it stores from the left inset; what the backend is busy with, what
- * needs the operator and what is running from the right.
- */
+/** Live Execution Focus Followed By Backend And Operator Attention. */
 export function StatusBar(props: StatusBarProps) {
   if (props.live === false) return <FrozenStatusBar status={props.frozen.status} />;
   return (
     <StatusBarFrame>
-      <div className="flex min-w-0 items-stretch justify-between gap-6 px-[var(--shell-inset)]">
-        <div className="flex min-w-0 items-stretch gap-6">
+      <div className="flex w-full min-w-0 items-stretch justify-between gap-2 px-4">
+        <RunIndicator />
+        <div className="hidden min-w-0 items-stretch gap-4 lg:flex">
           <BackendItem />
           <StorageItem />
         </div>
-        <div className="flex min-w-0 items-stretch gap-6">
-          <OperationsItem />
-          <AttentionItem />
-          <ActiveCycleItem />
+        <div className="flex min-w-0 items-stretch gap-2">
+          <div className="hidden items-stretch gap-4 tablet:flex">
+            <OperationsItem />
+            <AttentionItem />
+            <ActiveCycleItem />
+          </div>
           <ConsoleItem />
         </div>
       </div>
@@ -129,14 +124,14 @@ function ConsoleItem() {
   return (
     <button
       aria-label={drawer.open ? "Close Console" : "Open Console"}
-      className={cn(statusItemClassName, "gap-1.5", unseen > 0 ? "text-warning" : null)}
+      className={cn(statusItemClassName, "gap-2", unseen > 0 ? "text-warning" : null)}
       onClick={() => setConsoleState(drawer.open ? { open: false } : { lastOpenedAt: Date.now(), open: true })}
       type="button"
     >
-      <SquareTerminal className="size-3.5" />
+      <SquareTerminal className="size-4" />
       Console
       {unseen > 0 ? (
-        <Badge className="h-4 px-1 text-[0.65rem]" variant="warning">
+        <Badge className="h-4 px-1 text-xs" variant="warning">
           {unseen}
         </Badge>
       ) : null}
@@ -166,7 +161,7 @@ export function OperationsItem() {
         aria-label={`${label}: ${operationPhaseLabel(shown)}`}
         className={cn(
           statusItemClassName,
-          "grid min-w-0 grid-cols-[auto_minmax(0,auto)_4rem] gap-2",
+          "grid min-w-0 grid-cols-[auto_minmax(0,auto)_--spacing(16)] gap-2",
           shown.status === "failed" ? "text-destructive" : null,
         )}
         data-testid="status-operations"
@@ -253,7 +248,6 @@ function StorageItem() {
   const sources = useQuery({
     queryFn: () => fetchStorageSources(session.identity),
     queryKey: ["shell", "storage-sources", session.identity.generation],
-    staleTime: 30_000,
   });
   if (sources.isError) {
     return <StatusReadout tone="warn" value="Storage Unknown" />;
@@ -307,7 +301,7 @@ function AttentionItem() {
         <DropdownMenuSeparator />
         {entries.map((entry) => (
           <DropdownMenuItem key={entry.id} onSelect={entry.open}>
-            <span className="grid min-w-0 gap-0.5">
+            <span className="grid min-w-0 gap-1">
               <span className="truncate font-medium">{entry.label}</span>
               <span className="truncate text-xs text-muted-foreground">{entry.detail}</span>
             </span>

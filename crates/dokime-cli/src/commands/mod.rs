@@ -84,18 +84,27 @@ pub(crate) enum Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command) -> crate::Result<()> {
+pub(crate) fn configuration(command: &Command) -> crate::Result<dokime::config::Config> {
+    if let Command::Server(args) = command {
+        return server::configuration(args);
+    }
+    Ok(dokime::config::ApplicationOptions::default().resolve()?)
+}
+
+pub(crate) async fn run(command: Command, configuration: dokime::config::Config) -> crate::Result<()> {
+    let preferences = dokime::domain::model::settings::application::ClientPreferences::default();
+    let settings = &preferences;
     match command {
-        Command::Auth(command) => auth::run(command).await,
-        Command::Status(args) => status::run(args).await,
+        Command::Auth(command) => auth::run(command, settings).await,
+        Command::Status(args) => status::run(args, settings).await,
         Command::Backend(command) => backend::run(command),
-        Command::Cycle(command) => cycle::run(command).await,
-        Command::Execution(command) => execution::run(command).await,
-        Command::Catalog(command) => catalog::run(command).await,
-        Command::Operation(command) => operation::run(command).await,
-        Command::Plan(command) => plan::run(command).await,
-        Command::Plugin(command) => plugin::run(command).await,
-        Command::Server(args) => Box::pin(server::run(args)).await,
+        Command::Cycle(command) => cycle::run(command, settings).await,
+        Command::Execution(command) => execution::run(command, settings).await,
+        Command::Catalog(command) => catalog::run(command, settings).await,
+        Command::Operation(command) => operation::run(command, settings).await,
+        Command::Plan(command) => plan::run(command, settings).await,
+        Command::Plugin(command) => plugin::run(command, settings).await,
+        Command::Server(args) => Box::pin(server::run(args, configuration)).await,
         Command::Gui(args) => gui::run(args),
         Command::Version(args) => {
             version::run(args);

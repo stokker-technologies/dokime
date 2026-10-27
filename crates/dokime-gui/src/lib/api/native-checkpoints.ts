@@ -56,6 +56,10 @@ import type {
 import { mapCyclePhase } from "./native-planning";
 import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
 
+const GUI_CHECKPOINT_ARTIFACT_BYTES = 33_554_432;
+const GUI_CHECKPOINT_IDENTITY_BYTES = 4_096;
+const GUI_CHECKPOINT_WINDOW_BYTES = 65_536;
+
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
 type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
 type Severity = Wire<GeneratedSeverity>;
@@ -82,8 +86,8 @@ type NativeExecutionBrowsePage = Wire<GeneratedNativeExecutionBrowsePage>;
 
 /* === Limits and session ownership === */
 
-export const NATIVE_CHECKPOINT_WINDOW_BYTES = 64 * 1024;
-export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = 32 * 1024 * 1024;
+export const NATIVE_CHECKPOINT_WINDOW_BYTES = GUI_CHECKPOINT_WINDOW_BYTES;
+export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = GUI_CHECKPOINT_ARTIFACT_BYTES;
 
 export interface NativeCheckpointSession extends SessionIdentity {
   /** Keep an artifact stream owned by the selected connection generation. */
@@ -96,10 +100,10 @@ export type CheckpointReference = ExecutionCheckpoint;
 export function checkpointKey(checkpoint: CheckpointReference | NativeExecutionCheckpoint): string {
   if (
     !checkpoint.executionIdentifier ||
-    checkpoint.executionIdentifier.length > 4096 ||
+    checkpoint.executionIdentifier.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
     !(checkpoint.version instanceof Uint8Array) ||
     checkpoint.version.length === 0 ||
-    checkpoint.version.length > 4096
+    checkpoint.version.length > GUI_CHECKPOINT_IDENTITY_BYTES
   ) {
     throw new Error("Invalid checkpoint identity or revision token.");
   }
@@ -119,8 +123,8 @@ function checkpointCursor(cursor: CheckpointReference["position"] | NativeStorag
   if (
     !cursor?.history?.store ||
     !cursor.history.epoch ||
-    cursor.history.store.length > 4096 ||
-    cursor.history.epoch.length > 4096 ||
+    cursor.history.store.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
+    cursor.history.epoch.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
     typeof cursor.sequence !== "bigint" ||
     cursor.sequence < 0n ||
     cursor.sequence > 0xffffffffffffffffn

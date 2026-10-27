@@ -22,10 +22,7 @@ use tonic::Status;
 
 // Local Imports
 use super::{cycle_id, status};
-use crate::grpc::{
-    access::Principal,
-    value::{self, canonical},
-};
+use crate::grpc::{access::Principal, value::canonical};
 use dokime::domain::model::identity::CaseId;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::CorrelationId;
@@ -148,17 +145,21 @@ impl Operation for Create {
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let mut metadata = request.metadata.take().ok_or_else(|| Status::invalid_argument("cycle metadata is required"))?;
-        value::text(&metadata.label)?;
         if metadata.label.trim().is_empty() {
             return Err(Status::invalid_argument("cycle label is required"));
         }
         if metadata.identifier.is_empty() {
             metadata.identifier = format!("cycle.{}", dokime::model::identity::new_id::<CommandId>());
         }
-        let metadata = canonical::decode_metadata(&metadata)?;
         let id = self
             .runtime
-            .create_cycle(CycleDefinition { metadata, continue_automatically: request.continue_automatically }, context)
+            .create_cycle(
+                CycleDefinition {
+                    metadata: canonical::decode_metadata(&metadata)?,
+                    continue_automatically: request.continue_automatically,
+                },
+                context,
+            )
             .await
             .map_err(status)?;
         Ok((dokime::domain::model::execution::wire::CreateCycleReply {
@@ -207,16 +208,11 @@ impl Operation for AppendExecutions {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::AppendExecutions, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::AppendCasesReply>, Status> {
-        if request.executions.len() > 1000 {
-            return Err(Status::resource_exhausted("append exceeds 1000 execution limit"));
-        }
         let cycle = cycle_id(&request.cycle_id)?;
         let executions = request
             .executions
             .iter()
             .map(|binding| {
-                value::text(&binding.execution_id)?;
-                value::text(&binding.case_id)?;
                 let execution = TestExecutionId::from_uuid(binding.execution_id.clone())
                     .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
                 let case = CaseId::from_wire(binding.case_id.clone()).map_err(|_| Status::invalid_argument("invalid case ID"))?;
@@ -248,7 +244,6 @@ impl Operation for Delete {
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let cycle = cycle_id(&request.cycle_id)?;
-        value::text(&request.case_id)?;
         let case = CaseId::from_wire(request.case_id.clone()).map_err(|_| Status::invalid_argument("invalid case ID"))?;
         self.runtime.delete_cycle_case(cycle, case, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
@@ -290,7 +285,6 @@ impl Operation for ArchiveExecution {
         &mut self, context: Self::Context<'a>, request: &mut wire::SetExecutionArchived, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ArchiveReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        value::text(&request.execution_id)?;
         let execution =
             TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
         self.runtime.set_execution_archived(execution, request.archived, context).await.map_err(status)?;
@@ -313,7 +307,6 @@ impl Operation for RenameCycle {
         &mut self, context: Self::Context<'a>, request: &mut wire::RenameCycle, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::RenameReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        label_bound(&request.label)?;
         let label =
             self.runtime.rename_cycle(cycle_id(&request.cycle_id)?, std::mem::take(&mut request.label), context).await.map_err(status)?;
         Ok(dokime::domain::model::execution::wire::RenameReply { label }.into())
@@ -335,8 +328,6 @@ impl Operation for RenameExecution {
         &mut self, context: Self::Context<'a>, request: &mut wire::RenameExecution, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::RenameReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        label_bound(&request.label)?;
-        value::text(&request.execution_id)?;
         let execution =
             TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
         let label = self.runtime.rename_execution(execution, std::mem::take(&mut request.label), context).await.map_err(status)?;
@@ -439,7 +430,6 @@ impl Operation for PauseExecution {
         &mut self, context: Self::Context<'a>, request: &mut wire::PauseExecution, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         self.runtime.pause_execution(id, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
@@ -461,7 +451,6 @@ impl Operation for ResumeExecution {
         &mut self, context: Self::Context<'a>, request: &mut wire::ResumeExecution, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         self.runtime.resume_execution(id, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
@@ -483,7 +472,6 @@ impl Operation for StopExecution {
         &mut self, context: Self::Context<'a>, request: &mut wire::StopExecution, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         self.runtime.stop_execution(id, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
@@ -505,7 +493,6 @@ impl Operation for CancelExecution {
         &mut self, context: Self::Context<'a>, request: &mut wire::CancelExecution, _: &mut (),
     ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         self.runtime.cancel_execution(id, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
@@ -537,14 +524,6 @@ pub(in crate::grpc) fn command_context(
 }
 
 /* === Private Functions === */
-
-// A Label Longer Than Any Wire Text Is A Bad Argument, Not A Budget Overrun
-fn label_bound(label: &str) -> Result<(), Status> {
-    if label.len() > value::MAX_TEXT_BYTES {
-        return Err(Status::invalid_argument(format!("label exceeds {} bytes", value::MAX_TEXT_BYTES)));
-    }
-    Ok(())
-}
 
 fn observed(runtime: &RuntimeHandle) -> dokime::domain::model::execution::wire::ControlReply {
     dokime::domain::model::execution::wire::ControlReply { observed_cursor: Some(canonical::cursor(&runtime.watch_state().latest())) }

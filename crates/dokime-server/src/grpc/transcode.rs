@@ -42,9 +42,7 @@ pub(super) struct Untranscodable(#[from] MessageError);
 pub(super) trait Transcode {
     fn wire_bytes(&self) -> Result<Vec<u8>, Untranscodable>;
 
-    fn wire_len(&self) -> Result<usize, Untranscodable> {
-        self.wire_bytes().map(|bytes| bytes.len())
-    }
+    fn wire_len(&self) -> Result<usize, Untranscodable>;
 }
 
 /* === Implementations === */
@@ -54,6 +52,10 @@ impl<T: Portable> Transcode for T {
         let mut bytes = Vec::new();
         <Transcoded as Wire<T>>::encode(self, &mut bytes)?;
         Ok(bytes)
+    }
+
+    fn wire_len(&self) -> Result<usize, Untranscodable> {
+        dokime::harmos::grpc::encoded_len(self).map_err(Untranscodable::from)
     }
 }
 

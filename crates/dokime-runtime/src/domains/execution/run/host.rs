@@ -66,6 +66,12 @@ impl Sessions {
         self.lock().remove(execution);
     }
 
+    pub(crate) fn signal_change(&self, execution: &str) {
+        if let Some(session) = self.get(execution) {
+            session.signal_change();
+        }
+    }
+
     fn get(&self, execution: &str) -> Option<Arc<Session>> {
         self.lock().get(execution).cloned()
     }

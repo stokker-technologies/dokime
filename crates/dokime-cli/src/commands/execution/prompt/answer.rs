@@ -25,6 +25,9 @@ use dokime::domain::model::values::{Value, wire};
 
 /* === Constants === */
 
+const PROMPT_ACTION_BYTES: u64 = 256;
+const VALUE_INPUT_BYTES: u64 = 1_048_576;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -63,14 +66,15 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
+pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
     let execution = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let prompt = PromptId::from_uuid(&args.prompt_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let action = args.action.trim().to_owned();
-    if action.is_empty() || action.len() > 256 {
-        return Err(crate::Error::Input("prompt action must contain 1 to 256 bytes".into()));
+    if action.is_empty() || action.len() as u64 > PROMPT_ACTION_BYTES {
+        return Err(crate::Error::Input("prompt action must be nonempty and within the configured byte limit".into()));
     }
-    let values = answer_values(&args.values_json)?;
+    let values = answer_values(&args.values_json, VALUE_INPUT_BYTES as usize)?;
     let accepted = !["cancel", "abort"].contains(&action.as_str());
 
     let recovery = args.recovery.prepare(&execution)?;
@@ -90,16 +94,16 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 
 /* === Private Functions === */
 
-fn answer_values(input: &str) -> crate::Result<wire::Value> {
-    if input.len() > 1024 * 1024 {
-        return Err(crate::Error::Input("prompt values exceed 1 MiB".into()));
+fn answer_values(input: &str, maximum: usize) -> crate::Result<wire::Value> {
+    if input.len() > maximum {
+        return Err(crate::Error::Input("prompt values exceed the configured byte limit".into()));
     }
     let json: serde_json::Value = serde_json::from_str(input).map_err(|error| crate::Error::Input(error.to_string()))?;
     if !json.is_object() {
         return Err(crate::Error::Input("prompt values must be a JSON object".into()));
     }
     let value = Value::from_plain_json(json).map_err(|error| crate::Error::Input(error.to_string()))?;
-    Ok(wire::Value::from(value))
+    wire::Value::try_from(value).map_err(|error| crate::Error::Input(error.to_string()))
 }
 
 /* === Tests === */

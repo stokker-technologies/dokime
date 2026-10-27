@@ -42,6 +42,7 @@ const SCHEMA_VERSION: u32 = EXECUTION_CONTEXT_SCHEMA_VERSION;
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Source {
+    report_defaults: crate::config::ReportDefaults,
     schema_version: u32,
     owner_node_id: String,
     execution: Option<native::ExecutionRevision>,
@@ -62,6 +63,10 @@ pub(crate) struct Source {
 /* === Implementations === */
 
 impl Source {
+    // The Decode Owner Remains Retained: Moved Strings, Palettes And Schema
+    // Graphs Keep Their Original Claims. This Adds New Collections And The
+    // Simultaneous Conversion/Validation Workspace Before Domain Construction.
+
     pub(crate) fn into_source(self) -> Result<CapturedSource> {
         if self.schema_version != SCHEMA_VERSION {
             return Err(invalid("unsupported native captured report schema"));
@@ -70,6 +75,7 @@ impl Source {
             return Err(invalid("native captured report owner is not canonical"));
         }
         let value = CapturedSource {
+            report_defaults: self.report_defaults,
             owner_node_id: NodeId::from_uuid(self.owner_node_id).map_err(crate::storage::Error::from)?,
             execution: self.execution.map(TryInto::try_into).transpose()?,
             execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(self.execution_id)
@@ -94,6 +100,7 @@ impl TryFrom<&CapturedSource> for Source {
         value.validate_header()?;
         Ok(Self {
             schema_version: SCHEMA_VERSION,
+            report_defaults: value.report_defaults,
             owner_node_id: text(value.owner_node_id.as_str())?,
             execution: value.execution.as_ref().map(native::ExecutionRevision::try_from).transpose()?,
             execution_id: text(value.execution_id.as_str())?,

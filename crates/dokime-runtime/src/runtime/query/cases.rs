@@ -68,16 +68,6 @@ pub struct CaseActions {
 
 /* === Implementations === */
 
-impl CaseProjection {
-    pub fn historical_memory(cycle: &CycleView, test_case_id: &CaseId) -> usize {
-        let (latest, _) = historical_attempts(cycle, test_case_id);
-        std::mem::size_of::<Self>()
-            .saturating_add(latest.map_or(0, |execution| execution.test_execution_id.as_str().len()))
-            .saturating_add(std::mem::size_of::<String>())
-            .saturating_add(HISTORICAL.len())
-    }
-}
-
 /* === Public Functions === */
 
 pub fn case_projection(_state: &RuntimeState, cycle: &CycleView, test_case_id: &CaseId) -> CaseProjection {

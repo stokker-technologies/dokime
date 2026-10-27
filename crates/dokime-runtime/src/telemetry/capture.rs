@@ -45,8 +45,10 @@ use dokime_domain::model::values::Value;
 
 /* === Public Functions === */
 
-pub fn capture_payload(schema: &Schema, values: &BTreeMap<String, Value>) -> Result<Vec<u8>, String> {
-    schema.preparation(&harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
+pub fn capture_payload(
+    schema: &Schema, values: &BTreeMap<String, Value>, settings: &harmos::config::SchemaSettings,
+) -> Result<Vec<u8>, String> {
+    schema.preparation(settings).map_err(|error| error.to_string())?;
     let fields = schema.definitions.get(schema.root).ok_or("matcher schema root is absent")?;
     if values.keys().any(|name| !fields.iter().any(|field| field.name == name.as_str())) {
         return Err("matcher values contain an undeclared field".into());
@@ -138,12 +140,12 @@ mod tests {
         let graph = Schema::from_declaration(Reading::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
         let row = Reading { counter: u64::MAX, voltage: 1.5, state: None };
         let values = BTreeMap::from([("counter".to_owned(), Value::Unsigned(u64::MAX)), ("voltage".to_owned(), Value::Number(1.5))]);
-        assert_eq!(capture_payload(&graph, &values).unwrap(), row.encode_to_vec());
+        assert_eq!(capture_payload(&graph, &values, &Default::default()).unwrap(), row.encode_to_vec());
         let mut unknown = values.clone();
         unknown.insert("undeclared".to_owned(), Value::Bool(true));
-        assert!(capture_payload(&graph, &unknown).is_err());
+        assert!(capture_payload(&graph, &unknown, &Default::default()).is_err());
         let mut invalid = values;
         invalid.insert("counter".to_owned(), Value::Integer(-1));
-        assert!(capture_payload(&graph, &invalid).is_err());
+        assert!(capture_payload(&graph, &invalid, &Default::default()).is_err());
     }
 }

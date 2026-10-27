@@ -42,11 +42,12 @@ use crate::grpc::redaction;
 
 /* === Constants === */
 
+const SERVER_TRACE_FIELDS: u64 = 32;
+const SERVER_TRACE_MESSAGE_BYTES: u64 = 8_192;
+const SERVER_TRACE_NAME_BYTES: u64 = 64;
+const SERVER_TRACE_VALUE_BYTES: u64 = 1_024;
+
 pub const WATCH_SPAN: &str = "dokime.trace.watch";
-const MAX_MESSAGE_BYTES: usize = 8 * 1024;
-const MAX_VALUE_BYTES: usize = 1024;
-const MAX_NAME_BYTES: usize = 64;
-const MAX_FIELDS: usize = 32;
 const TRUNCATED: &str = "…";
 const BEARER: &str = "bearer ";
 
@@ -57,6 +58,7 @@ const BEARER: &str = "bearer ";
 /* === Structs === */
 
 pub struct Capture {
+    limits: FieldLimits,
     journal: Arc<Journal>,
 }
 
@@ -67,8 +69,8 @@ struct SpanScope {
     execution: Option<String>,
 }
 
-#[derive(Default)]
 struct Fields {
+    limits: FieldLimits,
     message: Option<String>,
     line: Option<String>,
     time: Option<OffsetDateTime>,
@@ -76,7 +78,15 @@ struct Fields {
     fields: Vec<(String, String)>,
 }
 
-struct BoundedText(String);
+#[derive(Clone, Copy)]
+struct FieldLimits {
+    message: usize,
+    value: usize,
+    name: usize,
+    fields: usize,
+}
+
+struct BoundedText(String, usize);
 
 /* === Enums === */
 
@@ -96,7 +106,7 @@ enum Role {
 
 impl std::fmt::Write for BoundedText {
     fn write_str(&mut self, text: &str) -> std::fmt::Result {
-        let remaining = MAX_MESSAGE_BYTES.saturating_sub(self.0.len());
+        let remaining = self.1.saturating_sub(self.0.len());
         if text.len() <= remaining {
             self.0.push_str(text);
             return Ok(());
@@ -111,7 +121,13 @@ impl std::fmt::Write for BoundedText {
 impl Capture {
     pub fn new(journal: Arc<Journal>) -> Self {
         journal.mark_installed();
-        Self { journal }
+        let limits = FieldLimits {
+            message: usize::try_from(SERVER_TRACE_MESSAGE_BYTES).expect("validated trace message bytes"),
+            value: usize::try_from(SERVER_TRACE_VALUE_BYTES).expect("validated trace value bytes"),
+            name: usize::try_from(SERVER_TRACE_NAME_BYTES).expect("validated trace name bytes"),
+            fields: usize::try_from(SERVER_TRACE_FIELDS).expect("validated trace field count"),
+        };
+        Self { journal, limits }
     }
 }
 
@@ -123,7 +139,7 @@ where
         let Some(span) = context.span(id) else {
             return;
         };
-        let mut fields = Fields::default();
+        let mut fields = Fields::new(self.limits);
         attributes.record(&mut fields);
         span.extensions_mut().insert(fields.scope);
     }
@@ -132,7 +148,7 @@ where
         let Some(span) = context.span(id) else {
             return;
         };
-        let mut fields = Fields::default();
+        let mut fields = Fields::new(self.limits);
         values.record(&mut fields);
         let mut extensions = span.extensions_mut();
         match extensions.get_mut::<SpanScope>() {
@@ -143,7 +159,7 @@ where
 
     fn on_event(&self, event: &TracingEvent<'_>, context: Context<'_, S>) {
         // Read The Event's Own Fields
-        let mut fields = Fields::default();
+        let mut fields = Fields::new(self.limits);
         event.record(&mut fields);
 
         // Fill Missing Scope Ids From The Enclosing Spans, Nearest First
@@ -164,8 +180,8 @@ where
         self.journal.record(Event {
             time: fields.time.unwrap_or_else(OffsetDateTime::now_utc),
             level: *metadata.level(),
-            target: truncated(&scrubbed(metadata.target()), MAX_VALUE_BYTES),
-            message: truncated(&scrubbed(&message), MAX_MESSAGE_BYTES),
+            target: truncated(&scrubbed(metadata.target()), self.limits.value),
+            message: truncated(&scrubbed(&message), self.limits.message),
             plugin: fields.scope.plugin,
             cycle: fields.scope.cycle,
             execution: fields.scope.execution,
@@ -195,6 +211,10 @@ impl SpanScope {
 }
 
 impl Fields {
+    fn new(limits: FieldLimits) -> Self {
+        Self { limits, message: None, line: None, time: None, scope: SpanScope::default(), fields: Vec::new() }
+    }
+
     fn put(&mut self, field: &Field, value: String) {
         let name = field.name();
         match Role::of(name) {
@@ -204,26 +224,26 @@ impl Fields {
                 Ok(time) => self.time = Some(time),
                 Err(_) => self.other(name, value),
             },
-            Role::Plugin => self.scope.plugin = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES)),
-            Role::Cycle => self.scope.cycle = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES)),
-            Role::Execution => self.scope.execution = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES)),
+            Role::Plugin => self.scope.plugin = Some(truncated(&scrubbed(&value), self.limits.value)),
+            Role::Cycle => self.scope.cycle = Some(truncated(&scrubbed(&value), self.limits.value)),
+            Role::Execution => self.scope.execution = Some(truncated(&scrubbed(&value), self.limits.value)),
             Role::Other => self.other(name, value),
         }
     }
 
     fn other(&mut self, name: &str, value: String) {
-        if self.fields.len() >= MAX_FIELDS {
+        if self.fields.len() >= self.limits.fields {
             return;
         }
         let value =
-            if redaction::is_secret_name(name) { redaction::REDACTED.to_owned() } else { truncated(&scrubbed(&value), MAX_VALUE_BYTES) };
-        self.fields.push((truncated(name, MAX_NAME_BYTES), value));
+            if redaction::is_secret_name(name) { redaction::REDACTED.to_owned() } else { truncated(&scrubbed(&value), self.limits.value) };
+        self.fields.push((truncated(name, self.limits.name), value));
     }
 }
 
 impl Visit for Fields {
     fn record_str(&mut self, field: &Field, value: &str) {
-        self.put(field, truncated(value, MAX_MESSAGE_BYTES));
+        self.put(field, truncated(value, self.limits.message));
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
@@ -248,7 +268,7 @@ impl Visit for Fields {
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         use std::fmt::Write as _;
-        let mut value_text = BoundedText(String::new());
+        let mut value_text = BoundedText(String::new(), self.limits.message);
         let _ = write!(value_text, "{value:?}");
         self.put(field, value_text.0);
     }

@@ -22,10 +22,8 @@ pub(crate) use crate::transactions::AddOperatorNote;
 // Local Imports
 use crate::RuntimeHandle;
 use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
-use dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES;
 use dokime_domain::model::execution::notes::NOTE_EDIT_NOT_AUTHOR;
 use dokime_domain::model::execution::notes::NOTE_OWNER_SEALED;
-use dokime_domain::model::execution::notes::NOTE_TEXT_BYTES;
 use dokime_domain::model::execution::notes::NoteAdmission;
 use dokime_domain::model::execution::notes::NoteOwner;
 use dokime_domain::model::execution::notes::OperatorNote;
@@ -113,9 +111,9 @@ pub enum NoteError {
 impl RuntimeHandle {
     pub async fn create_current_note(&self, request: CreateNote) -> Result<NoteCreation, NoteError> {
         if request.actor.is_empty()
-            || request.actor.len() > NOTE_ACTOR_BYTES
+            || request.actor.len() > crate::state::notes::NOTE_ACTOR_BYTES
             || request.message.trim().is_empty()
-            || request.message.len() > NOTE_TEXT_BYTES
+            || request.message.len() > crate::state::notes::NOTE_TEXT_BYTES
         {
             return Err(NoteError::Invalid("note actor/text exceeds bounds or is empty".into()));
         }
@@ -207,7 +205,7 @@ impl RuntimeHandle {
     }
 
     pub async fn edit_current_note(&self, request: EditNote) -> Result<OperatorNote, NoteError> {
-        if request.message.trim().is_empty() || request.message.len() > NOTE_TEXT_BYTES {
+        if request.message.trim().is_empty() || request.message.len() > crate::state::notes::NOTE_TEXT_BYTES {
             return Err(NoteError::Invalid("note text exceeds bounds or is empty".into()));
         }
         if self.is_shutting_down() {

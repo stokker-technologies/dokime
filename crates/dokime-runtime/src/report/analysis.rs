@@ -28,7 +28,7 @@ use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
 use crate::{
     RuntimeHandle,
-    plot::{PlotPayload, PlotPayloadCursor, PlotPayloadRequest},
+    plot::{PlotPayload, PlotPayloadRequest},
     runtime::Error,
     runtime::Result,
 };
@@ -89,39 +89,22 @@ impl Resources {
 /* === Public Functions === */
 
 pub(crate) async fn materialize(
-    ctx: &Context<'_>, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: PlotPayload,
-    contract: Option<&TelemetryContract>,
-) -> Result<PlotPayload> {
+    ctx: &Context<'_>, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: harmos::storage::ReadBatch<PlotPayload>,
+    contract: Option<&TelemetryContract>, position: &harmos::storage::StorageCursor,
+) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
     let resources = &ctx.scope().resources::<crate::app::Dokime>().analysis;
     let state = ctx.scope().state::<crate::app::Dokime>().state();
     let prepared = state
-        .read(|state| {
-            crate::runtime::query::plots::analysis::Prepared::resolve_with(resources, state, request)
-                .map(|prepared| (prepared, state.process_epoch().to_string()))
-        })
+        .read(|state| crate::runtime::query::plots::analysis::Prepared::resolve_with(resources, state, request))
         .await
         .map_err(|error| Error::Operation(error.to_string()))?
         .value?;
-    let (Some(prepared), epoch) = prepared else {
+    let Some(prepared) = prepared else {
         return Ok(payload);
     };
     prepared.check_evidence(telemetry, request)?;
-    let mut cursor = PlotPayloadCursor::default();
-    for sample in telemetry.iter().filter(|sample| {
-        sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
-    }) {
-        let stream = crate::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-        let ordinal = cursor.telemetry_streams.entry(stream).or_default();
-        *ordinal = (*ordinal).max(sample.sequence);
-    }
     prepared
-        .execute_in(
-            crate::runtime::query::plots::analysis::Environment::Report { ctx, resources, epoch: &epoch },
-            request,
-            &cursor,
-            payload,
-            contract,
-        )
+        .execute_in(crate::runtime::query::plots::analysis::Environment::Report { ctx, resources }, request, position, payload, contract)
         .await
 }
 

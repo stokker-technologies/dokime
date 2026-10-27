@@ -9,18 +9,12 @@
 
 /* === External Imports === */
 
-import { Activity, CircleUser, Info, type LucideIcon, Network, PackagePlus, Palette, Settings } from "lucide-react";
+import { Activity, CircleUser, Info, type LucideIcon, Network, PackagePlus, Palette } from "lucide-react";
 
 /* === Constants === */
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
-  {
-    id: "general",
-    label: "General",
-    description: "Execution storage and restart",
-    icon: Settings,
-    group: "primary",
-  },
+  { id: "backends", label: "Backends", description: "Saved backend connections", icon: Network, group: "primary" },
   {
     id: "remote",
     label: "Remote Access",
@@ -35,13 +29,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Palette,
     group: "primary",
   },
-  {
-    id: "identity",
-    label: "Identity",
-    description: "Host and installed plugin identity",
-    icon: CircleUser,
-    group: "primary",
-  },
+  { id: "organization", label: "Organization", description: "Organization identity and pack", icon: Palette, group: "primary" },
   {
     id: "plugins",
     label: "Plugins",
@@ -50,15 +38,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: "primary",
   },
   {
-    id: "account-updates",
-    label: "Account & Updates",
-    description: "Sign-in and desktop updates",
-    icon: CircleUser,
-    group: "primary",
-  },
-  {
     id: "secrets",
-    label: "Secret Storage",
+    label: "Secrets",
     description: "Shared named secrets on the connected host",
     icon: CircleUser,
     group: "primary",
@@ -79,7 +60,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
 ];
 
-export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = "general";
+export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = "backends";
 
 /* === Types === */
 

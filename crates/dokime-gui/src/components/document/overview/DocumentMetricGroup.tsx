@@ -37,7 +37,7 @@ export function DocumentMetricGroup({
   return (
     <section
       aria-label={title}
-      className={`grid min-w-[min(100%,var(--metric-group-width))] max-w-full flex-[1_1_var(--metric-group-width)] gap-2 rounded-md border border-transparent p-1 transition-colors ${isDragging ? "border-primary/40 bg-primary/5 opacity-70" : ""} ${isTarget ? "border-primary/40" : ""}`}
+      className={`grid min-w-[min(100%,var(--metric-group-width))] max-w-full flex-[1_1_var(--metric-group-width)] gap-2 rounded-lg border border-transparent p-1 transition-colors ${isDragging ? "border-primary/40 bg-primary/5 opacity-70" : ""} ${isTarget ? "border-primary/40" : ""}`}
       data-metric-group-id={groupId}
       data-testid={`metric-group-${groupId}`}
       style={style}

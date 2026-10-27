@@ -66,7 +66,7 @@ export function AnalysisResult({ result, title, stateLabel, stateDetail }: Analy
             <select
               id={inputId}
               value={selected < entries.length ? selected : 0}
-              className="rounded-md border bg-background px-2 py-1 text-sm"
+              className="rounded-lg border bg-background px-2 py-1 text-sm"
               onChange={(event) => setSelected(Number(event.target.value))}
             >
               {entries.map((item, index) => (

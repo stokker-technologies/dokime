@@ -635,7 +635,6 @@ async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> mod
             execution_id: Some(execution_id.to_owned()),
             ..Default::default()
         }),
-        cursor: None,
         technique: DownsampleTechnique::Unspecified,
         z_expression: None,
         fft: None,
@@ -708,7 +707,7 @@ fn plan(
 }
 
 fn number(value: f64) -> model::values::wire::Value {
-    model::values::wire::Value::from(&Value::Number(value))
+    model::values::wire::Value::try_from(&Value::Number(value)).unwrap()
 }
 
 fn padded_bundle(path: &Path, size: usize) -> Vec<u8> {
@@ -740,7 +739,7 @@ fn text(value: &str) -> Value {
 }
 
 fn object(fields: impl IntoIterator<Item = (&'static str, Value)>) -> model::values::wire::Value {
-    model::values::wire::Value::from(&Value::Object(fields.into_iter().map(|(key, value)| (key.to_owned(), value)).collect()))
+    model::values::wire::Value::try_from(&Value::Object(fields.into_iter().map(|(key, value)| (key.to_owned(), value)).collect())).unwrap()
 }
 
 /* === Tests === */

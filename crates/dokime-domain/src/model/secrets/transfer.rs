@@ -25,9 +25,6 @@ use super::catalog::Metadata;
 
 /* === Constants === */
 
-pub const MAX_DOCUMENT_BYTES: usize = 512 * 1024;
-pub const MAX_ARCHIVE_BYTES: usize = 4 * MAX_DOCUMENT_BYTES.div_ceil(3);
-
 /* === Macros === */
 
 /* === Type Aliases === */

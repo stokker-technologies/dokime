@@ -70,6 +70,9 @@ pub struct RecordingSink {
     chunks: Mutex<Vec<ArtifactChunk>>,
     samples: Mutex<Vec<TelemetrySample>>,
     delivered: Mutex<Vec<Record>>,
+
+    #[cfg(feature = "native")]
+    changed: Arc<tokio::sync::Notify>,
 }
 
 struct RecordingJournal {
@@ -254,6 +257,8 @@ impl RecordingSink {
 
     pub fn deliver(&self, record: Record) {
         self.delivered.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(record);
+        #[cfg(feature = "native")]
+        self.changed.notify_waiters();
     }
 
     pub fn assembled(&self, name: &str) -> Vec<u8> {
@@ -301,6 +306,16 @@ impl SampleSink for RecordingSink {
 }
 
 impl RecordSource for RecordingSink {
+    #[cfg(feature = "native")]
+    fn changed(&self) -> Arc<tokio::sync::Notify> {
+        Arc::clone(&self.changed)
+    }
+
+    #[cfg(feature = "native")]
+    fn closed(&self) -> bool {
+        false
+    }
+
     fn delivered(&self, index: usize) -> Option<Record> {
         self.delivered.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(index).cloned()
     }

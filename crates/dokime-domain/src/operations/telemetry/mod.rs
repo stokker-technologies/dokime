@@ -10,10 +10,12 @@
 /* === Modules === */
 
 mod list_samples;
+mod watch_samples;
 
 /* === Re-Exports === */
 
 pub use list_samples::ListSamples;
+pub use watch_samples::WatchSamples;
 
 /* === Imports === */
 
@@ -23,6 +25,7 @@ pub use list_samples::ListSamples;
 
 // Local Imports
 use super::Endpoint;
+use super::FOLLOW;
 use super::ORDINARY;
 
 #[allow(unused_imports)]
@@ -42,6 +45,7 @@ use crate::model::telemetry::wire::*;
 #[harmos_domain::catalog]
 pub enum Operations {
     ListSamples(ListSamples),
+    WatchSamples(WatchSamples),
 }
 
 /* === Traits === */
@@ -50,6 +54,10 @@ pub enum Operations {
 
 impl Endpoint for ListSamples {
     const PATH: &'static str = "/dokime.v1.Telemetry/ListSamples";
+}
+
+impl Endpoint for WatchSamples {
+    const PATH: &'static str = "/dokime.v1.Telemetry/WatchSamples";
 }
 
 /* === Public Functions === */

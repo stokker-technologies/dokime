@@ -22,11 +22,15 @@ use url::{Host, Url};
 
 // Local Imports
 use super::{Error, Result};
+use dokime_domain::model::settings::application::ClientPreferences;
 
 /* === Constants === */
 
-const STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
-const CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+const CA_BYTES: usize = 1_048_576;
+const CONNECTION_WINDOW_BYTES: u64 = 16_777_216;
+const KEEPALIVE_INTERVAL_MS: u64 = 10_000;
+const KEEPALIVE_TIMEOUT_MS: u64 = 5_000;
+const STREAM_WINDOW_BYTES: u64 = 4_194_304;
 
 /* === Macros === */
 
@@ -39,6 +43,7 @@ pub struct Target {
     endpoint: String,
     remote: bool,
     ca: Option<String>,
+    settings: ClientPreferences,
 }
 
 /* === Enums === */
@@ -67,6 +72,15 @@ impl Target {
         self.remote
     }
 
+    pub fn with_settings(mut self, settings: ClientPreferences) -> Self {
+        self.settings = settings;
+        self
+    }
+
+    pub fn settings(&self) -> &ClientPreferences {
+        &self.settings
+    }
+
     fn parse(endpoint: String, remote: Option<bool>, ca: Option<String>) -> Result<Self> {
         let mut url = Url::parse(&endpoint).map_err(|_| invalid_target("An absolute backend endpoint is required."))?;
         if !matches!(url.scheme(), "http" | "https")
@@ -86,46 +100,28 @@ impl Target {
         let loopback = matches!(url.host(), Some(Host::Ipv4(ip)) if ip.is_loopback())
             || matches!(url.host(), Some(Host::Ipv6(ip)) if ip.is_loopback());
         let remote = remote.unwrap_or(url.scheme() == "https" || !loopback);
+        if ca.as_ref().is_some_and(|pem| pem.is_empty() || pem.len() > CA_BYTES || pem.contains('\0')) {
+            return Err(invalid_target("Invalid CA certificate."));
+        }
         if ca.is_some() && url.scheme() != "https" {
             return Err(invalid_target("CA certificates require HTTPS."));
         }
         if !remote && !loopback {
             return Err(invalid_target("Local endpoints require a literal loopback IP address."));
         }
-        Ok(Self { endpoint: url.to_string(), remote, ca })
+        Ok(Self { endpoint: url.to_string(), remote, ca, settings: ClientPreferences::default() })
     }
 
     pub(super) async fn connect(&self) -> Result<tonic::transport::Channel> {
+        self.settings.validate().map_err(|_| invalid_target("Invalid client configuration."))?;
         let mut endpoint = Endpoint::from_shared(self.endpoint.clone())
             .map_err(|_| invalid_target("Invalid backend endpoint."))?
-            .connect_timeout(Duration::from_secs(10))
-            // HTTP/2 PINGs are the actual liveness bound: a black-holed
-            // connection (no bytes flowing either direction, so no server
-            // deadline or client timeout ever fires) is detected within
-            // ~15s (one 10s keepalive interval, then a 5s wait for the PING
-            // ACK) and the connection is torn down, failing any request in
-            // flight on it. `keep_alive_while_idle` keeps that detection
-            // running even between calls, so a connection that died while
-            // idle is never handed a new request.
-            .http2_keep_alive_interval(Duration::from_secs(10))
-            .keep_alive_timeout(Duration::from_secs(5))
+            .connect_timeout(Duration::from_millis(self.settings.connect_timeout_ms))
+            .http2_keep_alive_interval(Duration::from_millis(KEEPALIVE_INTERVAL_MS))
+            .keep_alive_timeout(Duration::from_millis(KEEPALIVE_TIMEOUT_MS))
             .keep_alive_while_idle(true)
-            // Hyper's 2 MiB stream window bounds one download at about 100 MB/s
-            // per 20 ms of round trip; the larger windows keep a fast remote
-            // link bandwidth-bound rather than window-bound.
-            .initial_stream_window_size(STREAM_WINDOW_BYTES)
-            .initial_connection_window_size(CONNECTION_WINDOW_BYTES)
-            // Every RPC on this channel shares one deadline too; the
-            // backend's own per-route `Deadlines` layer already fails fast
-            // (10s) for ordinary calls and allows up to 300s for uploads and
-            // report generation (crates/dokime-server/src/grpc/deadline.rs).
-            // Setting this below that longest server-side budget would let
-            // the client sever a report generation the server was still
-            // willing to finish, so it stays a generous backstop above the
-            // server's own ceiling — not the primary bound, and no longer
-            // the thing standing between a hung remote backend and the user
-            // (keepalive now is).
-            .timeout(Duration::from_secs(310));
+            .initial_stream_window_size(STREAM_WINDOW_BYTES as u32)
+            .initial_connection_window_size(CONNECTION_WINDOW_BYTES as u32);
         if self.endpoint.starts_with("https:") {
             // Select Ring when the host has not
             // already selected a process provider, as the native server does.

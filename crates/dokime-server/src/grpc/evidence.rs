@@ -35,15 +35,16 @@ use selection::Selection;
 
 /* === Constants === */
 
-const SCAN_LIMIT: usize = 1000;
-const RECORD_LIMIT: usize = 1000;
-const PAGE_BYTES: usize = 512 * 1024;
+const SERVER_EVIDENCE_PAGE_BYTES: u64 = 524_288;
+const SERVER_EVIDENCE_RECORD_ITEMS: u64 = 1_000;
+const SERVER_EVIDENCE_SCAN_ITEMS: u64 = 1_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 type Page = dokime::domain::model::evidence::wire::RecordPage;
+type TailEntry = (usize, dokime::domain::model::evidence::wire::CapturedRecord);
 
 /* === Structs === */
 
@@ -53,6 +54,8 @@ struct Resources {
 }
 
 struct Reader {
+    scan_items: usize,
+    record_items: usize,
     source: CapturedRecords,
     selection: Selection,
     scanned: u64,
@@ -62,7 +65,8 @@ struct Reader {
 
 // The newest matching records of a tail scan, bounded by count and bytes.
 struct Tail {
-    kept: VecDeque<(usize, dokime::domain::model::evidence::wire::CapturedRecord)>,
+    page: Page,
+    kept: VecDeque<TailEntry>,
     keep: usize,
     budget: usize,
     bytes: usize,
@@ -92,7 +96,11 @@ impl Reader {
         runtime: &RuntimeHandle, selection: Option<dokime::domain::model::evidence::wire::CapturedRecordSelection>, after: Option<Cursor>,
         through: Option<Cursor>, bytes: usize,
     ) -> Result<Self, Status> {
-        let source = runtime.captured_records();
+        let scan_items = usize::try_from(SERVER_EVIDENCE_SCAN_ITEMS).expect("validated record scan limit");
+        let record_items = usize::try_from(SERVER_EVIDENCE_RECORD_ITEMS).expect("validated record page count");
+        let page_bytes = usize::try_from(SERVER_EVIDENCE_PAGE_BYTES).expect("validated record page bytes");
+        let session = runtime.storage().clone();
+        let source = runtime.captured_records_in(&session);
         let selection = Selection::new(selection)?;
         let validate = |cursor: &Cursor| {
             if cursor.epoch != source.epoch() || cursor.stream != selection.stream {
@@ -108,108 +116,150 @@ impl Reader {
         if scanned > through {
             return Err(Status::invalid_argument("record cursor exceeds replay frontier"));
         }
-        Ok(Self { source, selection, scanned, through, bytes: bytes.min(PAGE_BYTES) })
+        Ok(Self { source, selection, scanned, through, bytes: bytes.min(page_bytes), scan_items, record_items })
     }
-    fn cursor(&self, position: u64) -> Cursor {
-        Cursor { epoch: self.source.epoch().into(), stream: self.selection.stream.clone(), position }
+    fn cursor(&self, position: u64) -> dokime::harmos::Result<Cursor> {
+        Ok(Cursor {
+            epoch: super::value::projection::text(self.source.epoch())?,
+            stream: super::value::projection::text(&self.selection.stream)?,
+            position,
+        })
     }
-    async fn page(&mut self) -> Result<Page, Status> {
+    fn empty_page(&self, capacity: usize) -> Result<dokime::harmos::storage::ReadBatch<Page>, Status> {
+        let seed = dokime::harmos::storage::ReadBatch::new(());
+        seed.try_map(|_| {
+            Ok::<_, dokime::harmos::Error>(Page {
+                records: super::value::projection::slots(capacity)?,
+                scanned: Some(self.cursor(self.through)?),
+                through: Some(self.cursor(self.through)?),
+                replay_complete: true,
+                retained_after: 0,
+            })
+        })
+        .map_err(memory_error)
+    }
+
+    async fn page(&mut self) -> Result<dokime::harmos::storage::ReadBatch<Page>, Status> {
         let mut scanned = self.scanned;
-        let mut page = dokime::domain::model::evidence::wire::RecordPage {
-            records: Vec::with_capacity(RECORD_LIMIT),
-            scanned: Some(self.cursor(scanned)),
-            through: Some(self.cursor(self.through)),
-            replay_complete: false,
-            retained_after: 0,
-        };
-        // Reserve the maximum cursor varint and final boolean before accepting
-        // records. A rejected candidate is never acknowledged by scanned.
-        let overhead = page.wire_len()? + 32;
-        if overhead > self.bytes {
-            return Err(Status::resource_exhausted("record page envelope exceeds transport limit"));
+        let mut page = self.empty_page(self.record_items)?;
+        // Final Frontier And Completion Bound Every Intermediate Cursor Encoding.
+        let mut bytes = page.wire_len()?;
+
+        if bytes > self.bytes {
+            return Err(exhausted());
         }
-        let mut bytes = overhead;
-        for _ in 0..SCAN_LIMIT {
+        for _ in 0..self.scan_items {
             let next = self.source.next(scanned, self.through).await.map_err(capture_error)?;
             let Some(record) = next else {
                 scanned = self.through;
                 break;
             };
             if self.selection.matches(&record) {
-                let encoded = canonical::record(&record)?;
-                let size = encoded.wire_len()?.saturating_add(10);
-                if bytes.saturating_add(size) > self.bytes {
-                    if page.records.is_empty() {
-                        return Err(Status::resource_exhausted("captured record exceeds page limit; cursor has not advanced"));
-                    }
+                let mut accepted = false;
+                page = page
+                    .try_map(|mut page| {
+                        let encoded = canonical::record(&record).map_err(projection_error)?;
+                        let size = record_wire_size(&encoded).map_err(projection_error)?;
+                        let total = bytes.checked_add(size).ok_or_else(|| projection_error(exhausted()))?;
+                        if total > self.bytes {
+                            if page.records.is_empty() {
+                                return Err(projection_error(Status::resource_exhausted(
+                                    "captured record exceeds page limit; cursor has not advanced",
+                                )));
+                            }
+                            return Ok(page);
+                        }
+                        bytes = total;
+                        accepted = true;
+                        page.records.push(encoded);
+                        Ok::<_, dokime::harmos::Error>(page)
+                    })
+                    .map_err(memory_error)?;
+                if !accepted {
                     break;
                 }
-                bytes += size;
-                page.records.push(encoded);
             }
             scanned = record.sequence;
-            if page.records.len() == RECORD_LIMIT {
+            if page.records.len() == self.record_items {
                 break;
             }
         }
-        page.scanned = Some(self.cursor(scanned));
-        page.replay_complete = scanned == self.through;
+        page = page
+            .try_map(|mut page| {
+                page.scanned.as_mut().expect("page has scanned cursor").position = scanned;
+                page.replay_complete = scanned == self.through;
+                Ok::<_, dokime::harmos::Error>(page)
+            })
+            .map_err(memory_error)?;
         self.scanned = scanned;
         Ok(page)
     }
-    // Scans the whole replay through the frontier fixed at construction and
-    // keeps the newest matching records that fit the count and byte budgets.
-    async fn tail(&mut self, latest: usize) -> Result<Page, Status> {
-        let mut page = dokime::domain::model::evidence::wire::RecordPage {
-            records: Vec::new(),
-            scanned: Some(self.cursor(self.through)),
-            through: Some(self.cursor(self.through)),
-            replay_complete: true,
-            retained_after: 0,
-        };
-        let overhead = page.wire_len()? + 32;
-        let Some(budget) = self.bytes.checked_sub(overhead) else {
-            return Err(Status::resource_exhausted("record page envelope exceeds transport limit"));
-        };
 
-        let mut window = Tail::new(latest.min(RECORD_LIMIT), budget);
+    async fn tail(&mut self, latest: usize) -> Result<dokime::harmos::storage::ReadBatch<Page>, Status> {
+        let keep = latest.min(self.record_items);
+        let page = self.empty_page(0)?;
+        let overhead = page.wire_len()?;
+        let budget = self.bytes.checked_sub(overhead).ok_or_else(exhausted)?;
+        let mut window = page
+            .try_map(|page| {
+                let mut kept = VecDeque::new();
+                kept.try_reserve_exact(keep).map_err(|_| projection_error(exhausted()))?;
+
+                Ok::<_, dokime::harmos::Error>(Tail { page, kept, keep, budget, bytes: 0, oversized: false })
+            })
+            .map_err(memory_error)?;
         let mut scanned = self.scanned;
         while let Some(record) = self.source.next(scanned, self.through).await.map_err(capture_error)? {
             scanned = record.sequence;
-            window.offer(&self.selection, &record)?;
-        }
+            if !self.selection.matches(&record) {
+                continue;
+            }
 
+            window = window
+                .try_map(|mut window| {
+                    window.offer(&record).map_err(projection_error)?;
+                    Ok::<_, dokime::harmos::Error>(window)
+                })
+                .map_err(memory_error)?;
+        }
+        let page = window
+            .try_map(|mut window| {
+                if window.oversized {
+                    return Err(projection_error(Status::resource_exhausted("newest captured record exceeds page limit")));
+                }
+                let mut records = super::value::projection::slots(window.kept.len())?;
+                for (_, record) in window.kept {
+                    records.push(record);
+                }
+                window.page.records = records;
+                Ok::<_, dokime::harmos::Error>(window.page)
+            })
+            .map_err(memory_error)?;
         self.scanned = self.through;
-        page.records = window.finish()?;
         Ok(page)
     }
 }
 
 impl Tail {
-    fn new(keep: usize, budget: usize) -> Self {
-        Self { kept: VecDeque::with_capacity(keep), keep, budget, bytes: 0, oversized: false }
-    }
-    fn offer(&mut self, selection: &Selection, record: &dokime::runtime::CapturedRecord) -> Result<(), Status> {
-        if !selection.matches(record) {
+    fn offer(&mut self, record: &dokime::runtime::CapturedRecord) -> Result<(), Status> {
+        let encoded = canonical::record(record)?;
+        let size = record_wire_size(&encoded)?;
+        self.oversized = size > self.budget;
+        while !self.kept.is_empty() {
+            let total = self.bytes.checked_add(size).ok_or_else(exhausted)?;
+            if self.kept.len() < self.keep && total <= self.budget {
+                break;
+            }
+            let (bytes, record) = self.kept.pop_front().expect("nonempty tail");
+            self.bytes -= bytes;
+            drop(record);
+        }
+        if self.oversized || self.keep == 0 {
             return Ok(());
         }
-        let encoded = canonical::record(record)?;
-        let size = encoded.wire_len()?.saturating_add(10);
-        self.oversized = size > self.budget;
-        self.bytes = self.bytes.saturating_add(size);
+        self.bytes = self.bytes.checked_add(size).ok_or_else(exhausted)?;
         self.kept.push_back((size, encoded));
-        while self.kept.len() > self.keep || self.bytes > self.budget {
-            let Some((evicted, _)) = self.kept.pop_front() else { break };
-            self.bytes -= evicted;
-        }
         Ok(())
-    }
-    fn finish(self) -> Result<Vec<dokime::domain::model::evidence::wire::CapturedRecord>, Status> {
-        if self.oversized {
-            return Err(Status::resource_exhausted("newest captured record exceeds page limit"));
-        }
-        let records = self.kept.into_iter().map(|(_, record)| record);
-        Ok(records.collect())
     }
 }
 
@@ -242,7 +292,7 @@ impl Operation for List {
             0 => reader.page().await?,
             latest => reader.tail(latest as usize).await?,
         };
-        Ok(page.into())
+        Ok(Response::from_owner(page.owner()))
     }
 }
 
@@ -268,7 +318,8 @@ impl Operation for Watch {
                     None => return Ok(().into()),
                 }
             }
-            output.send_owned(reader.page().await?.into()).await.map_err(memory_error)?;
+            let page = reader.page().await?;
+            output.send_owned(Response::from_owner(page.owner())).await.map_err(memory_error)?;
             initial = false;
         }
     }
@@ -290,7 +341,6 @@ impl Operation for Schema {
         if request.epoch != self.resources.runtime.captured_records().epoch() {
             return Err(Status::failed_precondition("record schema epoch mismatch; resynchronize"));
         }
-        super::value::text(&request.record_type)?;
         let kind = dokime::domain::model::identity::Identifier::new(std::mem::take(&mut request.record_type))
             .map_err(|_| Status::invalid_argument("invalid record type"))?;
         let contract = snapshot
@@ -316,6 +366,26 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
+fn record_wire_size(record: &dokime::domain::model::evidence::wire::CapturedRecord) -> Result<usize, Status> {
+    let body = record.wire_len()?;
+    let length = u64::try_from(body).map_err(|_| exhausted())?;
+    // RecordPage.records Is Declared As Repeated Message Field 1.
+    body.checked_add(prost::encoding::key_len(1))
+        .and_then(|size| size.checked_add(prost::encoding::encoded_len_varint(length)))
+        .ok_or_else(exhausted)
+}
+
+fn exhausted() -> Status {
+    Status::resource_exhausted("captured record page capacity exceeded")
+}
+
+fn projection_error(source: Status) -> dokime::harmos::Error {
+    if source.code() == tonic::Code::ResourceExhausted {
+        return dokime::harmos::Error::ResourceExhausted { resource: "captured record projection" };
+    }
+    dokime::harmos::Error::backend("project captured record", dokime::harmos::BackendFailure::Corrupt, source)
+}
 
 fn memory_error(error: dokime::harmos::Error) -> Status {
     let error = dokime::runtime::Error::from(error);

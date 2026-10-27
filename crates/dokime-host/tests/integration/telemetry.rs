@@ -45,6 +45,26 @@ use model::telemetry::ValidationMode;
 /* === Tests === */
 
 #[test]
+fn host_cadence_matches_contracts() {
+    let host = Host::fixture();
+    let collector = dokime_host::host_telemetry_collector(Default::default());
+    let mut plugin = dokime_host::installed_plugin();
+    let expected = plugin.clone();
+    dokime_host::configure_contracts(&mut plugin);
+    assert_eq!(plugin, expected);
+    assert_eq!(plugin.source, dokime_host::HOST_PLUGIN_SOURCE);
+    assert_eq!(dokime_host::HOST_SOURCE_ID, "host.telemetry");
+
+    for stream in HOST_STREAMS {
+        let contract = plugin.telemetry_contracts.iter().find(|entry| entry.stream.as_str() == stream.as_str()).unwrap();
+        let interval = contract.interval.as_ref().unwrap().0;
+        assert_eq!(collector.interval(stream.as_str()), std::time::Duration::from_millis(interval));
+        let batch = host.collect_stream(*stream).unwrap().unwrap();
+        assert_eq!(batch.stream, contract.stream);
+    }
+}
+
+#[test]
 fn fixture_host_stream() {
     let host = Host::fixture();
     let streams = HOST_STREAMS

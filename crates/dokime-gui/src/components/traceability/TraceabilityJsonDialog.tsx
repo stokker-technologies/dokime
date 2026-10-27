@@ -28,6 +28,8 @@ import { isReportBuild } from "@/lib/ui-mode";
 
 /* === Constants === */
 
+const GUI_DOWNLOAD_REVOKE_MS = 1_000;
+
 /* === Types === */
 
 type TraceabilityJsonDialogProps = {
@@ -81,12 +83,12 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
         </TooltipTrigger>
         <TooltipContent side="top">View as JSON</TooltipContent>
       </Tooltip>
-      <DialogContent className="grid max-h-[min(48rem,calc(100dvh-4rem))] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-3xl">
+      <DialogContent className="grid max-h-[min(--spacing(192),calc(100dvh_-_--spacing(16)))] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Traceability JSON</DialogTitle>
           <DialogDescription className="truncate">{filename}</DialogDescription>
         </DialogHeader>
-        <pre className="min-h-0 overflow-auto rounded-md border bg-muted/30 p-3 font-mono text-xs leading-5">{json}</pre>
+        <pre className="min-h-0 overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs leading-5">{json}</pre>
         <DialogFooter className="gap-2">
           <Button onClick={() => void copyTraceabilityText(json)} size="sm" type="button" variant="outline">
             <Copy data-icon="inline-start" />
@@ -136,5 +138,5 @@ function browserDownload(json: string, filename: string): void {
   anchor.remove();
   // The click starts the download synchronously; the URL is released after
   // the browser has had a turn to read it.
-  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  window.setTimeout(() => URL.revokeObjectURL(url), GUI_DOWNLOAD_REVOKE_MS);
 }

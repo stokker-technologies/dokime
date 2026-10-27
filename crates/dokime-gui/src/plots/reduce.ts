@@ -20,11 +20,14 @@
 
 /* === Constants === */
 
+const DOCUMENTS_DEFAULT_PLOT_POINTS = 2_000;
+const DOCUMENTS_MAXIMUM_PLOT_POINTS = 100_000;
+
 /** The host display budget when a plot declares none. */
-export const DEFAULT_PLOT_MAX_POINTS = 2_000;
+export const DEFAULT_PLOT_MAX_POINTS = DOCUMENTS_DEFAULT_PLOT_POINTS;
 
 /** The host's per-plot point ceiling; it also bounds a plot that keeps every sample. */
-export const NATIVE_PLOT_MAX_POINTS = 100_000;
+export const NATIVE_PLOT_MAX_POINTS = DOCUMENTS_MAXIMUM_PLOT_POINTS;
 
 /* === Types === */
 

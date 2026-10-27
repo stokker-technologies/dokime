@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 // Local Imports
 use super::store::read_bounded;
-use super::{PluginEntry, PluginError, PluginProvenance, PluginStore, inspect};
+use super::{PluginEntry, PluginError, PluginProvenance, PluginStore};
 use crate::RuntimeHandle;
 
 /* === Constants === */
@@ -48,10 +48,15 @@ impl RuntimeHandle {
     }
 
     pub fn plugin_store(&self) -> PluginStore {
-        PluginStore::new(self.settings().clone())
+        PluginStore::with_archive_limit(
+            self.settings().clone(),
+            *self.schema_settings(),
+            usize::try_from(dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES)
+                .expect("validated server plugin bundle limit fits native address space"),
+        )
     }
 
-    pub async fn consent_plugin<E: From<PluginError> + From<std::io::Error> + Send + 'static>(
+    pub async fn consent_plugin<E: From<PluginError> + From<std::io::Error> + From<crate::storage::Error> + Send + 'static>(
         &self, id: Uuid, validate: impl FnOnce(&PluginEntry) -> Result<(), E> + Send + 'static,
     ) -> Result<PluginEntry, E> {
         let store = self.plugin_store();
@@ -62,19 +67,22 @@ impl RuntimeHandle {
             .iter()
             .filter_map(|(source, owner)| matches!(owner, crate::state::PluginOwner::Host).then_some(source.clone()))
             .collect();
-        tokio::task::spawn_blocking(move || {
+        let inspector = store.clone();
+        let configured = tokio::task::spawn_blocking(move || {
             let configured = configured
                 .iter()
                 .filter(|bundle| matches!(bundle.provenance, PluginProvenance::Configured))
                 .map(|bundle| {
-                    let bytes = read_bounded(&bundle.path, harmos_packaging::bundle::Limits::default().archive_bytes)?;
-                    inspect(&bytes).map(|(_, metadata)| metadata)
+                    let bytes = read_bounded(&bundle.path, inspector.archive_bytes())?;
+                    super::catalog::inspect_with_archive_limit(&bytes, &inspector.schema, inspector.archive_bytes())
+                        .map(|(_, metadata)| metadata)
                 })
                 .collect::<Result<Vec<_>, PluginError>>()?;
-            store.consent_checked(id, &configured, &host_sources, validate)
+            Ok::<_, PluginError>(configured)
         })
         .await
-        .map_err(|error| E::from(PluginError::Io(std::io::Error::other(error.to_string()))))?
+        .map_err(|error| E::from(PluginError::Io(std::io::Error::other(error.to_string()))))??;
+        store.consent_checked(id, &configured, &host_sources, validate).await
     }
 }
 

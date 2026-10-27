@@ -26,6 +26,8 @@ use dokime::domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
+const MAXIMUM_TIMEOUT_MS: u64 = 86_400_000;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -38,7 +40,7 @@ pub(crate) struct Args {
     #[arg(help = "Execution UUID Whose Saved Seal Is Required.")]
     execution_id: String,
 
-    #[arg(long, value_parser = clap::value_parser!(u64).range(1..=86400), help = "Wait Deadline; Omitted Waits Until Sealed Or Interrupted.")]
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..), help = "Wait Deadline; Omitted Waits Until Sealed Or Interrupted.")]
     wait_seconds: Option<u64>,
 
     #[command(flatten)]
@@ -59,16 +61,22 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    execute(args, None).await
+pub(crate) async fn run(args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
+    execute(args, None, settings).await
 }
 
-pub(super) async fn execute(args: Args, options: Option<dokime::client::RunOptions>) -> crate::Result<()> {
+pub(super) async fn execute(
+    mut args: Args, options: Option<dokime::client::RunOptions>, settings: &dokime::domain::model::settings::application::ClientPreferences,
+) -> crate::Result<()> {
+    args.connection = args.connection.with_settings(*settings);
+    let timeout = args.wait_seconds.map(Duration::from_secs);
+    if timeout.is_some_and(|timeout| timeout > Duration::from_millis(MAXIMUM_TIMEOUT_MS)) {
+        return Err(crate::Error::Input("wait deadline exceeds the configured maximum".into()));
+    }
     let id = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let recovery = args.recovery.prepare(&id)?;
     let client = args.connection.connect().await?;
     let execution = client.execution(id);
-    let timeout = args.wait_seconds.map(Duration::from_secs);
     let result = async {
         let observing = async {
             let Some(mut options) = options else {

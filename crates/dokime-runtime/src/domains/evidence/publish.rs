@@ -109,7 +109,7 @@ impl RuntimeHandle {
         Ok(PublishReceipt::accepted(1, BTreeMap::new(), receipt.frontier.0))
     }
 
-    pub async fn publish_telemetry_batch(&self, batch: TelemetryBatch) -> Result<PublishReceipt, Error> {
+    pub async fn publish_telemetry_batch(&self, batch: TelemetryBatch) -> Result<harmos::storage::ReadBatch<PublishReceipt>, Error> {
         wait_for_telemetry_batch_cycles(self, &batch).await;
         self.publish_telemetry_to_streams(batch, crate::model::time::now_utc()).await
     }

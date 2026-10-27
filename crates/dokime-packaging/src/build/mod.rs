@@ -38,6 +38,12 @@ use crate::{Error, bundle::files, process};
 
 /* === Constants === */
 
+const PROBE_TIMEOUT_MS: u64 = 30_000;
+const PROBE_OUTPUT_BYTES: u64 = 65_536;
+const STRIP_TIMEOUT_MS: u64 = 120_000;
+const CATALOG_EXPORT_TIMEOUT_MS: u64 = 10_000;
+const CATALOG_STDERR_BYTES: u64 = 262_144;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -288,7 +294,9 @@ async fn host_target(package: &Package) -> Result<String, Error> {
     let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
     let mut probe = Command::new("rustc");
     probe.current_dir(root).arg("-vV");
-    let host = process::run(probe, "rustc host probe", Some(Duration::from_secs(30)), 64 * 1024, 64 * 1024).await?;
+    let timeout = Some(Duration::from_millis(PROBE_TIMEOUT_MS));
+    let output_bytes = PROBE_OUTPUT_BYTES as usize;
+    let host = process::run(probe, "rustc host probe", timeout, output_bytes, output_bytes).await?;
     String::from_utf8_lossy(&host.stdout)
         .lines()
         .find_map(|line| line.strip_prefix("host: "))
@@ -300,7 +308,9 @@ async fn host_target(package: &Package) -> Result<String, Error> {
 async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<PathBuf, Error> {
     let mut sysroot = Command::new("rustc");
     sysroot.arg("--print").arg("sysroot");
-    let sysroot = process::run(sysroot, "rustc sysroot probe", Some(Duration::from_secs(30)), 64 * 1024, 64 * 1024).await?;
+    let timeout = Some(Duration::from_millis(PROBE_TIMEOUT_MS));
+    let output_bytes = PROBE_OUTPUT_BYTES as usize;
+    let sysroot = process::run(sysroot, "rustc sysroot probe", timeout, output_bytes, output_bytes).await?;
     let sysroot = PathBuf::from(String::from_utf8_lossy(&sysroot.stdout).trim());
     let objcopy =
         sysroot.join("lib/rustlib").join(target).join("bin").join(if cfg!(windows) { "llvm-objcopy.exe" } else { "llvm-objcopy" });
@@ -311,7 +321,8 @@ async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<Path
     let stripped = directory.join(name);
     let mut command = Command::new(objcopy);
     command.arg("--strip-debug").arg(executable).arg(&stripped);
-    process::run(command, "strip debug sections", Some(Duration::from_secs(120)), 64 * 1024, 64 * 1024).await?;
+    let timeout = Some(Duration::from_millis(STRIP_TIMEOUT_MS));
+    process::run(command, "strip debug sections", timeout, output_bytes, output_bytes).await?;
     Ok(stripped)
 }
 
@@ -431,9 +442,9 @@ async fn collect_executable(
     let export = process::run(
         command,
         "plugin catalog export",
-        Some(Duration::from_secs(10)),
+        Some(Duration::from_millis(CATALOG_EXPORT_TIMEOUT_MS)),
         CATALOG_EXPORT_LIMIT.min(*catalog_remaining),
-        256 * 1024,
+        CATALOG_STDERR_BYTES as usize,
     )
     .await?;
     *catalog_remaining = catalog_remaining.saturating_sub(export.stdout.len());

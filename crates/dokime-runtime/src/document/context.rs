@@ -17,7 +17,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
-use harmos::MemorySize;
 use serde::ser::SerializeSeq;
 use serde::{Serialize, Serializer};
 
@@ -122,20 +121,6 @@ impl<'a> Context<'a> {
         let id = scope.test_execution_id.as_ref()?;
         self.entries().find(|entry| entry.scope.test_execution_id.as_ref() == Some(id) && matches(scope, entry.scope))
     }
-
-    pub(super) fn largest_value(self) -> usize {
-        self.entries()
-            .flat_map(|entry| {
-                entry
-                    .dimensions
-                    .values()
-                    .chain(entry.inputs.values().map(|value| &value.value))
-                    .chain(entry.outputs.values().map(|value| &value.value))
-            })
-            .map(MemorySize::memory_size)
-            .max()
-            .unwrap_or(std::mem::size_of::<Value>())
-    }
 }
 
 impl Default for Executions<'_> {
@@ -168,18 +153,6 @@ impl Serialize for Context<'_> {
             sequence.serialize_element(&entry)?;
         }
         sequence.end()
-    }
-}
-
-impl MemorySize for Context<'_> {
-    fn memory_size(&self) -> usize {
-        self.entries().fold(std::mem::size_of::<Self>(), |bytes, entry| {
-            bytes
-                .saturating_add(entry.scope.memory_size())
-                .saturating_add(entry.dimensions.memory_size())
-                .saturating_add(entry.inputs.memory_size())
-                .saturating_add(entry.outputs.memory_size())
-        })
     }
 }
 

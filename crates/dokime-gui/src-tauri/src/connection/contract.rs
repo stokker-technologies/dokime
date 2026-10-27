@@ -109,6 +109,7 @@ pub enum ConnectionPhase {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConnectionError {
+    Registry { message: String },
     InvalidTarget { message: String },
     SecretsUnavailable,
     AuthenticationRequired,

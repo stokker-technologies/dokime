@@ -16,30 +16,29 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, path::Path};
+use std::path::Path;
 
 // Third Party Imports
-use rusqlite::{Connection, params, params_from_iter, types::Value as SqlValue};
+use rusqlite::{Connection, limits::Limit, params, params_from_iter, types::Value as SqlValue};
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use super::{
-    InventoryBudget, MAX_INVENTORY_ENTRIES,
+    InventoryBudget,
     error::{Error, Result},
     snapshot::Snapshot,
 };
 use crate::runtime::storage::{execution::ExecutionView, telemetry::TelemetryReader};
 use dokime_domain::model::{
     definition::MaterializedParameter,
-    exports::{EVIDENCE_EXPORT_MAX_BYTES, EVIDENCE_EXPORT_SCHEMA_VERSION},
+    exports::EVIDENCE_EXPORT_SCHEMA_VERSION,
     telemetry::TelemetryContract,
     values::{Value, ValueType},
 };
 
 /* === Constants === */
 
-const PARTITION_COLUMNS: usize = 512;
 const SCHEMA: &str = r#"
 CREATE TABLE cycles(cycle_id TEXT PRIMARY KEY, phase TEXT NOT NULL, body_json TEXT NOT NULL) STRICT;
 CREATE TABLE executions(
@@ -113,6 +112,7 @@ pub(super) struct Writer {
     connection: Connection,
     streams: Vec<StreamInventory>,
     next_table: u64,
+    maximum_inventory_entries: u64,
 }
 
 struct Stream {
@@ -156,19 +156,20 @@ impl Writer {
         let connection = Connection::open(path)?;
         connection.execute_batch(&format!(
             "PRAGMA page_size=4096; PRAGMA max_page_count={}; PRAGMA journal_mode=DELETE; \
-             PRAGMA synchronous=FULL; PRAGMA cache_size=-4096; PRAGMA trusted_schema=OFF; \
+             PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; \
              PRAGMA user_version={}; BEGIN IMMEDIATE; {SCHEMA}",
-            EVIDENCE_EXPORT_MAX_BYTES / 4096,
+            super::MAX_EXPORT_BYTES / 4096,
             EVIDENCE_EXPORT_SCHEMA_VERSION,
         ))?;
         let phase =
             snapshot.cycle.get("phase").and_then(serde_json::Value::as_str).ok_or(Error::Invalid("captured cycle phase is missing"))?;
         connection.execute("INSERT INTO cycles VALUES(?1,?2,?3)", params![snapshot.cycle_id.as_str(), phase, json(&snapshot.cycle)?])?;
-        Ok(Self { connection, streams: Vec::new(), next_table: 0 })
+        Ok(Self { connection, streams: Vec::new(), next_table: 0, maximum_inventory_entries: super::MAX_INVENTORY_ENTRIES })
     }
 
     pub async fn execution(
         &mut self, view: &ExecutionView, cancellation: &CancellationToken, budget: &mut InventoryBudget,
+        schema_settings: &harmos::config::SchemaSettings,
     ) -> Result<Counts> {
         cancelled(cancellation)?;
         self.header(view)?;
@@ -184,7 +185,7 @@ impl Writer {
             result = reader.next() => result?,
         } {
             cancelled(cancellation)?;
-            for entry in records {
+            for entry in records.iter() {
                 let record = &entry.record;
                 self.connection.execute(
                     "INSERT INTO records VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
@@ -209,23 +210,18 @@ impl Writer {
         }
         for versions in view.source_snapshot()?.telemetry_contracts.values() {
             for contract in versions.values() {
-                if self.streams.len() >= MAX_INVENTORY_ENTRIES {
+                if self.streams.len() as u64 >= self.maximum_inventory_entries {
                     return Err(Error::TooLarge);
                 }
                 let mut stream = self.stream(&id, contract)?;
-                let mut reader = TelemetryReader::for_contract(
-                    view,
-                    &contract.stream,
-                    contract.schema_version,
-                    NonZeroUsize::new(256).expect("nonzero batch size"),
-                )?;
+                let mut reader = TelemetryReader::for_contract(view, &contract.stream, contract.schema_version, schema_settings).await?;
                 while let Some(samples) = tokio::select! {
                     biased;
                     _ = cancellation.cancelled() => return Err(Error::Cancelled),
                     result = reader.next() => result?,
                 } {
-                    for entry in samples {
-                        self.sample(&id, &mut stream, &entry)?;
+                    for entry in samples.iter() {
+                        self.sample(&id, &mut stream, entry)?;
                         counts.samples = counts.samples.checked_add(1).ok_or(Error::TooLarge)?;
                     }
                 }
@@ -394,8 +390,23 @@ impl Writer {
     }
 
     fn stream(&mut self, execution: &str, contract: &TelemetryContract) -> Result<Stream> {
-        let count = contract.columns.len().max(1).div_ceil(PARTITION_COLUMNS);
-        if count > MAX_INVENTORY_ENTRIES {
+        let metadata_columns = [
+            "m_row INTEGER PRIMARY KEY",
+            "m_execution_id TEXT NOT NULL",
+            "m_ordinal ANY NOT NULL",
+            "m_sequence ANY NOT NULL",
+            "m_timestamp TEXT NOT NULL",
+            "m_received_at TEXT NOT NULL",
+            "m_source TEXT NOT NULL",
+        ];
+        let columns = self.connection.limit(Limit::SQLITE_LIMIT_COLUMN)?;
+        let variables = self.connection.limit(Limit::SQLITE_LIMIT_VARIABLE_NUMBER)?;
+        let available = usize::try_from(columns.min(variables)).map_err(|_| Error::TooLarge)?;
+        // The First Partition Also Stores The Original Sample JSON.
+        let first_columns = available.checked_sub(metadata_columns.len() + 1).filter(|columns| *columns != 0).ok_or(Error::TooLarge)?;
+        let following_columns = available.checked_sub(metadata_columns.len()).ok_or(Error::TooLarge)?;
+        let count = 1 + contract.columns.len().saturating_sub(first_columns).div_ceil(following_columns);
+        if count as u64 > self.maximum_inventory_entries {
             return Err(Error::TooLarge);
         }
         let mut partitions = Vec::with_capacity(count);
@@ -406,12 +417,11 @@ impl Writer {
             if partition == 0 {
                 base = table.clone();
             }
-            let start = partition * PARTITION_COLUMNS;
-            let end = (start + PARTITION_COLUMNS).min(contract.columns.len());
+            let start = if partition == 0 { 0 } else { first_columns + (partition - 1) * following_columns };
+            let capacity = if partition == 0 { first_columns } else { following_columns };
+            let end = (start + capacity).min(contract.columns.len());
             let fields = &contract.columns[start..end];
-            let mut columns = String::from(
-                "m_row INTEGER PRIMARY KEY, m_execution_id TEXT NOT NULL, m_ordinal ANY NOT NULL, m_sequence ANY NOT NULL, m_timestamp TEXT NOT NULL, m_received_at TEXT NOT NULL, m_source TEXT NOT NULL",
-            );
+            let mut columns = metadata_columns.join(", ");
             if partition == 0 {
                 columns.push_str(", sample_json TEXT NOT NULL");
             }
@@ -437,7 +447,8 @@ impl Writer {
                 )?;
             }
             self.connection.execute_batch(&format!("CREATE TABLE {table}({columns}) STRICT;"))?;
-            let parameters = (0..(7 + usize::from(partition == 0) + fields.len())).map(|_| "?").collect::<Vec<_>>().join(",");
+            let parameters =
+                (0..(metadata_columns.len() + usize::from(partition == 0) + fields.len())).map(|_| "?").collect::<Vec<_>>().join(",");
             partitions.push(Partition {
                 insert: format!("INSERT INTO {table} VALUES({parameters})"),
                 table,

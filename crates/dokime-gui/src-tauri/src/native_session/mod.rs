@@ -20,6 +20,12 @@ pub mod storage;
 pub use contract::*;
 pub use owner::DesktopSession;
 
+/* === Constants === */
+
+const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
+
+pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -55,6 +61,18 @@ impl DesktopSessionControl {
     // End the owned backend without the rest of its orderly stop.
     pub fn abandon(&self) {
         self.0.abandon();
+    }
+    pub async fn local_client(&self) -> Result<dokime::client::Client, DesktopSessionError> {
+        self.0.local_client().await
+    }
+    pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
+        self.0.select(selection).await
+    }
+    pub fn remove_profile(&self, name: &str) -> Result<(), DesktopSessionError> {
+        self.0.remove_profile(name)
+    }
+    pub async fn disconnect(&self) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
+        self.0.disconnect().await
     }
     pub fn status(&self) -> DesktopSessionSnapshot {
         self.0.status()
@@ -168,11 +186,6 @@ pub async fn desktop_open_backend_log(
     .map_err(|error| error.to_string())?
 }
 
-pub fn desktop_profiles_list() -> Result<dokime::client::profiles::Document, String> {
-    let store = dokime::client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
-    store.load().map_err(|error| error.to_string())
-}
-
 /* === Private Functions === */
 
 fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageRoot, DesktopSessionError> {
@@ -189,7 +202,7 @@ fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageR
     let failed = |message: String| DesktopSessionError::StorageReset { reason: StorageResetReason::Failed, message };
     let application =
         crate::app::settings::application_root(&window.app_handle().config().identifier).map_err(|error| failed(error.to_string()))?;
-    storage::StorageRoot::resolve(application).map_err(failed)
+    storage::StorageRoot::resolve(application, DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES).map_err(failed)
 }
 
 /* === Tests === */

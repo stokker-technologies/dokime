@@ -54,11 +54,11 @@ pub(crate) enum Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
-        Command::Preview(args) => preview::run(args).await,
-        Command::Register(args) => register::run(args).await,
-        Command::Materialize(args) => materialize::run(args).await,
+        Command::Preview(args) => preview::run(args, settings).await,
+        Command::Register(args) => register::run(args, settings).await,
+        Command::Materialize(args) => materialize::run(args, settings).await,
     }
 }
 

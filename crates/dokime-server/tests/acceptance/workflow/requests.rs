@@ -152,22 +152,23 @@ async fn crashed_run_replay() {
         "recovery seals previous-session cycles before serving admission"
     );
     let cycle_id = dokime::TestCycleId::from_uuid(cycle_id).unwrap();
-    let cycle = dokime::storage::objects::cycle::read(owner.handle().storage(), &cycle_id, dokime::harmos::storage::ObjectVersion::Latest)
-        .await
-        .unwrap()
-        .unwrap()
-        .value;
+    let cycle_owner =
+        dokime::storage::objects::cycle::read(owner.handle().storage(), &cycle_id, dokime::harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
+    let cycle = &cycle_owner.value;
     assert_eq!(cycle.phase, dokime::domain::model::execution::result::CyclePhase::Sealed);
     assert!(cycle.saved.is_some());
     assert_eq!(cycle.execution_ids.len(), 1);
     let id = dokime::TestExecutionId::from_uuid(execution_id).unwrap();
     assert_eq!(cycle.execution_ids[0], id);
-    let execution =
+    let execution_owner =
         dokime::storage::objects::execution::read(owner.handle().storage(), &id, dokime::harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
-            .unwrap()
-            .value;
+            .unwrap();
+    let execution = &execution_owner.value;
     assert_eq!(execution.status, dokime::domain::model::execution::result::ExecutionStatus::Interrupted);
     assert_eq!(execution.test_execution_id, receipt.last_claim.as_ref().unwrap().execution_id);
     assert!(execution.finished_at.is_some());
@@ -176,7 +177,8 @@ async fn crashed_run_replay() {
     assert_eq!(recovered.summary.phase, dokime::domain::model::execution::request::RunPhase::Interrupted);
     assert!(recovered.pending.is_empty());
     assert!(execution.saved.is_some());
-    assert_eq!(owner.handle().run_request(&command).await.unwrap().unwrap(), receipt);
+    let repeated = owner.handle().run_request(&command).await.unwrap().unwrap();
+    assert_eq!(&*repeated, &*receipt);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

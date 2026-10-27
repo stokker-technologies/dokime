@@ -41,8 +41,10 @@ use std::{
 
 /* === Constants === */
 
+const SERVER_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
+const SERVER_STOP_GRACE_MS: u64 = 20_000;
+
 // The run's settle budget plus the final checkpoint; the desktop waits ten seconds longer.
-const STOP_BUDGET: std::time::Duration = std::time::Duration::from_secs(dokime::domain::STOP_SETTLEMENT_SECONDS + 20);
 
 /* === Macros === */
 
@@ -82,7 +84,7 @@ impl Session {
         config.label = args.label.clone();
         config.seed_plugins = !args.no_seed_validation_artifact;
         config.explicit_plugins = if args.dev_control { Vec::new() } else { args.plugins.clone() };
-        let expected = expected_plugins(&args.plugins)?;
+        let expected = expected_plugins(&args.plugins, SERVER_PLUGIN_BUNDLE_BYTES, &config.schema)?;
         on_phase("storage");
         let runtime = dokime::app::launch(config).await.map_err(|error| Error::launch(error, config_root.clone()))?;
         let mut session = Self {
@@ -133,7 +135,8 @@ impl Session {
             .iter()
             .position(|allowed| allowed.canonicalize().ok().as_ref() == Some(&path))
             .ok_or_else(|| Error::Input("bundle path was not selected for this development session".into()))?;
-        let candidate = expected_plugins(std::slice::from_ref(&path))?;
+        let handle = self.runtime.as_ref().expect("session owns runtime").handle();
+        let candidate = expected_plugins(std::slice::from_ref(&path), SERVER_PLUGIN_BUNDLE_BYTES, handle.schema_settings())?;
         if candidate[0].package != self.expected[index].package {
             return Err(Error::Input("package name changed; restart the development command".into()));
         }
@@ -144,7 +147,13 @@ impl Session {
     }
 
     pub async fn shutdown(mut self) -> Result<()> {
-        match tokio::time::timeout(STOP_BUDGET, self.drain()).await {
+        if self.runtime.is_none() {
+            return self.drain().await;
+        }
+        let milliseconds =
+            5_000u64.checked_add(SERVER_STOP_GRACE_MS).ok_or_else(|| Error::Setup("server stop deadline overflows".into()))?;
+        let stop_budget = std::time::Duration::from_millis(milliseconds);
+        match tokio::time::timeout(stop_budget, self.drain()).await {
             Ok(result) => result,
             Err(_) => {
                 let stage = if self.stage == "stopping runtime" {
@@ -152,7 +161,7 @@ impl Session {
                 } else {
                     self.stage
                 };
-                Err(Error::StopIncomplete { stage, budget_s: STOP_BUDGET.as_secs() })
+                Err(Error::StopIncomplete { stage, budget_s: stop_budget.as_secs() })
             }
         }
     }
@@ -230,23 +239,26 @@ async fn rerun_latest_case(handle: &dokime::RuntimeHandle, owners: &[String]) ->
     }
 }
 
-fn expected_plugins(paths: &[PathBuf]) -> crate::host::Result<Vec<ExpectedPlugin>> {
+fn expected_plugins(
+    paths: &[PathBuf], maximum: u64, schema: &dokime::harmos::config::SchemaSettings,
+) -> crate::host::Result<Vec<ExpectedPlugin>> {
     use sha2::{Digest, Sha256};
     paths
         .iter()
         .map(|path| {
             // Match the runtime's bundle input bound before allocation.
             use std::io::Read;
-            const MAX_BYTES: u64 = 272 * 1024 * 1024;
             if !std::fs::symlink_metadata(path)?.file_type().is_file() {
                 return Err(crate::host::Error::Input("plugin bundle must be a regular file".into()));
             }
             let mut bytes = Vec::new();
-            std::fs::File::open(path)?.take(MAX_BYTES + 1).read_to_end(&mut bytes)?;
-            if bytes.len() as u64 > MAX_BYTES {
+            std::fs::File::open(path)?.take(maximum.saturating_add(1)).read_to_end(&mut bytes)?;
+            if bytes.len() as u64 > maximum {
                 return Err(crate::host::Error::Input(format!("plugin bundle too large: {}", path.display())));
             }
-            let (_, metadata) = dokime::plugins::inspect(&bytes).map_err(|error| crate::host::Error::Input(error.to_string()))?;
+            let archive_bytes = usize::try_from(maximum).expect("validated server plugin bundle limit fits native address space");
+            let (_, metadata) = dokime::plugins::inspect_with_archive_limit(&bytes, schema, archive_bytes)
+                .map_err(|error| crate::host::Error::Input(error.to_string()))?;
             Ok(ExpectedPlugin {
                 package: metadata.identity.name,
                 digest: Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
@@ -306,8 +318,8 @@ mod tests {
             dev_control: false,
             network: NetworkArgs {
                 host: std::net::Ipv4Addr::LOCALHOST.into(),
-                port: 0,
-                message_limit_mib: 2,
+                port: Some(0),
+                message_limit_mib: None,
                 grpc_web: false,
                 allowed_origins: Vec::new(),
             },
@@ -325,7 +337,9 @@ mod tests {
     async fn reacquire(args: &Args) -> Session {
         tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                match Session::start(args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await {
+                let configuration = args.configuration().unwrap();
+                let network = args.network.config().unwrap();
+                match Session::start(args, configuration, network, |_| {}).await {
                     Ok(session) => break session,
                     Err(_) => tokio::time::sleep(std::time::Duration::from_millis(10)).await,
                 }
@@ -339,7 +353,9 @@ mod tests {
     async fn startup_unwind_drains() {
         let root = tempfile::tempdir().unwrap();
         let args = arguments(root.path());
-        let startup = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |phase| {
+        let configuration = args.configuration().unwrap();
+        let network = args.network.config().unwrap();
+        let startup = Session::start(&args, configuration, network, |phase| {
             if phase == "plugins" {
                 panic!("deliberate startup cancellation");
             }
@@ -352,7 +368,9 @@ mod tests {
     async fn session_drop_drains() {
         let root = tempfile::tempdir().unwrap();
         let args = arguments(root.path());
-        let session = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await.unwrap();
+        let configuration = args.configuration().unwrap();
+        let network = args.network.config().unwrap();
+        let session = Session::start(&args, configuration, network, |_| {}).await.unwrap();
         let address = session.address();
         drop(session);
         let replacement = reacquire(&args).await;

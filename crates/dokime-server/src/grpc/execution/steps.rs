@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-use super::detail::{Bounds, diagnostic, execution, metadata, metadata_memory};
+use super::detail::{diagnostic, execution, metadata};
 use super::*;
 use dokime::domain::model::execution::result::CriterionResult;
 use dokime::domain::model::execution::result::CriterionStatus;
@@ -53,14 +53,13 @@ pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> R
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let page = page(&snapshot, &request.execution_id, request.limit, request.cursor.as_ref(), execution.steps.len())?;
-    let mut bounds = Bounds::new(service.max_message_bytes);
+    let mut budget = value::Budget::new()?;
     let count = page.end - page.start;
-    bounds.bytes(count.saturating_mul(std::mem::size_of::<execution_model::ExecutionStep>()))?;
 
     // Each step carries its criteria; a step that no longer fits ends the page.
     let mut steps = canonical::slots(count)?;
     for (index, step) in execution.steps[page.start..page.end].iter().enumerate() {
-        let row = row(step, (page.start + index) as u64, &mut bounds);
+        let row = row(step, (page.start + index) as u64, &mut budget);
         let Some(row) = fit(row, steps.is_empty())? else { break };
         steps.push(row);
     }
@@ -78,13 +77,10 @@ pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> R
 
 /* === Private Functions === */
 
-fn row(step: &StepRecord, ordinal: u64, bounds: &mut Bounds) -> Result<execution_model::ExecutionStep, Status> {
-    bounds.text(step.step_id.as_str())?;
-    bounds.bytes(metadata_memory(&step.metadata)?)?;
-    bounds.bytes(step.criteria.len().saturating_mul(std::mem::size_of::<execution_model::StepCriterion>()))?;
+fn row(step: &StepRecord, ordinal: u64, budget: &mut value::Budget) -> Result<execution_model::ExecutionStep, Status> {
     let mut criteria = canonical::slots(step.criteria.len())?;
     for (index, record) in step.criteria.iter().enumerate() {
-        criteria.push(criterion(record, index as u64, bounds)?);
+        criteria.push(criterion(record, index as u64, budget)?);
     }
     Ok(execution_model::ExecutionStep {
         step_id: step.step_id.to_string(),
@@ -102,26 +98,14 @@ fn row(step: &StepRecord, ordinal: u64, bounds: &mut Bounds) -> Result<execution
         measurement_count: step.measurements.len() as u64,
         criterion_count: step.criteria.len() as u64,
         ordinal,
-        detail: step.detail.as_ref().map(|detail| diagnostic(detail, bounds)).transpose()?,
+        detail: step.detail.as_ref().map(diagnostic).transpose()?,
         criteria,
     })
 }
 
-fn criterion(criterion: &CriterionResult, ordinal: u64, bounds: &mut Bounds) -> Result<execution_model::StepCriterion, Status> {
-    bounds.text(criterion.criterion_id.as_str())?;
-    bounds.bytes(metadata_memory(&criterion.metadata)?)?;
-    let mut budget = value::Budget::new();
-    let observed = criterion
-        .observed
-        .as_ref()
-        .map(|observed| {
-            bounds.value(observed, 0)?;
-            canonical::encode(observed, &mut budget, 0)
-        })
-        .transpose()?;
-    if let Some(message) = &criterion.message {
-        bounds.text(message)?;
-    }
+fn criterion(criterion: &CriterionResult, ordinal: u64, budget: &mut value::Budget) -> Result<execution_model::StepCriterion, Status> {
+    let observed = criterion.observed.as_ref().map(|observed| canonical::encode(observed, budget, 0)).transpose()?;
+
     Ok(execution_model::StepCriterion {
         criterion_id: criterion.criterion_id.to_string(),
         metadata: Some(metadata(&criterion.metadata)?),
@@ -171,7 +155,7 @@ fn page(
 }
 
 fn reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
-    if value.encoded_len() > service.max_message_bytes {
+    if value.wire_len()? > service.max_message_bytes {
         return Err(Status::resource_exhausted("step evidence exceeds response budget"));
     }
     Ok(value)

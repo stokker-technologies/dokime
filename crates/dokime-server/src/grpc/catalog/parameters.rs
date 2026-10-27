@@ -7,7 +7,7 @@
  * ***
  */
 
-// Catalog parameter projection onto the wire, with its memory accounting and value checks.
+// Catalog Parameter Projection And Value Validation
 
 /* === Modules === */
 
@@ -21,9 +21,9 @@
 use tonic::Status;
 
 // Local Imports
+use super::super::value::Budget;
 use super::super::value::canonical;
-use super::super::value::{self, Budget};
-use dokime::definition::{DynamicDefaultKey, ParameterBinaryOp, ParameterDefinition, ParameterExpansion, ParameterExpr};
+use dokime::definition::{DynamicDefaultKey, ParameterBinaryOp, ParameterDefinition, ParameterExpr};
 use dokime::domain::model::definition::wire as schema;
 use dokime::domain::model::identity::wire as common;
 use dokime::domain::model::values::MeasurementUnit;
@@ -45,71 +45,13 @@ use dokime::domain::model::values::UnitFamily;
 
 /* === Public Functions === */
 
-pub(in crate::grpc) fn memory(parameters: &[ParameterDefinition], budget: &mut Budget) -> dokime::harmos::Result<usize> {
-    value::collection(parameters.len()).map_err(|_| exhausted())?;
-    let mut bytes = std::mem::size_of::<Vec<dokime::domain::model::catalog::wire::ParameterSchema>>()
-        .saturating_add(parameters.len().saturating_mul(std::mem::size_of::<dokime::domain::model::catalog::wire::ParameterSchema>()));
-    for parameter in parameters {
-        budget.node(0).map_err(|_| exhausted())?;
-        bytes = bytes
-            .saturating_add(parameter.parameter_id.as_str().len())
-            .saturating_add(
-                canonical::metadata_memory(&parameter.metadata).map_err(|_| exhausted())? - std::mem::size_of::<common::Metadata>(),
-            )
-            .saturating_add(parameter.group_id.as_ref().map_or(0, |id| id.as_str().len()))
-            .saturating_add(expression_memory(&parameter.expression, budget, 0)?);
-        if let ParameterExpansion::Zip { group } = &parameter.expansion {
-            bytes = bytes.saturating_add(group.as_str().len());
-        }
-        if let Some(source) = &parameter.unit {
-            bytes = bytes.saturating_add(unit_memory(source)? - std::mem::size_of::<schema::MeasurementUnit>());
-        }
-        value::collection(parameter.extensions.len()).map_err(|_| exhausted())?;
-        bytes = bytes.saturating_add(
-            parameter
-                .extensions
-                .len()
-                .saturating_mul(std::mem::size_of::<dokime::domain::model::catalog::wire::ParameterSchemaExtensionsEntry>()),
-        );
-        for (key, item) in &parameter.extensions {
-            value::text(key).map_err(|_| exhausted())?;
-            bytes = bytes.saturating_add(key.len()).saturating_add(
-                canonical::memory(item, budget, 0).map_err(|_| exhausted())?
-                    - std::mem::size_of::<dokime::domain::model::values::wire::Value>(),
-            );
-        }
-        if let Some(selection) = &parameter.selection {
-            value::collection(selection.choices.len()).map_err(|_| exhausted())?;
-            for choice in &selection.choices {
-                bytes = bytes.saturating_add(canonical::memory(choice, budget, 0).map_err(|_| exhausted())?);
-            }
-        }
-    }
-    if bytes == usize::MAX {
-        return Err(exhausted());
-    }
-    Ok(bytes)
-}
-
-pub(in crate::grpc) fn unit_memory(source: &MeasurementUnit) -> dokime::harmos::Result<usize> {
-    value::text(&source.symbol).map_err(|_| exhausted())?;
-    let metadata = canonical::metadata_memory(&source.metadata).map_err(|_| exhausted())? - std::mem::size_of::<common::Metadata>();
-    std::mem::size_of::<schema::MeasurementUnit>()
-        .checked_add(source.symbol.len())
-        .and_then(|bytes| bytes.checked_add(metadata))
-        .ok_or_else(exhausted)
-}
-
 pub(in crate::grpc) fn wire(
     parameters: &[ParameterDefinition], budget: &mut Budget,
 ) -> Result<Vec<dokime::domain::model::catalog::wire::ParameterSchema>, Status> {
-    value::collection(parameters.len())?;
     collect(parameters.iter().map(|parameter| {
         budget.node(0)?;
-        value::collection(parameter.extensions.len())?;
         let mut extensions = canonical::slots(parameter.extensions.len())?;
         for (key, item) in &parameter.extensions {
-            value::text(key)?;
             extensions.push(dokime::domain::model::catalog::wire::ParameterSchemaExtensionsEntry {
                 key: key.clone(),
                 value: Some(project_value(item, budget, 0)?),
@@ -119,7 +61,6 @@ pub(in crate::grpc) fn wire(
             .selection
             .as_ref()
             .map(|selection| {
-                value::collection(selection.choices.len())?;
                 Ok::<_, Status>(dokime::domain::model::catalog::wire::ParameterSelection {
                     choices: collect(selection.choices.iter().map(|value| project_value(value, budget, 0)))?,
                 })
@@ -158,7 +99,6 @@ pub(in crate::grpc) fn wire(
 }
 
 pub(in crate::grpc) fn unit(unit: &MeasurementUnit) -> Result<schema::MeasurementUnit, Status> {
-    value::text(&unit.symbol)?;
     Ok(schema::MeasurementUnit {
         metadata: Some(metadata(&unit.metadata, true)?),
         symbol: unit.symbol.clone(),
@@ -217,10 +157,7 @@ fn flatten(
             finite(&[*start, *stop])?;
             Kind::Linspace(dokime::domain::model::catalog::wire::LinearSpace { start: *start, stop: *stop, count: *count as u64 })
         }
-        ParameterExpr::Reference { parameter } => {
-            value::text(parameter)?;
-            Kind::Reference(parameter.clone())
-        }
+        ParameterExpr::Reference { parameter } => Kind::Reference(parameter.clone()),
         ParameterExpr::DynamicDefault { key, fallback } => Kind::DynamicDefault(dokime::domain::model::catalog::wire::DynamicDefault {
             key: match key {
                 DynamicDefaultKey::OperatorName => dokime::domain::model::catalog::wire::DynamicDefaultKey::OperatorName,
@@ -245,43 +182,6 @@ fn flatten(
     };
     nodes[index as usize].kind = Some(kind);
     Ok(index)
-}
-
-fn expression_memory(expr: &ParameterExpr, budget: &mut Budget, depth: usize) -> dokime::harmos::Result<usize> {
-    budget.node(depth).map_err(|_| exhausted())?;
-    // Includes Conservative Capacity For The Flat Node Vector, Not Nested Box Allocations.
-    let mut bytes = 4usize.saturating_mul(std::mem::size_of::<dokime::domain::model::catalog::wire::ParameterNode>());
-    bytes = bytes.saturating_add(match expr {
-        ParameterExpr::Literal { value } => {
-            canonical::memory(value, budget, depth + 1).map_err(|_| exhausted())?
-                - std::mem::size_of::<dokime::domain::model::values::wire::Value>()
-        }
-        ParameterExpr::Array { values } => {
-            value::collection(values.len()).map_err(|_| exhausted())?;
-            let mut bytes = values.len().saturating_mul(std::mem::size_of::<u32>());
-            for value in values {
-                bytes = bytes.saturating_add(expression_memory(value, budget, depth + 1)?);
-            }
-            bytes
-        }
-        ParameterExpr::Reference { parameter } => {
-            value::text(parameter).map_err(|_| exhausted())?;
-            parameter.len()
-        }
-        ParameterExpr::DynamicDefault { fallback, .. } => {
-            fallback.as_ref().map(|expr| expression_memory(expr, budget, depth + 1)).transpose()?.unwrap_or(0)
-        }
-        ParameterExpr::Unary { value, .. } => expression_memory(value, budget, depth + 1)?,
-        ParameterExpr::Binary { left, right, .. } => {
-            expression_memory(left, budget, depth + 1)?.saturating_add(expression_memory(right, budget, depth + 1)?)
-        }
-        ParameterExpr::Range { .. } | ParameterExpr::Arange { .. } | ParameterExpr::Linspace { .. } => 0,
-    });
-    if bytes == usize::MAX { Err(exhausted()) } else { Ok(bytes) }
-}
-
-fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical parameter construction" }
 }
 
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {

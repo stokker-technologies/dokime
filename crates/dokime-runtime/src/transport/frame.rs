@@ -16,12 +16,11 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, MutexGuard, PoisonError};
-use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
-use super::buffer::{BufferedFrame, Executions, LeaseOutcome, MAX_BUFFERED_ARTIFACT_BYTES, PromptOutcome, lock, settled};
+use super::buffer::{BufferedFrame, Executions, LeaseOutcome, PromptOutcome, lock, settled};
 use crate::artifacts::ArtifactSink;
 use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::{ExecutionProgress, ProgressSink};
@@ -37,10 +36,7 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-const ARTIFACT_BACKPRESSURE_POLL_INTERVAL: Duration = Duration::from_millis(250);
-
 // Rows of one stream that publish together without waiting for the window.
-const BATCH_ROWS: usize = 100;
 
 /* === Macros === */
 
@@ -91,6 +87,7 @@ struct Buffered {
 pub(crate) struct FrameRecordSource {
     executions: Executions,
     token: String,
+    changed: Arc<tokio::sync::Notify>,
 }
 
 pub(crate) struct FrameJournal {
@@ -141,7 +138,7 @@ impl ArtifactSink for FrameArtifactSink {
         // A step writes from a runtime worker, and the pump that drains the
         // backlog may be queued behind it on that same worker; parking there
         // hands the worker's queue to the rest of the runtime first.
-        let at_gate = executions.get(&self.token).is_some_and(|state| state.artifact_backlog() >= MAX_BUFFERED_ARTIFACT_BYTES);
+        let at_gate = executions.get(&self.token).is_some_and(|state| state.artifact_backlog() >= 16 * 1024 * 1024);
         let multi_threaded = tokio::runtime::Handle::try_current()
             .is_ok_and(|runtime| runtime.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
         let Some(mut executions) = (if at_gate && multi_threaded {
@@ -205,7 +202,8 @@ impl Pending {
 
 impl FrameRecordSource {
     pub(crate) fn new(executions: Executions, token: String) -> Self {
-        Self { executions, token }
+        let changed = lock(&executions).get(&token).map(|state| Arc::clone(&state.settled)).unwrap_or_default();
+        Self { executions, token, changed }
     }
 }
 
@@ -218,12 +216,28 @@ impl ProgressSink for FrameProgressSink {
 }
 
 impl crate::records::RecordSource for FrameRecordSource {
+    fn changed(&self) -> Arc<tokio::sync::Notify> {
+        Arc::clone(&self.changed)
+    }
+
+    fn closed(&self) -> bool {
+        lock(&self.executions)
+            .get(&self.token)
+            .is_none_or(|state| !Arc::ptr_eq(&state.settled, &self.changed) || state.record_inputs_closed())
+    }
+
     fn next_record(&self, cursor: &mut usize) -> Option<dokime_domain::model::records::evidence::Record> {
-        lock(&self.executions).get(&self.token).and_then(|state| state.next_record(cursor))
+        lock(&self.executions)
+            .get(&self.token)
+            .filter(|state| Arc::ptr_eq(&state.settled, &self.changed))
+            .and_then(|state| state.next_record(cursor))
     }
 
     fn delivered(&self, index: usize) -> Option<dokime_domain::model::records::evidence::Record> {
-        lock(&self.executions).get(&self.token).and_then(|state| state.delivered(index))
+        lock(&self.executions)
+            .get(&self.token)
+            .filter(|state| Arc::ptr_eq(&state.settled, &self.changed))
+            .and_then(|state| state.delivered(index))
     }
 }
 
@@ -238,7 +252,8 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
             if let Some(output) = self.host_output() {
                 let (host, publish) = output?;
                 let mut pending = self.pending.lock().await;
-                if pending.push(stream, values, storage_payload) < BATCH_ROWS {
+                let batch_rows = 100;
+                if (pending.push(stream, values, storage_payload) as u64) < batch_rows {
                     return Ok(());
                 }
                 let rows = pending.take(stream);
@@ -510,10 +525,13 @@ fn park_at_gate<'a>(
 ) -> Option<MutexGuard<'a, BTreeMap<String, crate::transport::buffer::ExecutionState>>> {
     loop {
         let state = executions.get(token)?;
-        if state.cancelled() || state.artifact_backlog() < MAX_BUFFERED_ARTIFACT_BYTES {
+        if !std::ptr::eq(state.artifact_condvar().as_ref(), condvar) {
+            return None;
+        }
+        if state.cancelled() || state.artifact_backlog() < 16 * 1024 * 1024 {
             return Some(executions);
         }
-        executions = condvar.wait_timeout(executions, ARTIFACT_BACKPRESSURE_POLL_INTERVAL).unwrap_or_else(PoisonError::into_inner).0;
+        executions = condvar.wait(executions).unwrap_or_else(PoisonError::into_inner);
     }
 }
 

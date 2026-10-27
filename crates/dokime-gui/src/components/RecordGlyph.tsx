@@ -82,7 +82,7 @@ export function RecordGlyph({ className, display }: { className?: string; displa
       aria-hidden="true"
       className={recordToneShellClass(
         display.tone,
-        cn("inline-grid size-7 shrink-0 place-items-center rounded-md [&_svg]:size-4", className),
+        cn("inline-grid size-7 shrink-0 place-items-center rounded-lg [&_svg]:size-4", className),
       )}
     >
       <Icon />

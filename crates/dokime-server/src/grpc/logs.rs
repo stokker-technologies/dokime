@@ -19,26 +19,21 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 // Third Party Imports
-use dokime::harmos::{
-    MemorySize,
-    operations::{Response, StreamOutput},
-};
+use dokime::harmos::operations::{Response, StreamOutput};
 use serde_json::Value;
 use tonic::Status;
 
 // Local Imports
 use super::redaction;
-use crate::grpc::transcode::Transcode;
 use dokime::domain::model::identity::wire::Timestamp;
 
 /* === Constants === */
 
-pub(super) const DEFAULT_REPLAY_LINES: u32 = 500;
-pub(super) const MAX_REPLAY_LINES: u32 = 5_000;
-const READ_WINDOW_BYTES: u64 = 256 * 1024;
-const MAX_PENDING_FRAMES: usize = 8_192;
-const POLL_INTERVAL: Duration = Duration::from_millis(250);
-const MAX_LINE_BYTES: usize = 256 * 1024;
+const SERVER_DEFAULT_REPLAY_LINES: u64 = 500;
+const SERVER_LOG_LINE_BYTES: u64 = 262_144;
+const SERVER_LOG_PENDING_FRAMES: u64 = 8_192;
+const SERVER_LOG_READ_WINDOW_BYTES: u64 = 262_144;
+const SERVER_MAXIMUM_REPLAY_LINES: u64 = 5_000;
 
 /* === Macros === */
 
@@ -47,6 +42,7 @@ const MAX_LINE_BYTES: usize = 256 * 1024;
 /* === Structs === */
 
 pub(super) struct Watch {
+    pub(super) poll_interval: Duration,
     pub(super) path: PathBuf,
     pub(super) min_level: dokime::domain::model::backend::wire::LogLevel,
     pub(super) replay_lines: u32,
@@ -54,6 +50,7 @@ pub(super) struct Watch {
 }
 
 struct Follow {
+    poll_interval: Duration,
     pending_bytes: usize,
     path: PathBuf,
     min_level: dokime::domain::model::backend::wire::LogLevel,
@@ -62,7 +59,7 @@ struct Follow {
     offset: u64,
     carry: Vec<u8>,
     discarding_line: bool,
-    pending: VecDeque<dokime::domain::model::backend::wire::LogFrame>,
+    pending: VecDeque<(usize, dokime::domain::model::backend::wire::LogFrame)>,
     dropped: u64,
     replayed: bool,
 }
@@ -75,8 +72,14 @@ struct Follow {
 
 impl Watch {
     pub(super) async fn run(self, output: &mut StreamOutput<dokime::domain::model::backend::wire::LogFrame>) -> Result<(), Status> {
-        let replay_lines = if self.replay_lines == 0 { DEFAULT_REPLAY_LINES } else { self.replay_lines.min(MAX_REPLAY_LINES) };
+        let replay_lines = if self.replay_lines == 0 {
+            SERVER_DEFAULT_REPLAY_LINES
+        } else {
+            u64::from(self.replay_lines).min(SERVER_MAXIMUM_REPLAY_LINES)
+        };
+        let replay_lines = u32::try_from(replay_lines).expect("validated replay line count");
         let mut follow = Follow {
+            poll_interval: self.poll_interval,
             pending_bytes: 0,
             path: self.path,
             min_level: self.min_level,
@@ -106,13 +109,13 @@ impl Follow {
             }
             if let Some(mut frame) = self.pop() {
                 frame.dropped = self.dropped;
-                if frame.wire_len()? > self.message_limit {
+                if super::content::output_frame_len(&frame)? > self.message_limit {
                     return Err(Status::resource_exhausted("log frame exceeds the configured message budget"));
                 }
                 return Ok(Some(frame.into()));
             }
             if self.advance(None)? == 0 {
-                tokio::time::sleep(POLL_INTERVAL).await;
+                tokio::time::sleep(self.poll_interval).await;
             }
         }
     }
@@ -156,7 +159,7 @@ impl Follow {
         if file.seek(SeekFrom::Start(self.offset)).is_err() {
             return Ok(0);
         }
-        let window = (length - self.offset).min(READ_WINDOW_BYTES);
+        let window = (length - self.offset).min(SERVER_LOG_READ_WINDOW_BYTES);
         let mut bytes = vec![0; usize::try_from(window).unwrap_or_default()];
         let Ok(read) = file.read(&mut bytes) else {
             return Ok(0);
@@ -178,7 +181,7 @@ impl Follow {
         let boundary = self.carry.iter().rposition(|byte| *byte == b'\n');
         let complete = match boundary {
             Some(boundary) => self.carry.drain(..=boundary).collect::<Vec<_>>(),
-            None if self.carry.len() > MAX_LINE_BYTES => {
+            None if self.carry.len() as u64 > SERVER_LOG_LINE_BYTES => {
                 self.carry.clear();
                 self.discarding_line = true;
                 Vec::new()
@@ -186,24 +189,28 @@ impl Follow {
             None => Vec::new(),
         };
         for line in complete.split(|byte| *byte == b'\n') {
-            if line.len() > MAX_LINE_BYTES {
+            if line.len() as u64 > SERVER_LOG_LINE_BYTES {
                 continue;
             }
             if let Some(frame) = self.frame(line)? {
-                self.push(frame);
+                self.push(frame)?;
             }
         }
         Ok(read as u64)
     }
 
     fn pop(&mut self) -> Option<dokime::domain::model::backend::wire::LogFrame> {
-        let frame = self.pending.pop_front()?;
-        self.pending_bytes = self.pending_bytes.saturating_sub(frame.memory_size());
+        let (bytes, frame) = self.pending.pop_front()?;
+        self.pending_bytes = self.pending_bytes.saturating_sub(bytes);
         Some(frame)
     }
-    fn push(&mut self, frame: dokime::domain::model::backend::wire::LogFrame) {
-        let bytes = frame.memory_size();
-        let count = if self.replayed { MAX_PENDING_FRAMES } else { self.replay_lines as usize };
+    fn push(&mut self, frame: dokime::domain::model::backend::wire::LogFrame) -> Result<(), Status> {
+        let bytes = super::content::output_frame_len(&frame)?;
+        let count = if self.replayed {
+            usize::try_from(SERVER_LOG_PENDING_FRAMES).expect("validated pending log count")
+        } else {
+            self.replay_lines as usize
+        };
         while !self.pending.is_empty() && (self.pending.len() >= count || self.pending_bytes.saturating_add(bytes) > self.message_limit) {
             let count_drop = self.replayed || self.pending_bytes.saturating_add(bytes) > self.message_limit;
             self.pop();
@@ -212,13 +219,14 @@ impl Follow {
             }
         }
         self.pending_bytes = self.pending_bytes.saturating_add(bytes);
-        self.pending.push_back(frame);
+        self.pending.push_back((bytes, frame));
+        Ok(())
     }
     fn frame(&self, line: &[u8]) -> Result<Option<dokime::domain::model::backend::wire::LogFrame>, Status> {
         let Some(frame) = self.frame_wire(line) else {
             return Ok(None);
         };
-        if frame.memory_size() > self.message_limit || frame.wire_len()? > self.message_limit {
+        if super::content::output_frame_len(&frame)? > self.message_limit {
             return Err(Status::resource_exhausted("log frame exceeds the configured message budget"));
         }
         Ok(Some(frame))

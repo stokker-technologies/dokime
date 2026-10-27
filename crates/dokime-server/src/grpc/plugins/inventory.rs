@@ -42,7 +42,9 @@ use dokime::state::PluginOwner;
 pub(super) fn page(
     runtime: &RuntimeHandle, request: &mut v1::ListAdmittedPlugins, limit: usize, local_only: bool,
 ) -> Result<dokime::harmos::operations::Response<plugins_model::AdmittedPluginPage>, Status> {
-    let size = page_size(request.page_size)?;
+    let after = request.after.as_ref().map(|cursor| cursor.after_plugin_id.as_str());
+    let size = dokime::domain::model::execution::wire_cursor::page_size(request.page_size, after.unwrap_or_default())
+        .map_err(crate::grpc::value::canonical::cursor_failure)?;
     let snapshot = runtime.watch_state().latest();
     let state = snapshot.state();
     let epoch = state.process_epoch().to_string();
@@ -51,14 +53,12 @@ pub(super) fn page(
     {
         return Err(Status::failed_precondition("plugin inventory changed; restart listing"));
     }
-    let after = request.after.as_ref().map(|cursor| cursor.after_plugin_id.as_str());
     if after.is_some_and(|id| !state.installed_plugins.contains_key(id)) {
         return Err(Status::invalid_argument("plugin cursor is not in inventory"));
     }
     let start = after.map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded);
     let mut selected = state.installed_plugins.range::<str, _>((start, std::ops::Bound::Unbounded));
     let mut artifacts = Vec::new();
-    let mut bytes = 256usize;
     for (id, artifact) in selected.by_ref().take(size) {
         let owner = state.plugin_owners.get(id);
         let label = match owner {
@@ -66,20 +66,7 @@ pub(super) fn page(
             Some(PluginOwner::Host) => "Dokime",
             _ => id.as_str(),
         };
-        let encoded = id.len().saturating_add(label.len()).saturating_add(artifact.version.len()).saturating_add(64);
-        let owner_bytes = match owner {
-            Some(PluginOwner::Bundle { package, path, installation, content_digest }) => package
-                .len()
-                .saturating_add(path.len())
-                .saturating_add(installation.as_ref().map_or(0, String::len))
-                .saturating_add(content_digest.len()),
-            Some(PluginOwner::Embedded { generation }) => generation.len(),
-            _ => 0,
-        };
-        bytes = bytes.saturating_add(encoded).saturating_add(owner_bytes);
-        if bytes > limit {
-            return Err(Status::resource_exhausted("plugin page exceeds response budget"));
-        }
+        artifacts.try_reserve(1).map_err(|_| Status::resource_exhausted("plugin page allocation refused"))?;
         artifacts.push(plugins_model::AdmittedPlugin {
             plugin_id: id.clone(),
             label: label.to_owned(),

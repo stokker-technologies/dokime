@@ -6,14 +6,14 @@
 #
 # ***
 
-"""Lossless live record replay and raw telemetry cursor polling."""
+"""Lossless Record Replay And Saved Telemetry Following."""
 
 # === Imports === #
 
 # Standard Library Imports
 import asyncio
 import re
-from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Sequence
 from contextlib import suppress
 from fnmatch import fnmatchcase
 
@@ -23,7 +23,7 @@ from google.protobuf.message import Message
 # Local Imports
 from .. import _wire
 from .._transport import Transport
-from ..errors import ProtocolError
+from ..errors import ProtocolError, RpcError
 from ..models import Backend
 
 # Type Checking Imports
@@ -31,6 +31,10 @@ from ..models import Backend
 # === Public Exports === #
 
 # === Constants === #
+
+FILTER_BYTES = 4096
+FILTER_ITEMS = 64
+MAXIMUM_SAMPLE_PAGE_ITEMS = 5000
 
 # === Types === #
 
@@ -122,58 +126,68 @@ async def read_samples(
     scope: Message,
     streams: Sequence[str],
     page_size: int,
-    interval: float,
-    completion: Callable[[], Awaitable[bool]],
+    follow: bool,
 ) -> AsyncGenerator[Message]:
     validate_patterns(streams)
-    if not 1 <= page_size <= 5000:
-        raise ValueError("page size must be between 1 and 5000")
+    if type(page_size) is not int or not 1 <= page_size <= MAXIMUM_SAMPLE_PAGE_ITEMS:
+        raise ValueError("page size exceeds the configured maximum")
     positions: dict[str, int] = {}
-    draining = False
+    reconnect = True
     while True:
-        if not draining:
-            draining = await completion()
         await transport.verify(backend, live=True)
-        page = await transport.unary(
+        selection = _wire.request(
             "Telemetry",
             "ListSamples",
-            _wire.request(
-                "Telemetry",
-                "ListSamples",
-                scope=scope,
-                streams=streams,
-                limit=page_size,
-                after_stream_cursors=[{"key": key, "value": value} for key, value in sorted(positions.items())],
-                latest=False,
-            ),
+            scope=scope,
+            streams=streams,
+            limit=page_size,
+            after_stream_cursors=[{"key": key, "value": value} for key, value in sorted(positions.items())],
+            latest=False,
         )
-        await transport.verify(backend, live=True)
-        if len(page.samples) > page_size:
-            raise ProtocolError("telemetry page exceeds requested limit")
-        through = {entry.key: entry.value for entry in page.through_stream_cursors}
-        if len(through) != len(page.through_stream_cursors):
-            raise ProtocolError("telemetry page repeats a stream cursor")
-        if any(stream in through and through[stream] < position for stream, position in positions.items()) or (
-            not page.complete and not any(position > positions.get(stream, -1) for stream, position in through.items())
-        ):
-            raise ProtocolError("telemetry continuation did not advance")
-        for item in page.samples:
-            selected = not streams or any(fnmatchcase(item.stream, pattern) for pattern in streams)
-            if not item.HasField("scope") or not _scope(scope, item.scope) or not selected:
-                raise ProtocolError("sample identity or stream differs")
-        positions.update(through)
-        yield page
-        if draining and page.complete:
+        reader = None
+        try:
+            reader = await transport.stream(
+                "Telemetry",
+                "WatchSamples",
+                _wire.request("Telemetry", "WatchSamples", selection=selection, follow=follow),
+            )
+            async for page in reader:
+                await transport.verify(backend, live=True)
+                if len(page.samples) > page_size:
+                    raise ProtocolError("telemetry page exceeds requested limit")
+                through = {entry.key: entry.value for entry in page.through_stream_cursors}
+                if len(through) != len(page.through_stream_cursors):
+                    raise ProtocolError("telemetry page repeats a stream cursor")
+                if any(stream in through and through[stream] < position for stream, position in positions.items()) or (
+                    not page.complete and not any(position > positions.get(stream, -1) for stream, position in through.items())
+                ):
+                    raise ProtocolError("telemetry continuation did not advance")
+                for item in page.samples:
+                    selected = not streams or any(fnmatchcase(item.stream, pattern) for pattern in streams)
+                    if not item.HasField("scope") or not _scope(scope, item.scope) or not selected:
+                        raise ProtocolError("sample identity or stream differs")
+                yield page
+                positions.update(through)
+                reconnect = True
             return
-        if page.complete:
-            await asyncio.sleep(interval)
+        except RpcError as error:
+            if error.code != "UNAVAILABLE" or not reconnect:
+                raise
+            reconnect = False
+        finally:
+            if reader is not None:
+                await reader.close()
 
 
 def validate_patterns(patterns: Sequence[str]) -> None:
-    if isinstance(patterns, str) or len(patterns) > 64:
-        raise ValueError("listener filters require a sequence of at most 64 identifier globs")
+    if isinstance(patterns, str) or len(patterns) > FILTER_ITEMS:
+        raise ValueError("listener filters exceed the configured item limit")
     for pattern in patterns:
-        if not isinstance(pattern, str) or len(pattern) > 4096 or re.fullmatch(r"[A-Za-z0-9_*?][A-Za-z0-9_.*?-]*", pattern) is None:
+        if (
+            not isinstance(pattern, str)
+            or len(pattern.encode("utf-8")) > FILTER_BYTES
+            or re.fullmatch(r"[A-Za-z0-9_*?][A-Za-z0-9_.*?-]*", pattern) is None
+        ):
             raise ValueError("listener filters accept identifier globs using only '*' and '?' wildcards")
 
 

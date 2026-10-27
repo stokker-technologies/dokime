@@ -19,6 +19,7 @@ import { test } from "vitest";
 
 // Local Imports
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import { plotWindowOptions } from "@/features/cycle/PlotWindowSlider";
 import {
   formatStatValue,
   formatSummaryValue,
@@ -42,10 +43,11 @@ import {
   histogramAxisTitle,
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
-import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotState, plotWaitingLabel } from "@/plots/live-frames";
+import { plotRequestForDocumentPlot } from "@/plots/live-data";
+import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
-import { lttbIndices, m4Indices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices, windowIndices } from "@/plots/reduce";
+import { lttbIndices, m4Indices, minMaxIndices, reduceIndices, windowIndices } from "@/plots/reduce";
 import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Re-Exports === */
@@ -139,29 +141,11 @@ function streamMessage(kind: PlotPayloadStreamMessage["kind"], revision: number,
     kind,
     revision,
     plot_id: "pulse",
+    epoch: "epoch",
+    selection: "pulse-selection",
     payload,
-    cursor: null,
     warnings: [],
   } as unknown as PlotPayloadStreamMessage;
-}
-
-/* Streams `chunks` appends of `size` pulse samples after `state`, 10 Hz from `startS`. */
-function appendPulses(
-  state: LivePlotState,
-  chunks: number,
-  size: number,
-  fields: { maxPoints?: number; windowS?: number | null; startS?: number; traces?: number },
-  onFrame?: (state: LivePlotState) => void,
-): LivePlotState {
-  let next = state;
-  for (let chunk = 0; chunk < chunks; chunk += 1) {
-    const { x, y } = pulse(size, (fields.startS ?? 0) + (chunk * size * PULSE_PERIOD_MS) / 1000);
-    const ys = Array.from({ length: fields.traces ?? 1 }, (_, trace) => y.map((v) => v + trace));
-    const update = hostFrame(x, ys, fields);
-    next = applyPlotMessages(next, [streamMessage("append", next.revision + 1, update)], "auto");
-    onFrame?.(next);
-  }
-  return next;
 }
 
 function assertAscending(indices: readonly number[]) {
@@ -179,6 +163,19 @@ function histogram(fields: Record<string, unknown>): HistogramDeclaration {
 }
 
 /* === Entry Point === */
+
+test("Configured Plot Windows Preserve Inheritance And All", () => {
+  const options = plotWindowOptions([17, 42]);
+  assert.deepEqual(
+    options.map((option) => option.value),
+    [undefined, 17, 42, null],
+  );
+  const structural = plotWindowOptions([]);
+  assert.deepEqual(
+    structural.map((option) => option.value),
+    [undefined, null],
+  );
+});
 
 test("LTTB Reduction", () => {
   // LTTB Keeps The Ends, The Count, And Ascending Order
@@ -262,28 +259,15 @@ test("LTTB Reduction", () => {
   assert.deepEqual(reduceIndices(autoX, [autoY], budget, "auto"), reduceIndices(autoX, [autoY], budget, "min_max"));
 });
 
-test("Retention Window", () => {
-  // A Windowed Plot Keeps Exactly Its Trailing Window While Appends Run
-  /* 300 s at 10 Hz into a 60 s window: the front is evicted as the run moves. */
-  const opening = pulse(10);
-  const snapshot = hostFrame(opening.x, [opening.y], { windowS: 60 });
-  let state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, snapshot)], "auto");
-  state = appendPulses(state, 300, 10, { windowS: 60, startS: 1 });
-  const x = state.payload?.cartesian?.series[0].x ?? [];
-  const span = x[x.length - 1] - x[0];
-  assert.ok(span <= 60 && span >= 59.8, `the window decides the span, got ${span.toFixed(1)} s`);
-  assert.equal(state.payload?.cartesian?.point_count, x.length);
-});
-
 test("Empty Snapshot", () => {
   // A Plot Without Records Opens On Its Revision-0 Snapshot Instead Of Waiting
   const empty = hostFrame([], [[]]);
-  const state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 0, empty)], "auto");
+  const state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 0, empty)]);
   assert.equal(state.status, "live");
   assert.equal(state.droppedBatches, 0);
 
-  // An Append That Repeats The Revision Is Still Dropped
-  assert.equal(applyPlotMessages(state, [streamMessage("append", 0, empty)], "auto").droppedBatches, 1);
+  // A Replacement That Repeats The Revision Is Still Dropped
+  assert.equal(applyPlotMessages(state, [streamMessage("replace", 0, empty)]).droppedBatches, 1);
 });
 
 test("Window Resampling", () => {
@@ -409,84 +393,82 @@ test("Waiting For Data", () => {
 
   // A Server Error Frame Still Reports, And A Later Notice Does Not Hide It
   const failed = {
-    voltage: applyPlotMessages(
-      later.voltage,
-      [{ ...streamMessage("error", 0, hostFrame([], [])), warnings: ["plot query unavailable"] }],
-      "auto",
-    ),
+    voltage: applyPlotMessages(later.voltage, [{ ...streamMessage("error", 0, hostFrame([], [])), warnings: ["plot query unavailable"] }]),
   };
   assert.equal(failed.voltage.status, "error");
   assert.equal(applyPendingNotice(failed, "voltage", 60_000), failed);
 
   // The First Frame Ends The Wait
-  const served = applyPlotMessages(later.voltage, [streamMessage("snapshot", 0, hostFrame([0, 1], [[1, 2]]))], "auto");
+  const served = applyPlotMessages(later.voltage, [streamMessage("snapshot", 0, hostFrame([0, 1], [[1, 2]]))]);
   assert.equal(served.status, "live");
   assert.equal(served.waitingSince, null);
   assert.equal(applyPendingNotice({ voltage: served }, "voltage", 70_000).voltage, served);
 });
 
-test("Frame Retention", () => {
-  // A Snapshot Keeps One Representation: The Cartesian Frame
-  const start = pulse(50);
-  const snapshot = hostFrame(start.x, [start.y, start.y], { maxPoints: 100 });
-  let state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, snapshot)], "auto");
-  assert.equal(state.payload?.cartesian?.signature, "host");
+test("Slider Selects Storage Query Range", () => {
+  const plot: DocumentViewPlot = {
+    plot_id: "pulse",
+    title: "Pulse",
+    stream: "pulse",
+    plot_type: "time_series",
+    style: "line",
+    x_scale: "linear",
+    y_scale: "linear",
+    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    x: "timestamp",
+    y: ["voltage"],
+    live_window_s: 60,
+    display_points: 100,
+  };
+  const scope = { test_cycle_id: "cycle" };
+  const declared = plotRequestForDocumentPlot(plot, { scope });
+  const recent = plotRequestForDocumentPlot(plot, { scope, windowS: 10 });
+  const all = plotRequestForDocumentPlot(plot, { scope, windowS: null });
+  assert.equal(declared.windowS, 60);
+  assert.equal(recent.windowS, 10);
+  assert.equal(all.windowS, null);
+  assert.equal(all.maxPoints, recent.maxPoints);
+  assert.deepEqual(all.scope, scope);
+  assert.equal(plot.live_window_s, 60);
+});
+test("Storage Query Snapshots", () => {
+  const recent = hostFrame([100, 101], [[2, 3]], { windowS: 30 });
+  recent.markers = [{ x: 101, label: "Recent", record_type: "recent", color: "blue" }];
+  recent.context = { recent: true };
+  let state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 0, recent)]);
+  assert.deepEqual(state.payload?.cartesian?.series[0].x, [100, 101]);
   assert.ok(state.payload?.series.every((series) => series.points.length === 0));
 
-  // A Long Run Under The "All" Window Stays Within Twice Its Capacity
-  /* 20,000 samples per trace; two aligned traces at a budget of 100 never
-     hold more than 2 x 100 x 2 samples on their shared axis. */
-  let largest = 0;
-  const signatures = new Set<string>();
-  state = appendPulses(state, 2_000, 10, { startS: 5, traces: 2 }, (frame) => {
-    const cartesian = frame.payload?.cartesian;
-    assert.ok(cartesian);
-    largest = Math.max(largest, cartesian.series[0].x.length);
-    assert.deepEqual(cartesian.series[1].x, cartesian.series[0].x, "aligned traces share x");
-    assert.equal(cartesian.series[1].y.length, cartesian.series[0].y.length);
-    signatures.add(cartesian.signature);
-  });
-  assert.ok(largest <= 400, `retained ${largest} samples on one axis`);
-  assert.equal(signatures.size, 2_000, "every append changes the signature");
+  // A Broader Storage Query Can Restore Samples Absent From The Previous Frame.
+  const historical = hostFrame([0, 50, 101], [[4, 5, 6]], { windowS: null });
+  historical.markers = [{ x: 0, label: "Earlier", record_type: "earlier", color: "red" }];
+  historical.context = { historical: true };
+  state = applyPlotMessages(state, [streamMessage("replace", 1, historical)]);
+  assert.deepEqual(state.payload?.cartesian?.series[0].x, [0, 50, 101]);
+  assert.deepEqual(state.payload?.markers, historical.markers);
+  assert.deepEqual(state.payload?.context, historical.context);
+  assert.equal(state.payload?.cartesian?.point_count, 3);
+  assert.equal(state.payload?.series[0].raw_points, 3);
+  assert.deepEqual(recent.cartesian?.series[0].x, [100, 101]);
 
-  // Compaction Keeps The Whole Run At An Even Density
-  const x = state.payload?.cartesian?.series[0].x ?? [];
-  const first = x[0];
-  const last = x[x.length - 1];
-  assert.equal(first, 0, "the All window keeps the first sample");
-  assert.ok(Math.abs(last - 2_004.9) < 1e-9, `the latest sample is drawn, got ${last}`);
-  const early = x.filter((value) => value < (first + last) / 2).length;
-  /* Between compactions the newest raw samples crowd the recent half; what
-     matters is that the older half is not thinned again by every compaction,
-     which an index-bucketed reduction would leave with a handful of samples. */
-  assert.ok(early >= 20, `the older half keeps ${early} of ${x.length} samples`);
-
-  // A Stale Frame Is Counted As Dropped And Changes Nothing
-  const before = state.payload;
-  state = applyPlotMessages(state, [streamMessage("append", 1, snapshot)], "auto");
+  // A Late Revision Cannot Replace The Selected Snapshot.
+  const selected = state.payload;
+  state = applyPlotMessages(state, [streamMessage("replace", 1, recent)]);
+  assert.equal(state.payload, selected);
   assert.equal(state.droppedBatches, 1);
-  assert.equal(state.payload, before);
+  const differentSelection = { ...streamMessage("replace", 2, recent), selection: "different-selection" };
+  assert.equal(applyPlotMessages(state, [differentSelection]).payload, selected);
 
-  // A Replace Frame Is Authoritative
-  const replaced = pulse(5, 3_000);
-  const replace = hostFrame(replaced.x, [replaced.y, replaced.y], { maxPoints: 100 });
-  state = applyPlotMessages(state, [streamMessage("replace", state.revision + 1, replace)], "auto");
-  assert.deepEqual(state.payload?.cartesian?.series[0].x, replaced.x);
-  assert.equal(state.payload?.cartesian?.point_count, 10);
-  assert.equal(state.payload?.cartesian?.signature, "host");
-
-  // A Plot That Keeps Every Sample Is Still Bounded By The Host Ceiling
-  const raw = hostFrame([0], [[0]], { maxPoints: 0 });
-  let unbudgeted = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, raw)], "auto");
-  unbudgeted = appendPulses(unbudgeted, 130, 1_000, { maxPoints: 0, startS: 1 });
-  const kept = unbudgeted.payload?.cartesian?.series[0].x.length ?? 0;
-  assert.equal(unbudgeted.status, "live");
-  assert.ok(kept <= NATIVE_PLOT_MAX_POINTS && kept > NATIVE_PLOT_MAX_POINTS / 4);
-
-  // A Changed Series Set Starts The Frame Over From The Update
-  const renamed = hostFrame([9_000], [[1]], { keys: ["other"] });
-  state = applyPlotMessages(state, [streamMessage("append", state.revision + 1, renamed)], "auto");
-  assert.deepEqual(state.payload?.cartesian?.series[0].x, [9_000]);
+  // A Reopened Watch Begins A New Revision Origin Without Blending Old Data.
+  const stale = { ...state, status: "reconnecting" as const };
+  assert.equal(applyPendingNotice({ pulse: stale }, "pulse", 1_000).pulse.payload, selected);
+  const reopened = hostFrame([200], [[8]]);
+  state = applyPlotMessages(stale, [{ ...streamMessage("snapshot", 0, reopened), epoch: "reopened-epoch" }]);
+  assert.equal(state.epoch, "reopened-epoch");
+  assert.equal(state.selection, "pulse-selection");
+  assert.equal(state.status, "live");
+  assert.deepEqual(state.payload?.cartesian?.series[0].x, [200]);
+  assert.equal(state.payload?.series[0].raw_points, 1);
 });
 
 test("Drag Viewport", () => {
@@ -825,8 +807,8 @@ test("Stream Errors Replace Retained Charts", () => {
     y: ["trace-0"],
   };
   const payload = hostFrame([0, 1], [[2, 3]]);
-  const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)], "auto");
-  const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["Voltage channel disconnected"] }], "auto");
+  const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)]);
+  const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["Voltage channel disconnected"] }]);
   assert.equal(failed.payload, ready.payload, "recovery retains the last frame in memory");
   const html = renderToStaticMarkup(
     createElement(LivePlotGroupGrid, {

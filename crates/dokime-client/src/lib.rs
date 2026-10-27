@@ -68,7 +68,8 @@ use zeroize::Zeroizing;
 
 /* === Constants === */
 
-const MAX_MESSAGE_BYTES: u64 = 16 * 1024 * 1024;
+const DISCOVERY_BYTES: u64 = 1_048_576;
+const MAX_MESSAGE_BYTES: u64 = 16_777_216;
 
 /* === Macros === */
 
@@ -86,6 +87,7 @@ pub struct Client {
 }
 
 struct Inner {
+    settings: dokime_domain::model::settings::application::ClientPreferences,
     channel: Mutex<Option<Channel>>,
     authorization: Option<MetadataValue<Ascii>>,
     cancellation: CancellationToken,
@@ -162,11 +164,16 @@ impl Client {
     pub async fn connect(target: Target, token: Option<&str>, expected_id: Option<&str>) -> Result<Self> {
         let authorization = authorization(token)?;
         let channel = target.connect().await?;
-        let backend = discovery::discover(channel.clone(), authorization.as_ref(), expected_id).await?;
+        let settings = *target.settings();
+        let negotiation = discovery::discover(channel.clone(), authorization.as_ref(), expected_id, DISCOVERY_BYTES as usize);
+        let backend = tokio::time::timeout(Duration::from_millis(settings.request_timeout_ms), negotiation)
+            .await
+            .map_err(|_| Error::Rpc(tonic::Status::deadline_exceeded("backend negotiation deadline exceeded")))??;
         Ok(Self {
-            timeout: None,
+            timeout: Some(Duration::from_millis(settings.request_timeout_ms)),
             frame_limit: MAX_MESSAGE_BYTES as usize,
             inner: Arc::new(Inner {
+                settings,
                 channel: Mutex::new(Some(channel)),
                 authorization,
                 cancellation: CancellationToken::new(),
@@ -198,6 +205,10 @@ impl Client {
 
     pub fn backend(&self) -> &Backend {
         &self.inner.backend
+    }
+
+    pub fn settings(&self) -> &dokime_domain::model::settings::application::ClientPreferences {
+        &self.inner.settings
     }
 
     pub fn channel(&self) -> Result<Channel> {

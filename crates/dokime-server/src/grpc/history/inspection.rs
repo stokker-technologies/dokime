@@ -22,8 +22,8 @@ use tonic::Status;
 
 // Local Imports
 use super::wire;
+use crate::grpc::error::detailed;
 use crate::grpc::transcode::Transcode;
-use crate::grpc::{error::detailed, value};
 use dokime::RuntimeHandle;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::execution::wire_checkpoint as checkpoint;
@@ -76,7 +76,6 @@ impl Operation for Inspect {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut history::GetExecutionCheckpoint, _: &mut (),
     ) -> Result<Response<checkpoint::ExecutionCheckpoint>, Status> {
-        value::text(&request.execution_identifier)?;
         let id = TestExecutionId::from_uuid(request.execution_identifier.clone())
             .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         let response = self.resources.runtime.execution_saved_checkpoint(id).await.map_err(|source| match source {
@@ -131,7 +130,7 @@ pub(in crate::grpc) fn register(runtime: &RuntimeHandle, max_message_bytes: usiz
 }
 
 pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> dokime::harmos::Result<checkpoint::ExecutionCheckpoint> {
-    let value = wire::checkpoint_wire_ref(source).map_err(|source| {
+    let value = wire::checkpoint_wire_ref(source, maximum).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
             return exhausted();
         }

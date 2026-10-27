@@ -139,3 +139,19 @@ impl fmt::Debug for Configuration {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::Configuration;
+
+    #[test]
+    fn initialization_roundtrips_declared_values() {
+        let configuration: Configuration =
+            serde_json::from_str(r#"{"settings":{},"secrets":{"password":"protected"},"saved":["password"]}"#).unwrap();
+        let encoded = serde_json::to_vec(&configuration).unwrap();
+        let decoded: Configuration = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(decoded.settings, configuration.settings);
+        assert_eq!(decoded.secrets, configuration.secrets);
+        assert_eq!(decoded.saved, configuration.saved);
+    }
+}

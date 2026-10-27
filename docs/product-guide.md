@@ -296,10 +296,13 @@ The version 1 JSON contract keeps secrets in a separate OS secret store:
 }
 ```
 
-Names contain 1–64 ASCII letters, digits, dots, underscores or hyphens. Unknown
-fields, duplicate names, unsupported versions, invalid endpoints and dangling
-defaults are refused. Files are limited to 1 MiB and 128 profiles. CLI edits lock
-and atomically replace the file; contention refuses the edit for retry. Tokens
+Names contain ASCII letters, digits, dots, underscores or hyphens. The default
+name length is 1–64 bytes, with a 1 MiB profile file and 128 profiles. Configure
+these bounds through `profile_name_bytes`, `profile_bytes` and `profiles` in
+`[operational.client]` in the application data `config.toml`. Unknown fields,
+duplicate names, unsupported versions, invalid endpoints and dangling defaults
+are refused. CLI edits lock and atomically replace the file; contention refuses
+the edit for retry. Tokens
 stay outside JSON. Python reads explicitly named profiles with
 `DokimeClient.from_profile("lab", key_file="remote.key")`; it uses the same configuration
 location and accepts an explicit `path` override.
@@ -790,6 +793,19 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | `cargo dokime package` | Bundle a collected build without compiling. | `--build-json`, `-o` |
 | `cargo dokime dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
 | `cargo dokime inspect` | Verify a bundle and print its manifest as JSON. | |
+
+The host includes an immutable `Configuration.sidecar` policy snapshot during
+plugin initialization. Retain it in the prepared plugin and pass it to suite
+binding; the shipped [plugin starter](../crates/cargo-dokime/templates/src/lib.rs)
+shows the complete construction path. `execution::serve(table, &sidecar)` and
+`Workflow::new(workflow, source, &sidecar)` use that explicit snapshot. Analysis
+resources expose its analysis section through `AsRef<AnalysisSettings>`.
+
+The host also supplies `DOKIME_SIDECAR_BOOTSTRAP` for native invocation capacity,
+thread stack size and runtime shutdown time before initialization can run.
+Malformed supplied bootstrap settings stop startup. A standalone authoring
+process without that host payload uses canonical defaults. Static operation
+policies remain declared operation contracts.
 
 ## Crate Layout
 

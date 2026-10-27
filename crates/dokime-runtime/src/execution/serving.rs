@@ -35,8 +35,6 @@ use crate::transport::{
 
 /* === Constants === */
 
-const IDLE: Duration = Duration::from_millis(250);
-const PUSH_RETRIES: usize = 5;
 const RUN_POLICY: OperationPolicy =
     OperationPolicy { timeout: RUN_BOUND, attempt_timeout: RUN_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
 pub const SIGNAL_POLICY: OperationPolicy =
@@ -252,7 +250,6 @@ impl<T: SidecarTemplate> Workflow<T> {
                         self.answered(&token, answered);
                     }
                 }
-                () = tokio::time::sleep(IDLE) => {}
             }
         }
     }
@@ -352,12 +349,24 @@ impl<T: SidecarTemplate> Runnable for Workflow<T> {
 /* === Public Functions === */
 
 pub fn contracts(template: &str) -> Result<[harmos::operations::Contract; 2], harmos::operations::ContractError> {
+    contracts_with_settings(template, &harmos::config::SchemaSettings::default())
+}
+
+pub fn contracts_with_settings(
+    template: &str, settings: &harmos::config::SchemaSettings,
+) -> Result<[harmos::operations::Contract; 2], harmos::operations::ContractError> {
     let named = |wire: harmos::operations::WireDeclaration, suffix: &str| {
-        let contract = wire.contract()?;
+        let contract = wire.contract_with_settings(settings)?;
         let mut operation = contract.operation().clone();
         operation.id = harmos::Identifier::new(format!("{template}.{suffix}"))
             .map_err(|source| harmos::operations::ContractError::Operation(source.into()))?;
-        harmos::operations::Contract::new(operation, contract.version(), contract.codec(), contract.schema().clone())
+        harmos::operations::Contract::new_with_settings(
+            operation,
+            contract.version(),
+            contract.codec(),
+            contract.schema().clone(),
+            settings,
+        )
     };
     Ok([
         named(harmos::operations::WireDeclaration::of::<Run<()>>(), "run")?,
@@ -410,12 +419,22 @@ fn registry() -> &'static Mutex<Vec<Arc<dyn Runnable>>> {
 
 async fn push(host: &dyn ExecutionHost, batch: EvidenceBatch) -> Result<EvidenceReceipt, Refusal> {
     let mut failure = String::new();
-    for attempt in 0..PUSH_RETRIES {
+    for attempt in 0..5 {
         match host.push(batch.clone()).await {
             Ok(receipt) => return Ok(receipt),
             Err(reason) => failure = reason,
         }
-        tokio::time::sleep(Duration::from_millis(50 << attempt)).await;
+        if attempt + 1 < 5 {
+            let shift = u32::try_from(attempt).map_err(|_| Refusal::of("evidence retry delay exceeds the native clock range"))?;
+            let delay = 1_u64
+                .checked_shl(shift)
+                .and_then(|factor| 100_u64.checked_mul(factor))
+                .ok_or_else(|| Refusal::of("evidence retry delay exceeds the native clock range"))?;
+            let deadline = tokio::time::Instant::now()
+                .checked_add(Duration::from_millis(delay))
+                .ok_or_else(|| Refusal::of("evidence retry deadline exceeds the native clock range"))?;
+            tokio::time::sleep_until(deadline).await;
+        }
     }
     Err(Refusal::of(format!("the host did not admit the run's evidence: {failure}")))
 }

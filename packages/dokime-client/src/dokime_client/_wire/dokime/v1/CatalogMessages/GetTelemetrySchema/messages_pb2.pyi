@@ -13,7 +13,7 @@ class Row1(_message.Message):
     def __init__(self, stream: _Optional[str] = ...) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("stream", "schema_version", "storage_schema", "metadata", "template_identifier", "owner_suite_id", "columns", "default_x", "plot_window_ms", "allow_extra_fields", "scalar", "validation_mode", "foreign")
+    __slots__ = ("stream", "schema_version", "storage_schema", "metadata", "template_identifier", "owner_suite_id", "columns", "default_x", "allow_extra_fields", "scalar", "validation_mode", "foreign")
     STREAM_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
     STORAGE_SCHEMA_FIELD_NUMBER: _ClassVar[int]
@@ -22,7 +22,6 @@ class Row2(_message.Message):
     OWNER_SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_X_FIELD_NUMBER: _ClassVar[int]
-    PLOT_WINDOW_MS_FIELD_NUMBER: _ClassVar[int]
     ALLOW_EXTRA_FIELDS_FIELD_NUMBER: _ClassVar[int]
     SCALAR_FIELD_NUMBER: _ClassVar[int]
     VALIDATION_MODE_FIELD_NUMBER: _ClassVar[int]
@@ -35,12 +34,11 @@ class Row2(_message.Message):
     owner_suite_id: str
     columns: _containers.RepeatedCompositeFieldContainer[Row5]
     default_x: str
-    plot_window_ms: int
     allow_extra_fields: bool
     scalar: bool
     validation_mode: Row6
     foreign: bool
-    def __init__(self, stream: _Optional[str] = ..., schema_version: _Optional[int] = ..., storage_schema: _Optional[_Union[Row3, _Mapping]] = ..., metadata: _Optional[_Union[Row4, _Mapping]] = ..., template_identifier: _Optional[str] = ..., owner_suite_id: _Optional[str] = ..., columns: _Optional[_Iterable[_Union[Row5, _Mapping]]] = ..., default_x: _Optional[str] = ..., plot_window_ms: _Optional[int] = ..., allow_extra_fields: _Optional[bool] = ..., scalar: _Optional[bool] = ..., validation_mode: _Optional[_Union[Row6, _Mapping]] = ..., foreign: _Optional[bool] = ...) -> None: ...
+    def __init__(self, stream: _Optional[str] = ..., schema_version: _Optional[int] = ..., storage_schema: _Optional[_Union[Row3, _Mapping]] = ..., metadata: _Optional[_Union[Row4, _Mapping]] = ..., template_identifier: _Optional[str] = ..., owner_suite_id: _Optional[str] = ..., columns: _Optional[_Iterable[_Union[Row5, _Mapping]]] = ..., default_x: _Optional[str] = ..., allow_extra_fields: _Optional[bool] = ..., scalar: _Optional[bool] = ..., validation_mode: _Optional[_Union[Row6, _Mapping]] = ..., foreign: _Optional[bool] = ...) -> None: ...
 
 class Row3(_message.Message):
     __slots__ = ("root", "definitions")

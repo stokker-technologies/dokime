@@ -39,6 +39,7 @@ use dokime::domain::operations::Operations;
 
 struct Policy {
     requirements: Vec<Requirement>,
+    schema_settings: dokime::harmos::config::SchemaSettings,
 }
 
 struct Requirement {
@@ -53,17 +54,17 @@ struct Requirement {
 /* === Implementations === */
 
 impl Policy {
-    fn new() -> Result<Self, Error> {
+    fn new(settings: &dokime::harmos::config::SchemaSettings) -> Result<Self, Error> {
         let mut requirements = Vec::new();
         <Operations as Catalog<Endpoints>>::ENTRIES.try_for_each(|entry| {
-            requirements.push(Requirement { local_only: entry.local_only, contract: entry.wire.contract()? });
+            requirements.push(Requirement { local_only: entry.local_only, contract: entry.wire.contract_with_settings(settings)? });
             Ok::<_, Error>(())
         })?;
         requirements.sort_unstable_by(|left, right| left.contract.operation().id.cmp(&right.contract.operation().id));
         if requirements.windows(2).any(|pair| pair[0].contract.operation().id == pair[1].contract.operation().id) {
             return Err(Error::Configuration("duplicate declared authorization identity"));
         }
-        Ok(Self { requirements })
+        Ok(Self { requirements, schema_settings: *settings })
     }
 }
 
@@ -86,7 +87,9 @@ impl Authorizer for Policy {
             return Ok(None);
         };
         let requirement = &self.requirements[index];
-        if (requirement.local_only && !principal.is_local()) || !provider.contract.compatible(&requirement.contract) {
+        if (requirement.local_only && !principal.is_local())
+            || !provider.contract.compatible_with_settings(&requirement.contract, &self.schema_settings)
+        {
             return Ok(None);
         }
         Ok(Some(Authorization::Full(provider.contract.clone())))
@@ -96,9 +99,9 @@ impl Authorizer for Policy {
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &dokime::RuntimeHandle) -> Result<Arc<Listeners>, Error> {
-    let authorizer = Arc::new(Policy::new()?);
+    let listeners = Arc::new(Listeners::new());
+    let authorizer = Arc::new(Policy::new(runtime.schema_settings())?);
     runtime.operations().register_authorizer(authorizer)?;
-    let listeners = Arc::new(Listeners::default());
     runtime.grpc().register_middleware(Arc::new(dokime::harmos::grpc::authentication::Authenticate::new(listeners.clone())))?;
     Ok(listeners)
 }

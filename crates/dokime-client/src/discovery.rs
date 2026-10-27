@@ -29,8 +29,6 @@ use dokime_domain::operations::runtime;
 
 /* === Constants === */
 
-const DISCOVERY_BYTES: usize = 1024 * 1024;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -45,14 +43,16 @@ const DISCOVERY_BYTES: usize = 1024 * 1024;
 
 /* === Public Functions === */
 
-pub(super) async fn discover(channel: Channel, authorization: Option<&MetadataValue<Ascii>>, expected_id: Option<&str>) -> Result<Backend> {
+pub(super) async fn discover(
+    channel: Channel, authorization: Option<&MetadataValue<Ascii>>, expected_id: Option<&str>, bytes: usize,
+) -> Result<Backend> {
     let identity = transport::unary::<dokime_domain::model::backend::wire::BackendIdentity, _>(
         channel.clone(),
         authorization,
         backend::GetIdentity::PATH,
         backend::GetIdentity {},
-        DISCOVERY_BYTES,
-        DISCOVERY_BYTES,
+        bytes,
+        bytes,
     )
     .await?;
     let identity = transport::value(identity)?;
@@ -68,8 +68,8 @@ pub(super) async fn discover(channel: Channel, authorization: Option<&MetadataVa
         authorization,
         backend::GetHealth::PATH,
         backend::GetHealth {},
-        DISCOVERY_BYTES,
-        DISCOVERY_BYTES,
+        bytes,
+        bytes,
     )
     .await?;
     let health = transport::value(health)?;
@@ -78,8 +78,8 @@ pub(super) async fn discover(channel: Channel, authorization: Option<&MetadataVa
         authorization,
         backend::GetAvailability::PATH,
         backend::GetAvailability {},
-        DISCOVERY_BYTES,
-        DISCOVERY_BYTES,
+        bytes,
+        bytes,
     )
     .await?;
     let availability = transport::value(availability)?;

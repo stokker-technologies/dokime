@@ -27,7 +27,7 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
-const PAGE_SIZE: u32 = 100;
+const PAGE_ITEMS: u64 = 100;
 
 /* === Macros === */
 
@@ -66,7 +66,7 @@ impl TestCycleHandle {
             let read = async {
                 let mut request = contracts::prompts::ListPending {
                     cycle_id: Some(handle.id.to_string()),
-                    limit: PAGE_SIZE,
+                    limit: PAGE_ITEMS as u32,
                     after_prompt_id: String::new(),
                     cursor: None,
                     execution_id: execution.as_ref().map(ToString::to_string),

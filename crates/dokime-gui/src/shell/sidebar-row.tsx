@@ -26,6 +26,7 @@ import type { ComponentProps, ReactNode, Ref } from "react";
 
 /* === Local Imports === */
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -40,6 +41,7 @@ export type SidebarRowProps = Omit<ComponentProps<"li">, "onSelect"> & {
   children?: ReactNode;
   /** Icon only, centred: the collapsed sidebar. */
   collapsed?: boolean;
+  railLabel?: boolean;
   icon?: LucideIcon;
   label: ReactNode;
   level?: SidebarRowLevel;
@@ -59,9 +61,9 @@ export type SidebarRowProps = Omit<ComponentProps<"li">, "onSelect"> & {
  * first 20px of its own lead column, so icon and label never trade places.
  */
 const LEVEL_LEAD: Record<SidebarRowLevel, string> = {
-  case: "grid-cols-[2.5rem_minmax(0,1fr)_auto]",
-  destination: "grid-cols-[1.5rem_minmax(0,1fr)_auto]",
-  overview: "grid-cols-[1.5rem_minmax(0,1fr)_auto]",
+  case: "grid-cols-(--layout-sidebar-case)",
+  destination: "grid-cols-(--layout-sidebar-destination)",
+  overview: "grid-cols-(--layout-sidebar-destination)",
 };
 
 const LEVEL_TEXT: Record<SidebarRowLevel, string> = {
@@ -76,6 +78,7 @@ export function SidebarRow({
   active,
   children,
   collapsed,
+  railLabel,
   icon: Icon,
   label,
   level = "destination",
@@ -89,20 +92,26 @@ export function SidebarRow({
   if (collapsed) {
     return (
       <li
-        className={cn("grid min-h-[var(--sidebar-row-height)] place-items-center rounded-md", tone)}
+        className={cn("grid min-h-[var(--sidebar-row-height)] place-items-center rounded-lg", tone)}
         data-active={active || undefined}
         ref={ref}
         {...rest}
       >
-        <button
-          aria-current={active ? "page" : undefined}
-          aria-label={title}
-          className="grid size-full place-items-center outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={onSelect}
-          type="button"
-        >
-          {Icon ? <Icon aria-hidden className="size-5" /> : null}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              aria-current={active ? "page" : undefined}
+              aria-label={title}
+              className="grid min-h-[var(--control-height)] w-full place-items-center content-center gap-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={onSelect}
+              type="button"
+            >
+              {Icon ? <Icon aria-hidden className="size-5" /> : null}
+              {railLabel ? <span className="text-xs">{label}</span> : null}
+            </button>
+          </TooltipTrigger>
+          {!railLabel ? <TooltipContent side="right">{title}</TooltipContent> : null}
+        </Tooltip>
       </li>
     );
   }
@@ -111,7 +120,7 @@ export function SidebarRow({
 
   return (
     <li
-      className={cn("grid min-h-[var(--sidebar-row-height)] items-center gap-1 rounded-md py-1 pr-2 pl-5", LEVEL_LEAD[level], tone)}
+      className={cn("grid min-h-[var(--sidebar-row-height)] items-center gap-1 rounded-lg py-1 pr-2 pl-4", LEVEL_LEAD[level], tone)}
       data-active={active || undefined}
       data-level={level}
       ref={ref}
@@ -123,9 +132,8 @@ export function SidebarRow({
       {onSelect ? (
         <button
           aria-current={active ? "page" : undefined}
-          className="grid min-w-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="grid min-h-[var(--control-height)] min-w-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={onSelect}
-          title={title}
           type="button"
         >
           {labelNode}

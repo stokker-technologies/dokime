@@ -12,6 +12,8 @@
 /* === Modules === */
 
 #[cfg(feature = "host")]
+mod payload;
+#[cfg(feature = "host")]
 mod projection;
 
 /* === Re-Exports === */
@@ -27,9 +29,10 @@ pub use projection::{
 pub(crate) use projection::{bounded_snapshots_from_state, host_traceability_page_candidate};
 
 #[cfg(feature = "host")]
-pub(crate) use projection::{
-    resource_traceability, scope_discriminator, snapshots_from_execution_parameters, stated_execution_memory, stated_execution_snapshots,
-};
+pub(crate) use projection::{resource_traceability, scope_discriminator, snapshots_from_execution_parameters, stated_execution_snapshots};
+
+#[cfg(feature = "host")]
+pub(crate) use payload::{count, replace_source, retained_host, retained_leases, retained_state};
 
 /* === Imports === */
 

@@ -21,7 +21,7 @@ use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
-use super::super::{content, value};
+use super::super::content;
 use super::wire;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::ArtifactId;
@@ -62,13 +62,17 @@ impl Operation for Download {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut history::DownloadCheckpointArtifact, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        value::text(&request.artifact_id)?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         let artifact_id =
             ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
         let reader = self.resources.runtime.checkpoint_artifact(checkpoint, &artifact_id).await.map_err(wire::checkpoint_failure)?;
-        content::artifacts::deliver(reader, self.resources.maximum, (64 * 1024).min(self.resources.maximum.saturating_sub(1024)), output)
-            .await?;
+        content::artifacts::deliver(
+            reader,
+            self.resources.maximum,
+            content::download_chunk_bytes(&self.resources.runtime, self.resources.maximum)?,
+            output,
+        )
+        .await?;
         Ok(().into())
     }
 }

@@ -10,7 +10,6 @@
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
@@ -18,34 +17,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
-import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/data-table/DataTable";
+import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
-import { TemplateStepTimeline } from "@/features/library/TemplateStepTimeline";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { useBrand } from "@/lib/brand";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
-import { PageShell, PageToolbar } from "@/shell/PageShell";
+import { PageShell } from "@/shell/PageShell";
 
 /* === Constants === */
-
-/* Suite and template rows share one grid so the count pill, the tag column and
-   the action sit on the same verticals down the whole list. A row's second
-   line puts the identifier under the label and the plugin provenance under the
-   tags, on those same columns. */
-const ROW_COLUMNS = "grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-x-[var(--shell-gap)] gap-y-0.5";
-
-/* Within the title column the name takes the width and the identifier sits
-   right-aligned on the same row. */
-const TITLE_COLUMNS = "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-[var(--shell-gap)]";
-
-/* A template's title column starts on the suite label's text edge (after the
-   chevron, size-4 + gap-2), not under the chevron. */
-const SUITE_IDENTIFIER_INSET = "pl-6";
 
 /* === Types === */
 
@@ -88,7 +72,6 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
 
   const [suiteSearch, setSuiteSearch] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [openTemplate, setOpenTemplate] = useState<OpenTemplate | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -115,125 +98,49 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     () => filterTestSuites(suites ?? [], suiteSearch, (suite) => pluginSearchText(plugins.get(suite.source), brand.label)),
     [brand.label, plugins, suiteSearch, suites],
   );
-  const hasSearch = suiteSearch.trim().length > 0;
+  const rows = useMemo(() => suiteRows.flatMap(({ suite, members }) => members.map((template) => ({ suite, template }))), [suiteRows]);
+  const column = dataTableColumns<OpenTemplate>();
+  const columns = column.columns([
+    column.accessor((row) => row.template.name, {
+      id: "template",
+      header: "Template",
+      meta: { primary: true, filter: "text" },
+      cell: ({ row }) => (
+        <div className="grid gap-1">
+          <span className="font-medium">{row.original.template.name}</span>
+          {row.original.template.identifier ? <CatalogIdentifier subject="template" value={row.original.template.identifier} /> : null}
+        </div>
+      ),
+    }),
+    column.accessor((row) => row.suite.name, { id: "suite", header: "Suite", meta: { filter: "facet", width: "w-48" } }),
+    column.accessor((row) => row.template.tags.join(", "), {
+      id: "tags",
+      header: "Tags",
+      meta: { filter: "text", width: "w-40" },
+      cell: ({ row }) => <SuiteTags tags={row.original.template.tags} />,
+    }),
+    column.accessor((row) => row.suite.source, {
+      id: "source",
+      header: "Source",
+      meta: { filter: "facet", width: "w-40" },
+      cell: ({ row }) => <SuiteProvenance plugin={plugins.get(row.original.suite.source)} source={row.original.suite.source} />,
+    }),
+  ]);
 
   return (
     <PageShell actions={actions} trail={["Library"]}>
       {active.failed ? <p role="alert">Open cycles could not be read. Reconnect and try again.</p> : null}
 
-      <section aria-labelledby="library-suites" className="grid gap-2">
-        <PageToolbar>
-          <h2 className="font-heading font-semibold tracking-wide" id="library-suites">
-            Suites
-          </h2>
-          <div className="relative w-full sm:w-80">
-            <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label="Filter Templates"
-              className="h-[var(--bar-control-height)] pl-8"
-              onChange={(event) => setSuiteSearch(event.target.value)}
-              placeholder="Filter by name, identifier, or plugin"
-              value={suiteSearch}
-            />
-          </div>
-        </PageToolbar>
-
-        {suitesQuery.isError ? (
-          <p className="text-destructive" role="alert">
-            The suite catalog could not be read.
-          </p>
-        ) : suites === null ? (
-          <p className="text-muted-foreground">Loading suites…</p>
-        ) : suiteRows.length === 0 ? (
-          <p className="text-muted-foreground">No suite matches this filter. Search by name, tag, identifier, or plugin.</p>
-        ) : (
-          <ul className="grid gap-4">
-            {suiteRows.map(({ members, suite }) => {
-              const isExpanded = expanded.has(suite.suite_id) || hasSearch;
-              return (
-                <li className="grid gap-2" key={suite.suite_id}>
-                  {/* Shared columns: label with its identifier right-aligned,
-                      template count, tags; plugin provenance beneath. */}
-                  <div className={ROW_COLUMNS}>
-                    <div className={TITLE_COLUMNS}>
-                      <button
-                        className="flex min-h-[var(--control-height)] min-w-0 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        onClick={() =>
-                          setExpanded((current) => {
-                            const next = new Set(current);
-                            if (!next.delete(suite.suite_id)) {
-                              next.add(suite.suite_id);
-                            }
-                            return next;
-                          })
-                        }
-                        type="button"
-                      >
-                        <ChevronRight aria-hidden className={`size-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-                        <span className="truncate font-medium">{suite.name}</span>
-                      </button>
-                      <CatalogIdentifier subject="suite" value={suite.suite_id} />
-                    </div>
-                    <Badge className="justify-self-start" variant="outline">
-                      {templateCountLabel(members.length)}
-                    </Badge>
-                    <SuiteTags tags={suite.tags} />
-                    <span />
-                    <SuiteProvenance className="col-start-3" plugin={plugins.get(suite.source)} source={suite.source} />
-                  </div>
-
-                  {isExpanded ? (
-                    <ul className="grid">
-                      {members.map((template) => (
-                        <li
-                          className="grid gap-2 border-b border-border/60 py-3"
-                          data-testid={`suite-template-${templateSelectionId(template)}`}
-                          key={selectionDraftKey(suite.suite_id, templateSelectionId(template))}
-                        >
-                          {/* The same columns as the suite row above it, so
-                              identifiers, counts and tags line up down the
-                              list. The title opens the dialog. */}
-                          <div className={ROW_COLUMNS}>
-                            <div className={`${TITLE_COLUMNS} ${SUITE_IDENTIFIER_INSET}`}>
-                              <button
-                                className="min-h-[var(--control-height)] min-w-0 truncate text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => setOpenTemplate({ suite, template })}
-                                type="button"
-                              >
-                                {template.name}
-                              </button>
-                              {template.identifier ? <CatalogIdentifier subject="template" value={template.identifier} /> : null}
-                            </div>
-                            <span />
-                            <SuiteTags tags={template.tags} />
-                            <span />
-                          </div>
-                          {/* One paragraph, then the full-width timeline. */}
-                          {template.description ? <p className="min-w-0 text-xs text-muted-foreground">{template.description}</p> : null}
-                          {template.steps.length ? <TemplateStepTimeline template={template} /> : null}
-                          {/* The action closes the block: Configure names the
-                              outcome for anyone scanning for a verb. */}
-                          <div className="flex justify-end">
-                            <Button
-                              className="h-[var(--control-height)]"
-                              onClick={() => setOpenTemplate({ suite, template })}
-                              size="sm"
-                              type="button"
-                              variant="outline"
-                            >
-                              Configure
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      {suitesQuery.isError ? <p role="alert">The suite catalog could not be read.</p> : null}
+      <DataTable
+        aria-label="Library"
+        columns={columns}
+        data={rows}
+        getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
+        emptyText={suites === null ? "Loading suites…" : "No templates match."}
+        search={{ label: "Filter Templates", value: suiteSearch, onChange: setSuiteSearch }}
+        onRowClick={setOpenTemplate}
+      />
 
       {openTemplate ? (
         <TemplateDialog
@@ -266,7 +173,3 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 }
 
 /* === Private Functions === */
-
-function templateCountLabel(count: number): string {
-  return count === 1 ? "1 Template" : `${count} Templates`;
-}

@@ -31,12 +31,12 @@ use dokime::domain::model::remote::{RemoteSession, RemoteSessionOutcome, RemoteS
 
 /* === Constants === */
 
+const SERVER_REMOTE_IDLE_MS: u64 = 60_000;
+const SERVER_REMOTE_PAGE_BYTES: u64 = 1_048_576;
+const SERVER_REMOTE_PAGE_ITEMS: u64 = 100;
+const SERVER_REMOTE_SESSIONS: u64 = 500;
+
 // The log keeps the most recent sessions only.
-pub(crate) const CAPACITY: usize = 500;
-// A peer quiet this long has gone; transport drops are not observable here.
-pub(crate) const IDLE_MILLIS: u64 = 60_000;
-const MAXIMUM_PAGE: usize = 100;
-const MAXIMUM_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
 
@@ -45,7 +45,6 @@ const MAXIMUM_BYTES: usize = 1024 * 1024;
 /* === Structs === */
 
 // Remote sessions as the authenticator sees them, persisted beside the listener security.
-#[derive(Default)]
 pub(crate) struct SessionLog {
     state: Mutex<State>,
 }
@@ -79,11 +78,15 @@ pub(crate) enum Outcome<'a> {
 /* === Implementations === */
 
 impl SessionLog {
+    pub(crate) fn new() -> Self {
+        Self { state: Mutex::new(State::default()) }
+    }
+
     // Loads the persisted log and persists to it from now on. An unreadable log is kept on
     // disk untouched and this process records in memory only.
     pub(crate) fn attach(&self, path: PathBuf) {
         let mut state = self.lock();
-        match read(&path) {
+        match read(&path, usize::try_from(SERVER_REMOTE_PAGE_BYTES).expect("validated session document size")) {
             Ok(Some(document)) => {
                 state.next = document.next;
                 // Sessions open in the previous process ended with it.
@@ -128,7 +131,7 @@ impl SessionLog {
         // Refusals Group By Host, So Reconnecting From Fresh Ports Cannot Evict Admitted History.
         let peer = if rejection.is_some() { peer.ip().to_string() } else { peer.to_string() };
         let mut state = self.lock();
-        state.close_idle(now);
+        state.close_idle(now, SERVER_REMOTE_IDLE_MS);
         state.dirty = true;
         let open = state.sessions.iter_mut().rev().find(|session| {
             session.disconnected_at.is_none() && session.peer_address == peer && session.principal == principal && session.outcome == kind
@@ -154,7 +157,7 @@ impl SessionLog {
             outcome: kind,
             rejection,
         });
-        let excess = state.sessions.len().saturating_sub(CAPACITY);
+        let excess = state.sessions.len().saturating_sub(usize::try_from(SERVER_REMOTE_SESSIONS).expect("validated remote session count"));
         state.sessions.drain(..excess);
     }
 
@@ -163,9 +166,9 @@ impl SessionLog {
             Some(cursor) => cursor.parse::<u64>().map_err(|_| "invalid remote session cursor")?,
             None => u64::MAX,
         };
-        let limit = (limit as usize).clamp(1, MAXIMUM_PAGE);
+        let limit = (limit as usize).clamp(1, usize::try_from(SERVER_REMOTE_PAGE_ITEMS).expect("validated session page count"));
         let mut state = self.lock();
-        state.close_idle(now);
+        state.close_idle(now, SERVER_REMOTE_IDLE_MS);
         let mut older = state.sessions.iter().rev().filter(|session| session.id.parse::<u64>().is_ok_and(|id| id < before));
         let sessions: Vec<RemoteSession> = older.by_ref().take(limit).cloned().collect();
         let next_cursor = older.next().and(sessions.last().map(|session| session.id.clone()));
@@ -178,9 +181,9 @@ impl SessionLog {
 }
 
 impl State {
-    fn close_idle(&mut self, now: u64) {
+    fn close_idle(&mut self, now: u64, idle_ms: u64) {
         for session in &mut self.sessions {
-            if session.disconnected_at.is_none() && now.saturating_sub(session.last_seen_at) >= IDLE_MILLIS {
+            if session.disconnected_at.is_none() && now.saturating_sub(session.last_seen_at) >= idle_ms {
                 session.disconnected_at = Some(session.last_seen_at);
                 self.dirty = true;
             }
@@ -196,14 +199,14 @@ fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis() as u64)
 }
 
-fn read(path: &Path) -> Result<Option<Document>, String> {
+fn read(path: &Path, maximum: usize) -> Result<Option<Document>, String> {
     match std::fs::symlink_metadata(path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.to_string()),
         Ok(metadata) if !metadata.file_type().is_file() => return Err("not a regular file".into()),
         Ok(_) => {}
     }
-    let bytes = dokime::harmos::filesystem::input::read(path, MAXIMUM_BYTES).map_err(|error| error.to_string())?;
+    let bytes = dokime::harmos::filesystem::input::read(path, maximum).map_err(|error| error.to_string())?;
     let document: Document = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
     if document.version != 1 {
         return Err(format!("unsupported version {}", document.version));
@@ -231,7 +234,7 @@ mod tests {
 
     #[test]
     fn calls_from_one_peer_share_a_session_until_idle() {
-        let log = SessionLog::default();
+        let log = SessionLog::new();
         log.record_at(peer(5000), "access-key", Outcome::Admitted, 1_000);
         log.record_at(peer(5000), "access-key", Outcome::Admitted, 2_000);
         log.record_at(peer(5000), "anonymous", Outcome::Rejected("invalid secrets"), 2_500);
@@ -246,16 +249,16 @@ mod tests {
         let grouped = log.list_at(None, 20, 3_000).unwrap();
         assert_eq!(grouped.sessions.len(), 2, "refusals from fresh ports share the host's session");
         assert_eq!((grouped.sessions[0].peer_address.as_str(), grouped.sessions[0].calls), ("192.168.1.20", 2));
-        let later = log.list_at(None, 20, 2_000 + IDLE_MILLIS).unwrap();
+        let later = log.list_at(None, 20, 2_000 + SERVER_REMOTE_IDLE_MS).unwrap();
         assert_eq!(later.sessions[1].disconnected_at, Some(2_000));
-        log.record_at(peer(5000), "access-key", Outcome::Admitted, 3_000 + IDLE_MILLIS);
-        assert_eq!(log.list_at(None, 20, 3_000 + IDLE_MILLIS).unwrap().sessions.len(), 3);
+        log.record_at(peer(5000), "access-key", Outcome::Admitted, 3_000 + SERVER_REMOTE_IDLE_MS);
+        assert_eq!(log.list_at(None, 20, 3_000 + SERVER_REMOTE_IDLE_MS).unwrap().sessions.len(), 3);
     }
 
     #[test]
     fn the_log_keeps_the_newest_sessions_and_pages_newest_first() {
-        let log = SessionLog::default();
-        for port in 0..(CAPACITY as u16 + 25) {
+        let log = SessionLog::new();
+        for port in 0..(usize::try_from(SERVER_REMOTE_SESSIONS).unwrap() as u16 + 25) {
             log.record_at(peer(port), "access-key", Outcome::Admitted, 1_000);
         }
         let mut seen = Vec::new();
@@ -269,8 +272,8 @@ mod tests {
                 None => break,
             }
         }
-        assert_eq!(seen.len(), CAPACITY);
-        assert_eq!(seen.first(), Some(&peer(CAPACITY as u16 + 24).to_string()));
+        assert_eq!(seen.len(), usize::try_from(SERVER_REMOTE_SESSIONS).unwrap());
+        assert_eq!(seen.first(), Some(&peer(usize::try_from(SERVER_REMOTE_SESSIONS).unwrap() as u16 + 24).to_string()));
         assert_eq!(seen.last(), Some(&peer(25).to_string()));
         assert!(log.list_at(Some("not-a-cursor"), 20, 1_000).is_err());
     }
@@ -279,11 +282,11 @@ mod tests {
     fn the_log_survives_a_restart_with_open_sessions_closed() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("remote").join("sessions.json");
-        let log = SessionLog::default();
+        let log = SessionLog::new();
         log.attach(path.clone());
         log.record_at(peer(7000), "anonymous", Outcome::Admitted, 5_000);
         log.flush();
-        let restored = SessionLog::default();
+        let restored = SessionLog::new();
         restored.attach(path.clone());
         let page = restored.list_at(None, 20, 6_000).unwrap();
         assert_eq!(page.sessions.len(), 1);
@@ -292,7 +295,7 @@ mod tests {
         assert_eq!(restored.list_at(None, 20, 6_000).unwrap().sessions[0].id, "2");
 
         std::fs::write(&path, b"not json").unwrap();
-        let unreadable = SessionLog::default();
+        let unreadable = SessionLog::new();
         unreadable.attach(path.clone());
         unreadable.record_at(peer(7002), "anonymous", Outcome::Admitted, 7_000);
         unreadable.flush();
