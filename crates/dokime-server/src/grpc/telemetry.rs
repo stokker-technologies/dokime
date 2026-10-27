@@ -112,7 +112,7 @@ impl Operation for List {
         let session = self.resources.runtime.storage().clone();
         let selection = self.resources.selection(request)?;
         let at = session.cursor_saved();
-        self.resources.page(&session, &selection, &at, false).await.map(|(page, _)| page)
+        self.resources.page(&session, &selection, &at, 0, false).await.map(|(page, ..)| page)
     }
 }
 
@@ -149,21 +149,26 @@ impl Resources {
         Ok(Selection { query })
     }
 
+    // Answers One Page And The Storage Position Through Which The Selection Is Now Settled.
     async fn page(
-        &self, session: &dokime::storage::Manager, selection: &Selection, at: &dokime::harmos::storage::StorageCursor, streamed: bool,
-    ) -> Result<(Response<dokime::domain::model::telemetry::wire::TelemetrySamplesReply>, bool), Status> {
+        &self, session: &dokime::storage::Manager, selection: &Selection, at: &dokime::harmos::storage::StorageCursor, after: u64,
+        streamed: bool,
+    ) -> Result<(Response<dokime::domain::model::telemetry::wire::TelemetrySamplesReply>, bool, u64), Status> {
         let query = &selection.query;
         let after_stream_cursors = &query.after_stream_cursors;
         let limit = query.limit.expect("selection limit is bounded during admission");
-        let (samples, sealed) = self
+        let (page, sealed) = self
             .runtime
-            .selected_telemetry_at(session, query, at)
+            .telemetry_page_at(session, query, at, after)
             .await
             .map_err(|error| Status::unavailable(format!("telemetry query unavailable: {error}")))?;
-        let reply = samples
+        let mut delivered = 0;
+        let reply = page
+            .samples
             .try_map(|mut samples| -> Result<_, ProjectionError> {
                 let selected = samples.len();
                 let (through, _) = fit_page(&mut samples, query.latest, after_stream_cursors, self.max_message_bytes, streamed, limit)?;
+                delivered = samples.len();
                 let clamped = samples.len() < selected;
                 let mut projected = Vec::new();
                 projected
@@ -184,7 +189,13 @@ impl Resources {
                 })
             })
             .map_err(ProjectionError::status)?;
-        Ok((Response::from_owner(reply.owner()), sealed))
+        // A Whole Page Settles The Frontier; A Clamped One Settles Its Last Delivered Storage Position.
+        let settled = match delivered.checked_sub(1) {
+            _ if delivered == page.positions.len() && !page.limited => at.sequence,
+            Some(last) => page.positions[last],
+            None => after,
+        };
+        Ok((Response::from_owner(reply.owner()), sealed, settled))
     }
 }
 
@@ -210,12 +221,15 @@ impl Operation for Watch {
             let session = runtime.storage().clone();
             let mut selection = self.resources.selection(&mut selection)?;
             let mut at = session.cursor_saved();
+            // Every Selected Row At Or Below `after` Was Delivered, So Each Page And Wake Scans Only Newer Rows.
+            let mut after = 0;
             loop {
-                let (page, sealed) = self.resources.page(&session, &selection, &at, true).await?;
+                let (page, sealed, settled) = self.resources.page(&session, &selection, &at, after, true).await?;
                 let complete = page.complete;
-                let delivered = page.clone();
+                let through = page.through_stream_cursors.clone();
                 output.send_owned(page).await.map_err(|error| Status::unavailable(error.to_string()))?;
-                selection.advance_cursors(&delivered.through_stream_cursors);
+                selection.advance_cursors(&through);
+                after = settled;
                 if !complete {
                     continue;
                 }

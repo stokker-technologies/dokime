@@ -244,10 +244,12 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
         self.collect_telemetry(&selection).await
     }
-    pub async fn selected_telemetry_at(
+
+    // Reads One Storage-Ordered Page After The Position `after`; Each Page Or Wake Scans Only Rows Past It.
+    pub async fn telemetry_page_at(
         &self, session: &crate::storage::Manager, selection: &crate::evidence_runtime::TelemetrySelection,
-        at: &harmos::storage::StorageCursor,
-    ) -> crate::runtime::Result<(harmos::storage::ReadBatch<Vec<TelemetrySample>>, bool)> {
+        at: &harmos::storage::StorageCursor, after: u64,
+    ) -> crate::runtime::Result<(crate::runtime::TelemetryPage, bool)> {
         use harmos::storage::{ObjectRead, query::ObjectVersions};
         let mut sealed = false;
         if let Some(id) = &selection.scope.test_execution_id {
@@ -262,8 +264,11 @@ impl RuntimeHandle {
                 sealed |= page.iter().any(|row| row.value.is_sealed());
             }
         }
-        let samples = self.collect_telemetry_at_in(session, selection, None, None, at).await?;
-        Ok((samples, sealed))
+        let options = crate::runtime::storage::telemetry::ReadOptions { after, ..Default::default() };
+        let page =
+            crate::runtime::storage::telemetry::collect_page(session, at, selection, self.schema_settings(), options, &self.local_storage)
+                .await?;
+        Ok((page, sealed))
     }
 
     pub async fn analysis_definitions(&self) -> crate::runtime::Result<Vec<crate::analysis::Definition>> {

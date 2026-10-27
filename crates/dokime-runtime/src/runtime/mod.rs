@@ -38,7 +38,12 @@ pub use storage::report_open::{OpenedReport, ReportOrigin};
 
 // targets name one path, not a private module tree.
 pub use handle::RecordSubscription;
-pub use storage::{context_records::ContextRecord, execution::ExecutionView, records::RecordReader, telemetry::TelemetryReader};
+pub use storage::{
+    context_records::ContextRecord,
+    execution::ExecutionView,
+    records::RecordReader,
+    telemetry::{TelemetryPage, TelemetryReader},
+};
 
 /* === Imports === */
 
