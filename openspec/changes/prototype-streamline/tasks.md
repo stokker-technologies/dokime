@@ -92,4 +92,4 @@ Integration inventory additions: `plugins/obc-plugin/src/lib.rs` removes the ret
 ## 10. Hub CI And Installer Merge
 
 - [x] 10.1 Resolve the incoming Hub CI, release, installer and organization artwork changes while preserving SQLite settings, removed memory accounting, the backend table and v1 clean breaks; regenerate bindings, resources and locks.
-- [ ] 10.2 Pass the requested focused Rust check, TypeScript checks/unit tests, Python client unit tests and packaging installer tests; commit the merge and repairs locally without pushing or rebuilding the locked desktop executable.
+- [x] 10.2 Pass the requested focused Rust check, TypeScript checks/unit tests, Python client unit tests and packaging installer tests; commit the merge and repairs locally without pushing or rebuilding the locked desktop executable.
