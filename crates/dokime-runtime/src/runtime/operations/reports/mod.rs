@@ -118,9 +118,8 @@ async fn execution(
 ) -> Result<MaterializedReport> {
     progress.phase("Capturing Evidence");
     let app = ctx.scope().resources::<Dokime>();
-    let session = resources.execution_storage.storage.clone();
     if resources.execution_storage.acquisition(id).await.is_none() {
-        let source = resources.execution_storage.report_source(&session, id).await?;
+        let source = resources.execution_storage.report_member_source(id).await?;
         let member = source
             .test_executions
             .iter()
@@ -131,7 +130,7 @@ async fn execution(
     let gate = resources.execution_storage.materialization_gate(id).await?;
     let _guard = gate.lock().await;
     // Recheck Mutable Lifecycle After Admission; Sealing Uses This Same Gate.
-    let source = resources.execution_storage.report_source(&session, id).await?;
+    let source = resources.execution_storage.report_member_source(id).await?;
     let member = source
         .test_executions
         .iter()
@@ -165,6 +164,7 @@ async fn execution(
     let inputs = resources.execution_storage.prepare_capture(&source, member, at, final_report).await?;
     let defaults = resources.settings.read_application_settings().await?.settings.report;
     let inspection = resources.execution_storage.capture_execution_view(&source, &inputs, defaults).await?;
+
     if inspection.evidence_through()? != at {
         return Err(invalid("capture changed requested report boundary"));
     }

@@ -42,6 +42,51 @@ use dokime_domain::model::reports::wire::ReportSubject;
 
 /* === Implementations === */
 
+impl super::executions::ExecutionStorage {
+    // Execution Reports Need The Cycle Header And Their Own Member Only.
+    pub(crate) async fn report_member_source(&self, id: &TestExecutionId) -> Result<harmos::storage::ReadBatch<CycleView>> {
+        let (mut source, lifecycle) = self
+            .state_manager
+            .state()
+            .read(|state| {
+                let member = state.executions.get(id).ok_or_else(|| invalid("report execution is not active"))?;
+                let cycle = state.cycles.get(&member.test_cycle_id).ok_or_else(|| invalid("report cycle is not active"))?;
+                let source = CycleView {
+                    saved: cycle.saved.clone(),
+                    test_cycle_id: cycle.test_cycle_id.clone(),
+                    session_id: cycle.session_id.clone(),
+                    metadata: cycle.metadata.clone(),
+                    phase: cycle.phase,
+                    lifecycle: cycle.lifecycle,
+                    created_at: cycle.created_at.clone(),
+                    started_at: cycle.started_at.clone(),
+                    updated_at: cycle.updated_at.clone(),
+                    test_executions: vec![member.clone()],
+                    records: cycle.records.clone(),
+                    continue_automatically: cycle.continue_automatically,
+                    result: cycle.result.clone(),
+                };
+                let lifecycle = state.report_finalizations.get(id).and_then(|intent| intent.lifecycle.clone());
+                Ok::<_, Error>((source, lifecycle))
+            })
+            .await?
+            .value?;
+
+        if let Some(lifecycle) = lifecycle {
+            match self.frozen_execution(&self.storage, &lifecycle.execution).await? {
+                super::executions::FrozenExecution::Live(member) => source.test_executions[0] = (*member).clone(),
+                super::executions::FrozenExecution::Saved(member) => {
+                    return member.try_map(|member| {
+                        source.test_executions[0] = member.value;
+                        Ok(source)
+                    });
+                }
+            }
+        }
+        Ok(harmos::storage::ReadBatch::new(source))
+    }
+}
+
 impl RuntimeHandle {
     pub(crate) async fn seal_settled_cycle(&self, id: &dokime_domain::model::identity::TestCycleId) -> Result<()> {
         let cycle = {
@@ -194,7 +239,12 @@ impl RuntimeHandle {
         }
         let gate = self.execution_storage.materialization_gate(id).await?;
         self.capture_report_lifecycle(execution).await?;
-        self.operations.call(MaterializeReport { subject: ReportSubject::Execution(id.to_string()), at: at.clone() }).await?;
+        self.operations
+            .call(MaterializeReport {
+                subject: ReportSubject::Execution(id.to_string()),
+                at: at.clone(),
+            })
+            .await?;
         let _guard = gate.lock().await;
         // Only Finalization Seals The Subject, After The Full Publication Is Durable.
         self.execution_storage.seal_final_report(id).await?;
