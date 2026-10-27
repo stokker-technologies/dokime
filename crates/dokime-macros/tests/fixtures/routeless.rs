@@ -39,7 +39,6 @@ impl sdk::harmos::operations::lifecycle::Policy for routeless {
             timeout: std::time::Duration::from_secs(5),
             attempt_timeout: std::time::Duration::from_secs(5),
             retries: sdk::harmos::operations::RetryPolicy::Never,
-            restart: sdk::harmos::operations::RestartPolicy::Never,
         };
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy =
         <Self as sdk::harmos::operations::lifecycle::Policy>::INITIALIZATION_POLICY;
@@ -66,7 +65,7 @@ impl sdk::Plugin for routeless {
 
     fn bind_operations(
         &self,
-        _: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        _: &mut sdk::harmos::operations::WireTable,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         Ok(())
     }

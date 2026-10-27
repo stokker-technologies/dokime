@@ -175,7 +175,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
             }
 
             fn bind<__DokimePlugin: #sdk::__harmos::plugin::Declared>(
-                table: &mut #sdk::__harmos::sidecar::operations::WireTable<#sdk::Supervisor>,
+                table: &mut #sdk::__harmos::sidecar::operations::WireTable,
                 _: &str,
                 _: &[#sdk::records::RecordContract],
             ) -> ::core::result::Result<(), #sdk::__harmos::sidecar::operations::ServingError> {

@@ -19,9 +19,8 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 // Third Party Imports
 use harmos::{
     operations::Response,
-    services::Fault,
     services::Resident,
-    services::Service,
+    ServiceContext,
     storage::{FilePhase, FileReadBatch, FileReference, ProductionFollower, StagedFile},
 };
 
@@ -244,14 +243,14 @@ impl RuntimeHandle {
 
 impl Resident<crate::app::Dokime> for NativeCapture {
     type Error = Error;
-    async fn run(&mut self, mut context: Service<crate::app::Dokime>) -> std::result::Result<(), Fault<Error>> {
+    async fn run(&mut self, mut context: ServiceContext<crate::app::Dokime>) -> std::result::Result<(), Error> {
         context.ready();
         loop {
-            let stable = self.source.synchronize().await.map_err(Fault::Application)?;
+            let stable = self.source.synchronize().await?;
             if context.is_stopping() {
                 return Ok(());
             }
-            if !stable || self.source.caught_up().await.map_err(Fault::Application)? {
+            if !stable || self.source.caught_up().await? {
                 context.rest(self.poll_interval).await;
             }
         }

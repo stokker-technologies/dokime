@@ -228,13 +228,13 @@ async fn summary_complete_telemetry() {
             );
             sample.values.insert("progress".into(), Value::Number(index as f64));
             sample.scope = Some(scope.clone());
-            sample.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
+            sample.with_storage_payload(dokime::harmos::Message::encode(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
     let mut unrelated =
         TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), 300, Timestamp::new("2026-09-13T00:00:00Z"), "fixture");
     unrelated.values.insert("progress".into(), Value::Number(999.0));
-    samples.push(unrelated.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: 999.0 })));
+    samples.push(unrelated.with_storage_payload(dokime::harmos::Message::encode(&support::ProgressRow { progress: 999.0 })));
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), stream, samples)).await.unwrap();
     let durable = handle.storage().flush().await.unwrap();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();

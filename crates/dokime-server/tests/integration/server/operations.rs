@@ -34,7 +34,6 @@ const POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::oper
     timeout: std::time::Duration::from_secs(120),
     attempt_timeout: std::time::Duration::from_secs(120),
     retries: dokime::harmos::operations::RetryPolicy::Never,
-    restart: dokime::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -48,9 +47,8 @@ struct Receipt {
     calls: u32,
 }
 
-#[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[dokime::harmos::operation(harmos_path = dokime::harmos, response = Receipt, output = Receipt,
-    id = "fixture.output.mutate", version = 1, policy = POLICY,
+    id = "fixture.output.mutate", policy = POLICY,
     visibility = dokime::harmos::operations::Visibility::Host,
     grpc(package = "fixture.output.v1", service = "Device", method = "Mutate"))]
 struct Mutate {

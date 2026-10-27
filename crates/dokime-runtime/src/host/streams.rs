@@ -175,7 +175,7 @@ mod tests {
                     .into_bytes();
                 validator.validate(&bytes).expect("payload matches storage schema");
                 let row = T::decode(&bytes).expect("decode typed host row");
-                assert_eq!(row.encode_to_vec(), bytes);
+                assert_eq!(row.encode(), bytes);
                 let projected = row.into_row();
                 assert_eq!(projected.get(field), Some(&list.unwrap_or(Value::Null)));
                 assert_eq!(projected.get("timestamp"), Some(&timestamp));

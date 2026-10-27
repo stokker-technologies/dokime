@@ -42,19 +42,19 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.evidence.note.add", version = 2, irreversible)]
+#[harmos::transaction(id = "dokime.evidence.note.add", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddOperatorNote {
     pub note: OperatorNote,
 }
 
-#[harmos::transaction(id = "dokime.evidence.note.create", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.evidence.note.create", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreateOperatorNote {
     pub admission: NoteAdmission,
 }
 
-#[harmos::transaction(id = "dokime.evidence.note.edit", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.evidence.note.edit", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EditOperatorNote {
     pub note_id: NoteId,

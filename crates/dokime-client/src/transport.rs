@@ -48,10 +48,12 @@ const ENCODE_BUFFER_BYTES: u64 = 8_192;
 /* === Implementations === */
 
 impl Client {
-    pub(super) async fn download<O>(&self, path: &'static str, message: O) -> Result<ResponseStream<<O::Output as Direction>::Item>>
+    pub(super) async fn download<O>(
+        &self, path: &'static str, message: O::Request,
+    ) -> Result<ResponseStream<<O::Output as Direction>::Item>>
     where
         O: OperationDeclaration,
-        O: Portable + Sync,
+        O::Request: Sync,
         O::Response: Portable + MemorySize,
         <O::Output as Direction>::Item: Portable + MemorySize,
     {
@@ -59,7 +61,7 @@ impl Client {
         let report = matches!(path, "/dokime.v1.Reports/DownloadCycleReport" | "/dokime.v1.Reports/DownloadExecutionReport");
         let response_bytes = if report { self.response_limit().min(2_097_152) } else { self.response_limit() };
         let codec =
-            codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, Response<O>>(response_bytes, self.request_limit())?;
+            codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, Response<O::Request>>(response_bytes, self.request_limit())?;
         let mut client = tonic::client::Grpc::new(self.channel()?)
             .max_decoding_message_size(response_bytes)
             .max_encoding_message_size(self.request_limit());
@@ -98,10 +100,10 @@ impl Client {
         if report { ResponseStream::prefetched(self, frames, response_bytes) } else { ResponseStream::new(self, frames) }
     }
 
-    pub(super) async fn upload<O, S>(&self, path: &'static str, message: O, items: S) -> Result<O::Response>
+    pub(super) async fn upload<O, S>(&self, path: &'static str, message: O::Request, items: S) -> Result<O::Response>
     where
         O: OperationDeclaration,
-        O: Portable + Sync,
+        O::Request: Sync,
         O::Response: Portable + MemorySize,
         <O::Input as Direction>::Item: Portable + Sync,
         S: tokio_stream::Stream<Item = <O::Input as Direction>::Item> + Send + 'static,
@@ -112,7 +114,7 @@ impl Client {
         self.upload_frames::<O, _, _>(path, frames).await
     }
 
-    pub(super) async fn upload_prepared<O, S>(&self, path: &'static str, message: O, items: S) -> Result<O::Response>
+    pub(super) async fn upload_prepared<O, S>(&self, path: &'static str, message: O::Request, items: S) -> Result<O::Response>
     where
         O: OperationDeclaration,
         S: tokio_stream::Stream<Item = PreparedFrame> + Send + 'static,

@@ -78,7 +78,7 @@ where
             let answer = Arc::clone(&answer);
             Box::pin(async move {
                 let request = <O as dokime::harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
-                Ok(dokime::harmos::Message::encode_to_vec(&answer(request)))
+                Ok(dokime::harmos::Message::encode(&answer(request)))
             }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
         }),
     )

@@ -42,7 +42,7 @@ const CANCELLED_MESSAGE: &str = "Execution cancelled before it started.";
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.cancel", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.execution.cancel", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CancelExecution {

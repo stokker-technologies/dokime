@@ -30,8 +30,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = (), output = ExecutionFileFollowFrame, id = "dokime.content.follow_execution_file", version = 1,
+#[harmos_domain::operation(response = (), output = ExecutionFileFollowFrame, id = "dokime.content.follow_execution_file",
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "FollowExecutionFile"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

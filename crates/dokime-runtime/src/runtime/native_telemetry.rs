@@ -347,7 +347,7 @@ mod tests {
     fn native_rows_are_projected_in_one_pass() {
         let contract = TelemetryContract::declared("fixture.native", "Native").typed::<Reading>();
         let codec = codec(&contract, &harmos::config::SchemaSettings::default()).unwrap();
-        let payload = Reading { value: "7".into() }.encode_to_vec();
+        let payload = Reading { value: "7".into() }.encode();
         let row = harmos::streams::PublicationRow {
             payload: payload.clone(),
             published_unix_micros: Some(1_000_000),
@@ -369,7 +369,7 @@ mod tests {
 
         let contract = TelemetryContract::declared("fixture.native", "Native").typed::<Reading>();
         let codec = Arc::new(codec(&contract, &harmos::config::SchemaSettings::default()).unwrap());
-        let payload = Reading { value: "7".repeat(8192) }.encode_to_vec();
+        let payload = Reading { value: "7".repeat(8192) }.encode();
         let row = harmos::streams::PublicationRow {
             payload,
             published_unix_micros: Some(1_000_000),

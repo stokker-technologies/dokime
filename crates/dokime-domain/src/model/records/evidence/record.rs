@@ -39,7 +39,7 @@ use crate::model::values::Value;
 
 /* === Structs === */
 
-#[harmos_domain::record(id = "dokime.record", version = 2)]
+#[harmos_domain::record(id = "dokime.record")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Record {

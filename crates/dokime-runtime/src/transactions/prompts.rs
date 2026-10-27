@@ -49,7 +49,7 @@ use dokime_domain::model::values::ValueType;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.prompts.request", version = 2, irreversible)]
+#[harmos::transaction(id = "dokime.prompts.request", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestPrompt {
     pub prompt: PromptRequest,
@@ -57,7 +57,7 @@ pub struct RequestPrompt {
     pub accepted_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.prompts.response.submit", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.prompts.response.submit", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitPromptResponse {
     pub prompt_id: PromptId,

@@ -43,7 +43,7 @@ pub struct EvidenceRecords {
     pub session: crate::state::records::set::TestRecordSet,
 }
 
-#[harmos_domain::record(id = "dokime.captured_record", version = 1)]
+#[harmos_domain::record(id = "dokime.captured_record")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapturedRecord {

@@ -12,7 +12,9 @@ block and carries the identity, the operations it provides and requires, the
 restart policy and the contributions it adds to the host — suites, records and
 listeners, evidence streams and settings — each owned by a named
 `#[dokime::catalog]` enum. Device behaviour is `#[dokime::operation]`s listed in
-`provides = operations::Operations`.
+`provides = operations::Operations`; each request struct is its operation,
+declares the `resources = [...]` it reads and implements `Operation::run`, and
+`bind_operations` registers the catalog with one dependency snapshot.
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.

@@ -30,8 +30,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = (), output = PlotStreamFrame, id = "dokime.plots.watch", version = 1,
+#[harmos_domain::operation(response = (), output = PlotStreamFrame, id = "dokime.plots.watch",
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plots", method = "Watch"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

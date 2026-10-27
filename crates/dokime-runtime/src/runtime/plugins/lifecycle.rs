@@ -49,7 +49,7 @@ pub(in crate::runtime) struct Adapter<'a> {
 }
 
 pub(in crate::runtime) struct Sidecar {
-    services: harmos::operations::OperationManager,
+    services: crate::app::OperationManager,
     publications: PublicationIngest,
     program: Program,
     package: String,

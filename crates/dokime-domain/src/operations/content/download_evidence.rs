@@ -32,8 +32,7 @@ use crate::model::exports::{EvidenceExportFrame, EvidenceSubject};
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = (), output = EvidenceExportFrame, id = "dokime.content.download_evidence", version = 1,
+#[harmos_domain::operation(response = (), output = EvidenceExportFrame, id = "dokime.content.download_evidence",
     policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Content", method = "DownloadEvidence"))]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]

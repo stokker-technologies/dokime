@@ -32,8 +32,7 @@ use super::*;
 /* === Structs === */
 
 /// Recent remote sessions on this host, newest first; `cursor` continues a previous page.
-#[harmos_domain::message]
-#[harmos_domain::operation(response = RemoteSessionPage, id = "dokime.remote.list_sessions", version = 1,
+#[harmos_domain::operation(response = RemoteSessionPage, id = "dokime.remote.list_sessions",
     policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Remote", method = "ListSessions"))]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]

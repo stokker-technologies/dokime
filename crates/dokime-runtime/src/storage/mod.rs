@@ -129,7 +129,7 @@ pub enum Error {
 
 pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileReference) -> Result<harmos::storage::ReadBatch<Vec<u8>>> {
     let mut reader = storage
-        .read_file(harmos::storage::operations::ReadFile {
+        .read_file(harmos::storage::FileRead {
             source: harmos::storage::FileSource::Stored(file.clone()),
             range: harmos::storage::ByteRange { offset: 0, limit: None },
         })

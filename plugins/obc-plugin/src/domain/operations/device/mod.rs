@@ -30,25 +30,23 @@ use crate::domain::model::device::DeviceState;
 
 /* === Structs === */
 
-#[dokime::message]
 #[dokime::operation(
     id = "obc.device.read",
     response = DeviceState,
-    version = 1,
     description = "Reads the manual simulated device without changing its power or advancing a charger execution.",
     policy = super::POLICY,
+    resources = [crate::Resources],
     grpc(package = "obc.device.v1", service = "Device", method = "Read")
 )]
 #[derive(Clone, PartialEq)]
 pub struct ReadDevice {}
 
-#[dokime::message]
 #[dokime::operation(
     id = "obc.device.set_power",
     response = DeviceState,
-    version = 1,
     description = "Powers the manual simulated device on or off, then reads its current state. Refuses a stopped bench or powering on a faulted device.",
     policy = super::POLICY,
+    resources = [crate::Resources],
     grpc(package = "obc.device.v1", service = "Device", method = "SetPower")
 )]
 #[derive(Clone, PartialEq)]

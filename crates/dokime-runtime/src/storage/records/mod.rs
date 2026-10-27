@@ -260,7 +260,7 @@ impl RecordRow {
             return Err(error("record capture frame exceeds byte limit"));
         }
         let row = Self::decode(bytes)?;
-        let length = row.encoded_len();
+        let length = row.encoded_size();
         if length > bytes.len() {
             return Err(error("record capture frame is not canonical protobuf"));
         }
@@ -500,10 +500,10 @@ impl TryFrom<ErrorRow> for dokime_domain::model::records::error::RecordErrorDeta
 
 pub fn encode(entry: &RecordEntry, max_bytes: usize) -> Result<Vec<u8>> {
     let row = RecordRow::from_entry(entry)?;
-    if row.encoded_len() > max_bytes {
+    if row.encoded_size() > max_bytes {
         return Err(error("record capture frame exceeds byte limit"));
     }
-    Ok(row.encode_to_vec())
+    Ok(row.encode())
 }
 
 pub fn decode(bytes: &[u8], max_bytes: usize) -> Result<RecordEntry> {

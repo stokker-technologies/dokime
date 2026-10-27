@@ -112,8 +112,8 @@ matrix! {
             sequence: 0,
         },
     };
-    "/harmos.host.v1.Host/Catalog", unary, dokime::harmos::operations::host::Catalog = dokime::harmos::operations::host::Catalog {
-        kind: dokime::harmos::operations::host::CatalogKind::Operations,
+    "/harmos.host.v1.Host/Catalog", unary, dokime::harmos::builtins::host::Catalog = dokime::harmos::builtins::host::Catalog {
+        kind: dokime::harmos::builtins::host::CatalogKind::Operations,
         schema: None,
         after: None,
         rows: None,

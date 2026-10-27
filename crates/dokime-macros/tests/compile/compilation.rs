@@ -237,7 +237,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 #[sdk::stream(id = "shared.sample", window = 8)]
@@ -297,7 +296,7 @@ impl sdk::Plugin for Shared {
         Arc::new(())
     }
 
-    fn bind_operations(&self, table: &mut WireTable<sdk::Supervisor>) -> Result<(), ServingError> {
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?

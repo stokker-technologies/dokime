@@ -146,7 +146,7 @@ pub struct ProviderExecutionErrorDetail {
 
 impl ProviderTelemetryRow {
     pub fn typed<T: harmos::Message + crate::telemetry::TelemetryRow>(row: T) -> Self {
-        let payload = row.encode_to_vec();
+        let payload = row.encode();
         Self { values: row.into_row(), payload }
     }
 }

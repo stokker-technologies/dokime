@@ -38,7 +38,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(120),
     attempt_timeout: Duration::from_secs(120),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */

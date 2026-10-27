@@ -201,7 +201,7 @@ impl RuntimeHandle {
 
 async fn report_reader(storage: &crate::storage::Manager, file: &harmos::storage::FileReference) -> Result<harmos::storage::FileReader> {
     Ok(storage
-        .read_file(harmos::storage::operations::ReadFile {
+        .read_file(harmos::storage::FileRead {
             source: harmos::storage::FileSource::Stored(file.clone()),
             range: harmos::storage::ByteRange { offset: 0, limit: None },
         })

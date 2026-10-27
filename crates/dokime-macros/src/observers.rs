@@ -148,7 +148,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             #[automatically_derived]
             impl #generics ::core::convert::From<#name #types> for #sdk::publication::Publication #predicates {
                 fn from(row: #name #types) -> Self {
-                    let payload = #sdk::Message::encode_to_vec(&row);
+                    let payload = #sdk::Message::encode(&row);
                     Self::Row {
                         payload,
                         stream: <#name #types as #sdk::telemetry::TelemetryStream>::stream_id(),

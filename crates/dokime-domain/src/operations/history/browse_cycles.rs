@@ -29,8 +29,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = CycleBrowsePage, id = "dokime.history.browse_cycles", version = 1,
+#[harmos_domain::operation(response = CycleBrowsePage, id = "dokime.history.browse_cycles",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "BrowseCycles"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

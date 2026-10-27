@@ -20,7 +20,7 @@ pub mod ripple;
 // Third Party Imports
 
 // Local Imports
-use dokime::analysis::{Operation, Served};
+use dokime::analysis::Operation;
 
 /* === Constants === */
 
@@ -35,11 +35,6 @@ use dokime::analysis::{Operation, Served};
 #[dokime::catalog]
 pub enum Analyses {
     Ripple(Operation<ripple::Ripple>),
-}
-
-#[dokime::catalog]
-pub enum Implemented {
-    Ripple(Served<ripple::Ripple, crate::Resources>),
 }
 
 /* === Traits === */

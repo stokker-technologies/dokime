@@ -160,7 +160,7 @@ impl Prepared {
 
 impl PublicationState {
     fn records(&self) -> Result<Vec<harmos::storage::RecordInput>> {
-        let length = self.row.encoded_len();
+        let length = self.row.encoded_size();
         let mut payload = exact_slots(length)?;
         self.row.encode_into(&mut payload);
         if payload.len() != length {

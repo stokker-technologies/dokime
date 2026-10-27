@@ -19,7 +19,7 @@ use std::collections::BTreeSet;
 // Third Party Imports
 use harmos::MemorySize;
 use harmos::domain::Portable;
-use harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
+use harmos::builtins::host::{Catalog, CatalogKind, DiscoveredOperation};
 use harmos::operations::{OperationDeclaration, StreamItem};
 
 // Local Imports
@@ -144,15 +144,15 @@ impl Client {
         self.unary::<GetIdentity>(GetIdentity::PATH, GetIdentity {}).await
     }
 
-    pub(super) async fn unary<O>(&self, path: &'static str, message: O) -> ClientResult<StreamItem<O::Response>>
+    pub(super) async fn unary<O>(&self, path: &'static str, message: O::Request) -> ClientResult<StreamItem<O::Response>>
     where
         O: OperationDeclaration,
-        O: Portable + Sync,
+        O::Request: Sync,
         O::Response: Portable + MemorySize,
     {
         self.require(path)?;
         self.execute(async {
-            super::transport::unary::<O::Response, O>(
+            super::transport::unary::<O::Response, O::Request>(
                 self.channel().map_err(|error| tonic::Status::cancelled(error.to_string()))?,
                 self.inner.authorization.as_ref(),
                 path,

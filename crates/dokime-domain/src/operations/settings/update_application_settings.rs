@@ -24,8 +24,7 @@ use serde::{Deserialize, Serialize};
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = SettingsSnapshot, id = "dokime.settings.update_application_settings", version = 1,
+#[harmos_domain::operation(response = SettingsSnapshot, id = "dokime.settings.update_application_settings",
     policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Settings", method = "UpdateApplicationSettings"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

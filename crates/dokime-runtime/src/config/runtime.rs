@@ -33,7 +33,7 @@ use dokime_domain::model::identity::SessionId;
 /* === Type Aliases === */
 
 pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
-pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::services::Service<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
+pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
 
 /* === Structs === */
 

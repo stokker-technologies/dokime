@@ -85,7 +85,7 @@ pub struct RuntimeHandle {
     pub(crate) state_manager: harmos::state::StateManager<Dokime>,
     pub(crate) record_source: Arc<crate::runtime::storage::record_capture::Source>,
     pub(crate) streams: crate::app::Streams,
-    pub(crate) operations: harmos::operations::OperationManager,
+    pub(crate) operations: crate::app::OperationManager,
     grpc: harmos::grpc::GrpcManager,
     pub(crate) publication_core: Arc<super::sidecars::core::Publications>,
     pub(crate) record_ingress: Arc<super::sidecars::core::RecordIngress>,
@@ -339,12 +339,13 @@ impl RuntimeHandle {
             providers,
             boot_started,
         } = parts;
-        harmos::storage::operations::register(
-            &harmos_runtime.operations,
-            "dokime.storage",
-            crate::app::Lanes::Open,
-            Arc::new(storage.clone()),
-        )?;
+        harmos_runtime
+            .operations
+            .register(harmos::RegistrationExt::lane(
+                harmos::builtin::storage_registration(Arc::new(storage.clone()))?,
+                crate::app::Lanes::Open,
+            ))
+            .await?;
         crate::runtime::operations::provider::register(&harmos_runtime.operations)?;
         let execution_sessions = Arc::new(crate::domains::execution::run::Sessions::default());
         crate::domains::execution::run::host::register(&harmos_runtime.operations, &execution_sessions)?;
@@ -477,7 +478,7 @@ impl RuntimeHandle {
         &self.grpc
     }
 
-    pub fn operations(&self) -> &harmos::operations::OperationManager {
+    pub fn operations(&self) -> &crate::app::OperationManager {
         &self.operations
     }
 

@@ -42,7 +42,7 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.control", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.execution.control", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ControlExecution {

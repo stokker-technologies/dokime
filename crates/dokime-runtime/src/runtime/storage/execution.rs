@@ -340,7 +340,7 @@ impl ExecutionView {
         }
         Ok(self
             .storage
-            .read_file(harmos::storage::operations::ReadFile { source: harmos::storage::FileSource::Stored(file.clone()), range })
+            .read_file(harmos::storage::FileRead { source: harmos::storage::FileSource::Stored(file.clone()), range })
             .await?)
     }
 }

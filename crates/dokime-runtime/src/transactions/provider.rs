@@ -59,7 +59,7 @@ pub(crate) const PROVIDER_UNAVAILABLE: &str = "every selected case requires a pr
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.provider.run", version = 4, irreversible)]
+#[harmos::transaction(id = "dokime.execution.provider.run", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunProvider {
     pub mode: dokime_domain::model::execution::ExecutionMode,

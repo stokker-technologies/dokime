@@ -34,7 +34,8 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::Dependencies;
+use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
 use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
@@ -48,7 +49,6 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -94,7 +94,7 @@ impl Resources {
     }
 }
 
-impl dokime::harmos::operations::lifecycle::Policy for ObcPlugin {
+impl dokime::harmos::builtins::lifecycle::Policy for ObcPlugin {
     const INITIALIZATION_POLICY: OperationPolicy = LIFECYCLE;
     const SHUTDOWN_POLICY: OperationPolicy = LIFECYCLE;
 }
@@ -144,10 +144,12 @@ impl dokime::Plugin for ObcPlugin {
         Arc::clone(&self.resources)
     }
 
-    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<operations::Implemented, _>(self.resources())?;
-        table.bind_operations::<analyses::Implemented, _>(self.resources())?;
-        table.bind_operations::<listeners::Listeners, _>(self.resources())?;
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
+        // Operations reach the bench through the resources they declare.
+        let mut dependencies = Dependencies::new();
+        dependencies.insert(self.resources()).expect("each dependency is inserted once");
+        table.register(operations::Operations::registration(dependencies.clone()))?;
+        table.register(listeners::Listeners::registration(dependencies))?;
         dokime::execution::serve::<Self, suites::Suites>(table)?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }

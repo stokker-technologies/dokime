@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos_domain::message(skip_debug)]
-#[harmos_domain::operation(response = PluginRuntimeSettings, id = "dokime.settings.update_plugin_secret", version = 1,
+#[harmos_domain::operation(codec = manual, response = PluginRuntimeSettings, id = "dokime.settings.update_plugin_secret",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "UpdatePluginSecret"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

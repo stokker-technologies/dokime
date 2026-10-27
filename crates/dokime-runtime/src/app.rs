@@ -35,6 +35,7 @@ pub(crate) type Builder = harmos::Builder<Dokime>;
 pub(crate) type HarmosRuntime = harmos::Runtime<Dokime>;
 pub(crate) type StateManager = harmos::state::StateManager<Dokime>;
 pub(crate) type Streams = harmos::streams::StreamManager<Dokime>;
+pub(crate) type OperationManager = harmos::operations::OperationManager<Lanes>;
 
 #[cfg(feature = "simulation")]
 pub type Simulated = harmos::simulation::SimulatedRuntime<Dokime>;
@@ -73,6 +74,7 @@ impl Resources {
 }
 
 impl Application for Dokime {
+    type Lanes = Lanes;
     type State = RuntimeState;
     type Transaction = Transactions;
     type Record = Records;

@@ -25,7 +25,6 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
-    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 #[cfg(any(duplicate_suites, duplicate_templates))]
@@ -191,7 +190,7 @@ impl sdk::Plugin for Plugin {
     }
 
     fn bind_operations(
-        &self, table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        &self, table: &mut sdk::harmos::operations::WireTable,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         sdk::execution::serve::<Self, Suites>(table)
     }

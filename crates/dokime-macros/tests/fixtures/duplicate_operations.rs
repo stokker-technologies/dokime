@@ -67,7 +67,6 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
-    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -112,7 +111,7 @@ impl sdk::Plugin for Duplicated {
     }
 
     fn bind_operations(
-        &self, table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        &self, table: &mut sdk::harmos::operations::WireTable,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         table.bind_operations::<DuplicatedOperations, _>(self.resources())
     }

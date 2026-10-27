@@ -30,7 +30,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(120),
     attempt_timeout: std::time::Duration::from_secs(120),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -153,8 +152,7 @@ impl dokime_runtime::Plugin for Bench {
     }
 }
 struct GetStatusHandler;
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "bench.get_status", version = 1, description = "Reports.", policy = POLICY, response = StatusResponse)]
+#[dokime_runtime::operation(id = "bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
 #[derive(Clone, PartialEq)]
 struct GetStatus {}
 #[dokime_runtime::operation]
@@ -167,9 +165,7 @@ impl GetStatusHandler {
     }
 }
 struct ListEnvironmentsHandler;
-#[dokime_runtime::message]
 #[dokime_runtime::operation(id = "bench.list_environments",
-    version = 1,
     description = "Offers.",
     policy = POLICY,
     response = OptionsResponse)]
@@ -191,8 +187,7 @@ impl ListEnvironmentsHandler {
     }
 }
 struct DetectPortHandler;
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "bench.detect_port", version = 1, description = "Finds.", policy = POLICY, response = Discovered)]
+#[dokime_runtime::operation(id = "bench.detect_port", description = "Finds.", policy = POLICY, response = Discovered)]
 #[derive(Clone, PartialEq)]
 struct DetectPort {}
 #[dokime_runtime::operation]
@@ -205,8 +200,7 @@ impl DetectPortHandler {
     }
 }
 struct DetectStreamHandler;
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "bench.detect_stream", version = 1, description = "Finds.", policy = POLICY, response = Discovered)]
+#[dokime_runtime::operation(id = "bench.detect_stream", description = "Finds.", policy = POLICY, response = Discovered)]
 #[derive(Clone, PartialEq)]
 struct DetectStream {}
 #[dokime_runtime::operation]
@@ -219,8 +213,7 @@ impl DetectStreamHandler {
     }
 }
 struct GetVoltageHandler;
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "bench.get_voltage", version = 1, description = "Reads.", policy = POLICY, response = GetVoltageResponse)]
+#[dokime_runtime::operation(id = "bench.get_voltage", description = "Reads.", policy = POLICY, response = GetVoltageResponse)]
 #[derive(Clone, PartialEq)]
 struct GetVoltage {
     pub stream: u32,

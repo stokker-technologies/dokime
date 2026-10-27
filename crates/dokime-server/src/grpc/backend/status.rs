@@ -136,7 +136,7 @@ impl Operation for Availability {
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, _: &mut wire::GetAvailability, _: &mut (),
     ) -> Result<Response<dokime::domain::model::backend::wire::BackendAvailability>, Status> {
-        use dokime::harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
+        use dokime::harmos::builtins::host::{Catalog, CatalogKind, DiscoveredOperation};
         let maximum = self.resources.maximum;
         let page_items = usize::try_from(PAGINATION_PAGE_ITEMS).expect("validated discovery page count");
         let mut methods = Vec::new();

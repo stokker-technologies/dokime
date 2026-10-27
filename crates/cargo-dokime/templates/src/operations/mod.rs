@@ -32,14 +32,6 @@ pub mod status;
 
 /* === Enums === */
 
-// The handlers this plugin binds, one per request in `domain::operations`.
-#[dokime::catalog]
-pub enum Implemented {
-    StatusProbe(status::StatusProbe),
-    ChamberReader(chamber::ChamberReader),
-    PortDetector(chamber::PortDetector),
-}
-
 /* === Traits === */
 
 /* === Implementations === */

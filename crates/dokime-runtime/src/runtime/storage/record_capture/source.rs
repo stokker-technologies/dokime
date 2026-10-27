@@ -317,7 +317,7 @@ fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Re
     entry.captured_scopes = record.scopes;
     let record = entry;
     let row = records::RecordRow::from_entry(&record).map_err(projection_error)?;
-    let payload = row.encode_to_vec();
+    let payload = row.encode();
     let item = Identifier::new(record.record_id.as_str()).map_err(projection_error)?;
     Ok(Some((item, payload)))
 }

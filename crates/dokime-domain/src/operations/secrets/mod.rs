@@ -31,8 +31,7 @@ use crate::model::secrets::transfer::{Archive, Choice, Preview as ImportPreview}
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = Value, id = "dokime.secrets.lookup", version = 1, policy = ORDINARY,
+#[harmos_domain::operation(response = Value, id = "dokime.secrets.lookup", policy = ORDINARY,
     visibility = harmos_domain::operations::Visibility::Shared,
     grpc(package = "dokime.v1", service = "Secrets", method = "Lookup"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -41,8 +40,7 @@ pub struct Lookup {
     pub identifier: String,
 }
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = Snapshot, id = "dokime.secrets.list", version = 1, policy = ORDINARY,
+#[harmos_domain::operation(response = Snapshot, id = "dokime.secrets.list", policy = ORDINARY,
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "List"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -50,7 +48,7 @@ pub struct Lookup {
 pub struct List {}
 
 #[harmos_domain::message(skip_debug)]
-#[harmos_domain::operation(response = Snapshot, id = "dokime.secrets.put", version = 1, policy = MUTATION,
+#[harmos_domain::operation(codec = manual, response = Snapshot, id = "dokime.secrets.put", policy = MUTATION,
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Put"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -61,8 +59,7 @@ pub struct Put {
     pub generation: u64,
 }
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = Snapshot, id = "dokime.secrets.remove", version = 1, policy = MUTATION,
+#[harmos_domain::operation(response = Snapshot, id = "dokime.secrets.remove", policy = MUTATION,
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Remove"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -73,7 +70,7 @@ pub struct Remove {
 }
 
 #[harmos_domain::message(skip_debug)]
-#[harmos_domain::operation(response = Archive, id = "dokime.secrets.export", version = 1, policy = MUTATION,
+#[harmos_domain::operation(codec = manual, response = Archive, id = "dokime.secrets.export", policy = MUTATION,
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Export"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -84,7 +81,7 @@ pub struct Export {
 }
 
 #[harmos_domain::message(skip_debug)]
-#[harmos_domain::operation(response = ImportPreview, id = "dokime.secrets.preview", version = 1, policy = MUTATION,
+#[harmos_domain::operation(codec = manual, response = ImportPreview, id = "dokime.secrets.preview", policy = MUTATION,
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Preview"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -94,7 +91,7 @@ pub struct Preview {
 }
 
 #[harmos_domain::message(skip_debug)]
-#[harmos_domain::operation(response = Snapshot, id = "dokime.secrets.import", version = 1, policy = MUTATION,
+#[harmos_domain::operation(codec = manual, response = Snapshot, id = "dokime.secrets.import", policy = MUTATION,
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Import"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

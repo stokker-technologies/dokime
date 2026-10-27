@@ -29,8 +29,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = FileWatchArmed, id = "dokime.files.await_file_watch_armed", version = 1,
+#[harmos_domain::operation(response = FileWatchArmed, id = "dokime.files.await_file_watch_armed",
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Shared)]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AwaitFileWatchArmed {

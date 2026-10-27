@@ -20,7 +20,8 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility};
+use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
+use harmos::{Dependencies, RegistrationBatch};
 use harmos::sidecar::operations::{ServingError, WireTable};
 use harmos::sidecar::{Refusal, Supervisor};
 
@@ -39,13 +40,11 @@ const RUN_POLICY: OperationPolicy = OperationPolicy {
     timeout: RUN_BOUND,
     attempt_timeout: RUN_BOUND,
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 pub const SIGNAL_POLICY: OperationPolicy = OperationPolicy {
     timeout: SIGNAL_BOUND,
     attempt_timeout: SIGNAL_BOUND,
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -64,10 +63,6 @@ pub struct Run<T>(pub RunExecution, PhantomData<fn() -> T>);
 
 // One template's signal operation over the portable `ExecutionSignal`.
 pub struct Signal<T>(pub ExecutionSignal, PhantomData<fn() -> T>);
-
-pub struct Running<T: SidecarTemplate>(Arc<Workflow<T>>);
-
-pub struct Signalling<T: SidecarTemplate>(Arc<Workflow<T>>);
 
 /* === Enums === */
 
@@ -126,77 +121,75 @@ impl<T: SidecarTemplate> Served for T {
 }
 
 impl<T: Served> OperationDeclaration for Run<T> {
+    type Request = Self;
     type Response = SidecarExecutionOutcome;
     type Input = NoStream;
     type Output = NoStream;
     const ID: &'static str = T::RUN;
-    const VERSION: u32 = 1;
     const DESCRIPTION: &'static str = "Runs one case of this template to its outcome.";
     const POLICY: OperationPolicy = RUN_POLICY;
     const VISIBILITY: Visibility = Visibility::Host;
 }
 
 impl<T: Served> OperationDeclaration for Signal<T> {
+    type Request = Self;
     type Response = SignalReply;
     type Input = NoStream;
     type Output = NoStream;
     const ID: &'static str = T::SIGNAL;
-    const VERSION: u32 = 1;
     const DESCRIPTION: &'static str = "Reaches one running case of this template.";
     const POLICY: OperationPolicy = T::SIGNAL_POLICY;
     const VISIBILITY: Visibility = Visibility::Host;
 }
 
-impl<T: SidecarTemplate> harmos::operations::Operation for Running<T> {
-    type Declaration = Run<T>;
-    type Resources = Workflow<T>;
+// A template's run and signal operations read the template's workflow as a
+// declared resource; the run also reads the attempt's own host, so evidence,
+// questions, leases and step calls travel under this attempt's call context.
+impl<T: SidecarTemplate> Requires<Workflow<T>> for Run<T> {}
+
+impl<T: SidecarTemplate> Requires<Supervisor> for Run<T> {}
+
+impl<T: SidecarTemplate> Requires<Workflow<T>> for Signal<T> {}
+
+impl<T: SidecarTemplate> harmos::Dependent for Run<T> {
+    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<Workflow<T>>(), harmos::Resource::of::<Supervisor>()];
+}
+
+impl<T: SidecarTemplate> harmos::Dependent for Signal<T> {
+    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<Workflow<T>>()];
+}
+
+impl<T: SidecarTemplate> harmos::Operation for Run<T> {
     type Error = Refusal;
-    type Context<'a> = &'a Supervisor;
-    type Endpoints = ();
 
-    async fn initialize<'ctx>(workflow: Arc<Workflow<T>>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
-        Ok(Self(workflow))
-    }
-
-    async fn run<'ctx>(
-        &mut self, host: Self::Context<'ctx>, request: &mut Run<T>, _: &mut (),
-    ) -> Result<harmos::operations::Response<SidecarExecutionOutcome>, Refusal> {
-        let request = std::mem::take(&mut request.0);
+    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SidecarExecutionOutcome>, Refusal> {
+        let workflow = ctx.resource::<Workflow<T>>();
+        let host = Supervisor::clone(&ctx.resource::<Supervisor>());
         let outcome =
-            self.0.execute(request, Arc::new(host.clone()), Some(SampleOutput::Host(host.clone())), Caller::host(host.clone())).await?;
+            workflow.execute(self.0, Arc::new(host.clone()), Some(SampleOutput::Host(host.clone())), Caller::host(host)).await?;
         Ok(outcome.into())
     }
 }
 
-impl<T: SidecarTemplate> harmos::operations::Operation for Signalling<T> {
-    type Declaration = Signal<T>;
-    type Resources = Workflow<T>;
+impl<T: SidecarTemplate> harmos::Operation for Signal<T> {
     type Error = Refusal;
-    type Context<'a> = &'a Supervisor;
-    type Endpoints = ();
 
-    async fn initialize<'ctx>(workflow: Arc<Workflow<T>>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
-        Ok(Self(workflow))
-    }
-
-    async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, signal: &mut Signal<T>, _: &mut (),
-    ) -> Result<harmos::operations::Response<SignalReply>, Refusal> {
-        self.0.signal(std::mem::take(&mut signal.0)).map(Into::into)
+    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Refusal> {
+        ctx.resource::<Workflow<T>>().signal(self.0).map(Into::into)
     }
 }
 
 impl ExecutionHost for Supervisor {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
-        Box::pin(async move { self.call(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(async move { self.call::<EvidenceBatch>(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
     }
 
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        Box::pin(async move { self.call(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(async move { self.call::<OperatorQuestion>(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
     }
 
     fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {
-        Box::pin(async move { self.call(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(async move { self.call::<LeaseAsk>(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
     }
 }
 
@@ -368,26 +361,30 @@ pub fn contracts(template: &str) -> Result<[harmos::operations::Contract; 2], ha
 pub fn contracts_with_settings(
     template: &str, settings: &harmos::config::SchemaSettings,
 ) -> Result<[harmos::operations::Contract; 2], harmos::operations::ContractError> {
-    let named = |wire: harmos::operations::WireDeclaration, suffix: &str| {
-        let contract = wire.contract_with_settings(settings)?;
+    // The identity fingerprint covers the operation id, so a renamed contract
+    // carries the fingerprint of its own id over the shared request and response.
+    fn named<O: OperationDeclaration>(
+        template: &str, suffix: &str, settings: &harmos::config::SchemaSettings,
+    ) -> Result<harmos::operations::Contract, harmos::operations::ContractError> {
+        use harmos::Portable;
+        let contract = harmos::operations::WireDeclaration::of::<O>().contract_with_settings(settings)?;
         let mut operation = contract.operation().clone();
         operation.id = harmos::Identifier::new(format!("{template}.{suffix}"))
             .map_err(|source| harmos::operations::ContractError::Operation(source.into()))?;
-        harmos::operations::Contract::new_with_settings(
-            operation,
-            contract.version(),
-            contract.codec(),
-            contract.schema().clone(),
-            settings,
-        )
-    };
-    Ok([
-        named(harmos::operations::WireDeclaration::of::<Run<()>>(), "run")?,
-        named(harmos::operations::WireDeclaration::of::<Signal<()>>(), "signal")?,
-    ])
+        let fingerprint = harmos::schema::identity::operation(
+            operation.id.as_str(),
+            <O::Request as Portable>::fingerprint(),
+            <O::Response as Portable>::fingerprint(),
+            None,
+            None,
+        );
+        operation.fingerprint = fingerprint;
+        harmos::operations::Contract::new_with_settings(operation, fingerprint, contract.codec(), contract.schema().clone(), settings)
+    }
+    Ok([named::<Run<()>>(template, "run", settings)?, named::<Signal<()>>(template, "signal", settings)?])
 }
 
-pub fn serve<P, S>(table: &mut WireTable<Supervisor>) -> Result<(), ServingError>
+pub fn serve<P, S>(table: &mut WireTable) -> Result<(), ServingError>
 where
     P: harmos::plugin::Declared,
     S: crate::catalog::Catalog<crate::catalog::SuiteBindings<P>>,
@@ -412,15 +409,19 @@ pub fn runner<T: SidecarTemplate>(workflow: &str, records: &[crate::records::Rec
     Arc::new(Workflow::<T>::new(workflow, "").with_records(records))
 }
 
-pub fn bind<T, P>(table: &mut WireTable<Supervisor>, workflow: &str, records: &[crate::records::RecordContract]) -> Result<(), ServingError>
+pub fn bind<T, P>(table: &mut WireTable, workflow: &str, records: &[crate::records::RecordContract]) -> Result<(), ServingError>
 where
     T: SidecarTemplate,
     P: harmos::plugin::Declared,
 {
     let workflow = Arc::new(Workflow::<T>::new(workflow, P::ID).with_records(records).with_publisher(T::publish_sample::<P>));
     registry().lock().unwrap_or_else(PoisonError::into_inner).push(Arc::clone(&workflow) as Arc<dyn Runnable>);
-    table.bind_operation::<Running<T>>(Arc::clone(&workflow))?;
-    table.bind_operation::<Signalling<T>>(workflow)
+    let mut dependencies = Dependencies::new();
+    dependencies.insert(workflow).map_err(|_| ServingError::Resource {
+        operation: T::RUN.to_owned(),
+        resource: std::any::type_name::<Workflow<T>>(),
+    })?;
+    table.register(RegistrationBatch::new(dependencies).operation::<Run<T>>().operation::<Signal<T>>())
 }
 
 /* === Private Functions === */

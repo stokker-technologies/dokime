@@ -18,7 +18,6 @@ use std::time::Duration;
 
 // Third Party Imports
 use harmos_domain::operations::OperationPolicy;
-use harmos_domain::operations::RestartPolicy;
 use harmos_domain::operations::RetryPolicy;
 use serde::Deserialize;
 use serde::Serialize;
@@ -32,7 +31,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 pub const PACKAGE: &str = "dokime.v1";
 pub const SERVICE: &str = "Runtime";
@@ -43,16 +41,14 @@ pub const SERVICE: &str = "Runtime";
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = Health, id = "dokime.runtime.health", version = 1,
+#[harmos_domain::operation(response = Health, id = "dokime.runtime.health",
     description = "Read the current runtime identity and admission readiness",
     policy = POLICY, grpc(package = "dokime.v1", service = "Runtime", method = "GetHealth"))]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GetHealth {}
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = Identity, id = "dokime.runtime.identity", version = 1,
+#[harmos_domain::operation(response = Identity, id = "dokime.runtime.identity",
     description = "Read the application identity and process epoch",
     policy = POLICY, grpc(package = "dokime.v1", service = "Runtime", method = "GetIdentity"))]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]

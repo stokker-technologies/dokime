@@ -208,7 +208,7 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
 impl<C, O, I, S> Context<'_, C, O, I, S> {
     pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
-        Op: harmos::operations::OperationDeclaration + Called<C>,
+        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
     {
         self.environment.caller().call_at(&self.call_stage, request).await
     }
@@ -365,7 +365,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     #[cfg(feature = "native")]
     pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
-        Op: harmos::operations::OperationDeclaration + Called<C>,
+        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
     {
         let stage = self.log.map_or_else(String::new, |(_, criterion)| format!("criterion/{criterion}"));
         self.caller.call_at(&stage, request).await

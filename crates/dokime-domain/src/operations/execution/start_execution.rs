@@ -31,8 +31,7 @@ use super::*;
 /* === Structs === */
 
 // Admit one existing, unstarted execution. Never reopens a finished attempt.
-#[harmos_domain::message]
-#[harmos_domain::operation(response = RunReply, id = "dokime.execution.start_execution", version = 1,
+#[harmos_domain::operation(response = RunReply, id = "dokime.execution.start_execution",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "StartExecution"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

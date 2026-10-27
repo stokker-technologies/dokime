@@ -39,11 +39,19 @@ pub struct ChargerBench;
 
 /* === Enums === */
 
+// The bench admits all work on one lane.
+#[dokime::harmos::lanes(harmos_path = dokime::harmos)]
+pub enum Lanes {
+    #[default]
+    Bench,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
 
 impl dokime::harmos::Application for ChargerBench {
+    type Lanes = Lanes;
     type State = Testbench;
     type Transaction = Transactions;
     type Record = ();

@@ -21,7 +21,7 @@ pub(super) use plots::{ReadCache, ReadPlan, materialize, read_plan};
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::storage::{arrow::ArrowBatch, operations::Query, query::QueryArrow};
+use harmos::storage::{Query, arrow::ArrowBatch, query::QueryArrow};
 
 // Local Imports
 use crate::{runtime::Error, runtime::Result};

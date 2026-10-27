@@ -24,7 +24,7 @@ use harmos::{
     Aggregate,
     storage::{
         ReadBatch,
-        operations::Query,
+        Query,
         query::{
             QueryArrow, Table, TableWriter,
             scalar::ScalarValue,

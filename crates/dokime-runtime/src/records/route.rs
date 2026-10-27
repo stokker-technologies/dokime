@@ -26,7 +26,6 @@ const RECORD_POLICY: harmos::operations::OperationPolicy = harmos::operations::O
     timeout: std::time::Duration::from_secs(30),
     attempt_timeout: std::time::Duration::from_secs(30),
     retries: harmos::operations::RetryPolicy::Never,
-    restart: harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -36,8 +35,7 @@ const RECORD_POLICY: harmos::operations::OperationPolicy = harmos::operations::O
 /* === Structs === */
 
 // Files one process-scoped record against the calling plugin.
-#[harmos::message]
-#[harmos::operation(response = (), id = "dokime.records.publish", version = 1, policy = RECORD_POLICY, visibility = harmos::operations::Visibility::Shared)]
+#[harmos::operation(response = (), id = "dokime.records.publish", policy = RECORD_POLICY, visibility = harmos::operations::Visibility::Shared)]
 #[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct RecordPublication {
     #[row(

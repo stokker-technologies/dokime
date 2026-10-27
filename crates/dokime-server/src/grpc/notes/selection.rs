@@ -65,7 +65,7 @@ impl Page {
         }
         let stream = format!(
             "{kind}:{}",
-            Sha256::digest(dokime::harmos::Message::encode_to_vec(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+            Sha256::digest(dokime::harmos::Message::encode(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
         let cursor = Cursor { epoch: snapshot.state().process_epoch().to_string(), stream, position: snapshot.revision() };
         let limit = dokime::domain::model::execution::wire_cursor::page_size(limit, &after_id)

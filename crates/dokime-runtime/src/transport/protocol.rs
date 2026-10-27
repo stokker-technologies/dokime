@@ -17,7 +17,7 @@
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, Visibility};
+use harmos::operations::{OperationPolicy, RetryPolicy, Visibility};
 
 // Local Imports
 
@@ -47,13 +47,21 @@ macro_rules! templated {
             }
         }
 
+        impl<T> Clone for $name<T> {
+            fn clone(&self) -> Self {
+                Self::new(self.0.clone())
+            }
+        }
+
         impl<T> harmos::Message for $name<T> {
-            fn encode_to_vec(&self) -> Vec<u8> {
-                harmos::Message::encode_to_vec(&self.0)
+            const CODEC: &'static str = <$inner as harmos::Message>::CODEC;
+
+            fn encode(&self) -> Vec<u8> {
+                harmos::Message::encode(&self.0)
             }
 
-            fn encoded_len(&self) -> usize {
-                harmos::Message::encoded_len(&self.0)
+            fn encoded_size(&self) -> usize {
+                harmos::Message::encoded_size(&self.0)
             }
 
             fn decode(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
@@ -76,6 +84,7 @@ macro_rules! templated {
             const FIELDS: &'static [harmos::schema::graph::Field<harmos::schema::declaration::Definition>] =
                 <$inner as harmos::schema::Described>::FIELDS;
             const MARKER: &'static [u8] = <$inner as harmos::schema::Described>::MARKER;
+            const DEFAULT_VARIANT: Option<usize> = <$inner as harmos::schema::Described>::DEFAULT_VARIANT;
             // The wrapper shares the inner request's schema identity, so one
             // definition name keeps one owner across every template.
             const DEFINITION: harmos::schema::declaration::Definition = <$inner as harmos::schema::Described>::DEFINITION;
@@ -107,8 +116,7 @@ pub struct RunExecution {
 }
 
 // The host's evidence admission: a sidecar pushes each drained page.
-#[harmos::message]
-#[harmos::operation(response = EvidenceReceipt, id = "dokime.execution.evidence", version = 1, policy = EVIDENCE_POLICY, visibility = Visibility::Shared)]
+#[harmos::operation(response = EvidenceReceipt, id = "dokime.execution.evidence", policy = EVIDENCE_POLICY, visibility = Visibility::Shared)]
 #[derive(Clone, PartialEq)]
 pub struct EvidenceBatch {
     #[row(description = "True only after observers, callbacks, cleanup and evaluation have settled.")]
@@ -245,8 +253,7 @@ pub struct ArtifactChunk {
 }
 
 // Asks the operator through the host and waits for the answer.
-#[harmos::message]
-#[harmos::operation(response = OperatorAnswer, id = "dokime.execution.prompt", version = 1, policy = OPERATOR_POLICY, visibility = Visibility::Shared)]
+#[harmos::operation(response = OperatorAnswer, id = "dokime.execution.prompt", policy = OPERATOR_POLICY, visibility = Visibility::Shared)]
 #[derive(Clone, PartialEq)]
 pub struct OperatorQuestion {
     pub prompt_json: String,
@@ -277,8 +284,7 @@ pub struct StepAdmission {
 }
 
 // Asks the host to grant a telemetry lease.
-#[harmos::message]
-#[harmos::operation(response = LeaseResolution, id = "dokime.execution.lease", version = 1, policy = LEASE_POLICY, visibility = Visibility::Shared)]
+#[harmos::operation(response = LeaseResolution, id = "dokime.execution.lease", policy = LEASE_POLICY, visibility = Visibility::Shared)]
 #[derive(Clone, PartialEq)]
 pub struct LeaseAsk {
     pub lease_json: String,
@@ -448,7 +454,6 @@ const fn bounded(timeout: Duration) -> OperationPolicy {
         timeout,
         attempt_timeout: timeout,
         retries: RetryPolicy::Never,
-        restart: RestartPolicy::Never,
     }
 }
 

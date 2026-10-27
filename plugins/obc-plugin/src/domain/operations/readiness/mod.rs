@@ -28,13 +28,12 @@ use crate::domain::model::readiness::Readiness;
 
 /* === Structs === */
 
-#[dokime::message]
 #[dokime::operation(
     id = "obc-plugin.check_readiness",
     response = Readiness,
-    version = 1,
     description = "Reports whether the testbench will still take work. A template calls it with `AskReadiness {}`.",
-    policy = super::POLICY
+    policy = super::POLICY,
+    resources = [crate::Resources]
 )]
 #[derive(Clone, PartialEq)]
 pub struct AskReadiness {}

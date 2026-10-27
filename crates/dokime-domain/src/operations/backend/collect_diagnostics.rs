@@ -31,8 +31,7 @@ use super::*;
 /* === Structs === */
 
 // Stream One Support Archive Without Secret Material.
-#[harmos_domain::message]
-#[harmos_domain::operation(response = (), output = DiagnosticsBundleFrame, id = "dokime.backend.collect_diagnostics", version = 1,
+#[harmos_domain::operation(response = (), output = DiagnosticsBundleFrame, id = "dokime.backend.collect_diagnostics",
         policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "CollectDiagnostics"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

@@ -17,11 +17,12 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use harmos::operations::{NativeError, OperationManager};
-use harmos::sidecar::operations::Definition;
+use harmos::operations::NativeError;
+use harmos::OperationDefinition as Definition;
 
 // Local Imports
 use crate::InstalledPlugin;
+use crate::app::OperationManager;
 use crate::domains::{
     ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderOption, OptionProviderSource, OptionsResponse,
     StatusResponse,
@@ -123,7 +124,7 @@ impl Dispatcher {
     }
 
     async fn call<Q: harmos::Message, T: harmos::Message>(&self, method: &str, request: Q) -> Result<T, ActionDispatcherError> {
-        let bytes = self.calls.call_encoded(method, request.encode_to_vec()).await.map_err(dispatch_error)?;
+        let bytes = self.calls.call_encoded(method, request.encode()).await.map_err(dispatch_error)?;
 
         T::decode(bytes.as_slice()).map_err(|error| ActionDispatcherError::Malformed(error.to_string()))
     }
@@ -142,7 +143,7 @@ impl ActionDispatcher for Dispatcher {
     ) -> ActionDispatcherFuture<'a, crate::analysis::Response> {
         use harmos::Message;
         let admitted = if self.bindings.analyses.contains(entrypoint) {
-            self.calls.submit_encoded(entrypoint, request.encode_to_vec()).map_err(dispatch_error)
+            self.calls.submit_encoded(entrypoint, request.encode()).map_err(dispatch_error)
         } else {
             Err(ActionDispatcherError::UnknownEntrypoint(entrypoint.into()))
         };

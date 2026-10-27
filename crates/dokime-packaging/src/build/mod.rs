@@ -549,11 +549,9 @@ mod tests {
             timeout: Duration::from_secs(5),
             attempt_timeout: Duration::from_secs(5),
             retries: dokime::harmos::operations::RetryPolicy::Never,
-            restart: dokime::harmos::operations::RestartPolicy::Never,
         };
-        let lifecycle =
-            [dokime::harmos::operations::lifecycle::Action::Initialize, dokime::harmos::operations::lifecycle::Action::Shutdown]
-                .map(|action| dokime::harmos::operations::lifecycle::Descriptor::new(action, policy).unwrap());
+        let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
+            .map(|action| serde_json::json!({"action":action,"identity":"harmos.operation.v1","policy":policy}));
         let sections = [
             serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"}),
             serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle}),

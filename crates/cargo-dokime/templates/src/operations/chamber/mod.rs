@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
@@ -22,6 +21,7 @@ use std::sync::Arc;
 use crate::Bench;
 use crate::domain::model::chamber::ChamberReading;
 use crate::domain::operations::{DetectPort, ReadChamber};
+use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::*;
 
 /* === Constants === */
@@ -32,42 +32,29 @@ use dokime::prelude::*;
 
 /* === Structs === */
 
-pub struct ChamberReader {
-    bench: Arc<Bench>,
-}
-
-pub struct PortDetector {
-    bench: Arc<Bench>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-#[dokime::operation]
-impl ChamberReader {
-    pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
-        Self { bench }
-    }
+impl Operation for ReadChamber {
+    type Error = Refusal;
 
-    async fn run(&mut self, ctx: &Supervisor, _: &mut ReadChamber) -> Result<ChamberReading, Refusal> {
-        if let Some(scope) = ExecutionScope::serving::<Self>(ctx) {
+    async fn run(self, ctx: Context<'_, Self>) -> Result<Response<ChamberReading>, Refusal> {
+        if let Some(scope) = ExecutionScope::serving::<Self>(ctx.call()) {
             tracing::debug!(key = %scope.key(), "reading the chamber for a run");
         }
-        Ok(ChamberReading { celsius: dokime::plugin::refusal(self.bench.sensor.read_celsius())?, sensor: self.bench.sensor.describe() })
+        let bench = ctx.resource::<Bench>();
+        Ok(Response::new(ChamberReading { celsius: dokime::plugin::refusal(bench.sensor.read_celsius())?, sensor: bench.sensor.describe() }))
     }
 }
 
-#[dokime::operation]
-impl PortDetector {
-    pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
-        Self { bench }
-    }
+impl Operation for DetectPort {
+    type Error = Refusal;
 
-    async fn run(&mut self, _: &Supervisor, _: &mut DetectPort) -> Result<Discovered, Refusal> {
-        Ok(Discovered::of(self.bench.sensor.port().to_owned()))
+    async fn run(self, ctx: Context<'_, Self>) -> Result<Response<Discovered>, Refusal> {
+        Ok(Response::new(Discovered::of(ctx.resource::<Bench>().sensor.port().to_owned())))
     }
 }
 

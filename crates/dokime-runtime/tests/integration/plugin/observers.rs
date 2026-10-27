@@ -232,8 +232,7 @@ impl Probe {
         }
     }
 }
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "observer-fixture.get_count", version = 1, policy = super::native::POLICY, response = GetCountResponse)]
+#[dokime_runtime::operation(id = "observer-fixture.get_count", policy = super::native::POLICY, response = GetCountResponse)]
 #[derive(Clone, PartialEq)]
 struct GetCount {}
 #[dokime_runtime::operation]
@@ -245,8 +244,7 @@ impl GetCountHandler {
         Ok(GetCountResponse { checks: self.0.probe.checks.load(Ordering::SeqCst) as u64 })
     }
 }
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "observer-fixture.get_probe", version = 1, policy = super::native::POLICY, response = GetProbeResponse)]
+#[dokime_runtime::operation(id = "observer-fixture.get_probe", policy = super::native::POLICY, response = GetProbeResponse)]
 #[derive(Clone, PartialEq)]
 struct GetProbe {}
 #[dokime_runtime::operation]

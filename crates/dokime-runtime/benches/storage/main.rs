@@ -66,7 +66,7 @@ struct Advance {
     payload: String,
 }
 
-#[harmos::record(id = "bench.observed", version = 1)]
+#[harmos::record(id = "bench.observed")]
 #[derive(Clone, Serialize, Deserialize)]
 struct Observed {
     payload: String,

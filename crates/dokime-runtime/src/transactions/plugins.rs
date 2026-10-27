@@ -31,19 +31,19 @@ use crate::{InstalledPlugin, RuntimeState};
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.artifact.host.install", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.artifact.host.install", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InstallHostPlugin {
     pub installation: InstalledPlugin,
 }
 
-#[harmos::transaction(id = "dokime.providers.reconcile", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.providers.reconcile", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReconcileProviders {
     pub providers: Vec<ProviderCatalog>,
 }
 
-#[harmos::transaction(id = "dokime.providers.reload", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.providers.reload", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReloadProviderCatalog {
     pub providers: Vec<ProviderCatalog>,

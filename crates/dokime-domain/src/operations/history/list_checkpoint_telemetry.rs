@@ -30,8 +30,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = CheckpointTelemetryPage, id = "dokime.history.list_checkpoint_telemetry", version = 1,
+#[harmos_domain::operation(response = CheckpointTelemetryPage, id = "dokime.history.list_checkpoint_telemetry",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "ListCheckpointTelemetry"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

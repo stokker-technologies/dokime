@@ -244,7 +244,7 @@ pub(crate) fn evaluate_report(operation: &str, request: crate::analysis::Request
     }
 }
 
-pub(crate) fn register(operations: &harmos::operations::OperationManager) -> harmos::Result<()> {
+pub(crate) fn register(operations: &crate::app::OperationManager) -> harmos::Result<()> {
     operations.register_wire_operations::<Operations, _>("dokime.analysis", crate::app::Lanes::Open, Arc::new(()))?;
     #[cfg(feature = "fft")]
     operations.register_wire_operations::<FourierOperations, _>("dokime.analysis", crate::app::Lanes::Open, Arc::new(()))?;

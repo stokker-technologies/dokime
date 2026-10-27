@@ -22,7 +22,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::{services::Fault, services::Resident, services::Service};
+use harmos::{ServiceContext, services::Resident};
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -196,7 +196,7 @@ impl RuntimeHandle {
 
 impl Resident<crate::app::Dokime> for LogTail {
     type Error = TailError;
-    async fn run(&mut self, mut context: Service<crate::app::Dokime>) -> std::result::Result<(), Fault<TailError>> {
+    async fn run(&mut self, mut context: ServiceContext<crate::app::Dokime>) -> std::result::Result<(), TailError> {
         self.pump(&mut context).await
     }
 
@@ -319,21 +319,21 @@ impl LogTail {
         }
     }
 
-    async fn pump(&mut self, context: &mut Service<crate::app::Dokime>) -> std::result::Result<(), Fault<TailError>> {
-        self.settle_io().await.map_err(Fault::Environmental)?;
+    async fn pump(&mut self, context: &mut ServiceContext<crate::app::Dokime>) -> std::result::Result<(), TailError> {
+        self.settle_io().await?;
         // Resume From The Original Private Acknowledged Prefix.
-        self.offset = self.storage.log_prefix(&self.execution, &self.path).await.map_err(storage_error)?;
-        self.open().await.map_err(Fault::Environmental)?;
+        self.offset = self.storage.log_prefix(&self.execution, &self.path).await.map_err(TailError::Storage)?;
+        self.open().await?;
         context.ready();
 
         while !self.advance(context).await? {}
         Ok(())
     }
 
-    async fn advance(&mut self, context: &mut Service<crate::app::Dokime>) -> std::result::Result<bool, Fault<TailError>> {
+    async fn advance(&mut self, context: &mut ServiceContext<crate::app::Dokime>) -> std::result::Result<bool, TailError> {
         // Observe Stop Before Measuring EOF, Including The Final Drain Barrier.
         let stopping = context.is_stopping();
-        let length = self.end().await.map_err(Fault::Environmental)?;
+        let length = self.end().await?;
         self.check_length(length).await?;
         if stopping && self.final_end.is_none() {
             self.final_end = Some(length);
@@ -341,7 +341,7 @@ impl LogTail {
         let end = self.final_end.unwrap_or(length);
         if self.offset == end && self.final_end.is_some() {
             self.drained = true;
-            self.storage.close_output(&self.execution, &self.path, false).await.map_err(storage_error)?;
+            self.storage.close_output(&self.execution, &self.path, false).await.map_err(TailError::Storage)?;
             return Ok(true);
         }
         if self.offset == end {
@@ -349,9 +349,9 @@ impl LogTail {
             return Ok(false);
         }
 
-        let bytes = self.read_chunk(end).await.map_err(Fault::Environmental)?;
+        let bytes = self.read_chunk(end).await?;
         let count = bytes.len();
-        self.storage.append_output(&self.execution, &self.path, bytes).await.map_err(storage_error)?;
+        self.storage.append_output(&self.execution, &self.path, bytes).await.map_err(TailError::Storage)?;
         self.offset += count as u64;
         Ok(false)
     }
@@ -368,13 +368,12 @@ impl LogTail {
         self.finish_opening().await
     }
 
-    async fn check_length(&self, length: u64) -> std::result::Result<(), Fault<TailError>> {
+    async fn check_length(&self, length: u64) -> std::result::Result<(), TailError> {
         if length >= self.offset {
             return Ok(());
         }
-        self.storage.close_output(&self.execution, &self.path, true).await.map_err(storage_error)?;
-        let failure = TailError::State("append-only log was truncated");
-        Err(Fault::Application(failure))
+        self.storage.close_output(&self.execution, &self.path, true).await.map_err(TailError::Storage)?;
+        Err(TailError::State("append-only log was truncated"))
     }
 }
 
@@ -390,10 +389,6 @@ fn remove_stopped_tail(runtime: &RuntimeHandle, name: &str, stops: &mut BTreeMap
     if runtime.operations.resident_definition(name).is_none() {
         stops.remove(name);
     }
-}
-
-fn storage_error(error: Error) -> Fault<TailError> {
-    Fault::Application(TailError::Storage(error))
 }
 
 /* === Tests === */

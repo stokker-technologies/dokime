@@ -154,7 +154,7 @@ impl TypedCodec {
     ) -> Result<Vec<u8>> {
         let metadata = self.metadata(epoch, ordinal, sample, scope)?;
         let payload = sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
-        let length = metadata.encoded_len().checked_add(payload.len()).ok_or(Error::Invalid("typed telemetry frame length overflows"))?;
+        let length = metadata.encoded_size().checked_add(payload.len()).ok_or(Error::Invalid("typed telemetry frame length overflows"))?;
         let bytes = encode_metadata(metadata, payload, length)?;
         Ok(bytes)
     }
@@ -165,7 +165,7 @@ impl TypedCodec {
         self.check_payload(payload)?;
         let metadata = self.metadata(&entry.epoch, entry.ordinal, &entry.sample, entry.sample.scope.as_ref())?;
         let length = metadata
-            .encoded_len()
+            .encoded_size()
             .checked_add(payload.len())
             .filter(|length| *length <= maximum)
             .ok_or(Error::Invalid("typed telemetry frame exceeds byte limit"))?;
@@ -256,7 +256,7 @@ impl TypedCodec {
         let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
         let payload = reader.remaining();
         let metadata_length = bytes.len() - payload.len();
-        let canonical_metadata = metadata.encode_to_vec();
+        let canonical_metadata = metadata.encode();
         if canonical_metadata != bytes[..metadata_length] {
             return Err(Error::Invalid("stored telemetry metadata is not canonical"));
         }
@@ -495,7 +495,7 @@ pub(crate) fn index_metadata(bytes: &[u8]) -> Result<(Option<ScopeRow>, String, 
     let mut reader = Reader::new(bytes);
     let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
     let length = bytes.len() - reader.remaining().len();
-    if metadata.encode_to_vec() != bytes[..length] {
+    if metadata.encode() != bytes[..length] {
         return Err(Error::Invalid("stored telemetry metadata is not canonical"));
     }
     Ok((metadata.scope, metadata.source, metadata.signals))

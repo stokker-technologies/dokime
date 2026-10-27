@@ -31,8 +31,7 @@ use super::*;
 /* === Structs === */
 
 // Returns a bounded cycle page at one exact runtime revision.
-#[harmos_domain::message]
-#[harmos_domain::operation(response = RuntimeShellSnapshot, id = "dokime.observation.get_runtime_shell", version = 1,
+#[harmos_domain::operation(response = RuntimeShellSnapshot, id = "dokime.observation.get_runtime_shell",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Observation", method = "GetRuntimeShell"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

@@ -87,7 +87,7 @@ impl TelemetrySample {
     }
 
     pub fn typed<T: harmos_domain::Message>(self, row: &T) -> Self {
-        self.with_storage_payload(row.encode_to_vec())
+        self.with_storage_payload(row.encode())
     }
 
     pub fn new(sample_id: TelemetrySampleId, stream: Identifier, sequence: u64, timestamp: Timestamp, source: impl Into<String>) -> Self {

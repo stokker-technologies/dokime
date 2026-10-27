@@ -28,7 +28,7 @@ pub use configuration::{Configuration, Secret};
 pub use settings::NoSettings;
 
 #[cfg(feature = "native")]
-pub use listeners::{Delivery, Heard, LISTENER_POLICY, Listener};
+pub use listeners::{Delivery, HearFuture, Hearing, LISTENER_POLICY, Listener, ListenerContext};
 
 #[cfg(feature = "native")]
 pub use publisher::Publisher;

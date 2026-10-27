@@ -45,7 +45,7 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.cycle.policy", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.execution.cycle.policy", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateCyclePolicy {
     pub test_cycle_id: TestCycleId,
@@ -53,7 +53,7 @@ pub struct UpdateCyclePolicy {
     pub occurred_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.cycle.control", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.execution.cycle.control", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ControlCycle {
     pub test_cycle_id: TestCycleId,
@@ -61,7 +61,7 @@ pub struct ControlCycle {
     pub occurred_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.cycle.reset", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.execution.cycle.reset", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ResetCycle {
     pub test_cycle_id: TestCycleId,

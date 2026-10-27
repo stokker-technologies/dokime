@@ -35,21 +35,12 @@ pub mod status;
 /* === Enums === */
 
 #[dokime::catalog]
-pub enum Implemented {
-    DeviceReader(device::DeviceReader),
-    PowerControl(device::PowerControl),
-    StatusProbe(status::StatusProbe),
-    ReadinessProbe(readiness::ReadinessProbe),
-    ConnectionListing(connections::ConnectionListing),
-}
-
-#[dokime::catalog]
 pub enum Operations {
     #[nested]
     Bench(crate::domain::operations::Operations),
 
     #[nested]
-    Analyses(crate::analyses::Implemented),
+    Analyses(crate::analyses::Analyses),
 }
 
 /* === Traits === */

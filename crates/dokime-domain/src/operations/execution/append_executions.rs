@@ -39,8 +39,7 @@ pub struct ExecutionBinding {
     pub case_id: String,
 }
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = AppendCasesReply, id = "dokime.execution.append_executions", version = 1,
+#[harmos_domain::operation(response = AppendCasesReply, id = "dokime.execution.append_executions",
     policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Execution", method = "AppendExecutions"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

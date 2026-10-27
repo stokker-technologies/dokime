@@ -17,7 +17,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::operations::ReadFile;
+use harmos::storage::FileRead;
 use harmos::storage::{ByteRange, ObjectRevision, ObjectVersion};
 
 // Local Imports
@@ -149,7 +149,7 @@ impl SavedOutputFile {
         let reader = self
             .outputs
             .session
-            .read_file(ReadFile {
+            .read_file(FileRead {
                 source: harmos::storage::FileSource::Stored(self.descriptor().file.clone()),
                 range: ByteRange { offset, limit: Some(limit) },
             })

@@ -115,8 +115,7 @@ impl PluginSettings for NoSettings {
 #[diagnostic::do_not_recommend]
 impl<R, Answered> Answers<Answered> for R
 where
-    R: harmos::operations::Declares,
-    R::Declaration: harmos::operations::OperationDeclaration<Response = Answered>,
+    R: harmos::operations::OperationDeclaration<Response = Answered>,
 {
 }
 
@@ -143,8 +142,8 @@ pub fn option_provider(operation: &str) -> OptionProviderContribution {
 
 pub const fn answers<R: Answers<Answered>, Answered>() {}
 
-pub fn operation_of<R: harmos::operations::Declares>() -> &'static str {
-    <R::Declaration as harmos::operations::OperationDeclaration>::ID
+pub fn operation_of<R: harmos::operations::OperationDeclaration>() -> &'static str {
+    R::ID
 }
 
 pub fn discovery(field: &str, operation: &str) -> Discovery {

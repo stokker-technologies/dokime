@@ -32,7 +32,7 @@ use crate::{Error, Testbench};
 
 /* === Structs === */
 
-#[dokime::harmos::transaction(harmos_path = dokime::harmos, id = "obc.device.set_power", version = 1, irreversible)]
+#[dokime::harmos::transaction(harmos_path = dokime::harmos, id = "obc.device.set_power", irreversible)]
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SetPower {
     pub enabled: bool,

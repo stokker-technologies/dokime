@@ -14,13 +14,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
 use crate::Bench;
 use crate::domain::operations::GetStatus;
+use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::*;
 
 /* === Constants === */
@@ -31,28 +31,25 @@ use dokime::prelude::*;
 
 /* === Structs === */
 
-pub struct StatusProbe {
-    bench: Arc<Bench>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-// The handler declares nothing: its request type is the operation.
-#[dokime::operation]
-impl StatusProbe {
-    pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
-        Self { bench }
-    }
+// The request is the operation: this body runs one attempt with the resources
+// the definition declares, and holds no state of its own.
+impl Operation for GetStatus {
+    type Error = Refusal;
 
-    async fn run(&mut self, _: &Supervisor, _: &mut GetStatus) -> Result<StatusResponse, Refusal> {
-        Ok(StatusResponse::ready()
-            .field("sensor", self.bench.sensor.describe())
-            .field("units_connected", self.bench.connected().len() as i64)
-            .field("upload_configured", self.bench.upload_configured))
+    async fn run(self, ctx: Context<'_, Self>) -> Result<Response<StatusResponse>, Refusal> {
+        let bench = ctx.resource::<Bench>();
+        Ok(Response::new(
+            StatusResponse::ready()
+                .field("sensor", bench.sensor.describe())
+                .field("units_connected", bench.connected().len() as i64)
+                .field("upload_configured", bench.upload_configured),
+        ))
     }
 }
 

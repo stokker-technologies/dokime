@@ -31,8 +31,7 @@ use super::*;
 /* === Structs === */
 
 // Replays a bounded tail of the hub log, then follows it. Read access.
-#[harmos_domain::message]
-#[harmos_domain::operation(response = (), output = LogFrame, id = "dokime.backend.watch_logs", version = 1,
+#[harmos_domain::operation(response = (), output = LogFrame, id = "dokime.backend.watch_logs",
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "WatchLogs"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

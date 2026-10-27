@@ -17,7 +17,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::operations::ReadFile;
+use harmos::storage::FileRead;
 use harmos::storage::{ByteRange, FileReadBatch, FileReader, ReadBatch};
 
 // Local Imports
@@ -54,7 +54,7 @@ pub struct ArtifactReader {
 impl ArtifactReader {
     pub(super) async fn from_output(session: crate::storage::Manager, descriptor: ReadBatch<ExecutionOutput>) -> Result<Self> {
         let reader = session
-            .read_file(ReadFile {
+            .read_file(FileRead {
                 source: harmos::storage::FileSource::Stored(descriptor.file.clone()),
                 range: ByteRange { offset: 0, limit: None },
             })

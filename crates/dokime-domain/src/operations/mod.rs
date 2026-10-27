@@ -46,7 +46,6 @@ use harmos_domain::catalog::Member;
 use harmos_domain::catalog::Visitor;
 use harmos_domain::operations::OperationDeclaration;
 use harmos_domain::operations::OperationPolicy;
-use harmos_domain::operations::RestartPolicy;
 use harmos_domain::operations::RetryPolicy;
 use harmos_domain::operations::WireDeclaration;
 use harmos_domain::schema::Described;
@@ -94,7 +93,7 @@ pub struct Declaration {
 
 #[harmos_domain::catalog]
 pub enum Operations {
-    Host(harmos_domain::operations::host::Catalog),
+    Host(harmos::builtins::host::Catalog),
     Health(runtime::GetHealth),
     Identity(runtime::GetIdentity),
 
@@ -176,7 +175,7 @@ pub trait Endpoint: OperationDeclaration {
 
 /* === Implementations === */
 
-impl Endpoint for harmos_domain::operations::host::Catalog {
+impl Endpoint for harmos::builtins::host::Catalog {
     const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
 }
 
@@ -198,7 +197,7 @@ where
 /* === Private Functions === */
 
 const fn policy(timeout: Duration) -> OperationPolicy {
-    OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
+    OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never }
 }
 
 /* === Tests === */

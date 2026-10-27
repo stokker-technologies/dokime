@@ -175,7 +175,7 @@ pub trait DeclaredSuite {
 
     #[cfg(feature = "native")]
     fn bind<P: harmos::plugin::Declared>(
-        table: &mut harmos::sidecar::operations::WireTable<harmos::sidecar::Supervisor>, workflow: &str, records: &[RecordContract],
+        table: &mut harmos::sidecar::operations::WireTable, workflow: &str, records: &[RecordContract],
     ) -> Result<(), harmos::sidecar::operations::ServingError>;
 
     #[cfg(feature = "native")]

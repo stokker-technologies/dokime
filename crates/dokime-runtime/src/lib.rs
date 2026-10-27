@@ -154,7 +154,7 @@ pub use publication::Publishable;
 pub use contributions::{Evidence, Records, Settings, Suites};
 pub use harmos::Plugin;
 pub use harmos::catalog::RequirementEntry as Requirement;
-pub use harmos::operations::{CallContext, Declares, Operation};
+pub use harmos::operations::{CallContext, Operation, OperationDeclaration};
 pub use harmos::plugin::{Contribution, Grant};
 
 pub use harmos;

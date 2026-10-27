@@ -25,7 +25,7 @@ use crate::arguments::Arguments;
 
 /* === Constants === */
 
-const ARGUMENTS: &[&str] = &["id", "record", "description"];
+const ARGUMENTS: &[&str] = &["id", "record", "description", "resources"];
 
 /* === Macros === */
 
@@ -56,7 +56,7 @@ pub(crate) fn listener(attribute: TokenStream, item: TokenStream) -> TokenStream
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a listener", ARGUMENTS)?;
-    let mut block: ItemImpl = syn::parse2(item.clone())?;
+    let block: ItemImpl = syn::parse2(item.clone())?;
     if block.trait_.is_some() {
         return Err(Error::new_spanned(&block.self_ty, "`#[dokime::listener]` declares the listener's own inherent impl"));
     }
@@ -64,35 +64,65 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let identifier = &crate::arguments::wire_identity(Some(identifier.clone()), crate::arguments::type_name(&block.self_ty)?)?;
     let record = arguments.required("record", "a listener hears one declared record type")?;
     let description = arguments.value("description").map(|description| quote!(const DESCRIPTION: &'static str = #description;));
+    let resources = match arguments.value("resources") {
+        Some(value) => crate::arguments::elements(value)?,
+        None => Vec::new(),
+    };
     let hears =
         block.items.iter().any(|item| matches!(item, ImplItem::Fn(method) if method.sig.ident == "hear" && method.sig.asyncness.is_some()));
     if !hears {
         return Err(Error::new_spanned(
             &block.self_ty,
-            "a listener writes `async fn hear(&mut self, ctx: &Supervisor, record: Record) -> Result<(), Error>`",
+            "a listener writes `async fn hear(ctx: &ListenerContext<'_, Self>, record: Record) -> Result<(), Error>`",
         ));
     }
     let owner = block.self_ty.clone();
-    block.items.push(syn::parse_quote! {
-        async fn run(
-            &mut self,
-            context: &#sdk::Supervisor,
-            delivery: &#sdk::plugin::Heard<#owner>,
-        ) -> ::core::result::Result<(), #sdk::Refusal> {
-            let record = #sdk::plugin::refusal(delivery.0.record::<#record>())?;
-            #sdk::plugin::refusal(<#owner>::hear(self, context, record).await)
-        }
-    });
+    let harmos = quote!(#sdk::__harmos);
 
+    // The listener type is its callback operation's identity; the shared
+    // `Delivery` is the request and `Hearing` the carrier that decodes the
+    // record and hands it to `hear` with the declared resources and the
+    // attempt's own host.
     Ok(quote! {
-        #[#sdk::__harmos::operation(harmos_path = #sdk::__harmos)]
         #block
 
         #[automatically_derived]
-        impl #sdk::plugin::Listener for #owner {
+        impl #harmos::operations::OperationDeclaration for #owner {
+            type Request = #sdk::plugin::Delivery;
+            type Response = ();
+            type Input = #harmos::operations::NoStream;
+            type Output = #harmos::operations::NoStream;
             const ID: &'static str = #identifier;
+            const POLICY: #harmos::operations::OperationPolicy = #sdk::plugin::LISTENER_POLICY;
+            const VISIBILITY: #harmos::operations::Visibility = #harmos::operations::Visibility::Host;
             #description
+        }
+
+        #[automatically_derived]
+        impl #harmos::Executable for #owner {
+            type Carrier = #sdk::plugin::Hearing<#owner>;
+            const RESOURCES: &'static [#harmos::Resource] =
+                &[#(#harmos::Resource::of::<#resources>(),)* #harmos::Resource::of::<#sdk::Supervisor>()];
+        }
+
+        #(
+            #[automatically_derived]
+            impl #harmos::operations::Requires<#resources> for #owner {}
+        )*
+
+        #[automatically_derived]
+        impl #harmos::operations::Requires<#sdk::Supervisor> for #owner {}
+
+        #[automatically_derived]
+        impl #sdk::plugin::Listener for #owner {
             type Record = #record;
+
+            fn hear<'__dokime>(
+                ctx: &'__dokime #sdk::plugin::ListenerContext<'__dokime, Self>,
+                record: #record,
+            ) -> #sdk::plugin::HearFuture<'__dokime> {
+                ::std::boxed::Box::pin(async move { #sdk::plugin::refusal(<#owner>::hear(ctx, record).await) })
+            }
         }
     })
 }

@@ -45,7 +45,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(120),
     attempt_timeout: std::time::Duration::from_secs(120),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -241,7 +240,7 @@ impl sdk::Plugin for Renamed {
         Arc::clone(&self.resources)
     }
 
-    fn bind_operations(&self, table: &mut WireTable<sdk::Supervisor>) -> Result<(), ServingError> {
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
         table.bind_operations::<Implemented, _>(self.resources())?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }

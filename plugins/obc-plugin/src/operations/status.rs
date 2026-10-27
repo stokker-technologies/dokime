@@ -14,14 +14,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
 use crate::Resources;
 use crate::domain::operations::GetStatus;
-use dokime::prelude::*;
+use dokime::harmos::{Context, Operation, Response};
+use dokime::prelude::{Refusal, StatusResponse};
 
 /* === Constants === */
 
@@ -31,25 +31,18 @@ use dokime::prelude::*;
 
 /* === Structs === */
 
-pub struct StatusProbe {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-#[dokime::operation]
-impl StatusProbe {
-    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
-        Self { resources }
-    }
+impl Operation for GetStatus {
+    type Error = Refusal;
 
-    async fn run(&mut self, _: &Supervisor, _: &mut GetStatus) -> Result<StatusResponse, Refusal> {
-        let stopped = dokime::plugin::refusal(self.resources.app().stopped().await)?;
-        Ok(StatusResponse::new(if stopped { "disconnected" } else { "connected" }))
+    async fn run(self, ctx: Context<'_, Self>) -> Result<Response<StatusResponse>, Refusal> {
+        let stopped = dokime::plugin::refusal(ctx.resource::<Resources>().app().stopped().await)?;
+        Ok(Response::new(StatusResponse::new(if stopped { "disconnected" } else { "connected" })))
     }
 }
 

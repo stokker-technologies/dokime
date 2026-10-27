@@ -93,7 +93,7 @@ where
     F: Future<Output = Result<A, String>>,
 {
     let request = Q::decode(request.as_slice()).map_err(|error| error.to_string())?;
-    Ok(serve(request).await?.encode_to_vec())
+    Ok(serve(request).await?.encode())
 }
 
 /* === Tests === */

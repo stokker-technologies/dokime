@@ -30,7 +30,7 @@ use crate::transactions::records::draft::BuiltinDraft;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.request.complete", version = 3, irreversible)]
+#[harmos::transaction(id = "dokime.execution.request.complete", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompleteRun {
     pub request_id: CommandId,
@@ -46,7 +46,7 @@ pub struct Unsealed {
     pub execution_ids: Vec<TestExecutionId>,
 }
 
-#[harmos::transaction(id = "dokime.execution.request.settle", version = 2, irreversible)]
+#[harmos::transaction(id = "dokime.execution.request.settle", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettleRun {
     pub request_id: CommandId,

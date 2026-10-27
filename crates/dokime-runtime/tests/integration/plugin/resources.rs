@@ -217,8 +217,7 @@ impl Drop for PartialInitialization {
         self.0.record("partial initialization dropped");
     }
 }
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "resource-owner.get_device", version = 1, policy = super::native::POLICY, response = GetDeviceResponse)]
+#[dokime_runtime::operation(id = "resource-owner.get_device", policy = super::native::POLICY, response = GetDeviceResponse)]
 #[derive(Clone, PartialEq)]
 struct GetDevice {}
 #[dokime_runtime::operation]
@@ -232,8 +231,7 @@ impl GetDeviceHandler {
         Ok(self.0.describe())
     }
 }
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "resource-owner.start_run", version = 1, policy = super::native::POLICY, response = StartRunResponse)]
+#[dokime_runtime::operation(id = "resource-owner.start_run", policy = super::native::POLICY, response = StartRunResponse)]
 #[derive(Clone, PartialEq)]
 struct StartRun {}
 #[dokime_runtime::operation]

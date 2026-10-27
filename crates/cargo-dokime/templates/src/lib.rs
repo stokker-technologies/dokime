@@ -30,7 +30,8 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::Dependencies;
+use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
 use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
@@ -45,7 +46,6 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -86,7 +86,7 @@ impl Bench {
     }
 }
 
-impl dokime::harmos::operations::lifecycle::Policy for Plugin {
+impl dokime::harmos::builtins::lifecycle::Policy for Plugin {
     const INITIALIZATION_POLICY: OperationPolicy = LIFECYCLE;
     const SHUTDOWN_POLICY: OperationPolicy = LIFECYCLE;
 }
@@ -140,9 +140,12 @@ impl dokime::Plugin for Plugin {
         Arc::clone(&self.bench)
     }
 
-    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> std::result::Result<(), ServingError> {
-        table.bind_operations::<operations::Implemented, _>(self.resources())?;
-        table.bind_operations::<listeners::Listeners, _>(self.resources())?;
+    fn bind_operations(&self, table: &mut WireTable) -> std::result::Result<(), ServingError> {
+        // Each operation declares the resources it reads; this snapshot supplies them.
+        let mut dependencies = Dependencies::new();
+        dependencies.insert(self.resources()).expect("each dependency is inserted once");
+        table.register(domain::operations::Operations::registration(dependencies.clone()))?;
+        table.register(listeners::Listeners::registration(dependencies))?;
         dokime::execution::serve::<Self, suites::Suites>(table)?;
         // Observers run under the built-in observe control the host submits.
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)

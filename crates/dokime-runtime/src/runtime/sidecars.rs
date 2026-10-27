@@ -349,7 +349,7 @@ async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records:
     };
     let delivery = crate::plugin::Delivery { record_json: record_json.clone() };
     for operation in listeners(handle, record) {
-        if let Err(error) = handle.operations.call_encoded(&operation, delivery.encode_to_vec()).await {
+        if let Err(error) = handle.operations.call_encoded(&operation, delivery.encode()).await {
             tracing::debug!(
                 %operation,
                 %error,

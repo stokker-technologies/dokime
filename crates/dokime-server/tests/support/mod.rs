@@ -519,7 +519,7 @@ fn fixture_progress_telemetry(progress: f64) -> ProviderTelemetryOutcome {
         label: "Fixture Progress".to_owned(),
         samples: vec![dokime::transport::ProviderTelemetryRow {
             values: BTreeMap::from([("progress".to_owned(), Value::Number(progress))]),
-            payload: dokime::harmos::Message::encode_to_vec(&ProgressRow { progress }),
+            payload: dokime::harmos::Message::encode(&ProgressRow { progress }),
         }],
     }
 }

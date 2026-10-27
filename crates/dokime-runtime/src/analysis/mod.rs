@@ -22,9 +22,6 @@ pub use dokime_domain::model::analysis::MAX_SAMPLES;
 pub use dokime_domain::model::analysis::Output;
 pub use dokime_domain::model::analysis::Selection;
 
-#[cfg(feature = "native")]
-pub use serving::{Handler, Served};
-
 /* === Imports === */
 
 // Standard Library Imports
@@ -242,32 +239,21 @@ impl crate::catalog::Visitor for Definitions {
     type Entry = fn() -> Result<Definition, Error>;
 }
 
-#[cfg(feature = "native")]
-impl<A: Analysis> crate::catalog::Member<Handler<A>> for Definitions {
-    const ENTRY: Self::Entry = Operation::<A>::definition;
-}
-
-#[cfg(feature = "native")]
-impl<A: Analysis, R> crate::catalog::Member<Served<A, R>> for Definitions {
-    const ENTRY: Self::Entry = Operation::<A>::definition;
-}
-
 impl<A: Analysis> crate::catalog::Member<Operation<A>> for Definitions {
     const ENTRY: Self::Entry = Operation::<A>::definition;
 }
 
 impl<A: Analysis> harmos::operations::OperationDeclaration for Operation<A> {
+    type Request = Self;
     type Response = Response;
     type Input = harmos::operations::NoStream;
     type Output = harmos::operations::NoStream;
     const ID: &'static str = A::ID;
-    const VERSION: u32 = A::VERSION;
     const DESCRIPTION: &'static str = A::DESCRIPTION;
     const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
         timeout: A::TIMEOUT,
         attempt_timeout: A::TIMEOUT,
         retries: harmos::operations::RetryPolicy::Never,
-        restart: harmos::operations::RestartPolicy::Never,
     };
     const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Shared;
 }

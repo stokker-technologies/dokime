@@ -30,8 +30,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = (), output = DocumentFrame, id = "dokime.documents.capture_current_document", version = 1,
+#[harmos_domain::operation(response = (), output = DocumentFrame, id = "dokime.documents.capture_current_document",
         policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Documents", method = "CaptureCurrentDocument"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

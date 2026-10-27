@@ -395,7 +395,7 @@ impl ReportFile {
         let build = |_| NativeSource::try_from(captured);
         let native = seed.try_map(build)?;
 
-        let length = native.encoded_len();
+        let length = native.encoded_size();
         let seed = harmos::storage::ReadBatch::new(());
         let encode = |_| ReportFileData::context(&native, identity, length);
         let data = seed.try_map(encode)?;

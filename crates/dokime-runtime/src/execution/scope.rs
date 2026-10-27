@@ -70,14 +70,13 @@ impl ExecutionScope {
         self
     }
 
-    #[cfg(feature = "native")]
-    pub fn current(host: &harmos::sidecar::Supervisor) -> Option<Self> {
-        host.context().value::<Self>().ok().flatten()
+    pub fn current(call: &harmos::operations::CallContext) -> Option<Self> {
+        call.value::<Self>().ok().flatten()
     }
 
-    #[cfg(feature = "native")]
-    pub fn serving<O: harmos::operations::Declares>(host: &harmos::sidecar::Supervisor) -> Option<Self> {
-        Self::current(host).map(|scope| scope.routed(<O::Declaration as harmos::operations::OperationDeclaration>::ID))
+    // The scope an operation serves under, read from its attempt's call metadata (`ctx.call()`).
+    pub fn serving<O: harmos::operations::OperationDeclaration>(call: &harmos::operations::CallContext) -> Option<Self> {
+        Self::current(call).map(|scope| scope.routed(O::ID))
     }
 
     pub fn key(&self) -> IdempotencyKey {

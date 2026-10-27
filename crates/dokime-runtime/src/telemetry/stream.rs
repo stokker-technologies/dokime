@@ -282,7 +282,7 @@ impl<R: TelemetryStream<Row = R> + TelemetryRow> StreamSelection<'_, R> {
 
 impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
     pub async fn push(&self, row: R) {
-        let payload = row.encode_to_vec();
+        let payload = row.encode();
         self.streams.published_as(&self.stream, row.into_row(), Some(payload), std::any::type_name::<R>()).await;
     }
 

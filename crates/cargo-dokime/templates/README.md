@@ -26,8 +26,8 @@ mise.toml                          the tasks every CI job runs
 
 `src/domain/` holds what the plugin declares, by kind first and domain second:
 `model/` for messages, rows, prompts and settings, `operations/` for the
-requests it serves. The handlers live under `src/operations/`, one folder per
-domain with the same name, and are bound through `operations::Implemented`.
+requests it serves. Their bodies live under `src/operations/`, one folder per
+domain with the same name.
 
 Each contribution belongs to a named `#[dokime::catalog]` enum in its owning
 module. `src/lib.rs` composes these on `#[dokime::plugin]`: `provides =
@@ -40,14 +40,15 @@ subsets, keeping empty catalogs explicit. Demand observers run while any declare
 stream or record has an active subscriber; registration alone does not start them.
 
 Each request is its operation: a `#[dokime::operation]` struct under
-`src/domain/operations/` carries an explicit wire id, its response, a version
-and a policy. Its handler is a bare `#[dokime::operation]` on an
-inherent impl whose `run` borrows that request. Empty requests are empty
-structs. A template names the operations it calls with `requires = Required`
+`src/domain/operations/` carries an explicit wire id, its response, a policy
+and the `resources = [Bench]` it reads. Its body is `impl Operation for
+ReadChamber`, whose `run(self, ctx)` consumes the request and reaches the bench
+with `ctx.resource::<Bench>()`; it holds no state between calls. Empty requests
+are empty structs. `bind_operations` registers the catalog with one dependency
+snapshot. A template names the operations it calls with `requires = Required`
 and invokes `ctx.call::<ReadChamber>(ReadChamber {}).await?`; the call is
 routed through the host. Adding an operation means a request variant in
-`domain::operations::Operations` and a handler variant in
-`operations::Implemented`.
+`domain::operations::Operations` and its `impl Operation`.
 
 Install `cargo-dokime` and the `dokime` host, then run from this directory:
 

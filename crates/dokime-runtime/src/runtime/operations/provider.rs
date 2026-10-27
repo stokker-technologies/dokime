@@ -39,7 +39,6 @@ const PROVIDER_POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(86_400),
     attempt_timeout: std::time::Duration::from_secs(86_400),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -74,8 +73,7 @@ pub(crate) struct PublicationFailure {
 
 // The portable identity of one provider cycle run; the process-local
 // invocation travels as the operation's endpoints and carries its outcome.
-#[harmos::message]
-#[harmos::operation(response = (), id = "dokime.execution.provider.run", version = 1, policy = PROVIDER_POLICY)]
+#[harmos::operation(response = (), id = "dokime.execution.provider.run", policy = PROVIDER_POLICY)]
 #[derive(Clone, PartialEq)]
 struct RunProviderCycle {
     request_id: String,
@@ -348,7 +346,7 @@ impl ProviderCycleRequest {
 
 /* === Public Functions === */
 
-pub(crate) fn register(operations: &harmos::operations::OperationManager) -> harmos::Result<()> {
+pub(crate) fn register(operations: &crate::app::OperationManager) -> harmos::Result<()> {
     operations.register_operation::<ProviderState>("dokime.execution", Lanes::Execution, Arc::new(()))
 }
 

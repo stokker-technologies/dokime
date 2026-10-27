@@ -10,7 +10,7 @@
 //! Replays Saved Execution Samples With Retained Decode And Signal Staging.
 
 use super::{ExecutionFixtureContext, ExecutionSignal, ProviderExecutionFailure, Target, TestExecution, failure};
-use harmos::storage::operations::Query;
+use harmos::storage::Query;
 use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
 use std::num::NonZeroU32;
 

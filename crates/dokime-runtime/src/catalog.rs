@@ -61,7 +61,7 @@ pub type Publish = for<'a> fn(
 
 #[cfg(feature = "native")]
 pub type Bind = fn(
-    &mut harmos::sidecar::operations::WireTable<harmos::sidecar::Supervisor>,
+    &mut harmos::sidecar::operations::WireTable,
     &str,
     &[RecordContract],
 ) -> Result<(), harmos::sidecar::operations::ServingError>;

@@ -28,13 +28,12 @@ use crate::domain::model::connections::Connections;
 
 /* === Structs === */
 
-#[dokime::message]
 #[dokime::operation(
     id = "obc-plugin.list_connections",
     response = Connections,
-    version = 1,
     description = "Reports the units this process has been told about. The connection listener accumulates them across executions; a template calls the operation without holding the plugin.",
-    policy = super::POLICY
+    policy = super::POLICY,
+    resources = [crate::Resources]
 )]
 #[derive(Clone, PartialEq)]
 pub struct ListConnections {}

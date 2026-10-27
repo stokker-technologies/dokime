@@ -7,7 +7,7 @@
  * ***
  */
 
-// Manual device operation handlers
+// Manual device operation implementations
 
 /* === Modules === */
 
@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
@@ -28,7 +27,8 @@ use crate::{
         operations::{ReadDevice, SetPower},
     },
 };
-use dokime::prelude::{Refusal, Supervisor};
+use dokime::harmos::{Context, Operation, Response};
+use dokime::prelude::Refusal;
 use obc_runtime::device::{Device, Fault, Power};
 
 /* === Constants === */
@@ -39,42 +39,29 @@ use obc_runtime::device::{Device, Fault, Power};
 
 /* === Structs === */
 
-pub struct DeviceReader {
-    resources: Arc<Resources>,
-}
-
-pub struct PowerControl {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-#[dokime::operation]
-impl DeviceReader {
-    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
-        Self { resources }
-    }
+impl Operation for ReadDevice {
+    type Error = Refusal;
 
-    async fn run(&mut self, _: &Supervisor, _: &mut ReadDevice) -> Result<DeviceState, Refusal> {
-        let device = dokime::plugin::refusal(self.resources.app().device().await)?;
-        Ok(observed(&device))
+    async fn run(self, ctx: Context<'_, Self>) -> Result<Response<DeviceState>, Refusal> {
+        let device = dokime::plugin::refusal(ctx.resource::<Resources>().app().device().await)?;
+        Ok(Response::new(observed(&device)))
     }
 }
 
-#[dokime::operation]
-impl PowerControl {
-    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
-        Self { resources }
-    }
+impl Operation for SetPower {
+    type Error = Refusal;
 
-    async fn run(&mut self, _: &Supervisor, request: &mut SetPower) -> Result<DeviceState, Refusal> {
-        dokime::plugin::refusal(self.resources.app().set_power(request.enabled).await)?;
-        let device = dokime::plugin::refusal(self.resources.app().device().await)?;
-        Ok(observed(&device))
+    async fn run(self, ctx: Context<'_, Self>) -> Result<Response<DeviceState>, Refusal> {
+        let resources = ctx.resource::<Resources>();
+        dokime::plugin::refusal(resources.app().set_power(self.enabled).await)?;
+        let device = dokime::plugin::refusal(resources.app().device().await)?;
+        Ok(Response::new(observed(&device)))
     }
 }
 

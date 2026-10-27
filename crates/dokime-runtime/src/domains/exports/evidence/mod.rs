@@ -31,7 +31,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::storage::{ByteRange, FileReadBatch, FileReader, FileSource, ReadBatch, operations::ReadFile};
+use harmos::storage::{ByteRange, FileReadBatch, FileReader, FileSource, ReadBatch, FileRead};
 use serde::Serialize;
 use tempfile::TempDir;
 use tokio::{
@@ -290,7 +290,7 @@ async fn build(
     if let Some(report) = &snapshot.cycle_report {
         let reader = snapshot
             .storage()
-            .read_file(ReadFile {
+            .read_file(FileRead {
                 source: harmos::storage::FileSource::Stored(report.clone()),
                 range: ByteRange { offset: 0, limit: None },
             })
@@ -298,7 +298,7 @@ async fn build(
         archive.stored_file(&format!("reports/cycle-{}.html", snapshot.cycle_id), None, report.clone(), reader, &mut budget).await?;
     }
     let streams = database.finish()?;
-    let reader = storage.read_file(ReadFile { source: FileSource::Local(path), range: ByteRange { offset: 0, limit: None } }).await?;
+    let reader = storage.read_file(FileRead { source: FileSource::Local(path), range: ByteRange { offset: 0, limit: None } }).await?;
     archive.database(reader, &mut budget).await?;
     let manifest = Manifest {
         schema_version: EVIDENCE_EXPORT_SCHEMA_VERSION,

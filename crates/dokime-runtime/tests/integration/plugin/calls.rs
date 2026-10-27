@@ -134,8 +134,7 @@ enum ProbeRequired {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "call-fixture.get_reading", version = 1, policy = super::native::POLICY, response = GetReadingResponse)]
+#[dokime_runtime::operation(id = "call-fixture.get_reading", policy = super::native::POLICY, response = GetReadingResponse)]
 #[derive(Clone, PartialEq)]
 struct GetReading {}
 #[dokime_runtime::operation]
@@ -147,8 +146,7 @@ impl GetReadingHandler {
         Ok(GetReadingResponse { reads: self.0.reads.fetch_add(1, Ordering::SeqCst) + 1 })
     }
 }
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "call-fixture.get_late_reading", version = 1, policy = LATE, response = GetReadingResponse)]
+#[dokime_runtime::operation(id = "call-fixture.get_late_reading", policy = LATE, response = GetReadingResponse)]
 #[derive(Clone, PartialEq)]
 struct GetLateReading {}
 #[dokime_runtime::operation]
@@ -164,9 +162,7 @@ impl GetLateReadingHandler {
         Ok(GetReadingResponse { reads: 0 })
     }
 }
-#[dokime_runtime::message]
 #[dokime_runtime::operation(id = "call-fixture.get_status",
-    version = 1,
     policy = super::native::POLICY,
     response = dokime_runtime::domains::StatusResponse)]
 #[derive(Clone, PartialEq)]
@@ -180,8 +176,7 @@ impl GetStatusHandler {
         Ok(dokime_runtime::domains::StatusResponse::ready())
     }
 }
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "call-fixture.echo", version = 1, policy = super::native::POLICY, response = SharedReading)]
+#[dokime_runtime::operation(id = "call-fixture.echo", policy = super::native::POLICY, response = SharedReading)]
 #[derive(Clone, PartialEq)]
 struct Echo {
     value: u64,
@@ -195,8 +190,7 @@ impl EchoHandler {
         Ok(SharedReading { value: request.value })
     }
 }
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "call-fixture.double", version = 1, policy = super::native::POLICY, response = SharedReading)]
+#[dokime_runtime::operation(id = "call-fixture.double", policy = super::native::POLICY, response = SharedReading)]
 #[derive(Clone, PartialEq)]
 struct Double {
     value: u64,
@@ -212,8 +206,7 @@ impl DoubleHandler {
 }
 
 #[allow(dead_code)]
-#[dokime_runtime::message]
-#[dokime_runtime::operation(id = "call-fixture.hidden", version = 1, policy = super::native::POLICY, response = ())]
+#[dokime_runtime::operation(id = "call-fixture.hidden", policy = super::native::POLICY, response = ())]
 #[derive(Clone, PartialEq)]
 struct Hidden {}
 // Never dispatched: the story proves no catalog lists it.

@@ -31,8 +31,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = RemoteListenerStatus, id = "dokime.remote.update_listener", version = 1,
+#[harmos_domain::operation(response = RemoteListenerStatus, id = "dokime.remote.update_listener",
     policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Remote", method = "UpdateListener"))]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]

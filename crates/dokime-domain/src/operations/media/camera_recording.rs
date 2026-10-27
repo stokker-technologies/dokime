@@ -30,8 +30,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = (), output = RecordingFrame, id = "dokime.media.camera_recording", version = 1,
+#[harmos_domain::operation(response = (), output = RecordingFrame, id = "dokime.media.camera_recording",
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Media", method = "CameraRecording"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

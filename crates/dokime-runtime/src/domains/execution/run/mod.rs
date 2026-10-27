@@ -33,7 +33,7 @@ use std::{
 
 // Third Party Imports
 use harmos::Message;
-use harmos::operations::OperationManager;
+use crate::app::OperationManager;
 
 // Local Imports
 use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
@@ -169,7 +169,7 @@ impl Target {
             failure("execution_run", message)
         })?;
         let operations = self.operations.with_context(context);
-        let encoded = request.encode_to_vec();
+        let encoded = request.encode();
         let bytes = operations.call_encoded(&self.run, encoded).await.map_err(|error| sidecar_failure("execution_run", error))?;
         SidecarExecutionOutcome::decode(bytes.as_slice()).map_err(|error| {
             let message = format!("run `{}` answered malformed protobuf: {error}", self.run);
@@ -178,7 +178,7 @@ impl Target {
     }
 
     pub(crate) async fn signal(&self, signal: ExecutionSignal) -> Result<SignalReply, ProviderExecutionFailure> {
-        let encoded = signal.encode_to_vec();
+        let encoded = signal.encode();
         let bytes =
             self.operations.call_encoded(&self.signal, encoded).await.map_err(|error| sidecar_failure("execution_signal", error))?;
         SignalReply::decode(bytes.as_slice()).map_err(|error| {

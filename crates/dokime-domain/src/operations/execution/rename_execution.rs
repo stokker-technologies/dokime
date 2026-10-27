@@ -31,8 +31,7 @@ use super::*;
 /* === Structs === */
 
 // Renames one live execution's case until an attempt of it seals.
-#[harmos_domain::message]
-#[harmos_domain::operation(response = RenameReply, id = "dokime.execution.rename_execution", version = 1,
+#[harmos_domain::operation(response = RenameReply, id = "dokime.execution.rename_execution",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "RenameExecution"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

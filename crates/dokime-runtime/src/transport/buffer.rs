@@ -1151,7 +1151,7 @@ fn value_equivalent(left: Option<&dokime_domain::model::values::Value>, right: O
 
 fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
     use harmos::Message;
-    page.encoded_len() <= crate::transport::protocol::MAX_EVIDENCE_PAGE_BYTES
+    page.encoded_size() <= crate::transport::protocol::MAX_EVIDENCE_PAGE_BYTES
         && Frame::request_fits::<crate::transport::EvidenceBatch>(page)
 }
 

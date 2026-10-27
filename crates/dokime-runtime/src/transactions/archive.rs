@@ -34,7 +34,7 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.archive", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.execution.archive", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SetArchived {
     pub subject: ArchiveSubject,

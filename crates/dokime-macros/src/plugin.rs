@@ -294,7 +294,7 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
         hosted.push(syn::parse_quote!(#sdk::transport::EvidenceBatch));
         hosted.push(syn::parse_quote!(#sdk::transport::OperatorQuestion));
         hosted.push(syn::parse_quote!(#sdk::transport::LeaseAsk));
-        hosted.push(syn::parse_quote!(#sdk::__harmos::operations::streams::Publish));
+        hosted.push(syn::parse_quote!(#sdk::__harmos::builtins::streams::Publish));
         // The host's step built-in every template reaches through
         // `ctx.host()` without listing it.
         hosted.push(syn::parse_quote!(#sdk::operations::files::WatchFile));

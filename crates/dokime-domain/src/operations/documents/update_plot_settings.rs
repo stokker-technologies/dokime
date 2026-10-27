@@ -33,8 +33,7 @@ use crate::model::document::DownsampleTechnique;
 
 /* === Structs === */
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = (), id = "dokime.documents.update_plot_settings", version = 1,
+#[harmos_domain::operation(response = (), id = "dokime.documents.update_plot_settings",
     policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Documents", method = "UpdatePlotSettings"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

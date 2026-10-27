@@ -63,11 +63,11 @@ macro_rules! host_contracts {
 
         impl PreparedHostPayload {
             pub fn encoded_len(&self) -> usize {
-                match &self.0 { $( HostPayload::$stream(row) => row.encoded_len(), )* }
+                match &self.0 { $( HostPayload::$stream(row) => row.encoded_size(), )* }
             }
 
             pub fn into_bytes(self) -> Vec<u8> {
-                match self.0 { $( HostPayload::$stream(row) => row.encode_to_vec(), )* }
+                match self.0 { $( HostPayload::$stream(row) => row.encode(), )* }
             }
         }
 

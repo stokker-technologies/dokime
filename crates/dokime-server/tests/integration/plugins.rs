@@ -34,7 +34,6 @@ const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harm
     timeout: Duration::from_secs(120),
     attempt_timeout: Duration::from_secs(120),
     retries: dokime::harmos::operations::RetryPolicy::Never,
-    restart: dokime::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -56,9 +55,8 @@ struct DynamicText {
     value: String,
 }
 
-#[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicText,
-    id = "fixture.dynamic.unary", version = 1, policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.unary", policy = DYNAMIC_POLICY,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
 struct DynamicReplacement {
     value: String,
@@ -68,9 +66,8 @@ struct DynamicReplacementHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-#[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicNumber,
-    id = "fixture.dynamic.unary", version = 1, policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.unary", policy = DYNAMIC_POLICY,
     grant = dynamic_grant,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
 struct DynamicUnary {
@@ -81,9 +78,8 @@ struct DynamicUnaryHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-#[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicNumber, output = DynamicNumber,
-    id = "fixture.dynamic.download", version = 1, policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.download", policy = DYNAMIC_POLICY,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Download"))]
 struct DynamicDownload {
     value: u32,
@@ -93,9 +89,8 @@ struct DynamicDownloadHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-#[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicNumber, input = DynamicNumber,
-    id = "fixture.dynamic.upload", version = 1, policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.upload", policy = DYNAMIC_POLICY,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Upload"))]
 struct DynamicUpload {
     value: u32,
@@ -105,9 +100,8 @@ struct DynamicUploadHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-#[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicNumber, input = DynamicNumber, output = DynamicNumber,
-    id = "fixture.dynamic.duplex", version = 1, policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.duplex", policy = DYNAMIC_POLICY,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Duplex"))]
 struct DynamicDuplex {
     value: u32,
@@ -364,11 +358,10 @@ fn bundle_description(description: &str) -> Vec<u8> {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
         retries: dokime::harmos::operations::RetryPolicy::Never,
-        restart: dokime::harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
-        dokime::harmos::operations::lifecycle::Descriptor::new(dokime::harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
-        dokime::harmos::operations::lifecycle::Descriptor::new(dokime::harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
+        dokime::harmos::builtins::lifecycle::Descriptor::new(dokime::harmos::builtins::lifecycle::Action::Initialize, policy).unwrap(),
+        dokime::harmos::builtins::lifecycle::Descriptor::new(dokime::harmos::builtins::lifecycle::Action::Shutdown, policy).unwrap(),
     ];
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
