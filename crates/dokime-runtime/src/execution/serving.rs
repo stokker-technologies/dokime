@@ -35,10 +35,18 @@ use crate::transport::{
 
 /* === Constants === */
 
-const RUN_POLICY: OperationPolicy =
-    OperationPolicy { timeout: RUN_BOUND, attempt_timeout: RUN_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
-pub const SIGNAL_POLICY: OperationPolicy =
-    OperationPolicy { timeout: SIGNAL_BOUND, attempt_timeout: SIGNAL_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
+const RUN_POLICY: OperationPolicy = OperationPolicy {
+    timeout: RUN_BOUND,
+    attempt_timeout: RUN_BOUND,
+    retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
+};
+pub const SIGNAL_POLICY: OperationPolicy = OperationPolicy {
+    timeout: SIGNAL_BOUND,
+    attempt_timeout: SIGNAL_BOUND,
+    retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
+};
 
 /* === Macros === */
 
@@ -498,7 +506,7 @@ mod tests {
     #[test]
     fn delivery_preserves_producer_origin_for_its_execution() {
         let holder = RecordScope {
-            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
+            test_execution_id: Some(TestExecutionId::from_seed("delivery-holder")),
             ..Default::default()
         };
         let source = RecordScope {
@@ -508,7 +516,7 @@ mod tests {
         assert_eq!(delivery_scope(Some(source.clone()), &holder), source);
         assert_eq!(delivery_scope(None, &holder), holder);
         let other = RecordScope {
-            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
+            test_execution_id: Some(TestExecutionId::from_seed("delivery-other")),
             ..Default::default()
         };
         assert_eq!(delivery_scope(Some(source), &other), other);

@@ -98,9 +98,12 @@ impl RuntimeHandle {
                 }
             }
         }
-        self.commit(crate::transactions::SettleRun { request_id: request_id.clone(), at: finish.finished_at.clone() })
-            .await
-            .map_err(|error| Error::Operation(error.to_string()))?;
+        self.commit(crate::transactions::SettleRun {
+            request_id: request_id.clone(),
+            at: finish.finished_at.clone(),
+        })
+        .await
+        .map_err(|error| Error::Operation(error.to_string()))?;
         let mut complete = crate::transactions::CompleteRun {
             request_id: request_id.clone(),
             at: self.state_read().run_requests[&request_id]
@@ -165,7 +168,10 @@ impl RuntimeHandle {
         // A Run Seals Only Its Fixed Selection; The Container Remains Active.
         if let Some(cause) = &cause {
             tracing::error!(%cycle_id, %cause, "final execution report could not be sealed");
-            complete.unsealed = Some(crate::transactions::Unsealed { cause: cause.clone(), execution_ids: unsealed });
+            complete.unsealed = Some(crate::transactions::Unsealed {
+                cause: cause.clone(),
+                execution_ids: unsealed,
+            });
         }
         self.commit(complete).await.map_err(|error| Error::Operation(error.to_string()))?;
         loop {
@@ -235,7 +241,7 @@ impl RuntimeHandle {
         let execution_ids = finish.started_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
         let quiescence = self.quiesce_execution_sampling(&execution_ids).await?;
         let telemetry = prepare_finish_telemetry(&self.state_read(), &finish);
-        let admission = match self.prepare_sample_admission(telemetry).await {
+        let admission = match self.prepare_sample_admission(telemetry, crate::domains::telemetry::Payloads::Unchecked).await {
             Ok(admission) => admission.within_quiescence(),
             Err(error) => {
                 self.resume_sampling(&quiescence).await;
