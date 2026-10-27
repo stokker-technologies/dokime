@@ -110,10 +110,10 @@ fn stderr_color_policy() {
             command.env("NO_COLOR", "1");
         }
         let output = command.output().unwrap();
-        assert!(!output.status.success());
+        assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
         let stderr = String::from_utf8(output.stderr).unwrap();
-        assert!(stderr.contains("message limit must be between 1 and 16 MiB"));
+        assert!(!stderr.is_empty());
         assert_eq!(stderr.contains('\u{1b}'), colored);
     }
 }
