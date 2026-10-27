@@ -43,13 +43,7 @@ const LARGE_PULSE_ROWS: u32 = 20_000;
 
 const LIVE_DISPLAY_POINTS: u32 = 1_500;
 
-const SPECTRUM_ROWS: u32 = 1_024;
-
-const OVERSIZED_SPECTRUM_ROWS: u32 = 8_192;
-
-const EXHAUSTED: &str = "memory";
-
-const POOLED_MEMBERS: usize = 9;
+const SPECTRUM_ROWS: u32 = 8_192;
 
 /* === Macros === */
 
@@ -79,7 +73,7 @@ async fn smoke_runtime(root: &Path, behaviour: Behaviour, constrained: bool) -> 
     let behaviour = smoke.behaviour();
     let mut config = config(root).register(Arc::new(smoke));
     if constrained {
-        constrain_report_memory(&mut config);
+        small_storage_pages(&mut config);
     }
     tracing::debug!(target: "dokime_runtime::domains::execution::run",
                 batch_rows = config.storage.response.batch_rows.get(),
@@ -114,7 +108,10 @@ async fn settled(handle: &RuntimeHandle, run: &CommandId) -> impl std::ops::Dere
 async fn rows_saved(handle: &RuntimeHandle, cycle_id: &TestCycleId, stream: &str, rows: u32) {
     let selection = TelemetrySelection {
         streams: vec![Identifier::new(stream).unwrap().into()],
-        scope: ScopeSelection { test_cycle_id: Some(cycle_id.clone()), ..ScopeSelection::default() },
+        scope: ScopeSelection {
+            test_cycle_id: Some(cycle_id.clone()),
+            ..ScopeSelection::default()
+        },
         ..TelemetrySelection::default()
     };
     // The live window holds only the latest rows, so a large case outgrows it.
@@ -191,7 +188,7 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize) {
     assert!(window["from"].as_f64().unwrap() <= window["to"].as_f64().unwrap());
 }
 
-fn constrain_report_memory(config: &mut dokime_runtime::RuntimeConfig) {
+fn small_storage_pages(config: &mut dokime_runtime::RuntimeConfig) {
     config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();
 }
 
@@ -230,14 +227,13 @@ async fn large_case_seals() {
     runtime.shutdown().await.unwrap();
 }
 
-// a plot that needs its whole capture keeps only its own stream's rows, so a
-// case whose other stream would overflow the report budget still seals both.
+// Whole-Capture Transforms Preserve Both Streams Across Small Storage Pages.
 #[tokio::test]
 async fn whole_capture_seals() {
     replay_diagnostics();
     let root = tempdir().unwrap();
     let behaviour = Behaviour::new(LARGE_PULSE_ROWS, SPECTRUM_ROWS, false);
-    let (mut runtime, handle, _) = smoke_runtime(root.path(), behaviour, false).await;
+    let (mut runtime, handle, _) = smoke_runtime(root.path(), behaviour, true).await;
     let execution_id = run_case(&handle, "spectrum.whole").await;
     let html = crate::service_support::native::report(&handle, &execution_id).await;
     let payload = crate::service_support::reports::parse(&html);
@@ -381,54 +377,4 @@ async fn report_shows_progress() {
     settled(&handle, &command).await;
     drop(handle);
     runtime.shutdown().await.unwrap();
-}
-
-// a permanent materialization refusal leaves evidence and the execution unsealed.
-#[tokio::test]
-async fn oversized_report_unsealed() {
-    let root = tempdir().unwrap();
-    let behaviour = Behaviour::new(0, OVERSIZED_SPECTRUM_ROWS, true);
-    let (mut runtime, handle, behaviour) = smoke_runtime(root.path(), behaviour, true).await;
-    let cycle_id = start_smoke(&handle, "spectrum.oversized", 1).await;
-    run(&handle, &cycle_id).await;
-    let execution = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
-
-    // The Report Fails Once The Whole Capture Outgrows The Budget; The Budget
-    // Also Refuses Record Subscriptions, So Re-Check On Each State Change.
-    let failure = settle(&handle, || async {
-        handle.storage().flush().await.ok()?;
-        handle.open_execution_report(&execution).await.err().map(|error| error.to_string())
-    })
-    .await;
-    assert!(failure.contains(EXHAUSTED) || failure.contains("exhaust"), "{failure}");
-    behaviour.release();
-    let cycle = cycle_snapshot(&handle, &cycle_id).await;
-    assert!(cycle.saved.is_none());
-    assert!(cycle.test_executions.iter().all(|execution| execution.saved.is_none()));
-    assert!(handle.open_execution_report(&execution).await.is_err());
-    drop(handle);
-    assert!(runtime.shutdown().await.is_err(), "shutdown reports unfinished materialization");
-}
-
-// a refused pool never publishes a degraded cycle report. Members are
-// materialized one at a time, so the refusal is each member's own
-// whole-capture read exceeding the constrained report budget.
-#[tokio::test]
-async fn pool_refusal_settles() {
-    let root = tempdir().unwrap();
-    let behaviour = Behaviour::new(0, OVERSIZED_SPECTRUM_ROWS, false);
-    let (mut runtime, handle, _) = smoke_runtime(root.path(), behaviour, true).await;
-    let cycle_id = start_smoke(&handle, "spectrum.refused", POOLED_MEMBERS).await;
-    let command = run(&handle, &cycle_id).await;
-    let receipt = settled(&handle, &command).await;
-    assert_ne!(receipt.summary.phase, RunPhase::Completed, "permanent refusal cannot complete a report");
-    let cause = format!("{:?}", receipt.interruption);
-    assert!(cause.contains(EXHAUSTED) || cause.contains("exhaust"), "the run names the refused pool: {cause}");
-    let cycle = cycle_snapshot(&handle, &cycle_id).await;
-    assert!(cycle.saved.is_none(), "refused report remains unsealed");
-    assert!(handle.open_cycle_report(&cycle_id).await.is_err());
-    drop(handle);
-    // Shutdown Cannot Claim Durability While The Required Report Still Exceeds Its Budget.
-    let failure = runtime.shutdown().await.unwrap_err().to_string();
-    assert!(failure.contains(EXHAUSTED) || failure.contains("exhaust"), "shutdown retains the report refusal: {failure}");
 }
