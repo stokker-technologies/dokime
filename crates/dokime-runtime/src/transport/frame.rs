@@ -407,6 +407,10 @@ impl ExecutionTransport for FrameTransport {
         lock(&self.executions).get(&self.token).map(|state| state.all_gaps()).unwrap_or_default()
     }
 
+    fn gap_counts(&self) -> std::collections::BTreeMap<String, u64> {
+        lock(&self.executions).get(&self.token).map(|state| state.gap_counts().clone()).unwrap_or_default()
+    }
+
     fn emit(&mut self, mut record: RecordPublishRequest) {
         record.timestamp.get_or_insert_with(crate::model::time::now_utc);
         if let Some(state) = lock(&self.executions).get_mut(&self.token) {

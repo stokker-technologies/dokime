@@ -84,6 +84,15 @@ pub trait ExecutionTransport: Send + Sync {
 
     fn gaps(&self) -> Vec<LeaseGap>;
 
+    // Exact Gap Count Per Stream; `gaps` May Retain Only Bounded Examples Of A Long Run's Gaps.
+    fn gap_counts(&self) -> std::collections::BTreeMap<String, u64> {
+        let mut counts = std::collections::BTreeMap::new();
+        for gap in self.gaps() {
+            *counts.entry(gap.stream.to_string()).or_default() += 1;
+        }
+        counts
+    }
+
     fn emit(&mut self, record: RecordPublishRequest);
 
     fn log(&self, level: crate::execution::log::Level, message: String);

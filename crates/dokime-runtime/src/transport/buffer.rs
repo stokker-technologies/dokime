@@ -89,6 +89,8 @@ pub(crate) struct ExecutionState {
     subscriptions_settled: bool,
     dropped: usize,
     gaps: Vec<crate::telemetry::LeaseGap>,
+    // Every Gap Counted Per Stream, Including Those Beyond The Retained Examples.
+    gap_counts: BTreeMap<String, u64>,
     leases: BTreeMap<String, LeaseOutcome>,
 }
 
@@ -214,6 +216,7 @@ impl ExecutionState {
             subscriptions_settled: false,
             dropped: 0,
             gaps: Vec::new(),
+            gap_counts: BTreeMap::new(),
             leases: BTreeMap::new(),
         }
     }
@@ -249,7 +252,9 @@ impl ExecutionState {
         if self.terminal {
             return;
         }
-        // A Multi-Day Run Keeps A Bounded Gap History Per Stream: Once Full, The Last Slot Holds The Latest Gap.
+        let count = self.gap_counts.entry(gap.stream.to_string()).or_default();
+        *count = count.checked_add(1).expect("execution gap counter overflow");
+        // A Multi-Day Run Keeps Bounded Gap Examples Per Stream: Once Full, The Last Slot Holds The Latest Gap.
         let mut retained = self.gaps.iter().enumerate().filter(|(_, held)| held.stream == gap.stream);
         if let Some((latest, _)) = retained.by_ref().nth(RETAINED_STREAM_GAPS - 1) {
             self.gaps[latest] = gap;
@@ -260,6 +265,10 @@ impl ExecutionState {
 
     pub(crate) fn all_gaps(&self) -> Vec<crate::telemetry::LeaseGap> {
         self.gaps.clone()
+    }
+
+    pub(crate) fn gap_counts(&self) -> &BTreeMap<String, u64> {
+        &self.gap_counts
     }
 
     pub(crate) fn request_lease(&mut self, request: &crate::telemetry::LeaseRequest) {
@@ -1131,6 +1140,8 @@ mod tests {
         assert_eq!(busy[..super::RETAINED_STREAM_GAPS - 1], earliest);
         assert_eq!(busy.last().map(String::as_str), Some("9999"));
         assert_eq!(gaps.last().map(|held| held.stream.as_str()), Some("quiet"));
+        assert_eq!(state.gap_counts().get("busy"), Some(&10_000));
+        assert_eq!(state.gap_counts().get("quiet"), Some(&1));
     }
 
     #[test]
