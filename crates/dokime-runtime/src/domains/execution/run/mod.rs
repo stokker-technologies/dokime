@@ -16,6 +16,7 @@ mod lifecycle;
 mod logs;
 mod replay;
 mod session;
+mod supervision;
 
 /* === Re-Exports === */
 
@@ -59,6 +60,7 @@ use dokime_domain::model::values::Value;
 use logs::{DropReason, StreamLog, report_dropped};
 use replay::replay_sample_inputs;
 use session::Session;
+use supervision::{COMMAND_POLL, Concern, Subject, Supervision, Wake};
 
 /* === Constants === */
 
@@ -151,7 +153,11 @@ impl ExecutionFixture for TemplateRunExecutor {
 
 impl Target {
     pub(crate) fn of(operations: OperationManager, template: &str) -> Self {
-        Self { operations, run: format!("{template}.run"), signal: format!("{template}.signal") }
+        Self {
+            operations,
+            run: format!("{template}.run"),
+            signal: format!("{template}.signal"),
+        }
     }
 
     async fn run(&self, request: RunExecution) -> Result<SidecarExecutionOutcome, ProviderExecutionFailure> {
@@ -286,7 +292,11 @@ impl PhaseTracker {
             update_phase(context, scope, identifier.clone(), label.clone(), "running").await?;
         }
         self.complete_previous(context, scope, publish).await?;
-        self.phases.push(ProviderPhaseOutcome { identifier: phase.to_owned(), label: label.clone(), status: "running".to_owned() });
+        self.phases.push(ProviderPhaseOutcome {
+            identifier: phase.to_owned(),
+            label: label.clone(),
+            status: "running".to_owned(),
+        });
         self.current = Some((identifier, label));
         Ok(())
     }
@@ -323,7 +333,11 @@ pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in
     if phases.iter().any(|phase| phase.identifier == stage) {
         return phases;
     }
-    phases.push(ProviderPhaseOutcome { identifier: stage.to_owned(), label: phase_label(stage), status: "failed".to_owned() });
+    phases.push(ProviderPhaseOutcome {
+        identifier: stage.to_owned(),
+        label: phase_label(stage),
+        status: "failed".to_owned(),
+    });
     phases
 }
 
@@ -431,7 +445,10 @@ async fn execute_case(
             _record_demand: record_demand,
             execution: execution.clone(),
             session: Arc::clone(&session),
-            _progress: ProgressCleanup { registry: Arc::clone(&context.runtime.progress), execution: execution.test_execution_id.clone() },
+            _progress: ProgressCleanup {
+                registry: Arc::clone(&context.runtime.progress),
+                execution: execution.test_execution_id.clone(),
+            },
             settled: false,
             stop_deadline: None,
         })
@@ -444,35 +461,45 @@ async fn execute_case(
     tokio::pin!(run);
     let mut cancelled = false;
     let mut stop_deadline = None;
+    let subject = Subject {
+        cycle: &cycle.test_cycle_id,
+        request: context.request_id.as_ref(),
+    };
     let mut changes = context.runtime.state_watch.subscribe();
+    let mut supervision = Supervision::new(Concern::of(changes.borrow_and_update().state(), &subject));
+    let mut pending_command = commands::Pending::default();
     let mut session_changes = session.watch_changes();
     let cancellation = context.cancelled();
     tokio::pin!(cancellation);
     let mut initial = true;
     let answered = loop {
-        let actionable = initial || (!cancelled && stop_requested(context, cycle, &session, execution).await);
-        tokio::select! {
+        let actionable = initial || (!cancelled && stop_requested(context, &session, supervision.concern()).await);
+        let wake = tokio::select! {
             biased;
             answered = &mut run => break Some(answered),
-            () = std::future::ready(()), if actionable => {},
-            result = changes.changed() => {
-                if result.is_err() {
-                    break None;
-                }
+            () = std::future::ready(()), if actionable => Wake::Poll,
+            // Commits Are Filtered On The Committed Payload, So An Unrelated Commit Neither Wakes Nor Queries.
+            result = changes.wait_for(|snapshot| supervision.concerns(Concern::of(snapshot.state(), &subject))) => match result {
+                Ok(snapshot) => Wake::Commit(Concern::of(snapshot.state(), &subject)),
+                Err(_) => break None,
             },
-            result = session_changes.changed() => {
-                if result.is_err() {
-                    break None;
-                }
+            result = session_changes.changed() => match result {
+                Ok(()) => Wake::Session { command_admitted: session.take_command_admitted() },
+                Err(_) => break None,
             },
-            () = &mut cancellation, if !cancelled => {},
+            () = &mut cancellation, if !cancelled => Wake::Poll,
+            () = tokio::time::sleep(COMMAND_POLL), if supervision.command_open() => Wake::Poll,
             () = async {
                 match stop_deadline {
                     Some(deadline) => tokio::time::sleep_until(deadline).await,
                     None => std::future::pending().await,
                 }
             } => break None,
+        };
+        if matches!(wake, Wake::Session { command_admitted: true }) {
+            pending_command.invalidate();
         }
+        supervision.wake(wake);
         initial = false;
         let expired = stop_deadline.is_some_and(|deadline| {
             let now = tokio::time::Instant::now();
@@ -481,7 +508,7 @@ async fn execute_case(
         if expired {
             break None;
         }
-        let stopping = !cancelled && stop_requested(context, cycle, &session, execution).await;
+        let stopping = !cancelled && stop_requested(context, &session, supervision.concern()).await;
         if stopping {
             cancelled = true;
             let deadline = tokio::time::Instant::now() + Duration::from_millis(dokime_domain::STOP_SETTLEMENT_SECONDS * 1000);
@@ -490,7 +517,11 @@ async fn execute_case(
             let cancel = async {
                 // Cancel the pending operator questions before signalling the run.
                 session.cancel().await;
-                let signal = ExecutionSignal { execution_token: execution_token.clone(), cancel: true, ..ExecutionSignal::default() };
+                let signal = ExecutionSignal {
+                    execution_token: execution_token.clone(),
+                    cancel: true,
+                    ..ExecutionSignal::default()
+                };
                 let reply = target.signal(signal).await;
                 if let Err(error) = reply {
                     session.refuse(error).await;
@@ -500,7 +531,10 @@ async fn execute_case(
                 break None;
             }
         }
-        let reconcile = commands::reconcile(context, &target, execution, false, cancelled);
+        if !supervision.command_open() {
+            continue;
+        }
+        let reconcile = commands::reconcile(context, &target, execution, &mut pending_command, false, cancelled);
         let reconciled = match stop_deadline {
             Some(deadline) => match tokio::time::timeout_at(deadline, reconcile).await {
                 Ok(result) => result,
@@ -508,8 +542,9 @@ async fn execute_case(
             },
             None => reconcile.await,
         };
-        if let Err(error) = reconciled {
-            session.refuse(error).await;
+        match reconciled {
+            Ok(open) => supervision.reconciled(open),
+            Err(error) => session.refuse(error).await,
         }
     };
     context.runtime.execution_sessions.remove(&execution_token);
@@ -679,8 +714,8 @@ fn check_secret_bindings(
     Ok(())
 }
 
-async fn stop_requested(context: &ExecutionFixtureContext, cycle: &CycleView, session: &Session, execution: &TestExecution) -> bool {
-    session.refused().await || cancellation_requested(context, cycle) || context.execution_stop_requested(&execution.test_execution_id)
+async fn stop_requested(context: &ExecutionFixtureContext, session: &Session, concern: Concern) -> bool {
+    session.refused().await || context.is_cancelled() || concern.halts()
 }
 
 async fn template_declarations(context: &ExecutionFixtureContext, case: &TestCase, source: &str) -> TemplateDeclarations {
@@ -868,7 +903,10 @@ async fn close_record_subscriptions(context: &ExecutionFixtureContext, execution
     context
         .runtime
         .state_manager
-        .commit(crate::transactions::CloseRecordSubscriptions { test_cycle_id, test_execution_id: execution.test_execution_id.clone() })
+        .commit(crate::transactions::CloseRecordSubscriptions {
+            test_cycle_id,
+            test_execution_id: execution.test_execution_id.clone(),
+        })
         .await
         .map_err(|error| {
             let message = error.to_string();

@@ -47,7 +47,7 @@ struct CommandWake<'a> {
 
 impl Drop for CommandWake<'_> {
     fn drop(&mut self) {
-        self.runtime.execution_sessions.signal_change(&self.execution);
+        self.runtime.execution_sessions.signal_command(&self.execution);
     }
 }
 
@@ -74,7 +74,10 @@ impl crate::RuntimeHandle {
         }
         let selected = command_id.clone();
         // A Cancelled Caller May Leave A Durable Pending Receipt To Reconcile.
-        let _changed = CommandWake { runtime: self, execution: execution_id.to_string() };
+        let _changed = CommandWake {
+            runtime: self,
+            execution: execution_id.to_string(),
+        };
         let mut decision = None;
 
         self.request_storage
@@ -99,7 +102,10 @@ impl crate::RuntimeHandle {
 /* === Private Functions === */
 
 fn command_refused(message: impl Into<String>) -> crate::runtime::Error {
-    crate::runtime::Error::Admission(AdmissionFailure::Conflict { code: "execution_command_refused".into(), message: message.into() })
+    crate::runtime::Error::Admission(AdmissionFailure::Conflict {
+        code: "execution_command_refused".into(),
+        message: message.into(),
+    })
 }
 
 /* === Tests === */

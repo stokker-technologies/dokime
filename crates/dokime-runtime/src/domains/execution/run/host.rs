@@ -66,9 +66,9 @@ impl Sessions {
         self.lock().remove(execution);
     }
 
-    pub(crate) fn signal_change(&self, execution: &str) {
+    pub(crate) fn signal_command(&self, execution: &str) {
         if let Some(session) = self.get(execution) {
-            session.signal_change();
+            session.signal_command();
         }
     }
 
@@ -81,19 +81,21 @@ impl Sessions {
     }
 
     fn serving(&self, context: &Context<'_>) -> harmos::Result<Arc<Session>> {
-        let scope = context
-            .context()
-            .value::<ExecutionScope>()
-            .ok()
-            .flatten()
-            .ok_or(harmos::Error::InvalidInput { field: "execution scope", reason: "the call is not part of a template run" })?;
-        let session = self
-            .get(&scope.execution)
-            .ok_or_else(|| harmos::Error::NotRegistered { domain: "execution session", name: scope.execution.clone() })?;
+        let scope = context.context().value::<ExecutionScope>().ok().flatten().ok_or(harmos::Error::InvalidInput {
+            field: "execution scope",
+            reason: "the call is not part of a template run",
+        })?;
+        let session = self.get(&scope.execution).ok_or_else(|| harmos::Error::NotRegistered {
+            domain: "execution session",
+            name: scope.execution.clone(),
+        })?;
         if let Some(caller) = context.caller_scope()
             && caller.owner() != session.source()
         {
-            return Err(harmos::Error::InvalidInput { field: "execution scope", reason: "the caller does not own this execution" });
+            return Err(harmos::Error::InvalidInput {
+                field: "execution scope",
+                reason: "the caller does not own this execution",
+            });
         }
         Ok(session)
     }

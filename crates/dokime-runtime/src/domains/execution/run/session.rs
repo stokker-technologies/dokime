@@ -64,6 +64,7 @@ pub(crate) struct Session {
     cancelling: CancellationToken,
     refusal: tokio::sync::Mutex<Option<ProviderExecutionFailure>>,
     changed: tokio::sync::watch::Sender<()>,
+    command_admitted: std::sync::atomic::AtomicBool,
 }
 
 struct Pages {
@@ -104,6 +105,7 @@ impl Session {
             cancelling: CancellationToken::new(),
             refusal: tokio::sync::Mutex::new(None),
             changed: tokio::sync::watch::channel(()).0,
+            command_admitted: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -117,7 +119,10 @@ impl Session {
         let settling = batch.record_subscriptions_settling && !pages.settled;
         if batch.cursor <= pages.cursor && !settling {
             // The run repeated a page whose receipt it never saw.
-            return EvidenceReceipt { admitted: Vec::new(), settled: pages.settled };
+            return EvidenceReceipt {
+                admitted: Vec::new(),
+                settled: pages.settled,
+            };
         }
         let begins = batch.step_begins.clone();
         // Once one page was refused the case is over: nothing later is
@@ -142,7 +147,11 @@ impl Session {
                         .filter_map(|encoded| {
                             serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok()
                         })
-                        .map(|start| StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: false, message: message.clone() })
+                        .map(|start| StepAdmission {
+                            attempt_id: start.attempt_id.to_string(),
+                            accepted: false,
+                            message: message.clone(),
+                        })
                         .collect(),
                     settled: false,
                 }
@@ -174,7 +183,10 @@ impl Session {
     pub(crate) async fn lease(&self, ask: LeaseAsk) -> LeaseResolution {
         match serde_json::from_str::<crate::telemetry::LeaseRequest>(&ask.lease_json) {
             Ok(request) => self.step_leases.request(&self.context, &self.execution, &self.source, request).await,
-            Err(error) => LeaseResolution { granted: false, message: format!("the lease request could not be read: {error}") },
+            Err(error) => LeaseResolution {
+                granted: false,
+                message: format!("the lease request could not be read: {error}"),
+            },
         }
     }
 
@@ -195,11 +207,26 @@ impl Session {
         self.changed.send_replace(());
     }
 
+    pub(super) fn signal_command(&self) {
+        self.command_admitted.store(true, std::sync::atomic::Ordering::Release);
+        self.signal_change();
+    }
+
+    pub(super) fn take_command_admitted(&self) -> bool {
+        self.command_admitted.swap(false, std::sync::atomic::Ordering::AcqRel)
+    }
+
     fn release_run(&self) {
         let target = self.target.clone();
         let execution_token = self.execution.test_execution_id.to_string();
         tokio::spawn(async move {
-            let cancelled = target.signal(ExecutionSignal { execution_token, cancel: true, ..ExecutionSignal::default() }).await;
+            let cancelled = target
+                .signal(ExecutionSignal {
+                    execution_token,
+                    cancel: true,
+                    ..ExecutionSignal::default()
+                })
+                .await;
             if let Err(error) = cancelled {
                 tracing::debug!(detail = %error.message, "a refused run did not take its cancellation");
             }
@@ -239,12 +266,13 @@ impl Session {
     pub(super) async fn conclude(
         &self, case: &TestCase, outcome: SidecarExecutionOutcome, cancelled: bool, criteria: &[CriterionDefinition],
     ) -> Result<CaseResult, ProviderExecutionFailure> {
-        let reconciled = commands::reconcile(&self.context, &self.target, &self.execution, true, cancelled).await;
+        let mut pending = commands::Pending::default();
+        let reconciled = commands::reconcile(&self.context, &self.target, &self.execution, &mut pending, true, cancelled).await;
         match reconciled {
             Err(error) if !cancelled => return Err(error),
             Err(error) => tracing::warn!(detail = %error.message,
                 "cancelled command receipt did not reconcile"),
-            Ok(()) => {}
+            Ok(_) => {}
         }
         let mut pages = self.pages.lock().await;
         let pages = &mut *pages;
@@ -323,6 +351,10 @@ impl Session {
             return Err(refusal);
         }
         let admitted = self.admit_steps(&batch).await?;
+        if !batch.step_attempts.is_empty() {
+            // A Finished Attempt Is The Evidence An Open Command Waits On.
+            self.signal_change();
+        }
         if !cancelling {
             publish_progress(context, execution, &batch)?;
         }
