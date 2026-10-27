@@ -88,7 +88,12 @@ impl Plan<'_> {
         if !self.filters(read, &record)? {
             return Ok(None);
         }
-        let mut candidate = Candidate { start: None, end: record, sample: None, value: None };
+        let mut candidate = Candidate {
+            start: None,
+            end: record,
+            sample: None,
+            value: None,
+        };
         if let Some(previous) = self.previous {
             let Some(start) = read.previous(previous, ordinal, &candidate.end, self.request.scope.as_ref())? else {
                 return Ok(None);
@@ -195,7 +200,15 @@ impl Plan<'_> {
         };
         projection::insert(
             read,
-            Row { expression: 0, group: &group, sort: 0.0, stamp: "", capture: ordinal, point: PlotPoint { x, y: Some(y), z: None } },
+            Row {
+                expression: 0,
+                group: &group,
+                sort: 0.0,
+                stamp: "",
+                capture: ordinal,
+                point: PlotPoint { x, y: Some(y), z: None },
+                exact: None,
+            },
         )
     }
 }
@@ -226,7 +239,16 @@ pub(super) fn project(read: &Read<'_>, request: &PlotPayloadRequest, mut visit: 
             Source::Telemetry { .. } if contextual => axis.filter(|axis| axis.kind != expression.kind).map(|axis| axis.kind),
             _ => None,
         };
-        let plan = Plan { request, expression, axis, group, aggregate, previous, contextual, context_stream };
+        let plan = Plan {
+            request,
+            expression,
+            axis,
+            group,
+            aggregate,
+            previous,
+            contextual,
+            context_stream,
+        };
         let mut latest = None;
         read.records(previous.is_some(), |ordinal, record| {
             if let Some(candidate) = plan.candidate(read, ordinal, record)? {

@@ -18,10 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::storage::query::{
-    Accumulator,
-    scalar::{Agg, ScalarValue},
-};
+use harmos::storage::query::{Accumulator, scalar::Agg};
 use rusqlite::params;
 
 // Local Imports
@@ -55,6 +52,7 @@ pub(super) struct Row<'a> {
     pub stamp: &'a str,
     pub capture: u64,
     pub point: PlotPoint,
+    pub exact: Option<crate::Value>,
 }
 
 /* === Enums === */
@@ -75,6 +73,19 @@ impl<'a> Input<'a> {
             Self::Field(field) => sample.values.get(field).and_then(payload::numeric_value),
             Self::Expression(expression) => payload::expression_numeric_value(sample, expression),
         }
+    }
+
+    fn exact(self, sample: &TelemetrySample) -> Option<crate::Value> {
+        let field = match self {
+            Self::Field(field) => field,
+            Self::Expression(expression) if expression.transforms.is_empty() => payload::expression_field_name(expression)?,
+            _ => return None,
+        };
+        sample
+            .values
+            .get(field)
+            .filter(|value| matches!(value, crate::Value::Integer(_) | crate::Value::Unsigned(_) | crate::Value::Number(_)))
+            .cloned()
     }
 
     fn field(self) -> &'a str {
@@ -104,7 +115,13 @@ impl<'a> Projection<'a> {
             request.y_keys.iter().map(|key| Input::Field(key)).collect()
         };
         let grouped = aggregate || if expressions { request.series_by_expression.is_some() } else { request.series_by.is_some() };
-        let projection = Self { request, inputs, aggregate, grouped, keep_empty_aggregate: false };
+        let projection = Self {
+            request,
+            inputs,
+            aggregate,
+            grouped,
+            keep_empty_aggregate: false,
+        };
         let mut latest = None;
         read.samples(|sample| {
             if selected(&sample, request) {
@@ -153,7 +170,11 @@ impl<'a> Projection<'a> {
                 Input::Field(_) => payload::x_input(sample, x_key),
                 Input::Expression(_) => payload::expression_x_input(sample, self.request.x_expression.as_ref(), x_key),
             };
-            let point = PlotPoint { x: payload::projection::x_value(x)?, y, z };
+            let point = PlotPoint {
+                x: payload::projection::x_value(x)?,
+                y,
+                z,
+            };
             insert(
                 read,
                 Row {
@@ -163,6 +184,7 @@ impl<'a> Projection<'a> {
                     stamp: sample.timestamp.as_str(),
                     capture: sample.sequence,
                     point,
+                    exact: input.exact(sample),
                 },
             )?;
         }
@@ -173,7 +195,7 @@ impl<'a> Projection<'a> {
         for (index, input) in self.inputs.iter().copied().enumerate() {
             if !self.grouped {
                 let mut points = Points::new()?;
-                rows(read, index, "", |point| points.push(point))?;
+                rows(read, index, "", |point, exact| points.push_exact(point, exact))?;
                 visit(points.finish(metadata(input.field(), input.field(), self.request))?)?;
                 continue;
             }
@@ -193,9 +215,9 @@ impl<'a> Projection<'a> {
                     let mut accumulator = Accumulator::new(Agg::Of(method));
                     let mut capture = 0;
                     let mut z = None;
-                    rows(read, index, &group, |point| {
+                    rows(read, index, &group, |point, exact| {
                         if let Some(y) = point.y {
-                            accumulator.push(capture, &ScalarValue::Float(y))?;
+                            accumulator.push(capture, &super::series::scalar(exact.as_ref(), y))?;
                         }
                         capture += 1;
                         z = point.z;
@@ -205,7 +227,7 @@ impl<'a> Projection<'a> {
                     aggregates.push(PlotPoint { x: group.into(), y, z })?;
                 } else {
                     let mut points = Points::new()?;
-                    rows(read, index, &group, |point| points.push(point))?;
+                    rows(read, index, &group, |point, exact| points.push_exact(point, exact))?;
                     let (key, label) = match input {
                         Input::Field(_) if self.request.y_keys.len() == 1 => (group.clone(), group.clone()),
                         Input::Field(field) => (format!("{field}:{group}"), format!("{field} {group}")),
@@ -230,7 +252,7 @@ pub(super) fn reset(read: &Read<'_>) -> Result<()> {
             "DROP TABLE IF EXISTS projected;
          CREATE TABLE projected (
              ordinal INTEGER PRIMARY KEY, expression INTEGER NOT NULL, grp TEXT NOT NULL, group_number REAL,
-             sort BLOB NOT NULL, stamp TEXT NOT NULL, capture BLOB NOT NULL, x TEXT NOT NULL, y BLOB, z BLOB
+             sort BLOB NOT NULL, stamp TEXT NOT NULL, capture BLOB NOT NULL, x TEXT NOT NULL, y BLOB, z BLOB, exact TEXT
          );
          CREATE INDEX projected_order ON projected(expression,grp,sort,stamp,capture,ordinal);",
         )
@@ -250,7 +272,15 @@ pub(super) fn metadata(key: &str, label: &str, request: &PlotPayloadRequest) -> 
 }
 
 pub(super) fn insert(read: &Read<'_>, row: Row<'_>) -> Result<()> {
-    let Row { expression, group, sort, stamp, capture, point } = row;
+    let Row {
+        expression,
+        group,
+        sort,
+        stamp,
+        capture,
+        point,
+        exact,
+    } = row;
     let group_number = group.parse::<f64>().ok().filter(|value| value.is_finite());
     let bits = sort.to_bits();
     let order = if bits >> 63 == 0 { bits ^ (1u64 << 63) } else { !bits };
@@ -258,10 +288,11 @@ pub(super) fn insert(read: &Read<'_>, row: Row<'_>) -> Result<()> {
     let capture = capture.to_be_bytes();
     let x = serde_json::to_string(&point.x).map_err(failure)?;
     let y = point.y.map(f64::to_le_bytes);
+    let exact = exact.as_ref().map(serde_json::to_string).transpose().map_err(failure)?;
     let z = point.z.map(f64::to_le_bytes);
     read.connection
         .execute(
-            "INSERT INTO projected(expression,grp,group_number,sort,stamp,capture,x,y,z) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            "INSERT INTO projected(expression,grp,group_number,sort,stamp,capture,x,y,z,exact) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
             params![
                 expression as i64,
                 group,
@@ -271,24 +302,33 @@ pub(super) fn insert(read: &Read<'_>, row: Row<'_>) -> Result<()> {
                 capture.as_slice(),
                 x,
                 y.as_ref().map(|bytes| bytes.as_slice()),
-                z.as_ref().map(|bytes| bytes.as_slice())
+                z.as_ref().map(|bytes| bytes.as_slice()),
+                exact
             ],
         )
         .map_err(failure)?;
     Ok(())
 }
 
-pub(super) fn rows(read: &Read<'_>, expression: usize, group: &str, mut visit: impl FnMut(PlotPoint) -> Result<()>) -> Result<()> {
+pub(super) fn rows(
+    read: &Read<'_>, expression: usize, group: &str, mut visit: impl FnMut(PlotPoint, Option<crate::Value>) -> Result<()>,
+) -> Result<()> {
     let mut statement = read
         .connection
-        .prepare("SELECT x,y,z FROM projected WHERE expression=?1 AND grp=?2 ORDER BY sort,stamp,capture,ordinal")
+        .prepare("SELECT x,y,z,exact FROM projected WHERE expression=?1 AND grp=?2 ORDER BY sort,stamp,capture,ordinal")
         .map_err(failure)?;
     let mut rows = statement.query(params![expression as i64, group]).map_err(failure)?;
     while let Some(row) = rows.next().map_err(failure)? {
         let x: String = row.get(0).map_err(failure)?;
         let x = serde_json::from_str(&x).map_err(failure)?;
-        let point = PlotPoint { x, y: number(row.get(1).map_err(failure)?)?, z: number(row.get(2).map_err(failure)?)? };
-        visit(point)?;
+        let point = PlotPoint {
+            x,
+            y: number(row.get(1).map_err(failure)?)?,
+            z: number(row.get(2).map_err(failure)?)?,
+        };
+        let exact: Option<String> = row.get(3).map_err(failure)?;
+        let exact = exact.as_deref().map(serde_json::from_str).transpose().map_err(failure)?;
+        visit(point, exact)?;
     }
     Ok(())
 }

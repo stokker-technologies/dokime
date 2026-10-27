@@ -54,6 +54,7 @@ pub(super) struct Points {
     y: Vec<Option<f64>>,
     z: Vec<Option<f64>>,
     bytes: usize,
+    exact: Vec<Option<String>>,
 }
 
 pub(super) struct Series {
@@ -74,17 +75,33 @@ impl Points {
             Field::new("axis", DataType::Float64, true),
             Field::new("y", DataType::Float64, true),
             Field::new("z", DataType::Float64, true),
+            Field::new("exact", DataType::Utf8, true),
         ]));
         let writer = TableWriter::new(schema.clone())?;
-        Ok(Self { writer, schema, json: Vec::new(), axis: Vec::new(), y: Vec::new(), z: Vec::new(), bytes: 0 })
+        Ok(Self {
+            writer,
+            schema,
+            json: Vec::new(),
+            axis: Vec::new(),
+            y: Vec::new(),
+            z: Vec::new(),
+            bytes: 0,
+            exact: Vec::new(),
+        })
     }
 
     pub(super) fn push(&mut self, point: PlotPoint) -> Result<()> {
+        self.push_exact(point, None)
+    }
+
+    pub(super) fn push_exact(&mut self, point: PlotPoint, exact: Option<crate::Value>) -> Result<()> {
+        let exact = exact.as_ref().map(serde_json::to_string).transpose().map_err(failure)?;
         let json = serde_json::to_string(&point.x).map_err(failure)?;
-        let bytes = json.len().saturating_add(64);
+        let bytes = json.len().saturating_add(64).saturating_add(exact.as_ref().map_or(0, String::len));
         if !self.json.is_empty() && (self.json.len() == PAGE_ROWS || self.bytes.saturating_add(bytes) > PAGE_BYTES) {
             self.flush()?;
         }
+        self.exact.push(exact);
         self.axis.push(analyses::point_x(&point));
         self.y.push(point.y);
         self.z.push(point.z);
@@ -109,7 +126,8 @@ impl Points {
         let axis = Float64Array::from(std::mem::take(&mut self.axis));
         let y = Float64Array::from(std::mem::take(&mut self.y));
         let z = Float64Array::from(std::mem::take(&mut self.z));
-        let arrays: Vec<Arc<dyn Array>> = vec![Arc::new(json), Arc::new(axis), Arc::new(y), Arc::new(z)];
+        let exact = StringArray::from(std::mem::take(&mut self.exact));
+        let arrays: Vec<Arc<dyn Array>> = vec![Arc::new(json), Arc::new(axis), Arc::new(y), Arc::new(z), Arc::new(exact)];
         let page = RecordBatch::try_new(self.schema.clone(), arrays).map_err(failure)?;
         self.writer.push(&page, &mut || Ok(()))?;
         self.bytes = 0;
@@ -123,33 +141,42 @@ impl Series {
     }
 
     pub(super) fn summary(&self, window: Option<PlotWindow>) -> Result<PlotSeriesSummary> {
-        let mut moments = harmos::signal::Summary::new();
-        let mut median = Accumulator::new(Agg::Of(harmos::Aggregate::Median));
+        use harmos::Aggregate;
+        let mut statistics = [Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Median, Aggregate::Std, Aggregate::Rms]
+            .map(|method| Accumulator::new(Agg::Of(method)));
+        let mut count = 0;
         let mut extent: Option<PlotWindow> = None;
-        self.visit(|point| {
-            let Some((x, y)) = analyses::point_x(&point).zip(point.y) else {
-                return Ok(());
-            };
-            if window.is_some_and(|window| x < window.from || x > window.to) {
+        visit_values(&self.table, |point, exact| {
+            let Some(y) = point.y.filter(|value| value.is_finite()) else { return Ok(()) };
+            let x = analyses::point_x(&point);
+            if window.is_some_and(|window| x.is_none_or(|x| x < window.from || x > window.to)) {
                 return Ok(());
             }
-            let range = extent.get_or_insert(PlotWindow { from: x, to: x });
-            range.from = range.from.min(x);
-            range.to = range.to.max(x);
-            median.push(moments.count(), &ScalarValue::Float(y))?;
-            moments.push(y);
+            if let Some(x) = x {
+                let range = extent.get_or_insert(PlotWindow { from: x, to: x });
+                range.from = range.from.min(x);
+                range.to = range.to.max(x);
+            }
+            let value = scalar(exact.as_ref(), y);
+            for statistic in &mut statistics {
+                statistic.push(count, &value)?;
+            }
+            count += 1;
             Ok(())
         })?;
-        let median = scalar_number(median.finish(&mut || Ok(()))?);
+        let mut values = Vec::with_capacity(statistics.len());
+        for statistic in statistics {
+            values.push(scalar_number(statistic.finish(&mut || Ok(()))?));
+        }
         Ok(PlotSeriesSummary {
             series_id: self.metadata.key.clone(),
-            count: moments.count() as usize,
-            min: moments.min(),
-            max: moments.max(),
-            mean: moments.mean(),
-            median,
-            std: moments.std(),
-            rms: moments.rms(),
+            count: count as usize,
+            min: values[0],
+            max: values[1],
+            mean: values[2],
+            median: values[3],
+            std: values[4],
+            rms: values[5],
             window: window.or(extent),
         })
     }
@@ -204,11 +231,22 @@ impl Series {
 
 /* === Public Functions === */
 
+pub(super) fn scalar(exact: Option<&crate::Value>, fallback: f64) -> ScalarValue {
+    match exact {
+        Some(crate::Value::Integer(value)) => ScalarValue::Signed(*value),
+        Some(crate::Value::Unsigned(value)) => ScalarValue::Unsigned(*value),
+        _ => ScalarValue::Float(fallback),
+    }
+}
+
 pub(super) fn scalar_number(value: ScalarValue) -> Option<f64> {
     match value {
         ScalarValue::Float(value) => Some(value),
         ScalarValue::Unsigned(value) => Some(value as f64),
         ScalarValue::Signed(value) => Some(value as f64),
+        ScalarValue::Exact(value) => {
+            Some((if value.negative { -1.0 } else { 1.0 }) * value.numerator as f64 / value.denominator.get() as f64)
+        }
         _ => None,
     }
 }
@@ -216,16 +254,22 @@ pub(super) fn scalar_number(value: ScalarValue) -> Option<f64> {
 /* === Private Functions === */
 
 pub(super) fn visit_table(table: &Table, mut visit: impl FnMut(PlotPoint) -> Result<()>) -> Result<()> {
+    visit_values(table, |point, _| visit(point))
+}
+
+fn visit_values(table: &Table, mut visit: impl FnMut(PlotPoint, Option<crate::Value>) -> Result<()>) -> Result<()> {
     let mut reader = table.reader()?;
     while let Some(page) = reader.next(&mut || Ok(()))? {
         let json = page.column(0).as_any().downcast_ref::<StringArray>().expect("plot x schema");
         let y = page.column(2).as_any().downcast_ref::<Float64Array>().expect("plot y schema");
         let z = page.column(3).as_any().downcast_ref::<Float64Array>().expect("plot z schema");
+        let exact = page.column(4).as_any().downcast_ref::<StringArray>().expect("plot exact schema");
         for index in 0..page.num_rows() {
             let x = serde_json::from_str(json.value(index)).map_err(failure)?;
             let y = (!y.is_null(index)).then(|| y.value(index));
             let z = (!z.is_null(index)).then(|| z.value(index));
-            visit(PlotPoint { x, y, z })?;
+            let exact = if exact.is_null(index) { None } else { Some(serde_json::from_str(exact.value(index)).map_err(failure)?) };
+            visit(PlotPoint { x, y, z }, exact)?;
         }
     }
     Ok(())
