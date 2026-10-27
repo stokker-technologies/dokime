@@ -13,7 +13,7 @@ pub(super) mod admission;
 
 /* === Re-Exports === */
 
-pub(crate) use admission::{PreparedSample, TelemetryCursors};
+pub(crate) use admission::{Payloads, PreparedSample, TelemetryCursors};
 
 /* === Imports === */
 
@@ -55,15 +55,15 @@ pub(crate) struct CapturedPublication {
 
 impl RuntimeHandle {
     pub(crate) async fn publish_telemetry_to_streams(
-        &self, batch: TelemetryBatch, received_at: Timestamp,
+        &self, batch: TelemetryBatch, received_at: Timestamp, payloads: Payloads,
     ) -> std::result::Result<harmos::storage::ReadBatch<PublishReceipt>, crate::runtime::Error> {
         let runtime = self.clone();
-        tokio::spawn(async move { runtime.publish_telemetry_to_streams_inner(batch, received_at).await })
+        tokio::spawn(async move { runtime.publish_telemetry_to_streams_inner(batch, received_at, payloads).await })
             .await
             .map_err(|e| unavailable_rejection(e.to_string()))?
     }
     async fn publish_telemetry_to_streams_inner(
-        &self, mut batch: TelemetryBatch, received_at: Timestamp,
+        &self, mut batch: TelemetryBatch, received_at: Timestamp, payloads: Payloads,
     ) -> std::result::Result<harmos::storage::ReadBatch<PublishReceipt>, crate::runtime::Error> {
         let sampling = self.sampling();
         let _publish = sampling.begin_publish().await;
@@ -97,7 +97,7 @@ impl RuntimeHandle {
         normalize_batch(&mut batch, contract, &received_at)?;
 
         let receipt = self
-            .write_samples_to_streams(batch.samples)
+            .write_samples_to_streams(batch.samples, payloads)
             .await
             .map_err(|error| unavailable_rejection(format!("telemetry stream write failed: {error}")))?;
         // Admission also delivers the frozen lease batch while this publish
@@ -134,7 +134,7 @@ impl RuntimeHandle {
         })?;
         normalize_batch(&mut batch, contract, &received_at)?;
         // The Original Storage Admission Rejects A Closed Acquisition And Retains Capacity.
-        let admission = self.prepare_sample_admission(batch.samples).await?;
+        let admission = self.prepare_sample_admission(batch.samples, Payloads::Unchecked).await?;
         let runtime = self.clone();
         let mut published = tokio::spawn(async move { runtime.admit_samples_owned(admission).await }).await??;
         published.receipt = published.receipt.try_map(|mut receipt| {
@@ -145,11 +145,11 @@ impl RuntimeHandle {
     }
 
     async fn write_samples_to_streams(
-        &self, samples: Vec<TelemetrySample>,
+        &self, samples: Vec<TelemetrySample>, payloads: Payloads,
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<PublishReceipt>> {
         let runtime = self.clone();
         tokio::spawn(async move {
-            let admission = runtime.prepare_sample_admission(samples).await?;
+            let admission = runtime.prepare_sample_admission(samples, payloads).await?;
             runtime.admit_samples(admission).await
         })
         .await
@@ -258,7 +258,11 @@ impl RuntimeHandle {
             at,
             &TelemetrySelection { streams, ..Default::default() },
             self.schema_settings(),
-            crate::runtime::storage::telemetry::ReadOptions { window: Some(("host.system", 0.0)), visible: scope, ..Default::default() },
+            crate::runtime::storage::telemetry::ReadOptions {
+                window: Some(("host.system", 0.0)),
+                visible: scope,
+                ..Default::default()
+            },
             &self.local_storage,
         )
         .await?;
@@ -278,9 +282,16 @@ impl RuntimeHandle {
         let host = crate::runtime::storage::telemetry::collect_saved(
             &self.storage().clone(),
             at,
-            &TelemetrySelection { streams: vec![Identifier::new("host.system").expect("valid stream").into()], ..Default::default() },
+            &TelemetrySelection {
+                streams: vec![Identifier::new("host.system").expect("valid stream").into()],
+                ..Default::default()
+            },
             self.schema_settings(),
-            crate::runtime::storage::telemetry::ReadOptions { window: Some(("host.system", 0.0)), visible: scope, ..Default::default() },
+            crate::runtime::storage::telemetry::ReadOptions {
+                window: Some(("host.system", 0.0)),
+                visible: scope,
+                ..Default::default()
+            },
             &self.local_storage,
         )
         .await?;

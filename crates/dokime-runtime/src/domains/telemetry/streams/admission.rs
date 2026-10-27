@@ -17,14 +17,25 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use harmos::storage::ReadBatch;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 const PARTIAL_ACCEPTANCE: &str = "telemetry was partially accepted; unaccepted samples were dropped";
 
+// One Admitted Row In One Capture Scope. Every Lease Scope Shares The Original's Sample, So A
+// Row Costs One Payload And One Value Map However Many Executions Capture It.
 pub(crate) struct PreparedSample {
-    pub(crate) sample: TelemetrySample,
+    pub(crate) sample: Arc<TelemetrySample>,
+    pub(crate) lease: Option<RecordScope>,
     pub(crate) contract: usize,
     pub(crate) ordinal: u64,
-    pub(crate) original: bool,
+}
+
+// How The Payloads Of One Admission Were Already Read.
+pub(crate) enum Payloads {
+    // Values Arrived Beside The Bytes; Admission Checks Each Original Payload Once.
+    Unchecked,
+    // Values Were Projected From The Bytes With This Registered Codec; No Further Pass Is Needed.
+    Decoded(Arc<crate::storage::telemetry::TypedCodec>),
 }
 
 #[derive(Default)]
@@ -42,6 +53,16 @@ pub(crate) struct PreparedPublication {
     observes_closure: bool,
 }
 
+impl PreparedSample {
+    pub(crate) fn scope(&self) -> Option<&RecordScope> {
+        self.lease.as_ref().or(self.sample.scope.as_ref())
+    }
+
+    pub(crate) fn original(&self) -> bool {
+        self.lease.is_none()
+    }
+}
+
 impl PreparedPublication {
     pub(crate) fn within_quiescence(mut self) -> Self {
         self.observes_closure = false;
@@ -50,7 +71,7 @@ impl PreparedPublication {
 }
 
 impl RuntimeHandle {
-    pub(crate) async fn prepare_sample_admission(&self, samples: Vec<TelemetrySample>) -> Result<PreparedPublication> {
+    pub(crate) async fn prepare_sample_admission(&self, samples: Vec<TelemetrySample>, payloads: Payloads) -> Result<PreparedPublication> {
         self.storage().retry_transient_persistence();
         let order = self.telemetry_admission.clone().lock_owned().await;
         let mut supplied = slots(samples.len())?;
@@ -99,34 +120,30 @@ impl RuntimeHandle {
                         state.capture_scope(scope).map_err(Error::Operation)?;
                     }
                 }
-                let mut captured = captured_samples(samples, &leased)?;
-                let delivery = crate::domains::telemetry::leases::LeasedRows::attribute(delivery, state, &captured)?;
-                for (sample, _) in &mut captured {
-                    if let Some(scope) = &sample.scope {
-                        sample.scope = Some(state.capture_scope(scope).map_err(Error::Operation)?);
-                    }
-                }
-                let stream_count = leased.len();
-                let mut contracts = slots(stream_count)?;
+                let delivery = crate::domains::telemetry::leases::LeasedRows::attribute(delivery, state, &samples)?;
+                let mut accepted = share_scopes(samples, &leased, |scope| state.capture_scope(scope).map_err(Error::Operation))?;
+                let mut contracts = slots(leased.len())?;
                 let mut indices = BTreeMap::new();
-                let mut accepted = slots(captured.len())?;
-                for (sample, original) in captured {
-                    let index = if let Some(index) = indices.get(&sample.stream) {
+                for row in &mut accepted {
+                    let index = if let Some(index) = indices.get(&row.sample.stream) {
                         *index
                     } else {
                         let contract = state
                             .telemetry_definitions
-                            .get(&sample.stream)
+                            .get(&row.sample.stream)
                             .ok_or_else(|| validation_rejection("telemetry contract is unavailable", "stream", None))?;
                         let index = contracts.len();
                         contracts.push(contract.normalized());
-                        indices.insert(sample.stream.clone(), index);
+                        indices.insert(row.sample.stream.clone(), index);
                         index
                     };
+                    row.contract = index;
+                    if !row.original() {
+                        continue;
+                    }
                     let contract = contracts.get(index).ok_or_else(|| invalid("telemetry contract index is missing"))?;
-                    check_normalized_telemetry_sample(contract, &sample, ValidationMode::Strict)
+                    check_normalized_telemetry_sample(contract, &row.sample, ValidationMode::Strict)
                         .map_err(|error| validation_rejection(error.to_string(), "telemetry", None))?;
-                    accepted.push(PreparedSample { sample, contract: index, ordinal: 0, original });
                 }
                 Ok((accepted, contracts, delivery))
             })
@@ -137,7 +154,7 @@ impl RuntimeHandle {
         {
             let known = self.telemetry_cursors.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             for row in &mut accepted {
-                let key = telemetry_stream_id(row.sample.scope.as_ref(), &row.sample.stream);
+                let key = telemetry_stream_id(row.scope(), &row.sample.stream);
                 receipt = receipt.try_map(|mut receipt| {
                     let next = receipt.stream_cursors.entry(key).or_insert_with_key(|key| known.values.get(key).copied().unwrap_or(0));
                     *next = next.checked_add(1).ok_or_else(|| invalid("telemetry ordinal exhausted"))?;
@@ -146,8 +163,16 @@ impl RuntimeHandle {
                 })?;
             }
         }
-        let execution = self.execution_storage.prepare_telemetry(&accepted, &contracts).await?;
-        Ok(PreparedPublication { order, execution, accepted, supplied, receipt, delivery, observes_closure: true })
+        let execution = self.execution_storage.prepare_telemetry(&accepted, &contracts, &payloads).await?;
+        Ok(PreparedPublication {
+            order,
+            execution,
+            accepted,
+            supplied,
+            receipt,
+            delivery,
+            observes_closure: true,
+        })
     }
 
     pub(crate) async fn admit_samples(&self, admission: PreparedPublication) -> Result<ReadBatch<PublishReceipt>> {
@@ -161,7 +186,15 @@ impl RuntimeHandle {
     }
 
     pub(super) async fn admit_samples_owned(&self, admission: PreparedPublication) -> Result<CapturedPublication> {
-        let PreparedPublication { order, execution, mut accepted, supplied, receipt, delivery, observes_closure } = admission;
+        let PreparedPublication {
+            order,
+            execution,
+            mut accepted,
+            supplied,
+            receipt,
+            delivery,
+            observes_closure,
+        } = admission;
         let sampling = self.sampling();
         let admitted = execution.commit(observes_closure.then_some(sampling.as_ref())).await?;
         if admitted.accepted.len() != accepted.len() {
@@ -176,7 +209,7 @@ impl RuntimeHandle {
                 *ordinal = 0;
             }
             for row in &accepted {
-                let key = telemetry_stream_id(row.sample.scope.as_ref(), &row.sample.stream);
+                let key = telemetry_stream_id(row.scope(), &row.sample.stream);
                 let ordinal = receipt.stream_cursors.get_mut(&key).ok_or_else(|| invalid("admitted telemetry cursor is missing"))?;
                 *ordinal = (*ordinal).max(row.ordinal);
             }
@@ -230,43 +263,55 @@ pub(crate) type SampleIdentity<'a> =
 
 pub(crate) fn identity_index(samples: &[PreparedSample]) -> Result<Vec<SampleIdentity<'_>>> {
     let mut identities = slots(samples.len())?;
-    identities.extend(
-        samples.iter().map(|row| (row.sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()), &row.sample.sample_id)),
-    );
+    identities.extend(samples.iter().map(|row| (row.scope().and_then(|scope| scope.test_execution_id.as_ref()), &row.sample.sample_id)));
     identities.sort_unstable();
     identities.dedup();
     Ok(identities)
 }
 
-fn captured_samples(
+// Captures Each Original Once And Attributes It To Every Accepting Lease Scope By Reference.
+// Lease Matching Reads The Supplied Scope; Stored Rows Carry The Captured Ones.
+pub(crate) fn share_scopes(
     samples: Vec<TelemetrySample>, leased: &BTreeMap<Identifier, Vec<RecordScope>>,
-) -> Result<Vec<(TelemetrySample, bool)>> {
+    mut capture: impl FnMut(&RecordScope) -> Result<RecordScope>,
+) -> Result<Vec<PreparedSample>> {
     let mut count = samples.len();
     for sample in &samples {
-        if sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some()) {
-            continue;
+        count = count.checked_add(accepting(leased, sample).count()).ok_or_else(overflow)?;
+    }
+    let mut rows = slots(count)?;
+    for mut sample in samples {
+        let mut leases = slots(accepting(leased, &sample).count())?;
+        for scope in accepting(leased, &sample) {
+            leases.push(capture(scope)?);
         }
-        for _scope in leased.get(&sample.stream).into_iter().flatten().filter(|scope| lease_accepts_sample(sample.scope.as_ref(), scope)) {
-            count = count.checked_add(1).ok_or_else(overflow)?;
+        if let Some(scope) = &sample.scope {
+            sample.scope = Some(capture(scope)?);
+        }
+        let sample = Arc::new(sample);
+        rows.push(PreparedSample {
+            sample: Arc::clone(&sample),
+            lease: None,
+            contract: 0,
+            ordinal: 0,
+        });
+        for lease in leases {
+            rows.push(PreparedSample {
+                sample: Arc::clone(&sample),
+                lease: Some(lease),
+                contract: 0,
+                ordinal: 0,
+            });
         }
     }
-    let mut captured = slots(count)?;
-    for sample in samples {
-        let original = captured.len();
-        captured.push((sample, true));
-        if captured[original].0.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some()) {
-            continue;
-        }
-        for scope in leased.get(&captured[original].0.stream).into_iter().flatten() {
-            if !lease_accepts_sample(captured[original].0.scope.as_ref(), scope) {
-                continue;
-            }
-            let mut copy = captured[original].0.clone();
-            copy.scope = Some(scope.clone());
-            captured.push((copy, false));
-        }
-    }
-    Ok(captured)
+    Ok(rows)
+}
+
+// The Lease Scopes That Capture An Unowned Sample; A Sample Owned By An Execution Captures Only There.
+fn accepting<'a>(leased: &'a BTreeMap<Identifier, Vec<RecordScope>>, sample: &'a TelemetrySample) -> impl Iterator<Item = &'a RecordScope> {
+    let unowned = sample.scope.as_ref().is_none_or(|scope| scope.test_execution_id.is_none());
+    let scopes = leased.get(&sample.stream).into_iter().flatten();
+    scopes.filter(move |scope| unowned && lease_accepts_sample(sample.scope.as_ref(), scope))
 }
 
 pub(crate) fn slots<T>(length: usize) -> Result<Vec<T>> {
@@ -279,4 +324,79 @@ fn overflow() -> Error {
 }
 fn invalid(reason: &str) -> Error {
     Error::Operation(reason.to_owned())
+}
+
+/* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::{Payloads, share_scopes};
+    use crate::storage::telemetry::{PAYLOAD_PASSES, codec};
+    use crate::telemetry::{TelemetryContract, TelemetrySample};
+    use dokime_domain::model::execution::RecordScope;
+    use dokime_domain::model::identity::{SessionId, TestExecutionId};
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    #[harmos::message]
+    struct Reading {
+        value: String,
+    }
+
+    fn passes() -> usize {
+        PAYLOAD_PASSES.with(std::cell::Cell::take)
+    }
+
+    // One Unowned Sample Captured By Several Executions, Each Under Its Own Lease Scope.
+    fn leased(
+        scopes: usize,
+    ) -> (TelemetryContract, TelemetrySample, BTreeMap<dokime_domain::model::identity::Identifier, Vec<RecordScope>>) {
+        let contract = TelemetryContract::declared("fixture.shared", "Shared").typed::<Reading>();
+        let timestamp = dokime_domain::model::time::Timestamp::new("2026-01-01T00:00:00Z");
+        let sample = TelemetrySample::new(crate::model::identity::new_id(), contract.stream.clone(), 1, timestamp, "fixture.shared")
+            .typed(&Reading { value: "7".into() });
+        let holders = (0..scopes)
+            .map(|_| RecordScope {
+                test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
+                ..Default::default()
+            })
+            .collect();
+        let leased = BTreeMap::from([(contract.stream.clone(), holders)]);
+        (contract, sample, leased)
+    }
+
+    #[test]
+    fn lease_scopes_share_one_sample() {
+        for scopes in [1, 8, 64] {
+            let (_, sample, leased) = leased(scopes);
+            let rows = share_scopes(vec![sample], &leased, |scope| Ok(scope.clone())).unwrap();
+            assert_eq!(rows.len(), scopes + 1);
+            assert!(rows[0].original() && rows[1..].iter().all(|row| !row.original()));
+            assert!(rows.iter().all(|row| Arc::ptr_eq(&row.sample, &rows[0].sample)));
+            assert_eq!(Arc::strong_count(&rows[0].sample), scopes + 1);
+            assert!(rows[1..].iter().zip(&leased.values().next().unwrap()[..]).all(|(row, scope)| row.scope() == Some(scope)));
+        }
+    }
+
+    #[test]
+    fn admission_reads_each_payload_once() {
+        let settings = harmos::config::SchemaSettings::default();
+        let epoch = SessionId::from_seed("once.epoch");
+        let (contract, sample, leased) = leased(8);
+        let registered = Arc::new(codec(&contract, &settings).unwrap());
+        let codecs = [Arc::clone(&registered)];
+
+        // Values Beside The Bytes: Only The Original's Payload Is Checked, Never A Lease Row's.
+        let rows = share_scopes(vec![sample.clone()], &leased, |scope| Ok(scope.clone())).unwrap();
+        passes();
+        let staged = crate::runtime::storage::telemetry::stage_rows(&epoch, &rows, &codecs, &Payloads::Unchecked).unwrap();
+        assert_eq!((staged.len(), passes()), (9, 1));
+
+        // Values Projected From The Bytes: That Projection Is The Row's Only Pass.
+        let mut projected = sample;
+        projected.values = registered.decode_payload(projected.storage_payload.as_deref().unwrap()).unwrap();
+        let rows = share_scopes(vec![projected], &leased, |scope| Ok(scope.clone())).unwrap();
+        let staged = crate::runtime::storage::telemetry::stage_rows(&epoch, &rows, &codecs, &Payloads::Decoded(registered)).unwrap();
+        assert_eq!((staged.len(), passes()), (9, 1));
+    }
 }

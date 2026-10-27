@@ -274,12 +274,15 @@ impl<T: SidecarTemplate> Workflow<T> {
         if let Some(samples) = &signal.samples {
             let scope: dokime_domain::model::execution::RecordScope =
                 serde_json::from_str(&samples.scope_json).map_err(|error| Refusal::of(format!("invalid sample scope JSON: {error}")))?;
-            let rows = samples
+            let mut rows = samples
                 .samples
                 .iter()
                 .map(|encoded| serde_json::from_str(encoded))
                 .collect::<Result<Vec<crate::telemetry::TelemetrySample>, _>>()
                 .map_err(|error| Refusal::of(format!("invalid delivered sample JSON: {error}")))?;
+            for row in &mut rows {
+                row.scope = Some(delivery_scope(row.scope.take(), &scope));
+            }
             let gaps = samples
                 .gaps
                 .iter()
@@ -473,4 +476,41 @@ fn request_lease(
     });
 }
 
+// One Delivered Frame Serves Every Leaseholder, So Each Run Stamps Rows With The Scope Its Request
+// Names, Keeping The Producer's Own Scope Only For Rows That Execution Captured Itself.
+fn delivery_scope(
+    source: Option<dokime_domain::model::execution::RecordScope>, holder: &dokime_domain::model::execution::RecordScope,
+) -> dokime_domain::model::execution::RecordScope {
+    source
+        .filter(|source| source.test_execution_id.is_some() && source.test_execution_id == holder.test_execution_id)
+        .unwrap_or_else(|| holder.clone())
+}
+
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::delivery_scope;
+    use dokime_domain::model::execution::EvidenceOrigin;
+    use dokime_domain::model::execution::RecordScope;
+    use dokime_domain::model::identity::TestExecutionId;
+
+    #[test]
+    fn delivery_preserves_producer_origin_for_its_execution() {
+        let holder = RecordScope {
+            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
+            ..Default::default()
+        };
+        let source = RecordScope {
+            origin: EvidenceOrigin::Initialization,
+            ..holder.clone()
+        };
+        assert_eq!(delivery_scope(Some(source.clone()), &holder), source);
+        assert_eq!(delivery_scope(None, &holder), holder);
+        let other = RecordScope {
+            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
+            ..Default::default()
+        };
+        assert_eq!(delivery_scope(Some(source), &other), other);
+    }
+}

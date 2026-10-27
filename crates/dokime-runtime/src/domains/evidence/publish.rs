@@ -111,7 +111,7 @@ impl RuntimeHandle {
 
     pub async fn publish_telemetry_batch(&self, batch: TelemetryBatch) -> Result<harmos::storage::ReadBatch<PublishReceipt>, Error> {
         wait_for_telemetry_batch_cycles(self, &batch).await;
-        self.publish_telemetry_to_streams(batch, crate::model::time::now_utc()).await
+        self.publish_telemetry_to_streams(batch, crate::model::time::now_utc(), crate::domains::telemetry::Payloads::Unchecked).await
     }
 }
 

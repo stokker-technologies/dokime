@@ -142,7 +142,7 @@ impl Drop for PendingLeases {
 
 impl LeasedRows {
     pub(crate) fn attribute(
-        owner: harmos::storage::ReadBatch<Self>, state: &crate::state::RuntimeState, samples: &[(crate::telemetry::TelemetrySample, bool)],
+        owner: harmos::storage::ReadBatch<Self>, state: &crate::state::RuntimeState, samples: &[crate::telemetry::TelemetrySample],
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Self>> {
         owner.try_map(|mut delivery| {
             for holder in delivery.holders.values_mut().flatten() {
@@ -151,10 +151,8 @@ impl LeasedRows {
             for (stream, holders) in &mut delivery.holders {
                 let extra = samples
                     .iter()
-                    .filter(|(sample, original)| {
-                        *original
-                            && &sample.stream == stream
-                            && sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some())
+                    .filter(|sample| {
+                        &sample.stream == stream && sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some())
                     })
                     .count();
                 let needed = holders.len().checked_add(extra).ok_or_else(lease_memory_error)?;
@@ -162,10 +160,7 @@ impl LeasedRows {
                     holders.try_reserve_exact(needed - holders.len()).map_err(|_| lease_memory_error())?;
                 }
             }
-            for (sample, original) in samples {
-                if !original {
-                    continue;
-                }
+            for sample in samples {
                 let Some(scope) = &sample.scope else {
                     continue;
                 };
@@ -287,7 +282,9 @@ impl<'a> LeaseFactRef<'a> {
 impl StreamLeases {
     pub(crate) fn new() -> Self {
         let closed_windows = 4096;
-        Self { state: Mutex::new(LeaseState { closed_windows, ..LeaseState::default() }) }
+        Self {
+            state: Mutex::new(LeaseState { closed_windows, ..LeaseState::default() }),
+        }
     }
 
     fn take(&self, stream: &Identifier, owner: StreamOwner, requester: &str, interval: Duration, scope: RecordScope) -> (String, bool) {
@@ -381,7 +378,10 @@ impl StreamLeases {
             .ledger
             .iter()
             .filter(|window| window.closed_at.is_none() && instance.holders.contains(&window.lease_id))
-            .map(|window| Holder { scope: window.scope.clone(), requester: window.requester.clone() })
+            .map(|window| Holder {
+                scope: window.scope.clone(),
+                requester: window.requester.clone(),
+            })
             .collect()
     }
 
@@ -434,7 +434,10 @@ impl RuntimeHandle {
                 .ok_or_else(|| Error::Operation("lease execution is absent from its cycle".into()))?;
             self.execution_storage.acquire(&cycle, execution).await?;
         }
-        let mut pending = PendingLeases { table: self.stream_leases(), ids: Vec::with_capacity(streams.len()) };
+        let mut pending = PendingLeases {
+            table: self.stream_leases(),
+            ids: Vec::with_capacity(streams.len()),
+        };
         // Every hold on a host stream gets its own demand, because a stored
         // row carries one scope and each run reads its evidence back by its
         // own. They share one producer key, so the stream is still read once
@@ -498,17 +501,31 @@ impl RuntimeHandle {
             for stream in streams {
                 let windows = state.ledger.iter().filter(|window| matches(stream, window));
                 let mut rows = slots(windows.clone().count())?;
-                rows.extend(windows.map(|window| Holder { scope: window.scope.clone(), requester: window.requester.clone() }));
+                rows.extend(windows.map(|window| Holder {
+                    scope: window.scope.clone(),
+                    requester: window.requester.clone(),
+                }));
                 holders.insert(stream.clone(), rows);
             }
             Ok(LeasedRows { holders })
         })
     }
 
+    // Each Delivered Row Is Encoded Once, Lazily, With The Scope It Was Captured Under. Every Leaseholder
+    // Receives That Same Frame; The Receiving Run Stamps It With The Scope Its Request Names.
     pub(crate) async fn forward_leased_rows(
         &self, delivery: harmos::storage::ReadBatch<LeasedRows>, samples: &[super::streams::PreparedSample],
         identities: &[super::streams::admission::SampleIdentity<'_>],
     ) {
+        if delivery.holders.values().all(Vec::is_empty) {
+            return;
+        }
+        let mut frames = Vec::new();
+        if frames.try_reserve_exact(samples.len()).is_err() {
+            tracing::warn!(rows = samples.len(), "leased rows could not reserve their delivery frames");
+            return;
+        }
+        frames.resize(samples.len(), None::<String>);
         for (stream, holders) in &delivery.holders {
             for holder in holders {
                 if let Some(id) = holder.scope.test_execution_id.as_ref()
@@ -516,24 +533,27 @@ impl RuntimeHandle {
                 {
                     continue;
                 }
-                let count = samples
-                    .iter()
-                    .filter(|row| row.original && &row.sample.stream == stream && lease_delivers(&row.sample, holder, identities))
-                    .count();
+                let delivered = |row: &&super::streams::PreparedSample| {
+                    row.original() && &row.sample.stream == stream && lease_delivers(&row.sample, holder, identities)
+                };
+                let count = samples.iter().filter(delivered).count();
                 if count == 0 {
                     continue;
                 }
                 let request = (|| -> crate::runtime::Result<_> {
                     let mut encoded = super::streams::admission::slots(count)?;
-                    for row in samples
-                        .iter()
-                        .filter(|row| row.original && &row.sample.stream == stream && lease_delivers(&row.sample, holder, identities))
-                    {
-                        let mut sample = row.sample.clone();
-                        sample.scope = Some(delivery_scope(sample.scope.as_ref(), &holder.scope));
-                        encoded.push(lease_json(&sample)?);
+                    for (row, frame) in samples.iter().zip(frames.iter_mut()).filter(|(row, _)| delivered(row)) {
+                        let frame = lease_frame(frame, &*row.sample)?;
+                        let mut copy = String::new();
+                        copy.try_reserve_exact(frame.len()).map_err(|_| lease_memory_error())?;
+                        copy.push_str(frame);
+                        encoded.push(copy);
                     }
-                    Ok(DeliverSamplesRequest { samples: encoded, gaps: Vec::new(), scope_json: lease_json(&holder.scope)? })
+                    Ok(DeliverSamplesRequest {
+                        samples: encoded,
+                        gaps: Vec::new(),
+                        scope_json: lease_json(&holder.scope)?,
+                    })
                 })();
                 match request {
                     Ok(request) => self.deliver_to_leaseholder(holder, request).await,
@@ -600,7 +620,10 @@ impl RuntimeHandle {
         };
         if let Ok(encoded) = serde_json::to_string(&gap) {
             self.deliver_to_leaseholder(
-                &Holder { scope: scope.clone(), requester: requester.to_owned() },
+                &Holder {
+                    scope: scope.clone(),
+                    requester: requester.to_owned(),
+                },
                 DeliverSamplesRequest {
                     samples: Vec::new(),
                     gaps: vec![encoded],
@@ -728,36 +751,30 @@ fn lease_delivers(
 }
 
 #[derive(Default)]
-struct LeaseJsonCount(usize);
-impl std::io::Write for LeaseJsonCount {
+struct LeaseJson(Vec<u8>);
+impl std::io::Write for LeaseJson {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0 = self.0.checked_add(bytes.len()).ok_or_else(|| std::io::Error::other("lease JSON length overflows"))?;
+        self.0.try_reserve(bytes.len()).map_err(std::io::Error::other)?;
+        self.0.extend_from_slice(bytes);
         Ok(bytes.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
 }
-fn lease_json_len(value: &impl serde::Serialize) -> crate::runtime::Result<usize> {
-    let mut count = LeaseJsonCount::default();
-    serde_json::to_writer(&mut count, value).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
-    Ok(count.0)
+fn lease_frame<'a>(frame: &'a mut Option<String>, value: &impl serde::Serialize) -> crate::runtime::Result<&'a str> {
+    if frame.is_none() {
+        *frame = Some(lease_json(value)?);
+    }
+    Ok(frame.as_deref().expect("the delivered frame was encoded"))
 }
 fn lease_json(value: &impl serde::Serialize) -> crate::runtime::Result<String> {
-    let mut bytes = Vec::new();
-    bytes.try_reserve_exact(lease_json_len(value)?).map_err(|_| lease_memory_error())?;
+    let mut bytes = LeaseJson::default();
     serde_json::to_writer(&mut bytes, value).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
-    String::from_utf8(bytes).map_err(|error| crate::runtime::Error::Operation(error.to_string()))
+    String::from_utf8(bytes.0).map_err(|error| crate::runtime::Error::Operation(error.to_string()))
 }
 fn lease_memory_error() -> crate::runtime::Error {
     crate::runtime::Error::Operation("leased telemetry staging memory overflows".into())
-}
-
-fn delivery_scope(source: Option<&RecordScope>, holder: &RecordScope) -> RecordScope {
-    source
-        .filter(|source| source.test_execution_id.is_some() && source.test_execution_id == holder.test_execution_id)
-        .unwrap_or(holder)
-        .clone()
 }
 
 fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
@@ -771,18 +788,25 @@ fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::delivery_scope;
-    use dokime_domain::model::execution::EvidenceOrigin;
-    use dokime_domain::model::execution::RecordScope;
-    use dokime_domain::model::identity::TestExecutionId;
+    use super::lease_frame;
+    use std::cell::Cell;
+
+    struct Counted(Cell<usize>);
+
+    impl serde::Serialize for Counted {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            self.0.set(self.0.get() + 1);
+            serializer.serialize_str("shared row")
+        }
+    }
 
     #[test]
-    fn delivery_preserves_producer_origin_for_its_execution() {
-        let holder = RecordScope { test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()), ..Default::default() };
-        let source = RecordScope { origin: EvidenceOrigin::Initialization, ..holder.clone() };
-        assert_eq!(delivery_scope(Some(&source), &holder), source);
-        assert_eq!(delivery_scope(None, &holder), holder);
-        let other = RecordScope { test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()), ..Default::default() };
-        assert_eq!(delivery_scope(Some(&source), &other), other);
+    fn leaseholders_reuse_one_json_encoding() {
+        let sample = Counted(Cell::new(0));
+        let mut frame = None;
+        for _ in 0..64 {
+            assert_eq!(lease_frame(&mut frame, &sample).unwrap(), "\"shared row\"");
+        }
+        assert_eq!(sample.0.get(), 1);
     }
 }

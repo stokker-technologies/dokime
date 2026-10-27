@@ -214,7 +214,6 @@ pub(crate) fn spawn_publication_ingest(handle: RuntimeHandle) -> (PublicationIng
     let mut feed = streams.follow(harmos::storage::Cursor::ORIGIN);
     let (admitted, progress) = tokio::sync::watch::channel(harmos::storage::Cursor::ORIGIN);
     let task = tokio::spawn(async move {
-        let mut native = super::native_telemetry::Decoder::default();
         while let Some(batch) = feed.next().await {
             for definition in batch.incomplete() {
                 let Some(owner) = definition.owner() else {
@@ -244,7 +243,7 @@ pub(crate) fn spawn_publication_ingest(handle: RuntimeHandle) -> (PublicationIng
                     through = cursor;
                     rows.push((cursor, row.value));
                 }
-                native.ingest_batch(&handle, definition, &rows).await;
+                super::native_telemetry::ingest_batch(&handle, definition, &rows).await;
                 // A fixed flush frontier must not wait for later rows in this
                 // capture batch, particularly an unrelated continuous observer.
                 admitted.send_replace(through);

@@ -23,8 +23,10 @@ pub use capture::{Sampler, SamplerSession, SettlementError};
 pub use host::{HostTelemetryCollector, HostTelemetrySource};
 pub use leases::LeaseFact;
 pub(crate) use leases::StreamLeases;
+#[cfg(test)]
+pub(crate) use streams::admission::share_scopes;
 pub(crate) use streams::admission::slots as telemetry_slots;
-pub(crate) use streams::{PreparedSample, TelemetryCursors};
+pub(crate) use streams::{Payloads, PreparedSample, TelemetryCursors};
 pub use streams::{telemetry_stream_id, telemetry_stream_id_len};
 
 /* === Imports === */

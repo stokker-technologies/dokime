@@ -42,6 +42,7 @@ use crate::storage::Result;
 use crate::storage::records::ScopeRow;
 use crate::storage::values;
 use crate::telemetry::TelemetryContract;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::values::Value;
@@ -147,8 +148,11 @@ impl TypedCodec {
         &self.graph
     }
 
-    pub(crate) fn encode_staged(&self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample) -> Result<Vec<u8>> {
-        let metadata = self.metadata(epoch, ordinal, sample)?;
+    // Staged Rows Carry Payloads Their Admission Already Checked Or Decoded With This Codec.
+    pub(crate) fn encode_staged(
+        &self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample, scope: Option<&RecordScope>,
+    ) -> Result<Vec<u8>> {
+        let metadata = self.metadata(epoch, ordinal, sample, scope)?;
         let payload = sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
         let length = metadata.encoded_len().checked_add(payload.len()).ok_or(Error::Invalid("typed telemetry frame length overflows"))?;
         let bytes = encode_metadata(metadata, payload, length)?;
@@ -156,9 +160,10 @@ impl TypedCodec {
     }
 
     pub fn encode(&self, entry: &TelemetryEntry, maximum: usize) -> Result<Vec<u8>> {
-        let metadata = self.metadata(&entry.epoch, entry.ordinal, &entry.sample)?;
         let payload =
             entry.sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
+        self.check_payload(payload)?;
+        let metadata = self.metadata(&entry.epoch, entry.ordinal, &entry.sample, entry.sample.scope.as_ref())?;
         let length = metadata
             .encoded_len()
             .checked_add(payload.len())
@@ -167,16 +172,28 @@ impl TypedCodec {
         encode_metadata(metadata, payload, length)
     }
 
-    fn metadata(&self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample) -> Result<Metadata> {
+    // The One Payload Pass For A Row Whose Values Arrived Beside Its Bytes.
+    pub(crate) fn check_payload(&self, payload: &[u8]) -> Result<()> {
+        payload_pass();
+        let validation = self.validator.validate(payload);
+        validation.map_err(|_| Error::Invalid("typed telemetry row does not match its declared graph"))
+    }
+
+    // The One Payload Pass For A Row Whose Values Are Projected From Its Bytes.
+    pub(crate) fn decode_payload(&self, payload: &[u8]) -> Result<BTreeMap<String, Value>> {
+        let stream = self.schema.id.as_str().strip_prefix("dokime.telemetry.").ok_or(Error::Invalid("typed telemetry schema is unnamed"))?;
+        payload_pass();
+        decode_stream_values(stream, &self.validator, payload)
+    }
+
+    fn metadata(
+        &self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample, scope: Option<&RecordScope>,
+    ) -> Result<Metadata> {
         if sample.schema_version != self.schema.version.get()
             || self.schema.id.as_str().strip_prefix("dokime.telemetry.") != Some(sample.stream.as_str())
         {
             return Err(Error::Invalid("typed telemetry sample differs from registered stream schema"));
         }
-        let payload = sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
-        let validation = self.validator.validate(payload);
-        let invalid_row = Error::Invalid("typed telemetry row does not match its declared graph");
-        validation.map_err(|_| invalid_row)?;
         let epoch = sample::copy_text(epoch.as_str())?;
         let sample_id = sample::copy_text(sample.sample_id.as_str())?;
         let stream = sample::copy_text(sample.stream.as_str())?;
@@ -202,7 +219,7 @@ impl TypedCodec {
             received_at: sample::copy_text(sample.received_at.as_str())?,
             source: sample::copy_text(sample.source.as_str())?,
             signals: sample.values.iter().filter(|(_, value)| !matches!(value, Value::Null)).map(|(key, _)| key.clone()).collect(),
-            scope: sample.scope.as_ref().map(ScopeRow::from),
+            scope: scope.map(ScopeRow::from),
             summary: values::encode(&sample.summary)?,
             metadata: values::encode(&sample.metadata)?,
         };
@@ -485,6 +502,17 @@ pub(crate) fn index_metadata(bytes: &[u8]) -> Result<(Option<ScopeRow>, String, 
 }
 
 /* === Private Functions === */
+
+// Counts Admission Payload Passes On This Thread So Tests Can Prove Each Row Is Read Once.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static PAYLOAD_PASSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn payload_pass() {
+    #[cfg(test)]
+    PAYLOAD_PASSES.with(|passes| passes.set(passes.get() + 1));
+}
 
 fn append_definitions(target: &mut Vec<Vec<Field>>, graph: &Schema, offset: usize) -> Result<()> {
     for fields in &graph.definitions {

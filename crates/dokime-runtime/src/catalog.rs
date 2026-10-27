@@ -660,22 +660,13 @@ where
     Box::pin(async move {
         let publisher = host.publisher::<P>();
         let mut batch = publisher.batch::<T>();
-        // A row that cannot be encoded refuses itself and every row after it;
-        // the rows before it are still published, as a refusal at the host
-        // would leave them.
-        let mut refused = None;
+        // Each Row Travels As The Bytes Its Producer Encoded Once; The Host
+        // Validates Them Against The Stream Schema At Its Ingest Boundary.
         for row in rows {
             let bytes = row.storage_payload.as_ref().ok_or_else(|| "typed stream publication requires original row bytes".to_owned())?;
-            match <T::Row as harmos::Message>::decode(bytes) {
-                Ok(encoded) => batch.push_at(encoded, row.published_unix_micros),
-                Err(error) => {
-                    refused = Some(error.to_string());
-                    break;
-                }
-            }
+            batch.push_encoded_at(bytes.clone(), row.published_unix_micros);
         }
-        publisher.publish_batch_on_context::<T>(&batch, Some(token)).await.map_err(|error| error.to_string())?;
-        refused.map_or(Ok(()), Err)
+        publisher.publish_batch_on_context::<T>(&batch, Some(token)).await.map_err(|error| error.to_string())
     })
 }
 

@@ -231,13 +231,19 @@ impl super::executions::ExecutionStorage {
         Ok(())
     }
 
+    // The Saved Codec Native Ingest Projects Payloads With, So Their Admission Reads Them No Further.
+    pub(crate) fn registered_codec(&self, contract: &crate::telemetry::TelemetryContract) -> Result<Arc<telemetry::TypedCodec>> {
+        Ok(self.codecs.registered(contract)?)
+    }
+
     pub(crate) async fn prepare_telemetry(
         &self, samples: &[crate::domains::telemetry::PreparedSample], contracts: &[crate::telemetry::TelemetryContract],
+        payloads: &crate::domains::telemetry::Payloads,
     ) -> Result<TelemetryAdmission> {
         use crate::domains::telemetry::telemetry_slots as slots;
         let mut ids = std::collections::BTreeSet::new();
         for row in samples {
-            let Some(id) = row.sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()) else {
+            let Some(id) = row.scope().and_then(|scope| scope.test_execution_id.as_ref()) else {
                 continue;
             };
             if ids.contains(id) {
@@ -258,7 +264,7 @@ impl super::executions::ExecutionStorage {
             owners.push(acquisition);
         }
         for row in samples {
-            let Some(scope) = &row.sample.scope else {
+            let Some(scope) = row.scope() else {
                 continue;
             };
             let Some(id) = &scope.test_execution_id else {
@@ -282,12 +288,7 @@ impl super::executions::ExecutionStorage {
         for contract in contracts {
             codecs.push(self.codecs.registered(contract)?);
         }
-        let mut rows = slots(samples.len())?;
-        for (index, row) in samples.iter().enumerate() {
-            let codec = codecs.get(row.contract).ok_or_else(|| invalid("telemetry codec index is missing"))?;
-            let prepared = prepare_staged(&self.context_epoch, &row.sample, row.ordinal, codec)?;
-            rows.push((index, prepared));
-        }
+        let rows = stage_rows(&self.context_epoch, samples, &codecs, payloads)?;
         Ok(TelemetryAdmission { storage: self.storage.clone(), rows, _owners: owners })
     }
 }
@@ -759,12 +760,31 @@ fn query_path(field: &str) -> Result<harmos::storage::query::transform::FieldPat
 
 /* === Private Functions === */
 
+// Encodes Every Captured Row. Each Original Payload Is Read At Most Once, And Not At All When Its
+// Values Were Projected From It With The Registered Codec; Lease Rows Reuse Their Original's Pass.
+pub(crate) fn stage_rows(
+    epoch: &dokime_domain::model::identity::SessionId, samples: &[crate::domains::telemetry::PreparedSample],
+    codecs: &[Arc<telemetry::TypedCodec>], payloads: &crate::domains::telemetry::Payloads,
+) -> Result<Vec<(usize, PreparedTelemetry)>> {
+    let mut rows = crate::domains::telemetry::telemetry_slots(samples.len())?;
+    for (index, row) in samples.iter().enumerate() {
+        let codec = codecs.get(row.contract).ok_or_else(|| invalid("telemetry codec index is missing"))?;
+        let decoded = matches!(payloads, crate::domains::telemetry::Payloads::Decoded(decoder) if Arc::ptr_eq(decoder, codec));
+        if row.original() && !decoded {
+            let payload = row.sample.storage_payload.as_deref().ok_or_else(|| invalid("typed telemetry sample has no original row payload"))?;
+            codec.check_payload(payload)?;
+        }
+        rows.push((index, prepare_staged(epoch, &row.sample, row.scope(), row.ordinal, codec)?));
+    }
+    Ok(rows)
+}
+
 fn prepare_staged(
-    epoch: &dokime_domain::model::identity::SessionId, sample: &crate::telemetry::TelemetrySample, ordinal: u64,
-    codec: &telemetry::TypedCodec,
+    epoch: &dokime_domain::model::identity::SessionId, sample: &crate::telemetry::TelemetrySample,
+    scope: Option<&dokime_domain::model::execution::RecordScope>, ordinal: u64, codec: &telemetry::TypedCodec,
 ) -> Result<PreparedTelemetry> {
-    let payload = codec.encode_staged(epoch, ordinal, sample)?;
-    let scope = sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str());
+    let payload = codec.encode_staged(epoch, ordinal, sample, scope)?;
+    let scope = scope.and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str());
     let identifier = |value: &str| Identifier::new(value).map_err(crate::storage::Error::from);
     let at = sample.timestamp.to_datetime().map_err(|_| invalid("typed telemetry timestamp is invalid"))?;
     let seconds = u64::try_from(at.unix_timestamp()).map_err(|_| invalid("typed telemetry predates 1970"))?;
@@ -849,7 +869,7 @@ mod admission_tests {
                         "fixture.longrun",
                     )
                     .typed(&Reading { value: minute.to_string() });
-                    batch.push(prepare_staged(&epoch, &sample, minute, &codec).unwrap().into_input());
+                    batch.push(prepare_staged(&epoch, &sample, None, minute, &codec).unwrap().into_input());
                 }
                 storage.write_stream(batch).await.unwrap();
             }
@@ -977,7 +997,7 @@ mod admission_tests {
             .typed(&row);
             sample.scope =
                 Some(dokime_domain::model::execution::RecordScope { test_execution_id: Some(execution.clone()), ..Default::default() });
-            let row = prepare_staged(&epoch, &sample, index as u64, &codec).unwrap();
+            let row = prepare_staged(&epoch, &sample, sample.scope.as_ref(), index as u64, &codec).unwrap();
             rows.push((index, row));
         }
         let before = storage.cursor_accepted();
