@@ -65,7 +65,23 @@ pub(crate) async fn sealed_member(
     execution(ctx, &inspection, true, operation).await
 }
 
+// Evidence Materialization Is CPU-Bound Between Its Reads, So It Leaves The Async Workers To Watches And Ingest.
 pub(crate) async fn execution(
+    ctx: &Context<'_>, inspection: &ExecutionView, final_report: bool, operation: &Operation,
+) -> Result<ReadBatch<CapturedExecutionReportInput>> {
+    off_workers(materialize_execution(ctx, inspection, final_report, operation)).await
+}
+
+async fn off_workers<F: std::future::Future>(work: F) -> F::Output {
+    let multi_thread =
+        tokio::runtime::Handle::try_current().is_ok_and(|handle| handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
+    if !multi_thread {
+        return work.await;
+    }
+    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(work))
+}
+
+async fn materialize_execution(
     ctx: &Context<'_>, inspection: &ExecutionView, final_report: bool, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
     operation.phase("Materializing Evidence");
