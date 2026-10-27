@@ -60,6 +60,7 @@ pub(crate) struct Session {
     pub(super) step_leases: StepLeaseBridge,
     pages: tokio::sync::Mutex<Pages>,
     replayed: tokio::sync::Mutex<bool>,
+    record_delivery: tokio::sync::Mutex<()>,
     cancelling: CancellationToken,
     refusal: tokio::sync::Mutex<Option<ProviderExecutionFailure>>,
     changed: tokio::sync::watch::Sender<()>,
@@ -99,6 +100,7 @@ impl Session {
                 phase: opened.phase,
             }),
             replayed: tokio::sync::Mutex::new(false),
+            record_delivery: tokio::sync::Mutex::new(()),
             cancelling: CancellationToken::new(),
             refusal: tokio::sync::Mutex::new(None),
             changed: tokio::sync::watch::channel(()).0,
@@ -442,6 +444,18 @@ impl Session {
             close_record_subscriptions(context, execution).await?;
         }
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement subscriptions closed");
+        self.deliver_records().await?;
+        if close {
+            tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");
+            super::replay_sample_inputs(context, &self.target, execution).await?;
+        }
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement finished");
+        Ok(())
+    }
+    pub(crate) async fn deliver_records(&self) -> Result<(), ProviderExecutionFailure> {
+        let _delivery = self.record_delivery.lock().await;
+        let context = &self.context;
+        let execution = &self.execution;
         let through = context.runtime.state_manager.applied().0;
         context
             .runtime
@@ -450,7 +464,14 @@ impl Session {
             .await
             .map_err(|error| failure("sidecar_records", error.to_string()))?;
         let at = context.runtime.saved_through(through).await.map_err(|error| failure("sidecar_records", error.to_string()))?;
-        let mut after = 0;
+        let acknowledged = self
+            .target
+            .signal(ExecutionSignal {
+                execution_token: execution.test_execution_id.to_string(),
+                ..Default::default()
+            })
+            .await?;
+        let mut after = acknowledged.record_ordinal;
         loop {
             let rows = context
                 .runtime
@@ -462,31 +483,31 @@ impl Session {
                 break;
             }
             for row in rows {
-                after = row.position.sequence;
                 let record = crate::storage::records::RecordRow::decode_entry(&row.payload)
                     .map_err(|error| failure("sidecar_records", error.to_string()))?;
                 let Some(captured) = record.captured_scope(&execution.test_execution_id) else {
                     return Err(failure("sidecar_records", "capture index differs from immutable evidence"));
                 };
                 let record_json = serde_json::to_string(&record.record).map_err(|error| failure("sidecar_records", error.to_string()))?;
-                self.target
+                let acknowledged = self
+                    .target
                     .signal(ExecutionSignal {
                         execution_token: execution.test_execution_id.to_string(),
                         record: Some(crate::transport::DeliverRecordRequest {
+                            ordinal: record.ordinal,
                             record_json,
                             captured_scopes: vec![serde_json::to_string(captured).expect("captured scope serializes")],
                         }),
                         ..ExecutionSignal::default()
                     })
                     .await?;
+                if acknowledged.record_ordinal != record.ordinal {
+                    return Err(failure("sidecar_records", "record signal did not acknowledge its ordinal"));
+                }
+                after = record.ordinal;
             }
             tokio::task::yield_now().await;
         }
-        if close {
-            tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");
-            super::replay_sample_inputs(context, &self.target, execution).await?;
-        }
-        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement finished");
         Ok(())
     }
 }

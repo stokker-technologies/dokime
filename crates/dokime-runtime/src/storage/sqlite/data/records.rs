@@ -33,13 +33,14 @@ CREATE TABLE IF NOT EXISTS storage_record_captures (
     record_id TEXT NOT NULL, ordinal TEXT NOT NULL, scope TEXT NOT NULL,
     PRIMARY KEY(execution,position), UNIQUE(execution,record_id)
 ) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS storage_capture_ordinal ON storage_record_captures(execution,ordinal);
 CREATE INDEX IF NOT EXISTS storage_record_cycle ON storage_record_visibility(cycle,position);
 CREATE INDEX IF NOT EXISTS storage_record_execution ON storage_record_visibility(execution,position);
 ";
 
 const CAPTURE_PAGE_SQL: &str = "SELECT e.body,e.digest FROM storage_record_captures c
     JOIN storage_data_entries e ON e.position=c.position
-    WHERE c.execution=?1 AND c.position>?2 AND c.position<=?3 ORDER BY c.position LIMIT 512";
+    WHERE c.execution=?1 AND c.ordinal>?2 AND c.position<=?3 ORDER BY c.ordinal LIMIT 512";
 
 /* === Macros === */
 

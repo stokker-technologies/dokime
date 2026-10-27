@@ -71,7 +71,9 @@ fn road(resources: &Connections) -> Caller {
     let connections = Arc::clone(resources);
     Caller::local(BTreeMap::from([
         answering::<AskReadiness, _>(|_| Readiness { stopped: false }),
-        answering::<ListConnections, _>(move |_| ListedConnections { resources: connections.lock().unwrap().clone() }),
+        answering::<ListConnections, _>(move |_| ListedConnections {
+            resources: connections.lock().unwrap().clone(),
+        }),
     ]))
 }
 
@@ -254,6 +256,7 @@ fn connection(resource: &str) -> model::records::evidence::Record {
 fn deliver<T: SidecarTemplate>(workflow: &Workflow<T>, resources: &Connections, token: &str, resource: &str) {
     resources.lock().unwrap().push(resource.to_owned());
     workflow.deliver_captured(
+        1,
         &connection(resource),
         "fixture-gateway",
         &[dokime::RecordScope {
@@ -403,7 +406,14 @@ fn steady_request(token: &str) -> RunExecution {
 fn admit_steps<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, reply: &EvidenceBatch) {
     for encoded in &reply.step_begins {
         let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+        workflow.admit(
+            token,
+            &StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            },
+        );
     }
 }
 

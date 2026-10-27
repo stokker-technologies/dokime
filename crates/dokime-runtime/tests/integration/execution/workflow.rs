@@ -194,7 +194,10 @@ impl dokime_runtime::telemetry::TelemetryRow for PulseRow {
     }
 
     fn from_row(values: &BTreeMap<String, Value>) -> Result<Self, dokime_runtime::FieldError> {
-        Ok(Self { index: dokime_runtime::values::field(values, "index")?, value: dokime_runtime::values::field(values, "value")? })
+        Ok(Self {
+            index: dokime_runtime::values::field(values, "index")?,
+            value: dokime_runtime::values::field(values, "value")?,
+        })
     }
 }
 
@@ -256,7 +259,9 @@ impl dokime_runtime::records::DeclaredRecord for UnitConnected {
     }
 
     fn from_details(values: &std::collections::BTreeMap<String, Value>) -> Result<Self, dokime_runtime::FieldError> {
-        Ok(Self { serial: dokime_runtime::values::field(values, "serial")? })
+        Ok(Self {
+            serial: dokime_runtime::values::field(values, "serial")?,
+        })
     }
 }
 
@@ -390,7 +395,11 @@ impl SidecarTemplate for Probe {
                 resources.produced_changed.notify_waiters();
                 std::future::pending::<()>().await;
             }
-            ctx.publish(PulseRow { index: index as i64, value: index as f64 * 0.5 }).await;
+            ctx.publish(PulseRow {
+                index: index as i64,
+                value: index as f64 * 0.5,
+            })
+            .await;
             resources.produced.fetch_add(1, Ordering::AcqRel);
             resources.produced_changed.notify_waiters();
 
@@ -436,7 +445,9 @@ impl Probe {
             cleaning: AtomicBool::new(false),
             observer_wait: flag(ctx.raw_parameters(), "observer_wait"),
             sampling: AtomicBool::new(false),
-            _resource: ExecutionResource { track: flag(ctx.raw_parameters(), "observe_release") },
+            _resource: ExecutionResource {
+                track: flag(ctx.raw_parameters(), "observe_release"),
+            },
         })
     }
 
@@ -809,7 +820,14 @@ fn drain<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u64) -
     let reply = workflow.drain(token, cursor).expect("the execution remains drainable");
     for encoded in &reply.step_begins {
         let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+        workflow.admit(
+            token,
+            &StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            },
+        );
     }
     reply
 }
@@ -818,7 +836,14 @@ async fn next<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u
     let reply = workflow.next(token, cursor).await.expect("the execution remains retained");
     for encoded in &reply.step_begins {
         let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+        workflow.admit(
+            token,
+            &StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            },
+        );
     }
     reply
 }
@@ -955,7 +980,11 @@ async fn unacknowledged_invoke_callback() {
         } else {
             workflow.admit(
                 token,
-                &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: false, message: "host refused step".into() },
+                &StepAdmission {
+                    attempt_id: start.attempt_id.to_string(),
+                    accepted: false,
+                    message: "host refused step".into(),
+                },
             );
         }
         let replies = drain_from(&workflow, token, None, cursor).await;
@@ -1007,7 +1036,14 @@ async fn embedded_execution_output() {
         for encoded in &reply.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             rows.2.lock().unwrap().origin = dokime_runtime::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
-            workflow.admit("embedded", &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+            workflow.admit(
+                "embedded",
+                &StepAdmission {
+                    attempt_id: start.attempt_id.to_string(),
+                    accepted: true,
+                    message: String::new(),
+                },
+            );
         }
         if reply.record_subscriptions_settling {
             workflow.settle_records("embedded");
@@ -1041,9 +1077,11 @@ async fn embedded_execution_output() {
 #[tokio::test]
 async fn refused_publication_fails() {
     for refusal in [harmos::streams::StreamPublicationError::Backlog, harmos::streams::StreamPublicationError::Capacity] {
-        let cause =
-            harmos::Error::<std::convert::Infallible>::OperationFailed { operation: "host.publish".into(), source: Arc::new(refusal) }
-                .to_string();
+        let cause = harmos::Error::<std::convert::Infallible>::OperationFailed {
+            operation: "host.publish".into(),
+            source: Arc::new(refusal),
+        }
+        .to_string();
         let workflow = workflow();
         let output = SampleOutput::Embedded(Arc::new(RefusedPublication(cause.clone())));
         workflow.start_on(start_request("refused", serde_json::json!({"samples": 1})), Some(output), Caller::default()).unwrap();
@@ -1670,7 +1708,7 @@ async fn record_wait_publication() {
     // about the delivery names this execution: it carries the scopes the host
     // captured it for, and the engine is what decides that this run is in one.
     assert_eq!(
-        workflow.deliver_captured(&admitted("probe.unit.connected", "gateway", "SN-7"), SOURCE, &[captured(execution())],),
+        workflow.deliver_captured(1, &admitted("probe.unit.connected", "gateway", "SN-7"), SOURCE, &[captured(execution())],),
         1,
         "admission retains the record before the step begins listening"
     );
@@ -1714,22 +1752,22 @@ async fn capture_declared_scope() {
     // is kept for the run's criteria, but handing a step its own words back
     // would answer the question it asked somebody else.
     let mine = admitted("probe.unit.connected", SOURCE, "SN-mine");
-    assert_eq!(workflow.deliver_captured(&mine, SOURCE, &[captured(execution())]), 1);
+    assert_eq!(workflow.deliver_captured(1, &mine, SOURCE, &[captured(execution())]), 1);
     // A record the host captured for a different run is not this run's.
     let mut elsewhere = admitted("probe.unit.connected", "gateway", "SN-elsewhere");
     assert_eq!(
-        workflow.deliver_captured(&elsewhere, SOURCE, &[captured(dokime_runtime::TestExecutionId::from_seed("another-execution"))]),
+        workflow.deliver_captured(2, &elsewhere, SOURCE, &[captured(dokime_runtime::TestExecutionId::from_seed("another-execution"))]),
         0
     );
     // The capture overrides the scope the record was filed under.
     elsewhere.scope = Some(captured(dokime_runtime::TestExecutionId::from_seed("another-execution")));
-    assert_eq!(workflow.deliver_captured(&elsewhere, SOURCE, &[captured(execution())]), 1);
-    assert_eq!(workflow.deliver_captured(&elsewhere, SOURCE, &[captured(execution())]), 0, "redelivery is deduplicated");
+    assert_eq!(workflow.deliver_captured(2, &elsewhere, SOURCE, &[captured(execution())]), 1);
+    assert_eq!(workflow.deliver_captured(2, &elsewhere, SOURCE, &[captured(execution())]), 0, "redelivery is deduplicated");
     // A record the host filed against nothing in particular is still captured
     // for the run the host names.
     let mut everyones = admitted("probe.unit.connected", "gateway", "SN-global");
     everyones.scope = None;
-    assert_eq!(workflow.deliver_captured(&everyones, SOURCE, &[captured(execution())]), 1);
+    assert_eq!(workflow.deliver_captured(3, &everyones, SOURCE, &[captured(execution())]), 1);
 
     let replies = drain_until_terminal(&workflow, "filtered", None).await;
 
@@ -1764,7 +1802,7 @@ async fn settlement_record_progress() {
     tokio::time::pause();
     tokio::time::advance(Duration::from_secs(20)).await;
     let record = admitted("probe.unit.connected", "gateway", "SN-progress");
-    assert_eq!(workflow.deliver_captured(&record, SOURCE, &[captured(execution())]), 1);
+    assert_eq!(workflow.deliver_captured(1, &record, SOURCE, &[captured(execution())]), 1);
     tokio::time::advance(Duration::from_millis(10)).await;
     tokio::time::advance(Duration::from_secs(20)).await;
     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -1796,10 +1834,10 @@ async fn settlement_duplicate_idle() {
 
     tokio::time::pause();
     let record = admitted("probe.unit.connected", "gateway", "SN-duplicate");
-    assert_eq!(workflow.deliver_captured(&record, SOURCE, &[captured(execution())]), 1);
+    assert_eq!(workflow.deliver_captured(1, &record, SOURCE, &[captured(execution())]), 1);
     tokio::time::sleep(Duration::from_millis(10)).await;
     tokio::time::advance(Duration::from_secs(20)).await;
-    assert_eq!(workflow.deliver_captured(&record, SOURCE, &[captured(execution())]), 0);
+    assert_eq!(workflow.deliver_captured(1, &record, SOURCE, &[captured(execution())]), 0);
     tokio::time::advance(Duration::from_secs(20)).await;
     // Advancing Only Expires The Settlement Poll; Let It Observe The Deadline
     // Before Draining, Or The Drain's Own Settle Can Win The Race.
@@ -1817,13 +1855,21 @@ fn signal_refuses_deliveries() {
     let workflow = workflow();
     let record = workflow.signal(ExecutionSignal {
         execution_token: "unknown".into(),
-        record: Some(DeliverRecordRequest { record_json: "{".into(), captured_scopes: Vec::new() }),
+        record: Some(DeliverRecordRequest {
+            ordinal: 1,
+            record_json: "{".into(),
+            captured_scopes: Vec::new(),
+        }),
         ..ExecutionSignal::default()
     });
     assert!(record.is_err_and(|refusal| refusal.to_string().contains("delivered record JSON")));
     let samples = workflow.signal(ExecutionSignal {
         execution_token: "unknown".into(),
-        samples: Some(DeliverSamplesRequest { samples: Vec::new(), gaps: Vec::new(), scope_json: "not a scope".into() }),
+        samples: Some(DeliverSamplesRequest {
+            samples: Vec::new(),
+            gaps: Vec::new(),
+            scope_json: "not a scope".into(),
+        }),
         ..ExecutionSignal::default()
     });
     assert!(samples.is_err_and(|refusal| refusal.to_string().contains("sample scope JSON")));

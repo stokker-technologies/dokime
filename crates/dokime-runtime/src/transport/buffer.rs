@@ -88,6 +88,8 @@ pub(crate) struct ExecutionState {
     delivered: VecDeque<dokime_domain::model::records::evidence::Record>,
     subscriptions: Vec<dokime_domain::model::identity::Identifier>,
     captured_records: crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::Record>,
+    pub(crate) record_ordinal: u64,
+    recent_records: VecDeque<RecentRecord>,
     subscriptions_settling: bool,
     subscriptions_settled: bool,
     dropped: usize,
@@ -126,6 +128,12 @@ struct PromptExchange {
 struct SampleStream {
     high_water: Option<u64>,
     recent: VecDeque<RecentSample>,
+}
+
+struct RecentRecord {
+    ordinal: u64,
+    identity: String,
+    row: crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::Record>,
 }
 
 struct RecentSample {
@@ -227,6 +235,8 @@ impl ExecutionState {
             delivered: VecDeque::new(),
             subscriptions: Vec::new(),
             captured_records: Default::default(),
+            record_ordinal: 0,
+            recent_records: VecDeque::new(),
             subscriptions_settling: false,
             subscriptions_settled: false,
             dropped: 0,
@@ -381,7 +391,7 @@ impl ExecutionState {
     }
 
     pub(crate) fn deliver_captured(
-        &mut self, record: &dokime_domain::model::records::evidence::Record, owner: &str,
+        &mut self, ordinal: u64, record: &dokime_domain::model::records::evidence::Record, owner: &str,
         capture: Option<&dokime_domain::model::execution::RecordScope>,
     ) -> bool {
         let own = record.source == owner
@@ -401,31 +411,45 @@ impl ExecutionState {
         if let Some(scope) = capture {
             record.scope = Some(scope.clone());
         }
-        match self.captured_records.get(record.record_id.as_str()) {
-            Ok(Some(previous)) if previous == record => return false,
-            Ok(None) => {}
-            previous => {
-                let message = match previous {
-                    Err(error) => format!("captured record index is unreadable: {error}"),
-                    _ => "captured record identity was reused with different contents".to_owned(),
+        let admitted = (|| -> Result<bool, String> {
+            if let Some(recent) = self.recent_records.iter().find(|recent| recent.ordinal == ordinal) {
+                let previous = recent.row.iter().next().ok_or("captured record receipt is empty")?;
+                return if previous == record {
+                    Ok(false)
+                } else {
+                    Err("captured record ordinal was reused with different contents".into())
                 };
+            }
+            if ordinal <= self.record_ordinal {
+                return Err("captured record ordinal is out of order".into());
+            }
+            for recent in &self.recent_records {
+                if recent.identity == record.record_id.as_str() {
+                    return Err("captured record identity was reused".into());
+                }
+            }
+            let mut recent = crate::execution::evidence_rows::EvidenceRows::default();
+            recent.append(&record)?;
+            self.captured_records.append(&record)?;
+            if self.recent_records.len() == RECENT_STREAM_SAMPLES {
+                self.recent_records.pop_front();
+            }
+            self.recent_records.push_back(RecentRecord {
+                ordinal,
+                identity: record.record_id.to_string(),
+                row: recent,
+            });
+            self.record_ordinal = ordinal;
+            Ok(true)
+        })();
+        match admitted {
+            Ok(true) => {}
+            Ok(false) => return false,
+            Err(message) => {
                 self.cancel();
                 self.push(BufferedFrame::terminal(SidecarExecutionOutcome {
                     passed: false,
                     message: Some(message),
-                    ..Default::default()
-                }));
-                return false;
-            }
-        }
-        match self.captured_records.push(record.record_id.as_str(), &record) {
-            Ok(true) => {}
-            Ok(false) => return false,
-            Err(error) => {
-                self.cancel();
-                self.push(BufferedFrame::terminal(SidecarExecutionOutcome {
-                    passed: false,
-                    message: Some(format!("captured record persistence failed: {error}")),
                     ..Default::default()
                 }));
                 return false;
@@ -760,7 +784,8 @@ impl ExecutionState {
             admitted.push((record, scope));
         }
         for (record, scope) in admitted {
-            self.deliver_captured(&record, source, scope.as_ref());
+            let ordinal = self.record_ordinal.checked_add(1).ok_or_else(|| Refusal::of("local record ordinal overflows"))?;
+            self.deliver_captured(ordinal, &record, source, scope.as_ref());
         }
         self.local_admitted = self.local_admitted.max(through);
         Ok(())
@@ -1265,6 +1290,37 @@ mod tests {
         assert_eq!(state.settlement_progress(), 4);
         assert!(!state.receive(late).unwrap());
         assert_eq!(state.settlement_progress(), 4);
+    }
+
+    #[test]
+    fn seven_day_records_keep_bounded_receipts_and_exact_evidence() {
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let mut state = super::ExecutionState::new(Default::default(), cancel);
+        let scope = RecordScope::default();
+        let record = |ordinal| {
+            dokime_domain::model::records::evidence::Record::new(
+                dokime_domain::model::identity::RecordId::from_seed(format!("record:{ordinal}")),
+                Timestamp::new("2000-01-01T00:00:00Z"),
+                Identifier::new("reading").unwrap(),
+                1,
+                "fixture",
+                dokime_domain::model::records::RecordSeverity::Info,
+            )
+        };
+        for ordinal in 1..=7 * 1440_u64 {
+            let row = record(ordinal);
+            assert!(state.deliver_captured(ordinal, &row, "host", Some(&scope)));
+            assert!(!state.deliver_captured(ordinal, &row, "host", Some(&scope)));
+            assert_eq!(state.record_ordinal, ordinal);
+            assert!(state.recent_records.len() <= super::RECENT_STREAM_SAMPLES);
+        }
+        assert_eq!(state.captured_records.len(), 7 * 1440);
+        assert_eq!(state.captured_records.retained_rows(), 0);
+        assert_eq!(state.captured_records.iter().count(), 7 * 1440);
+        let captured = state.captured_records.clone();
+        assert!(!state.deliver_captured(1, &record(1), "host", Some(&scope)));
+        assert!(state.cancelled());
+        assert_eq!(captured.len(), 7 * 1440);
     }
 
     #[test]

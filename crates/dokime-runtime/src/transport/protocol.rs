@@ -316,6 +316,7 @@ pub struct SignalReply {
     pub command: Option<CommandExecutionReply>,
 
     pub samples: Vec<SampleReceipt>,
+    pub record_ordinal: u64,
 }
 
 #[harmos::message]
@@ -328,6 +329,7 @@ pub struct SampleReceipt {
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct DeliverRecordRequest {
+    pub ordinal: u64,
     #[row(description = "JSON-encoded [`Record`](dokime_domain::model::records::evidence::Record), as the host filed it.")]
     pub record_json: String,
 

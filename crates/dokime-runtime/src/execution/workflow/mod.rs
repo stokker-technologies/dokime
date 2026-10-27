@@ -172,7 +172,11 @@ impl<T: SidecarTemplate> Workflow<T> {
         }
         let parameters = resolved(&request.parameters_json)?;
         let secrets = serde_json::from_str(&request.secrets_json).map_err(|_| Refusal::of("invalid execution secret bindings"))?;
-        let bindings = crate::plugin::Configuration { secrets, settings: BTreeMap::new(), saved: Default::default() };
+        let bindings = crate::plugin::Configuration {
+            secrets,
+            settings: BTreeMap::new(),
+            saved: Default::default(),
+        };
         let mut runs = self.runs.lock().unwrap_or_else(PoisonError::into_inner);
         runs.retain(|run| !run.is_finished());
 
@@ -284,7 +288,7 @@ impl<T: SidecarTemplate> Workflow<T> {
     }
 
     pub fn deliver_captured(
-        &self, record: &dokime_domain::model::records::evidence::Record, owner: &str,
+        &self, ordinal: u64, record: &dokime_domain::model::records::evidence::Record, owner: &str,
         scopes: &[dokime_domain::model::execution::RecordScope],
     ) -> usize {
         let mut taken = 0;
@@ -292,7 +296,7 @@ impl<T: SidecarTemplate> Workflow<T> {
             if let Some(scope) = scopes
                 .iter()
                 .find(|scope| scope.test_execution_id.as_ref().is_some_and(|id| id.as_str() == state.request.test_execution_id))
-                && state.deliver_captured(record, owner, Some(scope))
+                && state.deliver_captured(ordinal, record, owner, Some(scope))
             {
                 taken += 1;
             }

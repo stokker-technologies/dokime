@@ -277,7 +277,7 @@ impl<T: SidecarTemplate> Workflow<T> {
                         .map_err(|error| Refusal::of(error.to_string()))?,
                 );
             }
-            self.deliver_captured(&record, &self.source, &scopes);
+            self.deliver_captured(delivery.ordinal, &record, &self.source, &scopes);
         }
         if let Some(samples) = &signal.samples {
             let scope: dokime_domain::model::execution::RecordScope =
@@ -304,7 +304,8 @@ impl<T: SidecarTemplate> Workflow<T> {
             None => None,
         };
         let samples = crate::transport::buffer::lock(&self.executions).get(token).map(|state| state.sample_receipts()).unwrap_or_default();
-        Ok(SignalReply { command, samples })
+        let record_ordinal = crate::transport::buffer::lock(&self.executions).get(token).map_or(0, |state| state.record_ordinal);
+        Ok(SignalReply { command, samples, record_ordinal })
     }
 
     fn answered(&self, token: &str, answered: Answered) {

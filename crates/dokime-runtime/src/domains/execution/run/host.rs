@@ -72,6 +72,14 @@ impl Sessions {
         }
     }
 
+    pub(crate) async fn deliver_records(&self, execution: &str) -> bool {
+        let Some(session) = self.get(execution) else { return false };
+        if let Err(error) = session.deliver_records().await {
+            session.refuse(error).await;
+        }
+        true
+    }
+
     fn get(&self, execution: &str) -> Option<Arc<Session>> {
         self.lock().get(execution).cloned()
     }

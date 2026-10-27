@@ -228,7 +228,10 @@ impl Harness {
     ) -> Self {
         self.answers.insert(
             prompt_type.into(),
-            Answer { action: action.into(), values: values.into_iter().map(|(name, value)| (name.into(), value.into())).collect() },
+            Answer {
+                action: action.into(),
+                values: values.into_iter().map(|(name, value)| (name.into(), value.into())).collect(),
+            },
         );
         self
     }
@@ -415,7 +418,10 @@ impl Harness {
 impl Host {
     fn lease(&self, ask: &LeaseAsk) -> LeaseResolution {
         let Ok(request) = serde_json::from_str::<crate::telemetry::LeaseRequest>(&ask.lease_json) else {
-            return LeaseResolution { granted: false, message: "the lease request could not be read".into() };
+            return LeaseResolution {
+                granted: false,
+                message: "the lease request could not be read".into(),
+            };
         };
         let granted = self.measured.contains(request.stream.as_str());
         LeaseResolution {
@@ -438,7 +444,11 @@ impl ExecutionHost for Host {
             .step_begins
             .iter()
             .filter_map(|encoded| serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok())
-            .map(|start| StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() })
+            .map(|start| StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            })
             .collect();
         let settled = batch.record_subscriptions_settling;
         self.pages.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take(batch);
@@ -446,9 +456,10 @@ impl ExecutionHost for Host {
     }
 
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        let answered = serde_json::from_str::<PromptRequest>(&question.prompt_json).map_err(|error| error.to_string()).map(|request| {
-            OperatorAnswer { response_json: serde_json::to_string(&self.respond(&request)).expect("an operator answer serializes") }
-        });
+        let answered =
+            serde_json::from_str::<PromptRequest>(&question.prompt_json).map_err(|error| error.to_string()).map(|request| OperatorAnswer {
+                response_json: serde_json::to_string(&self.respond(&request)).expect("an operator answer serializes"),
+            });
         Box::pin(std::future::ready(answered))
     }
 
@@ -490,7 +501,12 @@ impl Pages {
                 self.transfers.push(Transfer {
                     transfer_id: chunk.transfer_id.clone(),
                     next: 0,
-                    artifact: Artifact { name: chunk.name.clone(), media_type: chunk.mime.clone(), bytes: Vec::new(), abandoned: false },
+                    artifact: Artifact {
+                        name: chunk.name.clone(),
+                        media_type: chunk.mime.clone(),
+                        bytes: Vec::new(),
+                        abandoned: false,
+                    },
                 });
                 self.transfers.last_mut().expect("the transfer was pushed")
             }
@@ -799,10 +815,11 @@ fn deliveries(
             ..ExecutionSignal::default()
         });
     }
-    for delivered in published {
+    for (index, delivered) in published.iter().enumerate() {
         signals.push(ExecutionSignal {
             execution_token: execution_id.to_owned(),
             record: Some(DeliverRecordRequest {
+                ordinal: index as u64 + 1,
                 record_json: serde_json::to_string(delivered).expect("a host-filed record serializes"),
                 captured_scopes: vec![serde_json::to_string(scope).expect("capture scope serializes")],
             }),

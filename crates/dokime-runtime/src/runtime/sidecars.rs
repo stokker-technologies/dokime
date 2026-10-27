@@ -385,10 +385,17 @@ async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records:
         }
     };
     for (template, execution, scope) in captured {
+        if handle.execution_sessions.deliver_records(&execution).await {
+            continue;
+        }
         let target = crate::domains::execution::run::Target::of(handle.operations.clone(), &template);
         let signal = ExecutionSignal {
             execution_token: execution,
-            record: Some(DeliverRecordRequest { record_json: record_json.clone(), captured_scopes: vec![scope] }),
+            record: Some(DeliverRecordRequest {
+                ordinal: record.ordinal,
+                record_json: record_json.clone(),
+                captured_scopes: vec![scope],
+            }),
             ..ExecutionSignal::default()
         };
         if let Err(error) = target.signal(signal).await {
