@@ -76,7 +76,7 @@ pub(in crate::report) async fn materialize(
             .reduced
             .get_or_try_init(|| async {
                 let context = payload_context(source, execution, &canonical, source.report_defaults.plot_points as usize);
-                crate::plot::spilled::project(input, &canonical, source.captured_at.as_str(), &context)
+                saved(input, &canonical, source.captured_at.as_str(), &context)
             })
             .await?
             .clone()
@@ -100,7 +100,7 @@ pub(in crate::report) async fn materialize(
         } else {
             None
         };
-        let payload = crate::plot::spilled::project(input, &request, source.captured_at.as_str(), &context)?;
+        let payload = saved(input, &request, source.captured_at.as_str(), &context)?;
         if let Some(samples) = samples {
             let contract = source
                 .telemetry_contracts
@@ -142,6 +142,17 @@ pub(in crate::report) fn read_plan(
 }
 
 /* === Private Functions === */
+
+fn saved(
+    input: &crate::plot::spilled::Input, request: &PlotPayloadRequest, generated_at: &str, context: &PlotPayloadContext,
+) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
+    let mut complete = request.clone();
+    complete.max_points = Some(0);
+    crate::plot::spilled::project(input, &complete, generated_at, context)?.try_map(|mut payload| {
+        payload.max_points = request.max_points.unwrap_or(context.default_max_points);
+        Ok(payload)
+    })
+}
 
 fn payload_context<'a>(
     source: &'a CapturedSource, execution: &'a TestExecution, request: &'a PlotPayloadRequest, default_max_points: usize,
@@ -216,10 +227,10 @@ fn full_retained(
     for record in records.iter() {
         input.append_record(record)?;
     }
-    crate::plot::spilled::project(&input, request, generated_at, context)
+    saved(&input, request, generated_at, context)
 }
 
-// Raw Evidence Stays In Storage; Materialized Views Apply Their Display Bound.
+// Saved Series Preserve Zoomable Evidence; The Viewer Applies The Display Bound.
 #[cfg(test)]
 fn full(
     samples: &[crate::telemetry::TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest,
@@ -239,7 +250,7 @@ mod tests {
     use dokime_domain::model::time::Timestamp;
 
     #[tokio::test]
-    async fn captured_series_reduces_original_spike_with_bounded_output() {
+    async fn captured_series_preserves_original_points_for_zoom() {
         let count = 100_000 + 101;
         let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
         let stream = Identifier::new("fixture.capture").unwrap();
@@ -276,9 +287,9 @@ mod tests {
             },
         );
         let series = &payload.series[0];
-        assert!(series.points.len() <= 32);
+        assert_eq!(series.points.len(), count);
         assert_eq!(series.raw_points, count);
-        assert!(series.downsampled);
+        assert!(!series.downsampled);
         assert!(series.points.iter().any(|point| point.y == Some(1_000_000.0)));
         assert_eq!(payload.max_points, 32);
     }
