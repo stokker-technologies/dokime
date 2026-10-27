@@ -14,6 +14,7 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -113,7 +114,11 @@ def launch(
         for command, selected in commands
     ]
     plan = json.dumps({"cwd": str(cwd), "commands": prepared}, separators=(",", ":"))
-    os.execve(executable, [str(executable), "__desktop-development", "--plan", plan], environment)
+    arguments = [str(executable), "__desktop-development", "--plan", plan]
+    if os.name == "nt":
+        # The Windows C Runtime Rejoins Replaced Arguments Without Quoting, So Supervise Through A Child Instead.
+        sys.exit(subprocess.call(arguments, env=environment))
+    os.execve(executable, arguments, environment)
 
 
 def main() -> int:

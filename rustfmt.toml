@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/tools/rustfmt.toml; sha256:6f6894278dfef8dea47e039e7202117a541117cc9f844ed7535bc4d6a9fd7c24
+# Rendered by stkr project update from templates/tools/rustfmt.toml; sha256:62a61be289564ff61eb7c2847eee6712deae7a94c918247e09f4755c88d46906
 # ***
 #
 # Dokime
@@ -15,3 +15,6 @@
 max_width = 140
 fn_params_layout = "Compressed"
 use_small_heuristics = "Max"
+# Struct literals wider than 40 characters break one field per line, so a literal reads as a record even under the
+# maximum small heuristics.
+struct_lit_width = 40
