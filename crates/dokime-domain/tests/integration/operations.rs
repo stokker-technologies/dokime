@@ -22,7 +22,7 @@ use std::time::Duration;
 use harmos_domain::operations::OperationDeclaration;
 
 // Local Imports
-use dokime_domain::operations::plugins::{Consent, Remove, Stage};
+use dokime_domain::operations::plugins::{Install, Remove};
 
 /* === Constants === */
 
@@ -45,12 +45,11 @@ use dokime_domain::operations::plugins::{Consent, Remove, Stage};
 /* === Tests === */
 
 // A slow machine may take minutes to install and reload a debug plugin, so the
-// host never cuts staging short; consent stays an ordinary request and removal,
+// host bounds installation as one transfer and removal,
 // which deletes the bundle's files, has the heavy-mutation deadline.
 #[test]
 fn slow_installs_complete() {
-    assert!(Stage::POLICY.timeout >= Duration::from_secs(3_600));
-    assert!(Stage::POLICY.attempt_timeout >= Duration::from_secs(3_600));
-    assert_eq!(Consent::POLICY.timeout, Duration::from_secs(10));
+    assert!(Install::POLICY.timeout >= Duration::from_secs(3_600));
+    assert!(Install::POLICY.attempt_timeout >= Duration::from_secs(3_600));
     assert_eq!(Remove::POLICY.timeout, Duration::from_secs(120));
 }

@@ -69,6 +69,10 @@ impl Source for Directory {
 }
 
 impl Bundled {
+    pub fn files() -> &'static [(&'static str, &'static [u8])] {
+        FILES
+    }
+
     pub fn manifest() -> &'static str {
         std::str::from_utf8(Self::file("organization.toml").expect("the bundle has a manifest")).expect("organization.toml is UTF-8")
     }

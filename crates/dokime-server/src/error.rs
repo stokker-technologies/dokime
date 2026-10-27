@@ -57,6 +57,9 @@ pub enum Error {
     #[error("runtime operation failed: {0}")]
     Operation(#[from] dokime::harmos::Error),
 
+    #[error("gRPC listener detach remains incomplete: {0}")]
+    ListenerDetach(#[source] std::sync::Arc<dokime::harmos::Error>),
+
     #[error("invalid declared operation contract: {0}")]
     Contract(#[from] dokime::harmos::operations::ContractError),
 

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-windows.yml; sha256:9605682b79dfa64116c69480672bf821563b346ae8bd7867c877c484b0b0f7ae
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-windows.yml; sha256:d8895f264a0e6f98ceb1c2e29727363ef4cb5c4cbd628ae06eb858f4bdf9cfb7
 name: Package / Windows
 "on":
   workflow_call:
@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_rust_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
       MISE_TASK_SKIP: build
     steps:
     - name: Configure Checkout Git
@@ -391,7 +391,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_signing_windows_rust_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,minisign
+        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
       MISE_TASK_SKIP: build
     steps:
     - name: Configure Checkout Git

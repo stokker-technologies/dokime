@@ -48,7 +48,7 @@ def package(root: Path, profile: str) -> None:
         shutil.copy2(source, scratch / source.name)
         paths.replace(root, scratch, destination, origin=scratch)
     subprocess.run(
-        ["cargo", "dokime", "inspect", str(destination / source.name)],
+        ["cargo", "dokime", "sidecar", "inspect", str(destination / source.name)],
         cwd=root,
         check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

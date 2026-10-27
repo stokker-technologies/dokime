@@ -26,8 +26,6 @@ use dokime::plugins::{PluginEntry, PluginLastBoot, PluginState};
 
 /* === Constants === */
 
-const SERVER_VALUE_DEPTH: u64 = 32;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -53,15 +51,6 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
         }),
         owners: metadata.owners,
         size_bytes: metadata.size_bytes,
-        environment_references: metadata
-            .environment_references
-            .into_iter()
-            .map(|reference| plugins_model::PluginEnvironmentReference {
-                owner: reference.owner,
-                setting: reference.setting,
-                variable: reference.variable,
-            })
-            .collect(),
     });
     let last_boot = installation
         .last_boot
@@ -76,10 +65,8 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
     let result = plugins_model::PluginInstallation {
         install_id: installation.install_id.to_string(),
         sha256: installation.sha256,
-        staged_at: Some(canonical::timestamp(&installation.staged_at)?),
-        consented_at: installation.consented_at.as_ref().map(canonical::timestamp).transpose()?,
+        installed_at: Some(canonical::timestamp(&installation.installed_at)?),
         state: match installation.state {
-            PluginState::Staged => plugins_model::PluginInstallationState::Staged,
             PluginState::Installed => plugins_model::PluginInstallationState::Installed,
             PluginState::Disabled => plugins_model::PluginInstallationState::Disabled,
             PluginState::RemovalPending => plugins_model::PluginInstallationState::RemovalPending,
@@ -97,21 +84,21 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
     Ok(result)
 }
 
-pub(super) fn disclosure(entry: &PluginEntry, limit: usize) -> Result<(), Status> {
+fn metadata_budget(entry: &PluginEntry, limit: usize) -> Result<(), Status> {
     if entry.metadata.is_none() {
-        return Err(Status::failed_precondition("verified permission metadata is unavailable; consent refused"));
+        return Err(Status::failed_precondition("verified plugin metadata is unavailable"));
     }
-    dokime::document::bounded::document_size(entry, limit, SERVER_VALUE_DEPTH as usize)
-        .map_err(|_| Status::resource_exhausted("complete permission metadata exceeds response budget; consent refused"))?;
+    dokime::document::bounded::document_size(entry, limit, 32)
+        .map_err(|_| Status::resource_exhausted("plugin metadata exceeds response budget"))?;
     Ok(())
 }
 
 pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Status> {
-    if entry.metadata.is_some() && disclosure(entry, limit).is_err() {
+    if entry.metadata.is_some() && metadata_budget(entry, limit).is_err() {
         entry.metadata = None;
-        entry.error = Some("Verified permission metadata exceeds response budget; consent is unavailable. Installation identity and state remain accessible.".into());
+        entry.error = Some("Plugin metadata exceeds response budget. Installation identity and state remain accessible.".into());
     }
-    dokime::document::bounded::document_size(&entry, limit, SERVER_VALUE_DEPTH as usize)
+    dokime::document::bounded::document_size(&entry, limit, 32)
         .map_err(|_| Status::resource_exhausted("plugin installation state exceeds response budget"))?;
     Ok(())
 }

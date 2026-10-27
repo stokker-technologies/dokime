@@ -99,7 +99,11 @@ function LiveMenus() {
           <MenubarSeparator />
           <MenubarItem onSelect={() => void navigate({ to: "/settings" })}>Settings…</MenubarItem>
           {session || desktop ? <MenubarSeparator /> : null}
-          {session ? <MenubarItem onSelect={() => void controller.disconnect()}>Sign Out</MenubarItem> : null}
+          {session ? (
+            <MenubarItem onSelect={() => void controller.disconnect()}>
+              {session.snapshot.ownership === "owned_local" ? "Stop Local Backend" : "Disconnect"}
+            </MenubarItem>
+          ) : null}
           {desktop ? <MenubarItem onSelect={() => void closeDesktopWindow()}>Quit</MenubarItem> : null}
         </MenubarContent>
       </MenubarMenu>

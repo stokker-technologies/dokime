@@ -41,8 +41,6 @@ fn main() {
     // The Shell Names The Product From The Generated Brand, Like The Web UI
     let label = brand_text("default-organization.json", "label");
     println!("cargo:rustc-env=DOKIME_BRAND_LABEL={label}");
-    let bundle = brand_text("tauri.organization.json", "productName");
-    println!("cargo:rustc-env=DOKIME_BUNDLE_NAME={bundle}");
 
     let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR for build scripts"));
     let contracts = dokime::harmos::operations::Contracts::of::<dokime::domain::operations::Operations>()
@@ -65,7 +63,7 @@ fn main() {
 }
 
 fn brand_text(file: &str, field: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../organization/generated").join(file);
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/generated/organization").join(file);
     println!("cargo:rerun-if-changed={}", path.display());
     let bytes = std::fs::read(&path).expect("generated brand file");
     let manifest: serde_json::Value = serde_json::from_slice(&bytes).expect("generated brand JSON");

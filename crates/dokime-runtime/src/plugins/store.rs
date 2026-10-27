@@ -23,7 +23,6 @@ use std::{
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
-    time::{Duration, SystemTime},
 };
 
 // Third Party Imports
@@ -34,7 +33,6 @@ use uuid::Uuid;
 use super::model::{Installation, PluginSettings};
 use super::{PluginEntry, PluginLastBoot, PluginMetadata, PluginState};
 use crate::config::Settings;
-use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -61,6 +59,9 @@ pub enum PluginError {
     #[error("plugin query budget exceeded")]
     Limit,
 
+    #[error("plugin installation result exceeds the caller budget")]
+    ResultLimit,
+
     #[error("plugin listing cursor changed or is invalid")]
     Cursor,
 
@@ -69,9 +70,6 @@ pub enum PluginError {
 
     #[error("plugin install `{0}` was not found")]
     Unknown(Uuid),
-
-    #[error("plugin install `{0}` is not staged")]
-    NotStaged(Uuid),
 
     #[error("plugin install `{0}` is not installed")]
     NotInstalled(Uuid),
@@ -134,12 +132,23 @@ impl PluginStore {
             .collect())
     }
 
-    pub async fn stage(&self, bytes: &[u8]) -> Result<PluginEntry, PluginError> {
+    pub async fn install(
+        &self, bytes: &[u8], configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
+    ) -> Result<PluginEntry, PluginError> {
+        self.install_checked(bytes, configured, host_sources, |_| Ok(())).await
+    }
+
+    /// Validates the caller's result representation before publishing installed state.
+    /// The validator performs synchronous admission checks without mutating storage.
+    pub async fn install_checked(
+        &self, bytes: &[u8], configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
+        validate: impl FnOnce(&PluginEntry) -> Result<(), PluginError> + Send + 'static,
+    ) -> Result<PluginEntry, PluginError> {
         let (_, metadata) = super::inspect_with_archive_limit(bytes, &self.schema, self.archive_bytes)?;
         let install_id = Uuid::now_v7();
         let sha256 = digest(bytes);
 
-        // Publish The Verified Bundle File
+        // Prepare The Verified Bundle
         harmos::filesystem::publication::create_dir_all(&self.root).map_err(std::io::Error::from)?;
         let mut temporary = tempfile::NamedTempFile::new_in(&self.root)?;
         temporary.write_all(bytes)?;
@@ -149,70 +158,25 @@ impl PluginStore {
             return Err(PluginError::Invalid("written bundle differs from the inspected bytes".into()));
         }
         executable(temporary.as_file())?;
-        harmos::filesystem::publication::install(temporary.path(), &self.path(install_id)).map_err(std::io::Error::from)?;
 
-        // Authorize It
-        // An unreferenced file grants nothing; the boot sweep reclaims it
-        // when this edit fails after the rename.
-        let staged_at = crate::model::time::now_utc();
-        let plugin = PluginSettings {
-            state: PluginState::Staged,
-            digest: sha256,
-            staged_at,
-            expires_at: Some(Timestamp::from_system_time(SystemTime::now() + Duration::from_millis(86_400_000))),
-            consented_at: None,
-            last_boot: None,
-            programs: Default::default(),
-        };
-        let stored = plugin.clone();
-        self.settings
-            .edit(move |document| {
-                document.plugins.insert(install_id, stored);
-                Ok::<_, PluginError>(())
-            })
-            .await?;
-        Ok(entry(plugin.installation(install_id), Some(metadata), None))
-    }
-
-    pub async fn consent(
-        &self, id: Uuid, configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
-    ) -> Result<PluginEntry, PluginError> {
-        self.consent_checked(id, configured, host_sources, |_| Ok(())).await
-    }
-
-    /// Validates the freshly verified disclosure before publishing consent.
-    /// The validator must perform only synchronous, nonblocking admission checks.
-    pub async fn consent_checked<E: From<PluginError> + From<std::io::Error> + From<crate::storage::Error> + Send + 'static>(
-        &self, id: Uuid, configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
-        validate: impl FnOnce(&PluginEntry) -> Result<(), E> + Send + 'static,
-    ) -> Result<PluginEntry, E> {
         let store = self.clone();
         let configured = configured.to_vec();
         let host_sources = host_sources.clone();
         self.settings
             .edit(move |document| {
-                let target = document.plugins.get(&id).ok_or(PluginError::Unknown(id))?;
-                if target.state == PluginState::RemovalPending {
-                    return Err(PluginError::NotStaged(id).into());
-                }
-                let (_, metadata) = store.verified(id, target)?;
-                let reviewed = entry(target.installation(id), Some(metadata), None);
-                validate(&reviewed)?;
-                let metadata = reviewed.metadata.expect("freshly verified above");
+                // Reserve Owners Under The Settings Lock
                 let mut occupied = host_sources.clone();
                 for configured in configured {
                     if configured.identity.name == metadata.identity.name {
-                        return Err(PluginError::Collision(metadata.identity.name.clone()).into());
+                        return Err(PluginError::Collision(metadata.identity.name.clone()));
                     }
                     occupied.extend(configured.owners.iter().cloned());
                 }
                 let mut replaced = Vec::new();
                 for (other_id, other) in &document.plugins {
-                    if *other_id == id || !matches!(other.state, PluginState::Installed | PluginState::Disabled) {
+                    if !matches!(other.state, PluginState::Installed | PluginState::Disabled) {
                         continue;
                     }
-                    // Unavailable installed bytes must be repaired or removed before
-                    // consenting a potentially colliding package. Never trust a cache.
                     let (_, other_metadata) = store.verified(*other_id, other)?;
                     if other_metadata.identity.name == metadata.identity.name {
                         replaced.push(*other_id);
@@ -221,41 +185,42 @@ impl PluginStore {
                     }
                 }
                 if let Some(owner) = metadata.owners.iter().find(|owner| occupied.contains(*owner)) {
-                    return Err(PluginError::Collision(owner.clone()).into());
+                    return Err(PluginError::Collision(owner.clone()));
                 }
 
-                let mut inherited = Default::default();
+                let mut plugin = PluginSettings {
+                    state: PluginState::Installed,
+                    digest: sha256,
+                    installed_at: crate::model::time::now_utc(),
+                    last_boot: None,
+                    programs: Default::default(),
+                };
+                let result = entry(plugin.installation(install_id), Some(metadata), None);
+                validate(&result)?;
+
+                // Publish Before Referencing The Bundle
+                // A failed settings publication leaves an unreferenced new file for
+                // the boot sweep. Existing installed bytes are never overwritten.
+                harmos::filesystem::publication::install(temporary.path(), &store.path(install_id)).map_err(std::io::Error::from)?;
                 for other_id in replaced {
                     let other = document.plugins.get_mut(&other_id).expect("listed above");
                     other.state = PluginState::RemovalPending;
-                    inherited = std::mem::take(&mut other.programs);
+                    plugin.programs = std::mem::take(&mut other.programs);
                 }
-                let plugin = document.plugins.get_mut(&id).expect("checked above");
-                plugin.state = PluginState::Installed;
-                plugin.expires_at = None;
-                plugin.consented_at.get_or_insert_with(crate::model::time::now_utc);
-                if plugin.programs.is_empty() {
-                    plugin.programs = inherited;
-                }
-                Ok(entry(plugin.installation(id), Some(metadata), None))
+                document.plugins.insert(install_id, plugin);
+                Ok(result)
             })
             .await
     }
 
     pub async fn remove(&self, id: Uuid) -> Result<(), PluginError> {
-        // Revoke first, so failed deletion cannot admit bytes.
-        let staged = self
-            .settings
+        self.settings
             .edit(move |document| {
                 let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
                 plugin.state = PluginState::RemovalPending;
-                Ok::<_, PluginError>(plugin.consented_at.is_none())
+                Ok(())
             })
-            .await?;
-        if staged {
-            self.discard(|candidate, _| candidate == id).await?;
-        }
-        Ok(())
+            .await
     }
 
     pub async fn set_enabled(&self, id: Uuid, enabled: bool) -> Result<(), PluginError> {
@@ -276,18 +241,6 @@ impl PluginStore {
     }
 
     pub async fn sweep(&self) -> Result<(), PluginError> {
-        let now = crate::model::time::now_utc();
-        self.settings
-            .edit(move |document| {
-                let expired = expired_stages(document.plugins.iter(), &now);
-                for id in expired {
-                    if let Some(plugin) = document.plugins.get_mut(&id) {
-                        plugin.state = PluginState::RemovalPending;
-                    }
-                }
-                Ok::<_, PluginError>(())
-            })
-            .await?;
         self.discard(|_, plugin| plugin.state == PluginState::RemovalPending).await?;
 
         let authorized: BTreeSet<_> =
@@ -412,19 +365,6 @@ fn entry(installation: Installation, metadata: Option<PluginMetadata>, error: Op
         active: false,
         boot_error: None,
     }
-}
-
-fn expired_stages<'a>(plugins: impl IntoIterator<Item = (&'a Uuid, &'a PluginSettings)>, now: &Timestamp) -> BTreeSet<Uuid> {
-    let now = now.unix_millis().unwrap_or(0);
-    plugins
-        .into_iter()
-        .filter(|(_, plugin)| {
-            plugin.consented_at.is_none()
-                && matches!(plugin.state, PluginState::Staged | PluginState::RemovalPending)
-                && plugin.expires_at.as_ref().and_then(Timestamp::unix_millis).is_some_and(|at| at < now)
-        })
-        .map(|(id, _)| *id)
-        .collect()
 }
 
 fn executable(file: &File) -> std::io::Result<()> {

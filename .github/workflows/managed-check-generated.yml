@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-generated.yml; sha256:626be443c23159e0f3cf88e3b758e322344e67f1858a566d09bf608e34eb0bc0
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-generated.yml; sha256:3cc7ca6f6592e82231bd1ccd0f75de7c5c5587f3edf8eed8e376dd9805314d08
 name: Check / Generated
 "on":
   workflow_call:
@@ -318,7 +318,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build:python
     if: contains(fromJSON(inputs.impact), 'check:python:generated') && (true)
   check_generated_typescript:
@@ -613,6 +613,6 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build
     if: contains(fromJSON(inputs.impact), 'check:typescript:generated') && (true)

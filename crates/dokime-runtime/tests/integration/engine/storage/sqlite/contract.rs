@@ -335,6 +335,34 @@ async fn finished_files_publish() {
     reopened.backend.close().await.unwrap();
 }
 
+// File Finish And Publication Preserve Independent SHA-256 Digests.
+// Invalid Claims Do Not Bind The File Identity, Including At Block Boundaries.
+#[tokio::test]
+async fn file_digests_match() {
+    for length in [0, 1, 63, 64, 65, 65_549] {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::<()>::open(root.path()).await;
+        let backend = &store.backend;
+        let bytes = (0..length).map(|index| (index % 251) as u8).collect::<Vec<_>>();
+        let expected: [u8; 32] = Sha256::digest(&bytes).into();
+        let mut metadata = file_metadata("digest", &bytes);
+        metadata.expected_sha256 = None;
+        let staged = backend.create_file(&metadata).await.unwrap();
+        let split = bytes.len().min(31);
+        backend.write_file(&staged, 0, store.batch(bytes[..split].to_vec())).await.unwrap();
+        backend.write_file(&staged, split as u64, store.batch(bytes[split..].to_vec())).await.unwrap();
+
+        assert!(backend.finish_file(&staged, &store.at(1), length as u64, [0; 32]).await.is_err());
+        let file = backend.finish_file(&staged, &store.at(1), length as u64, expected).await.unwrap();
+        assert_eq!(file.sha256, expected);
+        backend.write_files(store.batch(vec![file.clone()])).await.unwrap();
+        let snapshot = backend.open_snapshot(&store.at(1)).await.unwrap();
+        assert_eq!(backend.read_file(&snapshot, &file, 0, rows(bytes.len().max(1))).await.unwrap(), bytes);
+        backend.release_snapshot(&snapshot).await.unwrap();
+        backend.close().await.unwrap();
+    }
+}
+
 // A read whose caller is cancelled after dispatch neither poisons nor
 // interrupts the reads that follow it.
 #[tokio::test]

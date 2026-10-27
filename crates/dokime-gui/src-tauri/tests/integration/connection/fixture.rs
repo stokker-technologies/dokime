@@ -184,7 +184,7 @@ type HttpRequest = tonic::codegen::http::Request<tonic::body::Body>;
 type HttpResponse = tonic::codegen::http::Response<tonic::body::Body>;
 type HttpFuture = std::pin::Pin<Box<dyn Future<Output = Result<HttpResponse, Infallible>> + Send>>;
 type LogEnvelope = dokime::harmos::grpc::OutputEnvelope<model::backend::wire::LogFrame, ()>;
-type UploadEnvelope = dokime::harmos::grpc::InputEnvelope<plugins::Stage, model::plugins::wire::StagePluginFrame>;
+type UploadEnvelope = dokime::harmos::grpc::InputEnvelope<plugins::Install, model::plugins::wire::InstallPluginFrame>;
 
 #[tonic::async_trait]
 trait FixtureUnary: dokime::harmos::operations::OperationDeclaration + Send + 'static {
@@ -355,7 +355,7 @@ impl tonic::server::ClientStreamingService<dokime::harmos::operations::StreamIte
             let opening = input.message().await?.expect("upload starts with its canonical request");
             assert!(matches!(
                 opening.into_request().map_err(|error| Status::data_loss(error.to_string()))?.0,
-                UploadEnvelope::Request(plugins::Stage {})
+                UploadEnvelope::Request(plugins::Install {})
             ));
             let first = input.message().await?.expect("upload produces its first item");
             assert!(matches!(first.into_request().map_err(|error| Status::data_loss(error.to_string()))?.0, UploadEnvelope::Item(_)));
@@ -377,8 +377,7 @@ impl tonic::server::ClientStreamingService<dokime::harmos::operations::StreamIte
             Ok(Response::new(dokime::harmos::operations::Response::new(model::plugins::wire::PluginInstallation {
                 install_id: count.to_string(),
                 sha256: String::new(),
-                staged_at: None,
-                consented_at: None,
+                installed_at: None,
                 state: model::plugins::wire::PluginInstallationState::Unspecified,
                 last_boot: None,
                 metadata: None,
@@ -441,7 +440,7 @@ impl tonic::codegen::Service<HttpRequest> for PluginsService {
         let service = self.0.clone();
         Box::pin(async move {
             let response = match request.uri().path() {
-                plugins::Stage::PATH => {
+                plugins::Install::PATH => {
                     wire_codec::<UploadEnvelope, dokime::harmos::operations::Response<model::plugins::wire::PluginInstallation>>()
                         .server()
                         .client_streaming(Upload(service), request)
@@ -523,12 +522,12 @@ pub async fn server_health(endpoint: &str) -> model::backend::wire::BackendHealt
 }
 
 impl tokio_stream::Stream for UploadInput {
-    type Item = model::plugins::wire::StagePluginFrame;
+    type Item = model::plugins::wire::InstallPluginFrame;
 
     fn poll_next(mut self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<Option<Self::Item>> {
         if self.first {
             self.first = false;
-            return std::task::Poll::Ready(Some(model::plugins::wire::StagePluginFrame::default()));
+            return std::task::Poll::Ready(Some(model::plugins::wire::InstallPluginFrame::default()));
         }
 
         std::task::Poll::Pending

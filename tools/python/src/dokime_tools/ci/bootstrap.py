@@ -51,9 +51,11 @@ GUI_PACKAGES = (
     "libssl-dev",
     "patchelf",
     "rpm",
+    "libarchive-tools",
     "file",
     GUI_MARKER_PACKAGE,
     "libgtk-3-dev",
+    "libayatana-appindicator3-1",
     "libsoup-3.0-dev",
     "libjavascriptcoregtk-4.1-dev",
     "librsvg2-dev",
@@ -68,6 +70,7 @@ HARMOS_REPOSITORY = "https://github.com/stokker-technologies/harmos.git"
 GUI_RUNTIME_PACKAGES = (
     "libwebkit2gtk-4.1-0",
     "libgtk-3-0t64",
+    "libayatana-appindicator3-1",
     "libsoup-3.0-0",
     "libjavascriptcoregtk-4.1-0",
     "librsvg2-2",
@@ -95,6 +98,8 @@ DESKTOP_PACKAGES = (
 )
 # Google's Stable Chrome For Testing Release, Used Only When The Hosted Browser Is Absent.
 CHROME_VERSION = "156.0.8078.47"
+SEVEN_ZIP_URL = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-x64.exe"
+SEVEN_ZIP_SHA256 = "fd99e86f57d8f429ef5ed045bf98315af962e2309b0f1ba87a147a44c71647d0"
 HARMOS_PACKAGES = ("harmos", "harmos-domain", "harmos-packaging", "harmos-sdk")
 CRATES_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
@@ -408,8 +413,7 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
         return
 
     prefix = []
-    managed_ci = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("STKR_CI_SIMULATE") == "1"
-    if os.geteuid() != 0 and managed_ci and shutil.which("sudo"):
+    if os.geteuid() != 0 and shutil.which("sudo"):
         prefix = ["sudo", "-n"]
     elif os.geteuid() != 0:
         raise SystemExit("GUI prerequisites are missing and apt-get needs root; install the selected packages or run this as root.")
@@ -452,6 +456,46 @@ def prepare_linux_browser(root: Path) -> Path:
             written.write(f"DOKIME_E2E_CHROME={browser}\n")
     _step(f"Report browser uses {browser} ({version})")
     return Path(browser)
+
+
+def prepare_windows_installer(root: Path) -> Path:
+    """Provision Full 7-Zip Without Running Its Installer."""
+    if sys.platform != "win32" or platform.machine().lower() not in {"amd64", "x86_64"}:
+        raise ValueError("Windows installer inspection requires native x86_64 Windows")
+    destination = root / "target/tooling/installer"
+    names = ("7z.exe", "7z.dll")
+    receipt = destination / "7zip.json"
+    available = False
+    if receipt.is_file() and not receipt.is_symlink():
+        try:
+            cached = json.loads(receipt.read_text(encoding="utf-8"))
+            files = {name: hashlib.sha256((destination / name).read_bytes()).hexdigest() for name in names}
+            regular = all((destination / name).is_file() and not (destination / name).is_symlink() for name in names)
+            available = regular and cached == {"archive_sha256": SEVEN_ZIP_SHA256, "files": files}
+        except (OSError, ValueError):
+            pass
+    if available:
+        return destination
+
+    extractor = shutil.which("7za")
+    if extractor is None:
+        raise ValueError("Windows installer inspection bootstrap requires the mise-pinned 7za tool")
+    with tempfile.TemporaryDirectory(prefix="dokime-7zip-") as temporary:
+        staged = Path(temporary)
+        archive = staged / "7zip.exe"
+        urllib.request.urlretrieve(SEVEN_ZIP_URL, archive)
+        if hashlib.sha256(archive.read_bytes()).hexdigest() != SEVEN_ZIP_SHA256:
+            raise ValueError("pinned 7-Zip archive SHA-256 mismatch")
+        extracted = staged / "extracted"
+        _run([extractor, "x", str(archive), *names, "-spd", f"-o{extracted}", "-y"])
+        if any(not (extracted / name).is_file() or (extracted / name).is_symlink() for name in names):
+            raise ValueError("pinned 7-Zip archive is missing its inspection tools")
+        files = {name: hashlib.sha256((extracted / name).read_bytes()).hexdigest() for name in names}
+        destination.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            shutil.copyfile(extracted / name, destination / name)
+        receipt.write_text(json.dumps({"archive_sha256": SEVEN_ZIP_SHA256, "files": files}, indent=2) + "\n", encoding="utf-8")
+    return destination
 
 
 def prepare_windows_desktop(root: Path) -> Path:

@@ -266,8 +266,7 @@ export type Identifier = string;
 export type Installation = {
   install_id: string;
   sha256: string;
-  staged_at: Timestamp;
-  consented_at: Timestamp | null;
+  installed_at: Timestamp;
   state: PluginState;
   last_boot: PluginLastBoot | null;
 };
@@ -430,12 +429,6 @@ export type PluginEntry = {
   boot_error?: string | null;
 } & Installation;
 
-export type PluginEnvironmentReference = {
-  owner: string;
-  setting: string;
-  variable: string;
-};
-
 export type PluginIdentity = {
   name: string;
   version: string;
@@ -448,10 +441,9 @@ export type PluginMetadata = {
   identity: PluginIdentity;
   owners: string[];
   size_bytes: number;
-  environment_references: PluginEnvironmentReference[];
 };
 
-export type PluginState = "staged" | "installed" | "disabled" | "removal_pending";
+export type PluginState = "installed" | "disabled" | "removal_pending";
 
 export type RecordScope = {
   session_id?: SessionId | null;

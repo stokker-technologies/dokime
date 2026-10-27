@@ -18,6 +18,7 @@ lockfile = true
 # Languages And Runtimes
 go = "1.27.3"
 node = "26.11.1"
+powershell = { version = "7.6.7", os = ["windows"] }
 python = "3.15.0"
 rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools", profile = "minimal", targets = "wasm32-unknown-unknown" }
 
@@ -45,6 +46,7 @@ gh = "2.102.0"
 git-cliff = "2.14.2"
 glab = "1.123.0"
 minisign = "0.12"
+"aqua:ip7z/7zip" = "26.05"
 
 # Project Statistics
 "aqua:boyter/scc" = "4.1.0"
@@ -275,7 +277,7 @@ run = [
   'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
   "cargo build --locked -p dokime-cli -p cargo-dokime --bins --message-format json-render-diagnostics > target/contracts/dev.jsonl",
   "node crates/dokime-gui/tools/bindings.mjs target/contracts/dev.jsonl",
-  "cargo run --locked -p cargo-dokime -- build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
+  "cargo run --locked -p cargo-dokime -- sidecar build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
   "pnpm --dir crates/dokime-gui run tauri:dev --build-json target/contracts/dev.jsonl",
 ]
 
@@ -471,6 +473,7 @@ run = "{{vars.tools}} dokime_tools.package.examples --profile {{usage.profile}}"
 [tasks."package:rust"]
 description = "Package The Desktop Installer, CLI, Authoring Tool And Plugin Bundle"
 depends = ["prepare"]
+tools = { "aqua:ip7z/7zip" = "26.05" }
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}}",

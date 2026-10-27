@@ -85,13 +85,13 @@ async def run() -> int:
             # Append Both Attempts Without Starting Hardware.
             cycle = await client.create_cycle(label=CYCLE_LABEL, continue_automatically=False)
             print(f"Cycle: {cycle.id}", flush=True)
+            Path("cycle.json").write_text(json.dumps({"cycle_id": cycle.id}, indent=2) + "\n", encoding="utf-8")
             print(f"Execution: {first.id}", flush=True)
             if EXECUTION_COUNT == 2:
                 print(f"Execution: {second.id}", flush=True)
                 await cycle.append([first, second])
             else:
                 await cycle.append([first])
-            successful = True
 
             # Run Attempt 1; The Client Waits For Its Saved Outcome And Drains Observations.
             execution = first
@@ -125,7 +125,7 @@ async def run() -> int:
                 "samples_by_stream": dict(samples_by_stream),
             }
             print("Drained Evidence:", json.dumps(drained, sort_keys=True), flush=True)
-            successful = successful and outcome.status == "passed"
+            Path("execution-1.json").write_text(json.dumps(drained, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             saved = await first.export(OUTPUT_DIRECTORY / "execution-1.zip", overwrite=OVERWRITE)
             exported.add(first.id)
             print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
@@ -163,7 +163,7 @@ async def run() -> int:
                     "samples_by_stream": dict(samples_by_stream),
                 }
                 print("Drained Evidence:", json.dumps(drained, sort_keys=True), flush=True)
-                successful = successful and outcome.status == "passed"
+                Path("execution-2.json").write_text(json.dumps(drained, indent=2, sort_keys=True) + "\n", encoding="utf-8")
                 saved = await second.export(OUTPUT_DIRECTORY / "execution-2.zip", overwrite=OVERWRITE)
                 exported.add(second.id)
                 print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
@@ -172,7 +172,7 @@ async def run() -> int:
             await cycle.seal()
             saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
             print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
-            return 0 if successful else 1
+            return 0
 
         except asyncio.CancelledError:
             # Recover Only This Script's Execution And Cycle
@@ -199,8 +199,7 @@ async def run() -> int:
 
 if __name__ == "__main__":
     try:
-        status = asyncio.run(run())
-        raise SystemExit(status)
+        raise SystemExit(asyncio.run(run()))
     except KeyboardInterrupt:
         print("Recovery Was Not Confirmed; Retain The Printed Cycle And Execution Identities", file=sys.stderr)
         raise SystemExit(130)

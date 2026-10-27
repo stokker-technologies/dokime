@@ -222,7 +222,7 @@ impl Runtime {
             let prepared = match read_bundle(
                 input.clone(),
                 cached_digest.as_deref(),
-                usize::try_from(dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES)
+                usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
                     .expect("validated server plugin bundle limit fits native address space"),
             ) {
                 Ok(bundle) => prepare(bundle, &extraction, reuse, &self.handle).await,
@@ -551,7 +551,7 @@ impl Runtime {
         let bundle = read_bundle(
             input,
             None,
-            usize::try_from(dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES)
+            usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
                 .expect("validated server plugin bundle limit fits native address space"),
         )?;
         if !matches!(bundle.input.provenance, PluginProvenance::Configured) {
@@ -808,7 +808,7 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
     let (bundle, metadata) = crate::plugins::inspect_with_archive_limit(
         &bytes,
         handle.schema_settings(),
-        usize::try_from(dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES)
+        usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
             .expect("validated server plugin bundle limit fits native address space"),
     )
     .map_err(operation)?;

@@ -12,6 +12,7 @@
 pub mod build;
 pub mod bundle;
 mod error;
+pub mod installer;
 pub mod process;
 
 /* === Re-Exports === */

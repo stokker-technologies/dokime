@@ -492,7 +492,7 @@ impl Resources {
         if let Some(client) = self.settings_client.take() {
             client.close_and_wait().await;
         }
-        if let Some(local) = self.local.take() {
+        if let Some(local) = self.local.as_mut() {
             tokio::select! {
                 result = local.shutdown() => result.map_err(|error| Error::Shutdown { message: error.to_string() })?,
                 () = abandon.cancelled() => {
@@ -500,6 +500,7 @@ impl Resources {
                     return Err(Error::Shutdown { message: "The local server drain was interrupted.".to_owned() });
                 }
             }
+            self.local = None;
         }
         Ok(())
     }

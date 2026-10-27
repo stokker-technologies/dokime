@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:25c85d08896f24e17608f8efcf6213ec5bb7a75c3480fdd4621e77606ac4e2ab
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:252f101a7746ff55520cdbb21f42091140a8284d6c82a0ef02798aa2036b856a
 name: Test / Windows
 "on":
   workflow_call:
@@ -325,7 +325,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build:rust:tests
     if: contains(fromJSON(inputs.impact), 'test:rust:unit') && (true)
   validate_test_rust_integration_windows:
@@ -627,7 +627,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build:rust:tests
     if: contains(fromJSON(inputs.impact), 'test:rust:integration') && (true)
   validate_test_rust_acceptance_windows:
@@ -974,7 +974,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build,build:python,build:rust:tests
     if: contains(fromJSON(inputs.impact), 'test:rust:acceptance') && (true)
   validate_test_rust_system_windows:
@@ -1303,7 +1303,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build,build:python,build:rust:tests
     if: contains(fromJSON(inputs.impact), 'test:rust:system') && (true)
   validate_test_typescript_system_windows:
@@ -1634,7 +1634,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build
     if: contains(fromJSON(inputs.impact), 'test:typescript:system') && (true)
   validate_test_rust_starter_windows:
@@ -1936,7 +1936,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build
     if: >-
       contains(fromJSON(inputs.impact), 'test:rust:starter') && ((inputs.pipeline ==

@@ -121,8 +121,9 @@ impl Controller {
         state.closing = true;
         let sessions = self.sessions.clone();
         tokio::task::spawn_blocking(move || sessions.flush()).await?;
-        if let Some(server) = state.server.take() {
-            server.detach().await?;
+        if let Some(server) = state.server.as_mut() {
+            server.detach_listener().await?;
+            state.server = None;
         }
         state.bound = None;
         Ok(())

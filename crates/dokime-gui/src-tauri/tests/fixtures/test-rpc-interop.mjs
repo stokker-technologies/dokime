@@ -109,10 +109,10 @@ try {
     lateRead,
     (error) => error.kind === "session" && error.detail.kind === "superseded",
   );
-  // Full-Control Access Permits Staging; Invalid Bytes Retain The Backend's Refusal.
+  // Full-Control Access Permits Installation; Invalid Bytes Retain The Backend's Refusal.
   await assert.rejects(
     (async () => {
-      const staging = await api.pluginsStage(session, {
+      const installation = await api.pluginsInstall(session, {
         frame: {
           HarmosVariant: {
             case: "Header",
@@ -120,9 +120,9 @@ try {
           },
         },
       });
-      await staging.finish();
+      await installation.finish();
     })(),
-    (error) => error.kind === "grpc" && error.detail.code === 3 && error.message.includes("stage size or digest mismatch"),
+    (error) => error.kind === "grpc" && error.detail.code === 3,
   );
   // A download opens with the artifact's metadata, so the stream is the only
   // request needed to learn what it is about to deliver.

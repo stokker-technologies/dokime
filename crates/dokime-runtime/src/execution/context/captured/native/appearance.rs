@@ -348,7 +348,7 @@ mod tests {
         let variants =
             [LogoVariant::TransparentOnLight, LogoVariant::TransparentOnDark, LogoVariant::ContainedOnLight, LogoVariant::ContainedOnDark];
         let frame = RuntimeAppearanceFrame {
-            app_name: "Instrument".into(),
+            app_name: "Stokker Technologies".into(),
             organization: None,
             title_template: None,
             logos: variants
@@ -359,7 +359,7 @@ mod tests {
                     plugin_id: Identifier::new("brand").unwrap(),
                     asset_id: Identifier::new(format!("logo.{index}")).unwrap(),
                     url: "data:image/svg+xml;base64,PHN2Zy8+".into(),
-                    alt: Some("Instrument".into()),
+                    alt: Some("Stokker Technologies".into()),
                 })
                 .collect(),
             themes: Vec::new(),

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-linux.yml; sha256:5cf5eb563a12e6fc94598dff3d9b5a38c0c2effc54e734c31c7f010b8cd7dea4
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-linux.yml; sha256:93219b715191256f5755e600594723e4c78b32f0898a0c41552b97c5f169e481
 name: Build / Product / Linux
 "on":
   workflow_call:
@@ -420,7 +420,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
         ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||

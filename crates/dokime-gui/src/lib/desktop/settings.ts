@@ -23,5 +23,5 @@ export const preferencesCommands = createPreferencesCommands(invoke);
 /* === Types === */
 
 /** Stable Template ID, Then Stable Parameter ID, Then Edited Raw Input. */
-export type ParameterOverride = string | { raw: string; valueType: string; unit: string | null };
+export type ParameterOverride = { raw: string; valueType: string; unit: string | null };
 export type ParameterOverrides = Record<string, Record<string, ParameterOverride>>;

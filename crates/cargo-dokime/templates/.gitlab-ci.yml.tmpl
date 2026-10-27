@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:67e54a5bcdb6d4d57e94d3242641f1b7d996d5d31db3bbad6bbf33a67cfaa094
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:062faae1b0d9be2a18599f234a654b340fc4c425409ad18860e7306c4daba082
 stages:
 - Check
 - Build
@@ -135,7 +135,7 @@ workflow:
       on_new_commit: interruptible
   - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
     when: never
-  - if: $CI_COMMIT_BRANCH
+  - if: $CI_PIPELINE_SOURCE =~ /^(web|api|trigger)$/ && $CI_COMMIT_BRANCH == "dev"
     variables:
       PROFILE: dev
     auto_cancel:

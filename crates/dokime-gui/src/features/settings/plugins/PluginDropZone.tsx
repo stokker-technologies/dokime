@@ -16,7 +16,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import { formatStagePluginBytes, type StagePluginProgress } from "@/lib/api/native-plugins";
+import { formatInstallPluginBytes, type InstallPluginProgress } from "@/lib/api/native-plugins";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ type PluginDropZoneProps = {
   filename: string | null;
   onDrop: (filename: string) => void;
   onPick: () => void;
-  progress: StagePluginProgress | null;
+  progress: InstallPluginProgress | null;
 };
 
 /* === Components === */
@@ -59,8 +59,8 @@ export function PluginDropZone({ disabled, error, filename, onDrop, onPick, prog
             <FileUp className="size-8 text-muted-foreground" />
           )}
           <div className="grid gap-1">
-            <p className="font-medium">{disabled ? stagingLabel(progress, filename) : "Drop a plugin bundle here"}</p>
-            <p className="text-sm text-muted-foreground">{brand.label} stages and inspects its frozen catalog without running the file.</p>
+            <p className="font-medium">{disabled ? installationLabel(progress, filename) : "Drop a plugin bundle here"}</p>
+            <p className="text-sm text-muted-foreground">{brand.label} verifies and installs the bundle. It activates after restart.</p>
           </div>
           <Button disabled={disabled} onClick={onPick} size="sm" type="button" variant="outline">
             Choose File
@@ -80,7 +80,7 @@ export function PluginDropZone({ disabled, error, filename, onDrop, onPick, prog
 
 /**
  * Follow the shell's native file drag over the zone. The webview never sees a
- * dropped file's bytes or path; the shell records the drop and stages it.
+ * dropped file's bytes or path; the shell records the drop and installs it.
  */
 function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolean, onDrop: (filename: string) => void): boolean {
   const [over, setOver] = useState(false);
@@ -120,15 +120,15 @@ function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolea
 }
 
 /** Render the busy drop zone's status line for the mutation's current phase. */
-function stagingLabel(progress: StagePluginProgress | null, filename: string | null): string {
+function installationLabel(progress: InstallPluginProgress | null, filename: string | null): string {
   switch (progress?.phase) {
     case undefined:
-      return `Inspecting ${filename ?? "plugin"}…`;
+      return `Installing ${filename ?? "plugin"}…`;
     case "reading":
       return "Reading file…";
     case "uploading":
-      return `Uploading ${formatStagePluginBytes(progress.sent)} of ${formatStagePluginBytes(progress.total)}`;
-    case "inspecting":
-      return "Inspecting on the host…";
+      return `Uploading ${formatInstallPluginBytes(progress.sent)} of ${formatInstallPluginBytes(progress.total)}`;
+    case "installing":
+      return "Installing on the host…";
   }
 }

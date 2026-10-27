@@ -103,6 +103,41 @@ async fn shutdown_releases_store() {
 }
 
 #[tokio::test]
+async fn shutdown_retry_retains() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = Backend::new(arguments(root.path()));
+    let (mut session, endpoint) = backend::start(&backend, |_| {}).await.unwrap();
+    let database = dokime::storage::sqlite::rusqlite::Connection::open(root.path().join("store/local.sqlite")).unwrap();
+    database.execute_batch("BEGIN IMMEDIATE").unwrap();
+
+    tokio::time::pause();
+    let mut shutdown = session.shutdown();
+    std::future::poll_fn(|context| {
+        assert!(shutdown.as_mut().poll(context).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
+    let budget = std::time::Duration::from_secs(dokime::domain::STOP_SETTLEMENT_SECONDS + 21);
+    tokio::time::advance(budget).await;
+    assert!(matches!(shutdown.await, Err(dokime_server::host::Error::StopIncomplete { .. })));
+    tokio::time::resume();
+    let lease = std::fs::OpenOptions::new().read(true).write(true).open(root.path().join("store/local.lock")).unwrap();
+    assert!(matches!(lease.try_lock(), Err(std::fs::TryLockError::WouldBlock)));
+
+    let mut retry = session.shutdown();
+    std::future::poll_fn(|context| {
+        assert!(retry.as_mut().poll(context).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
+    database.execute_batch("ROLLBACK").unwrap();
+    retry.await.unwrap();
+    lease.try_lock().unwrap();
+    let address = endpoint.strip_prefix("http://").unwrap().trim_end_matches('/');
+    assert!(tokio::net::TcpStream::connect(address).await.is_err());
+}
+
+#[tokio::test]
 async fn blocked_store_recovers() {
     let root = tempfile::tempdir().unwrap();
     let store = root.path().join("store");
@@ -120,7 +155,7 @@ async fn start_reports_phases() {
     let root = tempfile::tempdir().unwrap();
     let mut phases = Vec::new();
     let backend = Backend::new(arguments(root.path()));
-    let (session, endpoint) = backend::start(&backend, |phase| phases.push(phase.to_owned())).await.unwrap();
+    let (mut session, endpoint) = backend::start(&backend, |phase| phases.push(phase.to_owned())).await.unwrap();
     assert_eq!(phases, ["storage", "plugins", "requests"]);
     assert!(endpoint.starts_with("http://127.0.0.1:"));
     session.shutdown().await.unwrap();

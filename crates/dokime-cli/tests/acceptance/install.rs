@@ -15,7 +15,6 @@
 
 // Standard Library Imports
 use std::{
-    io::{Read, Write},
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -23,7 +22,6 @@ use std::{
 // Third Party Imports
 use dokime::harmos::operations::{Context, Operation, OperationDeclaration, Response, StreamInput};
 use harmos_packaging::bundle::Bundle;
-use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -71,16 +69,11 @@ struct Host {
     entry: model::plugins::wire::PluginInstallation,
     bytes: Vec<u8>,
     calls: Arc<Mutex<Vec<&'static str>>>,
-    consent_code: tonic::Code,
+    install_code: tonic::Code,
     descriptor_sha256: Vec<u8>,
 }
 
 struct Fixture;
-
-struct ChildGuard {
-    child: Box<dyn portable_pty::Child + Send + Sync>,
-    reaped: bool,
-}
 
 struct Outcome {
     success: bool,
@@ -99,15 +92,6 @@ enum Lanes {
 
 /* === Implementations === */
 
-impl Drop for ChildGuard {
-    fn drop(&mut self) {
-        if !self.reaped {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
-        }
-    }
-}
-
 impl dokime::harmos::Application for Fixture {
     type State = ();
     type Transaction = dokime::harmos::state::Never;
@@ -116,34 +100,24 @@ impl dokime::harmos::Application for Fixture {
     type Resources = ();
 }
 
-operation!(Stage, v1::Stage, StreamInput<model::plugins::wire::StagePluginFrame>, host, _request, input, {
-    host.calls.lock().unwrap().push("stage");
+operation!(Install, v1::Install, StreamInput<model::plugins::wire::InstallPluginFrame>, host, _request, input, {
+    host.calls.lock().unwrap().push("install");
     let header = input.recv().await.unwrap();
-    let Some(model::plugins::wire::StagePluginFrameFrame::Header(header)) = &header.frame else { panic!("header first") };
+    let Some(model::plugins::wire::InstallPluginFrameFrame::Header(header)) = &header.frame else { panic!("header first") };
     assert_eq!(header.size_bytes, host.bytes.len() as u64);
     assert_eq!(header.sha256, Sha256::digest(&host.bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
     let mut bytes = Vec::new();
     while let Some(frame) = input.recv().await {
-        let Some(model::plugins::wire::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else { panic!("chunk required") };
+        let Some(model::plugins::wire::InstallPluginFrameFrame::Chunk(chunk)) = &frame.frame else { panic!("chunk required") };
         assert_eq!(chunk.offset, bytes.len() as u64);
         assert!(chunk.data.len() <= CHUNK_LIMIT_BYTES as usize, "every chunk fits the advertised chunk limit");
         bytes.extend_from_slice(&chunk.data);
     }
     assert_eq!(bytes, host.bytes);
+    if host.install_code != tonic::Code::Ok {
+        return Err(tonic::Status::new(host.install_code, "installation acknowledgement unavailable"));
+    }
     Ok(host.entry.clone().into())
-});
-
-operation!(Consent, v1::Consent, (), host, request, _input, {
-    host.calls.lock().unwrap().push("consent");
-    assert_eq!(request.install_id, ID);
-    assert_eq!(request.expected_sha256, Sha256::digest(&host.bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
-    Err(tonic::Status::new(host.consent_code, "fixture refusal or lost acknowledgement"))
-});
-
-operation!(Remove, v1::Remove, (), host, request, _input, {
-    host.calls.lock().unwrap().push("remove");
-    assert_eq!(request.install_id, ID);
-    Ok(model::plugins::wire::RemovePluginReply { installation: None }.into())
 });
 
 operation!(Identity, backend::GetIdentity, (), host, _request, _input, {
@@ -184,9 +158,7 @@ operation!(Availability, backend::GetAvailability, (), _host, _request, _input, 
             backend::GetAvailability::PATH,
             runtime::GetIdentity::PATH,
             runtime::GetHealth::PATH,
-            v1::Stage::PATH,
-            v1::Consent::PATH,
-            v1::Remove::PATH,
+            v1::Install::PATH,
         ]
         .into_iter()
         .map(str::to_owned)
@@ -228,11 +200,10 @@ operation!(RuntimeHealth, runtime::GetHealth, (), _host, _request, _input, {
 
 /* === Private Functions === */
 
-fn review_bundle(schema: u32) -> Bundle {
+fn install_bundle(schema: u32) -> Bundle {
     use harmos_packaging::bundle::{Executable, Facility, Identity, Limits, Source};
     let owner = "fixture.worker";
-    let declaration =
-        serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Review fixture","config":"()"});
+    let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Install fixture","config":"()"});
     let policy = dokime::harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
@@ -261,16 +232,16 @@ fn review_bundle(schema: u32) -> Bundle {
                 "catalog": { "contributions": [
                     { "kind": "secret_reference", "id": "token", "default": { "kind": "environment", "variable": "PLUGIN_API_TOKEN" } },
                     { "kind": "secret_reference", "id": "optional", "default": null },
-                    { "kind": "text_area", "id": "notes", "default": "not-for-consent-output" }
+                    { "kind": "text_area", "id": "notes", "default": "fixture-notes" }
                 ] }
             }),
         )
         .unwrap();
     Bundle::build(
         Identity {
-            name: "review-fixture".into(),
+            name: "install-fixture".into(),
             version: "1.0.0".parse().unwrap(),
-            description: "Review fixture".into(),
+            description: "Install fixture".into(),
             package: Default::default(),
         },
         &[Source {
@@ -287,74 +258,22 @@ fn review_bundle(schema: u32) -> Bundle {
     .unwrap()
 }
 
-fn run_cli(bundle: &Path, endpoint: &str, consent: bool) -> Result<Outcome, String> {
-    let terminal = native_pty_system();
-    let size = PtySize { rows: 24, cols: 120, pixel_width: 0, pixel_height: 0 };
-    let pair = terminal.openpty(size).map_err(|error| error.to_string())?;
-    let executable = cli_executable();
-    let mut command = CommandBuilder::new(executable);
-    command.args(["--color", "never", "plugin", "install"]);
-    command.arg(bundle);
-    command.args(["--endpoint", endpoint]);
-    command.env("PLUGIN_API_TOKEN", SECRET_VALUE);
-    if consent {
-        command.arg("--yes");
-    }
-    let process = pair.slave.spawn_command(command).map_err(|error| error.to_string())?;
-    let mut child = ChildGuard { child: process, reaped: false };
-    drop(pair.slave);
-
-    let mut reader = pair.master.try_clone_reader().map_err(|error| error.to_string())?;
-    let mut writer = pair.master.take_writer().map_err(|error| error.to_string())?;
-    let read_task = std::thread::spawn(move || -> Result<Vec<u8>, String> {
-        let mut output = Vec::new();
-        let mut buffer = [0_u8; 4096];
-        let mut answered = 0;
-        let mut declined = consent;
-
-        loop {
-            let count = match reader.read(&mut buffer) {
-                Ok(0) | Err(_) => break,
-                Ok(count) => count,
-            };
-            output.extend_from_slice(&buffer[..count]);
-
-            // Answer Cursor Queries Even During Pseudoconsole Teardown
-            let asked = output.windows(4).filter(|window| window == b"\x1b[6n").count();
-            while answered < asked {
-                writer.write_all(b"\x1b[1;1R").map_err(|error| error.to_string())?;
-                writer.flush().map_err(|error| error.to_string())?;
-                answered += 1;
-            }
-
-            // Decline Only After The CLI Asks For Consent
-            let prompted = output.windows(5).any(|window| window == b"[y/N]");
-            if !declined && prompted {
-                writer.write_all(b"n\r").map_err(|error| error.to_string())?;
-                writer.flush().map_err(|error| error.to_string())?;
-                declined = true;
-            }
-            if output.len() > 64 * 1024 {
-                break;
-            }
-        }
-        Ok(output)
-    });
-
-    // The lane deadline bounds a CLI that never exits; the guard reaps it.
-    let status = child.child.wait().map_err(|error| error.to_string())?;
-    child.reaped = true;
-    drop(pair.master);
-    let output = read_task.join().map_err(|_| "install PTY reader panicked")??;
-    if output.len() > 64 * 1024 {
-        return Err("install CLI exceeded output budget".into());
-    }
-    let output = String::from_utf8_lossy(&output).replace("\r\n", "\n");
-    Ok(Outcome { success: status.success(), output })
+fn run_cli(bundle: &Path, endpoint: &str) -> Result<Outcome, String> {
+    let output = std::process::Command::new(cli_executable())
+        .args(["--color", "never", "plugin", "install"])
+        .arg(bundle)
+        .args(["--endpoint", endpoint])
+        .env("PLUGIN_API_TOKEN", SECRET_VALUE)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|error| error.to_string())?;
+    let mut bytes = output.stdout;
+    bytes.extend_from_slice(&output.stderr);
+    Ok(Outcome { success: output.status.success(), output: String::from_utf8_lossy(&bytes).into_owned() })
 }
 
-async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
-    let bundle = review_bundle(3);
+async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
+    let bundle = install_bundle(3);
     let digest = Sha256::digest(bundle.bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     let file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(file.path(), bundle.bytes()).unwrap();
@@ -363,9 +282,8 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
         entry: model::plugins::wire::PluginInstallation {
             install_id: ID.into(),
             sha256: digest,
-            staged_at: None,
-            consented_at: None,
-            state: model::plugins::wire::PluginInstallationState::Staged,
+            installed_at: None,
+            state: model::plugins::wire::PluginInstallationState::Installed,
             last_boot: None,
             metadata: Some(model::plugins::wire::PluginMetadata {
                 identity: Some(model::plugins::wire::PluginIdentity {
@@ -374,15 +292,6 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
                     description: bundle.manifest().identity.description.clone(),
                 }),
                 owners: vec!["fixture.worker".into()],
-                environment_references: if hide_environment {
-                    vec![]
-                } else {
-                    vec![model::plugins::wire::PluginEnvironmentReference {
-                        owner: "fixture.worker".into(),
-                        setting: "token".into(),
-                        variable: "PLUGIN_API_TOKEN".into(),
-                    }]
-                },
                 size_bytes: bundle.bytes().len() as u64,
             }),
             error: None,
@@ -392,7 +301,7 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
         },
         bytes: bundle.bytes().to_vec(),
         calls: calls.clone(),
-        consent_code,
+        install_code,
         descriptor_sha256: {
             let catalog = dokime::harmos::operations::Contracts::of::<contracts::Operations>().unwrap();
             let artifacts = harmos_packaging::proto::Artifacts::new(&catalog).unwrap();
@@ -401,9 +310,7 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
     };
     let runtime = dokime::harmos::Runtime::<Fixture>::builder((), ()).register(Lanes::catalog()).runtime().await.unwrap();
     let host = Arc::new(host);
-    runtime.operations.register_wire_operation::<Stage>("dokime", Lanes::Open, host.clone()).unwrap();
-    runtime.operations.register_wire_operation::<Consent>("dokime", Lanes::Open, host.clone()).unwrap();
-    runtime.operations.register_wire_operation::<Remove>("dokime", Lanes::Open, host.clone()).unwrap();
+    runtime.operations.register_wire_operation::<Install>("dokime", Lanes::Open, host.clone()).unwrap();
     runtime.operations.register_wire_operation::<Identity>("dokime", Lanes::Open, host.clone()).unwrap();
     runtime.operations.register_wire_operation::<Health>("dokime", Lanes::Open, host.clone()).unwrap();
     runtime.operations.register_wire_operation::<Availability>("dokime", Lanes::Open, host.clone()).unwrap();
@@ -415,7 +322,7 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
         .await
         .unwrap();
     let endpoint = format!("http://{}", attachment.local_addr());
-    let output = tokio::task::spawn_blocking(move || run_cli(file.path(), &endpoint, consent)).await;
+    let output = tokio::task::spawn_blocking(move || run_cli(file.path(), &endpoint)).await;
     attachment.detach().await.unwrap();
     runtime.stop().await.unwrap();
     let calls = calls.lock().unwrap().clone();
@@ -423,43 +330,25 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
 }
 
 #[tokio::test]
-async fn hidden_access_refused() {
-    let (outcome, calls) = scenario(true, true, tonic::Code::Unavailable).await;
-    assert!(!outcome.success);
-    assert!(outcome.output.contains("did not match the verified bundle; no consent sent"), "{}", outcome.output);
-    assert_eq!(calls, ["stage"]);
-    assert!(!outcome.output.contains(SECRET_VALUE));
-}
-
-#[tokio::test]
-async fn cancel_removes_staged() {
-    let (outcome, calls) = scenario(false, false, tonic::Code::Ok).await;
+async fn direct_noninteractive_install() {
+    let (outcome, calls) = scenario(tonic::Code::Ok).await;
     assert!(outcome.success, "{}", outcome.output);
-    assert!(outcome.output.contains("Discarded staged installation"));
     assert!(outcome.output.contains(ID));
-    assert!(outcome.output.contains("PLUGIN_API_TOKEN"));
     assert!(!outcome.output.contains(SECRET_VALUE));
-    assert_eq!(calls, ["stage", "remove"]);
+    assert_eq!(calls, ["install"]);
 }
 
 #[tokio::test]
-async fn refusal_never_retries() {
-    for code in [tonic::Code::FailedPrecondition, tonic::Code::Unavailable] {
-        let (outcome, calls) = scenario(false, true, code).await;
-        assert!(!outcome.success);
-        assert!(outcome.output.contains(ID));
-        assert!(outcome.output.contains("No removal or retry"));
-        assert!(!outcome.output.contains(SECRET_VALUE));
-        assert_eq!(calls, ["stage", "consent"]);
-    }
+async fn uncertain_install_retained() {
+    let (outcome, calls) = scenario(tonic::Code::Unavailable).await;
+    assert!(!outcome.success);
+    assert!(!outcome.output.contains(SECRET_VALUE));
+    assert_eq!(calls, ["install"]);
 }
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
 fn cli_executable() -> String {
-    std::env::var("NEXTEST_BIN_EXE_dokime")
-        .ok()
-        .or_else(|| option_env!("CARGO_BIN_EXE_dokime").map(str::to_owned))
-        .expect("workspace executable")
+    std::env::var("NEXTEST_BIN_EXE_dokime").ok().or_else(|| std::env::var("CARGO_BIN_EXE_dokime").ok()).expect("workspace executable")
 }
 
 /* === Tests === */

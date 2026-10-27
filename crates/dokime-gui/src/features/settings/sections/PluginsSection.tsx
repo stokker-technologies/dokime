@@ -19,19 +19,17 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
-import { PluginConsentDialog } from "@/features/settings/plugins/PluginConsentDialog";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
 import { programKey, programSource } from "@/features/settings/plugins/PluginPrograms";
 import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import {
-  useConsentPluginMutation,
   usePluginReleaseMutation,
   usePluginsQuery,
   useRemovePluginMutation,
   useRestartAppMutation,
   useSetPluginEnabledMutation,
-  useStagePluginMutation,
+  useInstallPluginMutation,
 } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -50,15 +48,13 @@ export function PluginsSection() {
   const settings = useSettingsSections();
   const pluginsQuery = usePluginsQuery();
   const programsQuery = useInstalledPluginsQuery();
-  const stageMutation = useStagePluginMutation();
+  const installMutation = useInstallPluginMutation();
   const releaseMutation = usePluginReleaseMutation();
-  const consentMutation = useConsentPluginMutation();
   const removeMutation = useRemovePluginMutation();
   const restartMutation = useRestartAppMutation();
   const enabledMutation = useSetPluginEnabledMutation();
   const [installOpen, setInstallOpen] = useState(false);
   const [restartPrompt, setRestartPrompt] = useState(false);
-  const [staged, setStaged] = useState<PluginEntry | null>(null);
   const [uploadingFilename, setUploadingFilename] = useState<string | null>(null);
   const [removeCandidate, setRemoveCandidate] = useState<PluginEntry | null>(null);
   const entries = pluginsQuery.data ?? [];
@@ -105,47 +101,19 @@ export function PluginsSection() {
     [programs, settings.frame],
   );
 
-  async function handleStage(source: PluginSource, filename: string | null): Promise<void> {
-    stageMutation.reset();
-    consentMutation.reset();
+  async function handleInstall(source: PluginSource, filename: string | null): Promise<void> {
+    installMutation.reset();
     setUploadingFilename(filename);
     try {
-      const entry = await stageMutation.mutateAsync(source);
+      const entry = await installMutation.mutateAsync(source);
       if (entry) {
-        setStaged(entry);
         setInstallOpen(false);
+        setRestartPrompt(true);
       }
     } catch {
       // Mutation error is rendered beside the drop zone.
     } finally {
       setUploadingFilename(null);
-    }
-  }
-
-  async function handleCancelConsent(): Promise<void> {
-    if (!staged) {
-      return;
-    }
-    consentMutation.reset();
-    try {
-      await removeMutation.mutateAsync(staged.install_id);
-      setStaged(null);
-    } catch {
-      // Keep the dialog open so the operator can retry or read the failure.
-    }
-  }
-
-  async function handleInstall(): Promise<void> {
-    if (!staged) {
-      return;
-    }
-    consentMutation.reset();
-    try {
-      await consentMutation.mutateAsync(staged);
-      setStaged(null);
-      setRestartPrompt(true);
-    } catch {
-      // Keep the inspected facts and failure visible for a retry.
     }
   }
 
@@ -156,7 +124,7 @@ export function PluginsSection() {
     try {
       await removeMutation.mutateAsync(removeCandidate.install_id);
       setRemoveCandidate(null);
-      if (removeCandidate.consented_at !== null) setRestartPrompt(true);
+      setRestartPrompt(true);
     } catch {
       // Keep explicit confirmation open with the error visible.
     }
@@ -177,13 +145,13 @@ export function PluginsSection() {
           {releaseMutation.data ? (
             <Button
               size="sm"
-              disabled={stageMutation.isPending}
+              disabled={installMutation.isPending}
               onClick={() => {
                 const release = releaseMutation.data;
-                if (release) void handleStage({ release: release.candidate }, release.package);
+                if (release) void handleInstall({ release: release.candidate }, release.package);
               }}
             >
-              Inspect Release
+              Install Release
             </Button>
           ) : null}
         </SettingsRow>
@@ -237,12 +205,12 @@ export function PluginsSection() {
           <PluginList
             actions={
               <>
-                <Button disabled={!desktop || stageMutation.isPending} onClick={() => setInstallOpen(true)}>
+                <Button disabled={!desktop || installMutation.isPending} onClick={() => setInstallOpen(true)}>
                   Install Plugin
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={!desktop || releaseMutation.isPending || stageMutation.isPending}
+                  disabled={!desktop || releaseMutation.isPending || installMutation.isPending}
                   onClick={() => releaseMutation.mutate()}
                 >
                   Check For Updates
@@ -278,15 +246,15 @@ export function PluginsSection() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Install Plugin</DialogTitle>
-            <DialogDescription>Choose a .dokime bundle to inspect before installation.</DialogDescription>
+            <DialogDescription>Choose a .dokime bundle to verify and install.</DialogDescription>
           </DialogHeader>
           <PluginDropZone
-            disabled={stageMutation.isPending}
-            error={errorMessage(stageMutation.error, "The plugin could not be inspected.")}
+            disabled={installMutation.isPending}
+            error={errorMessage(installMutation.error, "The plugin could not be installed.")}
             filename={uploadingFilename}
-            onDrop={(filename) => void handleStage("drop", filename)}
-            onPick={() => void handleStage("pick", null)}
-            progress={stageMutation.progress}
+            onDrop={(filename) => void handleInstall("drop", filename)}
+            onPick={() => void handleInstall("pick", null)}
+            progress={installMutation.progress}
           />
         </DialogContent>
       </Dialog>
@@ -318,13 +286,6 @@ export function PluginsSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <PluginConsentDialog
-        busy={consentMutation.isPending || (removeMutation.isPending && Boolean(staged))}
-        entry={staged}
-        error={errorMessage(consentMutation.error ?? (staged ? removeMutation.error : null), "The plugin action could not be completed.")}
-        onCancel={() => void handleCancelConsent()}
-        onInstall={() => void handleInstall()}
-      />
 
       <Dialog
         onOpenChange={(open) => {
@@ -338,9 +299,7 @@ export function PluginsSection() {
           <DialogHeader>
             <DialogTitle>Remove Plugin?</DialogTitle>
             <DialogDescription>
-              {removeCandidate?.consented_at === null
-                ? "The staged bundle will be discarded immediately. No restart is needed."
-                : `The plugin will stop loading and its managed file will be deleted at the next ${brand.label} restart.`}
+              {`The plugin will stop loading and its managed file will be deleted at the next ${brand.label} restart.`}
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (

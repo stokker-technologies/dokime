@@ -42,6 +42,46 @@ checksum = "sha256:4a433984f45ff29c94eeb3af6db5b511c58f5bf74063dccedafcbf473cb8f
 url = "https://github.com/boyter/scc/releases/download/v4.1.0/scc_Windows_x86_64.zip"
 url_api = "https://api.github.com/repos/boyter/scc/releases/assets/549478880"
 
+[[tools."aqua:ip7z/7zip"]]
+version = "26.05"
+backend = "aqua:ip7z/7zip"
+specifiers = ["26.05"]
+
+[tools."aqua:ip7z/7zip"."platforms.linux-arm64"]
+checksum = "sha256:0b71f6cfc34669b3bf69f2347efd3429f77020665003a13b9cdc53b784270421"
+url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-linux-arm64.tar.xz"
+url_api = "https://api.github.com/repos/ip7z/7zip/releases/assets/662536671"
+
+[tools."aqua:ip7z/7zip"."platforms.linux-arm64-musl"]
+checksum = "sha256:0b71f6cfc34669b3bf69f2347efd3429f77020665003a13b9cdc53b784270421"
+url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-linux-arm64.tar.xz"
+url_api = "https://api.github.com/repos/ip7z/7zip/releases/assets/662536671"
+
+[tools."aqua:ip7z/7zip"."platforms.linux-x64"]
+checksum = "sha256:22cf82fcc6eb7474f1d5bb4f02c0f8ebd573a718089d6833dc30f8350a3b232e"
+url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-linux-x64.tar.xz"
+url_api = "https://api.github.com/repos/ip7z/7zip/releases/assets/662536708"
+
+[tools."aqua:ip7z/7zip"."platforms.linux-x64-musl"]
+checksum = "sha256:22cf82fcc6eb7474f1d5bb4f02c0f8ebd573a718089d6833dc30f8350a3b232e"
+url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-linux-x64.tar.xz"
+url_api = "https://api.github.com/repos/ip7z/7zip/releases/assets/662536708"
+
+[tools."aqua:ip7z/7zip"."platforms.macos-arm64"]
+checksum = "sha256:12ef6830317743cfd3f0ab1724bde43fcc270d8b6d8564f8c12c2a2b7f993570"
+url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-mac.tar.xz"
+url_api = "https://api.github.com/repos/ip7z/7zip/releases/assets/662536759"
+
+[tools."aqua:ip7z/7zip"."platforms.macos-x64"]
+checksum = "sha256:12ef6830317743cfd3f0ab1724bde43fcc270d8b6d8564f8c12c2a2b7f993570"
+url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-mac.tar.xz"
+url_api = "https://api.github.com/repos/ip7z/7zip/releases/assets/662536759"
+
+[tools."aqua:ip7z/7zip"."platforms.windows-x64"]
+checksum = "sha256:f27a8f103c84785026edcba1f67faf1357225df9d19ddb0b7760d55947141bc7"
+url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-extra.7z"
+url_api = "https://api.github.com/repos/ip7z/7zip/releases/assets/662536626"
+
 [[tools."aqua:koalaman/shellcheck"]]
 version = "0.11.0"
 backend = "aqua:koalaman/shellcheck"
@@ -488,6 +528,46 @@ checksum = "sha256:66cac6b725bfc75fadac959fc435821048558adb50b89c82d0d2d5e57465a
 url = "https://github.com/pnpm/pnpm/releases/download/v12.11.2/pnpm-win32-x64.zip"
 url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/625613173"
 provenance = "github-attestations"
+
+[[tools.powershell]]
+version = "7.6.7"
+backend = "aqua:PowerShell/PowerShell"
+specifiers = ["7.6.7"]
+
+[tools.powershell."platforms.linux-arm64"]
+checksum = "sha256:ba465efdfb0984c1c5dc5ed9eb0b79a7e91a1b52c45f99377058c0659b84d3f1"
+url = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/powershell-7.6.7-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/638079095"
+
+[tools.powershell."platforms.linux-arm64-musl"]
+checksum = "sha256:ba465efdfb0984c1c5dc5ed9eb0b79a7e91a1b52c45f99377058c0659b84d3f1"
+url = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/powershell-7.6.7-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/638079095"
+
+[tools.powershell."platforms.linux-x64"]
+checksum = "sha256:6896f9e3a6b0a354bf470835a96da76d2f801cd50dcf047ad7c4563bf93bf431"
+url = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/powershell-7.6.7-linux-x64.tar.gz"
+url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/638079580"
+
+[tools.powershell."platforms.linux-x64-musl"]
+checksum = "sha256:6896f9e3a6b0a354bf470835a96da76d2f801cd50dcf047ad7c4563bf93bf431"
+url = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/powershell-7.6.7-linux-x64.tar.gz"
+url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/638079580"
+
+[tools.powershell."platforms.macos-arm64"]
+checksum = "sha256:50dde99bb066adacbb9a748182d09eb9beff25119dc3b12e85c84b6b6b1c5da9"
+url = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/powershell-7.6.7-osx-arm64.tar.gz"
+url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/638079780"
+
+[tools.powershell."platforms.macos-x64"]
+checksum = "sha256:c354ca845cb81f9239bc0c6fbfd14256056400e4b269bd7a6373d113ad94c1e3"
+url = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/powershell-7.6.7-osx-x64.tar.gz"
+url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/638079953"
+
+[tools.powershell."platforms.windows-x64"]
+checksum = "sha256:d2f952ebdbf24386cb8923553aa58e41a846db35a6155ea04c58142a4b16dbb7"
+url = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip"
+url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/638080594"
 
 [[tools.protoc]]
 version = "36.2"

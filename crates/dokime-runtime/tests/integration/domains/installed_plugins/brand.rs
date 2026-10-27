@@ -26,27 +26,24 @@ use dokime_runtime::domains::installed_plugins::load_brand;
 /* === Constants === */
 const NEUTRAL_BRAND: &str = r##"
 [app]
-label = "Acme Test Hub"
-slug = "acme"
-identifier = "com.acme.hub"
-deep_link_scheme = "acme-hub"
+label = "Stokker Technologies Test Hub"
 
 [app.organization]
-name = "Acme Corp"
+name = "Stokker Technologies"
 unit = "Quality"
 
 [app.logos.transparent]
-on_light = "transparent-on-light.svg"
-on_dark = "transparent-on-dark.svg"
+on_light = "logos/transparent-on-light.svg"
+on_dark = "logos/transparent-on-dark.svg"
 [app.logos.contained]
-on_light = "contained-on-light.svg"
-on_dark = "contained-on-dark.svg"
+on_light = "logos/contained-on-light.svg"
+on_dark = "logos/contained-on-dark.svg"
 
 [theme]
 policy = "required"
 default_mode = "force_dark"
-label = "Acme"
-description = "Acme brand theme."
+label = "Stokker Technologies"
+description = "Stokker Technologies brand theme."
 
 [theme.corner_radii]
 base = "0.375rem"
@@ -141,12 +138,143 @@ fn write_brand(dir: &Path, manifest: &str) {
 /* === Tests === */
 
 #[test]
+fn organization_overlay() {
+    use dokime_runtime::config::organization::resolve_with_base;
+
+    let root = tempdir().unwrap();
+    let baseline = resolve_with_base(None, None).unwrap();
+    let installed = root.path().join("installed");
+    baseline.write_to(&installed).unwrap();
+    let overrides = root.path().join("overrides");
+    fs::create_dir_all(overrides.join("logos")).unwrap();
+    fs::write(
+        overrides.join("organization.toml"),
+        "[app]\nlabel = 'Stokker Technologies'\n[app.organization]\nunit = 'Quality'\n[app.logos.transparent]\non_dark = 'icons/icon.png'\n",
+    )
+    .unwrap();
+    let replacement = b"<svg xmlns='http://www.w3.org/2000/svg' id='override'/>";
+    fs::write(overrides.join("logos/transparent-on-light.svg"), replacement).unwrap();
+
+    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
+    assert_eq!(pack.label(), "Stokker Technologies");
+    assert_eq!(pack.manifest["app"]["organization"]["unit"].as_str(), Some("Quality"));
+    assert_eq!(pack.manifest["app"]["organization"]["name"], baseline.manifest["app"]["organization"]["name"]);
+    assert_eq!(pack.files["logos/transparent-on-light.svg"], replacement);
+    assert_eq!(pack.files["theme/light.css"], baseline.files["theme/light.css"]);
+    assert!(pack.brand().unwrap().theme.unwrap().stylesheet.unwrap().contains("data:font/woff2;base64,"));
+    assert!(pack.brand().unwrap().logos.iter().any(|logo| logo.mime_type == "image/png"));
+
+    fs::remove_file(installed.join("theme/dark.css")).unwrap();
+    assert!(resolve_with_base(Some(&installed), Some(&overrides)).is_err());
+}
+
+#[test]
+fn organization_validation() {
+    use dokime_runtime::config::organization::resolve_with_base;
+
+    let overrides = tempdir().unwrap();
+    let manifest = overrides.path().join("organization.toml");
+    for value in [
+        "[app]\nidentifier = 'other.identity'",
+        "[app.logos.transparent]\non_light = '../outside.svg'",
+        "[app.artwork]\ntray = 'missing.png'",
+        "[app.artwork]\ntray = 'logos/transparent-on-light.svg'",
+        "[updates]\nmode = 'manual'\nsource = 'missing'",
+    ] {
+        fs::write(&manifest, value).unwrap();
+        assert!(resolve_with_base(None, Some(overrides.path())).is_err());
+    }
+    fs::write(&manifest, "[app]\nlabel = 'Stokker Technologies'").unwrap();
+    fs::create_dir(overrides.path().join("generated")).unwrap();
+    assert!(resolve_with_base(None, Some(overrides.path())).is_err());
+
+    let mut pack = resolve_with_base(None, None).unwrap();
+    pack.files.insert("../outside".into(), vec![0]);
+    let destination = tempdir().unwrap();
+    assert!(pack.write_to(&destination.path().join("target")).is_err());
+    assert!(!destination.path().join("outside").exists());
+
+    let active = destination.path().join("organization/active");
+    fs::create_dir_all(&active).unwrap();
+    fs::write(active.join("organization.toml"), "invalid [").unwrap();
+    let config = dokime_runtime::config::ApplicationOptions { application_root: Some(destination.path().into()), ..Default::default() }
+        .resolve()
+        .unwrap();
+    assert_eq!(config.brand.unwrap().identity.label, "Dokime");
+    assert_eq!(fs::read_to_string(active.join("organization.toml")).unwrap(), "invalid [");
+}
+
+#[test]
+fn installer_sidebar_overlay() {
+    use dokime_runtime::config::organization::resolve_with_base;
+
+    let baseline = resolve_with_base(None, None).unwrap();
+    assert_eq!(baseline.installer_sidebar_color().unwrap(), [0x1b, 0x19, 0x15]);
+    assert!(baseline.installer_sidebar_image().is_none());
+    let root = tempdir().unwrap();
+    let installed = root.path().join("installed");
+    let overrides = root.path().join("overrides");
+    baseline.write_to(&installed).unwrap();
+    fs::create_dir_all(overrides.join("installer")).unwrap();
+    let image = baseline.files["icons/icon.png"].clone();
+    fs::write(overrides.join("installer/sidebar.png"), &image).unwrap();
+    let manifest = overrides.join("organization.toml");
+    fs::write(&manifest, "[installer]\nsidebar_image = 'installer/sidebar.png'").unwrap();
+
+    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
+    assert_eq!(pack.installer_sidebar_color().unwrap(), baseline.installer_sidebar_color().unwrap());
+    assert_eq!(pack.installer_sidebar_image(), Some(("installer/sidebar.png", image.as_slice())));
+    pack.write_to(&installed).unwrap();
+    fs::write(&manifest, "[installer]\nsidebar_color = '#aB01fF'").unwrap();
+
+    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
+    assert_eq!(pack.installer_sidebar_color().unwrap(), [0xab, 0x01, 0xff]);
+    assert_eq!(pack.installer_sidebar_image(), Some(("installer/sidebar.png", image.as_slice())));
+    let mut old_manifest = baseline.manifest.clone();
+    old_manifest.as_table_mut().unwrap().remove("installer");
+    fs::write(installed.join("organization.toml"), toml::to_string(&old_manifest).unwrap()).unwrap();
+    let old_pack = resolve_with_base(Some(&installed), None).unwrap();
+    assert_eq!(old_pack.installer_sidebar_color().unwrap(), [0x1b, 0x19, 0x15]);
+}
+
+#[test]
+fn installer_sidebar_validation() {
+    use dokime_runtime::config::organization::resolve_with_base;
+
+    let overrides = tempdir().unwrap();
+    let manifest = overrides.path().join("organization.toml");
+    let invalid = [
+        "installer = 'invalid'",
+        "[installer]\nsidebar_color = 123456",
+        "[installer]\nsidebar_color = '#123'",
+        "[installer]\nsidebar_color = '#12345678'",
+        "[installer]\nsidebar_color = '123456'",
+        "[installer]\nsidebar_color = '#gg0000'",
+        "[installer]\nsidebar_image = 1",
+        "[installer]\nsidebar_image = ''",
+        "[installer]\nsidebar_image = '../outside.png'",
+        "[installer]\nsidebar_image = '/outside.png'",
+        "[installer]\nsidebar_image = 'icons/../icon.png'",
+        "[installer]\nsidebar_image = 'C:/outside.png'",
+        "[installer]\nsidebar_image = 'missing.png'",
+        "[installer]\nsidebar_image = 'logos/transparent-on-light.svg'",
+        "[installer]\nsidebar_image = 'broken.png'",
+        "[installer]\nsidebar_color = 'invalid'\nsidebar_image = 'icons/icon.png'",
+    ];
+    fs::write(overrides.path().join("broken.png"), b"\x89PNG\r\n\x1a\ntruncated").unwrap();
+    for value in invalid {
+        fs::write(&manifest, value).unwrap();
+        assert!(resolve_with_base(None, Some(overrides.path())).is_err(), "accepted invalid settings: {value}");
+    }
+}
+
+#[test]
 fn generated_organization_stylesheet_matches_runtime_resolution() {
     let directory = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
         .join("../../organization");
     let resolved = load_brand(&directory).unwrap();
     let stylesheet = resolved.theme.unwrap().stylesheet.unwrap();
-    let generated = fs::read_to_string(directory.join("generated/theme.css")).unwrap();
+    let generated = fs::read_to_string(directory.join("../crates/dokime-gui/src/generated/organization/theme.css")).unwrap();
 
     assert_eq!(generated, stylesheet);
 }
@@ -158,16 +286,13 @@ fn organization_toml_types() {
 
     let brand = load_brand(dir.path()).unwrap();
 
-    assert_eq!(brand.identity.label, "Acme Test Hub");
-    assert_eq!(brand.identity.slug, "acme");
-    assert_eq!(brand.identity.identifier, "com.acme.hub");
-    assert_eq!(brand.identity.deep_link_scheme.as_deref(), Some("acme-hub"));
+    assert_eq!(brand.identity.label, "Stokker Technologies Test Hub");
 
     let customization = &brand.customization;
-    assert_eq!(customization.display_name.as_deref(), Some("Acme Test Hub"));
+    assert_eq!(customization.display_name.as_deref(), Some("Stokker Technologies Test Hub"));
     assert_eq!(customization.title_template.as_deref(), Some("{app}"));
     let organization = customization.organization.as_ref().unwrap();
-    assert_eq!(organization.name, "Acme Corp");
+    assert_eq!(organization.name, "Stokker Technologies");
     assert_eq!(organization.unit.as_deref(), Some("Quality"));
     assert_eq!(customization.logo_assets.len(), 4);
     assert_eq!(customization.logo_assets[0].asset_id.as_str(), "brand.logo.transparent-on-light");
@@ -178,7 +303,7 @@ fn organization_toml_types() {
 
     let theme = brand.theme.expect("theme present");
     assert_eq!(theme.metadata.identifier.as_str(), "brand.theme");
-    assert_eq!(theme.metadata.label, "Acme");
+    assert_eq!(theme.metadata.label, "Stokker Technologies");
     assert_eq!(theme.variables.get("brand-font-sans").map(String::as_str), Some("sample"));
     assert_eq!(
         theme.corner_radii,
@@ -204,16 +329,14 @@ fn app_brand_label() {
         dir.path().join("organization.toml"),
         r#"
 [app]
-label = "Minimal"
-slug = "minimal"
-identifier = "com.minimal.hub"
+label = "Stokker Technologies Minimal"
 "#,
     )
     .unwrap();
 
     let brand = load_brand(dir.path()).unwrap();
 
-    assert_eq!(brand.customization.display_name.as_deref(), Some("Minimal"));
+    assert_eq!(brand.customization.display_name.as_deref(), Some("Stokker Technologies Minimal"));
     assert!(brand.customization.logo_assets.is_empty());
     assert!(brand.theme.is_none());
     assert!(matches!(brand.customization.theme_policy, ThemeActivationPolicy::RegisterOnly));
@@ -226,9 +349,7 @@ fn missing_logo_failing() {
         dir.path().join("organization.toml"),
         r#"
 [app]
-label = "NoLogo"
-slug = "nologo"
-identifier = "com.nologo.hub"
+label = "Stokker Technologies Without Artwork"
 
 [app.logos.contained]
 on_light = "missing.svg"
@@ -257,7 +378,7 @@ async fn runtime_appearance_brand() {
     runtime.set_brand(Some(brand));
 
     let frame = runtime.appearance_frame().await;
-    assert_eq!(frame.app_name, "Acme Test Hub");
+    assert_eq!(frame.app_name, "Stokker Technologies Test Hub");
     let captured = runtime.capture_appearance(64 * 1024).unwrap();
     assert_eq!(captured.frame, frame);
     assert_eq!(frame.logos.len(), 4);

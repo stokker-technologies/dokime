@@ -69,8 +69,8 @@ pub(super) fn transfer_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> R
     let artifact = content::UploadArtifactFrame {
         payload: Some(content::UploadArtifactFramePayload::Chunk(content::ArtifactChunk { offset: u64::MAX, data: Vec::new() })),
     };
-    let plugin = plugins::StagePluginFrame {
-        frame: Some(plugins::StagePluginFrameFrame::Chunk(plugins::StagePluginChunk { offset: u64::MAX, data: Vec::new() })),
+    let plugin = plugins::InstallPluginFrame {
+        frame: Some(plugins::InstallPluginFrameFrame::Chunk(plugins::InstallPluginChunk { offset: u64::MAX, data: Vec::new() })),
     };
     let artifact = input_allowance::<dokime::domain::operations::content::UploadArtifact>(
         &artifact,
@@ -79,7 +79,7 @@ pub(super) fn transfer_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> R
         maximum,
     )?;
     let plugin =
-        input_allowance::<dokime::domain::operations::plugins::Stage>(&plugin, &["frame", "Chunk", "field_0", "data"], cap, maximum)?;
+        input_allowance::<dokime::domain::operations::plugins::Install>(&plugin, &["frame", "Chunk", "field_0", "data"], cap, maximum)?;
     Ok(artifact.min(plugin))
 }
 

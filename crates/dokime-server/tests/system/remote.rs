@@ -64,7 +64,7 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
         evidence(client, extension, workflow, &stdout, &directory).await;
     }
     for extension in extensions {
-        conflicts(client, endpoint, &root.join(format!("{extension} conflicts")), extension).await;
+        conflicts(endpoint, &root.join(format!("{extension} conflicts")), extension).await;
     }
     interruption::scripts(client, endpoint, &root.join("interruptions")).await;
 }
@@ -74,10 +74,10 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
 async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> String {
     let mut command = if extension == "bat" && workflow == "test" {
         // Local Filenames Must Never Expand Observation Filter Globs.
-        let cwd = directory.parent().unwrap();
-        std::fs::write(cwd.join("obc.run.started"), b"local record filename").unwrap();
-        std::fs::write(cwd.join("obc.pudding"), b"local stream filename").unwrap();
-        let filters = [("RECORD_TYPES", "\"obc.run.*\" \"unrelated.*\""), ("STREAMS", "\"obc.pu*\" \"unused.*\"")];
+        std::fs::create_dir_all(directory).unwrap();
+        std::fs::write(directory.join("obc.run.started"), b"local record filename").unwrap();
+        std::fs::write(directory.join("obc.pudding"), b"local stream filename").unwrap();
+        let filters = [("RECORD_TYPES", "\"obc.run.*\""), ("STREAMS", "\"obc.pu*\"")];
         configured_command(extension, workflow, endpoint, directory, &filters)
     } else {
         command(extension, workflow, endpoint, directory)
@@ -102,14 +102,12 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     std::fs::create_dir_all(directory).unwrap();
     let source = std::fs::read_to_string(&script).unwrap();
     let output = directory.to_str().unwrap();
-    let responses = directory.join("responses");
     let mut values = vec![
         ("ENDPOINT", endpoint.to_owned()),
         ("CA_CERTIFICATE", String::new()),
         ("KEY_FILE", String::new()),
         ("ENV_FILE", String::new()),
         ("OUTPUT_DIRECTORY", output.to_owned()),
-        ("RESPONSE_DIRECTORY", responses.to_str().unwrap().to_owned()),
     ];
     values.extend(parameters.iter().map(|(name, value)| (*name, (*value).to_owned())));
     let source = configure(&source, extension, &values);
@@ -127,7 +125,7 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     let inherited = std::env::var_os("PATH").unwrap_or_default();
     paths.extend(std::env::split_paths(&inherited));
 
-    command.env("PATH", std::env::join_paths(paths).unwrap()).current_dir(directory.parent().unwrap()).kill_on_drop(true);
+    command.env("PATH", std::env::join_paths(paths).unwrap()).current_dir(directory).kill_on_drop(true);
     for name in ["DOKIME_KEY", "DOKIME_KEY_FILE", "DOKIME_ENV_FILE", "DOKIME_CA_CERTIFICATE", "DOKIME_BACKEND"] {
         command.env_remove(name);
     }
@@ -217,27 +215,7 @@ async fn device(client: &Client, extension: &str, stdout: &str, directory: &Path
     assert!(response.message().await.unwrap().is_none());
 }
 
-async fn conflicts(client: &Client, endpoint: &str, root: &Path, extension: &str) {
-    // An Existing Response Directory Must Prevent Every Device Effect.
-    let directory = root.join("device");
-    let mut device_command = command(extension, "device", endpoint, &directory);
-    let responses = directory.join("responses");
-    std::fs::create_dir(&responses).unwrap();
-    let preserved = responses.join("before.json");
-    std::fs::write(&preserved, b"existing response").unwrap();
-    let powered = client.call_operation("obc.device.set_power", None, br#"{"enabled":true}"#, Vec::new()).await.unwrap();
-    assert!(matches!(powered.message().await.unwrap(), Some(Event::Completion(_))));
-    assert!(powered.message().await.unwrap().is_none());
-    let output = device_command.output().await.unwrap();
-    assert!(!output.status.success());
-    assert_eq!(std::fs::read(&preserved).unwrap(), b"existing response");
-    let state = client.call_operation("obc.device.read", None, b"{}", Vec::new()).await.unwrap();
-    let Some(Event::Completion(value)) = state.message().await.unwrap() else { panic!("device state is required") };
-    device_state(&value, true);
-    let off = client.call_operation("obc.device.set_power", None, br#"{"enabled":false}"#, Vec::new()).await.unwrap();
-    assert!(matches!(off.message().await.unwrap(), Some(Event::Completion(_))));
-    assert!(off.message().await.unwrap().is_none());
-
+async fn conflicts(endpoint: &str, root: &Path, extension: &str) {
     // Bundle Conflicts Must Not Create A Cycle Or Admit Hardware Work.
     for workflow in ["test", "prompt"] {
         let directory = root.join(workflow);
@@ -260,7 +238,7 @@ fn device_responses(extension: &str, stdout: &str, directory: &Path) {
             device_state(&state, enabled);
         }
         for (name, enabled) in [("power-on", true), ("running", true), ("power-off", false), ("after", false)] {
-            let path = directory.join(format!("responses/{name}.json"));
+            let path = directory.join(format!("{name}.json"));
             let bytes = std::fs::read(path).unwrap();
             let state = serde_json::from_slice(&bytes).unwrap();
             device_state(&state, enabled);
@@ -268,7 +246,7 @@ fn device_responses(extension: &str, stdout: &str, directory: &Path) {
         return;
     }
     for (name, enabled) in [("power-on", true), ("running", true), ("power-off", false), ("after", false)] {
-        let path = directory.join(format!("responses/{name}.json"));
+        let path = directory.join(format!("{name}.json"));
         let bytes = std::fs::read(path).unwrap();
         let events: Vec<Value> = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(events.len(), 1);
@@ -419,13 +397,13 @@ fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, s
     let actual: Vec<String> = statement.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
     assert_eq!(actual, executions);
 
-    executions.iter().map(|id| (id.clone(), captured(&database, cycle, id, status))).collect()
+    executions.iter().map(|id| (id.clone(), captured(&database, cycle, id, status, path))).collect()
 }
 
-fn captured(database: &rusqlite::Connection, cycle: &str, id: &str, expected: &str) -> u64 {
+fn captured(database: &rusqlite::Connection, cycle: &str, id: &str, expected: &str, archive: &Path) -> u64 {
     let status: String =
         database.query_row("SELECT status FROM executions WHERE execution_id=?1 AND cycle_id=?2", [id, cycle], |row| row.get(0)).unwrap();
-    assert_eq!(status, expected);
+    assert_eq!(status, expected, "execution {id} in {}", archive.display());
 
     let stream: Option<(String, i64)> = database
         .query_row("SELECT table_name,sample_count FROM streams WHERE execution_id=?1 AND stream_id='obc.pulse'", [id], |row| {

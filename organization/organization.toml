@@ -1,23 +1,26 @@
-# Dokime Organization Pack — App Identity, Theme Policy And Geometry.
+# Dokime Organization Pack — Appearance, Theme Policy And Geometry.
 #
 # This authored pack supplies the compiled appearance. An installed Organization
 # Pack can override appearance on the next desktop start; bundle identity,
 # storage identity, deep-link registration and signing trust remain compiled.
-# A fork changes its compiled identity here and rebuilds the application.
+# Compiled identity belongs to the application build configuration.
 #
-# Pack Layout (Compiled Into `dokime-gui` When The Binaries Are Built):
+# Pack Layout (Bundled With Dokime Or Supplied As An Override):
 #
-#   organization.toml    this manifest — identity, theme policy, corner geometry
+#   organization.toml    this manifest — display identity, artwork, theme policy
 #   logos/        app marks, named `<treatment>-on-<surface>.<ext>`
 #   icons/        OS app-icon sources (icon.png is the desktop icon master)
 #   theme/        authored CSS: typography.css, base.css, light.css, dark.css
 #   fonts/        vendored woff2 faces (offline; never fetched at runtime)
-#   generated/    tracked build outputs — never hand-edited
 #
 # Run `mise run prepare:organization` and rebuild after editing compiled assets.
 #
-# Typography and palette values live in theme/. This TOML intentionally has no
-# font or color values.
+# Typography and application palette values live in theme/. Native installer
+# sidebar appearance is configured here without evaluating CSS.
+
+[installer]
+sidebar_color = "#1B1915"
+# sidebar_image = "installer/sidebar.png" # Optional PNG; takes precedence over color.
 
 [updates]
 mode = "manual"
@@ -32,13 +35,11 @@ repository = "stokker-technologies/dokime"
 label = "Dokime"
 # `{app}` is substituted with `label`.
 title_template = "{app}"
-# Lowercase slug. Derives the default output root (`<slug>-data`) and is the
-# basis a fork uses for storage-key / data-dir naming.
-slug = "dokime"
-# OS bundle identifier written into the generated Tauri config.
-identifier = "com.stokker.dokime"
-# Custom URL scheme for deep links (mirrors the Tauri deep-link plugin).
-deep_link_scheme = "dokime-test-hub"
+
+[app.artwork]
+application = "icons/icon.png"
+tray = "icons/icon.png"
+installer = "icons/icon.png"
 
 [app.organization]
 name = "Stokker Technologies"
@@ -46,15 +47,15 @@ name = "Stokker Technologies"
 # website = "..."    # optional
 
 # Stoa categories: treatment and intended background surface, not ink tone.
-# Runtime sources are SVG filenames within logos/; matching PNGs are exports.
+# Declared asset paths are relative to this pack root; matching PNGs are exports.
 # The shell prefers transparent artwork and falls back within the same surface.
 [app.logos.transparent]
-on_light = "transparent-on-light.svg"
-on_dark = "transparent-on-dark.svg"
+on_light = "logos/transparent-on-light.svg"
+on_dark = "logos/transparent-on-dark.svg"
 
 [app.logos.contained]
-on_light = "contained-on-light.svg"
-on_dark = "contained-on-dark.svg"
+on_light = "logos/contained-on-light.svg"
+on_dark = "logos/contained-on-dark.svg"
 
 [theme]
 # register_only | default | required.

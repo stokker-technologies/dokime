@@ -50,7 +50,14 @@ fn generate(root: &Path, args: &[&str]) -> Output {
     let mut command = Command::new(super::support::tool());
     #[cfg(windows)]
     command.creation_flags(0x0800_0000);
-    command.current_dir(root).args(["dokime", "new"]).args(args).env("CARGO_NET_OFFLINE", "true").env("PATH", "").output().unwrap()
+    command
+        .current_dir(root)
+        .args(["dokime", "sidecar", "new"])
+        .args(args)
+        .env("CARGO_NET_OFFLINE", "true")
+        .env("PATH", "")
+        .output()
+        .unwrap()
 }
 
 fn succeeded(output: Output) -> String {
@@ -122,7 +129,7 @@ fn workspace_scaffold_preserved() {
         );
         fs::write(root.path().join("Cargo.toml"), &original).unwrap();
         let output = succeeded(generate(root.path(), &["plugins/smoke-plugin"]));
-        assert!(output.contains("cargo dokime dev -p smoke-plugin"));
+        assert!(output.contains("cargo dokime sidecar dev -p smoke-plugin"));
         let member = fs::read_to_string(root.path().join("plugins/smoke-plugin/Cargo.toml")).unwrap();
         assert!(member.parse::<toml_edit::DocumentMut>().unwrap().get("profile").is_none());
         let updated = fs::read_to_string(root.path().join("Cargo.toml")).unwrap();
@@ -165,4 +172,27 @@ fn invalid_scaffold_refused() {
     assert!(!generate(root.path(), &["plugin"]).status.success());
     assert!(!root.path().join("plugin").exists());
     assert_eq!(fs::read_to_string(root.path().join("Cargo.toml")).unwrap(), malformed);
+}
+
+#[test]
+fn sidecar_commands_grouped() {
+    let root = tempfile::tempdir().unwrap();
+    for leaf in ["new", "build", "package", "dev", "inspect"] {
+        for cargo_prefix in [false, true] {
+            let mut command = Command::new(support::tool());
+            #[cfg(windows)]
+            command.creation_flags(0x0800_0000);
+            command.current_dir(root.path()).env("PATH", "");
+            if cargo_prefix {
+                command.arg("dokime");
+            }
+            let output = command.args(["sidecar", leaf, "--help"]).output().unwrap();
+            assert!(output.status.success(), "{leaf}: {}", String::from_utf8_lossy(&output.stderr));
+        }
+        let mut command = Command::new(support::tool());
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
+        let output = command.current_dir(root.path()).args(["dokime", leaf, "--help"]).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "top-level {leaf} must be rejected");
+    }
 }

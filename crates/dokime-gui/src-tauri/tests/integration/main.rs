@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod connection;
+mod http;
 mod native_session;
 mod parameters;
 mod rpc;

@@ -8,7 +8,7 @@
 
 [tasks.dev]
 description = "Rebuild And Reload The Plugin In A Development Host"
-run = "cargo dokime dev"
+run = "cargo dokime sidecar dev"
 
 [tasks.build]
 description = "Build The Plugin And Its Frozen Catalog"

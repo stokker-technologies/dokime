@@ -56,8 +56,7 @@ pub struct PluginEntry {
 pub struct Installation {
     pub install_id: Uuid,
     pub sha256: String,
-    pub staged_at: Timestamp,
-    pub consented_at: Option<Timestamp>,
+    pub installed_at: Timestamp,
     pub state: PluginState,
     pub last_boot: Option<PluginLastBoot>,
 }
@@ -67,13 +66,7 @@ pub struct Installation {
 pub struct PluginSettings {
     pub state: PluginState,
     pub digest: String,
-    pub staged_at: Timestamp,
-
-    #[serde(default)]
-    pub expires_at: Option<Timestamp>,
-
-    #[serde(default)]
-    pub consented_at: Option<Timestamp>,
+    pub installed_at: Timestamp,
 
     #[serde(default)]
     pub last_boot: Option<PluginLastBoot>,
@@ -94,7 +87,6 @@ pub struct ProgramValues {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginState {
-    Staged,
     Installed,
     Disabled,
     RemovalPending,
@@ -123,8 +115,7 @@ impl PluginSettings {
         Installation {
             install_id,
             sha256: self.digest.clone(),
-            staged_at: self.staged_at.clone(),
-            consented_at: self.consented_at.clone(),
+            installed_at: self.installed_at.clone(),
             state: self.state,
             last_boot: self.last_boot.clone(),
         }

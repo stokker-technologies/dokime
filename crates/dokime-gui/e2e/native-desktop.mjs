@@ -27,7 +27,7 @@
 //   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, shared secrets, diagnostics
-//   f'. plugin-install  native bundle picker, digest consent, restart activation and catalog
+//   f'. plugin-install  native bundle picker, direct installation, restart activation and catalog
 //   f'. organization  native pack import, restart activation and invalid-pending retention
 //   f'. remote-access  TLS/key setup, saved secrets, restart, rotation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
@@ -589,6 +589,7 @@ async function startSession(work, endpoint, evidence) {
 
   const session = {
     closed: false,
+    applicationRoot: join(home, "application"),
     downloads,
     id: created.sessionId,
     lastBody: "",
@@ -1144,7 +1145,7 @@ async function installSaveTap(session) {
           const headers = (init && init.headers) || {};
           entry.path = typeof headers.get === 'function' ? headers.get('dokime-rpc-path') : headers['dokime-rpc-path'];
         }
-        if (command === 'desktop_plugin_stage_file') {
+        if (command === 'desktop_plugin_install_file') {
           const payload = String(init && init.body);
           entry.keys = Object.keys(JSON.parse(payload));
           entry.size = payload.length;
@@ -3156,26 +3157,32 @@ async function settingsJourney(session, notes) {
 
   /* Plugins: rows with a Settings button, and the plugin page behind it. */
   await session.goto("/settings/plugins");
-  await until("the plugins section", async () => hasText(await session.text(), "Install A Plugin"), 120000);
-  const rows = await session.execute(`return document.querySelectorAll('button[aria-label="Plugin Settings"]').length`);
-  const configurable = await session.execute(
-    `return [...document.querySelectorAll('button[aria-label="Plugin Settings"]')].filter(
-       (button) => !button.disabled,
-     ).length;`,
+  const plugins = await until(
+    "the plugins section",
+    async () => {
+      const state = await session.execute(`
+        const buttons = [...document.querySelectorAll('button[aria-label="Plugin Settings"]')];
+        return {rows: buttons.length, configurable: buttons.filter(button => !button.disabled).length, text: document.body.innerText};
+      `);
+      return state.rows || hasText(state.text, "Loaded from the launch configuration; managed outside the installation store.")
+        ? state
+        : null;
+    },
+    120000,
   );
-  if (!rows) {
+  if (!plugins.rows) {
     /* Nothing is in the installation store: this backend was launched with
        `--plugin`, and the section has to say where its plugins came from
        rather than leaving the list unexplained. */
     assert.ok(
-      hasText(await session.text(), "Loaded from the launch configuration; managed outside the installation store."),
+      hasText(plugins.text, "Loaded from the launch configuration; managed outside the installation store."),
       "With no installed plugin the Plugins section must still name the loaded ones",
     );
     notes.push(
       "settings: the gate launches the backend with --plugin, so the installation store is empty and the plugin row's Settings button is not on this path",
     );
   }
-  if (configurable) {
+  if (plugins.configurable) {
     await session.clickNamed("button", "Plugin Settings");
     await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 120000);
     assert.ok(hasText(await session.text(), "Plugins"), "The plugin page must carry its breadcrumb");
@@ -3663,7 +3670,17 @@ async function journey(name, run) {
 async function terminate(child, signal = "SIGTERM") {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
   if (windows) {
-    await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+    try {
+      await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+    } catch (error) {
+      if (child.exitCode !== null || child.signalCode !== null) return;
+      try {
+        process.kill(child.pid, 0);
+      } catch (probe) {
+        if (probe.code === "ESRCH") return;
+      }
+      throw error;
+    }
     return;
   }
   try {
@@ -3794,6 +3811,7 @@ async function ownedStartupJourney() {
   assert.equal(status.ownership, "owned_local", "the native shell owns its embedded backend");
   assert.ok(status.connection?.endpoint, "the embedded session reports its negotiated endpoint");
   assert.ok(await listening(status.connection.endpoint), "the embedded server is listening");
+  await ordinaryInstanceJourney(session, status);
   const cycleId = await createEmptyContainer(session, "Managed Shutdown Evidence");
   await cyclePhase(session, "Active");
   await session.screenshot("owned-startup");
@@ -3812,7 +3830,7 @@ async function ownedStartupJourney() {
   await session.connected();
   await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", "owned_local");
   await installSaveTap(session);
-  await stagePluginThroughPicker(session);
+  await installPluginThroughPicker(session);
   await closeSession();
   session = await startSession(work, undefined, evidence);
   await session.connected();
@@ -3845,6 +3863,192 @@ async function ownedStartupJourney() {
   await session.screenshot("owned-running-recovered");
   await closeSession();
   await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing, idleMs, runningMs }, null, 2));
+}
+
+async function ordinaryInstanceJourney(primary, initial) {
+  const originalDriver = primary.process;
+  const separateWork = join(work, "independent-desktop");
+  const separateEvidence = join(evidence, "independent-desktop");
+  let independent;
+  let repeated;
+  let output;
+  const statusOf = (native) =>
+    native.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  const focused = async (native) => {
+    const result = await native.executeAsync(`
+      const done = arguments[arguments.length - 1];
+      globalThis.__TAURI_INTERNALS__.invoke('plugin:window|is_focused', {label: 'main'})
+        .then(done, (error) => done({error: String(error)}));
+    `);
+    assert.equal(typeof result, "boolean", `Native focus must be observable: ${JSON.stringify(result)}`);
+    return result;
+  };
+  const nativeFocus = async (activate = false) => {
+    if (!windows) return null;
+    const result = await promisify(execFile)(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `
+        $ErrorActionPreference = 'Stop'
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class DesktopForeground {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+  [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool SetForegroundWindow(IntPtr window);
+}
+'@
+        function Read-Foreground {
+          $handle = [DesktopForeground]::GetForegroundWindow()
+          [uint32]$owner = 0
+          [void][DesktopForeground]::GetWindowThreadProcessId($handle, [ref]$owner)
+          @{handle=$handle.ToInt64(); process=$owner}
+        }
+        $processes = @(Get-CimInstance Win32_Process)
+        $owned = [System.Collections.Generic.HashSet[uint32]]::new()
+        [void]$owned.Add([uint32]$env:DOKIME_FOCUS_DRIVER)
+        do {
+          $added = $false
+          foreach ($candidate in $processes) {
+            if ($owned.Contains([uint32]$candidate.ParentProcessId)) {
+              $added = $owned.Add([uint32]$candidate.ProcessId) -or $added
+            }
+          }
+        } while ($added)
+        $windows = @(foreach ($candidate in $processes) {
+          if (!$owned.Contains([uint32]$candidate.ProcessId) -or $candidate.ExecutablePath -ne $env:DOKIME_FOCUS_SHELL) { continue }
+          $process = Get-Process -Id $candidate.ProcessId
+          $handle = $process.MainWindowHandle
+          if ($handle -eq [IntPtr]::Zero) { throw "The driver-owned desktop has no main native window" }
+          @{handle=$handle.ToInt64(); process=$candidate.ProcessId; title=$process.MainWindowTitle}
+        })
+        if ($windows.Count -ne 1) { throw "Expected one driver-owned independent desktop window, found $($windows.Count)" }
+        $before = Read-Foreground
+        $activated = $null
+        if ($env:DOKIME_FOCUS_ACTIVATE -eq '1') { $activated = [DesktopForeground]::SetForegroundWindow([IntPtr]$windows[0].handle) }
+        ConvertTo-Json -Depth 4 -Compress -InputObject @{
+          window=$windows[0]; before=$before; after=(Read-Foreground); activationSucceeded=$activated
+        }
+      `,
+      ],
+      {
+        windowsHide: true,
+        timeout: 120000,
+        env: {
+          ...process.env,
+          DOKIME_FOCUS_DRIVER: String(independent.process.pid),
+          DOKIME_FOCUS_SHELL: resolve(shellBinary),
+          DOKIME_FOCUS_ACTIVATE: activate ? "1" : "0",
+        },
+      },
+    );
+    return JSON.parse(result.stdout);
+  };
+
+  try {
+    independent = await startSession(separateWork, undefined, separateEvidence);
+    session = independent;
+    await independent.connected();
+    const separate = await statusOf(independent);
+    assert.equal(separate.ownership, "owned_local", "a distinct application root owns its own backend");
+    assert.equal(separate.connection?.phase, "connected");
+    assert.notEqual(
+      separate.connection.backend.backendId,
+      initial.connection.backend.backendId,
+      "distinct roots have independent backend identities",
+    );
+    assert.notEqual(separate.connection.backend.epoch, initial.connection.backend.epoch, "distinct roots have independent backend epochs");
+    assert.notEqual(separate.connection.endpoint, initial.connection.endpoint, "distinct roots have independent listeners");
+    assert.ok(await listening(separate.connection.endpoint));
+    // Arrange Native Activation Before Testing The Ordinary Launch's Focus Transfer.
+    if (windows) {
+      const activation = await nativeFocus(true);
+      await writeFile(join(evidence, "independent-focus-setup.json"), JSON.stringify(activation, null, 2));
+      assert.equal(activation.activationSucceeded, true, `Native activation must succeed: ${JSON.stringify(activation)}`);
+    }
+    await until("the independent desktop owns native focus", () => focused(independent), 120000);
+    assert.equal(await focused(primary), false, "the original window loses focus before the repeated launch");
+
+    const environment = { ...process.env, DOKIME_APPLICATION_ROOT: primary.applicationRoot };
+    delete environment.TAURI_WEBVIEW_AUTOMATION;
+    output = await open(join(evidence, "repeated-launch.log"), "w");
+    repeated = spawn(resolve(shellBinary), [], {
+      cwd: workspace,
+      env: environment,
+      detached: !windows,
+      windowsHide: true,
+      stdio: ["ignore", output.fd, output.fd],
+    });
+    repeated.on("error", (error) => {
+      repeated.startupError = error;
+    });
+    await until(
+      "the same-root ordinary launch acknowledges focus and exits",
+      () => {
+        if (repeated.startupError) throw repeated.startupError;
+        return repeated.exitCode !== null || repeated.signalCode !== null;
+      },
+      120000,
+    );
+    assert.equal(repeated.signalCode, null, "the repeated launch exits without a forced signal");
+    assert.equal(repeated.exitCode, 0, "the repeated launch receives the existing desktop's focus acknowledgement");
+    await until("the original desktop regains native focus", () => focused(primary), 120000);
+    assert.equal(await focused(independent), false, "focus moves away from the independent root");
+    if (windows) await writeFile(join(evidence, "ordinary-focus-result.json"), JSON.stringify(await nativeFocus(), null, 2));
+    const after = await statusOf(primary);
+    assert.equal(after.ownership, initial.ownership);
+    assert.deepEqual(after.selection, initial.selection);
+    assert.deepEqual(after.connection, initial.connection, "focusing preserves backend identity, epoch, generation and endpoint");
+
+    await closeSession();
+    await until("the independent owned backend drains on close", async () => !(await listening(separate.connection.endpoint)), 120000);
+    assert.ok(await listening(initial.connection.endpoint), "closing a distinct root does not close the original backend");
+    const retained = await statusOf(primary);
+    assert.deepEqual(retained.connection, initial.connection);
+    assert.equal(retained.ownership, initial.ownership);
+    await writeFile(
+      join(evidence, "ordinary-instances.json"),
+      JSON.stringify({ initial, separate, after, retained, focused: true }, null, 2),
+    );
+  } catch (error) {
+    if (independent && !independent.closed) {
+      if (windows) {
+        await nativeFocus()
+          .then((snapshot) => writeFile(join(evidence, "failure-independent-focus.json"), JSON.stringify(snapshot, null, 2)))
+          .catch(() => undefined);
+      }
+      await independent.screenshot("failure-independent-desktop").catch(() => undefined);
+      await independent
+        .dump("failure-independent-desktop", { error: String(error), status: await statusOf(independent).catch(String) })
+        .catch(() => undefined);
+    }
+    throw error;
+  } finally {
+    const independentDriver = independent?.process ?? driverProcess;
+    try {
+      await terminate(repeated);
+      if (independent && !independent.closed) {
+        session = independent;
+        driverProcess = independent.process;
+        await closeSession();
+      }
+    } finally {
+      try {
+        if (independentDriver !== originalDriver) await terminate(independentDriver);
+      } finally {
+        session = primary;
+        driverProcess = originalDriver;
+        await output?.close();
+      }
+    }
+  }
 }
 
 async function idleJourney() {
@@ -4003,7 +4207,7 @@ async function pluginInstallJourney() {
     session = await startSession(root, backend.endpoint, evidence);
     await sizeViewport(session, densities.desktop);
     await installSaveTap(session);
-    await stagePluginThroughPicker(session);
+    await installPluginThroughPicker(session);
 
     await closeSession();
     await stopBackend();
@@ -4034,24 +4238,24 @@ async function pluginInstallJourney() {
   }
 }
 
-async function stagePluginThroughPicker(session) {
+async function installPluginThroughPicker(session) {
   await session.goto("/settings/plugins");
   await until("plugin installer", async () => hasText(await session.text(), "Install A Plugin"), 120000);
   await session.execute("globalThis.__dokimeInvokes.length = 0;");
   await session.clickNamed("button", "Choose File");
   const picker = { window: null };
   await until("native plugin file picker", () => chooseNativeFile(picker, pluginBundle), 120000);
-  await until("inspected plugin consent", async () => hasText(await session.text(), "Review Plugin"), 300000);
-  const digest = await sha256(pluginBundle);
-  assert.ok(hasText(await session.text(), digest), "Consent must display the digest of the selected native file");
+  await until("saved plugin installation", async () => hasText(await session.text(), "Plugin changes are saved"), 300000);
   const invokes = await session.execute(
-    "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_stage_file');",
+    "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_install_file');",
   );
-  assert.equal(invokes.length, 1, "A bundle uses one native staging invocation");
-  assert.deepEqual(invokes[0].keys.sort(), ["drop", "generation", "progress"], "Staging passes control arguments without bundle bytes");
-  assert.ok(invokes[0].size < 1024, "The staging invocation stays bounded independently of bundle size");
-  await session.clickNamed("button", "Install plugin");
-  await until("saved plugin consent", async () => hasText(await session.text(), "Plugin changes are saved"), 120000);
+  assert.equal(invokes.length, 1, "A bundle uses one native installation invocation");
+  assert.deepEqual(
+    invokes[0].keys.sort(),
+    ["drop", "generation", "progress"],
+    "Installation passes control arguments without bundle bytes",
+  );
+  assert.ok(invokes[0].size < 1024, "The installation invocation stays bounded independently of bundle size");
   await session.clickNamed("button", "Later");
   await until("plugin restart requirement", async () => hasText(await session.text(), "Restart Required"), 120000);
   await session.screenshot("plugin-install");
@@ -4261,13 +4465,10 @@ async function organizationJourney() {
   const root = join(work, "shell", "application", "organization");
   const archive = join(work, "organization.zip");
   const manifest = `[app]
-label = "Validation Lab"
+label = "Stokker Technologies"
 title_template = "{app}"
-slug = "ignored-lab"
-identifier = "invalid.replacement.identity"
-deep_link_scheme = "ignored-lab"
 [app.logos.transparent]
-on_light = "mark.svg"
+on_light = "logos/mark.svg"
 [updates]
 mode = "disabled"
 source = "public"
@@ -4312,13 +4513,13 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   };
   await choose();
   assert.equal(
-    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"),
-    null,
+    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"),
+    "Dokime",
     "Staging does not change this boot's appearance",
   );
   await restart();
   await until("native organization activation", async () => hasText(await session.text(), "Active since this start."));
-  assert.ok(hasText(await session.text(), "Validation Lab"), "The mounted shell applies the imported label");
+  assert.ok(hasText(await session.text(), "Stokker Technologies"), "The mounted shell applies the imported label");
   assert.equal(
     await readFile(join(root, "active", "organization.toml"), "utf8"),
     manifest,
@@ -4378,7 +4579,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await choose();
   await writeFile(join(root, "pending", "organization.toml"), "invalid [");
   await restart();
-  assert.ok(hasText(await session.text(), "Validation Lab"), "An invalid pending pack retains the active appearance");
+  assert.ok(hasText(await session.text(), "Stokker Technologies"), "An invalid pending pack retains the active appearance");
   assert.equal(await readFile(join(root, "active", "organization.toml"), "utf8"), manifest);
   assert.equal(
     await readFile(join(root, "pending", "organization.toml"), "utf8"),
@@ -4390,10 +4591,10 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await session.screenshot("organization-invalid-pending");
   await session.goto("/settings/appearance");
   await session.clickNamed("button", "Remove");
-  await until("organization removal queued", async () => hasText(await session.text(), "Compiled brand applies on next start."));
+  await until("organization removal queued", async () => hasText(await session.text(), "Bundled organization applies on next start."));
   await restart();
-  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"), null);
-  assert.ok(hasText(await session.text(), "Compiled Brand"), "Removal restores the compiled appearance on restart");
+  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"), "Dokime");
+  assert.ok(hasText(await session.text(), "Bundled Organization"), "Removal restores the bundled appearance on restart");
 }
 
 async function writeJunit() {

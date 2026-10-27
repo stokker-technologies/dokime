@@ -88,3 +88,8 @@ Integration inventory additions: `plugins/obc-plugin/src/lib.rs` removes the ret
 - [x] 10.3 Ignore legacy settings/configuration files without deleting them; update startup test and persistence contract.
 - [x] 10.4 Audit and remove accounting-only estimators (document bounded resolution/normalization and payload/context/frame helpers; report input/value/index/saved; captured execution context) in Dokime and paired Harmos, including harmos-storage batch.rs and writes/decoded.rs unused admission estimators; preserve transport sizing.
 - [ ] 10.5 Run complete runtime/server integration suites and rebuild the dev desktop through project tasks.
+
+## 10. Hub CI And Installer Merge
+
+- [x] 10.1 Resolve the incoming Hub CI, release, installer and organization artwork changes while preserving SQLite settings, removed memory accounting, the backend table and v1 clean breaks; regenerate bindings, resources and locks.
+- [ ] 10.2 Pass the requested focused Rust check, TypeScript checks/unit tests, Python client unit tests and packaging installer tests; commit the merge and repairs locally without pushing or rebuilding the locked desktop executable.

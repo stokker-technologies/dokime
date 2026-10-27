@@ -15,7 +15,7 @@ import { createContext, type ReactNode, useContext } from "react";
 
 import type { BootOrganization, BootOrganizationPack } from "@/lib/desktop/organization";
 import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
-import defaultBrandData from "../../../../organization/generated/default-organization.json";
+import defaultBrandData from "../generated/organization/default-organization.json";
 
 /* === Re-Exports === */
 

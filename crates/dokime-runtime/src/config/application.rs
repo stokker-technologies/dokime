@@ -91,18 +91,27 @@ impl ApplicationOptions {
     }
 
     fn load(&self) -> io::Result<(Option<organization::ResolvedBrand>, ApplicationPaths)> {
-        let brand = organization::compiled_brand();
         let configured_root = match &self.application_root {
             Some(root) => Some(root.clone()),
             None => environment_path(APPLICATION_ROOT_ENV),
         };
-        let application_id = brand.as_ref().map_or(DEFAULT_APPLICATION_ID, |brand| &brand.identity.identifier);
+        let application_id = DEFAULT_APPLICATION_ID;
         let root = match configured_root {
             Some(root) => std::path::absolute(root)?,
             None => ApplicationPaths::resolve(application_id)?.root,
         };
 
         let paths = ApplicationPaths::new(root);
+        let active = paths.root.join("organization/active");
+        let pack = match organization::resolve(active.is_dir().then_some(active.as_path())) {
+            Ok(pack) => pack,
+            Err(error) if active.is_dir() => {
+                tracing::error!(%error, "the active organization is invalid; using bundled defaults");
+                organization::resolve(None).map_err(io::Error::other)?
+            }
+            Err(error) => return Err(io::Error::other(error)),
+        };
+        let brand = Some(pack.brand().map_err(io::Error::other)?);
         Ok((brand, paths))
     }
 }

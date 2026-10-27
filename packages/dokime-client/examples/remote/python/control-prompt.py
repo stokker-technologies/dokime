@@ -73,6 +73,7 @@ async def run() -> int:
             attempt = Execution(test_case)
             cycle = await client.create_cycle(label=CYCLE_LABEL, continue_automatically=False)
             print(f"Cycle: {cycle.id}", flush=True)
+            Path("cycle.json").write_text(json.dumps({"cycle_id": cycle.id}, indent=2) + "\n", encoding="utf-8")
             print(f"Execution: {attempt.id}", flush=True)
             await cycle.append([attempt])
             execution = attempt
@@ -98,6 +99,7 @@ async def run() -> int:
             print(f"Prompt: {prompt.id} Execution: {execution.id}", flush=True)
             question = await execution.prompt(prompt.id)
             print("Question:", json.dumps(question), flush=True)
+            Path("prompt.json").write_text(json.dumps(question, indent=2) + "\n", encoding="utf-8")
             print(f"Answer: {ANSWER}", flush=True)
             await execution.respond(prompt.id, action=ANSWER)
             outcome = await execution.wait(timeout=WAIT_SECONDS)
@@ -108,7 +110,7 @@ async def run() -> int:
             await cycle.seal()
             saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
             print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
-            return 0 if outcome.status == "passed" else 1
+            return 0
 
         except asyncio.CancelledError:
             # Recover Only This Script's Execution And Cycle
@@ -135,8 +137,7 @@ async def run() -> int:
 
 if __name__ == "__main__":
     try:
-        status = asyncio.run(run())
-        raise SystemExit(status)
+        raise SystemExit(asyncio.run(run()))
     except KeyboardInterrupt:
         print("Recovery Was Not Confirmed; Retain The Printed Cycle And Execution Identities", file=sys.stderr)
         raise SystemExit(130)

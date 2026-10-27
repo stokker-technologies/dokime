@@ -439,20 +439,14 @@ impl Session {
         tracing::debug!(execution_id = %execution.test_execution_id, through, "record settlement capture reached");
         let mut remaining = ids;
         if !remaining.is_empty() {
-            let mut reader = context
-                .runtime
-                .record_source
-                .history(&context.runtime.state_manager, 0, through)
-                .await
-                .map_err(|error| failure("sidecar_records", error.to_string()))?;
+            let reader = context.runtime.captured_records();
+            let mut after = self.record_subscription_after;
             loop {
-                let record = reader.next().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
+                let record = reader.next(after, through).await.map_err(|error| failure("sidecar_records", error.to_string()))?;
                 let Some(record) = record else {
                     break;
                 };
-                if record.sequence <= self.record_subscription_after {
-                    continue;
-                }
+                after = record.sequence;
                 let Some(captured) = remaining.remove(&record.record_id) else {
                     continue;
                 };

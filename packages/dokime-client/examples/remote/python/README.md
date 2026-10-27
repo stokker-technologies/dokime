@@ -77,8 +77,8 @@ boolean choices. These are edit-and-run examples; they accept no CLI arguments.
 
 ## Control The Manual Device
 
-In `control-device.py`, optionally set `RESPONSE_DIRECTORY` to a new path,
-such as `Path("device-responses")`. Its default `None` prints replies only.
+Run `control-device.py` from the directory where its fixed response files
+should be saved.
 
 ```sh
 uv run --locked control-device.py
@@ -86,11 +86,11 @@ uv run --locked control-device.py
 
 The script discovers OBC operations, reads the manual device, powers it on,
 reads its powered state, powers it off and performs a final read. The expected
-voltage is 230 V RMS when enabled and zero when disabled. Optional files are
+voltage is 230 V RMS when enabled and zero when disabled. The response files are
 `before.json`, `power-on.json`, `running.json`, `power-off.json` and
 `after.json`; Python stores JSON objects with protobuf field names.
 
-An existing response directory is refused before connecting. A local write
+Fixed response files are replaced on each run. A local write
 failure can follow a successful device command. Ctrl+C stops waiting and
 does not prove whether an unconfirmed command acted; read state before resending.
 Manual control is independent of the devices owned by test executions and is
@@ -139,9 +139,13 @@ other attempt. Data-reading loops print observations, never dispatch steps.
 The script saves `test-evidence/execution-1.zip`,
 `test-evidence/execution-2.zip` and the explicitly sealed
 `test-evidence/cycle.zip`. The default successful attempts each capture eight
-pulse samples. Nonpassing saved outcomes still export and return a nonzero
-process status. Set a fresh `OUTPUT_DIRECTORY` before rerunning or explicitly
+pulse samples. Saved outcomes are printed without aggregating them into a
+process exit status; exceptions still report a failed workflow. Set a fresh
+`OUTPUT_DIRECTORY` before rerunning or explicitly
 choose `OVERWRITE = True` to replace bundle destinations atomically.
+
+The script also saves `cycle.json`, `execution-1.json` and `execution-2.json`
+in the current directory. These fixed JSON responses are replaced on each run.
 
 The cycle defaults to `continue_automatically=False`, so the script controls
 each explicit Start and saves one attempt before starting another. Explicit
@@ -152,7 +156,7 @@ only the selected attempt until the operator explicitly re-enables continuation.
 
 In `control-prompt.py`, review `TEMPLATE`, `CYCLE_LABEL`, `ANSWER`,
 `WAIT_SECONDS`, `OUTPUT_DIRECTORY` and `OVERWRITE`. The default `ANSWER`
-is `"yes"`; `"no"` gives a truthful nonpassing result.
+is `"yes"`; `"no"` records a truthful nonpassing result.
 
 ```sh
 uv run --locked control-prompt.py
@@ -164,7 +168,8 @@ execution's pending prompt through one commented, bounded wait because the
 Python client only lists pending prompts. It prints its question and answers
 the exact prompt UUID once. Sampling begins after confirmation. It then waits, saves
 `prompt-evidence/execution.zip`, seals its cycle and saves
-`prompt-evidence/cycle.zip`.
+`prompt-evidence/cycle.zip`. The cycle identity and inspected prompt are saved
+as `cycle.json` and `prompt.json` in the current directory.
 
 This demonstrates scripted confirmation; it does not wait for terminal input.
 Use the native CLI prompt commands if an operator needs to inspect and answer

@@ -18,7 +18,7 @@ import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
 
 /* === Local Imports === */
 
-import type { StagePluginProgress } from "@/lib/api/native-plugins";
+import type { InstallPluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
 import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
 import type { OrganizationStatus } from "./organization";
@@ -81,9 +81,9 @@ export const commands = {
   /** Patch an MP4 recording's duration in place and upload it; returns the artifact id. */
   desktopRecordingFinish: (generation: string, durationMs: number, mediaType: string) =>
     invoke<string>("desktop_recording_finish", { generation, durationMs, mediaType }),
-  /** Stage the bundle just dropped on the window, or pick one natively; `null` when the operator cancels. */
-  desktopPluginStageFile: (generation: string, drop: boolean, progress: Channel<StagePluginProgress>) =>
-    invoke<string | null>("desktop_plugin_stage_file", { generation, drop, progress }),
+  /** Install the bundle just dropped on the window, or pick one natively; `null` when the operator cancels. */
+  desktopPluginInstallFile: (generation: string, drop: boolean, progress: Channel<InstallPluginProgress>) =>
+    invoke<string | null>("desktop_plugin_install_file", { generation, drop, progress }),
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
   /** The organization pack applied at boot and the one that applies on the next start. */
   desktopOrganizationStatus: () => invoke<OrganizationStatus>("desktop_organization_status"),
@@ -102,6 +102,6 @@ export const commands = {
   desktopUpdatesCheck: () => invoke<UpdateCheck>("desktop_updates_check"),
   desktopUpdatesInstall: (candidate: string) => invoke<{ version: string }>("desktop_updates_install", { candidate }),
   desktopPluginReleaseCheck: (generation: string) => invoke<PluginRelease>("desktop_plugin_release_check", { generation }),
-  desktopPluginReleaseStage: (generation: string, candidate: string, progress: Channel<StagePluginProgress>) =>
-    invoke<string>("desktop_plugin_release_stage", { generation, candidate, progress }),
+  desktopPluginReleaseInstall: (generation: string, candidate: string, progress: Channel<InstallPluginProgress>) =>
+    invoke<string>("desktop_plugin_release_install", { generation, candidate, progress }),
 };

@@ -27,8 +27,7 @@ use crate::app::organization::policy::{Mode, Source, UpdatePolicy, https_url};
 
 /* === Constants === */
 
-const DESKTOP_ORGANIZATION_URL_BYTES: u64 = 4_096;
-const DESKTOP_UPDATE_MANIFEST_BYTES: u64 = 1_048_576;
+pub(super) const DESKTOP_UPDATE_MANIFEST_BYTES: u64 = 1_048_576;
 const DESKTOP_UPDATE_REDIRECTS: u64 = 10;
 const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
 
@@ -95,10 +94,9 @@ impl Authorization {
 
 pub(super) fn client(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     // Reqwest Removes Authorization On Origin Changes, Including Scheme And Port.
-    let maximum = DESKTOP_ORGANIZATION_URL_BYTES;
     let redirects_maximum = DESKTOP_UPDATE_REDIRECTS;
     let redirects = reqwest::redirect::Policy::custom(move |attempt| {
-        if https_url(attempt.url().as_str(), maximum).is_err() {
+        if https_url(attempt.url().as_str()).is_err() {
             return attempt.error("Release redirects require HTTPS without embedded credentials");
         }
         if attempt.previous().len() as u64 >= redirects_maximum {
@@ -117,9 +115,9 @@ pub(super) fn headers(auth: Option<&Authorization>, target: &Url) -> Result<Head
 }
 
 pub(super) async fn fetch(url: &Url, auth: Option<&Authorization>, maximum: usize) -> Result<Vec<u8>, String> {
-    https_url(url.as_str(), DESKTOP_ORGANIZATION_URL_BYTES)?;
+    https_url(url.as_str())?;
     let headers = headers(auth, url)?;
-    let client = client(reqwest::Client::builder()).build().map_err(|_| "Release HTTP client initialization failed")?;
+    let client = client(crate::app::http::client()).build().map_err(|_| "Release HTTP client initialization failed")?;
     let response = client.get(url.clone()).headers(headers).send().await.map_err(|_| "Release request failed")?;
     let mut response = response.error_for_status().map_err(|_| "Release source is unavailable or requires another account")?;
     if response.content_length().is_some_and(|length| length > maximum as u64) {
@@ -146,18 +144,18 @@ pub(super) async fn resolve(policy: &UpdatePolicy, asset: &str, auth: Option<&Au
         Source::Direct { manifest, plugins, .. } => {
             let location =
                 if asset == "latest.json" { manifest } else { plugins.as_ref().ok_or("This source has no plugin release feed")? };
-            https_url(location, DESKTOP_ORGANIZATION_URL_BYTES)
+            https_url(location)
         }
         Source::Github { repository } => {
-            let url = https_url(&format!("https://api.github.com/repos/{repository}/releases/latest"), DESKTOP_ORGANIZATION_URL_BYTES)?;
+            let url = https_url(&format!("https://api.github.com/repos/{repository}/releases/latest"))?;
             let bytes = fetch(&url, auth, DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
             let release: GithubRelease = serde_json::from_slice(&bytes).map_err(|_| "GitHub release metadata is invalid")?;
             let assets = release.assets.into_iter().map(|entry| (entry.name, entry.browser_download_url));
-            named_asset(assets, asset, DESKTOP_ORGANIZATION_URL_BYTES)
+            named_asset(assets, asset)
         }
         Source::Gitlab { connection, project } => {
             let connection = policy.connections.get(connection).ok_or("The release connection is unavailable")?;
-            let mut url = https_url(&connection.host, DESKTOP_ORGANIZATION_URL_BYTES)?;
+            let mut url = https_url(&connection.host)?;
             url.path_segments_mut().map_err(|_| "The GitLab origin cannot hold a release path")?.extend([
                 "api",
                 "v4",
@@ -170,20 +168,20 @@ pub(super) async fn resolve(policy: &UpdatePolicy, asset: &str, auth: Option<&Au
             let bytes = fetch(&url, auth, DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
             let release: GitlabRelease = serde_json::from_slice(&bytes).map_err(|_| "GitLab release metadata is invalid")?;
             let assets = release.assets.links.into_iter().map(|entry| (entry.name, entry.direct_asset_url.unwrap_or(entry.url)));
-            named_asset(assets, asset, DESKTOP_ORGANIZATION_URL_BYTES)
+            named_asset(assets, asset)
         }
     }
 }
 
 /* === Private Functions === */
 
-fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str, maximum: u64) -> Result<Url, String> {
+fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str) -> Result<Url, String> {
     let mut matching = assets.filter(|(name, _)| name == wanted);
     let (_, location) = matching.next().ok_or_else(|| format!("The release has no {wanted} asset"))?;
     if matching.next().is_some() {
         return Err(format!("The release has more than one {wanted} asset"));
     }
-    https_url(&location, maximum)
+    https_url(&location)
 }
 
 /* === Tests === */
@@ -191,9 +189,6 @@ fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str, max
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn https_url(value: &str) -> Result<Url, String> {
-        super::https_url(value, DESKTOP_ORGANIZATION_URL_BYTES)
-    }
 
     #[tokio::test]
     async fn disabled_sources_are_local_and_authorization_is_origin_scoped() {
@@ -209,6 +204,6 @@ mod tests {
         let headers = auth.headers(&target).unwrap();
         assert!(headers[AUTHORIZATION].is_sensitive());
         let duplicate = vec![("latest.json".into(), target.to_string()), ("latest.json".into(), target.to_string())];
-        assert!(named_asset(duplicate.into_iter(), "latest.json", DESKTOP_ORGANIZATION_URL_BYTES).is_err());
+        assert!(named_asset(duplicate.into_iter(), "latest.json").is_err());
     }
 }

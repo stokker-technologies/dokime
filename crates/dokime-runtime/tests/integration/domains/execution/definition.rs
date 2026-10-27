@@ -92,7 +92,7 @@ impl TrackingTestTemplate {
 
 impl RustTemplate for MatrixTemplate {
     fn define(&self, ctx: &mut TemplateContext) {
-        ctx.set_metadata(metadata("acme.matrix", "Acme Matrix", None));
+        ctx.set_metadata(metadata("stokker.matrix", "Stokker Technologies Matrix", None));
         ctx.set_parameters(vec![
             // Scalar: one fixed value in every generated case.
             Parameter::text("operator", "Operator").default("unassigned"),

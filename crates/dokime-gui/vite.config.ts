@@ -89,7 +89,6 @@ export default defineConfig(() => ({
     tanstackRouter({
       target: "react",
       autoCodeSplitting: true,
-      routeFileIgnorePattern: "route-state(\\.test)?\\.ts$",
     }),
     react(),
     tailwindcss(),

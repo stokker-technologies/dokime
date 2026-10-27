@@ -37,7 +37,7 @@ native = [
   "dep:tracing-error",
 ]
 derive = ["dep:dokime-macros"]
-configuration = ["dep:base64", "dep:cssparser", "dep:sysinfo", "dep:tempfile", "dep:tokio", "dep:toml"]
+configuration = ["dep:base64", "dep:cssparser", "dep:sysinfo", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [
   "configuration",
@@ -49,6 +49,7 @@ host = [
   "dep:dokime-host",
   "dep:futures-util",
   "dep:keyring",
+  "dep:image",
   "dep:keyring-core",
   "dep:rustls-platform-verifier",
   "dep:sha2",
@@ -92,6 +93,7 @@ harmos-packaging = { workspace = true }
 keyring = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
 regex = { workspace = true }
+ring = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 time = { workspace = true }
 uuid = { workspace = true, features = ["js"] }
@@ -132,6 +134,7 @@ tokio-util = { workspace = true, features = ["io", "rt"], optional = true }
 # Networking
 rustls-platform-verifier = { workspace = true, optional = true }
 suppaftp = { workspace = true, features = ["tokio", "tokio-rustls-ring"], optional = true }
+url = { workspace = true, optional = true }
 
 # Storage
 rusqlite = { workspace = true, optional = true }
@@ -245,7 +248,6 @@ libc = { workspace = true }
 # Async
 
 # Networking
-url = { workspace = true, optional = true }
 
 # Storage
 

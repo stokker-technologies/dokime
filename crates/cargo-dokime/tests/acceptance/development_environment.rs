@@ -52,7 +52,7 @@ fn command(cwd: &std::path::Path) -> std::process::Command {
         .current_dir(cwd)
         .env_remove("DOKIME_DEV_ROOT")
         .env("DOKIME_HOME", server.parent().unwrap())
-        .args(["--color", "never", "dev", "--headless", "--dokime"])
+        .args(["--color", "never", "sidecar", "dev", "--headless", "--dokime"])
         .arg(cli)
         .arg("--manifest-path")
         .arg(cwd.join("missing-Cargo.toml"));

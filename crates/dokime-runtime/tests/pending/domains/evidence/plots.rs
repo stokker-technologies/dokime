@@ -46,8 +46,7 @@ pub(crate) async fn external_analysis_reload() {
     let root = tempdir().unwrap();
     let store = crate::service_support::plugins::plugin_store(root.path());
     let bundle = crate::service_support::plugins::fixture_bundle_bytes("obc-plugin");
-    let staged = store.stage(&bundle).unwrap();
-    store.consent(staged.installation.install_id, &[], &Default::default()).unwrap();
+    store.install(&bundle, &[], &Default::default()).unwrap();
     let (mut owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();

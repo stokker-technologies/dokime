@@ -73,14 +73,14 @@ pub(crate) async fn frozen_catalog_multiply() {
         let store = PluginStore::with_archive_limit(
             dokime_runtime::config::Settings::open(
                 root.path(),
-                dokime_runtime::storage::sqlite::State::open(&root.path().join("data"), &Default::default()).await.unwrap(),
+                dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap(),
             )
             .await
             .unwrap(),
             Default::default(),
             285_212_672 as usize,
         );
-        assert!(store.stage(forged.bytes()).await.unwrap_err().to_string().contains(reason));
+        assert!(store.install(forged.bytes(), &[], &Default::default()).await.unwrap_err().to_string().contains(reason));
         assert!(store.list().await.unwrap().is_empty());
     }
 }
@@ -107,14 +107,14 @@ pub(crate) async fn legacy_unknown_refused() {
             let store = PluginStore::with_archive_limit(
                 dokime_runtime::config::Settings::open(
                     root.path(),
-                    dokime_runtime::storage::sqlite::State::open(&root.path().join("data"), &Default::default()).await.unwrap(),
+                    dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap(),
                 )
                 .await
                 .unwrap(),
                 Default::default(),
                 285_212_672 as usize,
             );
-            let error = store.stage(forged.bytes()).await.unwrap_err().to_string();
+            let error = store.install(forged.bytes(), &[], &Default::default()).await.unwrap_err().to_string();
             assert!(error.contains(&format!("unsupported `{namespace}` schema {schema}")), "{error}");
             assert!(store.list().await.unwrap().is_empty());
         }

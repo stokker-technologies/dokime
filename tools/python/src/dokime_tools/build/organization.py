@@ -37,6 +37,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
 BRAND = ROOT / "organization"
+GENERATED = ROOT / "crates/dokime-gui/src/generated/organization"
 
 # === Types === #
 
@@ -55,12 +56,14 @@ def generate() -> None:
             filename = app.get("logos", {}).get(treatment, {}).get(f"on_{surface}")
             if filename is None:
                 continue
-            if Path(filename).name != filename or not filename.endswith(".svg"):
-                raise ValueError("brand logos must be SVG filenames within organization/logos")
-            data = base64.b64encode((BRAND / "logos" / filename).read_bytes()).decode("ascii")
-            logos[f"{treatment}_on_{surface}"] = {"src": f"data:image/svg+xml;base64,{data}", "alt": app["label"]}
+            path = (BRAND / filename).resolve()
+            mime = {".svg": "image/svg+xml", ".png": "image/png"}.get(path.suffix)
+            if not path.is_relative_to(BRAND.resolve()) or mime is None:
+                raise ValueError("brand logos must be pack-root-relative SVG or PNG paths")
+            data = base64.b64encode(path.read_bytes()).decode("ascii")
+            logos[f"{treatment}_on_{surface}"] = {"src": f"data:{mime};base64,{data}", "alt": app["label"]}
     _write_json(
-        BRAND / "generated/default-organization.json",
+        GENERATED / "default-organization.json",
         {
             "label": app["label"],
             "title": app.get("title_template", "{app}").replace("{app}", app["label"]),
@@ -68,15 +71,7 @@ def generate() -> None:
         },
     )
 
-    canonical = json.loads((ROOT / "crates/dokime-gui/src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
-    windows = [
-        {**window, "title": app.get("title_template", "{app}").replace("{app}", app["label"])} for window in canonical["app"]["windows"]
-    ]
-    _write_json(
-        BRAND / "generated/tauri.organization.json",
-        {"productName": app["label"], "identifier": app["identifier"], "app": {"windows": windows}},
-    )
-    _write_text(BRAND / "generated/theme.css", _stylesheet(manifest))
+    _write_text(GENERATED / "theme.css", _stylesheet(manifest))
 
 
 def generate_icons() -> None:
@@ -107,7 +102,7 @@ def generate_icons() -> None:
         for path in outputs:
             shutil.copyfile(path, destination / path.name)
         _write_json(
-            BRAND / "generated/icon-integrity.json",
+            destination / "icon-integrity.json",
             {
                 "algorithm": "sha256",
                 "source": _digest(BRAND / "icons/icon.png"),
@@ -126,8 +121,9 @@ def _write_json(path: Path, value: object) -> None:
 
 def _write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if not path.exists() or path.read_text() != text:
-        path.write_text(text)
+    encoded = text.encode("utf-8")
+    if not path.exists() or path.read_bytes() != encoded:
+        path.write_bytes(encoded)
 
 
 def _stylesheet(manifest: dict) -> str:

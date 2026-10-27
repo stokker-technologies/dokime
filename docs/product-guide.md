@@ -128,6 +128,17 @@ invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
 
+The desktop starts with Local on first launch. Settings lets you select Local
+or add, edit and remove saved remote profiles from the same `backends.json`
+catalog used by the CLI. The desktop remembers its selection separately from
+the CLI default. An unavailable remembered remote stays selected and offers
+reconnection or another selection; it does not silently start Local.
+
+**Start Local Backend** and **Stop Local Backend** control the embedded backend.
+**Connect** and **Disconnect** control attachment to a remote without stopping
+that server. Reopening the desktop for the same application root focuses its
+existing window; explicitly different application roots remain independent.
+
 The CLI connects to an existing server. Save and select a backend with:
 
 ```sh
@@ -730,7 +741,8 @@ finalizes an empty cycle with its report.
 
 The `dokime-cli` package installs the `dokime` executable.
 
-`dokime` connects to a backend; `cargo dokime` authors plugin bundles. Every
+`dokime` connects to a backend; `cargo dokime sidecar` authors plugin bundles
+and `cargo dokime installer` assembles native distributions. Every
 command prints its full flags with `--help`. Backend RPC commands accept
 `--endpoint` or `--backend`, `--key-file` (or `DOKIME_KEY`), `--ca`,
 `--env-file` and `--timeout-seconds`; most accept `--json` for scripts.
@@ -782,17 +794,153 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | --- | --- | --- |
 | `dokime operation list\|show` | Discover operations and their provider contracts. | `--json` |
 | `dokime operation call` | Call a provider and read its items and completion. | `--json`, `--input`, `--output` |
-| `dokime plugin install` | Stage a bundle, review it and authorize next-boot activation. | `--yes` |
+| `dokime plugin install` | Verify and install a bundle directly for next-boot activation. | Bundle path and backend selection |
 
 ### Plugin Authoring
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
-| `cargo dokime new` | Create a native plugin offline. | `--name` |
-| `cargo dokime build` | Compile a plugin and freeze it into a `.dokime` bundle. | `-p`, `--release`, `-o` |
-| `cargo dokime package` | Bundle a collected build without compiling. | `--build-json`, `-o` |
-| `cargo dokime dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
-| `cargo dokime inspect` | Verify a bundle and print its manifest as JSON. | |
+| `cargo dokime sidecar new` | Create a native plugin offline. | `--name` |
+| `cargo dokime sidecar build` | Compile a plugin and freeze it into a `.dokime` bundle. | `-p`, `--release`, `-o` |
+| `cargo dokime sidecar package` | Bundle a collected build without compiling. | `--build-json`, `-o` |
+| `cargo dokime sidecar dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
+| `cargo dokime sidecar inspect` | Verify a bundle and print its manifest as JSON. | |
+
+Ordinary `sidecar build` compiles the selected plugin and produces its `.dokime`
+bundle. For a build system that already compiled the plugin, collect its Cargo
+JSON and metadata, then assemble those exact executables:
+
+```sh
+cargo dokime sidecar build --from-cargo-json compiler.json --metadata-json metadata.json --json > collected.json
+cargo dokime sidecar package --build-json collected.json --output dist
+cargo dokime sidecar inspect dist/my-plugin.dokime
+```
+
+The advanced collection path and `sidecar package` do not invoke the compiler.
+The former top-level `new`, `build`, `package`, `dev` and `inspect` commands are
+replaced by the `sidecar` group.
+
+### Native Installers
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `cargo dokime installer package` | Assemble unchanged local or pinned release payloads. | `--manifest`, `--artifacts`, `--output`, `--format`, `--target`, `--sign`, `--json` |
+| `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
+
+An installer manifest selects the distribution version, optional organization
+override and exact Dokime binary version/target. For example, save
+`company/installer.toml` for a native Windows build:
+
+```toml
+[installer]
+version = "0.1.0"
+organization = "organization"
+formats = ["nsis"]
+
+[dokime]
+version = "0.1.0"
+target = "x86_64-pc-windows-msvc"
+```
+
+`organization` resolves relative to that manifest. It may contain a partial
+[organization override](#organization); omitted values and files inherit the
+selected payload's organization defaults. On Linux, use `target = "x86_64-unknown-linux-gnu"` and
+`formats = ["deb", "rpm"]`. Assembly requires the matching native operating
+system. `--format` accepts repeated or comma-separated `nsis`, `deb`, `rpm`
+values; `--target` overrides the manifest target.
+
+The product build exports `product/installer-payload/` under its matching
+`target/build/<profile>/<target>/` directory. It contains `payload.json`, the
+unchanged CLI and GUI executables, license and the complete authored
+`organization/` default pack. Its manifest records compiled identity, exact
+Dokime version/target and SHA-256 hashes for every input, including every
+organization asset. Assembly resolves these payload defaults with the optional
+company override, so it retains the selected release's appearance even when the
+authoring tool was built with different defaults.
+Using that directory requires no application compilation:
+
+```sh
+cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-payload --output dist
+cargo dokime installer inspect dist/dokime-0.1.0-windows-x86_64-setup.exe --json
+```
+
+Product `mise run package:rust --profile dev` invokes the matching built
+`cargo-dokime`, packages and inspects those outputs, and publishes a portable
+`dokime-<version>-<Rust-target>-payload.zip` beside the installers. The ZIP
+preserves the payload bytes and executable modes; downstream distributors can
+extract it and supply its directory through `--artifacts`.
+
+For a release download, omit `--artifacts` and add `release_url` and `sha256` to
+`[dokime]`. `release_url` must be the HTTPS URL of that exact portable payload
+ZIP; `sha256` must be its trusted 64-digit hexadecimal archive digest. Both are
+required. The tool verifies the download before extraction, then verifies the
+payload's version, target and file hashes. It does not accept an existing native
+installer as a replacement payload. Dokime has no published release yet; use
+matching candidate build artifacts until a payload release is available.
+
+Native assembly uses Tauri's bundler; Windows NSIS tooling is provisioned by that
+backend. Inspection requires `7z` for NSIS, both `dpkg-deb` and `bsdtar`
+(libarchive) for DEB, and `bsdtar` for RPM. Inspection extracts without installing
+or executing the application and compares the embedded distribution metadata with package bytes.
+Generated icons, configuration, organization staging and extraction files live
+in temporary directories; completed installers and requested inspection output
+persist.
+
+The public command replaces only the exact versioned package filenames it
+produces. Signed output replaces its `.exe.sig` and `latest.json`. Repacking
+that installer unsigned removes its old `.exe.sig`, and removes `latest.json`
+only when it names that overwritten installer. Other versions and signatures,
+and a manifest pointing to another retained version, remain untouched. The
+product's package adapter uses fresh staging and replaces its owned installer
+directory.
+
+Runtime windows and the tray use their organization artwork roles; Linux
+launchers use the application artwork. Installer artwork sets the native
+installer icon. Windows packaging replaces the staged GUI executable's PE icon
+with application artwork, which its desktop/Start-menu shortcuts also use. The
+source payload remains unchanged. Organization installer settings select a
+solid-color sidebar or a custom PNG; see [Organization](#organization).
+
+#### Signing
+
+Signing runs only with `--sign`. Configure the backend explicitly; missing
+credentials or a failed signing/verification command fails packaging. Installer
+signatures and Windows updater signatures have separate settings.
+
+```toml
+# Windows Authenticode: private credentials stay in the certificate store.
+[signing.installer]
+certificate_thumbprint = "0123456789ABCDEF0123456789ABCDEF01234567"
+timestamp_url = "https://timestamp.example.com"
+```
+
+Use an actual certificate thumbprint and timestamp service. Windows requires
+`signtool` and the certificate in the current user's store. Linux instead sets
+`key_id` in `[signing.installer]` to the hexadecimal GPG key ID, with credentials
+supplied by an external GPG agent. DEB requires `debsigs` and `debsig-verify` with
+its verification policy installed; RPM requires `rpmsign` and `rpmkeys` with the public key trusted.
+RPM packaging rejects the ambient Tauri variables `TAURI_SIGNING_RPM_KEY` and
+`TAURI_SIGNING_RPM_KEY_PASSPHRASE`; unset them and select the explicit
+`--sign` / `signing.installer.key_id` backend instead.
+
+```toml
+[signing.updater]
+private_key_path_env = "DOKIME_UPDATER_KEY_PATH"
+password_env = "DOKIME_UPDATER_PASSWORD"
+artifact_base_url = "https://updates.example.com/releases/0.1.0"
+```
+
+Updater signing requires native Windows, `minisign`, and equal
+`installer.version` and `dokime.version` values. A different company distribution
+version is supported for unsigned/manual deployment. Choose exactly one of
+`private_key_file` (manifest-relative file), `private_key_path_env` (environment
+variable naming a file) or `private_key_env` (environment variable containing the
+base64-encoded key). Key files accept a minisign secret key or its base64 encoding.
+`password_env` names the external password variable. No secret is a CLI value or
+manifest value. The tool verifies signatures against the payload's compiled
+updater public key and emits `.exe.sig` and `latest.json`. A company organization
+override defaults to disabled updates unless it explicitly sets `updates.mode`;
+changing a pack does not replace compiled updater trust.
 
 The host includes an immutable `Configuration.sidecar` policy snapshot during
 plugin initialization. Retain it in the prepared plugin and pass it to suite
@@ -818,7 +966,7 @@ policies remain declared operation contracts.
 | `dokime-client` | Remote implementation, exposed as `dokime::client`. |
 | `dokime-server` | Shared server library embedded by CLI and GUI. |
 | `dokime-gui` | Native desktop and embedded local server ownership. |
-| `dokime-packaging`, `cargo-dokime` | Plugin packaging and authoring tools. |
+| `dokime-packaging`, `cargo-dokime` | Sidecar and native-installer packaging and authoring tools. |
 
 The entry library also owns connection, installation and version helpers. With
 `client` enabled, connection errors live under `dokime::client_error`; root
@@ -876,35 +1024,108 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 
 ## Organization
 
-Brand identity is configured in [organization/organization.toml](../organization/organization.toml).
-The [logo pack](../organization/logos) provides SVG and PNG exports in four categories:
-`transparent-on-light`, `transparent-on-dark`, `contained-on-light`, and
-`contained-on-dark`. The suffix identifies the intended background. The shell
-and captured reports select artwork for the current light or dark surface.
-After changing the pack, run `mise run prepare:organization` and rebuild. Desktop
-icons are regenerated from [the icon master](../organization/icons/icon.png), which
-uses the contained light-surface artwork.
+The authored defaults live in
+[organization/organization.toml](../organization/organization.toml), with
+`theme/{typography,base,light,dark}.css`, fonts and logos. The
+[logo pack](../organization/logos) supplies transparent and contained artwork
+for light and dark surfaces. Logos accept SVG or PNG; artwork roles require
+valid PNG input. Manifest asset references are relative to the pack root, such as `logos/transparent-on-light.svg` or `icons/icon.png`.
 
-An installed desktop can be rebranded without a rebuild. Zip the organization
-folder as is, then choose it under Settings › Appearance › Organization Pack. The
-zip can hold the files at its root or under one top folder. The pack applies
-on the next start and takes precedence over the compiled brand. It can set the
-app label, title template, organization, logos, theme CSS and fonts. The
-slug, bundle identifier, deep-link scheme and OS icon stay compiled into the
-build, so the pack's values for them are ignored. The `icons/` and
-`generated/` folders are skipped. A pack is refused unless it is a zip of at
-most 20 MiB and 200 entries holding only `.toml`, `.css`, `.woff2`, `.svg` and
-`.png` files. Licence `.txt` and `.md` files are skipped. A pending pack is
-validated again at startup; invalid input keeps the last valid active pack
-and remains on disk for diagnosis. If the active pack itself stops loading,
-the compiled brand applies. Activation errors show under Settings › Diagnostics.
+```toml
+[app.artwork]
+application = "icons/icon.png"
+tray = "icons/icon.png"
+installer = "icons/icon.png"
+```
 
-To import an installed legacy Branding Pack, keep its existing `branding/active`
-folder under the desktop's application-data directory, zip that folder's contents,
-and choose the archive under Organization Pack. The importer accepts `brand.toml`
-and stores it as `organization.toml`; it leaves the original folder untouched.
-Packs containing both manifest names are rejected. New packs use only
-`organization.toml` and are stored separately under `organization/`.
+Native Windows installer styling also belongs in `organization.toml`:
+
+```toml
+[installer]
+sidebar_color = "#1B1915"
+# Optional PNG, relative to the organization pack root:
+# sidebar_image = "installer/sidebar.png"
+```
+
+`sidebar_image` takes precedence over `sidebar_color` for both install and
+uninstall sidebars. PNGs are resized to fill the native 164×314 sidebar;
+transparent pixels are composited over `sidebar_color`. Without an image,
+packaging generates a solid-color bitmap.
+Colors use opaque `#RRGGBB`; omitted settings default to `#1B1915`. Invalid
+colors, missing image files and invalid PNG data fail validation. Folder
+overrides follow the same two-layer merge rules as other organization settings.
+DEB/RPM packages do not display these sidebar assets.
+
+Windows packaging replaces the staged GUI executable's icon resources with
+`app.artwork.application`, which installed shortcuts also use. It preserves the
+input payload and compiled application identity. When installer signing is
+requested, it signs the modified executable before recording its final hash,
+then signs the finished installer. Installer artwork supplies the setup icon.
+
+The app's brand mark exposes the `.logo` class on both light and dark artwork,
+including its text fallback. Customize it in the pack's `theme/base.css`, for
+example:
+
+```css
+.logo {
+  padding: 0.5rem 1rem;
+  object-fit: contain;
+}
+```
+
+The root element carries `.light` or `.dark` for the active mode, so shared
+styles can target `.light .logo` and `.dark .logo` symmetrically. Alternatively,
+put mode-specific treatments in `theme/light.css` and `theme/dark.css`. This
+class styles the in-app logo; native window, tray and installer icons use the
+`app.artwork` assets.
+
+Resolve the installation's default pack with an optional organization override
+before validation. Manifest tables merge recursively; present scalar and array
+values replace defaults. Omitted fields and files inherit, while a supplied file
+replaces the whole file at the same relative path. There are no deletion markers.
+A partial override can therefore contain only this manifest and a replacement
+`theme/light.css`:
+
+```toml
+[app]
+title_template = "Stokker Technologies — {app}"
+```
+
+The desktop's label, title, window/tray artwork and newly captured reports use
+the resolved pack. Installers place their default organization folder beside the
+Windows executables or under `/usr/lib/dokime/organization` on Linux. Captured
+reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
+uses the resolved application and installer artwork to create native assets.
+Compiled bundle identifier, storage identity and deep-link scheme remain owned
+by the build, alongside updater verification trust. An organization manifest
+cannot set `app.identifier`, `app.slug` or `app.deep_link_scheme`. Distributions
+sharing that compiled identity remain the same application and storage; they
+are not independent installations.
+
+For source development, `mise run prepare:organization` refreshes the default
+JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon
+outputs and their integrity record live under `crates/dokime-gui/src-tauri/icons/`.
+The authored organization folder contains no `generated/` inputs. Rebuild when
+changing compiled defaults; installed packs can change runtime appearance
+without rebuilding the application.
+
+To import an override, zip its organization folder and select it under Settings
+› Appearance › Organization Pack. Files may be at the ZIP root or under one top
+folder. A ZIP needs exactly one `organization.toml`, is limited to 20 MiB and
+200 entries, and accepts `.toml`, `.css`, `.woff2`, `.svg` and `.png` inputs.
+Licence `.txt` and `.md` files are skipped. Paths must stay inside the pack and
+links are refused. Include authored artwork under `icons/`; generated inputs
+are invalid.
+
+The imported override applies on the next start. Startup resolves and validates
+the pending pack before promotion; invalid pending input remains available for
+diagnosis and retains the last valid active pack. If the active override cannot
+load, the default appearance applies. Activation errors appear under Settings
+› Diagnostics. Import and activation preserve application storage and historical
+reports.
+
+Organization overrides are stored under `organization/`. New archives use only
+`organization.toml`.
 
 Organization packs can also declare update defaults. Settings › Updates selects
 one source and `disabled`, `manual` or `automatic_check` locally. Automatic mode
@@ -961,9 +1182,10 @@ uv run --locked --project tools/python python -m dokime_tools.package.plugins \
 Repeat `--asset` for other targets of the same package and version, then publish
 the feed and those exact bundles together. Settings › Plugins checks compatibility
 against the connected backend's version and target, verifies the digest and
-inspected package identity, and opens the existing consent and restart flow.
-Discovery alone never grants installation consent. A missing feed or target is
-reported without substituting a different package.
+inspected package identity, and installs the selected bundle directly. Restart
+the host to activate it. Dropping a bundle or selecting it with the native
+picker uses the same installation path without a review or consent dialog.
+A missing feed or target is reported without substituting a different package.
 
 ## Generated Clients
 

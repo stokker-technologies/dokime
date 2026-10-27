@@ -9,7 +9,6 @@
 
 /* === Modules === */
 
-mod disclosure;
 mod install;
 
 /* === Re-Exports === */

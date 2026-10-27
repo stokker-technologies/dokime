@@ -38,7 +38,6 @@ pub struct PluginMetadata {
     pub identity: PluginIdentity,
     pub owners: Vec<String>,
     pub size_bytes: u64,
-    pub environment_references: Vec<PluginEnvironmentReference>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,13 +46,6 @@ pub struct PluginIdentity {
     pub name: String,
     pub version: String,
     pub description: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct PluginEnvironmentReference {
-    pub owner: String,
-    pub setting: String,
-    pub variable: String,
 }
 
 /* === Enums === */
@@ -80,7 +72,6 @@ pub fn inspect_with_archive_limit(
     let limits = Limits { archive_bytes, ..Limits::default() };
     let bundle = Bundle::inspect(bytes, limits).map_err(|error| PluginError::Invalid(error.to_string()))?;
     let mut owners = BTreeSet::new();
-    let mut environment_references = BTreeSet::new();
     // Validate each platform's catalog independently; selected platforms are
     // validated together against the complete host state during admission.
     for file in &bundle.manifest().files {
@@ -100,15 +91,6 @@ pub fn inspect_with_archive_limit(
             .map_err(|error| PluginError::Invalid(error.to_string()))?;
         super::dispatch::validate_analyses(&installation, contracts, settings).map_err(PluginError::Invalid)?;
         super::dispatch::Bindings::inspect(&installation, operations).map_err(PluginError::Invalid)?;
-        for setting in installation.settings.secrets() {
-            if let Some(crate::settings::SecretReference::Environment { variable }) = &setting.default {
-                environment_references.insert(PluginEnvironmentReference {
-                    owner: id.clone(),
-                    setting: setting.id.clone(),
-                    variable: variable.clone(),
-                });
-            }
-        }
         crate::RuntimeState::new(crate::model::identity::new_id()).install_plugin(installation).map_err(PluginError::Invalid)?;
         owners.insert(id.clone());
     }
@@ -120,7 +102,6 @@ pub fn inspect_with_archive_limit(
         identity: (&bundle.manifest().identity).into(),
         owners: owners.into_iter().collect(),
         size_bytes: bytes.len() as u64,
-        environment_references: environment_references.into_iter().collect(),
     };
     Ok((bundle, metadata))
 }

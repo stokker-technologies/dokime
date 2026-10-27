@@ -198,6 +198,7 @@ fn valid_dns(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::grpc::remote::SERVER_REMOTE_NAMES;
 
     #[test]
     fn persistent_identity_and_verifier() {

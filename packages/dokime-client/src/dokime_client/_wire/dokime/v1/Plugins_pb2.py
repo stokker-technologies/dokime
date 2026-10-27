@@ -21,13 +21,12 @@ from google.protobuf.internal import builder as _builder
 # Local Imports
 from dokime_client._wire import _pool
 # @@protoc_insertion_point(imports)
-from dokime_client._wire.dokime.v1.PluginsMessages.Consent import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_Consent_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.GetInstallation import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_GetInstallation_dot_messages__pb2
+from dokime_client._wire.dokime.v1.PluginsMessages.Install import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_Install_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.ListAdmittedPlugins import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_ListAdmittedPlugins_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.ListInstallations import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_ListInstallations_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.Remove import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_Remove_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.SetEnabled import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_SetEnabled_dot_messages__pb2
-from dokime_client._wire.dokime.v1.PluginsMessages.Stage import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_Stage_dot_messages__pb2
 
 # Type Checking Imports
 
@@ -52,17 +51,17 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Plugins.proto\x12\tdokime.v1\x1a\x44\x64okime_client/_wire/dokime/v1/PluginsMessages/Consent/messages.proto\x1aLdokime_client/_wire/dokime/v1/PluginsMessages/GetInstallation/messages.proto\x1aPdokime_client/_wire/dokime/v1/PluginsMessages/ListAdmittedPlugins/messages.proto\x1aNdokime_client/_wire/dokime/v1/PluginsMessages/ListInstallations/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/PluginsMessages/Remove/messages.proto\x1aGdokime_client/_wire/dokime/v1/PluginsMessages/SetEnabled/messages.proto\x1a\x42\x64okime_client/_wire/dokime/v1/PluginsMessages/Stage/messages.proto\"\x9c\x01\n\x11PluginsStageInput\x12\x41\n\x07request\x18\x01 \x01(\x0b\x32%.dokime.v1.PluginsMessages.Stage.Row1H\x00R\x07request\x12;\n\x04item\x18\x02 \x01(\x0b\x32%.dokime.v1.PluginsMessages.Stage.Row3H\x00R\x04itemB\x07\n\x05value2\xe7\x05\n\x07Plugins\x12[\n\x07\x43onsent\x12\'.dokime.v1.PluginsMessages.Consent.Row1\x1a\'.dokime.v1.PluginsMessages.Consent.Row2\x12s\n\x0fGetInstallation\x12/.dokime.v1.PluginsMessages.GetInstallation.Row1\x1a/.dokime.v1.PluginsMessages.GetInstallation.Row2\x12\x7f\n\x13ListAdmittedPlugins\x12\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row1\x1a\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row2\x12y\n\x11ListInstallations\x12\x31.dokime.v1.PluginsMessages.ListInstallations.Row1\x1a\x31.dokime.v1.PluginsMessages.ListInstallations.Row2\x12X\n\x06Remove\x12&.dokime.v1.PluginsMessages.Remove.Row1\x1a&.dokime.v1.PluginsMessages.Remove.Row2\x12\x64\n\nSetEnabled\x12*.dokime.v1.PluginsMessages.SetEnabled.Row1\x1a*.dokime.v1.PluginsMessages.SetEnabled.Row2\x12N\n\x05Stage\x12\x1c.dokime.v1.PluginsStageInput\x1a%.dokime.v1.PluginsMessages.Stage.Row2(\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Plugins.proto\x12\tdokime.v1\x1aLdokime_client/_wire/dokime/v1/PluginsMessages/GetInstallation/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/PluginsMessages/Install/messages.proto\x1aPdokime_client/_wire/dokime/v1/PluginsMessages/ListAdmittedPlugins/messages.proto\x1aNdokime_client/_wire/dokime/v1/PluginsMessages/ListInstallations/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/PluginsMessages/Remove/messages.proto\x1aGdokime_client/_wire/dokime/v1/PluginsMessages/SetEnabled/messages.proto\"\xa2\x01\n\x13PluginsInstallInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row1H\x00R\x07request\x12=\n\x04item\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row3H\x00R\x04itemB\x07\n\x05value2\x90\x05\n\x07Plugins\x12s\n\x0fGetInstallation\x12/.dokime.v1.PluginsMessages.GetInstallation.Row1\x1a/.dokime.v1.PluginsMessages.GetInstallation.Row2\x12T\n\x07Install\x12\x1e.dokime.v1.PluginsInstallInput\x1a\'.dokime.v1.PluginsMessages.Install.Row2(\x01\x12\x7f\n\x13ListAdmittedPlugins\x12\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row1\x1a\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row2\x12y\n\x11ListInstallations\x12\x31.dokime.v1.PluginsMessages.ListInstallations.Row1\x1a\x31.dokime.v1.PluginsMessages.ListInstallations.Row2\x12X\n\x06Remove\x12&.dokime.v1.PluginsMessages.Remove.Row1\x1a&.dokime.v1.PluginsMessages.Remove.Row2\x12\x64\n\nSetEnabled\x12*.dokime.v1.PluginsMessages.SetEnabled.Row1\x1a*.dokime.v1.PluginsMessages.SetEnabled.Row2b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Plugins_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_PLUGINSSTAGEINPUT']._serialized_start=579
-  _globals['_PLUGINSSTAGEINPUT']._serialized_end=735
-  _globals['_PLUGINS']._serialized_start=738
-  _globals['_PLUGINS']._serialized_end=1481
+  _globals['_PLUGINSINSTALLINPUT']._serialized_start=511
+  _globals['_PLUGINSINSTALLINPUT']._serialized_end=673
+  _globals['_PLUGINS']._serialized_start=676
+  _globals['_PLUGINS']._serialized_end=1332
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

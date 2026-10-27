@@ -37,7 +37,7 @@ generated = [
 [languages.typescript]
 roots = ["crates/dokime-gui"]
 exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
-generated = ["target/generated/typescript", "crates/dokime-gui/src/lib/rpc/generated"]
+generated = ["target/generated/typescript", "crates/dokime-gui/src/lib/rpc/generated", "crates/dokime-gui/src/generated/organization"]
 
 # === === Repository === === #
 
@@ -465,6 +465,16 @@ name = "{product}_{version}_amd64.deb"
 
 [[release.assets]]
 target = "linux-x86_64"
+path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-unknown-linux-gnu-payload.zip"
+name = "{product}-{version}-x86_64-unknown-linux-gnu-payload.zip"
+
+[[release.assets]]
+target = "windows-x86_64"
+path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-pc-windows-msvc-payload.zip"
+name = "{product}-{version}-x86_64-pc-windows-msvc-payload.zip"
+
+[[release.assets]]
+target = "linux-x86_64"
 path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-1.x86_64.rpm"
 name = "{product}-{version}-1.x86_64.rpm"
 
@@ -502,6 +512,7 @@ path = "target/package/{profile}/any/python/dokime_client-{version}-py3-none-any
 [[release.assets]]
 target = "linux-x86_64"
 path = "target/package/{profile}/any/python/dokime_client-{version}.tar.gz"
+profiles = ["release"]
 
 [version]
 value = "0.1.0"

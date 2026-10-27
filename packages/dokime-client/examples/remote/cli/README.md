@@ -114,7 +114,6 @@ order and meanings match the [Python examples](../python/README.md):
 | Case And Execution Parameters | `TEMPLATE`, `CYCLE_LABEL`, then `SAMPLE_COUNT`, `EXECUTION_COUNT`, `WAIT_SECONDS` for tests; `ANSWER`, `WAIT_SECONDS` for prompts |
 | Observation Filters | `RECORD_TYPES`, `STREAMS` for tests |
 | Evidence Files | `OUTPUT_DIRECTORY`, `OVERWRITE` |
-| Response Files | `RESPONSE_DIRECTORY` for device control |
 
 Set `ENDPOINT` to the host's actual gRPC endpoint, such as
 `https://lab-host.example:8766`. Its hostname must match the public certificate.
@@ -166,12 +165,11 @@ reads it again, powers it off and performs a final read. Powered state reports
 230 V RMS; off state reports zero. Manual control is independent of execution
 devices and is not execution evidence.
 
-Optionally set `RESPONSE_DIRECTORY` to a new directory. The script reserves it
-before connecting and refuses an existing directory before device work.
-It saves `before.json`, `power-on.json`, `running.json`, `power-off.json`
-and `after.json`. Each native response is an ordered event array ending in
-completion. Empty `RESPONSE_DIRECTORY` prints responses without files.
-Ctrl+C stops waiting; read state before resending an unconfirmed command.
+Each device call names its response file directly: `before.json`, `power-on.json`,
+`running.json`, `power-off.json` and `after.json` in the current working directory.
+The native `--output` option refuses an existing response file unless that call
+explicitly adds `--overwrite`. Responses are ordered event arrays ending in completion.
+Ctrl+C stops waiting; read device state before resending an unconfirmed command.
 
 ## Run Independent Attempts
 
@@ -181,10 +179,11 @@ checks output destinations, materializes one `TEMPLATE` case with `sample_count`
 creates a cycle and explicitly appends two independent attempts without starting
 work. Use `EXECUTION_COUNT=1` to study only the first attempt; larger stories
 need additional explicit calls and evidence destinations.
-It prints exact cycle and execution UUIDs captured with `--id-only`.
-PowerShell reads append and prompt UUIDs from a temporary `--id-file` instead,
-because it terminates a captured native command on Ctrl+C before its recovery
-finishes.
+The create call saves `cycle.json` in the current directory; its `cycle_id`
+becomes the cycle UUID. Append and prompt discovery use literal `execution.id`
+and `prompt.id` files for native identity transport. They remain uncaptured so
+PowerShell does not terminate their Ctrl+C recovery. Each call is one line,
+and no script interprets native exit codes.
 These cycles use `continue_automatically=false`. Explicit execution Stop
 durably sets that policy to false; a later explicit Start runs only the selected
 attempt until the user explicitly re-enables the policy.
@@ -193,9 +192,11 @@ Each execution then runs sequentially through the blocking `execution run`
 command. Record and stream filters select live observations; the command returns
 after the durable outcome and final listener drain. The script saves
 `execution-1.zip` and `execution-2.zip` after their respective runs.
-It seals its cycle explicitly and saves `cycle.zip`. A nonpassing durable outcome
-still saves evidence and returns nonzero. A failed connection stops the workflow
-without retrying mutations.
+It seals its cycle explicitly and saves `cycle.zip`. POSIX `set -e` and
+PowerShell native Stop mode can end the script on a nonzero command before later
+exports; Command Prompt continues subsequent calls. Inspect the actual outcomes
+and printed identities rather than treating script completion as a verdict gate.
+No mutation is retried automatically.
 
 ## Answer One Confirmation
 
@@ -203,7 +204,8 @@ The prompt script materializes one case with `require_confirmation=true`,
 appends its attempt and explicitly calls `execution start`. The blocking
 `execution prompt next` discovers its prompt; the following calls display and
 answer the pending confirmation using both the execution and
-prompt UUIDs. Sampling begins after confirmation. The script waits for the
+prompt UUIDs. The read-only prompt display is saved as `prompt.json` in the
+current directory. Sampling begins after confirmation. The script waits for the
 durable result, saves `execution.zip`, seals its cycle and saves `cycle.zip`.
 
 ## Preserve And Inspect Evidence
@@ -211,7 +213,8 @@ durable result, saves `execution.zip`, seals its cycle and saves `cycle.zip`.
 Choose a separate `OUTPUT_DIRECTORY` for each workflow. Existing bundle
 destinations fail preflight unless `OVERWRITE` is enabled. CLI downloads verify
 checksums and replace files atomically; download retries never rerun hardware.
-Batch scripts also retain confirmed identities in `.id` files.
+The fixed `cycle.json` and `prompt.json` response files are replaced by ordinary
+shell redirection. The `.id` files retain confirmed native identities.
 
 Bundles contain `manifest.json`, `evidence.sqlite`, captured `files/` and
 saved `reports/`. Inspect the SQLite database and verify manifest checksums.
@@ -234,7 +237,8 @@ commands after cycle creation is confirmed. Batch cannot reliably handle Ctrl+C
 between native commands or before their signal listener is installed, including
 connection setup. If cycle creation's reply is lost, no script can infer its
 unknown cycle UUID. These cases, another interruption during recovery, and lost
-connections can leave the result unconfirmed. Retain printed identities,
+connections or a nonzero command during cleanup can leave the result unconfirmed.
+Retain printed identities,
 reconnect to the same server and inspect before resubmitting. Do not retry an
 uncertain mutation automatically. Existing evidence is preserved.
 

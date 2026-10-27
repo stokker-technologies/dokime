@@ -60,17 +60,6 @@ export async function getNativePlugin(session: SessionIdentity, installId: strin
   return mapPluginInstallation(await rpc.pluginsGetInstallation(session, { installId }));
 }
 
-export async function consentNativePlugin(
-  session: SessionIdentity,
-  reviewed: Pick<PluginEntry, "install_id" | "sha256">,
-): Promise<PluginEntry> {
-  const installation = await rpc.pluginsConsent(session, {
-    installId: reviewed.install_id,
-    expectedSha256: reviewed.sha256,
-  });
-  return mapPluginInstallation(installation);
-}
-
 export async function removeNativePlugin(session: SessionIdentity, installId: string): Promise<void> {
   await rpc.pluginsRemove(session, { installId });
 }
@@ -79,43 +68,43 @@ export async function setNativePluginEnabled(session: SessionIdentity, installId
   return mapPluginInstallation(await rpc.pluginsSetEnabled(session, { installId, enabled }));
 }
 
-/* === Plugin staging === */
+/* === Plugin Installation === */
 
-/** Progress phases {@link stageNativePlugin} reports through `onProgress`, in order. */
-export type StagePluginProgress = { phase: "reading" } | { phase: "uploading"; sent: number; total: number } | { phase: "inspecting" };
+/** Progress phases {@link installNativePlugin} reports through `onProgress`, in order. */
+export type InstallPluginProgress = { phase: "reading" } | { phase: "uploading"; sent: number; total: number } | { phase: "installing" };
 
-export interface StagePluginOptions {
-  onProgress?(progress: StagePluginProgress): void;
+export interface InstallPluginOptions {
+  onProgress?(progress: InstallPluginProgress): void;
 }
 
 export type PluginSource = "pick" | "drop" | { release: string };
 
 /** Render a byte count the way staging progress reports it: decimal megabytes. */
-export function formatStagePluginBytes(bytes: number): string {
+export function formatInstallPluginBytes(bytes: number): string {
   const megabytes = Math.round((bytes / 1_000_000) * 10) / 10;
   return Number.isInteger(megabytes) ? `${megabytes} MB` : `${megabytes.toFixed(1)} MB`;
 }
 
 /**
- * Stage an inert plugin archive; activation remains a separate consent command.
+ * Install a verified plugin archive; activation remains next boot.
  *
  * The shell obtains the bundle itself, from its native picker or from the
  * native file drop it just recorded, then reads and hashes it once and streams
  * it to the backend; no bundle bytes cross the webview. `null` means the
  * operator cancelled the picker.
  */
-export async function stageNativePlugin(
+export async function installNativePlugin(
   session: SessionIdentity,
   source: PluginSource,
-  options: StagePluginOptions = {},
+  options: InstallPluginOptions = {},
 ): Promise<PluginEntry | null> {
-  const progress = new Channel<StagePluginProgress>((message) => options.onProgress?.(message));
+  const progress = new Channel<InstallPluginProgress>((message) => options.onProgress?.(message));
   const installId =
     typeof source === "object"
-      ? await commands.desktopPluginReleaseStage(session.generation, source.release, progress)
-      : await commands.desktopPluginStageFile(session.generation, source === "drop", progress);
+      ? await commands.desktopPluginReleaseInstall(session.generation, source.release, progress)
+      : await commands.desktopPluginInstallFile(session.generation, source === "drop", progress);
   if (installId === null) return null;
-  if (!session.isCurrent()) throw new Error("The connection changed while the plugin was being staged.");
+  if (!session.isCurrent()) throw new Error("The connection changed while the plugin was being installed.");
   return getNativePlugin(session, installId);
 }
 
@@ -150,16 +139,15 @@ export async function listNativeAdmittedPlugins(session: SessionIdentity): Promi
 /* === Mapping === */
 
 function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
-  const stagedAt = timestampIso(installation.stagedAt);
-  if (!stagedAt) {
-    throw new Error(`Native plugin ${installation.installId} has no valid staged timestamp.`);
+  const installedAt = timestampIso(installation.installedAt);
+  if (!installedAt) {
+    throw new Error(`Native plugin ${installation.installId} has no valid installation timestamp.`);
   }
 
   return {
     install_id: installation.installId,
     sha256: installation.sha256,
-    staged_at: stagedAt,
-    consented_at: timestampIso(installation.consentedAt),
+    installed_at: installedAt,
     state: mapPluginState(installation.state),
     last_boot: mapPluginLastBoot(installation.lastBoot),
     metadata: installation.metadata
@@ -175,11 +163,6 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
               })(),
           owners: installation.metadata.owners,
           size_bytes: safeNumber(installation.metadata.sizeBytes, "Plugins plugin size"),
-          environment_references: installation.metadata.environmentReferences.map((reference) => ({
-            owner: reference.owner,
-            setting: reference.setting,
-            variable: reference.variable,
-          })),
         }
       : null,
     error: installation.error ?? null,
@@ -191,8 +174,6 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
 
 function mapPluginState(state: PluginInstallationState): PluginEntry["state"] {
   switch (state?.HarmosVariant.case) {
-    case "Staged":
-      return "staged";
     case "Installed":
       return "installed";
     case "Disabled":

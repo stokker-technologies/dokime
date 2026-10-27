@@ -79,9 +79,8 @@ export function OrganizationPackRow() {
 }
 
 export function OrganizationPackView({ presentation, choiceError, busy, choose, remove, restart }: OrganizationPackViewProps) {
-  const description = [presentation.detail, presentation.ignored].filter(Boolean).join(" ");
   return (
-    <SettingsRow label="Organization Pack" description={description} error={choiceError ?? presentation.error}>
+    <SettingsRow label="Organization Pack" description={presentation.detail} error={choiceError ?? presentation.error}>
       <span className="min-w-0 text-sm font-medium" data-state={presentation.state}>
         {presentation.value}
       </span>

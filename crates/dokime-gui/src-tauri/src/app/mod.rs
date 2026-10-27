@@ -12,6 +12,8 @@
 mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
+mod http;
+mod instance;
 pub(crate) mod local;
 mod logging;
 pub(crate) mod media;
@@ -21,6 +23,9 @@ pub(crate) mod preferences;
 pub(crate) mod recording;
 pub(crate) mod settings;
 pub(crate) mod updates;
+
+#[cfg(windows)]
+mod window_icon;
 
 /* === Re-Exports === */
 
@@ -99,6 +104,15 @@ fn start_tauri_app() -> tauri::Result<()> {
     let _log_guards = logging::init(&context.config().identifier, DESKTOP_RETAINED_LOG_FILES as usize);
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());
+    let root = settings::application_root(&context.config().identifier)?;
+    let instance = if launch.target.is_none() && launch.error.is_none() {
+        match tauri::async_runtime::block_on(instance::Instance::acquire(&root))? {
+            Some(instance) => Some(instance),
+            None => return Ok(()),
+        }
+    } else {
+        None
+    };
     let shutdown_stdin = launch.error.is_none() && arguments.iter().any(|argument| argument == "--shutdown-stdin");
     let retained = Arc::new(Mutex::new(None::<crate::native_session::DesktopSession>));
     let setup_owner = Arc::clone(&retained);
@@ -141,6 +155,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     let app = builder
         .setup(move |app| {
             settings::setup(app);
+            organization::setup(app)?;
             let connection = app.state::<crate::connection::ConnectionSession>().inner().clone();
             let owner = crate::native_session::DesktopSession::with_local_configuration(connection, local::configuration(app.handle()));
             let mut status_updates = owner.subscribe_status();
@@ -154,9 +169,11 @@ fn start_tauri_app() -> tauri::Result<()> {
             });
             *setup_owner.lock().expect("setup owner poisoned") = Some(owner.clone());
             app.manage(crate::native_session::DesktopSessionControl::active(owner));
-            organization::setup(app)?;
             updates::setup(app)?;
             create_main_windows(app)?;
+            if let Some(instance) = instance {
+                app.manage(instance.start(app.handle().clone()));
+            }
             if shutdown_stdin {
                 let handle = app.handle().clone();
                 // A dedicated thread avoids retaining a blocking Tokio task on
@@ -203,6 +220,15 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
             .initialization_script(&brand)
             .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config));
+        let organization = app.state::<organization::OrganizationState>();
+        let builder = match organization.title() {
+            Some(title) => builder.title(title),
+            None => builder,
+        };
+        let builder = match organization.window_icon() {
+            Some(icon) => builder.icon(icon)?,
+            None => builder,
+        };
         // The window-level OLE handler would otherwise swallow file drops
         // before WebView2 raises the HTML5 events the plugin drop zone uses.
         #[cfg(windows)]
@@ -224,6 +250,13 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         } else {
             builder
         };
+        #[cfg(windows)]
+        {
+            let window = builder.build()?;
+            let hwnd = window.hwnd()?;
+            window_icon::taskbar(hwnd)?;
+        }
+        #[cfg(not(windows))]
         builder.build()?;
     }
     Ok(())

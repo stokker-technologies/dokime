@@ -40,7 +40,6 @@ use super::organization::{
 
 /* === Constants === */
 
-const DESKTOP_ORGANIZATION_URL_BYTES: u64 = 4_096;
 const DESKTOP_UPDATE_APPROVAL_TIMEOUT_MS: u64 = 180_000;
 const DESKTOP_UPDATE_SETTINGS_BYTES: u64 = 16_384;
 const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
@@ -216,7 +215,7 @@ impl UpdateState {
         inner.candidate = None;
         let result = match found {
             Some(mut update) => {
-                super::organization::policy::https_url(update.download_url.as_str(), DESKTOP_ORGANIZATION_URL_BYTES)?;
+                super::organization::policy::https_url(update.download_url.as_str())?;
                 update.headers = sources::headers(auth.as_ref(), &update.download_url)?;
                 update.timeout = Some(Duration::from_millis(DESKTOP_UPDATE_TIMEOUT_MS));
                 let id = format!("{:032x}", rand::random::<u128>());
