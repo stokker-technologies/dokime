@@ -236,7 +236,7 @@ mod tests {
         document.identity = Some(Identity::generate(document.settings.certificate_names.clone()).unwrap());
         document.clients.push(Client {
             metadata: dokime::domain::model::remote::PairedClient {
-                identifier: uuid::Uuid::new_v4().to_string(),
+                identifier: uuid::Uuid::now_v7().to_string(),
                 label: "Lab".into(),
                 created_at: 1,
                 last_seen_at: None,
