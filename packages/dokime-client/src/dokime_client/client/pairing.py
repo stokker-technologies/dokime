@@ -83,16 +83,14 @@ def read(path: str | Path) -> dict[str, Any]:
     _, tls = _target(endpoint)
     origin = urlsplit(endpoint)
     host = origin.hostname
+    if not host:
+        raise ValueError("invalid pairing endpoint host")
     if origin.port is None or origin.port == 0 or origin.path or any(char in endpoint for char in ("%", "\\")):
         raise ValueError("pairing endpoint requires an explicit port and no path")
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
-        if (
-            not host
-            or len(host) > 253
-            or not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", part) for part in host.split("."))
-        ):
+        if len(host) > 253 or not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", part) for part in host.split(".")):
             raise ValueError("invalid pairing endpoint host") from None
     else:
         if address.is_unspecified or address.is_multicast:
