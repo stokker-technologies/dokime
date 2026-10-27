@@ -30,6 +30,12 @@ use dokime_domain::model::identity::PromptId;
 
 /* === Constants === */
 
+// Replay Frames Retained Per Execution; Only Host-Confirmed Frames Are Evicted By Progress.
+const RETAINED_FRAMES: usize = 1024;
+
+// Lease Gaps Retained Per Stream: The Earliest Ones Plus The Latest In The Final Slot.
+const RETAINED_STREAM_GAPS: usize = 64;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -58,6 +64,12 @@ pub(crate) struct ExecutionState {
     oldest_cursor: u64,
     buffered_artifact_bytes: u64,
     acknowledged_cursor: u64,
+    // Highest Cursor The Host Confirmed By Draining After It.
+    confirmed_cursor: u64,
+    // Cursor Of The One Retained Progress Frame; A Newer Update Replaces It.
+    progress_cursor: Option<u64>,
+    // Latest Progress That Found The Ring Full Of Unconfirmed Evidence.
+    deferred_progress: Option<crate::execution::ExecutionProgress>,
     artifact_condvar: Arc<Condvar>,
     phase: String,
     step_admission: Option<(dokime_domain::model::identity::StepAttemptId, Option<Result<(), String>>)>,
@@ -70,7 +82,7 @@ pub(crate) struct ExecutionState {
     // How many of the held local samples a wait has already reported.
     local_samples_announced: usize,
     produced: BTreeMap<String, u64>,
-    delivered: Vec<dokime_domain::model::records::evidence::Record>,
+    delivered: VecDeque<dokime_domain::model::records::evidence::Record>,
     subscriptions: Vec<dokime_domain::model::identity::Identifier>,
     captured_records: crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::Record>,
     subscriptions_settling: bool,
@@ -181,6 +193,9 @@ impl ExecutionState {
             oldest_cursor: 1,
             buffered_artifact_bytes: 0,
             acknowledged_cursor: 0,
+            confirmed_cursor: 0,
+            progress_cursor: None,
+            deferred_progress: None,
             artifact_condvar: Arc::new(Condvar::new()),
             phase: String::new(),
             step_admission: None,
@@ -192,7 +207,7 @@ impl ExecutionState {
             local_samples: Vec::new(),
             local_samples_announced: 0,
             produced: BTreeMap::new(),
-            delivered: Vec::new(),
+            delivered: VecDeque::new(),
             subscriptions: Vec::new(),
             captured_records: Default::default(),
             subscriptions_settling: false,
@@ -232,6 +247,12 @@ impl ExecutionState {
 
     pub(crate) fn interrupted(&mut self, gap: crate::telemetry::LeaseGap) {
         if self.terminal {
+            return;
+        }
+        // A Multi-Day Run Keeps A Bounded Gap History Per Stream: Once Full, The Last Slot Holds The Latest Gap.
+        let mut retained = self.gaps.iter().enumerate().filter(|(_, held)| held.stream == gap.stream);
+        if let Some((latest, _)) = retained.by_ref().nth(RETAINED_STREAM_GAPS - 1) {
+            self.gaps[latest] = gap;
             return;
         }
         self.gaps.push(gap);
@@ -360,11 +381,11 @@ impl ExecutionState {
             }
         }
         if self.delivered.len() as u64 >= 256 {
-            self.delivered.remove(0);
+            self.delivered.pop_front();
             self.dropped += 1;
         }
         if !own {
-            self.delivered.push(record);
+            self.delivered.push_back(record);
         }
         self.settled.notify_waiters();
 
@@ -393,10 +414,10 @@ impl ExecutionState {
             ..Default::default()
         });
         if self.delivered.len() as u64 >= 256 {
-            self.delivered.remove(0);
+            self.delivered.pop_front();
             self.dropped += 1;
         }
-        self.delivered.push(record);
+        self.delivered.push_back(record);
         self.settled.notify_waiters();
         self.publish_record(request);
         true
@@ -508,10 +529,20 @@ impl ExecutionState {
                 frame.local_scope = Some(self.local_scope.clone());
             }
         }
-        if self.frames.len() as u64 >= 1024
+        let progress = frame.progress.is_some();
+        if progress && !self.admit_progress(&mut frame) {
+            return;
+        }
+        if !progress && self.frames.len() >= RETAINED_FRAMES {
+            self.yield_progress_slot();
+        }
+        if self.frames.len() >= RETAINED_FRAMES
             && let Some(evicted) = self.frames.pop_front()
         {
             self.oldest_cursor = evicted.cursor.saturating_add(1);
+            if self.progress_cursor == Some(evicted.cursor) {
+                self.progress_cursor = None;
+            }
             // An evicted artifact chunk cannot still count against a parked
             // producer's backlog gate: it is gone from the buffer outright,
             // not merely acknowledged, so nothing will ever drain it.
@@ -519,6 +550,9 @@ impl ExecutionState {
                 self.buffered_artifact_bytes = self.buffered_artifact_bytes.saturating_sub(chunk.bytes.len() as u64);
                 self.artifact_condvar.notify_all();
             }
+        }
+        if progress {
+            self.progress_cursor = Some(self.next_cursor);
         }
         frame.cursor = self.next_cursor;
         frame.phase.clone_from(&self.phase);
@@ -536,6 +570,37 @@ impl ExecutionState {
         self.frames.push_back(frame);
         self.changed.notify_waiters();
         self.settled.notify_waiters();
+    }
+
+    // Progress Is A Latest Value: The Newer Update Replaces The Retained One Instead Of Queuing Behind It,
+    // And It Never Evicts Evidence The Host Has Not Confirmed; It Waits For The Next Drain Instead.
+    fn admit_progress(&mut self, frame: &mut BufferedFrame) -> bool {
+        // A Settled Run Reports No Further Progress After Its Outcome.
+        if self.terminal {
+            self.deferred_progress = None;
+            return false;
+        }
+        self.take_progress_frame();
+
+        let full = self.frames.len() >= RETAINED_FRAMES;
+        let unconfirmed = self.frames.front().is_some_and(|front| front.cursor > self.confirmed_cursor);
+        self.deferred_progress = (full && unconfirmed).then(|| frame.progress.take()).flatten();
+        self.deferred_progress.is_none()
+    }
+
+    // Evidence Arriving At A Full Ring Of Unconfirmed Frames Takes The Progress Slot Before Any Evidence Is Evicted.
+    fn yield_progress_slot(&mut self) {
+        if self.frames.front().is_some_and(|front| front.cursor <= self.confirmed_cursor) {
+            return;
+        }
+        let progress = self.take_progress_frame();
+        self.deferred_progress = progress.or(self.deferred_progress.take());
+    }
+
+    fn take_progress_frame(&mut self) -> Option<crate::execution::ExecutionProgress> {
+        let cursor = self.progress_cursor.take()?;
+        let index = self.frames.binary_search_by_key(&cursor, |frame| frame.cursor).ok()?;
+        self.frames.remove(index).and_then(|frame| frame.progress)
     }
 
     pub(crate) fn artifact_backlog(&self) -> u64 {
@@ -644,6 +709,10 @@ impl ExecutionState {
     pub(crate) fn drain_after(&mut self, cursor: u64) -> Result<EvidenceBatch, Refusal> {
         if cursor.saturating_add(1) < self.oldest_cursor {
             return Err(Refusal::of(format!("execution cursor {cursor} expired before buffered cursor {}", self.oldest_cursor)));
+        }
+        self.confirmed_cursor = self.confirmed_cursor.max(cursor);
+        if let Some(progress) = self.deferred_progress.take() {
+            self.push(BufferedFrame::progress(progress));
         }
 
         let mut reply = EvidenceBatch {
@@ -992,6 +1061,76 @@ mod tests {
         let mut context = std::task::Context::from_waker(std::task::Waker::noop());
         assert!(std::future::Future::poll(first.as_mut(), &mut context).is_ready());
         assert!(std::future::Future::poll(second.as_mut(), &mut context).is_ready());
+    }
+
+    fn progress(completed: u64) -> crate::execution::ExecutionProgress {
+        crate::execution::ExecutionProgress { phase: "flood".into(), completed, total: u64::MAX, elapsed_ms: 0, remaining_ms: None }
+    }
+
+    // Drains Every Retained Frame From `cursor`, Returning The Records, The Last Progress Seen And The Final Cursor.
+    fn drain_all(state: &mut super::ExecutionState, mut cursor: u64) -> (Vec<String>, Option<u64>, u64) {
+        let (mut records, mut latest) = (Vec::new(), None);
+        loop {
+            let reply = state.drain_after(cursor).unwrap();
+            if reply.cursor == cursor {
+                return (records, latest, cursor);
+            }
+            records.extend(reply.records);
+            latest = reply.progress.map(|progress| progress.completed).or(latest);
+            cursor = reply.cursor;
+        }
+    }
+
+    #[test]
+    fn progress_floods_never_evict_evidence_frames() {
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let mut state = super::ExecutionState::new(Default::default(), cancel);
+        // Evidence Interleaved With A Progress Flood Keeps Every Frame And Only The Latest Progress.
+        for index in 0..super::RETAINED_FRAMES as u64 {
+            state.push(super::BufferedFrame::record(format!("record-{index}")));
+            for completed in 0..64 {
+                state.push(super::BufferedFrame::progress(progress(index * 64 + completed)));
+            }
+        }
+        let (records, latest, cursor) = drain_all(&mut state, 0);
+        let expected = (0..super::RETAINED_FRAMES).map(|index| format!("record-{index}")).collect::<Vec<_>>();
+        assert_eq!(records, expected);
+        assert_eq!(latest, Some(super::RETAINED_FRAMES as u64 * 64 - 1));
+
+        // A Ring Full Of Unconfirmed Evidence Defers Progress Until The Host Confirms A Drain.
+        for index in 0..super::RETAINED_FRAMES {
+            state.push(super::BufferedFrame::record(format!("late-{index}")));
+        }
+        for completed in 0..100_000 {
+            state.push(super::BufferedFrame::progress(progress(completed)));
+        }
+        let (records, latest, _) = drain_all(&mut state, cursor);
+        assert_eq!(records.len(), super::RETAINED_FRAMES);
+        assert_eq!(records.first().map(String::as_str), Some("late-0"));
+        assert_eq!(latest, Some(99_999));
+    }
+
+    #[test]
+    fn lease_gaps_stay_bounded_per_stream() {
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let mut state = super::ExecutionState::new(Default::default(), cancel);
+        let gap = |stream: &str, reason: usize| crate::telemetry::LeaseGap {
+            stream: Identifier::new(stream).unwrap(),
+            owner: "owner".into(),
+            observed_at: Timestamp::new("2000-01-01T00:00:00Z"),
+            reason: reason.to_string(),
+        };
+        for reason in 0..10_000 {
+            state.interrupted(gap("busy", reason));
+        }
+        state.interrupted(gap("quiet", 0));
+        let gaps = state.all_gaps();
+        let busy = gaps.iter().filter(|held| held.stream.as_str() == "busy").map(|held| held.reason.clone()).collect::<Vec<_>>();
+        let earliest = (0..super::RETAINED_STREAM_GAPS - 1).map(|reason| reason.to_string()).collect::<Vec<_>>();
+        assert_eq!(busy.len(), super::RETAINED_STREAM_GAPS);
+        assert_eq!(busy[..super::RETAINED_STREAM_GAPS - 1], earliest);
+        assert_eq!(busy.last().map(String::as_str), Some("9999"));
+        assert_eq!(gaps.last().map(|held| held.stream.as_str()), Some("quiet"));
     }
 
     #[test]
