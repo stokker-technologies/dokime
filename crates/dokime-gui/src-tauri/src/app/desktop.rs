@@ -148,7 +148,7 @@ pub async fn desktop_pairing_create(
     window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, label: String, endpoint: String,
 ) -> Result<Option<PathBuf>, crate::connection::ConnectionError> {
     use crate::connection::ConnectionError;
-    use dokime::domain::operations::remote::{CreatePairing, RevokePairedClient};
+    use dokime::operations::remote::{CreatePairing, RevokePairedClient};
     let local = |message: String| ConnectionError::Registry { message };
     ensure_main_window(&window).map_err(local)?;
     let status = state.status();

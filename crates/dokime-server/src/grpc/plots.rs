@@ -32,7 +32,7 @@ use tonic::Status;
 // Local Imports
 use cursor::{decode_plot_requests, selection_for_plot};
 use dokime::RuntimeHandle;
-use dokime::domain::operations::plots as contract;
+use dokime::operations::plots as contract;
 use dokime::harmos::storage::{ReadBatch, StorageCursor};
 use dokime::runtime::query::{
     PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotWatchKeys, RuntimePlotQueryMode, matching_plot_payload_request,

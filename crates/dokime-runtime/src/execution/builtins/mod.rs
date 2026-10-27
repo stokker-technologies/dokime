@@ -36,8 +36,8 @@ use super::instances::{ExecutionIdentity, Handles};
 use crate::artifacts::Artifacts;
 use crate::telemetry::Streams;
 use crate::transport::Journal;
-use dokime_domain::operations::files::WatchFile;
-use dokime_domain::operations::process::RunProcess;
+use dokime_operations::files::WatchFile;
+use dokime_operations::process::RunProcess;
 
 /* === Constants === */
 

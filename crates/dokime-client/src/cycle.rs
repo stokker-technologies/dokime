@@ -25,9 +25,9 @@ use super::{Client, Error, ResponseStream, Result, TestExecutionHandle, contract
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::Endpoint;
-use dokime_domain::operations::execution as contract;
-use dokime_domain::operations::planning;
+use dokime_operations::Endpoint;
+use dokime_operations::execution as contract;
+use dokime_operations::planning;
 
 /* === Constants === */
 
@@ -172,7 +172,7 @@ impl TestCycleHandle {
     }
 
     pub async fn seal(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
-        use dokime_domain::operations::execution::SealCycle;
+        use dokime_operations::execution::SealCycle;
         self.client.verify(true).await?;
         let reply = self.client.unary::<SealCycle>(SealCycle::PATH, SealCycle { cycle_id: self.id.to_string(), context: None }).await?;
         validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;

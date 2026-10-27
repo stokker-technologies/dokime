@@ -33,7 +33,7 @@ mod upload;
 
 pub use catalog::template_suite;
 pub use cycle::TestCycleHandle;
-pub use dokime_domain::operations as contracts;
+pub use dokime_operations as contracts;
 pub use download::validate_destination as validate_download_destination;
 pub use download::{Download, Error as DownloadError};
 pub use error::Error;

@@ -22,7 +22,7 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::error::detailed;
-use dokime::domain::operations::content as wire;
+use dokime::operations::content as wire;
 use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */

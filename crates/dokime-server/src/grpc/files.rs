@@ -26,7 +26,7 @@ use tonic::Status;
 // Local Imports
 use super::content::{content_failure, metadata};
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
-use dokime::domain::operations::files as contract;
+use dokime::operations::files as contract;
 use dokime::{
     RuntimeHandle,
     domains::files::{CAPPED, FileWatch as Watch, INVALID, UNREACHABLE, UNSUPPORTED, UNTRUSTED, WatchEvent},

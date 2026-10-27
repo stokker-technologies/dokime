@@ -27,8 +27,8 @@ use tonic::Status;
 // Local Imports
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
-use dokime::domain::operations::appearance as wire;
-use dokime::domain::operations::content;
+use dokime::operations::appearance as wire;
+use dokime::operations::content;
 
 /* === Constants === */
 

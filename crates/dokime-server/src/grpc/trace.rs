@@ -26,7 +26,7 @@ use crate::trace::{Event, Journal, Page, Scope, WATCH_SPAN};
 use dokime::RuntimeHandle;
 use dokime::domain::model::backend::wire::{LogFrameFieldsEntry, TraceBatch, TraceEvent};
 use dokime::domain::model::identity::wire::Timestamp;
-use dokime::domain::operations::backend as wire;
+use dokime::operations::backend as wire;
 
 /* === Constants === */
 

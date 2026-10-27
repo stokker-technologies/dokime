@@ -27,7 +27,7 @@ use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::StepId;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::execution as wire;
+use dokime::operations::execution as wire;
 use dokime::domains::execution::requests::{Receipt, StepCommand, StepCommandPhase, StepCommandReceipt};
 use dokime::{RuntimeHandle, runtime::Error};
 

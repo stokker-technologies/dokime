@@ -76,8 +76,8 @@ impl Bench {
 /* === Public Functions === */
 pub(crate) fn request(
     execution: &str, source: FileWatchSourcePayload, rules: Vec<FileRule>, policy: FileWatchPolicy,
-) -> dokime_domain::operations::files::FileWatch {
-    dokime_domain::operations::files::FileWatch {
+) -> dokime_operations::files::FileWatch {
+    dokime_operations::files::FileWatch {
         execution_id: Some(execution.to_owned()),
         source: Some(FileWatchSource { payload: Some(source) }),
         rules,

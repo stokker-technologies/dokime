@@ -25,7 +25,7 @@ use super::super::{telemetry::projection as samples, value::projection};
 use super::wire;
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
-use dokime::domain::operations::history as contract;
+use dokime::operations::history as contract;
 use dokime::runtime::query::checkpoint_telemetry::ExecutionTelemetryPage;
 
 /* === Constants === */

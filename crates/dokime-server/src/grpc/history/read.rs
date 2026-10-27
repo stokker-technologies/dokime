@@ -25,7 +25,7 @@ use super::super::content;
 use super::wire;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::ArtifactId;
-use dokime::domain::operations::history;
+use dokime::operations::history;
 
 /* === Constants === */
 

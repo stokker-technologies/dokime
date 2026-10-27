@@ -23,7 +23,7 @@ use dokime::harmos::operations::{Context, Operation};
 use super::*;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::identity::wire as common;
-use dokime::domain::operations::execution as wire;
+use dokime::operations::execution as wire;
 use dokime::runtime::command::{CommandReceipt, CommandStatus};
 
 /* === Constants === */

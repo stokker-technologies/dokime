@@ -21,7 +21,7 @@ use std::{io::Write, path::PathBuf};
 // Local Imports
 use dokime::domain::model::identity::Identifier;
 use dokime::domain::model::identity::wire::Metadata;
-use dokime::domain::operations::execution::CreateCycle;
+use dokime::operations::execution::CreateCycle;
 
 /* === Constants === */
 

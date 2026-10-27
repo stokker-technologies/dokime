@@ -26,7 +26,7 @@ use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{canonical, projection};
 use dokime::RuntimeHandle;
 use dokime::domain::model::history::wire::{CycleBrowsePage, SavedCycleSummary};
-use dokime::domain::operations::history::BrowseCycles;
+use dokime::operations::history::BrowseCycles;
 use dokime::runtime::query::cycle_history::{CycleBrowsePage as NativePage, CycleBrowseQuery};
 
 /* === Constants === */

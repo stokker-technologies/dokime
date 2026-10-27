@@ -23,7 +23,7 @@ use tonic::Status;
 // Local Imports
 use super::{preferences::Resources, wire as projection};
 use crate::grpc::value::{Budget, canonical};
-use dokime::domain::operations::settings as wire;
+use dokime::operations::settings as wire;
 use dokime::{
     RuntimeHandle,
     domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings},

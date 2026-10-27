@@ -24,7 +24,7 @@ use tonic::Status;
 use super::{inspection, wire};
 use crate::grpc::content::window;
 use crate::grpc::transcode::Transcode;
-use dokime::domain::operations::history;
+use dokime::operations::history;
 use dokime::{ExecutionFileContent, RuntimeHandle};
 
 /* === Constants === */

@@ -27,7 +27,7 @@ use super::error::detailed;
 use super::value::{self, Budget, canonical};
 use dokime::RuntimeHandle;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
-use dokime::domain::operations::query as wire;
+use dokime::operations::query as wire;
 use dokime::runtime::query::aggregate::{AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource};
 
 /* === Constants === */

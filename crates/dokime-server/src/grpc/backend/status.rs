@@ -26,8 +26,8 @@ use tonic::Status;
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::wire::Timestamp;
-use dokime::domain::operations::backend as wire;
-use dokime::domain::operations::runtime as native;
+use dokime::operations::backend as wire;
+use dokime::operations::runtime as native;
 
 /* === Constants === */
 

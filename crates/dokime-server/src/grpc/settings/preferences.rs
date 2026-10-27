@@ -17,7 +17,7 @@ use crate::grpc::transcode::Transcode;
 
 use dokime::RuntimeHandle;
 use dokime::domain::model::settings::wire::SettingsSnapshot;
-use dokime::domain::operations::settings as wire;
+use dokime::operations::settings as wire;
 use dokime::harmos::domain::Portable;
 use dokime::harmos::operations::{Context, Operation, Response};
 use std::sync::Arc;

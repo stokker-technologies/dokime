@@ -43,7 +43,7 @@ fn main() {
     println!("cargo:rustc-env=DOKIME_BRAND_LABEL={label}");
 
     let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR for build scripts"));
-    let contracts = dokime::harmos::operations::Contracts::of::<dokime::domain::operations::Operations>()
+    let contracts = dokime::harmos::operations::Contracts::of::<dokime::operations::Operations>()
         .expect("canonical desktop transfer contracts");
     harmos_packaging::proto::generate(&contracts, &output.join("grpc").join("operations")).expect("desktop transfer descriptors");
     tauri_build::build();

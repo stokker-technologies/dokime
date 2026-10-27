@@ -41,7 +41,7 @@ use dokime::domain::model::{
     identity::{TestCycleId, TestExecutionId},
     values::Value,
 };
-use dokime::domain::operations::{
+use dokime::operations::{
     execution::{CreateCycle, ExecutionBinding},
     planning::MaterializeTemplate,
 };
@@ -183,7 +183,7 @@ impl Gate {
 
     async fn committed(&self) -> std::io::Result<bool> {
         use dokime::domain::model::execution::wire::CycleFilter;
-        use dokime::domain::operations::execution::ListCycles;
+        use dokime::operations::execution::ListCycles;
 
         // Locate The Script's Cycle Without Depending On Its Pending Reply.
         let filter = CycleFilter { text: self.label.clone(), ..Default::default() };

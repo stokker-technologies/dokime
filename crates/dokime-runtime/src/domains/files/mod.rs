@@ -47,8 +47,8 @@ use dokime_domain::model::files::wire::FileRuleAction;
 use dokime_domain::model::files::wire::FileWatchSource;
 use dokime_domain::model::files::wire::FileWatchSourcePayload;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::files::FileWatch as FileWatchRequest;
-use dokime_domain::operations::files::WatchFile;
+use dokime_operations::files::FileWatch as FileWatchRequest;
+use dokime_operations::files::WatchFile;
 use source::Source;
 
 /* === Constants === */

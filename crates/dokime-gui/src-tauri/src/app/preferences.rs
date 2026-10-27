@@ -25,7 +25,7 @@ use tauri::State;
 use crate::connection::{ConnectionSession, registry};
 use crate::native_session::DesktopSessionControl;
 use dokime::domain::model::settings::application::{SettingsScope, SettingsSnapshot, UpdateSettings};
-use dokime::domain::operations::settings::{ReadApplicationSettings, UpdateApplicationSettings};
+use dokime::operations::settings::{ReadApplicationSettings, UpdateApplicationSettings};
 
 /* === Constants === */
 

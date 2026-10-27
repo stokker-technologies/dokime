@@ -27,7 +27,7 @@ use crate::grpc::{
 };
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::ArtifactId;
-use dokime::domain::operations::content as content_wire;
+use dokime::operations::content as content_wire;
 use dokime::runtime::ArtifactReader;
 
 /* === Constants === */

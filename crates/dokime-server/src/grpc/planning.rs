@@ -33,7 +33,7 @@ use dokime::domain::model::identity::CaseId;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::TemplateId;
 use dokime::domain::model::identity::TestCycleId;
-use dokime::domain::operations::planning as wire;
+use dokime::operations::planning as wire;
 use dokime::state::RuntimeState;
 use dokime::{RuntimeHandle, runtime::Error};
 

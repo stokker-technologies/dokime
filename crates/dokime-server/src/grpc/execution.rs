@@ -44,7 +44,7 @@ use dokime::domain::model::execution::result::CycleView;
 use dokime::domain::model::execution::result::ExecutionStatus;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::identity::TestCycleId;
-use dokime::domain::operations::execution as wire;
+use dokime::operations::execution as wire;
 use dokime::runtime::RuntimeState;
 use dokime::runtime::query::{
     CaseProjection, CaseStatus, CycleFilter, CycleOrder, CycleOrderKey, CyclePageError, case_projection, case_tally, cycle_page,

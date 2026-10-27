@@ -467,7 +467,7 @@ impl RuntimeHandle {
         }
         let contracts = self.state_read().telemetry_contracts();
         self.execution_storage.register_schemas(&contracts).await?;
-        crate::runtime::operations::runtime::register(self)?;
+        crate::runtime::operations::runtime::register(self).await?;
         crate::runtime::operations::secrets::register(self)?;
         crate::runtime::operations::reports::register(self)?;
         Ok(())

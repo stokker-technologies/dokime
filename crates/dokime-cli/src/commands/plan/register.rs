@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::domain::operations::planning::RegisterSelection;
+use dokime::operations::planning::RegisterSelection;
 
 /* === Constants === */
 

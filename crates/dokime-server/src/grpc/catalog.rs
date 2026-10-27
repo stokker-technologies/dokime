@@ -29,7 +29,7 @@ use tonic::Status;
 use super::value::{Budget, canonical};
 use dokime::RuntimeHandle;
 use dokime::domain::model::definition::wire as schema;
-use dokime::domain::operations::catalog as wire;
+use dokime::operations::catalog as wire;
 
 /* === Constants === */
 

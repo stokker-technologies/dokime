@@ -37,8 +37,8 @@ use tokio::task::JoinHandle;
 // Local Imports
 use crate::host::StepHandleCancelled;
 use dokime_domain::model::files::wire::FileWatchSourcePayload;
-use dokime_domain::operations::files::WatchFile;
-use dokime_domain::operations::process::RunProcess;
+use dokime_operations::files::WatchFile;
+use dokime_operations::process::RunProcess;
 
 /* === Constants === */
 
@@ -290,7 +290,7 @@ impl StepInstance<WatchFile> {
     pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, CallError> {
         match self.readiness.as_ref() {
             Some(Readiness::Host(host)) => {
-                let response = host.call::<dokime_domain::operations::files::AwaitFileWatchArmed>(dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: self.id.value() }).await?;
+                let response = host.call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: self.id.value() }).await?;
                 Ok(response.into_owned())
             }
             Some(Readiness::Local(signal)) => {

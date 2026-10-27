@@ -30,7 +30,7 @@ use dokime::artifacts::ArtifactRecord;
 use dokime::domain::model::content::wire::ArtifactMetadata;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::execution::RecordScope;
-use dokime::domain::operations::media as contract;
+use dokime::operations::media as contract;
 use dokime::domains::media::AudioRecording as Recording;
 use dokime::domains::media::NOT_COMPILED;
 use dokime::domains::media::UNAVAILABLE;

@@ -27,7 +27,7 @@ use crate::grpc::value::projection;
 use dokime::ExecutionFileEntry;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::content as wire;
+use dokime::operations::content as wire;
 
 /* === Constants === */
 

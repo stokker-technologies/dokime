@@ -2480,6 +2480,7 @@ name = "dokime-client"
 version = "0.1.0"
 dependencies = [
  "dokime-domain",
+ "dokime-operations",
  "futures-util",
  "harmos",
  "keyring",
@@ -2650,6 +2651,7 @@ dependencies = [
  "dokime-domain",
  "dokime-host",
  "dokime-macros",
+ "dokime-operations",
  "file-id",
  "futures-util",
  "globset",

@@ -87,7 +87,7 @@ fn ftp(url: String, secret: Option<&str>) -> FileWatchSourcePayload {
 }
 
 async fn store_ftp_secret(bench: &Bench) {
-    let request = dokime_domain::operations::secrets::Put {
+    let request = dokime_operations::secrets::Put {
         metadata: dokime_domain::model::secrets::catalog::Metadata {
             identifier: SECRET.into(),
             label: "FTP Password".into(),
@@ -147,7 +147,7 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     let port = serve(served.path()).await;
     let (port, proxy) = refusing_resume(port).await;
     let url = format!("ftp://{USER}@127.0.0.1:{port}/bench/device.log");
-    let request = dokime_domain::operations::files::WatchFile {
+    let request = dokime_operations::files::WatchFile {
         execution_id: Some(bench.execution.clone()),
         source: Some(model::files::wire::FileWatchSource { payload: Some(ftp(url, Some(SECRET))) }),
         output: OUTPUT.to_owned(),
@@ -176,7 +176,7 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     let preserved = bench.handle.read_artifact_content(&extraction.sealed()[0].artifact_id, 100).await.unwrap().unwrap();
     assert_eq!(preserved.bytes, b"WARN\n");
 
-    let artifact_request = dokime_domain::operations::files::WatchFile { markers: Vec::new(), output: "fallback".into(), ..request };
+    let artifact_request = dokime_operations::files::WatchFile { markers: Vec::new(), output: "fallback".into(), ..request };
     let mut artifact = bench.handle.open_watch_file(&artifact_request, None).await.unwrap();
     poll(&mut artifact).await;
     append(&log, b"tail\n");

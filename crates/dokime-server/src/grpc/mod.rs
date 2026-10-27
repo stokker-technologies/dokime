@@ -58,8 +58,8 @@ pub use server::{Server, Service};
 use dokime::harmos::catalog::{Catalog, Projection};
 
 // Local Imports
-use dokime::domain::operations::Endpoints;
-use dokime::domain::operations::Operations;
+use dokime::operations::Endpoints;
+use dokime::operations::Operations;
 
 /* === Constants === */
 

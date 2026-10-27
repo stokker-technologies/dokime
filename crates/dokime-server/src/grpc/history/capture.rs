@@ -26,7 +26,7 @@ use tonic::Status;
 
 // Local Imports
 use dokime::RuntimeHandle;
-use dokime::domain::operations::history;
+use dokime::operations::history;
 
 /* === Constants === */
 

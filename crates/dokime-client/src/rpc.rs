@@ -19,7 +19,7 @@
 
 // Local Imports
 use super::{Client, RequestStream, ResponseStream, Result, contracts};
-use dokime_domain::operations::Endpoint;
+use dokime_operations::Endpoint;
 
 /* === Constants === */
 

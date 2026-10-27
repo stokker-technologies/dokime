@@ -21,7 +21,7 @@
 
 // Local Imports
 use dokime::domain::model::identity::{CaseId, TestCycleId, TestExecutionId};
-use dokime::domain::operations::execution::{AppendExecutions, ExecutionBinding};
+use dokime::operations::execution::{AppendExecutions, ExecutionBinding};
 
 /* === Constants === */
 

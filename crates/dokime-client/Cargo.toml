@@ -26,6 +26,7 @@ version.workspace = true
 [dependencies]
 # Local
 dokime-domain = { version = "0.1.0", path = "../dokime-domain" }
+dokime-operations = { version = "0.1.0", path = "../dokime-operations" }
 
 # Git
 

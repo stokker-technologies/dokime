@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::domain::operations::planning::MaterializeTemplate;
+use dokime::operations::planning::MaterializeTemplate;
 
 /* === Constants === */
 

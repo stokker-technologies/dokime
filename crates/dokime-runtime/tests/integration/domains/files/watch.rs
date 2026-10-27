@@ -24,13 +24,13 @@ use std::time::SystemTime;
 // Local Imports
 use super::*;
 use dokime_domain::model;
-use dokime_domain::operations::files::FileWatch;
+use dokime_operations::files::FileWatch;
 use dokime_runtime::artifacts::ArtifactStatus;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::files::{CAPPED, GapReason, INVALID, Phase, UNSUPPORTED, UNTRUSTED};
 use dokime_runtime::runtime::Error;
 use {
-    dokime_domain::operations::files::WatchFile, model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload,
+    dokime_operations::files::WatchFile, model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload,
     model::files::wire::FtpWatchSource, model::files::wire::LineField, model::files::wire::LineFieldKind, model::files::wire::LineMarker,
     model::files::wire::LineMatcher, model::files::wire::WatchedArtifact,
 };
@@ -109,7 +109,7 @@ async fn failed_initial_admission_never_reports_armed() {
         markers: Vec::new(),
     };
     let instance = bench.handle.operations().submit(single).unwrap();
-    let ready = dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: instance.id().value() };
+    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: instance.id().value() };
     assert!(instance.join().await.is_err());
     assert!(bench.handle.operations().call(ready).await.is_err(), "failed hosted setup cannot report readiness success");
     bench.stop().await;
@@ -430,7 +430,7 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
         markers: Vec::new(),
     };
     let watch = bench.handle.operations().submit(request).unwrap();
-    let ready = dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() };
+    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() };
     watch.cancel();
     assert!(watch.join().await.is_err());
     let result = tokio::time::timeout(std::time::Duration::from_secs(120), bench.handle.operations().call(ready)).await;
@@ -768,7 +768,7 @@ async fn watch_file_matchers() {
     bench
         .handle
         .operations()
-        .call(dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() })
+        .call(dokime_operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() })
         .await
         .unwrap();
     append(&log, APPENDED);

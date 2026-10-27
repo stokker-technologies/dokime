@@ -34,7 +34,7 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::NoteId;
 use dokime::domain::model::identity::SessionId;
-use dokime::domain::operations::notes as contract;
+use dokime::operations::notes as contract;
 use dokime::domains::evidence::notes as evidence;
 use dokime::domains::evidence::notes::NoteError;
 

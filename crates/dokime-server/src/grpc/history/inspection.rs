@@ -28,7 +28,7 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::execution::wire_checkpoint as checkpoint;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::history;
+use dokime::operations::history;
 use dokime::runtime::query::execution_history::ExecutionCheckpoint;
 
 /* === Constants === */

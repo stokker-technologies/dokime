@@ -63,7 +63,7 @@ impl Client {
                 dokime_domain::model::content::wire::ArtifactChunk { offset: header.size_bytes, data: Vec::new() },
             )),
         };
-        let chunk_bytes = super::plugins::chunk_bytes::<dokime_domain::operations::content::UploadArtifact>(
+        let chunk_bytes = super::plugins::chunk_bytes::<dokime_operations::content::UploadArtifact>(
             self.backend().limits.max_chunk_bytes,
             self.request_limit(),
             PLUGIN_CHUNK_BYTES as usize,

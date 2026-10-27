@@ -26,7 +26,7 @@ use crate::grpc::value::{self, canonical};
 use dokime::RuntimeHandle;
 use dokime::domain::model::execution::result::ExecutionStatus;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::history as wire;
+use dokime::operations::history as wire;
 use dokime::runtime::query::execution_history::{ExecutionBrowsePage, ExecutionBrowseQuery};
 use dokime::runtime::query::{ExecutionFilter, ExecutionOrder, ExecutionOrderKey};
 

@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 // Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
-use dokime::domain::operations::content as v1;
+use dokime::operations::content as v1;
 
 /* === Constants === */
 
@@ -188,14 +188,14 @@ pub(crate) async fn fetch_verified(
         }
         ArtifactSource::CycleReport { cycle_id } => client
             .download_cycle_report(
-                dokime::domain::operations::reports::DownloadCycleReport { cycle_id: cycle_id.clone(), identifier: CYCLE_REPORT.into() },
+                dokime::operations::reports::DownloadCycleReport { cycle_id: cycle_id.clone(), identifier: CYCLE_REPORT.into() },
                 destination,
             )
             .await
             .map(VerifiedContent::from_report),
         ArtifactSource::ExecutionReport { execution_id } => client
             .download_execution_report(
-                dokime::domain::operations::reports::DownloadExecutionReport { execution_id: execution_id.clone() },
+                dokime::operations::reports::DownloadExecutionReport { execution_id: execution_id.clone() },
                 destination,
             )
             .await

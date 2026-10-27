@@ -19,8 +19,8 @@
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result};
-use dokime_domain::operations::Endpoint;
-use dokime_domain::operations::catalog;
+use dokime_operations::Endpoint;
+use dokime_operations::catalog;
 
 /* === Constants === */
 

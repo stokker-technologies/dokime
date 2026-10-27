@@ -26,7 +26,7 @@ use super::value::canonical;
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::observation as wire;
+use dokime::operations::observation as wire;
 use dokime::runtime::progress::{OperationOutcome, OperationSnapshot};
 use dokime::runtime::query::RuntimeChange;
 

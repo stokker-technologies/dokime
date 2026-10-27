@@ -28,7 +28,7 @@ use crate::grpc::{
     catalog, content,
     value::{self, canonical},
 };
-use dokime::domain::operations::history as contract;
+use dokime::operations::history as contract;
 use dokime::{
     RuntimeHandle,
     runtime::query::execution_history::{ExecutionCheckpoint, ExecutionCheckpointEvidence},

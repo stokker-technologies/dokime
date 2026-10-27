@@ -30,7 +30,7 @@ use dokime::domain::model::execution::RecordScope;
 use dokime::domain::model::identity::CaseId;
 use dokime::domain::model::identity::TestCycleId;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::content as wire;
+use dokime::operations::content as wire;
 use dokime::domains::evidence::ArtifactUploadInput;
 use dokime::runtime::ArtifactUpload;
 

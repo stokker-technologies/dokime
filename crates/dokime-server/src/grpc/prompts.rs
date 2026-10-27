@@ -37,7 +37,7 @@ use dokime::domain::model::execution::wire_cursor::Error as CursorError;
 use dokime::domain::model::identity::PromptId;
 use dokime::domain::model::identity::TestCycleId;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::prompts as wire;
+use dokime::operations::prompts as wire;
 use dokime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */

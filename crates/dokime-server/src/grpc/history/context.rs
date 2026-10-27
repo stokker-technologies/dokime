@@ -32,7 +32,7 @@ use crate::grpc::{
 use dokime::RuntimeHandle;
 use dokime::domain::model::execution::result::CycleStatus;
 use dokime::domain::model::execution::result::CycleView;
-use dokime::domain::operations::history;
+use dokime::operations::history;
 use dokime::runtime::query::execution_history::ExecutionCheckpointContext;
 
 /* === Constants === */

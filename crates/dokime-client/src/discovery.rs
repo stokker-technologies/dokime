@@ -23,9 +23,9 @@ use tonic::{
 
 // Local Imports
 use super::{Backend, Error, Limits, Result, transport};
-use dokime_domain::operations::Endpoint;
-use dokime_domain::operations::backend;
-use dokime_domain::operations::runtime;
+use dokime_operations::Endpoint;
+use dokime_operations::backend;
+use dokime_operations::runtime;
 
 /* === Constants === */
 

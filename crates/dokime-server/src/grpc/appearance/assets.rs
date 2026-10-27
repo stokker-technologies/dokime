@@ -25,7 +25,7 @@ use tonic::Status;
 // Local Imports
 use super::super::chunked;
 use super::{failure, source_budget};
-use dokime::domain::operations::content;
+use dokime::operations::content;
 use dokime::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
 
 /* === Constants === */

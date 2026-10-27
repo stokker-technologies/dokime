@@ -26,7 +26,7 @@ use super::metadata;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
-use dokime::domain::operations::content as wire;
+use dokime::operations::content as wire;
 use dokime::{RuntimeHandle, artifacts::ArtifactRecord};
 
 /* === Constants === */

@@ -36,7 +36,7 @@ use dokime_runtime::{Runtime, app::Lanes};
 
 /* === Structs === */
 
-#[harmos::operation(response = Value, id = "fixture.secrets.read", policy = dokime_domain::operations::ORDINARY)]
+#[harmos::operation(response = Value, id = "fixture.secrets.read", policy = dokime_operations::ORDINARY)]
 #[derive(Clone, PartialEq)]
 struct ReadSecret {
     identifier: String,

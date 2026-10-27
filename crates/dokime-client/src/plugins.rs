@@ -50,7 +50,7 @@ impl Client {
         let template = wire::InstallPluginFrame {
             frame: Some(wire::InstallPluginFrameFrame::Chunk(wire::InstallPluginChunk { offset: bytes.len() as u64, data: Vec::new() })),
         };
-        let chunk_bytes = chunk_bytes::<dokime_domain::operations::plugins::Install>(
+        let chunk_bytes = chunk_bytes::<dokime_operations::plugins::Install>(
             self.backend().limits.max_chunk_bytes,
             self.request_limit(),
             PLUGIN_CHUNK_BYTES,
@@ -139,19 +139,19 @@ mod tests {
         let path = ["frame", "Chunk", "field_0", "data"];
         let spacious_limit = 8 * 1024 * 1024;
         assert_eq!(
-            chunk_bytes::<dokime_domain::operations::plugins::Install>(Some(64 * 1024), spacious_limit, fallback, &template, &path)
+            chunk_bytes::<dokime_operations::plugins::Install>(Some(64 * 1024), spacious_limit, fallback, &template, &path)
                 .unwrap(),
             64 * 1024
         );
         assert_eq!(
-            chunk_bytes::<dokime_domain::operations::plugins::Install>(None, spacious_limit, fallback, &template, &path).unwrap(),
+            chunk_bytes::<dokime_operations::plugins::Install>(None, spacious_limit, fallback, &template, &path).unwrap(),
             fallback
         );
         let constrained =
-            chunk_bytes::<dokime_domain::operations::plugins::Install>(Some(4 * 1024 * 1024), 1024 * 1024, fallback, &template, &path)
+            chunk_bytes::<dokime_operations::plugins::Install>(Some(4 * 1024 * 1024), 1024 * 1024, fallback, &template, &path)
                 .unwrap();
         assert!(constrained > 0 && constrained < 1024 * 1024);
-        assert_eq!(chunk_bytes::<dokime_domain::operations::plugins::Install>(Some(64 * 1024), 0, fallback, &template, &path).unwrap(), 0);
+        assert_eq!(chunk_bytes::<dokime_operations::plugins::Install>(Some(64 * 1024), 0, fallback, &template, &path).unwrap(), 0);
     }
 
     #[test]

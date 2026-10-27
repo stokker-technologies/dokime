@@ -26,8 +26,8 @@ use dokime::harmos::operations::authorization::{Authorization, Authorizer, Provi
 // Local Imports
 use super::Error;
 use super::access::{Listeners, Principal};
-use dokime::domain::operations::Endpoints;
-use dokime::domain::operations::Operations;
+use dokime::operations::Endpoints;
+use dokime::operations::Operations;
 
 /* === Constants === */
 

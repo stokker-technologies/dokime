@@ -29,7 +29,7 @@ use super::error::detailed;
 use crate::grpc::transcode::Transcode;
 use dokime::domain::model::definition::wire::RecordSchema;
 use dokime::domain::model::execution::wire_cursor::Cursor;
-use dokime::domain::operations::evidence as v1;
+use dokime::operations::evidence as v1;
 use dokime::{RuntimeHandle, runtime::CapturedRecords};
 use selection::Selection;
 

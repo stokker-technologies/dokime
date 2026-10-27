@@ -29,7 +29,7 @@ use dokime::domain::model::identity::DocumentId;
 use dokime::domain::model::identity::Identifier;
 use dokime::domain::model::identity::TestCycleId;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::documents as contract;
+use dokime::operations::documents as contract;
 
 /* === Constants === */
 

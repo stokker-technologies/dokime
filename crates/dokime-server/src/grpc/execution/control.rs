@@ -27,7 +27,7 @@ use dokime::domain::model::identity::CaseId;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::CorrelationId;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::execution as wire;
+use dokime::operations::execution as wire;
 use dokime::runtime::command::CommandContext;
 use dokime::{RuntimeHandle, transactions::CycleDefinition};
 

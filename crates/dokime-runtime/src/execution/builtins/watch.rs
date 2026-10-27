@@ -41,7 +41,7 @@ use dokime_domain::model::files::wire::WatchFileOutcome;
 use dokime_domain::model::files::wire::WatchedArtifact;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::publication::RecordPublishRequest;
-use dokime_domain::operations::files::WatchFile;
+use dokime_operations::files::WatchFile;
 
 /* === Constants === */
 

@@ -36,7 +36,7 @@ use uuid::Uuid;
 
 // Local Imports
 use dokime::domain::model::plugins::wire as plugins_model;
-use dokime::domain::operations::plugins as contract;
+use dokime::operations::plugins as contract;
 use dokime::{
     RuntimeHandle,
     plugins::{PluginError, PluginStore},

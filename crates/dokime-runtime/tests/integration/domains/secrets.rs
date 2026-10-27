@@ -24,7 +24,7 @@ use dokime_domain::model::secrets::{
     catalog::Metadata,
     transfer::{Action, Choice},
 };
-use dokime_domain::operations::secrets as wire;
+use dokime_operations::secrets as wire;
 use dokime_runtime::{Runtime, RuntimeConfig};
 
 /* === Constants === */

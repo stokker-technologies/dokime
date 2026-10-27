@@ -26,8 +26,8 @@ use harmos::operations::{OperationDeclaration, StreamItem};
 use super::{Client, Error as ClientError, Result as ClientResult};
 use dokime_domain::model::runtime::wire::Health;
 use dokime_domain::model::runtime::wire::Identity;
-use dokime_domain::operations::runtime::GetHealth;
-use dokime_domain::operations::runtime::GetIdentity;
+use dokime_operations::runtime::GetHealth;
+use dokime_operations::runtime::GetIdentity;
 
 /* === Constants === */
 

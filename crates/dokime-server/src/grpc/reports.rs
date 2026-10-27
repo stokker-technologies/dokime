@@ -31,7 +31,7 @@ use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::identity::Identifier;
 use dokime::domain::model::identity::TestCycleId;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::domain::operations::reports as wire;
+use dokime::operations::reports as wire;
 
 /* === Constants === */
 

@@ -23,7 +23,7 @@ use tonic::Status;
 // Local Imports
 use super::preferences::Resources;
 use dokime::RuntimeHandle;
-use dokime::domain::operations::settings as wire;
+use dokime::operations::settings as wire;
 
 /* === Constants === */
 

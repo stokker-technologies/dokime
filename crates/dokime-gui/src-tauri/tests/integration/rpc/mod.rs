@@ -25,7 +25,7 @@ use sha2::Digest;
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
 use dokime::domain::model;
-use dokime::domain::operations::backend;
+use dokime::operations::backend;
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE};
 
 /* === Constants === */

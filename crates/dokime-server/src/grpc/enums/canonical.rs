@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::domain::operations::plots;
+use dokime::operations::plots;
 use dokime::{
     ExecutionFileContentKind, ExecutionFileStreamState,
     document::{AxisScale, FftDetrend, FftWindow, FilterOperator, FrequencyLevelUnit, PlotAxisKind, PlotStyle, PlotType, ReferenceAxis},

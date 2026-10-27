@@ -31,7 +31,7 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::identity::IdentifierPattern;
 use dokime::domain::model::identity::wire as common;
 use dokime::domain::model::time::Timestamp;
-use dokime::domain::operations::telemetry as wire;
+use dokime::operations::telemetry as wire;
 use dokime::domains::evidence::ScopeSelection;
 use dokime::domains::evidence::TelemetrySelection;
 
