@@ -167,7 +167,8 @@ async fn artifact_transfer(message_bytes: usize) {
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(message_bytes)).await.unwrap();
+    let service = dokime_server::grpc::Service::new(owner.handle(), keyed().with_max_message_bytes(message_bytes)).await.unwrap();
+    let server = service.listen().await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().initial_stream_window_size(4096).connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
@@ -307,7 +308,7 @@ async fn artifact_transfer(message_bytes: usize) {
         dynamic.close().await;
 
         // The CLI Saves The Same Streaming Protocol As A Complete JSON Document.
-        let cli_server = Server::start(owner.handle(), Config::local()).await.unwrap();
+        let cli_server = service.listen_with(Config::local().with_max_message_bytes(message_bytes)).await.unwrap();
         let response_file = root.path().join("cli-response.json");
         let endpoint = cli_server.local_endpoint();
         let cli_request = std::str::from_utf8(&request_json).unwrap();

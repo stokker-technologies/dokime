@@ -744,7 +744,8 @@ async fn result_budget_atomicity() {
     let original = std::fs::read(store.path(first)).unwrap();
     let settings = owner.handle().settings().clone();
     let before = settings.read(Clone::clone).await.unwrap();
-    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(128)).await.unwrap();
+    // Identity And Upload Frames Fit; The Installation Result Must Still Be Refused Atomically.
+    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(256)).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let error = client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bundle())))).await.unwrap_err();
     assert_eq!(error.code(), Code::ResourceExhausted);
