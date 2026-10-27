@@ -333,6 +333,11 @@ name = "acceptance"
 path = "tests/acceptance/main.rs"
 required-features = ["host"]
 
+[[test]]
+name = "system"
+path = "tests/system/main.rs"
+required-features = ["host"]
+
 # === Bench Targets === #
 
 [[bench]]

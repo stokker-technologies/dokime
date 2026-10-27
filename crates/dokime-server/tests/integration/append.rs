@@ -47,13 +47,19 @@ fn selection(suite: &dokime::definition::TestSuite, index: usize) -> model::plan
 }
 
 fn plan(selection: model::planning::wire::RegisteredSelection) -> model::planning::wire::SelectionPlan {
-    model::planning::wire::SelectionPlan { selections: vec![selection], ..Default::default() }
+    model::planning::wire::SelectionPlan {
+        selections: vec![selection],
+        ..Default::default()
+    }
 }
 
 async fn cases(execution: &WireClient, cycle_id: &str) -> Vec<model::execution::wire::CaseSummary> {
     execution
         .unary::<contracts::execution::ListCases>(auth(
-            contracts::execution::ListCases { cycle_id: cycle_id.into(), ..Default::default() },
+            contracts::execution::ListCases {
+                cycle_id: cycle_id.into(),
+                ..Default::default()
+            },
             TOKEN,
         ))
         .await
@@ -79,7 +85,10 @@ async fn append_cases_preserve_ordinals() {
     let cycle_id = execution
         .unary::<contracts::execution::CreateCycle>(auth(
             contracts::execution::CreateCycle {
-                metadata: Some(model::identity::wire::Metadata { label: "Append cycle".into(), ..Default::default() }),
+                metadata: Some(model::identity::wire::Metadata {
+                    label: "Append cycle".into(),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             TOKEN,
@@ -117,7 +126,11 @@ async fn append_cases_preserve_ordinals() {
 
     let appended = execution
         .append_selection(auth(
-            support::wire::SelectionAppend { cycle_id: cycle_id.clone(), plan: Some(plan(selection(&suite, 0))), context: None },
+            support::wire::SelectionAppend {
+                cycle_id: cycle_id.clone(),
+                plan: Some(plan(selection(&suite, 0))),
+                context: None,
+            },
             TOKEN,
         ))
         .await
@@ -127,7 +140,11 @@ async fn append_cases_preserve_ordinals() {
     assert_eq!(before.len(), 1);
     assert_eq!(appended.execution_ids, [before[0].latest_execution_id.clone().unwrap()]);
 
-    let request = support::wire::SelectionAppend { cycle_id: cycle_id.clone(), plan: Some(plan(selection(&suite, 1))), context: None };
+    let request = support::wire::SelectionAppend {
+        cycle_id: cycle_id.clone(),
+        plan: Some(plan(selection(&suite, 1))),
+        context: None,
+    };
     let reply = execution.append_selection(auth(request, TOKEN)).await.unwrap().into_inner();
     assert!(reply.observed_cursor.is_some());
 
@@ -142,7 +159,11 @@ async fn append_cases_preserve_ordinals() {
     // Appending a template again continues its numbering within the cycle.
     execution
         .append_selection(auth(
-            support::wire::SelectionAppend { cycle_id: cycle_id.clone(), plan: Some(plan(selection(&suite, 0))), context: None },
+            support::wire::SelectionAppend {
+                cycle_id: cycle_id.clone(),
+                plan: Some(plan(selection(&suite, 0))),
+                context: None,
+            },
             TOKEN,
         ))
         .await
@@ -156,14 +177,22 @@ async fn append_cases_preserve_ordinals() {
     let renamed = cases(&execution, &cycle_id).await[2].latest_execution_id.clone().unwrap();
     execution
         .unary::<contracts::execution::RenameExecution>(auth(
-            contracts::execution::RenameExecution { execution_id: renamed, label: "Bench Warm-Up".into(), context: None },
+            contracts::execution::RenameExecution {
+                execution_id: renamed,
+                label: "Bench Warm-Up".into(),
+                context: None,
+            },
             TOKEN,
         ))
         .await
         .unwrap();
     execution
         .append_selection(auth(
-            support::wire::SelectionAppend { cycle_id: cycle_id.clone(), plan: Some(plan(selection(&suite, 0))), context: None },
+            support::wire::SelectionAppend {
+                cycle_id: cycle_id.clone(),
+                plan: Some(plan(selection(&suite, 0))),
+                context: None,
+            },
             TOKEN,
         ))
         .await
@@ -208,7 +237,10 @@ async fn explicit_append_retries() {
     let cycle = wire
         .unary::<contracts::execution::CreateCycle>(auth(
             contracts::execution::CreateCycle {
-                metadata: Some(model::identity::wire::Metadata { label: "Explicit Attempts".into(), ..Default::default() }),
+                metadata: Some(model::identity::wire::Metadata {
+                    label: "Explicit Attempts".into(),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             TOKEN,
@@ -222,7 +254,10 @@ async fn explicit_append_retries() {
         cycle_id: cycle.clone(),
         executions: ids
             .iter()
-            .map(|id| contracts::execution::ExecutionBinding { execution_id: id.clone(), case_id: case.case_id.clone() })
+            .map(|id| contracts::execution::ExecutionBinding {
+                execution_id: id.clone(),
+                case_id: case.case_id.clone(),
+            })
             .collect(),
     };
 
@@ -234,7 +269,11 @@ async fn explicit_append_retries() {
     assert_eq!(retry.unwrap().into_inner().execution_ids, ids);
     let members = wire
         .unary::<contracts::execution::ListExecutions>(auth(
-            contracts::execution::ListExecutions { cycle_id: cycle.clone(), limit: 100, ..Default::default() },
+            contracts::execution::ListExecutions {
+                cycle_id: cycle.clone(),
+                limit: 100,
+                ..Default::default()
+            },
             TOKEN,
         ))
         .await
@@ -252,9 +291,10 @@ async fn explicit_append_retries() {
     invalid.executions[0].execution_id = dokime::model::identity::new_id::<dokime::TestExecutionId>().to_string();
     invalid.executions[0].case_id = dokime::model::identity::new_id::<dokime::CaseId>().to_string();
     assert!(wire.unary::<contracts::execution::AppendExecutions>(auth(invalid, TOKEN)).await.is_err());
+    // The 100-Member Guard; `system/execution_append_seal.rs` Appends And Seals 1,003 Members.
     let large_append = contracts::execution::AppendExecutions {
         cycle_id: cycle.clone(),
-        executions: (0..1001)
+        executions: (0..98)
             .map(|_| contracts::execution::ExecutionBinding {
                 execution_id: uuid::Uuid::now_v7().to_string(),
                 case_id: case.case_id.clone(),
@@ -262,7 +302,7 @@ async fn explicit_append_retries() {
             .collect(),
     };
     let added = wire.unary::<contracts::execution::AppendExecutions>(auth(large_append, TOKEN)).await.unwrap().into_inner();
-    assert_eq!(added.execution_ids.len(), 1001);
+    assert_eq!(added.execution_ids.len(), 98);
     assert_eq!(
         handle
             .watch_state()
@@ -272,7 +312,7 @@ async fn explicit_append_retries() {
             .unwrap()
             .test_executions
             .len(),
-        1003
+        100
     );
 
     // A Retired Attempt Cannot Be Rebound To Another Active Container.
@@ -282,7 +322,10 @@ async fn explicit_append_retries() {
     let other = wire
         .unary::<contracts::execution::CreateCycle>(auth(
             contracts::execution::CreateCycle {
-                metadata: Some(model::identity::wire::Metadata { label: "Other Container".into(), ..Default::default() }),
+                metadata: Some(model::identity::wire::Metadata {
+                    label: "Other Container".into(),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             TOKEN,
