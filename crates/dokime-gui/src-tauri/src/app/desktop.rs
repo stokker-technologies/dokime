@@ -339,8 +339,12 @@ pub async fn desktop_artifact_deliver(
             cache
         }
     };
-    let staged =
-        tempfile::Builder::new().prefix(".dokime-").tempfile_in(directory).map_err(|error| prepare(error.to_string()))?.into_temp_path();
+    let staged = tempfile::Builder::new()
+        .prefix(".dokime-")
+        .suffix(&format!("-{filename}"))
+        .tempfile_in(directory)
+        .map_err(|error| prepare(error.to_string()))?
+        .into_temp_path();
     // The Download API Creates Its Own Output File; Keep The Unique Name And Cleanup Guard.
     std::fs::remove_file(&staged).map_err(|error| prepare(error.to_string()))?;
 
