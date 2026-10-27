@@ -53,6 +53,13 @@ Report testing SHALL open reports in a test-owned browser instance/profile and c
 - **THEN** its owned browser tabs close before the report fixture is removed
 - **AND** the actual report-open and content assertions remain required
 
+#### Scenario: Locked Design Decisions Apply
+
+- **WHEN** this requirement is implemented or reviewed
+- **THEN** the following locked design decisions hold unchanged:
+
+Native report journeys supply a test-scoped opener resource targeting an owned browser profile and debugging endpoint. The gate records exact report tab identities and closes those tabs in its final cleanup before deleting fixtures, including failure and timeout paths. Production keeps the system opener. No user browser enumeration, tab closure or process termination is permitted.
+
 ### Requirement: Keyring Secrets And Base64 Files
 
 Host secrets SHALL use the OS keyring, existing catalog and explicit credential-provider composition. Saved files SHALL contain standard Base64 of v1 JSON metadata and values, without encryption or passwords. Legacy adoption SHALL be removed without reading or deleting old stores. Unrelated authentication and cryptography SHALL remain unchanged.
@@ -70,3 +77,14 @@ Host secrets SHALL use the OS keyring, existing catalog and explicit credential-
 - **WHEN** the native Settings story adds and removes two synthetic secrets
 - **THEN** the real keyring-backed UI reflects both changes with masked values
 - **AND** no separate encrypted-transfer UI journey or superseded crypto/provider test suite remains
+
+#### Scenario: Locked Design Decisions Apply
+
+- **WHEN** this requirement is implemented or reviewed
+- **THEN** the following locked design decisions hold unchanged:
+
+Canonical secret values remain in the host OS keyring with its existing catalog and explicit composed credential provider. Remove legacy-source adoption, its runtime/configuration/API/UI surfaces and obsolete Memory/LocalFile backend choices; retain OS-keyring binding semantics and unrelated authentication credentials. Existing legacy stores and files are neither read nor deleted.
+
+The runtime owns standard Base64 encoding of the v1 JSON metadata/value document. Archive.data contains the resulting ASCII file bytes; Export takes names/generation, Preview takes data, and Import takes data/choices/generation. Files use .b64 and no passwords, encryption, ciphertext fields or age dependency. Bound decoded documents to 512 KiB and encoded files to four times the rounded-up third of that limit; keep catalog generation and explicit replace/skip choices. Generic native IPC Base64 wrapping remains transport-only.
+
+One in-process saved-file roundtrip proves this codec with isolated keyring stores. The existing native Settings story adds and removes two secrets. Retire the separate shared-secrets journey, crypto/provider test suite and encrypted fixtures; preserve independent plugin/binding/authentication tests. No watchdog, compiler-profile or native keyring-policy change accompanies this replacement.
