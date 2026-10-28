@@ -48,6 +48,18 @@ mod tests {
         assert_eq!(rows.iter().collect::<Vec<_>>(), vec![vec![1; 1024], vec![3; 1024]]);
         assert_eq!(rows.clone().len(), 2);
     }
+
+    #[test]
+    fn retained_row_owns_spool_until_last_handle_closes() {
+        let mut rows = EvidenceRows::<Vec<u8>>::default();
+        let row = rows.retain(&vec![1, 2, 3]).unwrap();
+        let directory = rows.spool.lock().unwrap().as_ref().unwrap().directory.path().to_owned();
+        drop(rows);
+        assert_eq!(row.read().unwrap(), vec![1, 2, 3]);
+        assert!(directory.is_dir());
+        drop(row);
+        assert!(!directory.exists());
+    }
 }
 
 /* === Re-Exports === */
@@ -102,8 +114,9 @@ pub(crate) struct EvidenceRow<T> {
 #[cfg(feature = "native")]
 #[derive(Debug)]
 struct Spool {
-    data: tempfile::NamedTempFile,
-    index: tempfile::TempDir,
+    // Close The Data Handle Before Removing Its Directory (Field Drop Order).
+    data: std::fs::File,
+    directory: tempfile::TempDir,
     bytes: u64,
     count: usize,
 }
@@ -336,18 +349,17 @@ impl<T: Serialize + DeserializeOwned> Iterator for Rows<'_, T> {
 #[cfg(feature = "native")]
 impl Spool {
     fn new() -> std::io::Result<Self> {
-        Ok(Self {
-            data: tempfile::NamedTempFile::new()?,
-            index: tempfile::tempdir()?,
-            bytes: 0,
-            count: 0,
-        })
+        // Windows Reports Access Denied When A Random File Name Matches An Existing
+        // Temp Directory Ignoring Case. Keep Files Inside An Owned Directory Instead.
+        let directory = tempfile::Builder::new().prefix("dokime-evidence-").tempdir()?;
+        let data = std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(directory.path().join("rows"))?;
+        Ok(Self { data, directory, bytes: 0, count: 0 })
     }
 
     fn key(&self, key: &str) -> std::io::Result<std::path::PathBuf> {
         let id = uuid::Uuid::parse_str(key).map_err(std::io::Error::other)?;
         let text = id.simple().to_string();
-        Ok(self.index.path().join(&text[..2]).join(&text[2..]))
+        Ok(self.directory.path().join(&text[..2]).join(&text[2..]))
     }
 
     fn append<T: Serialize>(&mut self, value: &T) -> std::io::Result<u64> {
@@ -365,7 +377,7 @@ impl Spool {
         let mut framed = Vec::with_capacity(8 + bytes.len());
         framed.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
         framed.extend_from_slice(&bytes);
-        let file = self.data.as_file_mut();
+        let file = &mut self.data;
         file.seek(SeekFrom::Start(self.bytes))?;
         file.write_all(&framed)?;
 
@@ -402,14 +414,14 @@ impl Spool {
     fn read_window(&mut self, offset: u64, length: u64) -> std::io::Result<Vec<u8>> {
         let available = self.bytes.saturating_sub(offset).min(length);
         let mut window = vec![0; usize::try_from(available).map_err(std::io::Error::other)?];
-        let file = self.data.as_file_mut();
+        let file = &mut self.data;
         file.seek(SeekFrom::Start(offset))?;
         file.read_exact(&mut window)?;
         Ok(window)
     }
 
     fn read<T: DeserializeOwned>(&mut self, offset: &mut u64) -> std::io::Result<T> {
-        let file = self.data.as_file_mut();
+        let file = &mut self.data;
         file.seek(SeekFrom::Start(*offset))?;
         let mut length = [0; 8];
         file.read_exact(&mut length)?;
