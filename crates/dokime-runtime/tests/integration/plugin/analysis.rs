@@ -183,9 +183,7 @@ async fn serve() -> harmos::Runtime<Host> {
 }
 
 async fn call<A: Analysis>(operations: &harmos::operations::OperationManager<Lanes>, request: Request) -> harmos::Result<Response> {
-    let payload = operations.call_encoded(A::ID, harmos::Message::encode(&request)).await?;
-    <Response as harmos::Message>::decode(&payload)
-        .map_err(|source| harmos::Error::backend("decode analysis answer", harmos::BackendFailure::Corrupt, source))
+    operations.call::<Operation<A>>(Operation::new(request)).await.map(|response| response.into_owned())
 }
 
 /* === Tests === */

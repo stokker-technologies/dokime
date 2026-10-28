@@ -33,7 +33,7 @@ use dokime_runtime::{Runtime, app::Lanes};
 
 /* === Constants === */
 
-const OWNERS: [&str; 2] = ["plugin.alpha", "plugin.beta"];
+const OWNERS: [&str; 2] = ["plugin_alpha", "plugin_beta"];
 
 /* === Macros === */
 
@@ -127,6 +127,13 @@ fn owners() -> PluginDefinitions {
         contributions: PluginContributions {
             operations: vec![<ReadSecret as harmos::OperationDeclaration>::definition()],
             wire_contracts: vec![harmos::operations::WireDeclaration::of::<ReadSecret>().contract().unwrap()],
+            // Each owner requires the host lookup it calls, the way an authored plugin declares it.
+            required_contracts: Some(
+                harmos::domain::inventory::contracts::Required::from_tree(&[harmos::domain::catalog::Node::Leaf(
+                    harmos::domain::plugin::Requirement::of::<secrets::Lookup>(&[]),
+                )])
+                .unwrap(),
+            ),
             ..Default::default()
         },
         requires: vec![],

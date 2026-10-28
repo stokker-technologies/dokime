@@ -123,7 +123,7 @@ mod bare_attributes {
     }
 
     #[plugin(
-        id = "prelude-bench",
+        id = "prelude_bench",
         provides = Operations,
         requires(),
         contributions(dokime_runtime::Settings<BenchSettings>),

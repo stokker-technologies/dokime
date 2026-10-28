@@ -65,10 +65,11 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
         attempt_timeout: std::time::Duration::from_secs(120),
         retries: harmos::operations::RetryPolicy::Never,
     };
-    let lifecycle = [
-        harmos::model::operations::lifecycle::Descriptor::new(harmos::model::operations::lifecycle::Action::Initialize, policy).unwrap(),
-        harmos::model::operations::lifecycle::Descriptor::new(harmos::model::operations::lifecycle::Action::Shutdown, policy).unwrap(),
-    ];
+    // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.
+    let lifecycle = serde_json::json!([
+        {"action": "initialize", "identity": "harmos.operation.v1", "policy": policy},
+        {"action": "shutdown", "identity": "harmos.operation.v1", "policy": policy},
+    ]);
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
     let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});

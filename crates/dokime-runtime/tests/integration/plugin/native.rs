@@ -36,7 +36,8 @@ use dokime_runtime::transport::{
 use {dokime_runtime::records::RecordPublication, model::records::publication::RecordPublishRequest};
 /* === Constants === */
 const BOUND: Duration = Duration::from_secs(120);
-const SDK_BYTES: usize = 4096;
+// Initialization carries the configuration and the host's operation assignments.
+const SDK_BYTES: usize = 64 * 1024;
 const PREPARATION_BYTES: usize = 4 * 1024 * 1024;
 
 pub(super) const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
@@ -413,11 +414,12 @@ where
 {
     harmos::sidecar::PluginNative::<P>::new(NonZeroUsize::new(128).unwrap()).unwrap()
 }
-pub(super) async fn call_wire<O>(operations: &Operations, request: O::Request) -> harmos::Result<O::Response>
+// A sidecar serves its operations on the wire under `<plugin id>.<operation id>`.
+pub(super) async fn call_wire<O>(operations: &Operations, owner: &str, request: O::Request) -> harmos::Result<O::Response>
 where
     O: harmos::operations::OperationDeclaration,
 {
-    let payload = operations.call_encoded(O::ID, <O::Request as harmos::Message>::encode(&request)).await?;
+    let payload = operations.call_encoded(&format!("{owner}.{}", O::ID), <O::Request as harmos::Message>::encode(&request)).await?;
     <O::Response as harmos::Message>::decode(&payload)
         .map_err(|source| harmos::Error::backend("decode fixture answer", harmos::BackendFailure::Corrupt, source))
 }

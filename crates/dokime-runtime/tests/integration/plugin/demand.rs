@@ -18,7 +18,7 @@ pub(crate) mod observers {
         pub(super) value: i64,
         pub(super) index: i64,
     }
-    #[dokime_runtime::stream(id = "owned-stream.auxiliary",
+    #[dokime_runtime::stream(id = "owned_stream.auxiliary",
         window = 64,
         row = Row,
         label = "Auxiliary",
@@ -26,11 +26,11 @@ pub(crate) mod observers {
         of them its rows are.")]
     pub(super) struct Auxiliary;
 
-    #[dokime_runtime::stream(id = "owned-stream.measurement", window = 64, row = Row, label = "Measurement")]
+    #[dokime_runtime::stream(id = "owned_stream.measurement", window = 64, row = Row, label = "Measurement")]
     pub(super) struct Measurement;
 
     #[dokime_runtime::stream(
-        id = "owned-stream.revisioned",
+        id = "owned_stream.revisioned",
         label = "Revisioned",
         tags("instrument"),
         attributes(source = "test"),
@@ -42,7 +42,7 @@ pub(crate) mod observers {
     fn native_metadata_revision() {
         use dokime_runtime::telemetry::TelemetryStream;
         let contract = Revisioned::contract();
-        assert_eq!(contract.stream.as_str(), "owned-stream.revisioned");
+        assert_eq!(contract.stream.as_str(), "owned_stream.revisioned");
         assert_eq!(contract.schema_version, <Revisioned as dokime_runtime::StreamSpec>::VERSION);
         assert_eq!(contract.metadata.label, "Revisioned");
         assert_eq!(contract.metadata.description.as_deref(), Some("Shared row metadata"));
@@ -219,7 +219,7 @@ struct UnitNoted {
     serial: String,
 }
 
-#[dokime_runtime::stream(id = "owned-stream.pushed", window = 64, label = "Pushed", description = "A stream this plugin never declares.")]
+#[dokime_runtime::stream(id = "owned_stream.pushed", window = 64, label = "Pushed", description = "A stream this plugin never declares.")]
 struct PushedRow {
     value: i64,
 }
@@ -230,7 +230,7 @@ struct Noted;
 
 struct Echoed;
 
-#[dokime_runtime::stream(id = "owned-stream.raw-identifiers", label = "Raw Identifiers", window = 8)]
+#[dokime_runtime::stream(id = "owned_stream.raw-identifiers", label = "Raw Identifiers", window = 8)]
 struct RawIdentifiers {
     #[row(label = "Type", role = state)]
     r#type: String,
@@ -310,7 +310,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Measured {
 }
 
 #[dokime_runtime::plugin(
-    id = "owned-stream",
+    id = "owned_stream",
     provides = (),
     requires(dokime_runtime::harmos::builtins::streams::Publish),
     contributions(
@@ -510,8 +510,8 @@ async fn instance_opens_resources() {
     assert_eq!(probe.opens.load(Ordering::SeqCst), 1);
     assert_eq!(probe.samples.load(Ordering::SeqCst), 0, "activation does not start observations");
 
-    let measurement = runtime.streams.publication("owned-stream.measurement", 1).unwrap();
-    let auxiliary = runtime.streams.publication("owned-stream.auxiliary", 1).unwrap();
+    let measurement = runtime.streams.publication("owned_stream.measurement", 1).unwrap();
+    let auxiliary = runtime.streams.publication("owned_stream.auxiliary", 1).unwrap();
     let first = measurement.watch();
     let second = measurement.watch();
     probe.until(|probe| probe.samples.load(Ordering::SeqCst) != 0).await;
@@ -566,7 +566,10 @@ async fn listener_publishes_asked() {
 
     let mut invocation = runtime
         .operations
-        .submit_encoded(<Noted as dokime_runtime::harmos::operations::OperationDeclaration>::ID, connected("STALL").encode())
+        .submit_encoded(
+            &format!("owned_stream.{}", <Noted as dokime_runtime::harmos::operations::OperationDeclaration>::ID),
+            connected("STALL").encode(),
+        )
         .unwrap();
     // A Paused Clock Advances Without Turning Pending Delivery Into A Success
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
@@ -575,8 +578,8 @@ async fn listener_publishes_asked() {
     invocation.cancel();
     let cancelled = invocation.await;
     assert!(matches!(cancelled, Err(harmos::Error::OperationRefused(harmos::Refusal::Cancelled))), "{cancelled:?}");
-    super::native::call_wire::<Noted>(&runtime.operations, connected("SN-7")).await.unwrap();
-    super::native::call_wire::<Echoed>(&runtime.operations, connected("SN-7")).await.unwrap();
+    super::native::call_wire::<Noted>(&runtime.operations, "owned_stream", connected("SN-7")).await.unwrap();
+    super::native::call_wire::<Echoed>(&runtime.operations, "owned_stream", connected("SN-7")).await.unwrap();
     if let Some(refusal) = probe.refused.lock().unwrap().clone() {
         panic!("the listener could not publish: {refusal}");
     }
@@ -585,13 +588,13 @@ async fn listener_publishes_asked() {
     assert_eq!(probe.active_listeners.load(Ordering::SeqCst), 0, "the cancelled reaction cannot survive delivery cancellation");
     let filed = native.host.records();
     assert_eq!(filed.len(), 1, "the record reaches the host's filing operation");
-    assert_eq!(filed[0].0, "owned-stream");
+    assert_eq!(filed[0].0, "owned_stream");
     assert_eq!(filed[0].1.record_type.as_str(), "owned.unit.noted");
 
     // TODO(source-hook): a wait for a published row to reach its stream window without engaging demand.
     tokio::time::timeout(Duration::from_secs(120), async {
         loop {
-            let stream = runtime.streams.publication("owned-stream.measurement", 1);
+            let stream = runtime.streams.publication("owned_stream.measurement", 1);
             if let Some(stream) = stream {
                 let rows = stream.query(..).await.unwrap().collect::<Vec<_>>();
                 if let Some(row) = rows.first() {
@@ -637,7 +640,7 @@ async fn record_demand_cancel() {
     let second = demands.hold(&UNIT_NOTED.name()).unwrap();
     native.host.first_filed().await;
     let (owner, filed) = native.host.records().remove(0);
-    assert_eq!(owner, "owned-stream");
+    assert_eq!(owner, "owned_stream");
     assert_eq!(filed.record_type.as_str(), "owned.unit.noted");
     assert_eq!(probe.record_starts.load(Ordering::SeqCst), 1);
     assert_eq!(probe.observer_starts.load(Ordering::SeqCst), 0);

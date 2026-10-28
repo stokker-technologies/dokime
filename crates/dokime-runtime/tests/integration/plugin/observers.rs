@@ -276,7 +276,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Owner {
 }
 
 #[dokime_runtime::plugin(
-    id = "observer-fixture",
+    id = "observer_fixture",
     provides = Implemented,
     requires(),
     contributions(
@@ -383,7 +383,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for MissingSecrets {
 }
 
 #[dokime_runtime::plugin(
-    id = "missing-observer-secrets",
+    id = "missing_observer_secrets",
     provides = (),
     requires(),
     contributions(dokime_runtime::Settings<MissingSecretSettings>),
@@ -621,7 +621,7 @@ async fn activation_starts_execution() {
     // An observer publishes without any demand.
     native.host.first_filed().await;
     let (owner, filed) = native.host.records().remove(0);
-    assert_eq!(owner, "observer-fixture");
+    assert_eq!(owner, "observer_fixture");
     assert_eq!(filed.record_type.as_str(), "observer.observed");
 
     let Err(refused) = <MissingSecrets as dokime_runtime::Plugin>::prepare(Configuration::declared::<MissingSecretSettings>()) else {
@@ -678,7 +678,7 @@ async fn observer_failure_event() {
 #[tokio::test]
 async fn cancellation_drops_cleanup() {
     let probe = Arc::new(Probe::default());
-    let workflow = Workflow::<Pending>::new(SUITE, "observer-fixture");
+    let workflow = Workflow::<Pending>::new(SUITE, "observer_fixture");
     workflow
         .start_on(
             super::native::run_request("pending", SUITE, "observer.checks.pending", "{}".into()),

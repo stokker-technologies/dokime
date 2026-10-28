@@ -262,7 +262,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Owner {
 }
 
 #[dokime_runtime::plugin(
-    id = "resource-owner",
+    id = "resource_owner",
     provides = Operations,
     requires(),
     contributions(dokime_runtime::Suites<OwnerSuites>, dokime_runtime::Settings<OwnerSettings>),
@@ -384,7 +384,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for CatalogOnly {
 }
 
 #[dokime_runtime::plugin(
-    id = "catalog-only",
+    id = "catalog_only",
     provides = (),
     requires(),
     contributions(dokime_runtime::Suites<OwnerSuites>),
@@ -495,6 +495,7 @@ async fn shared_within_between() {
         for native in [&a, &b] {
             let outcome = super::native::call_wire::<Run<Probe>>(
                 &native.runtime.operations,
+                "resource_owner",
                 Run::new(start(token, resolved(false, false, false, false))),
             )
             .await
@@ -538,14 +539,14 @@ async fn execution_scope_calls() {
     let answer = operations
         .with_context(context)
         .call_encoded(
-            <Run<Probe> as harmos::operations::OperationDeclaration>::ID,
+            &format!("resource_owner.{}", <Run<Probe> as harmos::operations::OperationDeclaration>::ID),
             harmos::Message::encode(&start("keyed", resolved(false, false, false, false))),
         )
         .await
         .unwrap();
     let outcome = <dokime_runtime::transport::SidecarExecutionOutcome as harmos::Message>::decode(answer.as_slice()).unwrap();
     assert!(outcome.passed, "{outcome:?}");
-    super::native::call_wire::<GetDevice>(operations, GetDevice {}).await.unwrap();
+    super::native::call_wire::<GetDevice>(operations, "resource_owner", GetDevice {}).await.unwrap();
     native.retire().await;
 
     let keys = observations.keys.lock().unwrap().clone();
@@ -583,7 +584,7 @@ async fn execution_scope_calls() {
 async fn shutdown_joins_cleanup() {
     let observations = Arc::new(Observations::default());
     let device = Device::open(&registered(&observations));
-    let workflow = Workflow::<Probe>::new(SUITE, "resource-owner");
+    let workflow = Workflow::<Probe>::new(SUITE, "resource_owner");
     workflow.start_on(start("cancelled", resolved(true, false, false, false)), None, answered(&device)).unwrap();
     // Drains between waits admit the step that starts the device.
     let mut cursor = 0;
@@ -616,7 +617,7 @@ async fn unfinished_initialize_handles() {
     for cancel in [false, true] {
         let observations = Arc::new(Observations::default());
         let device = Device::open(&registered(&observations));
-        let workflow = Workflow::<Probe>::new(SUITE, "resource-owner");
+        let workflow = Workflow::<Probe>::new(SUITE, "resource_owner");
         workflow.start_on(start("initializing", resolved(false, !cancel, cancel, false)), None, answered(&device)).unwrap();
         if cancel {
             // Initialization acquires its handle before cancellation.

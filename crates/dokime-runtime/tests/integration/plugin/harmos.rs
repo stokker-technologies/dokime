@@ -33,10 +33,10 @@ struct DirectReading {
     value: u32,
 }
 
-#[dokime_runtime::stream(id = "sdk-streams.inlet", window = 8, row = DirectReading)]
+#[dokime_runtime::stream(id = "sdk_streams.inlet", window = 8, row = DirectReading)]
 struct Inlet;
 
-#[dokime_runtime::stream(id = "sdk-streams.outlet", window = 8, row = DirectReading)]
+#[dokime_runtime::stream(id = "sdk_streams.outlet", window = 8, row = DirectReading)]
 struct Outlet;
 
 struct DirectStreams {
@@ -59,7 +59,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for DirectStreams {
 }
 
 #[dokime_runtime::plugin(
-    id = "sdk-streams",
+    id = "sdk_streams",
     provides = (),
     requires(dokime_runtime::harmos::builtins::streams::Publish),
     contributions(dokime_runtime::Evidence<Streams>),
@@ -116,7 +116,7 @@ async fn stream_alias_publication() {
 
     assert_eq!(
         <DirectStreams as Declared>::STREAMS.iter().map(|entry| entry.id).collect::<Vec<_>>(),
-        ["sdk-streams.inlet", "sdk-streams.outlet"],
+        ["sdk_streams.inlet", "sdk_streams.outlet"],
         "plugin streams are declared without any observers",
     );
     assert!(Inlet::contract().interval.is_none());
@@ -130,13 +130,13 @@ async fn stream_alias_publication() {
         vec![],
     )
     .await;
-    let inlet = native.runtime.streams.publication("sdk-streams.inlet", 1).unwrap();
-    let outlet = native.runtime.streams.publication("sdk-streams.outlet", 1).unwrap();
+    let inlet = native.runtime.streams.publication("sdk_streams.inlet", 1).unwrap();
+    let outlet = native.runtime.streams.publication("sdk_streams.outlet", 1).unwrap();
 
     // Original Read Handles Preserve Lifecycle Evidence After Producer Retirement.
     native.retire().await;
     for (name, expected, stream) in [("inlet", vec![7], inlet), ("outlet", vec![8], outlet)] {
-        assert_eq!(stream.definition().id(), format!("sdk-streams.{name}"));
+        assert_eq!(stream.definition().id(), format!("sdk_streams.{name}"));
         assert_eq!(
             stream.definition().schema().unwrap(),
             &harmos::schema::graph::Schema::from_declaration(

@@ -232,7 +232,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Bench {
 }
 
 #[dokime_runtime::plugin(
-    id = "call-fixture",
+    id = "call_fixture",
     provides = Implemented,
     requires(),
     contributions(dokime_runtime::Suites<BenchSuites>, dokime_runtime::Settings<BenchSettings>),
@@ -451,18 +451,18 @@ async fn catalog_operations_policy() {
     )
     .await;
     let operations = &native.runtime.operations;
-    assert!(super::native::call_wire::<GetReading>(operations, GetReading {}).await.unwrap().reads >= 1);
+    assert!(super::native::call_wire::<GetReading>(operations, "call_fixture", GetReading {}).await.unwrap().reads >= 1);
     assert_eq!(
-        super::native::call_wire::<GetStatus>(operations, GetStatus {}).await.unwrap(),
+        super::native::call_wire::<GetStatus>(operations, "call_fixture", GetStatus {}).await.unwrap(),
         dokime_runtime::domains::StatusResponse::ready()
     );
-    assert_eq!(super::native::call_wire::<Echo>(operations, Echo { value: 7 }).await.unwrap().value, 7);
-    assert_eq!(super::native::call_wire::<Double>(operations, Double { value: 7 }).await.unwrap().value, 14);
-    let hidden = super::native::call_wire::<Hidden>(operations, Hidden {}).await;
+    assert_eq!(super::native::call_wire::<Echo>(operations, "call_fixture", Echo { value: 7 }).await.unwrap().value, 7);
+    assert_eq!(super::native::call_wire::<Double>(operations, "call_fixture", Double { value: 7 }).await.unwrap().value, 14);
+    let hidden = super::native::call_wire::<Hidden>(operations, "call_fixture", Hidden {}).await;
     assert!(matches!(hidden, Err(harmos::Error::NotRegistered { .. })), "{hidden:?}");
 
     let before = WIRE_CANCELLATIONS.load(Ordering::SeqCst);
-    let late = super::native::call_wire::<GetLateReading>(operations, GetLateReading {}).await;
+    let late = super::native::call_wire::<GetLateReading>(operations, "call_fixture", GetLateReading {}).await;
     assert!(matches!(late, Err(harmos::Error::OperationRefused(harmos::Refusal::TimedOut))), "{late:?}");
     // The deadline cancels the operation it timed out.
     until(|| WIRE_CANCELLATIONS.load(Ordering::SeqCst) != before).await;

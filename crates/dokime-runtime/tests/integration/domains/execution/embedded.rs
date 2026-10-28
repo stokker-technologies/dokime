@@ -29,7 +29,7 @@ use dokime_runtime::InstalledPlugin;
 use dokime_runtime::runtime::EmbeddedProvider;
 
 /* === Constants === */
-const TEMPLATE: &str = "fixture.template.0";
+const TEMPLATE: &str = "fixture.template.t0";
 
 /* === Macros === */
 

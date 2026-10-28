@@ -188,8 +188,9 @@ pub async fn register_custom_suite(runtime: &RuntimeHandle, suite: TestSuite) {
     .await;
 }
 
+// A template id serves operations under its own segments, which start with a letter.
 pub fn case_template(index: usize, result: &str) -> TestCaseTemplate {
-    case_template_with_identifier(&format!("fixture.template.{index}"), &format!("Fixture Template {index}"), result)
+    case_template_with_identifier(&format!("fixture.template.t{index}"), &format!("Fixture Template {index}"), result)
 }
 
 pub fn case_template_with_identifier(identifier: &str, label: &str, result: &str) -> TestCaseTemplate {

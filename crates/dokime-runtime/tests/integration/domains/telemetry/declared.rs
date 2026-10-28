@@ -158,7 +158,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Declaring {
 }
 
 #[dokime_runtime::plugin(
-    id = "fixture-declaring",
+    id = "fixture_declaring",
     provides = (),
     requires(),
     contributions(dokime_runtime::Suites<Suites>),
