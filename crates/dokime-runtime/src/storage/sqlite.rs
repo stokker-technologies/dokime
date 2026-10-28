@@ -118,7 +118,9 @@ struct Live {
     _lease: File,
 }
 
+// Reader Connections Open On First Demand, So A Store That Only Writes Opens Just Its Writer.
 struct Readers {
+    database: std::path::PathBuf,
     permits: Arc<Semaphore>,
     count: u32,
     idle: std::sync::Mutex<Vec<Reader>>,
@@ -153,6 +155,18 @@ impl Drop for Interruption {
         if self.read != 0 && *running == self.read {
             self.slot.interrupt.interrupt();
         }
+    }
+}
+
+impl Reader {
+    fn open(database: &Path) -> Result<Self, Error> {
+        let connection = Connection::open(database)?;
+        connection.execute_batch("PRAGMA query_only=ON; PRAGMA temp_store=MEMORY;")?;
+        let slot = Arc::new(ReaderSlot {
+            interrupt: connection.get_interrupt_handle(),
+            running: std::sync::Mutex::new(0),
+        });
+        Ok(Self { connection, slot })
     }
 }
 
@@ -198,21 +212,13 @@ impl State {
             commit(transaction)?;
             let mut idle = Vec::new();
             idle.try_reserve_exact(readers.get()).map_err(std::io::Error::other)?;
-            for _ in 0..readers.get() {
-                let connection = Connection::open(root.join("local.sqlite"))?;
-                connection.execute_batch("PRAGMA query_only=ON; PRAGMA temp_store=MEMORY;")?;
-                let slot = Arc::new(ReaderSlot {
-                    interrupt: connection.get_interrupt_handle(),
-                    running: std::sync::Mutex::new(0),
-                });
-                idle.push(Reader { connection, slot });
-            }
             let verification_prefix = data::VerifiedPrefix::default();
             let verification_prefix = std::sync::Mutex::new(verification_prefix);
             Ok(Self(Arc::new(Owner {
                 read_metrics: Arc::new(ReadMetrics::default()),
                 live: Arc::new(Mutex::new(Some(Live { connection, _lease: lease }))),
                 readers: Arc::new(Readers {
+                    database: root.join("local.sqlite"),
                     permits: Arc::new(Semaphore::new(count as usize)),
                     count,
                     idle: std::sync::Mutex::new(idle),
@@ -278,7 +284,14 @@ impl State {
         }
         let readers = self.0.readers.clone();
         let permit = readers.permits.clone().acquire_owned().await.map_err(|_| Error::Closed)?;
-        let reader = readers.idle.lock().unwrap().pop().ok_or(Error::Closed)?;
+        let idle = readers.idle.lock().unwrap().pop();
+        let reader = match idle {
+            Some(reader) => reader,
+            None => {
+                let database = readers.database.clone();
+                tokio::task::spawn_blocking(move || Reader::open(&database)).await??
+            }
+        };
         let read = self.0.reads.fetch_add(1, Ordering::Relaxed);
         let mut interruption = Interruption { slot: reader.slot.clone(), read };
         let result = tokio::task::spawn_blocking(move || {
