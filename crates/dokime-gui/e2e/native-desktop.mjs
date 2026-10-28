@@ -3321,7 +3321,13 @@ async function settingsJourney(session, notes) {
   );
   await session.type(await field("Backend Endpoint"), "http://operator:private@127.0.0.1/");
   await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Add Backend']"));
-  await until("invalid origin refused", () => session.find("css selector", '[role="dialog"] [role="alert"]'));
+  await until("invalid origin refused", () =>
+    session.execute(`
+    const field = document.querySelector('[role="dialog"] input[aria-label="Backend Endpoint"]');
+    const explanation = document.getElementById(field?.getAttribute('aria-describedby'));
+    return field?.getAttribute('aria-invalid') === 'true' && Boolean(explanation?.textContent.trim());
+  `),
+  );
   const unchanged = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
   assert.ok(!unchanged.profiles.some((profile) => profile.identifier === "native-invalid"));
   await session.clickNamed("button", "Cancel");
