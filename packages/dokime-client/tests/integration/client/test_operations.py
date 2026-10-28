@@ -59,7 +59,7 @@ def test_external_operation(mode: str) -> None:
                 entries=json.dumps(
                     [
                         {
-                            "owner": "external.fixture",
+                            "owner": "external_fixture",
                             "generation": 7,
                             "contract": native,
                             "grants": [],
@@ -67,7 +67,7 @@ def test_external_operation(mode: str) -> None:
                             "grpc_available": native_available,
                         },
                         {
-                            "owner": "external.fixture",
+                            "owner": "external_fixture",
                             "generation": 7,
                             "contract": contract,
                             "grants": [],
@@ -80,7 +80,7 @@ def test_external_operation(mode: str) -> None:
 
         async def unary(request, context):
             transmitted.append(request.wide)
-            await context.send_initial_metadata((("fixture-owner", "external.fixture"),))
+            await context.send_initial_metadata((("fixture-owner", "external_fixture"),))
             return operation.response(wide=request.wide)
 
         async def upload(requests, context):
@@ -148,7 +148,7 @@ def test_external_operation(mode: str) -> None:
                 await client.operations()
             native_available = False
             provider = await client.show("external.fixture.invoke")
-            assert provider.owner == "external.fixture" and provider.generation == 7
+            assert provider.owner == "external_fixture" and provider.generation == 7
             assert provider.conditional_access
             selected = provider.operation
             request = selected.request(wide=2**63)

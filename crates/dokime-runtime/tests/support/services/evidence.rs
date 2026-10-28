@@ -341,7 +341,7 @@ pub fn host_system_batch() -> TelemetryBatch {
         identifier("host.system"),
         0,
         dokime_runtime::model::time::now_utc(),
-        "fixture.host",
+        "fixture_host",
     );
     sample.values.insert("cpu_load_percent".to_owned(), Value::Number(12.5));
     sample.values.insert("memory_pressure_percent".to_owned(), Value::Number(42.0));

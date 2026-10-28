@@ -88,7 +88,7 @@ async fn fixture_runtime_with_dispatcher(
 }
 
 fn fixture_module() -> dokime_runtime::InstalledPlugin {
-    let mut module = installed_plugin("fixture.artifact");
+    let mut module = installed_plugin("fixture_artifact");
     module.settings_status = Some(dokime_runtime::domains::PluginEntrypoint { name: "fixture.status".into() });
     module
 }
@@ -177,7 +177,7 @@ async fn dispatcher_alone_probe() {
 #[tokio::test]
 async fn discovered_settings_until() {
     let (_root, mut owner, runtime) = fixture_runtime(Some(fixture_module())).await;
-    let artifact_id = Identifier::new("fixture.artifact").unwrap();
+    let artifact_id = Identifier::new("fixture_artifact").unwrap();
 
     // Nothing discovered yet: the card shows what the plugin declared.
     let settings = runtime.plugin_settings(&artifact_id).await.unwrap();

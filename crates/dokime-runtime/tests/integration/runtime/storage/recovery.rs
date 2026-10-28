@@ -140,7 +140,7 @@ async fn reboot(root: &Path) -> (Runtime, RuntimeHandle) {
 fn wide_config(root: &Path) -> RuntimeConfig {
     let columns = (0..COLUMNS).map(|index| fixture_host_column(&format!("value_{index:02}"), &format!("Value {index}"))).collect();
     config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
-        source: "fixture.host".to_owned(),
+        source: "fixture_host".to_owned(),
         version: "test".to_owned(),
         description: "Fixture Host".to_owned(),
         enabled: true,
@@ -177,7 +177,7 @@ fn wide_batch(scope: RecordScope) -> TelemetryBatch {
                 identifier(STREAM),
                 sequence,
                 dokime_runtime::model::time::now_utc(),
-                "fixture.host",
+                "fixture_host",
             );
             let mut payload = Vec::new();
             harmos::message::postcard::Value::write(&sample.timestamp.as_str().to_owned(), &mut payload);

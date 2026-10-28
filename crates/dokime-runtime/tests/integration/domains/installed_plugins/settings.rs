@@ -95,7 +95,7 @@ async fn install_definition_harmos() {
     registration.record_contracts = vec![fixture_record_contract()];
     registration.telemetry_contracts = vec![fixture_telemetry_contract()];
     let artifact = dokime_runtime::InstalledPlugin {
-        source: "fixture.install".into(),
+        source: "fixture_install".into(),
         version: "test".into(),
         description: "fixture".into(),
         enabled: true,
@@ -107,7 +107,7 @@ async fn install_definition_harmos() {
     let suites = runtime.test_suites().await;
 
     assert!(after > 0);
-    assert!(suites.iter().any(|suite| suite.source == "fixture.install"));
+    assert!(suites.iter().any(|suite| suite.source == "fixture_install"));
     assert!(runtime.record_contracts().await.iter().any(|contract| contract.record_type.as_str() == "fixture.event"));
     assert!(runtime.telemetry_contracts().await.iter().any(|contract| contract.stream.as_str() == "fixture.telemetry"));
 }
@@ -203,7 +203,7 @@ async fn artifact_registration_visible() {
 async fn composed_plugin_process() {
     let root = tempdir().unwrap();
     let config = config(root.path()).with_installed_plugins([settings_artifact()]);
-    let artifact_id = Identifier::new("settings-fixture").unwrap();
+    let artifact_id = Identifier::new("settings_fixture").unwrap();
     let (mut first, runtime) = started(config.clone()).await;
     let mut values = runtime.plugin_settings(&artifact_id).await.unwrap().values;
     values.insert("workspace_id".to_owned(), dokime_runtime::Value::from("recovered-workspace"));
@@ -229,7 +229,7 @@ async fn composed_plugin_process() {
 fn settings_artifact() -> dokime_runtime::InstalledPlugin {
     use dokime_runtime::plugin::settings::PluginSettings;
     dokime_runtime::InstalledPlugin {
-        source: "settings-fixture".into(),
+        source: "settings_fixture".into(),
         version: "test".into(),
         description: "Settings fixture".into(),
         enabled: true,

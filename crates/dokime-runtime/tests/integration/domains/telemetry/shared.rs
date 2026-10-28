@@ -31,7 +31,7 @@ use harmos::storage::{
 };
 
 /* === Constants === */
-const SOURCE: &str = "fixture.shared";
+const SOURCE: &str = "fixture_shared";
 const SUITE: &str = "fixture.shared.checks";
 
 /* === Macros === */
@@ -252,7 +252,7 @@ async fn shared_owner_refused() {
         contract.template_id = contract.template_id.as_ref().map(|id| TemplateId::from_seed(format!("other.{id}")));
     }
 
-    let refused = handle.set_suites("fixture.other", SuiteSet::new([definition])).await;
+    let refused = handle.set_suites("fixture_other", SuiteSet::new([definition])).await;
 
     assert!(refused.as_ref().is_err_and(|error| shared_stream_refusal(&error.to_string())), "{refused:?}");
     drop(handle);

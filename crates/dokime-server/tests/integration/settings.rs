@@ -73,7 +73,7 @@ impl ActionDispatcher for FixtureActionDispatcher {
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let environment = support::TestEnvironment::with_installed_plugins_and_action_dispatcher(
         vec![fixture_module()],
-        Identifier::new("fixture.settings").unwrap(),
+        Identifier::new("fixture_settings").unwrap(),
         Arc::new(FixtureActionDispatcher),
     )
     .await;
@@ -95,8 +95,8 @@ async fn frame_readable_probe() {
         section.section_id == "identity" && matches!(section.owner.as_ref(), Some(model::settings::wire::SettingsSectionOwner::App(true)))
     }));
     let card =
-        frame.cards.iter().find(|card| card.card_id == "fixture.settings").expect("the artifact's own card carries the readiness probe");
-    assert_eq!(card.plugin_id, "fixture.settings");
+        frame.cards.iter().find(|card| card.card_id == "fixture_settings").expect("the artifact's own card carries the readiness probe");
+    assert_eq!(card.plugin_id, "fixture_settings");
     assert_eq!(card.state, model::settings::wire::SettingsCardState::Disconnected);
 
     server.shutdown().await.unwrap();
@@ -188,7 +188,7 @@ async fn storage_sources() {
 #[tokio::test]
 async fn plugin_settings() {
     let (_environment, server, client) = fixture().await;
-    let request = contracts::settings::GetPluginSettings { plugin_id: "fixture.settings".into() };
+    let request = contracts::settings::GetPluginSettings { plugin_id: "fixture_settings".into() };
     let initial = client.unary::<contracts::settings::GetPluginSettings>(auth(request.clone(), super::TOKEN)).await.unwrap().into_inner();
     assert!(matches!(
         initial.values.as_ref().unwrap().to_core().unwrap(),
@@ -197,7 +197,7 @@ async fn plugin_settings() {
     assert_eq!(initial.secret_bindings.as_ref().unwrap().missing_required, vec!["fixture.token"]);
 
     let update = contracts::settings::UpdatePluginSettings {
-        plugin_id: "fixture.settings".into(),
+        plugin_id: "fixture_settings".into(),
         values: Some(
             model::values::wire::Value::try_from(&Value::Object(BTreeMap::from([("workspace".into(), Value::Text("Production".into()))])))
                 .unwrap(),
@@ -212,7 +212,7 @@ async fn plugin_settings() {
     let updated = client
         .unary::<contracts::settings::UpdatePluginSecret>(auth(
             contracts::settings::UpdatePluginSecret {
-                plugin_id: "fixture.settings".into(),
+                plugin_id: "fixture_settings".into(),
                 secret_id: "fixture.token".into(),
                 secret: "secret-material".into(),
             },
@@ -233,7 +233,7 @@ async fn plugin_settings() {
 
 fn fixture_module() -> InstalledPlugin {
     InstalledPlugin {
-        source: "fixture.settings".to_owned(),
+        source: "fixture_settings".to_owned(),
         version: "test".to_owned(),
         description: "Fixture Settings".to_owned(),
         enabled: true,

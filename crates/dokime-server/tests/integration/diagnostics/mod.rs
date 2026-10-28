@@ -50,7 +50,7 @@ const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let environment = support::TestEnvironment::with_installed_plugins(vec![secret_module()]).await;
-    let artifact_id = Identifier::new("fixture.diagnostics").unwrap();
+    let artifact_id = Identifier::new("fixture_diagnostics").unwrap();
     environment
         .runtime
         .save_plugin_secret(&artifact_id, "fixture.token", PluginSecretUpdate { secret: SECRET.to_owned() })
@@ -71,7 +71,7 @@ async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
 
 fn secret_module() -> InstalledPlugin {
     InstalledPlugin {
-        source: "fixture.diagnostics".to_owned(),
+        source: "fixture_diagnostics".to_owned(),
         version: "test".to_owned(),
         description: "Fixture Diagnostics".to_owned(),
         enabled: true,
@@ -178,7 +178,7 @@ async fn collected_archive_material() {
         }
     }
     for required in
-        ["backend/identity.json", "backend/health.json", "settings/settings-frame.json", "settings/artifacts/fixture.diagnostics.json"]
+        ["backend/identity.json", "backend/health.json", "settings/settings-frame.json", "settings/artifacts/fixture_diagnostics.json"]
     {
         assert!(zip.by_name(required).is_ok(), "{required} is archived");
     }
@@ -199,7 +199,7 @@ async fn collected_archive_material() {
     // The binding is still there to read: redaction removed the material, not
     // the evidence that a secret is configured.
     let settings: serde_json::Value = {
-        let mut entry = zip.by_name("settings/artifacts/fixture.diagnostics.json").unwrap();
+        let mut entry = zip.by_name("settings/artifacts/fixture_diagnostics.json").unwrap();
         serde_json::from_reader(&mut entry).unwrap()
     };
     assert_eq!(settings["secret_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));

@@ -102,7 +102,7 @@ impl EmbeddedProvider for Probe {
         )
         .unwrap();
         InstalledPlugin {
-            source: "fixture.embedded".into(),
+            source: "fixture_embedded".into(),
             version: "0.1.0".into(),
             enabled: true,
             suites: dokime_runtime::definition::SuiteSet::new([suite]),
@@ -234,7 +234,7 @@ async fn registration_replaces_failed() {
     let mut runtime = dokime_runtime::Runtime::start(config.clone()).await.unwrap();
     runtime.register(provider("first", false)).await.unwrap();
     assert!(runtime.handle().streams().definitions().iter().any(|definition| definition.id() == "fixture.embedded.staged"));
-    let owner = runtime.handle().watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
+    let owner = runtime.handle().watch_state().latest().state().plugin_owners["fixture_embedded"].clone();
     // Embedded templates run through the host-level pair, which names the template in the request.
     let route = run_route();
     let payload = run_request("replaced").encode();
@@ -242,9 +242,9 @@ async fn registration_replaces_failed() {
     assert_eq!(signals.runs.load(Ordering::SeqCst), 1, "the served template received the run");
 
     runtime.register(provider("second", false)).await.unwrap();
-    assert_ne!(runtime.handle().watch_state().latest().state().plugin_owners["fixture.embedded"], owner);
+    assert_ne!(runtime.handle().watch_state().latest().state().plugin_owners["fixture_embedded"], owner);
     assert!(runtime.register(provider("failed", true)).await.is_err());
-    assert!(!runtime.handle().watch_state().latest().state().installed_plugins.contains_key("fixture.embedded"));
+    assert!(!runtime.handle().watch_state().latest().state().installed_plugins.contains_key("fixture_embedded"));
     assert_eq!(refusal(runtime.handle().operations().call_encoded(&route, payload).await), harmos::domain::UNKNOWN);
     assert_eq!(signals.runs.load(Ordering::SeqCst), 1, "a failed replacement serves no template");
 
@@ -253,10 +253,10 @@ async fn registration_replaces_failed() {
     let mut restarted = dokime_runtime::Runtime::start(config).await.unwrap();
     let snapshot = restarted.handle().watch_state().latest();
     assert!(
-        !snapshot.state().installed_plugins.contains_key("fixture.embedded"),
+        !snapshot.state().installed_plugins.contains_key("fixture_embedded"),
         "a persisted catalog cannot restore application callables"
     );
-    assert!(!snapshot.state().plugin_owners.contains_key("fixture.embedded"));
+    assert!(!snapshot.state().plugin_owners.contains_key("fixture_embedded"));
     restarted.shutdown().await.unwrap();
     assert_eq!(
         *events.lock().unwrap(),
@@ -375,7 +375,7 @@ struct ShutdownProbe {
 impl EmbeddedProvider for ShutdownProbe {
     fn catalog(&self) -> InstalledPlugin {
         InstalledPlugin {
-            source: "fixture.shutdown".into(),
+            source: "fixture_shutdown".into(),
             version: "0.1.0".into(),
             enabled: true,
             ..Default::default()

@@ -244,7 +244,7 @@ async fn telemetry_batch_receipts_and_order() {
 
 fn telemetry_config(root: impl Into<std::path::PathBuf>) -> RuntimeConfig {
     let artifact = dokime_runtime::InstalledPlugin {
-        source: "fixture.telemetry".into(),
+        source: "fixture_telemetry".into(),
         version: "test".into(),
         description: "Telemetry query fixture".into(),
         enabled: true,

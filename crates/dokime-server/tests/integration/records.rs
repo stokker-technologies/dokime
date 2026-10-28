@@ -28,7 +28,7 @@ use dokime::runtime::command::CommandContext;
 
 /* === Constants === */
 
-const SOURCE: &str = "fixture-bench";
+const SOURCE: &str = "fixture_bench";
 const SUITE: &str = "fixture.bench";
 
 /* === Macros === */

@@ -112,7 +112,7 @@ fn metadata(id: &str) -> Metadata {
 
 fn identity(digest: &str) -> ExecutionPluginIdentity {
     ExecutionPluginIdentity {
-        source: "fixture.plugin".into(),
+        source: "fixture_plugin".into(),
         version: Some("1.0.0".into()),
         implementation: dokime_domain::model::execution::snapshot::ExecutionImplementation::Bundle { content_digest: digest.into() },
     }
@@ -143,7 +143,7 @@ fn materialize_cases(
         test_cycle_id: cycle_id.clone(),
         admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
         cases,
-        settings: BTreeMap::from([("fixture.plugin".into(), settings)]),
+        settings: BTreeMap::from([("fixture_plugin".into(), settings)]),
         occurred_at: dokime_runtime::model::time::now_utc(),
     };
     append.check(&planned)?;
@@ -180,12 +180,12 @@ fn admitted() -> (RuntimeState, TestCycleId) {
     };
     let mut definition = TestSuiteDefinition::new("snapshot.suite", suite).unwrap();
     definition.workflow = Some("fixture.workflow".into());
-    state.suites.set("fixture.plugin", SuiteSet::new([definition])).unwrap();
+    state.suites.set("fixture_plugin", SuiteSet::new([definition])).unwrap();
     let now = dokime_runtime::model::time::now_utc();
     let id = TestCycleId::from_seed("snapshot.cycle");
     create_cycle(&mut state, &id, "snapshot.cycle");
     state.plugin_owners.insert(
-        "fixture.plugin".into(),
+        "fixture_plugin".into(),
         dokime_runtime::state::PluginOwner::Bundle {
             path: "fixture.dokime".into(),
             package: "fixture".into(),
@@ -194,9 +194,9 @@ fn admitted() -> (RuntimeState, TestCycleId) {
         },
     );
     state.installed_plugins.insert(
-        "fixture.plugin".into(),
+        "fixture_plugin".into(),
         dokime_runtime::InstalledPlugin {
-            source: "fixture.plugin".into(),
+            source: "fixture_plugin".into(),
             version: "1.0.0".into(),
             ..Default::default()
         },
@@ -349,7 +349,7 @@ fn catalog_reconciliation_preserves_execution_evidence() {
     state.record_count = 42;
     let before = state.clone();
     let plugin = dokime_runtime::InstalledPlugin {
-        source: "fixture.plugin".into(),
+        source: "fixture_plugin".into(),
         version: "2.0.0".into(),
         ..Default::default()
     };
@@ -362,7 +362,7 @@ fn catalog_reconciliation_preserves_execution_evidence() {
     assert_eq!(state, before);
 
     update.apply(&mut state);
-    assert_eq!(state.installed_plugins["fixture.plugin"].version, "2.0.0");
+    assert_eq!(state.installed_plugins["fixture_plugin"].version, "2.0.0");
     assert_eq!(state.cycles, before.cycles);
     assert_eq!(state.executions, before.executions);
     assert_eq!(state.run_requests, before.run_requests);
@@ -871,7 +871,7 @@ fn admission_freezes_them() {
 
     // The catalog forgetting the suite does not rewrite the admitted inputs.
     let mut forgotten = state.clone();
-    forgotten.suites.unregister_source("fixture.plugin");
+    forgotten.suites.unregister_source("fixture_plugin");
     assert_eq!(forgotten.cycle_view(&cycle_id).unwrap().test_executions[0].snapshot, before);
 
     state.run_requests.clear();
@@ -1027,7 +1027,7 @@ fn admission_validates_parameters() {
     ];
     let mut definition = TestSuiteDefinition::new("snapshot.suite", suite).unwrap();
     definition.workflow = Some("fixture.workflow".into());
-    state.suites.set("fixture.plugin", SuiteSet::new([definition])).unwrap();
+    state.suites.set("fixture_plugin", SuiteSet::new([definition])).unwrap();
     state.run_parameters.insert("voltage".into(), parameter(48, ParameterSource::Operator));
     state.run_parameters.insert("runtime_only".into(), parameter(99, ParameterSource::Operator));
     let mut cycle = state.cycle_view(&cycle_id).unwrap();

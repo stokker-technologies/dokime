@@ -129,7 +129,7 @@ struct Probe {
 impl EmbeddedProvider for Probe {
     fn catalog(&self) -> InstalledPlugin {
         InstalledPlugin {
-            source: "fixture.embedded".into(),
+            source: "fixture_embedded".into(),
             version: "0.1.0".into(),
             enabled: true,
             suites: dokime_runtime::definition::SuiteSet::new([Checks::definition()]),
@@ -162,7 +162,7 @@ impl EmbeddedProvider for Probe {
             std::future::pending::<()>().await;
         }
         Ok(vec![
-            Arc::new(dokime_runtime::execution::Workflow::<Pulse>::new("fixture.embedded.checks", "fixture.embedded")) as Arc<dyn Runnable>
+            Arc::new(dokime_runtime::execution::Workflow::<Pulse>::new("fixture.embedded.checks", "fixture_embedded")) as Arc<dyn Runnable>
         ])
     }
 
@@ -207,7 +207,7 @@ async fn live_rows_paths() {
         crate::service_support::suites::materialize_cases("fixture.embedded.checks", &Checks::definition().suite),
     )
     .await;
-    let admitted_owner = handle.watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
+    let admitted_owner = handle.watch_state().latest().state().plugin_owners["fixture_embedded"].clone();
     let admitted_identity = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap().test_executions[0]
         .snapshot
         .plugin()
@@ -253,7 +253,7 @@ async fn live_rows_paths() {
     drop(replacement);
     let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
     assert_eq!(ended.test_executions[0].snapshot.plugin(), Some(&admitted_identity));
-    let replacement_owner = handle.watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
+    let replacement_owner = handle.watch_state().latest().state().plugin_owners["fixture_embedded"].clone();
     assert_ne!(admitted_owner, replacement_owner);
 
     assert_eq!(ended.test_executions[0].status, dokime_domain::model::execution::result::ExecutionStatus::Passed);

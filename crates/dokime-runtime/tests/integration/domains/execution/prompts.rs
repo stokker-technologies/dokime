@@ -79,7 +79,7 @@ struct Asking;
 impl dokime_runtime::runtime::EmbeddedProvider for Asking {
     fn catalog(&self) -> dokime_runtime::InstalledPlugin {
         dokime_runtime::InstalledPlugin {
-            source: "fixture.asking".into(),
+            source: "fixture_asking".into(),
             version: "0.1.0".into(),
             enabled: true,
             suites: dokime_runtime::definition::SuiteSet::new([AskingChecks::definition()]),
@@ -92,7 +92,7 @@ impl dokime_runtime::runtime::EmbeddedProvider for Asking {
     }
 
     async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn dokime_runtime::execution::Runnable>>> {
-        Ok(vec![Arc::new(dokime_runtime::execution::Workflow::<Hold>::new("fixture.asking.checks", "fixture.asking"))
+        Ok(vec![Arc::new(dokime_runtime::execution::Workflow::<Hold>::new("fixture.asking.checks", "fixture_asking"))
             as Arc<dyn dokime_runtime::execution::Runnable>])
     }
 
@@ -453,7 +453,7 @@ async fn interruption_settles_prompts() {
 }
 
 async fn inspection_runtime(root: &std::path::Path, executor: Arc<dyn ExecutionFixture>) -> (dokime_runtime::Runtime, RuntimeHandle) {
-    let config = config(root).with_declared_plugin("prompt.fixture", "1.0.0", "Questions", prompts([inspection_definition()])).unwrap();
+    let config = config(root).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", prompts([inspection_definition()])).unwrap();
     started_with_fixture(config, executor).await
 }
 
@@ -524,11 +524,11 @@ fn prompt_request() -> PromptRequest {
 
 fn question_config(root: &std::path::Path, definition: dokime_runtime::prompts::PromptDefinition) -> RuntimeConfig {
     let domains = prompts([definition]);
-    config(root).with_installed_plugins([]).with_declared_plugin("prompt.fixture", "1.0.0", "Questions", domains).unwrap()
+    config(root).with_installed_plugins([]).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", domains).unwrap()
 }
 
 fn prompt_config(root: impl Into<std::path::PathBuf>) -> RuntimeConfig {
-    config(root).with_declared_plugin("prompt.fixture", "1.0.0", "Questions", prompts([prompt_definition()])).unwrap()
+    config(root).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", prompts([prompt_definition()])).unwrap()
 }
 
 fn prompts(definitions: impl IntoIterator<Item = dokime_runtime::prompts::PromptDefinition>) -> harmos::sidecar::Registrar {
@@ -562,7 +562,7 @@ async fn answer_rules_commit() {
     for rejected in [invalid, invalid_pattern.clone()] {
         let invalid_root = tempdir().unwrap();
         let invalid_config = config(invalid_root.path()).with_installed_plugins([]).with_declared_plugin(
-            "invalid.rules",
+            "invalid_rules",
             "1.0.0",
             "Invalid rules",
             prompts([rejected]),
@@ -571,7 +571,7 @@ async fn answer_rules_commit() {
     }
     let invalid_root = tempdir().unwrap();
     let invalid_config = config(invalid_root.path()).with_installed_plugins([dokime_runtime::InstalledPlugin {
-        source: "invalid.pattern".into(),
+        source: "invalid_pattern".into(),
         version: "1.0.0".into(),
         enabled: true,
         prompts: vec![invalid_pattern.clone()],
@@ -582,7 +582,7 @@ async fn answer_rules_commit() {
     let mut invalid_suite = AskingChecks::definition();
     invalid_suite.suite.test_case_templates[0].prompt_definitions = vec![invalid_pattern];
     let rejected_catalog =
-        runtime.set_suites("fixture.asking", dokime_runtime::definition::SuiteSet::new([invalid_suite])).await.unwrap_err();
+        runtime.set_suites("fixture_asking", dokime_runtime::definition::SuiteSet::new([invalid_suite])).await.unwrap_err();
     assert!(rejected_catalog.to_string().contains("invalid text pattern"));
     assert_eq!(runtime.prompt_definitions().await, vec![definition.clone()]);
     let invalid_initial = runtime

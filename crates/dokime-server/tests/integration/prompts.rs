@@ -608,7 +608,7 @@ fn prompt_config(root: &std::path::Path, definition: dokime::domains::prompts::P
         )
         .unwrap();
     crate::support::budgets::runtime_config(root, support::metadata("grpc.prompts", "Questions"))
-        .with_declared_plugin("prompt.fixture", "1.0.0", "Questions", declarations)
+        .with_declared_plugin("prompt_fixture", "1.0.0", "Questions", declarations)
         .unwrap()
 }
 

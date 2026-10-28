@@ -35,7 +35,7 @@ use {
 };
 
 /* === Constants === */
-const SOURCE: &str = "fixture.sessions";
+const SOURCE: &str = "fixture_sessions";
 const TEMPLATE: &str = "fixture.sessions.cancel";
 const PHASE: &str = "fixture.sessions.stream";
 

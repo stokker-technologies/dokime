@@ -105,7 +105,7 @@ pub fn config(root: impl Into<PathBuf>) -> RuntimeConfig {
 
 pub fn wifi_config(root: impl Into<PathBuf>) -> RuntimeConfig {
     config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
-        source: "fixture.host".to_owned(),
+        source: "fixture_host".to_owned(),
         version: "test".to_owned(),
         description: "Fixture Host".to_owned(),
         enabled: true,

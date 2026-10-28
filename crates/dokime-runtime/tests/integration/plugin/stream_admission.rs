@@ -104,7 +104,7 @@ impl Declared {
 /* === Private Functions === */
 async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>()
 -> (Vec<EvidenceBatch>, Vec<dokime_runtime::telemetry::TelemetrySample>) {
-    let engine = Workflow::<T>::new("admission.fixture", "admission-owner");
+    let engine = Workflow::<T>::new("admission.fixture", "admission_owner");
     let token = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>().to_string();
     engine
         .start(RunExecution {

@@ -27,6 +27,7 @@ include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/
 default = ["native", "derive"]
 native = [
   "runtime",
+  "harmos/grpc",
   "harmos/plugin-sidecar",
   "dep:file-id",
   "dep:futures-util",
@@ -63,7 +64,6 @@ host = [
   "dep:walkdir",
   "dep:zip",
   "dep:zeroize",
-  "harmos/grpc",
   "harmos/plugin-sidecar",
 ]
 fault-injection = ["host"]

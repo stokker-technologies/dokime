@@ -174,7 +174,7 @@ impl Probe {
 impl EmbeddedProvider for Provider {
     fn catalog(&self) -> InstalledPlugin {
         InstalledPlugin {
-            source: "matrix.rust".into(),
+            source: "matrix_rust".into(),
             version: "0.1.0".into(),
             enabled: true,
             suites: dokime::definition::SuiteSet::new([Lab::definition()]),
@@ -198,7 +198,7 @@ impl EmbeddedProvider for Provider {
     async fn start(&self) -> dokime::runtime::Result<Vec<Arc<dyn Runnable>>> {
         *ROOT.lock().unwrap() = Some(self.0.root.clone());
         let lab = Lab::definition();
-        Ok(vec![Arc::new(Workflow::<Probe>::new(&lab.suite_id, "matrix.rust").with_records(&lab.record_contracts)) as Arc<dyn Runnable>])
+        Ok(vec![Arc::new(Workflow::<Probe>::new(&lab.suite_id, "matrix_rust").with_records(&lab.record_contracts)) as Arc<dyn Runnable>])
     }
     async fn stop(&self) -> dokime::runtime::Result<()> {
         Ok(())

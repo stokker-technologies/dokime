@@ -297,7 +297,7 @@ fn bundle() -> Vec<u8> {
 
 fn bundle_description(description: &str) -> Vec<u8> {
     use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
-    let owner = "grpc-plugin";
+    let owner = "grpc_plugin";
     let version = "1.0.0";
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
@@ -345,7 +345,7 @@ async fn fixture(root: &std::path::Path) -> Runtime {
     let mut config =
         crate::support::budgets::runtime_config(root, Metadata::new(Identifier::new("plugins.fixture").unwrap(), "Plugins", None));
     config.installed_plugins.push(dokime::InstalledPlugin {
-        source: "grpc.host".into(),
+        source: "grpc_host".into(),
         version: "1.0.0".into(),
         enabled: true,
         ..Default::default()
@@ -386,7 +386,7 @@ async fn plugin_install_identity() {
     assert_eq!(staged.state, model::plugins::wire::PluginInstallationState::Installed);
     assert!(!staged.active);
     assert!(staged.restart_required);
-    assert_eq!(staged.metadata.as_ref().unwrap().owners, ["grpc-plugin"]);
+    assert_eq!(staged.metadata.as_ref().unwrap().owners, ["grpc_plugin"]);
     assert_eq!(staged.metadata.as_ref().unwrap().identity.as_ref().unwrap().name, "grpc-fixture");
     assert!(staged.installed_at.is_some());
     let disabled = client
@@ -607,7 +607,7 @@ async fn invalid_uploads_mutate() {
         .unwrap()
         .into_inner();
     assert_eq!(inventory.plugins.len(), 1);
-    assert_eq!(inventory.plugins[0].plugin_id, "grpc.host");
+    assert_eq!(inventory.plugins[0].plugin_id, "grpc_host");
     assert_eq!(inventory.plugins[0].owner, Some(model::plugins::wire::AdmittedPluginOwner::Host(true)));
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

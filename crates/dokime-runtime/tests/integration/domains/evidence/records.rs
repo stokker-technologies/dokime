@@ -49,7 +49,7 @@ struct Publisher;
 impl EmbeddedProvider for Publisher {
     fn catalog(&self) -> InstalledPlugin {
         InstalledPlugin {
-            source: "fixture.records".into(),
+            source: "fixture_records".into(),
             version: "0.1.0".into(),
             enabled: true,
             record_contracts: vec![RecordContract {
@@ -89,7 +89,7 @@ async fn native_publications_order() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = Runtime::start(config(root.path()).register(Arc::new(Publisher))).await.unwrap();
     let runtime = owner.handle();
-    let caller = owner.fixture_operation_caller("fixture.records").unwrap();
+    let caller = owner.fixture_operation_caller("fixture_records").unwrap();
     let mut records = runtime.subscribe_records();
     let mut request = RecordPublishRequest::new(Identifier::new("fixture.sidecar.observed").unwrap(), RecordSeverity::Info);
     request.details.insert("value".into(), dokime_runtime::Value::Number(7.0));
@@ -140,7 +140,7 @@ async fn native_publications_order() {
     assert!(admitted[1].timestamp >= arrival);
     assert!(admitted[1].sequence > admitted[0].sequence);
     for entry in &admitted {
-        assert_eq!(entry.source, "fixture.records");
+        assert_eq!(entry.source, "fixture_records");
         assert_eq!(entry.scope, None);
         assert_eq!(entry.details["value"], dokime_runtime::Value::Number(7.0));
     }
