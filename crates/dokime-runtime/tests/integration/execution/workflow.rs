@@ -229,7 +229,7 @@ impl dokime_runtime::Publishable for PulseRow {
 
 impl From<PulseRow> for dokime_runtime::publication::Publication {
     fn from(row: PulseRow) -> Self {
-        let payload = dokime_runtime::Message::encode_to_vec(&row);
+        let payload = dokime_runtime::Message::encode(&row);
         Self::Row {
             payload,
             stream: <PulseRow as dokime_runtime::telemetry::TelemetryStream>::stream_id(),

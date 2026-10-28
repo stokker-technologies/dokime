@@ -71,7 +71,7 @@ impl chunked::Frames for Frames {
 
 pub(super) async fn deliver(
     runtime: &RuntimeHandle, identity: &dokime::domain::model::backend::wire::BackendIdentity, maximum: usize, tail: Option<u64>,
-    output: &mut StreamOutput<dokime::domain::model::backend::wire::DiagnosticsBundleFrame>,
+    output: &StreamOutput<dokime::domain::model::backend::wire::DiagnosticsBundleFrame>,
 ) -> Result<(), Status> {
     let archive = super::collect(runtime, identity, bundle::log_tail_ceiling(tail, SERVER_BUNDLE_LOG_TAIL_BYTES)).await?;
     let size_bytes = archive.metadata.size_bytes;
@@ -107,7 +107,9 @@ pub(super) async fn deliver(
         })
         .map_err(|error| Status::resource_exhausted(error.to_string()))?;
     chunked::Download {
-        frames: Frames { metadata: Response::from_owner(header.owner()) },
+        frames: Frames {
+            metadata: Response::from_owner(header.owner()),
+        },
         source: chunked::Source::opened(archive.reader),
         size_bytes,
         sha256: Some(sha256),

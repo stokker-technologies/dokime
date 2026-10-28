@@ -72,7 +72,14 @@ pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> R
         kind: execution_model::StepPageKind::Steps,
         next_ordinal: end as u64,
     });
-    reply(service, execution_model::ListExecutionStepsReply { steps, next_cursor, observed_cursor: Some(page.observed) })
+    reply(
+        service,
+        execution_model::ListExecutionStepsReply {
+            steps,
+            next_cursor,
+            observed_cursor: Some(page.observed),
+        },
+    )
 }
 
 /* === Private Functions === */
@@ -151,7 +158,11 @@ fn page(
     if start > len || (given.is_some() && start == len) {
         return Err(Status::out_of_range("step cursor ordinal is outside the selected collection"));
     }
-    Ok(Page { start, end: start.saturating_add(limit).min(len), observed: canonical::cursor(snapshot) })
+    Ok(Page {
+        start,
+        end: start.saturating_add(limit).min(len),
+        observed: canonical::cursor(snapshot),
+    })
 }
 
 fn reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {

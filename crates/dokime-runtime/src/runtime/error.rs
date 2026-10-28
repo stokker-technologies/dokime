@@ -127,6 +127,13 @@ pub enum Error {
 
 /* === Implementations === */
 
+// A Missing Or Duplicated Registration Resource Is A Harmos Registration Failure.
+impl From<harmos::ResourceError> for Error {
+    fn from(error: harmos::ResourceError) -> Self {
+        Self::Harmos(error.into())
+    }
+}
+
 impl From<harmos::filesystem::Error> for Error {
     fn from(error: harmos::filesystem::Error) -> Self {
         std::io::Error::from(error).into()

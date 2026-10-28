@@ -20,7 +20,9 @@ use std::collections::BTreeMap;
 
 // Third Party Imports
 
-use harmos::{operations::Context, storage::ReadBatch};
+use harmos::storage::ReadBatch;
+
+use super::Scope;
 
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
@@ -59,14 +61,14 @@ type ScannedTelemetry = (TelemetryRows, Vec<std::ops::Range<usize>>);
 /* === Public Functions === */
 
 pub(crate) async fn sealed_member(
-    ctx: &Context<'_>, storage: &Manager, seal: &dokime_domain::model::execution::saved::ExecutionSeal, operation: &Operation,
+    ctx: &Scope, storage: &Manager, seal: &dokime_domain::model::execution::saved::ExecutionSeal, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
     let inspection = ExecutionView::from_seal_source(storage, seal).await?;
     execution(ctx, &inspection, true, operation).await
 }
 
 pub(crate) async fn execution(
-    ctx: &Context<'_>, inspection: &ExecutionView, final_report: bool, operation: &Operation,
+    ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
     operation.phase("Materializing Evidence");
     let captured = inspection.captured_source().ok_or_else(|| invalid("report has no captured execution context"))?;
@@ -192,7 +194,7 @@ async fn context_records(inspection: &ExecutionView) -> Result<crate::execution:
 
 // One Saved-Evidence Pass Feeds The Preview And Every Exact Consumer.
 async fn context_telemetry(
-    ctx: &Context<'_>, session: &crate::storage::Manager, captured: &CapturedSource,
+    ctx: &Scope, session: &crate::storage::Manager, captured: &CapturedSource,
     execution: &dokime_domain::model::execution::result::TestExecution, needs_rows: bool,
 ) -> Result<(
     ReadBatch<Vec<crate::telemetry::TelemetrySample>>,
@@ -244,7 +246,7 @@ async fn telemetry_pass(
 
 // Plot Queries Respect The Supplied Concurrency; Results Keep Card Order.
 async fn plots(
-    ctx: &Context<'_>, captured: &CapturedSource, execution: &dokime_domain::model::execution::result::TestExecution,
+    ctx: &Scope, captured: &CapturedSource, execution: &dokime_domain::model::execution::result::TestExecution,
     records: &crate::execution::evidence_rows::EvidenceRows<RecordEntry>,
     telemetry: &crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
     documents: &BTreeMap<DocumentId, crate::document::capture::Capture>, operation: &Operation,

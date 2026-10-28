@@ -20,12 +20,12 @@ use std::sync::Arc;
 
 // Third Party Imports
 use futures_util::{StreamExt, stream::FuturesOrdered};
-use harmos::{operations::Context, storage::StorageCursor};
+use harmos::storage::StorageCursor;
 
 // Local Imports
 use super::Resources;
+use crate::report::Scope;
 use crate::{
-    app::Dokime,
     report::CapturedExecutionReportInput,
     report::cycle::CycleMember,
     runtime::Error,
@@ -65,7 +65,7 @@ enum Member {
 /* === Public Functions === */
 
 pub(super) async fn materialize(
-    ctx: &Context<'_>, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation,
+    ctx: &Scope, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation,
 ) -> Result<MaterializedReport> {
     let gate = resources.execution_storage.cycle_save.lock().await;
     progress.phase("Collecting Cycle Report Members");
@@ -84,7 +84,7 @@ pub(super) async fn materialize(
 
 // A Finalizing Cycle Renders From Its Frozen Snapshot; A Published Report Is Reused.
 async fn sealed(
-    ctx: &Context<'_>, resources: &Resources, id: &TestCycleId, at: &StorageCursor, finalization: cycle_finalization::Materialization,
+    ctx: &Scope, resources: &Resources, id: &TestCycleId, at: &StorageCursor, finalization: cycle_finalization::Materialization,
     progress: &Operation,
 ) -> Result<MaterializedReport> {
     let storage = &resources.execution_storage.storage;
@@ -124,11 +124,10 @@ async fn sealed(
 // An Active Cycle Renders Every Started Member At Its Own Persisted Boundary
 // And Lists Every Unstarted Member As Planned, Keeping Cycle Order.
 async fn current(
-    ctx: &Context<'_>, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation,
-    gate: tokio::sync::MutexGuard<'_, ()>,
+    ctx: &Scope, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation, gate: tokio::sync::MutexGuard<'_, ()>,
 ) -> Result<MaterializedReport> {
     let storage = &resources.execution_storage.storage;
-    let state = ctx.scope().state::<Dokime>();
+    let state = ctx.state();
     let current = state
         .state()
         .read(|state| {
@@ -254,7 +253,7 @@ async fn current(
 
 // Every Sealed Member Re-Queries Its Durable Context And Evidence In The Cycle Session.
 async fn sealed_member(
-    ctx: &Context<'_>, storage: &Manager, seal: &ExecutionSeal, at: &StorageCursor, progress: &Operation,
+    ctx: &Scope, storage: &Manager, seal: &ExecutionSeal, at: &StorageCursor, progress: &Operation,
 ) -> Result<harmos::storage::ReadBatch<CapturedExecutionReportInput>> {
     if !at.covers(&seal.source.evidence_through)? {
         return Err(invalid("sealed member evidence exceeds cycle report boundary"));

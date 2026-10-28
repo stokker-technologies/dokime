@@ -19,7 +19,7 @@ mod codec;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -27,6 +27,7 @@ use super::error::detailed;
 use super::value::{self, Budget, canonical};
 use dokime::RuntimeHandle;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::query as wire;
 use dokime::runtime::query::aggregate::{AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource};
 
@@ -43,43 +44,38 @@ struct Resources {
     pub(super) max_message_bytes: usize,
 }
 
-struct Aggregate {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Aggregate {
-    type Declaration = wire::Aggregate;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::Aggregate, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::query::wire::AggregateReply>, Status> {
-        let query = decode(request)?;
-        self.resources.runtime.aggregate(query).await.map_err(status).and_then(|outcome| {
-            codec::project(&outcome, self.resources.max_message_bytes).map(Into::into).map_err(|error| status(error.into()))
+impl Serve<wire::Aggregate> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: wire::Aggregate, _: Context<'a, wire::Aggregate>,
+    ) -> Served<'a, dokime::domain::model::query::wire::AggregateReply> {
+        Box::pin(async move {
+            let query = decode(&mut request)?;
+            self.runtime
+                .aggregate(query)
+                .await
+                .map_err(status)
+                .and_then(|outcome| codec::project(&outcome, self.max_message_bytes).map(Into::into).map_err(|error| status(error.into())))
         })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operation::<Aggregate>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes: maximum,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::Aggregate>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::Aggregate>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -124,10 +120,20 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
         if !aggregate.aggregate.answerable() {
             return Err(Status::invalid_argument("aggregate percentile rank exceeds 100"));
         }
-        aggregates.push(AggregateColumn { aggregate: aggregate.aggregate, column: aggregate.column, alias: aggregate.alias });
+        aggregates.push(AggregateColumn {
+            aggregate: aggregate.aggregate,
+            column: aggregate.column,
+            alias: aggregate.alias,
+        });
     }
 
-    Ok(AggregateQuery { source, filters, group_by: std::mem::take(&mut request.group_by), aggregates, limit: request.limit as usize })
+    Ok(AggregateQuery {
+        source,
+        filters,
+        group_by: std::mem::take(&mut request.group_by),
+        aggregates,
+        limit: request.limit as usize,
+    })
 }
 
 fn status(error: dokime::runtime::Error) -> Status {

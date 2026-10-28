@@ -30,12 +30,14 @@ mod rename_cycle;
 mod rename_execution;
 mod resume_cycle;
 mod resume_execution;
+mod run_provider_cycle;
 mod seal_cycle;
 mod set_cycle_archived;
 mod set_execution_archived;
 mod start_execution;
 mod stop_execution;
 mod submit_execution_command;
+pub mod transport;
 mod update_cycle_policy;
 
 /* === Re-Exports === */
@@ -61,12 +63,14 @@ pub use rename_cycle::RenameCycle;
 pub use rename_execution::RenameExecution;
 pub use resume_cycle::ResumeCycle;
 pub use resume_execution::ResumeExecution;
+pub use run_provider_cycle::RunProviderCycle;
 pub use seal_cycle::SealCycle;
 pub use set_cycle_archived::SetCycleArchived;
 pub use set_execution_archived::SetExecutionArchived;
 pub use start_execution::StartExecution;
 pub use stop_execution::StopExecution;
 pub use submit_execution_command::SubmitExecutionCommand;
+pub use transport::{EvidenceBatch, LeaseAsk, OperatorQuestion};
 pub use update_cycle_policy::UpdateCyclePolicy;
 
 /* === Imports === */

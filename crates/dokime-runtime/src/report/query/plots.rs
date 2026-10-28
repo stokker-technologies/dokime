@@ -67,7 +67,7 @@ pub(in crate::report) enum ReadPlan {
 /* === Public Functions === */
 
 pub(in crate::report) async fn materialize(
-    ctx: &harmos::operations::Context<'_>, source: &CapturedSource, execution: &TestExecution, request: PlotPayloadRequest,
+    ctx: &crate::report::Scope, source: &CapturedSource, execution: &TestExecution, request: PlotPayloadRequest,
     input: &crate::plot::spilled::Input, telemetry: &crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
     shared: &ReadCache,
 ) -> Result<harmos::storage::ReadBatch<crate::report::value::Value>> {

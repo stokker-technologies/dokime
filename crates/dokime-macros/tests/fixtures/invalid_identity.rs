@@ -32,34 +32,28 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Structs === */
 struct Uppercase;
 
-#[sdk::message]
-#[derive(Clone, PartialEq)]
-#[sdk::operation(id = "uppercase.frobnicate", version = 1, description = "Invalid.", policy = POLICY, response = ())]
+#[sdk::operation(id = "uppercase.frobnicate", description = "Invalid.", policy = POLICY, response = ())]
+#[derive(PartialEq)]
 struct Frobnicate {}
-
-struct FrobnicateHandler;
 
 /* === Enums === */
 #[sdk::catalog]
 enum UppercaseOperations {
-    Frobnicate(FrobnicateHandler),
+    Frobnicate(Frobnicate),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation]
-impl FrobnicateHandler {
-    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
-        Self
-    }
+impl sdk::Operation for Frobnicate {
+    type Error = sdk::Refusal;
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &mut Frobnicate) -> Result<(), sdk::Refusal> {
-        Ok(())
+    async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
+        Ok(().into())
     }
 }
 
-impl sdk::harmos::operations::lifecycle::Policy for Uppercase {
+impl sdk::harmos::builtins::lifecycle::Policy for Uppercase {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
 }
@@ -86,7 +80,7 @@ impl sdk::Plugin for Uppercase {
     fn bind_operations(
         &self, table: &mut sdk::harmos::operations::WireTable,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
-        table.bind_operations::<UppercaseOperations, _>(self.resources())
+        table.register(UppercaseOperations::registration(sdk::harmos::Dependencies::new()))
     }
 
     async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {

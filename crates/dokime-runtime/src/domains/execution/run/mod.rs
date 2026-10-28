@@ -40,6 +40,7 @@ use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtur
 use crate::definition::{CriterionDefinition, TestCase};
 use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding};
 use crate::execution::ExecutionScope;
+use crate::handle::RuntimeHandle;
 use crate::plugin::Diagnostic;
 use crate::prompts::PromptRequest;
 use crate::telemetry::SamplingScope;
@@ -152,7 +153,18 @@ impl ExecutionFixture for TemplateRunExecutor {
 }
 
 impl Target {
-    pub(crate) fn of(operations: OperationManager, template: &str) -> Self {
+    // An embedded template runs through the host-level template operations;
+    // a sidecar template answers under its own identity.
+    pub(crate) fn of(runtime: &RuntimeHandle, template: &str) -> Self {
+        let operations = runtime.operations.clone();
+        if runtime.embedded_templates.contains(template) {
+            use harmos::OperationDeclaration;
+            return Self {
+                operations,
+                run: <crate::execution::Run<()> as OperationDeclaration>::ID.to_owned(),
+                signal: <crate::execution::Signal<()> as OperationDeclaration>::ID.to_owned(),
+            };
+        }
         Self {
             operations,
             run: format!("{template}.run"),
@@ -343,10 +355,8 @@ pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in
 
 /* === Private Functions === */
 
-#[allow(clippy::too_many_arguments)]
 async fn execute_case(
     context: &ExecutionFixtureContext, cycle: &CycleView, case: &TestCase, execution: &TestExecution, workflow: &str, source: &str,
-    operations: OperationManager,
 ) -> Result<CaseResult, ProviderExecutionFailure> {
     if context.finalization.pending().await {
         return Err(failure("sidecar_cleanup", "previous execution cleanup remains unresolved"));
@@ -426,7 +436,7 @@ async fn execute_case(
         return Err(failure("cancel", "provider invocation cancelled before the run started"));
     }
 
-    let target = Target::of(operations, case.metadata.identifier.as_str());
+    let target = Target::of(&context.runtime, case.metadata.identifier.as_str());
     let opened = session::Opened {
         context: context.clone(),
         execution: execution.clone(),
@@ -606,7 +616,6 @@ async fn run_sidecar_cycle(
     context: ExecutionFixtureContext, cycle: &CycleView, target: &ExecutionProviderTarget,
 ) -> Result<ProviderCycleOutcome, ProviderExecutionFailure> {
     let SidecarExecutionBinding { workflow } = &target.binding;
-    let operations = context.runtime.operations.clone();
 
     let mut executions = Vec::new();
     let mut failures = Vec::new();
@@ -640,7 +649,7 @@ async fn run_sidecar_cycle(
             ));
             continue;
         }
-        let result = execute_case(&context, cycle, case, execution, workflow, &target.source, operations.clone()).await;
+        let result = execute_case(&context, cycle, case, execution, workflow, &target.source).await;
         // An operator stop of this one execution is not a cycle stop and not a
         // failure: the siblings behind it still run, even when the stopped run
         // unwound through a refusal rather than an outcome.

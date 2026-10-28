@@ -311,7 +311,8 @@ async fn secret_references_file() {
 
 #[tokio::test]
 async fn stored_secret_bindings() {
-    use dokime_domain::{model::secrets::catalog, operations::secrets};
+    use dokime_domain::model::secrets::catalog;
+    use dokime_runtime::operations::secrets;
     let root = tempfile::tempdir().unwrap();
     let id = Identifier::new("zephyr").unwrap();
     let mut artifact = installed_plugin(id.as_str());

@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Mutex, mpsc};
 use std::time::Duration;
 
 // Third Party Imports
@@ -26,7 +26,7 @@ use harmos::plugin::Contribution;
 // Local Imports
 use dokime_runtime::Value;
 use dokime_runtime::analysis::{
-    Analysis, Axis, Definition, Handler, Limits, Operation, Output, Request, Response, ResultData, Samples, Values,
+    Analysis, Axis, Definition, Limits, Operation, Output, Request, Response, ResultData, Samples, Values,
 };
 
 /* === Constants === */
@@ -60,12 +60,6 @@ struct Parameters {
 enum Analyses {
     Scale(Operation<Scale>),
     Held(Operation<Held>),
-}
-
-#[dokime_runtime::catalog]
-enum Handlers {
-    Scale(Handler<Scale>),
-    Held(Handler<Held>),
 }
 
 #[harmos::lanes]
@@ -158,12 +152,19 @@ async fn serve() -> harmos::Runtime<Host> {
         .runtime()
         .await
         .unwrap();
-    runtime.operations.register_wire_operations::<Handlers, ()>("analysis-fixture", Lanes::Open, Arc::new(())).unwrap();
+    runtime
+        .operations
+        .register(harmos::RegistrationExt::lane(
+            harmos::RegistrationBatch::new(harmos::Dependencies::new()).operation::<Operation<Scale>>().operation::<Operation<Held>>(),
+            Lanes::Open,
+        ))
+        .await
+        .unwrap();
     runtime
 }
 
 async fn call<A: Analysis>(operations: &harmos::operations::OperationManager, request: Request) -> harmos::Result<Response> {
-    let payload = operations.call_encoded(A::ID, harmos::Message::encode_to_vec(&request)).await?;
+    let payload = operations.call_encoded(A::ID, harmos::Message::encode(&request)).await?;
     <Response as harmos::Message>::decode(&payload)
         .map_err(|source| harmos::Error::backend("decode analysis answer", harmos::BackendFailure::Corrupt, source))
 }

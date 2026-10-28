@@ -23,6 +23,7 @@ use std::sync::{
 
 // Third Party Imports
 use clap::Parser;
+use dokime::harmos::RegistrationExt;
 use tokio::sync::Notify;
 
 // Local Imports
@@ -47,8 +48,9 @@ struct Receipt {
     calls: u32,
 }
 
-#[dokime::harmos::operation(harmos_path = dokime::harmos, response = Receipt, output = Receipt,
-    id = "fixture.output.mutate", policy = POLICY,
+// The SDK Path Keeps The Declared Resource Ungated In This Feature-Less Test Crate.
+#[dokime::harmos::operation(harmos_path = harmos_sdk, response = Receipt, output = Receipt,
+    id = "fixture.output.mutate", policy = POLICY, resources = [Gate],
     visibility = dokime::harmos::operations::Visibility::Host,
     grpc(package = "fixture.output.v1", service = "Device", method = "Mutate"))]
 struct Mutate {
@@ -62,42 +64,29 @@ struct Gate {
     release: Notify,
 }
 
-struct Handler {
-    gate: Arc<Gate>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl dokime::harmos::operations::Operation for Handler {
-    type Declaration = Mutate;
-    type Resources = Gate;
+impl dokime::harmos::Operation for Mutate {
     type Error = tonic::Status;
-    type Context<'a> = dokime::harmos::operations::Context<'a>;
-    type Endpoints = dokime::harmos::operations::StreamOutput<Receipt>;
 
-    async fn initialize<'ctx>(gate: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(Self { gate })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut Mutate, output: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<Receipt>, Self::Error> {
-        let calls = self.gate.calls.fetch_add(1, Ordering::SeqCst) + 1;
+    async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::operations::Response<Receipt>, Self::Error> {
+        let gate = ctx.resource::<Gate>();
+        let calls = gate.calls.fetch_add(1, Ordering::SeqCst) + 1;
         let size = std::mem::size_of::<Receipt>();
         let item = || Ok(Receipt { calls });
-        let sent = output.send_with(size, item).await;
+        let sent = ctx.streams().send_with(size, item).await;
         sent.map_err(|error| {
             let message = error.to_string();
             tonic::Status::internal(message)
         })?;
 
-        self.gate.acted.notify_one();
-        self.gate.release.notified().await;
-        if request.unavailable {
+        gate.acted.notify_one();
+        gate.release.notified().await;
+        if self.unavailable {
             return Err(tonic::Status::unavailable("the operation acted but its completion is unavailable"));
         }
         Ok(Receipt { calls }.into())
@@ -118,7 +107,10 @@ async fn response_publication_faults() {
         let handle = owner.handle();
         let resources = Gate::default();
         let gate = Arc::new(resources);
-        handle.operations().register_wire_operation::<Handler>("fixture.output", dokime::app::Lanes::Open, gate.clone()).unwrap();
+        let mut dependencies = dokime::harmos::Dependencies::new();
+        dependencies.insert(gate.clone()).unwrap();
+        let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<Mutate>();
+        handle.operations().register(batch.lane(dokime::app::Lanes::Open)).await.unwrap();
         let server = Server::start(handle, Config::local()).await.unwrap();
         let endpoint = server.local_endpoint();
 
@@ -180,7 +172,10 @@ async fn response_unavailable_after_effect() {
     let handle = owner.handle();
     let resources = Gate::default();
     let gate = Arc::new(resources);
-    handle.operations().register_wire_operation::<Handler>("fixture.output", dokime::app::Lanes::Open, gate.clone()).unwrap();
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(gate.clone()).unwrap();
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<Mutate>();
+    handle.operations().register(batch.lane(dokime::app::Lanes::Open)).await.unwrap();
     let server = Server::start(handle, Config::local()).await.unwrap();
     let endpoint = server.local_endpoint();
 

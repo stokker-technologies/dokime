@@ -37,7 +37,7 @@
 // A step whose default depends on what it just measured asks through the
 // struct instance: `SoakCheckpoint { note: seen, ..Default::default() }`.
 #[dokime::prompt(
-    id = "{{owner}}.soak.checkpoint",
+    id = "{{crate}}.soak.checkpoint",
     label = "Sign off the soak",
     submit = "Sign off",
     description = "Check the chamber and the unit, then record what you saw."

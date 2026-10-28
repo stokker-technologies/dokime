@@ -141,6 +141,14 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                             #(#nested),*
                         ];
                     }
+
+                    // Suite runs and listener callbacks invoke no declared
+                    // operations, so the authored catalog is the only callee source.
+                    impl #sdk::catalog::InertCatalog<#sdk::__harmos::operations::Callees, &'static [#declaration]> for #name {
+                        const ENTRIES: &'static [#sdk::catalog::Node<&'static [#declaration]>] = &[#sdk::catalog::Node::Nested(
+                            <#authored as #sdk::catalog::InertCatalog<#sdk::__harmos::operations::Callees, &'static [#declaration]>>::ENTRIES
+                        )];
+                    }
                 });
                 forwarded.push(quote!(provides = #name));
             }

@@ -60,6 +60,9 @@ pub enum Error {
     #[error("gRPC listener detach remains incomplete: {0}")]
     ListenerDetach(#[source] std::sync::Arc<dokime::harmos::Error>),
 
+    #[error("operation host resources are inconsistent: {0}")]
+    Resource(#[from] dokime::harmos::ResourceError),
+
     #[error("invalid declared operation contract: {0}")]
     Contract(#[from] dokime::harmos::operations::ContractError),
 

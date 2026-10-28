@@ -22,7 +22,7 @@ use crate::service_support::prelude::*;
 use dokime_runtime::InstalledPlugin;
 use dokime_runtime::definition::SuiteSet;
 use dokime_runtime::execution::Runnable;
-use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
+use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime_runtime::harmos::operations::{ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::runtime::EmbeddedProvider;
@@ -152,7 +152,7 @@ impl Second {
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for Declaring {
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for Declaring {
     const INITIALIZATION_POLICY: OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: OperationPolicy = POLICY;
 }
@@ -183,7 +183,7 @@ impl dokime_runtime::Plugin for Declaring {
         Arc::new(())
     }
 
-    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
         dokime_runtime::execution::serve::<Self, Suites>(table)
     }
 

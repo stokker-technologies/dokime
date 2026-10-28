@@ -49,7 +49,7 @@ fn chamber() -> impl Fn(ReadChamber) -> ChamberReading + Send + Sync + 'static {
 
 #[tokio::test]
 async fn soak_holds_band() {
-    let report = Harness::template("{{owner}}.soak.hold")
+    let report = Harness::template("{{crate}}.soak.hold")
         .parameter("hold_samples", 3)
         .parameter("attended", true)
         .answering::<ReadChamber, _>(chamber())
@@ -65,7 +65,7 @@ async fn soak_holds_band() {
         // Without this the harness would answer the checkpoint with the form's
         // own defaults, which is what an unattended run wants; a test that cares
         // what the operator said says so.
-        .answer("{{owner}}.soak.checkpoint", "submit", [("note", "chamber steady")])
+        .answer("{{crate}}.soak.checkpoint", "submit", [("note", "chamber steady")])
         .run::<{{crate}}::suites::Suites>()
         .await
         .expect("the soak runs");
@@ -95,7 +95,7 @@ async fn soak_holds_band() {
 async fn unreachable_target_run() {
     // An authored failure is evidence, not a harness error: the run happened and
     // the report says what it learned.
-    let report = Harness::template("{{owner}}.soak.hold")
+    let report = Harness::template("{{crate}}.soak.hold")
         .parameter("target_c", 900.0)
         .answering::<ReadChamber, _>(chamber())
         .run::<{{crate}}::suites::Suites>()
@@ -131,7 +131,7 @@ fn soak_document_wraps() {
                 DocumentNode::Card(_) => None,
             })
             .collect::<Vec<_>>(),
-        ["{{owner}}.soak.signals"]
+        ["{{crate}}.soak.signals"]
     );
 
     let DocumentCardBody::Plot { plot } = &document.cards[0].body else {
@@ -140,7 +140,7 @@ fn soak_document_wraps() {
     assert_eq!(plot.unit.as_deref(), Some("°C"));
     assert_eq!(
         plot.marker_record_types,
-        ["{{owner}}.soak.held"],
+        ["{{crate}}.soak.held"],
         "the hold marks the axis with the record type it publishes, named by type"
     );
     // The band is the case's own parameters rather than a number the author

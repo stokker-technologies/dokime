@@ -26,6 +26,13 @@ proc-macro = true
 
 # === Features === #
 
+[features]
+# Author fixtures compile as a plugin crate's runtime build: Harmos gates
+# operation execution (`Dependent`, `Requires`, catalog registration) on the
+# consuming crate's `runtime` feature. The proc-macro library ignores it.
+default = ["runtime"]
+runtime = []
+
 # === Dependencies === #
 
 [dependencies]

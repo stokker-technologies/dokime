@@ -37,6 +37,7 @@ use model::execution::{HealthItem, OperatorNote};
 /* === Type Aliases === */
 
 /* === Structs === */
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReportOwner;
 
 /* === Enums === */
@@ -45,6 +46,7 @@ pub struct ReportOwner;
 
 /* === Implementations === */
 impl harmos::Application for ReportOwner {
+    type Lanes = ReportOwner;
     type State = ();
     type Transaction = harmos::state::Never;
     type Record = harmos::state::Never;
@@ -53,6 +55,9 @@ impl harmos::Application for ReportOwner {
 }
 
 impl harmos::operations::Lane for ReportOwner {
+    fn default_lane() -> Self {
+        Self
+    }
     fn name(&self) -> &'static str {
         "Report Storage"
     }
@@ -69,7 +74,8 @@ pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> 
         .runtime_with_storage(manager)
         .await
         .unwrap();
-    harmos::storage::operations::register(&runtime.operations, "fixture.storage", ReportOwner, Arc::new(manager.clone())).unwrap();
+    let storage = harmos::builtin::storage_registration(Arc::new(manager.clone())).unwrap();
+    runtime.operations.register(harmos::RegistrationExt::lane(storage, ReportOwner)).await.unwrap();
     runtime
 }
 

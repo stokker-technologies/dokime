@@ -40,7 +40,6 @@ pub(super) const POLICY: harmos::operations::OperationPolicy = harmos::operation
     timeout: BOUND,
     attempt_timeout: BOUND,
     retries: harmos::operations::RetryPolicy::Never,
-    restart: harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -578,7 +577,7 @@ where
     O: harmos::Message,
     O::Response: harmos::Message,
 {
-    let payload = operations.call_encoded(O::ID, harmos::Message::encode_to_vec(&request)).await?;
+    let payload = operations.call_encoded(O::ID, harmos::Message::encode(&request)).await?;
     <O::Response as harmos::Message>::decode(&payload)
         .map_err(|source| harmos::Error::backend("decode fixture answer", harmos::BackendFailure::Corrupt, source))
 }
@@ -595,7 +594,7 @@ where
         let answer = Arc::clone(&answer);
         Box::pin(async move {
             let request = harmos::Message::decode(payload.as_slice()).map_err(|error: harmos::MessageError| error.to_string())?;
-            Ok(harmos::Message::encode_to_vec(&answer(request)))
+            Ok(harmos::Message::encode(&answer(request)))
         })
     });
     (<O::Declaration as harmos::operations::OperationDeclaration>::ID.to_owned(), answering)

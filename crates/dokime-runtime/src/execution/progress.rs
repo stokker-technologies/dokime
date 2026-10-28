@@ -11,6 +11,8 @@
 
 /* === Re-Exports === */
 
+pub use crate::operations::execution::transport::ExecutionProgress;
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -29,25 +31,6 @@ use std::time::Instant;
 /* === Type Aliases === */
 
 /* === Structs === */
-
-#[harmos::message]
-#[derive(Clone, PartialEq)]
-pub struct ExecutionProgress {
-    #[row(description = "Author-facing description of the bounded operation.")]
-    pub phase: String,
-
-    #[row(description = "Work units whose loop bodies completed.")]
-    pub completed: u64,
-
-    #[row(description = "Work units the iterator contained when progress tracking began.")]
-    pub total: u64,
-
-    #[row(description = "Monotonic time since this operation began.")]
-    pub elapsed_ms: u64,
-
-    #[row(description = "Estimated monotonic time left, absent during estimator warm-up.")]
-    pub remaining_ms: Option<u64>,
-}
 
 pub struct Progress<I> {
     warmup: u64,

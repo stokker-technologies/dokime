@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::domain::Portable;
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
 // Local Imports
@@ -34,9 +34,10 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::NoteId;
 use dokime::domain::model::identity::SessionId;
-use dokime::operations::notes as contract;
 use dokime::domains::evidence::notes as evidence;
 use dokime::domains::evidence::notes::NoteError;
+use dokime::operations::hosting::{Host, Serve, Served};
+use dokime::operations::notes as contract;
 
 /* === Constants === */
 
@@ -53,186 +54,128 @@ struct Resources {
     maximum: usize,
 }
 
-struct ListNotes {
-    resources: Arc<Resources>,
-}
-
-struct ListHealth {
-    resources: Arc<Resources>,
-}
-
-struct CreateNote {
-    resources: Arc<Resources>,
-}
-
-struct EditNote {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    ListNotes(ListNotes),
-    ListHealth(ListHealth),
-    CreateNote(CreateNote),
-    EditNote(EditNote),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for ListNotes {
-    type Declaration = contract::ListNotes;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::ListNotes, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::notes::wire::ListNotesResponse>, Status> {
-        let snapshot = self.resources.runtime.watch_state().latest();
-        let page = selection::Page::new(
-            request.selection.take(),
-            request.limit,
-            std::mem::take(&mut request.after_id),
-            request.cursor.take(),
-            &snapshot,
-            "notes",
-        )?;
-        let sets = snapshot.state().annotation_sets(page.owner.as_ref(), page.context).map_err(Status::resource_exhausted)?;
-        let mut items: Vec<_> = sets
-            .iter()
-            .flat_map(|set| set.notes())
-            .filter(|note| page.matches(&note.scope) && note.note_id.as_str() > page.after.as_str())
-            .collect();
-        items.sort_by(|a, b| a.note_id.cmp(&b.note_id));
-        let more = items.len() > page.limit;
-        items.truncate(page.limit);
-        self.resources.produce(|| {
-            let next_after_id = if more { items.last().unwrap().note_id.to_string() } else { String::new() };
-            Ok(dokime::domain::model::notes::wire::ListNotesResponse {
-                notes: items.into_iter().map(wire::note).collect::<Result<_, _>>()?,
-                cursor: Some(page.cursor),
-                next_after_id,
+impl Serve<contract::ListNotes> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: contract::ListNotes, _: Context<'a, contract::ListNotes>,
+    ) -> Served<'a, dokime::domain::model::notes::wire::ListNotesResponse> {
+        Box::pin(async move {
+            let snapshot = self.runtime.watch_state().latest();
+            let page = selection::Page::new(
+                request.selection.take(),
+                request.limit,
+                std::mem::take(&mut request.after_id),
+                request.cursor.take(),
+                &snapshot,
+                "notes",
+            )?;
+            let sets = snapshot.state().annotation_sets(page.owner.as_ref(), page.context).map_err(Status::resource_exhausted)?;
+            let mut items: Vec<_> = sets
+                .iter()
+                .flat_map(|set| set.notes())
+                .filter(|note| page.matches(&note.scope) && note.note_id.as_str() > page.after.as_str())
+                .collect();
+            items.sort_by(|a, b| a.note_id.cmp(&b.note_id));
+            let more = items.len() > page.limit;
+            items.truncate(page.limit);
+            self.produce(|| {
+                let next_after_id = if more { items.last().unwrap().note_id.to_string() } else { String::new() };
+                Ok(dokime::domain::model::notes::wire::ListNotesResponse {
+                    notes: items.into_iter().map(wire::note).collect::<Result<_, _>>()?,
+                    cursor: Some(page.cursor),
+                    next_after_id,
+                })
             })
         })
     }
 }
 
-impl Operation for ListHealth {
-    type Declaration = contract::ListHealth;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::ListHealth, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::notes::wire::ListHealthResponse>, Status> {
-        let snapshot = self.resources.runtime.watch_state().latest();
-        let page = selection::Page::new(
-            request.selection.take(),
-            request.limit,
-            std::mem::take(&mut request.after_id),
-            request.cursor.take(),
-            &snapshot,
-            "health",
-        )?;
-        let sets = snapshot.state().annotation_sets(page.owner.as_ref(), page.context).map_err(Status::resource_exhausted)?;
-        let mut items: Vec<_> = sets
-            .iter()
-            .flat_map(|set| set.health())
-            .filter(|item| page.matches(&item.scope) && item.health_item_id.as_str() > page.after.as_str())
-            .collect();
-        items.sort_by(|a, b| a.health_item_id.cmp(&b.health_item_id));
-        let more = items.len() > page.limit;
-        items.truncate(page.limit);
-        self.resources.produce(|| {
-            let next_after_id = if more { items.last().unwrap().health_item_id.to_string() } else { String::new() };
-            Ok(dokime::domain::model::notes::wire::ListHealthResponse {
-                items: items.into_iter().map(wire::health).collect::<Result<_, _>>()?,
-                cursor: Some(page.cursor),
-                next_after_id,
+impl Serve<contract::ListHealth> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: contract::ListHealth, _: Context<'a, contract::ListHealth>,
+    ) -> Served<'a, dokime::domain::model::notes::wire::ListHealthResponse> {
+        Box::pin(async move {
+            let snapshot = self.runtime.watch_state().latest();
+            let page = selection::Page::new(
+                request.selection.take(),
+                request.limit,
+                std::mem::take(&mut request.after_id),
+                request.cursor.take(),
+                &snapshot,
+                "health",
+            )?;
+            let sets = snapshot.state().annotation_sets(page.owner.as_ref(), page.context).map_err(Status::resource_exhausted)?;
+            let mut items: Vec<_> = sets
+                .iter()
+                .flat_map(|set| set.health())
+                .filter(|item| page.matches(&item.scope) && item.health_item_id.as_str() > page.after.as_str())
+                .collect();
+            items.sort_by(|a, b| a.health_item_id.cmp(&b.health_item_id));
+            let more = items.len() > page.limit;
+            items.truncate(page.limit);
+            self.produce(|| {
+                let next_after_id = if more { items.last().unwrap().health_item_id.to_string() } else { String::new() };
+                Ok(dokime::domain::model::notes::wire::ListHealthResponse {
+                    items: items.into_iter().map(wire::health).collect::<Result<_, _>>()?,
+                    cursor: Some(page.cursor),
+                    next_after_id,
+                })
             })
         })
     }
 }
 
-impl Operation for CreateNote {
-    type Declaration = contract::CreateNote;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut contract::CreateNote, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::notes::wire::NoteReceipt>, Status> {
-        let actor =
-            context.context().get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
-        let result = self
-            .resources
-            .runtime
-            .create_current_note(evidence::CreateNote {
-                epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
-                    .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
-                mutation_id: CommandId::from_uuid(std::mem::take(&mut request.mutation_id))
-                    .map_err(|_| Status::invalid_argument("invalid mutation UUID"))?,
-                owner: wire::owner(request.owner.take())?,
-                actor,
-                message: std::mem::take(&mut request.message),
-            })
-            .await
-            .map_err(status)?;
-        self.resources.produce(|| wire::receipt(&result))
+impl Serve<contract::CreateNote> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: contract::CreateNote, ctx: Context<'a, contract::CreateNote>,
+    ) -> Served<'a, dokime::domain::model::notes::wire::NoteReceipt> {
+        Box::pin(async move {
+            let context = ctx.call();
+            let actor = context.get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
+            let result = self
+                .runtime
+                .create_current_note(evidence::CreateNote {
+                    epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
+                        .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
+                    mutation_id: CommandId::from_uuid(std::mem::take(&mut request.mutation_id))
+                        .map_err(|_| Status::invalid_argument("invalid mutation UUID"))?,
+                    owner: wire::owner(request.owner.take())?,
+                    actor,
+                    message: std::mem::take(&mut request.message),
+                })
+                .await
+                .map_err(status)?;
+            self.produce(|| wire::receipt(&result))
+        })
     }
 }
 
-impl Operation for EditNote {
-    type Declaration = contract::EditNote;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut contract::EditNote, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::notes::wire::EditNoteResponse>, Status> {
-        let actor =
-            context.context().get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
-        let note = self
-            .resources
-            .runtime
-            .edit_current_note(evidence::EditNote {
-                epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
-                    .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
-                note_id: NoteId::from_uuid(std::mem::take(&mut request.note_id))
-                    .map_err(|_| Status::invalid_argument("invalid note identity"))?,
-                actor,
-                message: std::mem::take(&mut request.message),
-            })
-            .await
-            .map_err(status)?;
-        self.resources.produce(|| Ok(dokime::domain::model::notes::wire::EditNoteResponse { note: Some(wire::note(&note)?) }))
+impl Serve<contract::EditNote> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: contract::EditNote, ctx: Context<'a, contract::EditNote>,
+    ) -> Served<'a, dokime::domain::model::notes::wire::EditNoteResponse> {
+        Box::pin(async move {
+            let context = ctx.call();
+            let actor = context.get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
+            let note = self
+                .runtime
+                .edit_current_note(evidence::EditNote {
+                    epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
+                        .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
+                    note_id: NoteId::from_uuid(std::mem::take(&mut request.note_id))
+                        .map_err(|_| Status::invalid_argument("invalid note identity"))?,
+                    actor,
+                    message: std::mem::take(&mut request.message),
+                })
+                .await
+                .map_err(status)?;
+            self.produce(|| Ok(dokime::domain::model::notes::wire::EditNoteResponse { note: Some(wire::note(&note)?) }))
+        })
     }
 }
 
@@ -248,15 +191,22 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let resources = Arc::new(Resources {
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
         runtime: runtime.clone(),
         maximum: maximum.min(usize::try_from(SERVER_NOTE_RESPONSE_BYTES).expect("validated note response size")),
     });
-    runtime.operations().register_wire_operation::<ListNotes>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<ListHealth>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<CreateNote>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<EditNote>("dokime", dokime::app::Lanes::Open, resources)?;
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<contract::ListNotes>::new(served.clone()))?;
+    dependencies.insert(Host::<contract::ListHealth>::new(served.clone()))?;
+    dependencies.insert(Host::<contract::CreateNote>::new(served.clone()))?;
+    dependencies.insert(Host::<contract::EditNote>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<contract::ListNotes>()
+        .operation::<contract::ListHealth>()
+        .operation::<contract::CreateNote>()
+        .operation::<contract::EditNote>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

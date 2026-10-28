@@ -26,7 +26,7 @@ use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::schema::Described;
 use harmos::sidecar::StreamDeclaration;
 use harmos::storage::{
-    operations::Query,
+    Query,
     query::{RowSlice, SchemaSelection, Source},
 };
 

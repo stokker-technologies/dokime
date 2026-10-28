@@ -19,7 +19,7 @@ mod bounds;
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation};
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -33,6 +33,7 @@ use dokime::domain::model::identity::CaseId;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::TemplateId;
 use dokime::domain::model::identity::TestCycleId;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::planning as wire;
 use dokime::state::RuntimeState;
 use dokime::{RuntimeHandle, runtime::Error};
@@ -52,18 +53,6 @@ struct Resources {
     maximum: usize,
 }
 
-struct Register {
-    resources: Arc<Resources>,
-}
-
-struct Preview {
-    resources: Arc<Resources>,
-}
-
-struct Materialize {
-    resources: Arc<Resources>,
-}
-
 pub(super) struct ResolvedPlan {
     pub(super) cases: Vec<TestCase>,
     pub(super) preview: Vec<dokime::domain::model::planning::wire::PlannedCase>,
@@ -72,123 +61,102 @@ pub(super) struct ResolvedPlan {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    Materialize(Materialize),
-    Register(Register),
-    Preview(Preview),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Materialize {
-    type Declaration = wire::MaterializeTemplate;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::MaterializeTemplate, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
-        let selection = request.selection.take().ok_or_else(|| Status::invalid_argument("template selection is required"))?;
-        let registration_id = dokime::model::identity::new_id::<CommandId>();
-        let snapshot = self.resources.runtime.watch_state().latest();
-        let resolved = resolve(
-            snapshot.state(),
-            Some(dokime::domain::model::planning::wire::SelectionPlan { selections: vec![selection], ..Default::default() }),
-            &registration_id,
-        )?;
-        let mut reply = checked_preview(
-            dokime::domain::model::planning::wire::PreviewSelectionReply {
-                cases: resolved.preview,
-                observed_cursor: Some(canonical::cursor(&snapshot)),
-            },
-            self.resources.maximum,
-        )?;
-        self.resources.runtime.register_cases_at(registration_id, resolved.cases, resolved.revisions).await.map_err(execution::status)?;
-        reply.observed_cursor = Some(canonical::cursor(&self.resources.runtime.watch_state().latest()));
-        Ok(checked_preview(reply, self.resources.maximum)?.into())
+impl Serve<wire::MaterializeTemplate> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: wire::MaterializeTemplate, _: Context<'a, wire::MaterializeTemplate>,
+    ) -> Served<'a, dokime::domain::model::planning::wire::PreviewSelectionReply> {
+        Box::pin(async move {
+            let selection = request.selection.take().ok_or_else(|| Status::invalid_argument("template selection is required"))?;
+            let registration_id = dokime::model::identity::new_id::<CommandId>();
+            let snapshot = self.runtime.watch_state().latest();
+            let resolved = resolve(
+                snapshot.state(),
+                Some(dokime::domain::model::planning::wire::SelectionPlan {
+                    selections: vec![selection],
+                    ..Default::default()
+                }),
+                &registration_id,
+            )?;
+            let mut reply = checked_preview(
+                dokime::domain::model::planning::wire::PreviewSelectionReply {
+                    cases: resolved.preview,
+                    observed_cursor: Some(canonical::cursor(&snapshot)),
+                },
+                self.maximum,
+            )?;
+            self.runtime.register_cases_at(registration_id, resolved.cases, resolved.revisions).await.map_err(execution::status)?;
+            reply.observed_cursor = Some(canonical::cursor(&self.runtime.watch_state().latest()));
+            Ok::<_, Status>(checked_preview(reply, self.maximum)?.into())
+        })
     }
 }
 
-impl Operation for Register {
-    type Declaration = wire::RegisterSelection;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::RegisterSelection, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
-        dokime::domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
-            .map_err(|error| Status::invalid_argument(error.to_string()))?;
-        if request.plan.as_ref().is_some_and(|plan| !plan.case_ids.is_empty()) {
-            return Err(Status::invalid_argument("registration requires template selections"));
-        }
-        let snapshot = self.resources.runtime.watch_state().latest();
-        let registration_id =
-            CommandId::from_seed(format!("suite-registration:{}:{}", snapshot.state().identity.node.node_id, request.idempotency_key,));
-        let resolved = resolve(snapshot.state(), request.plan.take(), &registration_id)?;
-        let mut reply = checked_preview(
-            dokime::domain::model::planning::wire::PreviewSelectionReply {
-                cases: resolved.preview,
-                observed_cursor: Some(canonical::cursor(&snapshot)),
-            },
-            self.resources.maximum,
-        )?;
-        self.resources.runtime.register_cases_at(registration_id, resolved.cases, resolved.revisions).await.map_err(execution::status)?;
-        reply.observed_cursor = Some(canonical::cursor(&self.resources.runtime.watch_state().latest()));
-        Ok(checked_preview(reply, self.resources.maximum)?.into())
+impl Serve<wire::RegisterSelection> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: wire::RegisterSelection, _: Context<'a, wire::RegisterSelection>,
+    ) -> Served<'a, dokime::domain::model::planning::wire::PreviewSelectionReply> {
+        Box::pin(async move {
+            dokime::domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
+                .map_err(|error| Status::invalid_argument(error.to_string()))?;
+            if request.plan.as_ref().is_some_and(|plan| !plan.case_ids.is_empty()) {
+                return Err(Status::invalid_argument("registration requires template selections"));
+            }
+            let snapshot = self.runtime.watch_state().latest();
+            let registration_id =
+                CommandId::from_seed(format!("suite-registration:{}:{}", snapshot.state().identity.node.node_id, request.idempotency_key,));
+            let resolved = resolve(snapshot.state(), request.plan.take(), &registration_id)?;
+            let mut reply = checked_preview(
+                dokime::domain::model::planning::wire::PreviewSelectionReply {
+                    cases: resolved.preview,
+                    observed_cursor: Some(canonical::cursor(&snapshot)),
+                },
+                self.maximum,
+            )?;
+            self.runtime.register_cases_at(registration_id, resolved.cases, resolved.revisions).await.map_err(execution::status)?;
+            reply.observed_cursor = Some(canonical::cursor(&self.runtime.watch_state().latest()));
+            Ok::<_, Status>(checked_preview(reply, self.maximum)?.into())
+        })
     }
 }
 
-impl Operation for Preview {
-    type Declaration = wire::PreviewSelection;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::PreviewSelection, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
-        let snapshot = self.resources.runtime.watch_state().latest();
-        let resolved = resolve(snapshot.state(), request.plan.take(), &dokime::model::identity::new_id::<CommandId>())?;
-        Ok(checked_preview(
-            dokime::domain::model::planning::wire::PreviewSelectionReply {
-                cases: resolved.preview,
-                observed_cursor: Some(canonical::cursor(&snapshot)),
-            },
-            self.resources.maximum,
-        )?
-        .into())
+impl Serve<wire::PreviewSelection> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: wire::PreviewSelection, _: Context<'a, wire::PreviewSelection>,
+    ) -> Served<'a, dokime::domain::model::planning::wire::PreviewSelectionReply> {
+        Box::pin(async move {
+            let snapshot = self.runtime.watch_state().latest();
+            let resolved = resolve(snapshot.state(), request.plan.take(), &dokime::model::identity::new_id::<CommandId>())?;
+            Ok::<_, Status>(
+                checked_preview(
+                    dokime::domain::model::planning::wire::PreviewSelectionReply {
+                        cases: resolved.preview,
+                        observed_cursor: Some(canonical::cursor(&snapshot)),
+                    },
+                    self.maximum,
+                )?
+                .into(),
+            )
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operations::<Operations, Resources>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::MaterializeTemplate>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::RegisterSelection>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::PreviewSelection>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<wire::MaterializeTemplate>()
+        .operation::<wire::RegisterSelection>()
+        .operation::<wire::PreviewSelection>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -281,7 +249,11 @@ pub(super) fn resolve(
         let generated = materialize_template_cases(
             &entry.suite_id,
             template,
-            CaseMaterializationSelection { case_overrides: parameters, file_overrides: files, ..Default::default() },
+            CaseMaterializationSelection {
+                case_overrides: parameters,
+                file_overrides: files,
+                ..Default::default()
+            },
             CaseMaterializationOptions {
                 max_cases: case_limit,
                 force: false,

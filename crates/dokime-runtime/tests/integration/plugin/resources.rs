@@ -99,8 +99,6 @@ pub struct OwnerSettings {
 struct Owner {
     device: Arc<Device>,
 }
-struct GetDeviceHandler(Arc<Device>);
-struct StartRunHandler(Arc<Device>);
 struct Checks;
 
 struct Probe {
@@ -137,8 +135,8 @@ enum Error {
 
 #[dokime_runtime::catalog]
 enum Operations {
-    GetDevice(GetDeviceHandler),
-    StartRun(StartRunHandler),
+    GetDevice(GetDevice),
+    StartRun(StartRun),
 }
 
 #[dokime_runtime::catalog]
@@ -217,34 +215,40 @@ impl Drop for PartialInitialization {
         self.0.record("partial initialization dropped");
     }
 }
-#[dokime_runtime::operation(id = "resource-owner.get_device", policy = super::native::POLICY, response = GetDeviceResponse)]
+#[dokime_runtime::operation(id = "resource-owner.get_device", policy = super::native::POLICY, response = GetDeviceResponse, resources = [Device])]
 #[derive(Clone, PartialEq)]
 struct GetDevice {}
-#[dokime_runtime::operation]
-impl GetDeviceHandler {
-    async fn initialize(device: Arc<Device>, _: &Supervisor) -> Self {
-        Self(device)
-    }
-    async fn run(&mut self, ctx: &Supervisor, _: &mut GetDevice) -> Result<GetDeviceResponse, Refusal> {
-        let key = dokime_runtime::execution::ExecutionScope::serving::<Self>(ctx).map(|scope| scope.key().into_inner());
-        self.0.observations.keys.lock().unwrap().push(key);
-        Ok(self.0.describe())
+impl dokime_runtime::Operation for GetDevice {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetDeviceResponse>, Refusal> {
+        let resource = context.resource::<Device>();
+        let answered: Result<GetDeviceResponse, Refusal> = async {
+        let key = dokime_runtime::execution::ExecutionScope::serving::<Self>(context.call()).map(|scope| scope.key().into_inner());
+        resource.observations.keys.lock().unwrap().push(key);
+        Ok(resource.describe())
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "resource-owner.start_run", policy = super::native::POLICY, response = StartRunResponse)]
+#[dokime_runtime::operation(id = "resource-owner.start_run", policy = super::native::POLICY, response = StartRunResponse, resources = [Device])]
 #[derive(Clone, PartialEq)]
 struct StartRun {}
-#[dokime_runtime::operation]
-impl StartRunHandler {
-    async fn initialize(device: Arc<Device>, _: &Supervisor) -> Self {
-        Self(device)
-    }
-    async fn run(&mut self, _: &Supervisor, _: &mut StartRun) -> Result<StartRunResponse, Refusal> {
-        Ok(self.0.start_run())
+impl dokime_runtime::Operation for StartRun {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<StartRunResponse>, Refusal> {
+        let resource = context.resource::<Device>();
+        let answered: Result<StartRunResponse, Refusal> = async {
+        Ok(resource.start_run())
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for Owner {
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for Owner {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
@@ -276,8 +280,8 @@ impl dokime_runtime::Plugin for Owner {
         Arc::clone(&self.device)
     }
 
-    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<Operations, _>(self.resources())?;
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
+        table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))?;
         dokime_runtime::execution::serve::<Self, OwnerSuites>(table)
     }
 
@@ -362,7 +366,7 @@ impl Probe {
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for CatalogOnly {
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for CatalogOnly {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
@@ -391,7 +395,7 @@ impl dokime_runtime::Plugin for CatalogOnly {
         Arc::new(())
     }
 
-    fn bind_operations(&self, _: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
+    fn bind_operations(&self, _: &mut WireTable) -> Result<(), ServingError> {
         Ok(())
     }
 
@@ -523,7 +527,7 @@ async fn execution_scope_calls() {
         .with_context(context)
         .call_encoded(
             <Run<Probe> as harmos::operations::OperationDeclaration>::ID,
-            harmos::Message::encode_to_vec(&start("keyed", resolved(false, false, false, false))),
+            harmos::Message::encode(&start("keyed", resolved(false, false, false, false))),
         )
         .await
         .unwrap();

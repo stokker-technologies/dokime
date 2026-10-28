@@ -13,7 +13,7 @@ use harmos::{
     Identifier,
     storage::{
         ReadBatch,
-        operations::Query,
+        Query,
         query::{QueryArrow, RowSlice, Source, StreamSelection},
     },
 };

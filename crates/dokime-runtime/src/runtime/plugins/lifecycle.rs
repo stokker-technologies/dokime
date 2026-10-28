@@ -55,8 +55,6 @@ pub(in crate::runtime) struct Sidecar {
     package: String,
     definition: harmos::plugin::PluginDefinition,
     registered: bool,
-    publication_core: Arc<crate::runtime::sidecars::core::Publications>,
-    publication_registered: bool,
     lease: Option<crate::services::Lease>,
     operations: Option<harmos::operations::PluginRegistration>,
     scope: Option<harmos::plugin::PluginScope>,
@@ -275,8 +273,6 @@ impl Adapter<'_> {
             package: name.clone(),
             definition: artifact.clone(),
             registered: false,
-            publication_core: self.handle.publication_core.clone(),
-            publication_registered: false,
             lease: None,
             operations: None,
             scope: None,
@@ -337,7 +333,7 @@ impl Sidecar {
         let logged_by = source.clone();
         let sidecar: InstalledSidecar = harmos::sidecar::Supervised::new(
             executable.clone(),
-            Box::new(move |_context: &harmos::services::Service<crate::Dokime>, value| {
+            Box::new(move |_context: &harmos::ServiceContext<crate::Dokime>, value| {
                 if let harmos::sidecar::Notice::Logged { line } = &value {
                     forward_plugin_line(&logged_by, line);
                 }
@@ -352,8 +348,6 @@ impl Sidecar {
         )
         .routed(router)
         .expected_registrations(&self.definition.contributions.registrations);
-        self.publication_core.insert(&source, sidecar.clone())?;
-        self.publication_registered = true;
         let serving = sidecar.clone();
         let record_demands = sidecar.demands();
         let ready = sidecar.ready();
@@ -361,7 +355,7 @@ impl Sidecar {
             executable.declaration().restart().ok_or_else(|| operation("sidecar declaration has no authored restart policy"))?.bounded();
         // A declaration without restart credit deactivates on its first fault.
         let restart = if policy.enabled() {
-            harmos::operations::RestartPolicy::OnTransient {
+            harmos::operations::RestartPolicy::OnFailure {
                 credit: usize::try_from(policy.credit).map_err(operation)?,
                 sustained_health: policy.sustained_health(),
                 backoff: harmos::operations::Backoff::Exponential {
@@ -377,7 +371,7 @@ impl Sidecar {
             .register_service(
                 harmos::services::ServiceDefinition {
                     id: source.clone(),
-                    policy: harmos::operations::OperationPolicy { restart, ..harmos::services::POLICY },
+                    policy: harmos::ServicePolicy { restart, ..harmos::services::POLICY },
                 },
                 move |_: Arc<()>| sidecar.clone(),
             )
@@ -455,10 +449,6 @@ impl Sidecar {
             sdk.close().await?;
         }
         self.sdk.take();
-        if self.publication_registered {
-            self.publication_core.remove(self.program.executable.id());
-            self.publication_registered = false;
-        }
         self.scope = None;
 
         // Replaced packages release their preparation reference. The last old

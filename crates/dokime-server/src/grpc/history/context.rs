@@ -19,7 +19,7 @@ use crate::grpc::transcode::Transcode;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
 // Local Imports
@@ -33,6 +33,7 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::execution::result::CycleStatus;
 use dokime::domain::model::execution::result::CycleView;
 use dokime::operations::history;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::execution_history::ExecutionCheckpointContext;
 
 /* === Constants === */
@@ -48,50 +49,40 @@ struct Resources {
     maximum: usize,
 }
 
-struct Get {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Get {
-    type Declaration = history::GetCheckpointContext;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut history::GetCheckpointContext, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::history::wire::CheckpointContext>, Status> {
-        let checkpoint = wire::checkpoint(request.checkpoint.take())?;
-        let context = self.resources.runtime.execution_checkpoint_context(checkpoint).await.map_err(wire::checkpoint_failure)?;
-        let response = context
-            .try_map(|context| -> dokime::runtime::Result<_> {
-                checkpoint_context(context, self.resources.maximum).map_err(|error| original_error(error).into())
-            })
-            .map_err(wire::checkpoint_failure)?;
-        if response.wire_len()? > self.resources.maximum {
-            return Err(Status::resource_exhausted("historical response exceeds transport limit"));
-        }
-        Ok(Response::from_owner(response.owner()))
+impl Serve<history::GetCheckpointContext> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: history::GetCheckpointContext, _: Context<'a, history::GetCheckpointContext>,
+    ) -> Served<'a, dokime::domain::model::history::wire::CheckpointContext> {
+        Box::pin(async move {
+            let checkpoint = wire::checkpoint(request.checkpoint.take())?;
+            let context = self.runtime.execution_checkpoint_context(checkpoint).await.map_err(wire::checkpoint_failure)?;
+            let response = context
+                .try_map(|context| -> dokime::runtime::Result<_> {
+                    checkpoint_context(context, self.maximum).map_err(|error| original_error(error).into())
+                })
+                .map_err(wire::checkpoint_failure)?;
+            if response.wire_len()? > self.maximum {
+                return Err(Status::resource_exhausted("historical response exceeds transport limit"));
+            }
+            Ok::<_, Status>(Response::from_owner(response.owner()))
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<Get>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<history::GetCheckpointContext>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<history::GetCheckpointContext>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

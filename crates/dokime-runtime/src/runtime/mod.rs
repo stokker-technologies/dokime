@@ -27,6 +27,7 @@ pub(crate) mod storage;
 
 pub use crate::execution::context::ExecutionCycleContext;
 pub use embedded::EmbeddedProvider;
+pub(crate) use embedded::Templates as EmbeddedTemplates;
 pub use error::{Error, Result};
 pub use handle::{CapturedRecord, CapturedRecords, RuntimeHandle};
 pub(crate) use native_telemetry::Admission as ExecutionPublicationAdmission;
@@ -307,6 +308,8 @@ impl Runtime {
                     }
                 }
             }
+            // Monitors Settle Their Invocations; Orphans Still Settle Before Plugins Stop.
+            self.handle.provider_invocations.settle_all().await;
 
             // Cancellation Must Settle Even If Capturing The Report Boundary Failed.
             report_inputs?;

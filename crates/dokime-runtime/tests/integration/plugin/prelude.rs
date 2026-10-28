@@ -63,7 +63,6 @@ mod bare_attributes {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
         retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
-        restart: dokime_runtime::harmos::operations::RestartPolicy::Never,
     };
 
     #[message]
@@ -71,8 +70,6 @@ mod bare_attributes {
     pub(crate) struct GetReadingResponse {
         pub(crate) reads: u64,
     }
-    struct GetStatusHandler;
-    struct GetReadingHandler;
     #[settings]
     #[derive(Debug, Default, PartialEq)]
     struct BenchSettings {
@@ -90,37 +87,39 @@ mod bare_attributes {
 
     #[catalog]
     enum Operations {
-        GetReading(GetReadingHandler),
-        GetStatus(GetStatusHandler),
+        GetReading(GetReading),
+        GetStatus(GetStatus),
     }
-    #[dokime_runtime::message]
-    #[operation(id = "prelude-bench.get_reading", version = 1, description = "Reads.", policy = POLICY, response = GetReadingResponse)]
+        #[operation(id = "prelude-bench.get_reading", description = "Reads.", policy = POLICY, response = GetReadingResponse)]
     #[derive(Clone, PartialEq)]
     struct GetReading {}
-    #[operation]
-    impl GetReadingHandler {
-        async fn initialize(_: std::sync::Arc<()>, _: &Supervisor) -> Self {
-            Self
-        }
-        async fn run(&mut self, _: &Supervisor, _: &mut GetReading) -> Result<GetReadingResponse, Refusal> {
+    impl dokime_runtime::Operation for GetReading {
+        type Error = Refusal;
+
+        async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
+            let answered: Result<GetReadingResponse, Refusal> = async {
             Ok(GetReadingResponse { reads: 1 })
+            }
+            .await;
+            answered.map(Into::into)
         }
     }
-    #[dokime_runtime::message]
-    #[operation(id = "prelude-bench.get_status", version = 1, description = "Reports.", policy = POLICY, response = StatusResponse)]
+        #[operation(id = "prelude-bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
     #[derive(Clone, PartialEq)]
     struct GetStatus {}
-    #[operation]
-    impl GetStatusHandler {
-        async fn initialize(_: std::sync::Arc<()>, _: &Supervisor) -> Self {
-            Self
-        }
-        async fn run(&mut self, _: &Supervisor, _: &mut GetStatus) -> Result<StatusResponse, Refusal> {
+    impl dokime_runtime::Operation for GetStatus {
+        type Error = Refusal;
+
+        async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<StatusResponse>, Refusal> {
+            let answered: Result<StatusResponse, Refusal> = async {
             Ok(StatusResponse::ready())
+            }
+            .await;
+            answered.map(Into::into)
         }
     }
 
-    impl dokime_runtime::harmos::operations::lifecycle::Policy for Bench {
+    impl dokime_runtime::harmos::builtins::lifecycle::Policy for Bench {
         const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = POLICY;
         const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = POLICY;
     }
@@ -151,9 +150,9 @@ mod bare_attributes {
         }
 
         fn bind_operations(
-            &self, table: &mut dokime_runtime::harmos::operations::WireTable<Supervisor>,
+            &self, table: &mut dokime_runtime::harmos::operations::WireTable,
         ) -> Result<(), dokime_runtime::harmos::operations::ServingError> {
-            table.bind_operations::<Operations, _>(self.resources())
+            table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))
         }
 
         async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {

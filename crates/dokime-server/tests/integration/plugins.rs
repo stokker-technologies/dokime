@@ -17,6 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use dokime::harmos::RegistrationExt;
 use dokime::harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
     PluginManager, PluginTransition, Router,
@@ -55,18 +56,14 @@ struct DynamicText {
     value: String,
 }
 
-#[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicText,
+#[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicText,
     id = "fixture.dynamic.unary", policy = DYNAMIC_POLICY,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
 struct DynamicReplacement {
     value: String,
 }
 
-struct DynamicReplacementHandler {
-    calls: Arc<std::sync::atomic::AtomicUsize>,
-}
-
-#[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicNumber,
+#[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicNumber,
     id = "fixture.dynamic.unary", policy = DYNAMIC_POLICY,
     grant = dynamic_grant,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
@@ -74,41 +71,25 @@ struct DynamicUnary {
     value: u32,
 }
 
-struct DynamicUnaryHandler {
-    calls: Arc<std::sync::atomic::AtomicUsize>,
-}
-
-#[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicNumber, output = DynamicNumber,
+#[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicNumber, output = DynamicNumber,
     id = "fixture.dynamic.download", policy = DYNAMIC_POLICY,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Download"))]
 struct DynamicDownload {
     value: u32,
 }
 
-struct DynamicDownloadHandler {
-    calls: Arc<std::sync::atomic::AtomicUsize>,
-}
-
-#[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicNumber, input = DynamicNumber,
+#[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicNumber, input = DynamicNumber,
     id = "fixture.dynamic.upload", policy = DYNAMIC_POLICY,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Upload"))]
 struct DynamicUpload {
     value: u32,
 }
 
-struct DynamicUploadHandler {
-    calls: Arc<std::sync::atomic::AtomicUsize>,
-}
-
-#[dokime::harmos::operation(harmos_path = dokime::harmos, response = DynamicNumber, input = DynamicNumber, output = DynamicNumber,
+#[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicNumber, input = DynamicNumber, output = DynamicNumber,
     id = "fixture.dynamic.duplex", policy = DYNAMIC_POLICY,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Duplex"))]
 struct DynamicDuplex {
     value: u32,
-}
-
-struct DynamicDuplexHandler {
-    calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 #[derive(Default)]
@@ -118,7 +99,7 @@ struct DynamicResources {
 }
 
 struct DynamicHost {
-    operations: dokime::harmos::operations::OperationManager,
+    operations: dokime::harmos::operations::OperationManager<dokime::app::Lanes>,
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
@@ -126,100 +107,66 @@ struct DynamicHost {
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum DynamicOperations {
-    Unary(DynamicUnaryHandler),
-    Download(DynamicDownloadHandler),
-    Upload(DynamicUploadHandler),
-    Duplex(DynamicDuplexHandler),
+    Unary(DynamicUnary),
+    Download(DynamicDownload),
+    Upload(DynamicUpload),
+    Duplex(DynamicDuplex),
 }
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum DynamicReplacements {
-    Unary(DynamicReplacementHandler),
+    Unary(DynamicReplacement),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl dokime::harmos::operations::Operation for DynamicReplacementHandler {
-    type Declaration = DynamicReplacement;
-    type Resources = std::sync::atomic::AtomicUsize;
+impl dokime::harmos::Operation for DynamicReplacement {
     type Error = tonic::Status;
-    type Context<'a> = dokime::harmos::operations::Context<'a>;
-    type Endpoints = ();
 
-    async fn initialize<'ctx>(calls: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(Self { calls })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicReplacement, _: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<DynamicText>, Self::Error> {
-        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Ok(DynamicText { value: request.value.clone() }.into())
+    async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::operations::Response<DynamicText>, Self::Error> {
+        let calls = ctx.resource::<std::sync::atomic::AtomicUsize>();
+        calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(DynamicText { value: self.value.clone() }.into())
     }
 }
 
-impl dokime::harmos::operations::Operation for DynamicUnaryHandler {
-    type Declaration = DynamicUnary;
-    type Resources = std::sync::atomic::AtomicUsize;
+impl dokime::harmos::Operation for DynamicUnary {
     type Error = tonic::Status;
-    type Context<'a> = dokime::harmos::operations::Context<'a>;
-    type Endpoints = ();
 
-    async fn initialize<'ctx>(calls: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(Self { calls })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicUnary, _: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<DynamicNumber>, Self::Error> {
-        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Ok(DynamicNumber { value: request.value + 1 }.into())
+    async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::operations::Response<DynamicNumber>, Self::Error> {
+        let calls = ctx.resource::<std::sync::atomic::AtomicUsize>();
+        calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(DynamicNumber { value: self.value + 1 }.into())
     }
 }
 
-impl dokime::harmos::operations::Operation for DynamicDownloadHandler {
-    type Declaration = DynamicDownload;
-    type Resources = std::sync::atomic::AtomicUsize;
+impl dokime::harmos::Operation for DynamicDownload {
     type Error = tonic::Status;
-    type Context<'a> = dokime::harmos::operations::Context<'a>;
-    type Endpoints = dokime::harmos::operations::StreamOutput<DynamicNumber>;
 
-    async fn initialize<'ctx>(calls: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(Self { calls })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicDownload, streams: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<DynamicNumber>, Self::Error> {
-        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        for value in [request.value + 1, request.value + 2] {
+    async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::operations::Response<DynamicNumber>, Self::Error> {
+        let calls = ctx.resource::<std::sync::atomic::AtomicUsize>();
+        let streams = ctx.streams();
+        calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        for value in [self.value + 1, self.value + 2] {
             streams
                 .send_with(std::mem::size_of::<DynamicNumber>(), || Ok(DynamicNumber { value }))
                 .await
                 .map_err(|error| tonic::Status::internal(error.to_string()))?;
         }
-        Ok(DynamicNumber { value: request.value + 3 }.into())
+        Ok(DynamicNumber { value: self.value + 3 }.into())
     }
 }
 
-impl dokime::harmos::operations::Operation for DynamicUploadHandler {
-    type Declaration = DynamicUpload;
-    type Resources = std::sync::atomic::AtomicUsize;
+impl dokime::harmos::Operation for DynamicUpload {
     type Error = tonic::Status;
-    type Context<'a> = dokime::harmos::operations::Context<'a>;
-    type Endpoints = dokime::harmos::operations::StreamInput<DynamicNumber>;
 
-    async fn initialize<'ctx>(calls: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(Self { calls })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicUpload, streams: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<DynamicNumber>, Self::Error> {
-        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let mut value = request.value;
+    async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::operations::Response<DynamicNumber>, Self::Error> {
+        let calls = ctx.resource::<std::sync::atomic::AtomicUsize>();
+        let streams = ctx.streams();
+        calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let mut value = self.value;
         while let Some(item) = streams.recv().await {
             value += item.value;
         }
@@ -227,22 +174,14 @@ impl dokime::harmos::operations::Operation for DynamicUploadHandler {
     }
 }
 
-impl dokime::harmos::operations::Operation for DynamicDuplexHandler {
-    type Declaration = DynamicDuplex;
-    type Resources = std::sync::atomic::AtomicUsize;
+impl dokime::harmos::Operation for DynamicDuplex {
     type Error = tonic::Status;
-    type Context<'a> = dokime::harmos::operations::Context<'a>;
-    type Endpoints = (dokime::harmos::operations::StreamInput<DynamicNumber>, dokime::harmos::operations::StreamOutput<DynamicNumber>);
 
-    async fn initialize<'ctx>(calls: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(Self { calls })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicDuplex, streams: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<DynamicNumber>, Self::Error> {
-        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let mut value = request.value;
+    async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::operations::Response<DynamicNumber>, Self::Error> {
+        let calls = ctx.resource::<std::sync::atomic::AtomicUsize>();
+        let streams = ctx.streams();
+        calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let mut value = self.value;
         while let Some(item) = streams.0.recv().await {
             value += item.value;
             streams
@@ -283,11 +222,15 @@ impl PluginLifecycle for DynamicHost {
         let endpoint = router.enter(&definition.id).expect("the admitted plugin can enter its original router");
         let scope = endpoint.scope().expect("the manager issued an original plugin scope");
         resources.registration = Some(self.operations.stage_plugin(scope, |bindings| {
-            if matches!(&definition.artifact, PluginArtifact::Embedded { revision } if revision == "replacement") {
-                bindings.register_wire_operations::<DynamicReplacements, _>(dokime::app::Lanes::Open, self.calls.clone())
+            let mut dependencies = dokime::harmos::Dependencies::new();
+            dependencies.insert(self.calls.clone()).expect("one call counter");
+            let batch = dokime::harmos::RegistrationBatch::new(dependencies);
+            let batch = if matches!(&definition.artifact, PluginArtifact::Embedded { revision } if revision == "replacement") {
+                batch.operation::<DynamicReplacement>()
             } else {
-                bindings.register_wire_operations::<DynamicOperations, _>(dokime::app::Lanes::Open, self.calls.clone())
-            }
+                batch.operation::<DynamicUnary>().operation::<DynamicDownload>().operation::<DynamicUpload>().operation::<DynamicDuplex>()
+            };
+            bindings.register(batch.lane(dokime::app::Lanes::Open))
         })?);
         resources.endpoint = Some(endpoint);
         Ok(())
@@ -327,11 +270,11 @@ fn dynamic_grant(request: &DynamicUnary) -> Option<dokime::harmos::plugin::Grant
 }
 
 fn dynamic_definition(replacement: bool) -> PluginDefinitions {
-    use dokime::harmos::operations::{AuthoredContracts, AuthoredDeclarations};
+    use dokime::harmos::operations::{Contracts, Declarations};
     let (revision, operations, wire_contracts) = if replacement {
-        ("replacement", AuthoredDeclarations::of::<DynamicReplacements>().unwrap(), AuthoredContracts::of::<DynamicReplacements>().unwrap())
+        ("replacement", Declarations::of::<DynamicReplacements>().unwrap(), Contracts::of::<DynamicReplacements>().unwrap())
     } else {
-        ("original", AuthoredDeclarations::of::<DynamicOperations>().unwrap(), AuthoredContracts::of::<DynamicOperations>().unwrap())
+        ("original", Declarations::of::<DynamicOperations>().unwrap(), Contracts::of::<DynamicOperations>().unwrap())
     };
     let definition = PluginDefinition {
         id: DYNAMIC_OWNER.into(),
@@ -487,14 +430,17 @@ async fn full_control_plugin_operations() {
     let allowed = Client::connect(Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
     assert!(!allowed.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
 
-    // A Host Provider Cannot Become A Plugin By Choosing Its Owner Name.
-    runtime.operations().register_wire_operation::<DynamicUnaryHandler>(DYNAMIC_OWNER, dokime::app::Lanes::Open, calls.clone()).unwrap();
+    // A Host Provider Outside The Product Namespace Is Not A Plugin And Stays Refused Remotely.
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(calls.clone()).unwrap();
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<DynamicUnary>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await.unwrap();
     assert!(!allowed.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
     let direct = WireClient::connect(server.local_endpoint()).await.unwrap();
     let refused = direct.unary::<DynamicUnary>(authenticated(DynamicUnary { value: 10 })).await.unwrap_err();
     assert_eq!(refused.code(), Code::PermissionDenied);
     assert_eq!(calls.load(Ordering::SeqCst), 0);
-    runtime.operations().unregister_from(DYNAMIC_OWNER, DynamicUnary::ID).await.unwrap();
+    runtime.operations().unregister(&dokime::harmos::QualifiedId::qualify("host", DynamicUnary::ID).unwrap()).await.unwrap();
 
     // Activate A Real Plugin After Connecting; Discovery Uses Its Live Scope.
     let mut host = DynamicHost { operations: runtime.operations().clone(), calls: calls.clone() };

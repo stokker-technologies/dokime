@@ -24,7 +24,8 @@ use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 // Third Party Imports
 use dokime::harmos::domain::Portable;
-use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::StreamOutput;
+use dokime::harmos::{Context, RegistrationExt, Response};
 use futures_util::{Stream, StreamExt, stream};
 use tokio::time::Instant;
 use tonic::Status;
@@ -32,8 +33,9 @@ use tonic::Status;
 // Local Imports
 use cursor::{decode_plot_requests, selection_for_plot};
 use dokime::RuntimeHandle;
-use dokime::operations::plots as contract;
 use dokime::harmos::storage::{ReadBatch, StorageCursor};
+use dokime::operations::hosting::{Host, Serve, Served};
+use dokime::operations::plots as contract;
 use dokime::runtime::query::{
     PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotWatchKeys, RuntimePlotQueryMode, matching_plot_payload_request,
     reduce_plot_payload,
@@ -57,18 +59,6 @@ const SERVER_PLOT_THROTTLE_MS: u64 = 100;
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
-}
-
-struct Analyses {
-    resources: Arc<Resources>,
-}
-
-struct Snapshots {
-    resources: Arc<Resources>,
-}
-
-struct Watch {
-    resources: Arc<Resources>,
 }
 
 struct FrameContext<'a> {
@@ -144,7 +134,7 @@ impl Resources {
     }
 
     async fn deliver_snapshot(
-        &self, output: &mut StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>, requests: &mut Vec<PlotPayloadRequest>,
+        &self, output: &StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>, requests: &mut Vec<PlotPayloadRequest>,
         current: &PlotPayloadRequest, result: Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>,
         frame: &FrameContext<'_>,
     ) -> Result<bool, Status> {
@@ -164,7 +154,7 @@ impl Resources {
     }
 
     async fn send_pending(
-        &self, output: &mut StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>, waiting: &[PlotPayloadRequest],
+        &self, output: &StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>, waiting: &[PlotPayloadRequest],
         selections: &[String], original: &[PlotPayloadRequest], epoch: &str,
     ) -> Result<(), Status> {
         for current in waiting {
@@ -177,91 +167,202 @@ impl Resources {
     }
 }
 
-impl Operation for Analyses {
-    type Declaration = contract::ListAnalyses;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::ListAnalyses, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::plots::wire::ListAnalysesReply>, Status> {
-        let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_id)
-            .map_err(super::value::canonical::cursor_failure)?;
-        let definitions = self.resources.runtime.analysis_definitions().await.map_err(|error| Status::unavailable(error.to_string()))?;
-        let mut page = definitions.iter().filter(|definition| definition.id > request.after_id).take(limit + 1).collect::<Vec<_>>();
-        let next_after_id = (page.len() > limit).then(|| page[limit - 1].id.clone());
-        page.truncate(limit);
-        self.resources.produce(|| {
-            Ok(dokime::domain::model::plots::wire::ListAnalysesReply {
-                definitions: page.into_iter().map(analysis::definition).collect::<Result<_, _>>()?,
-                next_after_id,
+impl Serve<contract::ListAnalyses> for Resources {
+    fn serve<'a>(
+        &'a self, request: contract::ListAnalyses, _: Context<'a, contract::ListAnalyses>,
+    ) -> Served<'a, dokime::domain::model::plots::wire::ListAnalysesReply> {
+        Box::pin(async move {
+            let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_id)
+                .map_err(super::value::canonical::cursor_failure)?;
+            let definitions = self.runtime.analysis_definitions().await.map_err(|error| Status::unavailable(error.to_string()))?;
+            let mut page = definitions.iter().filter(|definition| definition.id > request.after_id).take(limit + 1).collect::<Vec<_>>();
+            let next_after_id = (page.len() > limit).then(|| page[limit - 1].id.clone());
+            page.truncate(limit);
+            self.produce(|| {
+                Ok(dokime::domain::model::plots::wire::ListAnalysesReply {
+                    definitions: page.into_iter().map(analysis::definition).collect::<Result<_, _>>()?,
+                    next_after_id,
+                })
             })
         })
     }
 }
 
-impl Operation for Snapshots {
-    type Declaration = contract::QuerySnapshots;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::QuerySnapshots, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::plots::wire::PlotSnapshotsReply>, Status> {
-        let runtime = &self.resources.runtime;
-        let epoch = runtime.process_epoch().as_str().to_owned();
-        let (requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
-        let at = runtime.storage().cursor_saved();
-        let native = runtime
-            .query_plot_payloads_at(requests.clone(), RuntimePlotQueryMode::Snapshot, &at)
-            .await
-            .map_err(|error| Status::unavailable(format!("plot query unavailable: {error}")))?;
-        let count = native.len();
-        let mut reply: Option<ReadBatch<dokime::domain::model::plots::wire::PlotSnapshotsReply>> = None;
-        for value in native {
-            let selection = selection_for_plot(&requests, &selections, &value.plot_id)
-                .ok_or_else(|| Status::internal("plot response does not match a request"))?;
-            let envelope = self.fitted_envelope(&requests, value, &epoch, selection)?;
-            reply = Some(match reply {
-                None => envelope
-                    .try_map(|envelope| {
-                        let mut envelopes = Vec::new();
-                        envelopes.try_reserve_exact(count).map_err(|_| plot_memory())?;
-                        envelopes.push(envelope);
-                        Ok::<_, dokime::harmos::Error>(dokime::domain::model::plots::wire::PlotSnapshotsReply { envelopes })
-                    })
-                    .map_err(failure)?,
-                Some(reply) => reply
-                    .try_map_with(envelope, |mut reply, envelope| {
-                        reply.envelopes.push(envelope);
-                        Ok::<_, dokime::harmos::Error>(reply)
-                    })
-                    .map_err(failure)?,
-            });
-        }
-        let reply = match reply {
-            Some(reply) => reply,
-            None => ReadBatch::new(dokime::domain::model::plots::wire::PlotSnapshotsReply { envelopes: Vec::new() }),
-        };
-        ensure_message_budget(&*reply, self.resources.maximum, "plot response")?;
-        Ok(Response::from_owner(reply.owner()))
+impl Serve<contract::QuerySnapshots> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: contract::QuerySnapshots, _: Context<'a, contract::QuerySnapshots>,
+    ) -> Served<'a, dokime::domain::model::plots::wire::PlotSnapshotsReply> {
+        Box::pin(async move {
+            let runtime = &self.runtime;
+            let epoch = runtime.process_epoch().as_str().to_owned();
+            let (requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
+            let at = runtime.storage().cursor_saved();
+            let native = runtime
+                .query_plot_payloads_at(requests.clone(), RuntimePlotQueryMode::Snapshot, &at)
+                .await
+                .map_err(|error| Status::unavailable(format!("plot query unavailable: {error}")))?;
+            let count = native.len();
+            let mut reply: Option<ReadBatch<dokime::domain::model::plots::wire::PlotSnapshotsReply>> = None;
+            for value in native {
+                let selection = selection_for_plot(&requests, &selections, &value.plot_id)
+                    .ok_or_else(|| Status::internal("plot response does not match a request"))?;
+                let envelope = self.fitted_envelope(&requests, value, &epoch, selection)?;
+                reply = Some(match reply {
+                    None => envelope
+                        .try_map(|envelope| {
+                            let mut envelopes = Vec::new();
+                            envelopes.try_reserve_exact(count).map_err(|_| plot_memory())?;
+                            envelopes.push(envelope);
+                            Ok::<_, dokime::harmos::Error>(dokime::domain::model::plots::wire::PlotSnapshotsReply { envelopes })
+                        })
+                        .map_err(failure)?,
+                    Some(reply) => reply
+                        .try_map_with(envelope, |mut reply, envelope| {
+                            reply.envelopes.push(envelope);
+                            Ok::<_, dokime::harmos::Error>(reply)
+                        })
+                        .map_err(failure)?,
+                });
+            }
+            let reply = match reply {
+                Some(reply) => reply,
+                None => ReadBatch::new(dokime::domain::model::plots::wire::PlotSnapshotsReply { envelopes: Vec::new() }),
+            };
+            ensure_message_budget(&*reply, self.maximum, "plot response")?;
+            Ok::<_, Status>(Response::from_owner(reply.owner()))
+        })
     }
 }
 
-impl Snapshots {
+impl Serve<contract::Watch> for Resources {
+    fn serve<'a>(&'a self, mut request: contract::Watch, ctx: Context<'a, contract::Watch>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let runtime = &self.runtime;
+                let epoch = runtime.process_epoch().as_str().to_owned();
+                let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
+                let original = requests.clone();
+                let mut waiting = requests.clone();
+                self.send_pending(output, &waiting, &selections, &original, &epoch).await?;
+
+                // The Passive Native Wait Subscribes Before Checking This Frontier,
+                // So A Save Racing Any Initial Read Cannot Be Missed.
+                let mut states = runtime.watch_state();
+                let mut observed = runtime.storage().cursor_saved();
+                let initial = observed.clone();
+                let mut dirty = BTreeSet::new();
+                let mut opened = BTreeSet::new();
+                let resources = self;
+                let at = &initial;
+                let snapshots = stream::iter(waiting.clone())
+                    .map(|current| async move {
+                        let result = resources.query_snapshot(&current, RuntimePlotQueryMode::Snapshot, at).await;
+                        (current, result)
+                    })
+                    .buffer_unordered(usize::try_from(SERVER_PLOT_INITIAL_CONCURRENCY).expect("validated plot concurrency"));
+                let mut reading = std::pin::pin!(with_keepalive(snapshots, Duration::from_millis(SERVER_PLOT_KEEPALIVE_MS)));
+                while let Some(event) = reading.next().await {
+                    match event {
+                        Opening::Keepalive => self.send_pending(output, &waiting, &selections, &original, &epoch).await?,
+                        Opening::Ready((current, result)) => {
+                            let key = plot_key(&current);
+                            waiting.retain(|request| plot_key(request) != key);
+                            let selection = selection_for_plot(&original, &selections, &key)
+                                .ok_or_else(|| Status::internal("plot selection is missing"))?;
+                            let frame = FrameContext {
+                                epoch: &epoch,
+                                selection,
+                                kind: PlotPayloadStreamKind::Snapshot,
+                            };
+                            if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
+                                opened.insert(key);
+                            } else {
+                                dirty.insert(key);
+                            }
+                        }
+                    }
+                }
+                let keys = original.iter().map(|request| (plot_key(request), PlotWatchKeys::for_request(request))).collect::<Vec<_>>();
+                let throttle = Duration::from_millis(SERVER_PLOT_THROTTLE_MS);
+                let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
+                let mut last_flush = Instant::now() - throttle;
+                let mut next_flush = (!dirty.is_empty()).then(|| Instant::now() + retry_delay);
+                loop {
+                    if requests.is_empty() {
+                        return Ok(().into());
+                    }
+                    tokio::select! {
+                        changed = states.next() => {
+                            if changed.is_none() { return Ok(().into()); }
+                            dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state()).map(|(key, _)| key.clone()));
+                        }
+                        _ = tokio::time::sleep_until(next_flush.unwrap_or_else(Instant::now)), if next_flush.is_some() => {
+                            next_flush = None;
+                            last_flush = Instant::now();
+                            // Every Query And Any Reduced Retry In This Pass Uses One
+                            // Durable Primary Cut; None Reads Accepted Pending Samples.
+                            let at = runtime.storage().cursor_saved();
+                            if at.sequence > observed.sequence {
+                                let streams = runtime.plot_streams_saved_between(&observed, &at).await
+                                    .map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
+                                dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
+                                    .map(|(key, _)| key.clone()));
+                            }
+                            observed = at.clone();
+                            let served = requests.iter().filter(|request| dirty.contains(&plot_key(request))).cloned().collect::<Vec<_>>();
+                            let mut refused = false;
+                            for current in served {
+                                let key = plot_key(&current);
+                                dirty.remove(&key);
+                                let selection = selection_for_plot(&original, &selections, &key)
+                                    .ok_or_else(|| Status::internal("plot selection is missing"))?;
+                                let (kind, mode) = if opened.contains(&key) {
+                                    (PlotPayloadStreamKind::Replace, RuntimePlotQueryMode::Replace)
+                                } else {
+                                    (PlotPayloadStreamKind::Snapshot, RuntimePlotQueryMode::Snapshot)
+                                };
+                                let frame = FrameContext { epoch: &epoch, selection, kind };
+                                let result = resources.query_snapshot(&current, mode, &at).await;
+                                if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
+                                    opened.insert(key);
+                                } else {
+                                    dirty.insert(key);
+                                    refused = true;
+                                }
+                            }
+                            if refused {
+                                next_flush = Some(Instant::now() + retry_delay);
+                                retry_delay = (retry_delay * 2).min(Duration::from_millis(SERVER_PLOT_RETRY_MAX_MS));
+                            } else { retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS); }
+                        }
+                        advanced = runtime.storage().wait_saved_after(&observed) => {
+                            let advanced = advanced.map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
+                            let streams = runtime.plot_streams_saved_between(&observed, &advanced).await
+                                .map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
+                            dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
+                                .map(|(key, _)| key.clone()));
+                            observed = advanced;
+                        }
+                    }
+                    if next_flush.is_none() && !dirty.is_empty() {
+                        next_flush = Some(last_flush + throttle);
+                    }
+                }
+            })
+            .await
+        })
+    }
+}
+
+impl Resources {
     fn fitted_envelope(
         &self, requests: &[PlotPayloadRequest], value: ReadBatch<PlotPayloadEnvelope>, epoch: &str, selection: &str,
     ) -> Result<ReadBatch<dokime::domain::model::plots::wire::PlotEnvelope>, Status> {
         let plot_id = value.plot_id.clone();
-        let maximum = match envelope(ReadBatch::new((*value).clone()), epoch, selection, self.resources.maximum) {
+        let maximum = match envelope(ReadBatch::new((*value).clone()), epoch, selection, self.maximum) {
             Ok(envelope) => return Ok(envelope),
             Err(FrameError::Status(error)) => return Err(error),
             Err(FrameError::TooManyPoints { maximum }) => maximum,
@@ -272,149 +373,26 @@ impl Snapshots {
         current.max_points = Some(maximum);
         let value = reduce_plot_payload(value, &current, maximum).map_err(|error| Status::internal(error.to_string()))?;
         let value = add_reduction_warning(value, original, &current)?;
-        envelope(value, epoch, selection, self.resources.maximum).map_err(|error| match error {
+        envelope(value, epoch, selection, self.maximum).map_err(|error| match error {
             FrameError::Status(error) => error,
             FrameError::TooManyPoints { .. } => Status::invalid_argument(format!("plot {plot_id} points do not fit one message")),
         })
     }
 }
 
-impl Operation for Watch {
-    type Declaration = contract::Watch;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut contract::Watch, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let runtime = &self.resources.runtime;
-            let epoch = runtime.process_epoch().as_str().to_owned();
-            let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
-            let original = requests.clone();
-            let mut waiting = requests.clone();
-            self.resources.send_pending(output, &waiting, &selections, &original, &epoch).await?;
-
-            // The Passive Native Wait Subscribes Before Checking This Frontier,
-            // So A Save Racing Any Initial Read Cannot Be Missed.
-            let mut states = runtime.watch_state();
-            let mut observed = runtime.storage().cursor_saved();
-            let initial = observed.clone();
-            let mut dirty = BTreeSet::new();
-            let mut opened = BTreeSet::new();
-            let resources = &self.resources;
-            let at = &initial;
-            let snapshots = stream::iter(waiting.clone())
-                .map(|current| async move {
-                    let result = resources.query_snapshot(&current, RuntimePlotQueryMode::Snapshot, at).await;
-                    (current, result)
-                })
-                .buffer_unordered(usize::try_from(SERVER_PLOT_INITIAL_CONCURRENCY).expect("validated plot concurrency"));
-            let mut reading = std::pin::pin!(with_keepalive(snapshots, Duration::from_millis(SERVER_PLOT_KEEPALIVE_MS)));
-            while let Some(event) = reading.next().await {
-                match event {
-                    Opening::Keepalive => self.resources.send_pending(output, &waiting, &selections, &original, &epoch).await?,
-                    Opening::Ready((current, result)) => {
-                        let key = plot_key(&current);
-                        waiting.retain(|request| plot_key(request) != key);
-                        let selection = selection_for_plot(&original, &selections, &key)
-                            .ok_or_else(|| Status::internal("plot selection is missing"))?;
-                        let frame = FrameContext {
-                            epoch: &epoch,
-                            selection,
-                            kind: PlotPayloadStreamKind::Snapshot,
-                        };
-                        if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
-                            opened.insert(key);
-                        } else {
-                            dirty.insert(key);
-                        }
-                    }
-                }
-            }
-            let keys = original.iter().map(|request| (plot_key(request), PlotWatchKeys::for_request(request))).collect::<Vec<_>>();
-            let throttle = Duration::from_millis(SERVER_PLOT_THROTTLE_MS);
-            let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
-            let mut last_flush = Instant::now() - throttle;
-            let mut next_flush = (!dirty.is_empty()).then(|| Instant::now() + retry_delay);
-            loop {
-                if requests.is_empty() {
-                    return Ok(().into());
-                }
-                tokio::select! {
-                    changed = states.next() => {
-                        if changed.is_none() { return Ok(().into()); }
-                        dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state()).map(|(key, _)| key.clone()));
-                    }
-                    _ = tokio::time::sleep_until(next_flush.unwrap_or_else(Instant::now)), if next_flush.is_some() => {
-                        next_flush = None;
-                        last_flush = Instant::now();
-                        // Every Query And Any Reduced Retry In This Pass Uses One
-                        // Durable Primary Cut; None Reads Accepted Pending Samples.
-                        let at = runtime.storage().cursor_saved();
-                        if at.sequence > observed.sequence {
-                            let streams = runtime.plot_streams_saved_between(&observed, &at).await
-                                .map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
-                            dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
-                                .map(|(key, _)| key.clone()));
-                        }
-                        observed = at.clone();
-                        let served = requests.iter().filter(|request| dirty.contains(&plot_key(request))).cloned().collect::<Vec<_>>();
-                        let mut refused = false;
-                        for current in served {
-                            let key = plot_key(&current);
-                            dirty.remove(&key);
-                            let selection = selection_for_plot(&original, &selections, &key)
-                                .ok_or_else(|| Status::internal("plot selection is missing"))?;
-                            let (kind, mode) = if opened.contains(&key) {
-                                (PlotPayloadStreamKind::Replace, RuntimePlotQueryMode::Replace)
-                            } else {
-                                (PlotPayloadStreamKind::Snapshot, RuntimePlotQueryMode::Snapshot)
-                            };
-                            let frame = FrameContext { epoch: &epoch, selection, kind };
-                            let result = resources.query_snapshot(&current, mode, &at).await;
-                            if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
-                                opened.insert(key);
-                            } else {
-                                dirty.insert(key);
-                                refused = true;
-                            }
-                        }
-                        if refused {
-                            next_flush = Some(Instant::now() + retry_delay);
-                            retry_delay = (retry_delay * 2).min(Duration::from_millis(SERVER_PLOT_RETRY_MAX_MS));
-                        } else { retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS); }
-                    }
-                    advanced = runtime.storage().wait_saved_after(&observed) => {
-                        let advanced = advanced.map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
-                        let streams = runtime.plot_streams_saved_between(&observed, &advanced).await
-                            .map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
-                        dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
-                            .map(|(key, _)| key.clone()));
-                        observed = advanced;
-                    }
-                }
-                if next_flush.is_none() && !dirty.is_empty() {
-                    next_flush = Some(last_flush + throttle);
-                }
-            }
-        })
-        .await
-    }
-}
-
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    runtime.operations().register_wire_operation::<Analyses>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Snapshots>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Watch>("dokime", dokime::app::Lanes::Open, resources)?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<contract::ListAnalyses>::new(served.clone()))?;
+    dependencies.insert(Host::<contract::QuerySnapshots>::new(served.clone()))?;
+    dependencies.insert(Host::<contract::Watch>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<contract::ListAnalyses>()
+        .operation::<contract::QuerySnapshots>()
+        .operation::<contract::Watch>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

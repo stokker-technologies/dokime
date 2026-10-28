@@ -17,7 +17,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::StreamOutput;
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 use tracing::Instrument;
 
@@ -27,6 +28,7 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::backend::wire::{LogFrameFieldsEntry, TraceBatch, TraceEvent};
 use dokime::domain::model::identity::wire::Timestamp;
 use dokime::operations::backend as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
 
 /* === Constants === */
 
@@ -47,48 +49,36 @@ struct Resources {
     journal: Arc<Journal>,
 }
 
-struct Watch {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Watch {
-    type Declaration = wire::WatchTrace;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::backend::wire::TraceBatch>;
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchTrace, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            self.follow(request, output).instrument(tracing::info_span!(WATCH_SPAN)).await?;
-            Ok(().into())
+impl Serve<wire::WatchTrace> for Resources {
+    fn serve<'a>(&'a self, request: wire::WatchTrace, ctx: Context<'a, wire::WatchTrace>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                self.follow(&request, output).instrument(tracing::info_span!(WATCH_SPAN)).await?;
+                Ok(().into())
+            })
+            .await
         })
-        .await
     }
 }
 
-impl Watch {
+impl Resources {
     async fn follow(
-        &self, request: &wire::WatchTrace, output: &mut StreamOutput<dokime::domain::model::backend::wire::TraceBatch>,
+        &self, request: &wire::WatchTrace, output: &StreamOutput<dokime::domain::model::backend::wire::TraceBatch>,
     ) -> Result<(), Status> {
-        let epoch = self.resources.runtime.process_epoch().to_string();
+        let epoch = self.runtime.process_epoch().to_string();
         if request.epoch.as_deref().is_some_and(|expected| expected != epoch) || (request.after_sequence != 0 && request.epoch.is_none()) {
             return Err(Status::out_of_range("trace cursor belongs to another backend epoch; restart replay"));
         }
-        let journal = &self.resources.journal;
+        let journal = &self.journal;
         if !journal.installed() {
             return Err(Status::unavailable("backend tracing capture is not installed"));
         }
@@ -97,7 +87,7 @@ impl Watch {
         let events = if request.max_events == 0 { SERVER_DEFAULT_TRACE_EVENTS } else { u64::from(request.max_events) }
             .min(SERVER_MAXIMUM_TRACE_EVENTS);
         let events = usize::try_from(events).expect("validated trace event count");
-        let maximum = self.resources.maximum;
+        let maximum = self.maximum;
         let bytes =
             if request.max_bytes == 0 { SERVER_DEFAULT_TRACE_BYTES } else { u64::from(request.max_bytes) }.max(SERVER_MINIMUM_TRACE_BYTES);
         let bytes = usize::try_from(bytes).expect("validated trace byte count").min(maximum);
@@ -135,12 +125,16 @@ impl Watch {
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize, journal: Arc<Journal>) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operation::<Watch>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum, journal }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize, journal: Arc<Journal>) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        maximum,
+        journal,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::WatchTrace>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::WatchTrace>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -185,7 +179,12 @@ fn batch(epoch: &str, page: Page, dropped: u64, maximum: usize) -> Result<TraceB
         events.push(event_wire(*sequence, event)?);
     }
     let next_sequence = if count == page.events.len() { page.next } else { events.last().expect("nonempty bounded prefix").sequence };
-    let mut batch = TraceBatch { epoch: epoch.to_owned(), events, dropped, next_sequence };
+    let mut batch = TraceBatch {
+        epoch: epoch.to_owned(),
+        events,
+        dropped,
+        next_sequence,
+    };
     while super::content::output_frame_len(&batch)? > maximum {
         batch.events.pop();
         batch.next_sequence = batch.events.last().ok_or_else(budget_failure)?.sequence;
@@ -202,7 +201,10 @@ fn event_wire(sequence: u64, event: &Event) -> Result<TraceEvent, Status> {
     }
     Ok(TraceEvent {
         sequence,
-        time: Some(Timestamp { seconds: event.time.unix_timestamp(), nanos: event.time.nanosecond() as i32 }),
+        time: Some(Timestamp {
+            seconds: event.time.unix_timestamp(),
+            nanos: event.time.nanosecond() as i32,
+        }),
         level: level(event.level),
         target: event.target.clone(),
         message: event.message.clone(),
@@ -244,15 +246,28 @@ mod tests {
     #[test]
     fn split_batch_preserves_resume_position() {
         let event = event(&"x".repeat(1024));
-        let one = TraceBatch { epoch: "epoch".into(), events: vec![event_wire(1, &event).unwrap()], dropped: 0, next_sequence: 1 };
+        let one = TraceBatch {
+            epoch: "epoch".into(),
+            events: vec![event_wire(1, &event).unwrap()],
+            dropped: 0,
+            next_sequence: 1,
+        };
         let maximum = super::super::content::output_frame_len(&one).unwrap();
-        let page = Page { events: vec![(1, Arc::clone(&event)), (2, Arc::clone(&event))], missed: 0, next: 3 };
+        let page = Page {
+            events: vec![(1, Arc::clone(&event)), (2, Arc::clone(&event))],
+            missed: 0,
+            next: 3,
+        };
         let first = batch("epoch", page, 0, maximum).unwrap();
         assert_eq!(first.events.iter().map(|event| event.sequence).collect::<Vec<_>>(), [1]);
         assert_eq!(first.next_sequence, 1);
         assert!(super::super::content::output_frame_len(&first).unwrap() <= maximum);
 
-        let page = Page { events: vec![(2, event)], missed: 0, next: 3 };
+        let page = Page {
+            events: vec![(2, event)],
+            missed: 0,
+            next: 3,
+        };
         let second = batch("epoch", page, 0, maximum).unwrap();
         assert_eq!(second.events.iter().map(|event| event.sequence).collect::<Vec<_>>(), [2]);
         assert_eq!(second.next_sequence, 3);

@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -27,6 +27,7 @@ use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::operations::content as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{RuntimeHandle, artifacts::ArtifactRecord};
 
 /* === Constants === */
@@ -42,55 +43,45 @@ struct Resources {
     maximum: usize,
 }
 
-struct List {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for List {
-    type Declaration = wire::ListArtifacts;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::ListArtifacts, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::content::wire::ListArtifactsReply>, Status> {
-        let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_artifact_id)
-            .map_err(value::canonical::cursor_failure)?;
-        let epoch = self.resources.runtime.process_epoch().to_string();
-        let records = self.resources.runtime.artifacts().await.map_err(inventory_failure)?;
-        let start = if request.after_artifact_id.is_empty() {
-            0
-        } else {
-            records
-                .iter()
-                .position(|record| record.artifact_id.as_str() == request.after_artifact_id)
-                .map(|index| index + 1)
-                .unwrap_or(records.len())
-        };
-        let count = records.len().saturating_sub(start).min(limit);
-        let more = records.len().saturating_sub(start) > count;
-        project(&records, request, &epoch, start, count, more, self.resources.maximum).map(Into::into)
+impl Serve<wire::ListArtifacts> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::ListArtifacts, _: Context<'a, wire::ListArtifacts>,
+    ) -> Served<'a, dokime::domain::model::content::wire::ListArtifactsReply> {
+        Box::pin(async move {
+            let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_artifact_id)
+                .map_err(value::canonical::cursor_failure)?;
+            let epoch = self.runtime.process_epoch().to_string();
+            let records = self.runtime.artifacts().await.map_err(inventory_failure)?;
+            let start = if request.after_artifact_id.is_empty() {
+                0
+            } else {
+                records
+                    .iter()
+                    .position(|record| record.artifact_id.as_str() == request.after_artifact_id)
+                    .map(|index| index + 1)
+                    .unwrap_or(records.len())
+            };
+            let count = records.len().saturating_sub(start).min(limit);
+            let more = records.len().saturating_sub(start) > count;
+            project(&records, &request, &epoch, start, count, more, self.maximum).map(Into::into)
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<List>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::ListArtifacts>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::ListArtifacts>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -148,7 +139,10 @@ fn project(
     let reply = dokime::domain::model::content::wire::ListArtifactsReply {
         artifacts: selected,
         next_after_artifact_id,
-        cursor: Some(dokime::domain::model::content::wire::ArtifactCursor { epoch: epoch.to_owned(), metadata_sha256: fingerprint }),
+        cursor: Some(dokime::domain::model::content::wire::ArtifactCursor {
+            epoch: epoch.to_owned(),
+            metadata_sha256: fingerprint,
+        }),
     };
     if reply.wire_len()? > maximum {
         return Err(Status::resource_exhausted("artifact page exceeds configured message limit"));

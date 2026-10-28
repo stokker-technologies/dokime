@@ -19,13 +19,14 @@ pub(in crate::grpc) use super::super::enums::canonical::{execution_file_kind as 
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::content as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
 
 /* === Constants === */
 
@@ -40,60 +41,50 @@ struct Resources {
     maximum: usize,
 }
 
-struct Read {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Read {
-    type Declaration = wire::ReadExecutionFile;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::ReadExecutionFile, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::content::wire::ExecutionFileWindow>, Status> {
-        let runtime = &self.resources.runtime;
-        let message_limit = self.resources.maximum;
-        let (id, _) = execution(runtime, &request.execution_id)?;
-        if request.relative_path.is_empty() {
-            return Err(Status::invalid_argument("output name is required"));
-        }
-        if request.max_bytes > 64 * 1024 {
-            return Err(Status::invalid_argument("file window exceeds 65536 bytes"));
-        }
-        let limit = if request.max_bytes == 0 { 64 * 1024 } else { request.max_bytes as usize };
-        // The Projection Fits The Complete Encoded Window After Reading.
-        let limit = limit.min(message_limit);
-        if limit == 0 {
-            return Err(Status::resource_exhausted("configured message limit cannot contain file window"));
-        }
-        let page = runtime
-            .execution_file_content(&id, std::mem::take(&mut request.relative_path), request.offset, limit)
-            .await
-            .map_err(read_failure)?
-            .ok_or_else(|| Status::not_found("registered execution output not found"))?;
-        super::window::owned(page, message_limit).map_err(|source| read_failure(source.into()))
+impl Serve<wire::ReadExecutionFile> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::ReadExecutionFile, _: Context<'a, wire::ReadExecutionFile>,
+    ) -> Served<'a, dokime::domain::model::content::wire::ExecutionFileWindow> {
+        Box::pin(async move {
+            let runtime = &self.runtime;
+            let message_limit = self.maximum;
+            let (id, _) = execution(runtime, &request.execution_id)?;
+            if request.relative_path.is_empty() {
+                return Err(Status::invalid_argument("output name is required"));
+            }
+            if request.max_bytes > 64 * 1024 {
+                return Err(Status::invalid_argument("file window exceeds 65536 bytes"));
+            }
+            let limit = if request.max_bytes == 0 { 64 * 1024 } else { request.max_bytes as usize };
+            // The Projection Fits The Complete Encoded Window After Reading.
+            let limit = limit.min(message_limit);
+            if limit == 0 {
+                return Err(Status::resource_exhausted("configured message limit cannot contain file window"));
+            }
+            let page = runtime
+                .execution_file_content(&id, request.relative_path, request.offset, limit)
+                .await
+                .map_err(read_failure)?
+                .ok_or_else(|| Status::not_found("registered execution output not found"))?;
+            super::window::owned(page, message_limit).map_err(|source| read_failure(source.into()))
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<Read>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::ReadExecutionFile>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::ReadExecutionFile>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

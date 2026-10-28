@@ -196,6 +196,8 @@ fn compile_configured(source: &str, configuration: Option<&str>) -> (std::proces
     let mut rustc = std::process::Command::new("rustc");
     #[cfg(windows)]
     rustc.creation_flags(0x0800_0000);
+    // Fixtures build as a plugin crate's runtime build, where Harmos serves operations.
+    rustc.args(["--cfg", "feature=\"runtime\""]);
     if let Some(configuration) = configuration {
         rustc.args(["--cfg", configuration]);
     }
@@ -230,7 +232,7 @@ extern crate sdk;
 use std::sync::Arc;
 
 use sdk::harmos::plugin::{Attachment, Declared};
-use sdk::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
+use sdk::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
 use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
 const POLICY: OperationPolicy = OperationPolicy {
@@ -261,7 +263,7 @@ type Observing = ObserverAttachment<(), Publisher<Shared>>;
 struct Shared { observers: Option<Arc<Observing>> }
 
 
-impl sdk::harmos::operations::lifecycle::Policy for Shared {
+impl sdk::harmos::builtins::lifecycle::Policy for Shared {
     const INITIALIZATION_POLICY: OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: OperationPolicy = POLICY;
 }
@@ -410,7 +412,7 @@ fn alias_inventory_declared() {
             "renamed.get_spare_echo",
         ]
     );
-    assert_eq!(declaration.observe_contract().expect("observers serve their built-in control").operation().id.as_str(), "harmos.observe");
+    assert_eq!(declaration.observe_contract().expect("observers serve their built-in control").operation().id.as_str(), "harmos_observe");
     assert_eq!(declaration.observers.len(), 1);
     assert_eq!(declaration.observers[0].streams, ["renamed.observations"]);
     let namespaces = declaration.sections.iter().map(|section| section.namespace.to_string()).collect::<Vec<_>>();

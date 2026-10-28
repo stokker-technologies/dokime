@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, StreamOutput};
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -26,6 +26,7 @@ use super::value::canonical;
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::observation as wire;
 use dokime::runtime::progress::{OperationOutcome, OperationSnapshot};
 use dokime::runtime::query::RuntimeChange;
@@ -49,262 +50,224 @@ struct Resources {
     pub(super) max_message_bytes: usize,
 }
 
-struct Traceability {
-    resources: Arc<Resources>,
-}
-
-struct Shell {
-    resources: Arc<Resources>,
-}
-
-struct Runtime {
-    resources: Arc<Resources>,
-}
-
-struct Progress {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    Traceability(Traceability),
-    Shell(Shell),
-    Runtime(Runtime),
-    Progress(Progress),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Shell {
-    type Declaration = wire::GetRuntimeShell;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::GetRuntimeShell, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::observation::wire::RuntimeShellSnapshot>, Status> {
-        let snapshot = self.resources.runtime.watch_state().latest();
-        let state = snapshot.state();
-        let observed = canonical::cursor(&snapshot);
-        let limit = observed.page(request.limit, &request.after_cycle_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
-        let start = after_cycle_position(state, &request.after_cycle_id)?;
-        let response_limit =
-            self.resources.max_message_bytes.min(usize::try_from(SERVER_SHELL_RESPONSE_BYTES).expect("validated shell response size"));
+impl Serve<wire::GetRuntimeShell> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::GetRuntimeShell, _: Context<'a, wire::GetRuntimeShell>,
+    ) -> Served<'a, dokime::domain::model::observation::wire::RuntimeShellSnapshot> {
+        Box::pin(async move {
+            let snapshot = self.runtime.watch_state().latest();
+            let state = snapshot.state();
+            let observed = canonical::cursor(&snapshot);
+            let limit =
+                observed.page(request.limit, &request.after_cycle_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
+            let start = after_cycle_position(state, &request.after_cycle_id)?;
+            let response_limit =
+                self.max_message_bytes.min(usize::try_from(SERVER_SHELL_RESPONSE_BYTES).expect("validated shell response size"));
 
-        let hub = self.resources.runtime.hub_metadata();
+            let hub = self.runtime.hub_metadata();
 
-        let mut entries = state.cycles.values().skip(start);
-        let count = state.cycles.len().saturating_sub(start).min(limit);
-        let mut cycle_summaries = canonical::slots(count)?;
-        for cycle in entries.by_ref().take(limit) {
-            cycle_summaries.push(execution::summary(state, cycle, observed.clone())?);
-        }
-        let next_after_cycle_id = if entries.next().is_some() {
-            let last = cycle_summaries.last().ok_or_else(|| Status::internal("empty continued cycle page"))?;
-
-            Some(last.cycle_id.clone())
-        } else {
-            None
-        };
-        let counts = self.resources.runtime.evidence_counts_at(&snapshot).await.map_err(|error| Status::internal(error.to_string()))?;
-        let response = dokime::domain::model::observation::wire::RuntimeShellSnapshot {
-            session_id: state.session_id.to_string(),
-            revision: snapshot.revision(),
-            shutting_down: state.shutting_down,
-            hub_metadata: Some(canonical::metadata(&hub)?),
-            test_suite_count: state.suites.suites().count() as u64,
-            cycle_summaries,
-            evidence_counts: Some(evidence_counts(&counts)),
-            observed_cursor: Some(observed),
-            next_after_cycle_id,
-        };
-        if response.wire_len()? > response_limit {
-            return Err(Status::resource_exhausted("runtime shell page exceeds response budget; lower limit and retry"));
-        }
-        Ok((response).into())
-    }
-}
-
-impl Operation for Runtime {
-    type Declaration = wire::WatchRuntime;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::observation::wire::RuntimeStateFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchRuntime, output: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let mut watch = self.resources.runtime.watch_state();
-            let mut snapshot = watch.latest();
-            canonical::cursor(&snapshot).validate(request.cursor.as_ref(), false).map_err(canonical::cursor_failure)?;
-            let mut operations = watch.operations();
-            let mut resynchronized = true;
-            loop {
-                let observed = canonical::cursor(&snapshot);
-                let frames = operation_frames(&operations)?;
-                output
-                    .send_owned(
-                        (dokime::domain::model::observation::wire::RuntimeStateFrame {
-                            cursor: Some(observed),
-                            resynchronized,
-                            shutting_down: snapshot.state().shutting_down,
-                            cycle_count: snapshot.state().cycles.len() as u64,
-                            operations: frames,
-                        })
-                        .into(),
-                    )
-                    .await
-                    .map_err(stream_failure)?;
-                match watch.next_change().await {
-                    None => return Ok(().into()),
-                    Some(RuntimeChange::State(next)) => {
-                        snapshot = next;
-                        operations = watch.operations();
-                    }
-                    Some(RuntimeChange::Operations(next)) => operations = next,
-                }
-                resynchronized = false;
+            let mut entries = state.cycles.values().skip(start);
+            let count = state.cycles.len().saturating_sub(start).min(limit);
+            let mut cycle_summaries = canonical::slots(count)?;
+            for cycle in entries.by_ref().take(limit) {
+                cycle_summaries.push(execution::summary(state, cycle, observed.clone())?);
             }
+            let next_after_cycle_id = if entries.next().is_some() {
+                let last = cycle_summaries.last().ok_or_else(|| Status::internal("empty continued cycle page"))?;
+
+                Some(last.cycle_id.clone())
+            } else {
+                None
+            };
+            let counts = self.runtime.evidence_counts_at(&snapshot).await.map_err(|error| Status::internal(error.to_string()))?;
+            let response = dokime::domain::model::observation::wire::RuntimeShellSnapshot {
+                session_id: state.session_id.to_string(),
+                revision: snapshot.revision(),
+                shutting_down: state.shutting_down,
+                hub_metadata: Some(canonical::metadata(&hub)?),
+                test_suite_count: state.suites.suites().count() as u64,
+                cycle_summaries,
+                evidence_counts: Some(evidence_counts(&counts)),
+                observed_cursor: Some(observed),
+                next_after_cycle_id,
+            };
+            if response.wire_len()? > response_limit {
+                return Err(Status::resource_exhausted("runtime shell page exceeds response budget; lower limit and retry"));
+            }
+            Ok::<_, Status>((response).into())
         })
-        .await
     }
 }
 
-impl Operation for Progress {
-    type Declaration = wire::WatchExecutionProgress;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::observation::wire::ExecutionProgressFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchExecutionProgress, output: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
-                .map_err(|_| Status::invalid_argument("invalid test execution UUID"))?;
-            let mut watch = self.resources.runtime.watch_execution_progress();
-            let mut snapshot = watch.latest();
-            let mut previous = None;
-            let mut resynchronized = true;
-            loop {
-                let current = snapshot.get(&execution);
-                if resynchronized || current != previous.as_ref() {
+impl Serve<wire::WatchRuntime> for Resources {
+    fn serve<'a>(&'a self, request: wire::WatchRuntime, ctx: Context<'a, wire::WatchRuntime>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let mut watch = self.runtime.watch_state();
+                let mut snapshot = watch.latest();
+                canonical::cursor(&snapshot).validate(request.cursor.as_ref(), false).map_err(canonical::cursor_failure)?;
+                let mut operations = watch.operations();
+                let mut resynchronized = true;
+                loop {
+                    let observed = canonical::cursor(&snapshot);
+                    let frames = operation_frames(&operations)?;
                     output
-                        .send_owned((progress_frame(snapshot.revision(), resynchronized, current)).into())
+                        .send_owned(
+                            (dokime::domain::model::observation::wire::RuntimeStateFrame {
+                                cursor: Some(observed),
+                                resynchronized,
+                                shutting_down: snapshot.state().shutting_down,
+                                cycle_count: snapshot.state().cycles.len() as u64,
+                                operations: frames,
+                            })
+                            .into(),
+                        )
                         .await
                         .map_err(stream_failure)?;
-                    previous = current.cloned();
+                    match watch.next_change().await {
+                        None => return Ok(().into()),
+                        Some(RuntimeChange::State(next)) => {
+                            snapshot = next;
+                            operations = watch.operations();
+                        }
+                        Some(RuntimeChange::Operations(next)) => operations = next,
+                    }
+                    resynchronized = false;
                 }
-                let Some(next) = watch.next().await else {
-                    return Ok(().into());
-                };
-                snapshot = next;
-                resynchronized = false;
-            }
+            })
+            .await
         })
-        .await
     }
 }
 
-impl Operation for Traceability {
-    type Declaration = wire::GetTraceability;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::GetTraceability, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::observation::wire::TraceabilityPage>, Status> {
-        let snapshot = self.resources.runtime.watch_state().latest();
-        let observed = canonical::cursor(&snapshot);
-        let limit =
-            observed.page(request.limit, &request.after_traceability_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
-        let requested_scope = request.scope.as_ref().map(canonical::decoded_scope).transpose()?;
-        if requested_scope
-            .as_ref()
-            .and_then(|scope| scope.session_id.as_ref())
-            .is_some_and(|session| session != &snapshot.state().session_id)
-        {
-            return Err(Status::failed_precondition("traceability scope epoch mismatch; resynchronize"));
-        }
-        let after = &request.after_traceability_id;
-        let (source, has_more, host_traceability_fingerprint) = self
-            .resources
-            .runtime
-            .traceability_snapshots_page_at(
-                &snapshot,
-                requested_scope.as_ref(),
-                after,
-                limit,
-                usize::try_from(SERVER_TRACEABILITY_SCAN_ITEMS).expect("validated traceability scan count"),
-                usize::try_from(SERVER_TRACEABILITY_RESPONSE_BYTES).expect("validated traceability response size"),
-            )
+impl Serve<wire::WatchExecutionProgress> for Resources {
+    fn serve<'a>(&'a self, request: wire::WatchExecutionProgress, ctx: Context<'a, wire::WatchExecutionProgress>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
+                    .map_err(|_| Status::invalid_argument("invalid test execution UUID"))?;
+                let mut watch = self.runtime.watch_execution_progress();
+                let mut snapshot = watch.latest();
+                let mut previous = None;
+                let mut resynchronized = true;
+                loop {
+                    let current = snapshot.get(&execution);
+                    if resynchronized || current != previous.as_ref() {
+                        output
+                            .send_owned((progress_frame(snapshot.revision(), resynchronized, current)).into())
+                            .await
+                            .map_err(stream_failure)?;
+                        previous = current.cloned();
+                    }
+                    let Some(next) = watch.next().await else {
+                        return Ok(().into());
+                    };
+                    snapshot = next;
+                    resynchronized = false;
+                }
+            })
             .await
-            .map_err(|error| Status::resource_exhausted(error.to_string()))?;
-        if !after.is_empty()
-            && (request.host_traceability_fingerprint.is_empty() || request.host_traceability_fingerprint != host_traceability_fingerprint)
-        {
-            return Err(Status::aborted("host traceability changed; restart pagination from the first page"));
-        }
-        let response_limit = self
-            .resources
-            .max_message_bytes
-            .min(usize::try_from(SERVER_TRACEABILITY_RESPONSE_BYTES).expect("validated traceability response size"));
+        })
+    }
+}
 
-        let next_after_traceability_id = if has_more {
-            let last = source.last().ok_or_else(|| Status::internal("empty continued traceability page"))?;
+impl Serve<wire::GetTraceability> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::GetTraceability, _: Context<'a, wire::GetTraceability>,
+    ) -> Served<'a, dokime::domain::model::observation::wire::TraceabilityPage> {
+        Box::pin(async move {
+            let snapshot = self.runtime.watch_state().latest();
+            let observed = canonical::cursor(&snapshot);
+            let limit =
+                observed.page(request.limit, &request.after_traceability_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
+            let requested_scope = request.scope.as_ref().map(canonical::decoded_scope).transpose()?;
+            if requested_scope
+                .as_ref()
+                .and_then(|scope| scope.session_id.as_ref())
+                .is_some_and(|session| session != &snapshot.state().session_id)
+            {
+                return Err(Status::failed_precondition("traceability scope epoch mismatch; resynchronize"));
+            }
+            let after = &request.after_traceability_id;
+            let (source, has_more, host_traceability_fingerprint) = self
+                .runtime
+                .traceability_snapshots_page_at(
+                    &snapshot,
+                    requested_scope.as_ref(),
+                    after,
+                    limit,
+                    usize::try_from(SERVER_TRACEABILITY_SCAN_ITEMS).expect("validated traceability scan count"),
+                    usize::try_from(SERVER_TRACEABILITY_RESPONSE_BYTES).expect("validated traceability response size"),
+                )
+                .await
+                .map_err(|error| Status::resource_exhausted(error.to_string()))?;
+            if !after.is_empty()
+                && (request.host_traceability_fingerprint.is_empty()
+                    || request.host_traceability_fingerprint != host_traceability_fingerprint)
+            {
+                return Err(Status::aborted("host traceability changed; restart pagination from the first page"));
+            }
+            let response_limit = self
+                .max_message_bytes
+                .min(usize::try_from(SERVER_TRACEABILITY_RESPONSE_BYTES).expect("validated traceability response size"));
 
-            last.traceability_id.to_string()
-        } else {
-            String::new()
-        };
-        let mut snapshots = canonical::slots(source.len())?;
-        for snapshot in &source {
-            snapshots.push(super::history::traceability(snapshot)?);
-        }
-        let response = dokime::domain::model::observation::wire::TraceabilityPage {
-            scope: request.scope.clone(),
-            snapshots,
-            cursor: Some(observed),
-            next_after_traceability_id,
-            complete: !has_more,
-            host_traceability_fingerprint,
-        };
-        if response.wire_len()? > response_limit {
-            return Err(Status::resource_exhausted("traceability page exceeds response budget; lower limit and retry"));
-        }
-        Ok((response).into())
+            let next_after_traceability_id = if has_more {
+                let last = source.last().ok_or_else(|| Status::internal("empty continued traceability page"))?;
+
+                last.traceability_id.to_string()
+            } else {
+                String::new()
+            };
+            let mut snapshots = canonical::slots(source.len())?;
+            for snapshot in &source {
+                snapshots.push(super::history::traceability(snapshot)?);
+            }
+            let response = dokime::domain::model::observation::wire::TraceabilityPage {
+                scope: request.scope.clone(),
+                snapshots,
+                cursor: Some(observed),
+                next_after_traceability_id,
+                complete: !has_more,
+                host_traceability_fingerprint,
+            };
+            if response.wire_len()? > response_limit {
+                return Err(Status::resource_exhausted("traceability page exceeds response budget; lower limit and retry"));
+            }
+            Ok::<_, Status>((response).into())
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operations::<Operations, Resources>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::GetRuntimeShell>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::WatchRuntime>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::WatchExecutionProgress>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::GetTraceability>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<wire::GetRuntimeShell>()
+        .operation::<wire::WatchRuntime>()
+        .operation::<wire::WatchExecutionProgress>()
+        .operation::<wire::GetTraceability>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

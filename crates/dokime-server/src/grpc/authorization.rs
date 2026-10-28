@@ -31,6 +31,9 @@ use dokime::operations::Operations;
 
 /* === Constants === */
 
+const HOST_OWNER: &str = "host";
+const PRODUCT_NAMESPACE: &str = "dokime.";
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -73,9 +76,12 @@ impl Authorizer for Policy {
         let Some(principal) = context.get::<Principal>() else {
             return Ok(None);
         };
-        // Canonical Product Providers Belong To The Original Dokime Runtime Owner.
-        // A Plugin Reusing A Public Operation ID Cannot Inherit Native Trust.
-        if provider.owner.as_str() != "dokime" {
+        // Canonical Product Providers Are Host Registrations Of The Product Namespace; Harmos Owns
+        // Every Host Entry As `host`. A Plugin Reusing A Public Operation ID Cannot Inherit Native Trust.
+        let product = !provider.plugin
+            && provider.owner.as_str() == HOST_OWNER
+            && provider.definition.id.as_str().starts_with(PRODUCT_NAMESPACE);
+        if !product {
             if principal.is_local() || provider.plugin {
                 return Ok(Some(Authorization::Full(provider.contract.clone())));
             }

@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
 // Local Imports
@@ -27,6 +27,7 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::execution::result::ExecutionStatus;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::history as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::execution_history::{ExecutionBrowsePage, ExecutionBrowseQuery};
 use dokime::runtime::query::{ExecutionFilter, ExecutionOrder, ExecutionOrderKey};
 
@@ -43,55 +44,45 @@ struct Resources {
     maximum: usize,
 }
 
-struct Browse {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Browse {
-    type Declaration = wire::BrowseExecutions;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::BrowseExecutions, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::history::wire::ExecutionBrowsePage>, Status> {
-        let after = if request.after_execution_id.is_empty() {
-            None
-        } else {
-            Some(
-                TestExecutionId::from_uuid(request.after_execution_id.clone())
-                    .map_err(|_| Status::invalid_argument("invalid execution cursor ID"))?,
-            )
-        };
-        let query = ExecutionBrowseQuery {
-            after,
-            limit: (request.limit != 0).then_some(request.limit as usize),
-            filter: execution_filter(request.filter.take())?,
-            order: execution_order(request.order.take())?,
-        };
-        let page = self.resources.runtime.browse_executions(query).await.map_err(super::wire::query_failure)?;
-        project(page, self.resources.maximum).map_err(|source| super::wire::query_failure(source.into()))
+impl Serve<wire::BrowseExecutions> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: wire::BrowseExecutions, _: Context<'a, wire::BrowseExecutions>,
+    ) -> Served<'a, dokime::domain::model::history::wire::ExecutionBrowsePage> {
+        Box::pin(async move {
+            let after = if request.after_execution_id.is_empty() {
+                None
+            } else {
+                Some(
+                    TestExecutionId::from_uuid(request.after_execution_id.clone())
+                        .map_err(|_| Status::invalid_argument("invalid execution cursor ID"))?,
+                )
+            };
+            let query = ExecutionBrowseQuery {
+                after,
+                limit: (request.limit != 0).then_some(request.limit as usize),
+                filter: execution_filter(request.filter.take())?,
+                order: execution_order(request.order.take())?,
+            };
+            let page = self.runtime.browse_executions(query).await.map_err(super::wire::query_failure)?;
+            project(page, self.maximum).map_err(|source| super::wire::query_failure(source.into()))
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<Browse>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::BrowseExecutions>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::BrowseExecutions>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

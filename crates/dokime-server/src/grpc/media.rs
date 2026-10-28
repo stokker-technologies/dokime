@@ -19,7 +19,7 @@
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
 // Local Imports
@@ -30,10 +30,11 @@ use dokime::artifacts::ArtifactRecord;
 use dokime::domain::model::content::wire::ArtifactMetadata;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::execution::RecordScope;
-use dokime::operations::media as contract;
 use dokime::domains::media::AudioRecording as Recording;
 use dokime::domains::media::NOT_COMPILED;
 use dokime::domains::media::UNAVAILABLE;
+use dokime::operations::hosting::{Host, Serve, Served};
+use dokime::operations::media as contract;
 use dokime::runtime::Error;
 
 /* === Constants === */
@@ -58,190 +59,127 @@ struct Resources {
     maximum: usize,
 }
 
-struct Screenshot {
-    resources: Arc<Resources>,
-}
+// Video Capture Is Declared But Refused: No Encoder Is Linked Yet.
+struct Unsupported;
 
-struct Photo {
-    resources: Arc<Resources>,
-}
-
-struct AudioRecording {
-    resources: Arc<Resources>,
-    recording: Option<Recording>,
-}
-
-struct ScreenRecording;
-
-struct CameraRecording;
+// A Cancelled Or Failed Stream Still Seals What Was Recorded.
+struct Unsealed(Option<Recording>);
 
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    Screenshot(Screenshot),
-    Photo(Photo),
-    AudioRecording(AudioRecording),
-    ScreenRecording(ScreenRecording),
-    CameraRecording(CameraRecording),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Screenshot {
-    type Declaration = contract::Screenshot;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::Screenshot, _: &mut (),
-    ) -> Result<Response<ArtifactMetadata>, Status> {
-        let scope = capture_scope(request.scope.as_ref())?;
-        let record = self.resources.runtime.capture_screenshot(scope, request.display).await.map_err(failure)?;
-        self.resources.respond(&record)
-    }
-}
-
-impl Operation for Photo {
-    type Declaration = contract::Photo;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::Photo, _: &mut (),
-    ) -> Result<Response<ArtifactMetadata>, Status> {
-        let scope = capture_scope(request.scope.as_ref())?;
-        let record = self.resources.runtime.capture_photo(scope, request.camera).await.map_err(failure)?;
-        self.resources.respond(&record)
-    }
-}
-
-impl Operation for AudioRecording {
-    type Declaration = contract::AudioRecording;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::media::wire::RecordingFrame>;
-
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources, recording: None })
-    }
-
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut contract::AudioRecording, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let limit = recording_limit(request.maximum_seconds)?;
+impl Serve<contract::Screenshot> for Resources {
+    fn serve<'a>(&'a self, request: contract::Screenshot, _: Context<'a, contract::Screenshot>) -> Served<'a, ArtifactMetadata> {
+        Box::pin(async move {
             let scope = capture_scope(request.scope.as_ref())?;
-            let recording = self.resources.runtime.start_audio_recording(scope, request.input).await.map_err(failure)?;
-            let recording = self.recording.insert(recording);
+            let record = self.runtime.capture_screenshot(scope, request.display).await.map_err(failure)?;
+            self.respond(&record)
+        })
+    }
+}
 
-            // Report Progress Until The Limit Or Until The Execution Seals It;
-            // Cancellation Seals Through `stop`
-            let sealed = loop {
-                let elapsed = recording.elapsed();
-                if elapsed >= limit {
-                    break recording.finish().await;
-                }
-                let progress = dokime::domain::model::media::wire::RecordingProgress {
-                    elapsed_ms: elapsed.as_millis().try_into().unwrap_or(u64::MAX),
-                    size_bytes: recording.size_bytes(),
+impl Serve<contract::Photo> for Resources {
+    fn serve<'a>(&'a self, request: contract::Photo, _: Context<'a, contract::Photo>) -> Served<'a, ArtifactMetadata> {
+        Box::pin(async move {
+            let scope = capture_scope(request.scope.as_ref())?;
+            let record = self.runtime.capture_photo(scope, request.camera).await.map_err(failure)?;
+            self.respond(&record)
+        })
+    }
+}
+
+impl Serve<contract::AudioRecording> for Resources {
+    fn serve<'a>(&'a self, request: contract::AudioRecording, ctx: Context<'a, contract::AudioRecording>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let limit = recording_limit(request.maximum_seconds)?;
+                let scope = capture_scope(request.scope.as_ref())?;
+                let started = self.runtime.start_audio_recording(scope, request.input).await.map_err(failure)?;
+                let mut unsealed = Unsealed(None);
+                let recording = unsealed.0.insert(started);
+
+                // Report Progress Until The Limit Or Until The Execution Seals It;
+                // Cancellation Seals Through `Unsealed`
+                let sealed = loop {
+                    let elapsed = recording.elapsed();
+                    if elapsed >= limit {
+                        break recording.finish().await;
+                    }
+                    let progress = dokime::domain::model::media::wire::RecordingProgress {
+                        elapsed_ms: elapsed.as_millis().try_into().unwrap_or(u64::MAX),
+                        size_bytes: recording.size_bytes(),
+                    };
+                    output
+                        .send_owned(
+                            (dokime::domain::model::media::wire::RecordingFrame {
+                                payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Progress(progress)),
+                            })
+                            .into(),
+                        )
+                        .await
+                        .map_err(stream_failure)?;
+                    tokio::select! {
+                        sealed = recording.settled() => break sealed,
+                        () = tokio::time::sleep(Duration::from_millis(SERVER_MEDIA_PROGRESS_MS).min(limit - elapsed)) => {}
+                    }
                 };
+
+                // Announce The Sealed Artifact
+                unsealed.0 = None;
+                let record = sealed.map_err(failure)?;
+                let completed = metadata(&record)?;
                 output
                     .send_owned(
                         (dokime::domain::model::media::wire::RecordingFrame {
-                            payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Progress(progress)),
+                            payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Completed(Box::new(completed))),
                         })
                         .into(),
                     )
                     .await
                     .map_err(stream_failure)?;
-                tokio::select! {
-                    sealed = recording.settled() => break sealed,
-                    () = tokio::time::sleep(Duration::from_millis(SERVER_MEDIA_PROGRESS_MS).min(limit - elapsed)) => {}
-                }
-            };
-
-            // Announce The Sealed Artifact
-            self.recording = None;
-            let record = sealed.map_err(failure)?;
-            let completed = metadata(&record)?;
-            output
-                .send_owned(
-                    (dokime::domain::model::media::wire::RecordingFrame {
-                        payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Completed(Box::new(completed))),
-                    })
-                    .into(),
-                )
-                .await
-                .map_err(stream_failure)?;
-            Ok(().into())
+                Ok::<_, Status>(().into())
+            })
+            .await
         })
-        .await
     }
+}
 
-    // A cancelled or failed stream still seals what was recorded.
-    async fn stop(&mut self) -> Result<(), Status> {
-        let Some(mut recording) = self.recording.take() else {
-            return Ok(());
+impl Serve<contract::ScreenRecording> for Unsupported {
+    fn serve<'a>(&'a self, _: contract::ScreenRecording, ctx: Context<'a, contract::ScreenRecording>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let revoked = crate::grpc::access::revocation(ctx.call());
+            crate::grpc::access::during(revoked, async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }).await
+        })
+    }
+}
+
+impl Serve<contract::CameraRecording> for Unsupported {
+    fn serve<'a>(&'a self, _: contract::CameraRecording, ctx: Context<'a, contract::CameraRecording>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let revoked = crate::grpc::access::revocation(ctx.call());
+            crate::grpc::access::during(revoked, async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }).await
+        })
+    }
+}
+
+impl Drop for Unsealed {
+    fn drop(&mut self) {
+        let Some(mut recording) = self.0.take() else {
+            return;
         };
-        let filename = recording.filename().to_owned();
-        let record = recording.finish().await.map_err(failure)?;
-        tracing::info!(artifact = %record.artifact_id, %filename, "cancelled audio recording sealed");
-        Ok(())
-    }
-}
-
-impl Operation for ScreenRecording {
-    type Declaration = contract::ScreenRecording;
-    type Resources = ();
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::media::wire::RecordingFrame>;
-
-    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self)
-    }
-
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, _: &mut contract::ScreenRecording, _: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }).await
-    }
-}
-
-impl Operation for CameraRecording {
-    type Declaration = contract::CameraRecording;
-    type Resources = ();
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::media::wire::RecordingFrame>;
-
-    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self)
-    }
-
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, _: &mut contract::CameraRecording, _: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }).await
+        tokio::spawn(async move {
+            let filename = recording.filename().to_owned();
+            match recording.finish().await {
+                Ok(record) => tracing::info!(artifact = %record.artifact_id, %filename, "cancelled audio recording sealed"),
+                Err(error) => tracing::warn!(%filename, %error, "cancelled audio recording could not be sealed"),
+            }
+        });
     }
 }
 
@@ -257,15 +195,22 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let operations = runtime.operations();
-    let lane = dokime::app::Lanes::Open;
-    operations.register_wire_operation::<Screenshot>("dokime", lane, resources.clone())?;
-    operations.register_wire_operation::<Photo>("dokime", lane, resources.clone())?;
-    operations.register_wire_operation::<AudioRecording>("dokime", lane, resources)?;
-    operations.register_wire_operation::<ScreenRecording>("dokime", lane, Arc::new(()))?;
-    operations.register_wire_operation::<CameraRecording>("dokime", lane, Arc::new(()))?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let unsupported = Arc::new(Unsupported);
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<contract::Screenshot>::new(served.clone()))?;
+    dependencies.insert(Host::<contract::Photo>::new(served.clone()))?;
+    dependencies.insert(Host::<contract::AudioRecording>::new(served))?;
+    dependencies.insert(Host::<contract::ScreenRecording>::new(unsupported.clone()))?;
+    dependencies.insert(Host::<contract::CameraRecording>::new(unsupported))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<contract::Screenshot>()
+        .operation::<contract::Photo>()
+        .operation::<contract::AudioRecording>()
+        .operation::<contract::ScreenRecording>()
+        .operation::<contract::CameraRecording>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

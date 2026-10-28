@@ -181,7 +181,7 @@ pub(crate) fn validate_analyses(
         .map_err(|error| error.to_string())?;
         let expected = harmos::operations::Contract::new_with_settings(
             contract.operation().clone(),
-            analysis.version,
+            contract.fingerprint(),
             harmos::operations::Codec::Postcard,
             schema,
             settings,

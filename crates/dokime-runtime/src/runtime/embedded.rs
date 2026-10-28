@@ -24,6 +24,7 @@ use harmos::sidecar::StreamDeclaration;
 // Local Imports
 use super::{RuntimeHandle, native_telemetry};
 use crate::execution::{EmbeddedPublisher, Runnable, SampleOutput};
+use crate::transport::TransportFuture;
 use crate::schema::graph::Schema;
 use crate::state::ProviderCatalog;
 use crate::{InstalledPlugin, runtime::Error, runtime::Result};
@@ -52,6 +53,7 @@ pub(super) struct Instance {
     owner: String,
     streams: Vec<StreamDeclaration>,
     running: Option<Running>,
+    templates: Option<Arc<Templates>>,
 }
 
 struct Running {
@@ -59,13 +61,35 @@ struct Running {
     publisher: Option<Arc<Publisher>>,
     templates: Vec<Arc<dyn Runnable>>,
     provider_started: bool,
-    operations: Option<harmos::operations::PluginRegistration>,
+    registered: bool,
 }
 
+// The host-level registry behind `dokime.template.run` and
+// `dokime.template.signal`: every started embedded provider files its
+// templates here, a run routes by its template identifier and a signal by the
+// execution token its run admitted.
+pub(crate) struct Templates {
+    sessions: Arc<crate::domains::execution::run::Sessions>,
+    state: std::sync::Mutex<Registry>,
+}
+
+#[derive(Default)]
+struct Registry {
+    templates: BTreeMap<String, Served>,
+    executions: BTreeMap<String, String>,
+}
+
+#[derive(Clone)]
 struct Served {
+    owner: String,
     template: Arc<dyn Runnable>,
     publisher: Arc<Publisher>,
-    sessions: Arc<crate::domains::execution::run::Sessions>,
+}
+
+// Removes a finished run's token route, including on cancellation.
+struct Admitted<'a> {
+    templates: &'a Templates,
+    token: String,
 }
 
 struct Publisher {
@@ -80,10 +104,6 @@ struct Publication {
     lease: Arc<harmos::streams::PublicationLease>,
     schema: Schema,
 }
-
-struct EmbeddedRun(Arc<Served>);
-
-struct EmbeddedSignal(Arc<Served>);
 
 /* === Enums === */
 
@@ -107,8 +127,6 @@ impl Active {
         Identifier::new(&catalog.source).map_err(operation)?;
         let streams = provider.streams();
         let generation = uuid::Uuid::now_v7().to_string();
-        let wire_contracts = template_contracts(&catalog, settings)?;
-        let operations = wire_contracts.iter().map(|contract| contract.operation().clone()).collect();
         let definition = harmos::plugin::PluginDefinition {
             id: catalog.source.clone(),
             version: catalog.version.parse().map_err(operation)?,
@@ -118,8 +136,9 @@ impl Active {
             contributions: harmos::plugin::PluginContributions {
                 // EmbeddedProvider Declares No SDK Hooks Or Plugin Listeners.
                 lifecycle: None,
-                operations,
-                wire_contracts,
+                // Templates Run Through The Host-Level `dokime.template.*` Operations.
+                operations: Vec::new(),
+                wire_contracts: Vec::new(),
                 required_contracts: record_requirement(&catalog, settings)?,
                 observers: Vec::new(),
                 listeners: Vec::new(),
@@ -146,6 +165,7 @@ impl Active {
             owner: self.definition.id.clone(),
             streams: self.streams.clone(),
             running: None,
+            templates: None,
         }
     }
 
@@ -169,7 +189,7 @@ impl Instance {
         &mut self, handle: &RuntimeHandle, router: &harmos::plugin::Router, authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let instance = router.enter(&self.owner).map_err(operation)?;
-        self.running = Some(Running { instance, publisher: None, templates: Vec::new(), provider_started: false, operations: None });
+        self.running = Some(Running { instance, publisher: None, templates: Vec::new(), provider_started: false, registered: false });
 
         let scope = self
             .running
@@ -191,23 +211,9 @@ impl Instance {
         let running = self.running.as_mut().expect("partial initialization remains owned");
         running.templates = templates.clone();
 
-        let registration = handle.operations.stage_plugin(&scope, |bindings| {
-            for template in &templates {
-                let [run, signal] =
-                    crate::execution::contracts_with_settings(template.template_identifier(), handle.schema_settings()).map_err(|_| {
-                        harmos::Error::InvalidInput { field: "embedded template", reason: "the template id is not an operation identity" }
-                    })?;
-                let served = Arc::new(Served {
-                    template: Arc::clone(template),
-                    publisher: Arc::clone(&publisher),
-                    sessions: Arc::clone(&handle.execution_sessions),
-                });
-                bindings.register_wire_contract::<EmbeddedRun>(&run, crate::app::Lanes::Open, Arc::clone(&served))?;
-                bindings.register_wire_contract::<EmbeddedSignal>(&signal, crate::app::Lanes::Open, served)?;
-            }
-            Ok(())
-        })?;
-        self.running.as_mut().expect("provider retains its engine").operations = Some(registration);
+        handle.embedded_templates.insert(&self.owner, &templates, &publisher)?;
+        self.running.as_mut().expect("provider retains its engine").registered = true;
+        self.templates = Some(Arc::clone(&handle.embedded_templates));
         Ok(())
     }
 
@@ -220,10 +226,12 @@ impl Instance {
             if !authority.matches_scope(scope, harmos::plugin::PluginKind::Embedded, harmos::plugin::PluginLifecyclePhase::Shutdown) {
                 return Err(operation("embedded shutdown generation differs"));
             }
-            if let Some(operations) = &mut running.operations {
-                operations.shutdown().await?;
+            if running.registered
+                && let Some(templates) = &self.templates
+            {
+                templates.remove(&self.owner);
             }
-            running.operations = None;
+            running.registered = false;
             running.instance.quiesce();
             for template in std::mem::take(&mut running.templates) {
                 template.shutdown().await;
@@ -244,46 +252,78 @@ impl Instance {
     }
 }
 
-impl harmos::operations::Operation for EmbeddedRun {
-    type Declaration = crate::execution::Run<()>;
-    type Resources = Served;
-    type Endpoints = ();
-    type Error = harmos::sidecar::Refusal;
-    type Context<'a> = harmos::operations::Context<'a>;
-
-    async fn initialize<'ctx>(served: Arc<Served>, _: Self::Context<'ctx>) -> std::result::Result<Self, Self::Error> {
-        Ok(Self(served))
+impl Templates {
+    pub(crate) fn new(sessions: Arc<crate::domains::execution::run::Sessions>) -> Self {
+        Self { sessions, state: std::sync::Mutex::new(Registry::default()) }
     }
 
-    async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, request: &mut crate::execution::Run<()>, _: &mut (),
-    ) -> std::result::Result<harmos::operations::Response<crate::transport::SidecarExecutionOutcome>, Self::Error> {
-        let request = std::mem::take(&mut request.0);
-        let host =
-            Arc::new(crate::domains::execution::run::host::Embedded::new(Arc::clone(&self.0.sessions), request.execution_token.clone()));
-        self.0
-            .template
-            .run(request, host, Some(SampleOutput::Embedded(self.0.publisher.clone())), crate::execution::Caller::default())
-            .await
-            .map(Into::into)
+    pub(crate) fn contains(&self, template: &str) -> bool {
+        self.lock().templates.contains_key(template)
+    }
+
+    // One provider owns each template identity; a second provider naming it is refused.
+    fn insert(&self, owner: &str, templates: &[Arc<dyn Runnable>], publisher: &Arc<Publisher>) -> Result<()> {
+        let mut registry = self.lock();
+        if templates.iter().any(|template| registry.templates.contains_key(template.template_identifier())) {
+            return Err(operation("an embedded template identity is already served"));
+        }
+        for template in templates {
+            let served = Served { owner: owner.to_owned(), template: Arc::clone(template), publisher: Arc::clone(publisher) };
+            registry.templates.insert(template.template_identifier().to_owned(), served);
+        }
+        Ok(())
+    }
+
+    fn remove(&self, owner: &str) {
+        let mut registry = self.lock();
+        let Registry { templates, executions } = &mut *registry;
+        templates.retain(|_, served| served.owner != owner);
+        executions.retain(|_, template| templates.contains_key(template));
+    }
+
+    fn template(&self, template: &str) -> std::result::Result<Served, harmos::sidecar::Refusal> {
+        self.lock().templates.get(template).cloned().ok_or_else(|| harmos::sidecar::Refusal::of("the embedded template is not served"))
+    }
+
+    fn admit(&self, token: &str, template: &str) -> Admitted<'_> {
+        self.lock().executions.insert(token.to_owned(), template.to_owned());
+        Admitted { templates: self, token: token.to_owned() }
+    }
+
+    fn signalled(&self, token: &str) -> std::result::Result<Served, harmos::sidecar::Refusal> {
+        let template = self.lock().executions.get(token).cloned();
+        let template = template.ok_or_else(|| harmos::sidecar::Refusal::of("the execution is not running on an embedded template"))?;
+        self.template(&template)
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Registry> {
+        self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
-impl harmos::operations::Operation for EmbeddedSignal {
-    type Declaration = crate::execution::Signal<()>;
-    type Resources = Served;
-    type Endpoints = ();
-    type Error = harmos::sidecar::Refusal;
-    type Context<'a> = harmos::operations::Context<'a>;
+impl Drop for Admitted<'_> {
+    fn drop(&mut self) {
+        self.templates.lock().executions.remove(&self.token);
+    }
+}
 
-    async fn initialize<'ctx>(served: Arc<Served>, _: Self::Context<'ctx>) -> std::result::Result<Self, Self::Error> {
-        Ok(Self(served))
+impl crate::execution::EmbeddedRegistry for Templates {
+    fn run(
+        &self, request: crate::transport::RunExecution,
+    ) -> TransportFuture<'_, std::result::Result<crate::transport::SidecarExecutionOutcome, harmos::sidecar::Refusal>> {
+        Box::pin(async move {
+            let served = self.template(&request.template_identifier)?;
+            let _admitted = self.admit(&request.execution_token, &request.template_identifier);
+            let host =
+                Arc::new(crate::domains::execution::run::host::Embedded::new(Arc::clone(&self.sessions), request.execution_token.clone()));
+            served.template.run(request, host, Some(SampleOutput::Embedded(served.publisher.clone())), crate::execution::Caller::default()).await
+        })
     }
 
-    async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, signal: &mut crate::execution::Signal<()>, _: &mut (),
-    ) -> std::result::Result<harmos::operations::Response<crate::transport::SignalReply>, Self::Error> {
-        self.0.template.signal(std::mem::take(&mut signal.0)).await.map(Into::into)
+    fn signal(
+        &self, signal: crate::transport::ExecutionSignal,
+    ) -> TransportFuture<'_, std::result::Result<crate::transport::SignalReply, harmos::sidecar::Refusal>> {
+        Box::pin(async move { self.signalled(&signal.execution_token)?.template.signal(signal).await })
     }
 }
 
@@ -341,6 +381,16 @@ impl EmbeddedPublisher for Publisher {
 
 /* === Public Functions === */
 
+// Registers the host-level template run and signal every embedded provider serves through.
+pub(crate) async fn register(operations: &crate::app::OperationManager, templates: &Arc<Templates>) -> harmos::Result<()> {
+    use harmos::RegistrationExt;
+    let mut dependencies = harmos::Dependencies::new();
+    dependencies.insert(Arc::new(crate::execution::EmbeddedTemplates(Arc::clone(templates) as Arc<dyn crate::execution::EmbeddedRegistry>)))?;
+    let batch =
+        harmos::RegistrationBatch::new(dependencies).operation::<crate::execution::Run<()>>().operation::<crate::execution::Signal<()>>();
+    operations.register(batch.lane(crate::app::Lanes::Open)).await
+}
+
 /* === Private Functions === */
 
 fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Registration>> {
@@ -376,17 +426,6 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Regis
             })
         })
         .collect()
-}
-
-fn template_contracts(catalog: &InstalledPlugin, settings: &harmos::config::SchemaSettings) -> Result<Vec<harmos::operations::Contract>> {
-    let mut contracts = Vec::new();
-    for suite in &catalog.suites.suites {
-        for template in &suite.suite.test_case_templates {
-            contracts
-                .extend(crate::execution::contracts_with_settings(template.metadata.identifier.as_str(), settings).map_err(operation)?);
-        }
-    }
-    Ok(contracts)
 }
 
 // A provider that declares records may file them through the host's record

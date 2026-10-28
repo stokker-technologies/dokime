@@ -106,71 +106,41 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
 /* === Public Functions === */
 
 /* === Private Functions === */
-#[harmos::lanes]
-enum FixtureLanes {
-    #[default]
-    Open,
-}
-
 macro_rules! delivery_fixture {
-    ($operation:ident, $handler:ident, $catalog:ident, $id:literal) => {
-        #[harmos::message]
+    ($operation:ident, $id:literal) => {
+        #[harmos::operation(id = $id, response = SignalReply, policy = <Signal<()> as harmos::OperationDeclaration>::POLICY,
+            visibility = Host, resources = [RecordingSidecar])]
         #[derive(Clone, PartialEq)]
         struct $operation {
             signal: ExecutionSignal,
         }
-        struct $handler {
-            sidecar: Arc<RecordingSidecar>,
-        }
-        impl harmos::operations::OperationDeclaration for $operation {
-            type Input = harmos::operations::NoStream;
-            type Output = harmos::operations::NoStream;
-            const VERSION: u32 = <Signal<()> as harmos::operations::OperationDeclaration>::VERSION;
-            type Response = SignalReply;
-            const ID: &'static str = $id;
-            const VISIBILITY: harmos::operations::Visibility = <Signal<()> as harmos::operations::OperationDeclaration>::VISIBILITY;
-            const POLICY: harmos::operations::OperationPolicy = <Signal<()> as harmos::operations::OperationDeclaration>::POLICY;
-        }
-        #[harmos::catalog]
-        enum $catalog {
-            Deliver($handler),
-        }
-        impl harmos::operations::Declares for $handler {
-            type Declaration = $operation;
-        }
-        impl harmos::operations::Operation for $handler {
-            type Declaration = $operation;
-            type Resources = RecordingSidecar;
-            type Endpoints = ();
-            type Error = harmos::Error;
-            type Context<'a> = harmos::operations::Context<'a>;
-            async fn initialize<'ctx>(sidecar: Arc<RecordingSidecar>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
-                Ok(Self { sidecar })
-            }
-            async fn run<'ctx>(
-                &mut self, _: Self::Context<'ctx>, request: &mut $operation, _: &mut (),
-            ) -> harmos::Result<harmos::operations::Response<SignalReply>> {
-                self.sidecar.calls.lock().unwrap().push(($id.into(), request.signal.encode_to_vec()));
-                Ok(harmos::operations::Response::new(SignalReply::default()))
+        impl harmos::Operation for $operation {
+            type Error = std::convert::Infallible;
+
+            async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Self::Error> {
+                ctx.resource::<RecordingSidecar>().calls.lock().unwrap().push(($id.into(), self.signal.encode()));
+                Ok(harmos::Response::new(SignalReply::default()))
             }
         }
     };
 }
-delivery_fixture!(GatewayDelivery, GatewayDeliveryHandler, GatewaySignals, "fixture.template.2.signal");
-delivery_fixture!(BenchDelivery, BenchDeliveryHandler, BenchSignals, "fixture.template.0.signal");
-delivery_fixture!(ProbeDelivery, ProbeDeliveryHandler, ProbeSignals, "fixture.template.1.signal");
+delivery_fixture!(GatewayDelivery, "fixture.template.2.signal");
+delivery_fixture!(BenchDelivery, "fixture.template.0.signal");
+delivery_fixture!(ProbeDelivery, "fixture.template.1.signal");
 
-fn register_sidecars(handle: &dokime_runtime::RuntimeHandle, sidecars: &[(&str, &Arc<RecordingSidecar>)]) {
+async fn register_sidecars(handle: &dokime_runtime::RuntimeHandle, sidecars: &[(&str, &Arc<RecordingSidecar>)]) {
+    use harmos::RegistrationExt;
     for (source, sidecar) in sidecars {
-        match *source {
-            "gateway" => {
-                handle.operations().register_wire_operations::<GatewaySignals, _>(*source, FixtureLanes::Open, Arc::clone(sidecar))
-            }
-            "bench" => handle.operations().register_wire_operations::<BenchSignals, _>(*source, FixtureLanes::Open, Arc::clone(sidecar)),
-            "probe" => handle.operations().register_wire_operations::<ProbeSignals, _>(*source, FixtureLanes::Open, Arc::clone(sidecar)),
+        let mut dependencies = harmos::Dependencies::new();
+        dependencies.insert(Arc::clone(sidecar)).unwrap();
+        let batch = harmos::RegistrationBatch::new(dependencies);
+        let batch = match *source {
+            "gateway" => batch.operation::<GatewayDelivery>(),
+            "bench" => batch.operation::<BenchDelivery>(),
+            "probe" => batch.operation::<ProbeDelivery>(),
             _ => panic!("unknown fixture owner"),
-        }
-        .unwrap();
+        };
+        handle.operations().register(batch.lane(dokime_runtime::app::Lanes::Open)).await.unwrap();
     }
 }
 
@@ -258,7 +228,7 @@ fn gateway_batch(rssi: f64) -> TelemetryBatch {
     TelemetryBatch::new(
         dokime_runtime::model::identity::new_id(),
         foreign_stream(),
-        vec![sample.with_storage_payload(harmos::Message::encode_to_vec(&GatewayRow { rssi }))],
+        vec![sample.with_storage_payload(harmos::Message::encode(&GatewayRow { rssi }))],
     )
 }
 
@@ -318,7 +288,7 @@ async fn two_executions_rows() {
     let owner = Arc::new(RecordingSidecar::default());
     let first_reader = Arc::new(RecordingSidecar::default());
     let second_reader = Arc::new(RecordingSidecar::default());
-    register_sidecars(&handle, &[("gateway", &owner), ("bench", &first_reader), ("probe", &second_reader)]);
+    register_sidecars(&handle, &[("gateway", &owner), ("bench", &first_reader), ("probe", &second_reader)]).await;
 
     let first = admitted_execution(&handle, 0).await;
     let second = admitted_execution(&handle, 1).await;
@@ -420,7 +390,7 @@ async fn foreign_stream_refuses() {
 
     let owner = Arc::new(RecordingSidecar::default());
     let reader = Arc::new(RecordingSidecar::default());
-    register_sidecars(&handle, &[("gateway", &owner), ("bench", &reader)]);
+    register_sidecars(&handle, &[("gateway", &owner), ("bench", &reader)]).await;
 
     let execution = admitted_execution(&handle, 0).await;
     let leases = handle

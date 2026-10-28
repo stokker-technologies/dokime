@@ -113,17 +113,17 @@ impl Source {
 }
 
 impl<F: Frames> Download<F> {
-    pub(super) async fn run(mut self, output: &mut StreamOutput<F::Frame>) -> Result<(), Status> {
+    pub(super) async fn run(mut self, output: &StreamOutput<F::Frame>) -> Result<(), Status> {
         let template = self.frames.chunk(self.size_bytes, Vec::new());
         let bytes = super::content::output_chunk_bytes(&template, self.chunk_bytes, self.message_limit)?;
         let maximum = NonZeroUsize::new(bytes).ok_or_else(|| self.too_large())?;
         if let Some(owner) = self.frames.metadata_owned() {
             self.check(&owner)?;
-            output.send_owned(owner).await.map_err(stream_failure)?;
+            output.send_owned(owner).await.map_err(output_failure)?;
         } else {
             let metadata = self.frames.metadata();
             self.check(&metadata)?;
-            output.send_owned((metadata).into()).await.map_err(stream_failure)?;
+            output.send_owned((metadata).into()).await.map_err(output_failure)?;
         }
         let mut offset = 0u64;
         let mut digest = Sha256::new();
@@ -166,7 +166,7 @@ impl<F: Frames> Download<F> {
                         return Err(Status::resource_exhausted("opened file frame exceeds message budget"));
                     }
                     let response = dokime::harmos::operations::Response::from_owner(frame.owner());
-                    output.send_owned(response).await.map_err(stream_failure)?;
+                    output.send_owned(response).await.map_err(output_failure)?;
                     if done {
                         *batch = None;
                         *read = 0;
@@ -192,7 +192,7 @@ impl<F: Frames> Download<F> {
                     if super::content::output_frame_len(&frame)? > self.message_limit {
                         return Err(Status::resource_exhausted("file frame exceeds wire limit"));
                     }
-                    output.send_owned(frame.into()).await.map_err(stream_failure)?;
+                    output.send_owned(frame.into()).await.map_err(output_failure)?;
                     *read = end;
                     offset = next;
                 }
@@ -208,7 +208,7 @@ impl<F: Frames> Download<F> {
                         chunk.try_map(|bytes| Ok::<_, dokime::harmos::Error>(self.frames.chunk(offset, bytes))).map_err(stream_failure)?;
                     self.check(&frame)?;
                     let response = dokime::harmos::operations::Response::from_owner(frame.owner());
-                    output.send_owned(response).await.map_err(stream_failure)?;
+                    output.send_owned(response).await.map_err(output_failure)?;
                     offset = next;
                 }
                 Source::Evidence(reader) => {
@@ -227,7 +227,7 @@ impl<F: Frames> Download<F> {
                         .map_err(stream_failure)?;
                     self.check(&frame)?;
                     let response = dokime::harmos::operations::Response::from_owner(frame.owner());
-                    output.send_owned(response).await.map_err(stream_failure)?;
+                    output.send_owned(response).await.map_err(output_failure)?;
                     offset = next;
                 }
             }
@@ -238,7 +238,7 @@ impl<F: Frames> Download<F> {
         let sha256 = self.sha256.take().unwrap_or_else(|| digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect());
         let complete = self.frames.complete(offset, sha256);
         self.check(&complete)?;
-        output.send_owned((complete).into()).await.map_err(stream_failure)
+        output.send_owned((complete).into()).await.map_err(output_failure)
     }
 
     fn check(&self, frame: &F::Frame) -> Result<(), Status> {
@@ -270,6 +270,16 @@ fn file_failure(source: dokime::runtime::Error, message: &'static str) -> Status
         _ => Status::internal(message),
     };
     super::error::detailed(status, &source)
+}
+
+// Output Endpoint Refusals Keep Their Admission Classification.
+pub(super) fn output_failure(error: dokime::harmos::operations::StreamError) -> Status {
+    use dokime::harmos::operations::StreamError;
+    match error {
+        StreamError::Capacity | StreamError::Construction => Status::resource_exhausted(error.to_string()),
+        StreamError::Closed => Status::unavailable(error.to_string()),
+        _ => Status::internal(error.to_string()),
+    }
 }
 
 fn stream_failure(error: dokime::harmos::Error) -> Status {

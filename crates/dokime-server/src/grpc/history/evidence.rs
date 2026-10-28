@@ -19,7 +19,7 @@ use crate::grpc::transcode::Transcode;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
 // Local Imports
@@ -29,6 +29,7 @@ use crate::grpc::{
     value::{self, canonical},
 };
 use dokime::operations::history as contract;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{
     RuntimeHandle,
     runtime::query::execution_history::{ExecutionCheckpoint, ExecutionCheckpointEvidence},
@@ -47,64 +48,54 @@ struct Resources {
     maximum: usize,
 }
 
-struct Get {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Get {
-    type Declaration = contract::GetCheckpointEvidence;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::GetCheckpointEvidence, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::history::wire::CheckpointEvidence>, Status> {
-        let checkpoint = wire::checkpoint(request.checkpoint.take())?;
-        let sections = sections(std::mem::take(&mut request.sections))?;
-        let maximum = self.resources.maximum;
-        let only_outputs = !sections.record_schemas && !sections.telemetry_tables;
-        let runtime = &self.resources.runtime;
-        let response = if only_outputs {
-            let outputs = runtime.execution_checkpoint_outputs(&checkpoint).await.map_err(wire::checkpoint_failure)?;
-            outputs
-                .project(|outputs| {
-                    checkpoint_outputs(&checkpoint, outputs, &sections, maximum).map_err(|error| original_error(error).into())
-                })
-                .map_err(wire::checkpoint_failure)?
-        } else {
-            let evidence = runtime.execution_checkpoint_evidence(checkpoint).await.map_err(wire::checkpoint_failure)?;
-            evidence
-                .try_map(|evidence| -> dokime::runtime::Result<_> {
-                    checkpoint_evidence(evidence, &sections, maximum, runtime.schema_settings())
-                        .map_err(|error| original_error(error).into())
-                })
-                .map_err(wire::checkpoint_failure)?
-        };
-        if response.wire_len()? > self.resources.maximum {
-            return Err(Status::resource_exhausted("historical response exceeds transport limit"));
-        }
-        Ok(Response::from_owner(response.owner()))
+impl Serve<contract::GetCheckpointEvidence> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: contract::GetCheckpointEvidence, _: Context<'a, contract::GetCheckpointEvidence>,
+    ) -> Served<'a, dokime::domain::model::history::wire::CheckpointEvidence> {
+        Box::pin(async move {
+            let checkpoint = wire::checkpoint(request.checkpoint.take())?;
+            let sections = sections(std::mem::take(&mut request.sections))?;
+            let maximum = self.maximum;
+            let only_outputs = !sections.record_schemas && !sections.telemetry_tables;
+            let runtime = &self.runtime;
+            let response = if only_outputs {
+                let outputs = runtime.execution_checkpoint_outputs(&checkpoint).await.map_err(wire::checkpoint_failure)?;
+                outputs
+                    .project(|outputs| {
+                        checkpoint_outputs(&checkpoint, outputs, &sections, maximum).map_err(|error| original_error(error).into())
+                    })
+                    .map_err(wire::checkpoint_failure)?
+            } else {
+                let evidence = runtime.execution_checkpoint_evidence(checkpoint).await.map_err(wire::checkpoint_failure)?;
+                evidence
+                    .try_map(|evidence| -> dokime::runtime::Result<_> {
+                        checkpoint_evidence(evidence, &sections, maximum, runtime.schema_settings())
+                            .map_err(|error| original_error(error).into())
+                    })
+                    .map_err(wire::checkpoint_failure)?
+            };
+            if response.wire_len()? > self.maximum {
+                return Err(Status::resource_exhausted("historical response exceeds transport limit"));
+            }
+            Ok::<_, Status>(Response::from_owner(response.owner()))
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<Get>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<contract::GetCheckpointEvidence>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<contract::GetCheckpointEvidence>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -134,7 +125,12 @@ impl Sections {
 fn sections(values: Vec<dokime::domain::model::history::wire::EvidenceSection>) -> Result<Sections, Status> {
     use dokime::domain::model::history::wire::EvidenceSection;
     let all = values.is_empty();
-    let mut selected = Sections { outputs: all, artifacts: all, record_schemas: all, telemetry_tables: all };
+    let mut selected = Sections {
+        outputs: all,
+        artifacts: all,
+        record_schemas: all,
+        telemetry_tables: all,
+    };
     for section in values {
         match section {
             EvidenceSection::Outputs => selected.outputs = true,
@@ -282,7 +278,9 @@ fn original_error(source: Status) -> dokime::harmos::Error {
 }
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint evidence" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical checkpoint evidence",
+    }
 }
 
 /* === Tests === */

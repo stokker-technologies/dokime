@@ -441,7 +441,7 @@ pub fn decode_positioned(codec: &TypedCodec, batch: ArrowBatch) -> Result<harmos
     let maximum = NonZeroUsize::MAX;
     let encoded = batch.try_map(|batch| {
         let payload = payload_column(&batch)?;
-        let rows = harmos::storage::arrow::encode_payloads(codec.graph(), payload, PayloadEncoding::PostcardV1, maximum)?;
+        let rows = harmos::storage::arrow::encode_payloads(codec.graph(), payload, maximum)?;
         Ok::<_, Error>((batch, rows))
     })?;
     encoded.try_map(|(batch, rows)| {

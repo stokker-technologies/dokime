@@ -616,9 +616,7 @@ async fn live_follow_refusal(change: &str) {
     while let Some(dokime::harmos::Error::TaskFailed { source, .. }) = cause.downcast_ref::<dokime::harmos::Error>() {
         cause = source.as_ref();
     }
-    let Some(dokime::harmos::services::Fault::Application(dokime::runtime::Error::Operation(reason))) =
-        cause.downcast_ref::<dokime::harmos::services::Fault<dokime::runtime::Error>>()
-    else {
+    let Some(dokime::runtime::Error::Operation(reason)) = cause.downcast_ref::<dokime::runtime::Error>() else {
         panic!("{change}: shutdown must retain the injected capture failure: {failure:?}");
     };
     assert_eq!(reason, refusal.message(), "{change}: {failure}");

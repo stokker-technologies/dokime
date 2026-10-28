@@ -44,7 +44,7 @@ pub fn managed_storage_defaults() -> ManagedStorageSettings {
         capture: limits,
         snapshots: Some(harmos::state::SnapshotPolicy {
             schema: SchemaKey {
-                payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1,
+                payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
                 id: harmos::Identifier::new("dokime.runtime.state").unwrap(),
                 version: 1.try_into().unwrap(),
             },

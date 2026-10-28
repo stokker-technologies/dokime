@@ -17,7 +17,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response, StreamInput};
+use dokime::harmos::operations::StreamInput;
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -30,8 +31,9 @@ use dokime::domain::model::execution::RecordScope;
 use dokime::domain::model::identity::CaseId;
 use dokime::domain::model::identity::TestCycleId;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::operations::content as wire;
 use dokime::domains::evidence::ArtifactUploadInput;
+use dokime::operations::content as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::ArtifactUpload;
 
 /* === Constants === */
@@ -47,8 +49,8 @@ struct Resources {
     maximum: usize,
 }
 
-struct Upload {
-    resources: Arc<Resources>,
+// Abandons What An Interrupted Upload Staged: A Cancelled Or Failed Call Drops The Future.
+struct Abandoning {
     upload: Option<ArtifactUpload>,
 }
 
@@ -58,106 +60,107 @@ struct Upload {
 
 /* === Implementations === */
 
-impl Operation for Upload {
-    type Declaration = wire::UploadArtifact;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamInput<dokime::domain::model::content::wire::UploadArtifactFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources, upload: None })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, _: &mut wire::UploadArtifact, input: &mut Self::Endpoints,
-    ) -> Result<Response<dokime::domain::model::content::wire::ArtifactMetadata>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let first = input.recv().await.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
-            let Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
-                return Err(Status::invalid_argument("first artifact upload frame must be a header"));
-            };
-            let upload_size = header.size_bytes;
-            let (scope, filename, content_type, sha256) = upload_header(header)?;
-            if scope.test_cycle_id.is_none() {
-                return Err(Status::invalid_argument("artifact upload cycle scope is required"));
-            }
-            if scope.test_execution_id.is_none() {
-                return Err(Status::invalid_argument("artifact upload execution scope is required"));
-            }
-            let upload = self
-                .resources
-                .runtime
-                .begin_artifact_upload(ArtifactUploadInput { scope, filename, content_type, size_bytes: upload_size, sha256 })
-                .await
-                .map_err(content_failure)?;
-            self.upload = Some(upload.clone());
-            drop(first);
-            let chunk_bytes = transfer_chunk_bytes(&self.resources.runtime, self.resources.maximum)?;
-            if chunk_bytes == 0 {
-                return Err(Status::resource_exhausted("artifact upload exceeds configured message limit"));
-            }
-            let receiving = std::time::Instant::now();
-            tracing::debug!(phase = "artifact_receive", bytes = upload_size, "artifact upload receiving started");
-            let received = receive_artifact(input, upload.clone(), upload_size, chunk_bytes).await;
-            tracing::debug!(
-                phase = "artifact_receive", bytes = upload_size, elapsed_ms = %receiving.elapsed().as_millis(),
-                succeeded = received.is_ok(), "artifact upload receiving finished"
-            );
-            let trailing = match received {
-                Ok(trailing) => trailing,
-                Err(source) => {
-                    match upload.abandon().await {
-                        Ok(_) => self.upload = None,
-                        Err(cleanup) => {
-                            tracing::warn!(error = %cleanup, "artifact upload abandonment failed")
-                        }
-                    }
-                    return Err(source);
+impl Serve<wire::UploadArtifact> for Resources {
+    fn serve<'a>(
+        &'a self, _: wire::UploadArtifact, ctx: Context<'a, wire::UploadArtifact>,
+    ) -> Served<'a, dokime::domain::model::content::wire::ArtifactMetadata> {
+        Box::pin(async move {
+            let revoked = crate::grpc::access::revocation(ctx.call());
+            let input = ctx.streams();
+            let mut staged = Abandoning { upload: None };
+            crate::grpc::access::during(revoked, async {
+                let first = input.recv().await.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
+                let Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
+                    return Err(Status::invalid_argument("first artifact upload frame must be a header"));
+                };
+                let upload_size = header.size_bytes;
+                let (scope, filename, content_type, sha256) = upload_header(header)?;
+                if scope.test_cycle_id.is_none() {
+                    return Err(Status::invalid_argument("artifact upload cycle scope is required"));
                 }
-            };
-            let sealing = std::time::Instant::now();
-            tracing::debug!(phase = "artifact_upload_seal", bytes = upload_size, "original artifact upload sealing started");
-            let sealed = upload.finish_verified(trailing).await;
-            tracing::debug!(
-                phase = "artifact_upload_seal", bytes = upload_size, elapsed_ms = %sealing.elapsed().as_millis(),
-                succeeded = sealed.is_ok(), "original artifact upload sealing finished"
-            );
-            let record = sealed.map_err(content_failure)?;
-            self.upload = None;
-            let output = metadata(&record)?;
-            if output.wire_len()? > self.resources.maximum {
-                return Err(Status::resource_exhausted("artifact metadata exceeds response budget"));
-            }
-            Ok(output.into())
+                if scope.test_execution_id.is_none() {
+                    return Err(Status::invalid_argument("artifact upload execution scope is required"));
+                }
+                let upload = self
+                    .runtime
+                    .begin_artifact_upload(ArtifactUploadInput {
+                        scope,
+                        filename,
+                        content_type,
+                        size_bytes: upload_size,
+                        sha256,
+                    })
+                    .await
+                    .map_err(content_failure)?;
+                staged.upload = Some(upload.clone());
+                drop(first);
+                let chunk_bytes = transfer_chunk_bytes(&self.runtime, self.maximum)?;
+                if chunk_bytes == 0 {
+                    return Err(Status::resource_exhausted("artifact upload exceeds configured message limit"));
+                }
+                let receiving = std::time::Instant::now();
+                tracing::debug!(phase = "artifact_receive", bytes = upload_size, "artifact upload receiving started");
+                let received = receive_artifact(input, upload.clone(), upload_size, chunk_bytes).await;
+                tracing::debug!(
+                    phase = "artifact_receive", bytes = upload_size, elapsed_ms = %receiving.elapsed().as_millis(),
+                    succeeded = received.is_ok(), "artifact upload receiving finished"
+                );
+                let trailing = match received {
+                    Ok(trailing) => trailing,
+                    Err(source) => {
+                        match upload.abandon().await {
+                            Ok(_) => staged.upload = None,
+                            Err(cleanup) => {
+                                tracing::warn!(error = %cleanup, "artifact upload abandonment failed")
+                            }
+                        }
+                        return Err(source);
+                    }
+                };
+                let sealing = std::time::Instant::now();
+                tracing::debug!(phase = "artifact_upload_seal", bytes = upload_size, "original artifact upload sealing started");
+                let sealed = upload.finish_verified(trailing).await;
+                tracing::debug!(
+                    phase = "artifact_upload_seal", bytes = upload_size, elapsed_ms = %sealing.elapsed().as_millis(),
+                    succeeded = sealed.is_ok(), "original artifact upload sealing finished"
+                );
+                let record = sealed.map_err(content_failure)?;
+                staged.upload = None;
+                let output = metadata(&record)?;
+                if output.wire_len()? > self.maximum {
+                    return Err(Status::resource_exhausted("artifact metadata exceeds response budget"));
+                }
+                Ok(output.into())
+            })
+            .await
         })
-        .await
-    }
-    async fn stop(&mut self) -> Result<(), Status> {
-        self.abandon().await
-    }
-    async fn cleanup(&mut self) -> Result<(), Status> {
-        self.abandon().await
     }
 }
 
-impl Upload {
-    async fn abandon(&mut self) -> Result<(), Status> {
-        if let Some(upload) = &self.upload {
-            upload.abandon().await.map_err(content_failure)?;
-            self.upload = None;
-        }
-        Ok(())
+impl Drop for Abandoning {
+    fn drop(&mut self) {
+        let Some(upload) = self.upload.take() else {
+            return;
+        };
+        let Ok(handle) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        handle.spawn(async move {
+            if let Err(error) = upload.abandon().await {
+                tracing::warn!(error = %error, "artifact upload abandonment failed");
+            }
+        });
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<Upload>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::UploadArtifact>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::UploadArtifact>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -178,15 +181,20 @@ pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime::domain::model::cont
         .as_deref()
         .map(|id| TestExecutionId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid execution UUID")))
         .transpose()?;
-    Ok(RecordScope { test_cycle_id: cycle_id, test_case_id: case_id, test_execution_id: execution_id, ..RecordScope::default() })
+    Ok(RecordScope {
+        test_cycle_id: cycle_id,
+        test_case_id: case_id,
+        test_execution_id: execution_id,
+        ..RecordScope::default()
+    })
 }
 
 pub(in crate::grpc) fn content_failure(error: dokime::runtime::Error) -> Status {
     use dokime::runtime::Error;
     let status = match &error {
-        Error::ExportStorage { source: dokime::domains::exports::storage::StorageError::ArchiveTooLarge { .. } } => {
-            Status::resource_exhausted("cycle bundle exceeds native content limit")
-        }
+        Error::ExportStorage {
+            source: dokime::domains::exports::storage::StorageError::ArchiveTooLarge { .. },
+        } => Status::resource_exhausted("cycle bundle exceeds native content limit"),
         Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("artifact upload owner not found"),
         Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
         Error::Admission(AdmissionFailure::Forbidden { .. }) => Status::permission_denied("artifact upload failed"),
@@ -225,7 +233,7 @@ fn valid_digest(value: &str) -> bool {
 }
 
 async fn receive_artifact(
-    input: &mut StreamInput<dokime::domain::model::content::wire::UploadArtifactFrame>, upload: ArtifactUpload, expected_size: u64,
+    input: &StreamInput<dokime::domain::model::content::wire::UploadArtifactFrame>, upload: ArtifactUpload, expected_size: u64,
     max_chunk_bytes: usize,
 ) -> Result<Option<String>, Status> {
     let mut offset = 0_u64;

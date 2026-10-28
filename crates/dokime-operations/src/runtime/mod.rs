@@ -86,7 +86,7 @@ impl super::Endpoint for GetIdentity {
 /* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
-mod runtime {
+mod hosted {
     use super::*;
 
     crate::hosted!(GetHealth, GetIdentity);

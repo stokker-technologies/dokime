@@ -14,14 +14,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
 use crate::{Resources, error::Error};
 use dokime::host::ToolConnectionAcquired;
-use dokime::prelude::*;
+use dokime::plugin::ListenerContext;
 
 /* === Constants === */
 
@@ -31,9 +30,7 @@ use dokime::prelude::*;
 
 /* === Structs === */
 
-pub(crate) struct Observed {
-    resources: Arc<Resources>,
-}
+pub(crate) struct Observed;
 
 /* === Enums === */
 
@@ -41,14 +38,10 @@ pub(crate) struct Observed {
 
 /* === Implementations === */
 
-#[dokime::listener(id = "obc-plugin.connection", record = ToolConnectionAcquired)]
+#[dokime::listener(id = "obc.bench.connection", record = ToolConnectionAcquired, resources = [Resources])]
 impl Observed {
-    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
-        Self { resources }
-    }
-
-    async fn hear(&mut self, _: &Supervisor, acquired: ToolConnectionAcquired) -> Result<(), Error> {
-        self.resources.observed(acquired.resource_id);
+    async fn hear(ctx: &ListenerContext<'_, Self>, acquired: ToolConnectionAcquired) -> Result<(), Error> {
+        ctx.resource::<Resources>().observed(acquired.resource_id);
         Ok(())
     }
 }

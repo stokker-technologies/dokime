@@ -204,7 +204,7 @@ async fn registration_replaces_failed() {
     assert!(runtime.handle().streams().definitions().iter().any(|definition| definition.id() == "fixture.embedded.staged"));
     let owner = runtime.handle().watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
     let route = format!("{TEMPLATE}.signal");
-    let payload = ExecutionSignal::default().encode_to_vec();
+    let payload = ExecutionSignal::default().encode();
     assert!(
         matches!(runtime.handle().operations().call_encoded(&route, payload.clone()).await, Err(harmos::Error::OperationFailed { .. })),
         "the served template received the signal"

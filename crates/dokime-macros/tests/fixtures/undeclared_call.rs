@@ -30,19 +30,13 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Type Aliases === */
 
 /* === Structs === */
-#[sdk::message]
-#[derive(Clone, PartialEq)]
-#[sdk::operation(id = "undeclared.get_voltage", version = 1, description = "Reads.", policy = POLICY, response = ())]
+#[sdk::operation(id = "undeclared.get_voltage", description = "Reads.", policy = POLICY, response = ())]
+#[derive(PartialEq)]
 struct GetVoltage {}
 
-struct GetVoltageHandler;
-
-#[sdk::message]
-#[derive(Clone, PartialEq)]
-#[sdk::operation(id = "undeclared.get_current", version = 1, description = "Reads.", policy = POLICY, response = ())]
+#[sdk::operation(id = "undeclared.get_current", description = "Reads.", policy = POLICY, response = ())]
+#[derive(PartialEq)]
 struct GetCurrent {}
-
-struct GetCurrentHandler;
 
 struct Probe;
 
@@ -58,8 +52,8 @@ enum ProbeRequired {
 
 #[sdk::catalog]
 enum PluginOperations {
-    GetVoltage(GetVoltageHandler),
-    GetCurrent(GetCurrentHandler),
+    GetVoltage(GetVoltage),
+    GetCurrent(GetCurrent),
 }
 
 #[sdk::catalog]
@@ -75,25 +69,19 @@ enum PluginSuites {
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation]
-impl GetVoltageHandler {
-    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
-        Self
-    }
+impl sdk::Operation for GetVoltage {
+    type Error = sdk::Refusal;
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &mut GetVoltage) -> Result<(), sdk::Refusal> {
-        Ok(())
+    async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
+        Ok(().into())
     }
 }
 
-#[sdk::operation]
-impl GetCurrentHandler {
-    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
-        Self
-    }
+impl sdk::Operation for GetCurrent {
+    type Error = sdk::Refusal;
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &mut GetCurrent) -> Result<(), sdk::Refusal> {
-        Ok(())
+    async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
+        Ok(().into())
     }
 }
 
@@ -117,7 +105,7 @@ impl Probe {
 #[sdk::suite(id = "undeclared.checks", label = "Checks", templates = ChecksTemplates)]
 impl Checks {}
 
-impl sdk::harmos::operations::lifecycle::Policy for Plugin {
+impl sdk::harmos::builtins::lifecycle::Policy for Plugin {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
 }
@@ -150,7 +138,7 @@ impl sdk::Plugin for Plugin {
     fn bind_operations(
         &self, table: &mut sdk::harmos::operations::WireTable,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
-        table.bind_operations::<PluginOperations, _>(self.resources())?;
+        table.register(PluginOperations::registration(sdk::harmos::Dependencies::new()))?;
         sdk::execution::serve::<Self, PluginSuites>(table)
     }
 

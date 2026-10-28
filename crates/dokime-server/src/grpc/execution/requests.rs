@@ -17,13 +17,14 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation};
+use dokime::harmos::{Context, RegistrationExt};
 
 // Local Imports
 use super::*;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::identity::wire as common;
 use dokime::operations::execution as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::command::{CommandReceipt, CommandStatus};
 
 /* === Constants === */
@@ -34,55 +35,46 @@ use dokime::runtime::command::{CommandReceipt, CommandStatus};
 
 /* === Structs === */
 
-struct Execution {
-    runtime: Arc<RuntimeHandle>,
+struct Resources {
+    runtime: RuntimeHandle,
 }
 
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    Execution(Execution),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Execution {
-    type Declaration = wire::StartExecution;
-    type Resources = RuntimeHandle;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(runtime: Arc<RuntimeHandle>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { runtime })
-    }
-    async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut wire::StartExecution, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::RunReply>, Status> {
-        let context = super::control::command_context(&context, None)?;
-        let id = dokime::domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())
-            .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
-        let mode = match request.mode {
-            dokime::domain::model::execution::wire::ExecutionMode::Automatic => dokime::domain::model::execution::ExecutionMode::Automatic,
-            dokime::domain::model::execution::wire::ExecutionMode::Interactive => {
-                dokime::domain::model::execution::ExecutionMode::Interactive
-            }
-        };
-        let result = self.runtime.start_execution(id, mode, context).await;
-        receipt(result, self.runtime.process_epoch().to_string()).map(Into::into)
+impl Serve<wire::StartExecution> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::StartExecution, ctx: Context<'a, wire::StartExecution>,
+    ) -> Served<'a, dokime::domain::model::execution::wire::RunReply> {
+        Box::pin(async move {
+            let context = super::control::command_context(ctx.call(), None)?;
+            let id = dokime::domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())
+                .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
+            let mode = match request.mode {
+                dokime::domain::model::execution::wire::ExecutionMode::Automatic => {
+                    dokime::domain::model::execution::ExecutionMode::Automatic
+                }
+                dokime::domain::model::execution::wire::ExecutionMode::Interactive => {
+                    dokime::domain::model::execution::ExecutionMode::Interactive
+                }
+            };
+            let result = self.runtime.start_execution(id, mode, context).await;
+            receipt(result, self.runtime.process_epoch().to_string()).map(Into::into)
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operations::<Operations, RuntimeHandle>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(runtime.clone()),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone() });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::StartExecution>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::StartExecution>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -104,8 +96,15 @@ fn receipt(receipt: CommandReceipt, epoch: String) -> Result<dokime::domain::mod
             dokime::domain::model::execution::wire::RunReplyOutcome::Accepted(dokime::domain::model::execution::wire::Admission {
                 command_id: receipt.command_id.to_string(),
                 job_id: receipt.job_id.map(|id| id.to_string()),
-                cursor: Some(Cursor { epoch, stream: crate::grpc::observation::STREAM.into(), position: receipt.runtime_revision }),
-                accepted_at: Some(common::Timestamp { seconds: at.unix_timestamp(), nanos: at.nanosecond() as i32 }),
+                cursor: Some(Cursor {
+                    epoch,
+                    stream: crate::grpc::observation::STREAM.into(),
+                    position: receipt.runtime_revision,
+                }),
+                accepted_at: Some(common::Timestamp {
+                    seconds: at.unix_timestamp(),
+                    nanos: at.nanosecond() as i32,
+                }),
             })
         }
     };

@@ -12,21 +12,15 @@
 mod first {
     use super::POLICY;
 
-    #[sdk::message]
-    #[derive(Clone, PartialEq)]
-    #[sdk::operation(id = "duplicated.read", version = 1, description = "Reads.", policy = POLICY, response = ())]
+    #[sdk::operation(id = "duplicated.read", description = "Reads.", policy = POLICY, response = ())]
+    #[derive(PartialEq)]
     pub struct Read {}
 
-    pub struct ReadHandler;
+    impl sdk::Operation for Read {
+        type Error = sdk::Refusal;
 
-    #[sdk::operation]
-    impl ReadHandler {
-        pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
-            Self
-        }
-
-        async fn run(&mut self, _: &sdk::Supervisor, _: &mut Read) -> Result<(), sdk::Refusal> {
-            Ok(())
+        async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
+            Ok(().into())
         }
     }
 }
@@ -34,21 +28,15 @@ mod first {
 mod second {
     use super::POLICY;
 
-    #[sdk::message]
-    #[derive(Clone, PartialEq)]
-    #[sdk::operation(id = "duplicated.read", version = 1, description = "Reads.", policy = POLICY, response = ())]
+    #[sdk::operation(id = "duplicated.read", description = "Reads.", policy = POLICY, response = ())]
+    #[derive(PartialEq)]
     pub struct Read {}
 
-    pub struct ReadHandler;
+    impl sdk::Operation for Read {
+        type Error = sdk::Refusal;
 
-    #[sdk::operation]
-    impl ReadHandler {
-        pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
-            Self
-        }
-
-        async fn run(&mut self, _: &sdk::Supervisor, _: &mut Read) -> Result<(), sdk::Refusal> {
-            Ok(())
+        async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
+            Ok(().into())
         }
     }
 }
@@ -79,14 +67,14 @@ struct Duplicated;
 /* === Enums === */
 #[sdk::catalog]
 enum DuplicatedOperations {
-    First(first::ReadHandler),
-    Second(second::ReadHandler),
+    First(first::Read),
+    Second(second::Read),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
-impl sdk::harmos::operations::lifecycle::Policy for Duplicated {
+impl sdk::harmos::builtins::lifecycle::Policy for Duplicated {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
 }
@@ -113,7 +101,7 @@ impl sdk::Plugin for Duplicated {
     fn bind_operations(
         &self, table: &mut sdk::harmos::operations::WireTable,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
-        table.bind_operations::<DuplicatedOperations, _>(self.resources())
+        table.register(DuplicatedOperations::registration(sdk::harmos::Dependencies::new()))
     }
 
     async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {

@@ -44,7 +44,7 @@ const RAMP_POLL: Duration = Duration::from_millis(10);
 // names it once in `records = Records` below, which is what binds the
 // contract to this template and tells the host what to expect. Its explicit `description` is the
 // text the host shows.
-#[record(id = "{{owner}}.soak.held", label = "Hold reached", severity = info, description = "One completed hold, with what it measured.")]
+#[record(id = "{{crate}}.soak.held", label = "Hold reached", severity = info, description = "One completed hold, with what it measured.")]
 #[derive(Clone, Debug)]
 pub struct HoldReached {
     #[record(description = "How many samples the chamber was held for.")]
@@ -97,7 +97,7 @@ pub struct SoakResources {
 // it by — rename `celsius` and the plot above stops compiling rather than
 // quietly drawing nothing.
 #[stream(
-    id = "{{owner}}.soak.samples",
+    id = "{{crate}}.soak.samples",
     window = 4096,
     label = "Soak Samples",
     description = "The chamber, once per interval, for the length of the attempt."
@@ -152,7 +152,7 @@ pub enum ObserverStreams {
 /* === Implementations === */
 
 #[template(
-    id = "{{owner}}.soak.hold",
+    id = "{{crate}}.soak.hold",
     label = "Hold at Temperature",
     tags = ["thermal", "soak"],
     // The operations this template calls. A template never names the plugin it
@@ -182,7 +182,7 @@ pub enum ObserverStreams {
 impl Hold {
     fn document() -> Document {
         let mut temperature = Plot::time_series("Temperature");
-        temperature.id("{{owner}}.soak.temperature");
+        temperature.id("{{crate}}.soak.temperature");
         temperature.unit("°C");
         temperature.y(SoakRow::column_celsius());
         // The row timestamp is automatic and is never named on the axis — a
@@ -202,7 +202,7 @@ impl Hold {
         temperature.marker_records([HoldReached::marker()]);
 
         let mut signals = Section::new("Soak");
-        signals.id("{{owner}}.soak.signals");
+        signals.id("{{crate}}.soak.signals");
         signals.plot(temperature);
 
         let mut document = Document::new("default", "Hold at Temperature");
@@ -370,7 +370,7 @@ impl Hold {
     }
 
     #[criterion(
-        id = "{{owner}}.soak.in_band",
+        id = "{{crate}}.soak.in_band",
         label = "Temperature stayed in band",
         description = "Did the chamber stay in band for the whole hold?\nA criterion reads captured evidence and nothing else: the handles are released before it runs, so what it did not measure during the steps it cannot go and look at now."
     )]
@@ -392,7 +392,7 @@ impl Hold {
     }
 
     #[criterion(
-        id = "{{owner}}.soak.host_quiet",
+        id = "{{crate}}.soak.host_quiet",
         label = "Host stayed under its CPU limit",
         description = "Was the machine quiet enough for the measurement to mean anything?\nHost rows are evidence like any other stream, which is what makes this a criterion rather than a note. The limit is a parameter because what counts as quiet is the bench's business: the starter ships it at 100%, which admits anything the host can report, so tighten it to what your own measurement needs rather than to whatever the machine happened to be doing. A host row whose load the runtime could not read is indeterminate rather than a pass — a criterion that cannot read its evidence has decided nothing — and a run that captured no host rows at all has nothing to contradict."
     )]

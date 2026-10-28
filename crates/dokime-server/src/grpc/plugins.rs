@@ -28,7 +28,8 @@ use std::{
 // Third Party Imports
 use contract as v1;
 use dokime::harmos::domain::Portable;
-use dokime::harmos::operations::{Context, Operation, Response, StreamInput, StreamItem};
+use dokime::harmos::operations::{StreamInput, StreamItem};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use sha2::{Digest, Sha256};
 use tokio::sync::OwnedSemaphorePermit;
 use tonic::Status;
@@ -36,6 +37,7 @@ use uuid::Uuid;
 
 // Local Imports
 use dokime::domain::model::plugins::wire as plugins_model;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::plugins as contract;
 use dokime::{
     RuntimeHandle,
@@ -58,30 +60,6 @@ struct Resources {
     pub runtime: RuntimeHandle,
     pub admission: admission::Admission,
     pub max_message_bytes: usize,
-}
-
-struct ListInstallations {
-    resources: Arc<Resources>,
-}
-
-struct GetInstallation {
-    resources: Arc<Resources>,
-}
-
-struct Install {
-    resources: Arc<Resources>,
-}
-
-struct SetEnabled {
-    resources: Arc<Resources>,
-}
-
-struct Remove {
-    resources: Arc<Resources>,
-}
-
-struct ListAdmittedPlugins {
-    resources: Arc<Resources>,
 }
 
 /* === Enums === */
@@ -116,100 +94,137 @@ impl Resources {
     }
 }
 
-impl Operation for ListInstallations {
-    type Declaration = v1::ListInstallations;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::ListInstallations, _: &mut Self::Endpoints,
-    ) -> Result<Response<plugins_model::InstallationPage>, Status> {
-        let size = dokime::domain::model::execution::wire_cursor::page_size(request.page_size, "")
-            .map_err(super::value::canonical::cursor_failure)?;
-        let after =
-            request.after.take().map(|cursor| Ok::<_, Status>((id(&cursor.after_install_id)?, cursor.manifest_sha256))).transpose()?;
-        let page = self
-            .resources
-            .submit(self.resources.admission.read()?, move |store| async move {
-                store.page(after.as_ref().map(|(id, hash)| (*id, hash.as_str())), size).await
-            })
-            .await?;
-        let mut page = page;
-        for entry in &mut page.entries {
-            self.resources.runtime.plugin_process_state(entry);
-            wire::normalize(entry, self.resources.max_message_bytes)?;
-        }
-        self.resources.produce(|| {
-            Ok(plugins_model::InstallationPage {
-                installations: page
-                    .entries
-                    .into_iter()
-                    .map(|entry| wire::entry(entry, self.resources.max_message_bytes))
-                    .collect::<Result<_, Status>>()?,
-                next: page.next.map(|id| plugins_model::InstallationCursor {
-                    manifest_sha256: page.manifest_sha256.clone(),
-                    after_install_id: id.to_string(),
-                }),
-                total_count: page.total as u64,
-                manifest_sha256: page.manifest_sha256,
-            })
-        })
-    }
-}
-
-impl Operation for GetInstallation {
-    type Declaration = v1::GetInstallation;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::GetInstallation, _: &mut Self::Endpoints,
-    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
-        let id = id(&request.install_id)?;
-        let entry = self.resources.submit(self.resources.admission.read()?, move |store| async move { store.get(id).await }).await?;
-        self.resources.entry(entry)
-    }
-}
-
-impl Operation for Install {
-    type Declaration = v1::Install;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamInput<plugins_model::InstallPluginFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, _request: &mut v1::Install, input: &mut Self::Endpoints,
-    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let operation = self.resources.runtime.operation_progress().begin("Installing Plugin");
-            operation.phase("Receiving Archive");
-            let installed = self.install(input, &operation).await;
-            if let Err(status) = &installed {
-                operation.fail(status.message());
+impl Serve<v1::ListInstallations> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: v1::ListInstallations, _: Context<'a, v1::ListInstallations>,
+    ) -> Served<'a, plugins_model::InstallationPage> {
+        Box::pin(async move {
+            let size = dokime::domain::model::execution::wire_cursor::page_size(request.page_size, "")
+                .map_err(super::value::canonical::cursor_failure)?;
+            let after =
+                request.after.take().map(|cursor| Ok::<_, Status>((id(&cursor.after_install_id)?, cursor.manifest_sha256))).transpose()?;
+            let page = self
+                .submit(self.admission.read()?, move |store| async move {
+                    store.page(after.as_ref().map(|(id, hash)| (*id, hash.as_str())), size).await
+                })
+                .await?;
+            let mut page = page;
+            for entry in &mut page.entries {
+                self.runtime.plugin_process_state(entry);
+                wire::normalize(entry, self.max_message_bytes)?;
             }
-            installed
+            self.produce(|| {
+                Ok(plugins_model::InstallationPage {
+                    installations: page
+                        .entries
+                        .into_iter()
+                        .map(|entry| wire::entry(entry, self.max_message_bytes))
+                        .collect::<Result<_, Status>>()?,
+                    next: page.next.map(|id| plugins_model::InstallationCursor {
+                        manifest_sha256: page.manifest_sha256.clone(),
+                        after_install_id: id.to_string(),
+                    }),
+                    total_count: page.total as u64,
+                    manifest_sha256: page.manifest_sha256,
+                })
+            })
         })
-        .await
     }
 }
 
-impl Install {
+impl Serve<v1::GetInstallation> for Resources {
+    fn serve<'a>(
+        &'a self, request: v1::GetInstallation, _: Context<'a, v1::GetInstallation>,
+    ) -> Served<'a, plugins_model::PluginInstallation> {
+        Box::pin(async move {
+            let id = id(&request.install_id)?;
+            let entry = self.submit(self.admission.read()?, move |store| async move { store.get(id).await }).await?;
+            self.entry(entry)
+        })
+    }
+}
+
+impl Serve<v1::Install> for Resources {
+    fn serve<'a>(&'a self, _: v1::Install, ctx: Context<'a, v1::Install>) -> Served<'a, plugins_model::PluginInstallation> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let input = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let operation = self.runtime.operation_progress().begin("Installing Plugin");
+                operation.phase("Receiving Archive");
+                let installed = self.install(input, &operation).await;
+                if let Err(status) = &installed {
+                    operation.fail(status.message());
+                }
+                installed
+            })
+            .await
+        })
+    }
+}
+
+impl Serve<v1::SetEnabled> for Resources {
+    fn serve<'a>(&'a self, request: v1::SetEnabled, _: Context<'a, v1::SetEnabled>) -> Served<'a, plugins_model::PluginInstallation> {
+        Box::pin(async move {
+            let id = id(&request.install_id)?;
+            let enabled = request.enabled;
+            let entry = self
+                .submit(self.admission.mutation()?, move |store| async move {
+                    store.set_enabled(id, enabled).await?;
+                    store.get(id).await
+                })
+                .await?;
+            self.entry(entry)
+        })
+    }
+}
+
+impl Serve<v1::Remove> for Resources {
+    fn serve<'a>(&'a self, request: v1::Remove, _: Context<'a, v1::Remove>) -> Served<'a, plugins_model::RemovePluginReply> {
+        Box::pin(async move {
+            let id = id(&request.install_id)?;
+            let entry = self
+                .submit(self.admission.mutation()?, move |store| async move {
+                    store.remove(id).await?;
+                    match store.get(id).await {
+                        Ok(entry) => Ok(Some(entry)),
+                        Err(PluginError::Unknown(_)) => Ok(None),
+                        Err(error) => Err(error),
+                    }
+                })
+                .await?;
+            let mut entry = entry;
+            if let Some(entry) = &mut entry {
+                self.runtime.plugin_process_state(entry);
+                wire::normalize(entry, self.max_message_bytes)?;
+            }
+            self.produce(|| {
+                Ok(plugins_model::RemovePluginReply {
+                    installation: entry.map(|entry| wire::entry(entry, self.max_message_bytes)).transpose()?,
+                })
+            })
+        })
+    }
+}
+
+impl Serve<v1::ListAdmittedPlugins> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: v1::ListAdmittedPlugins, ctx: Context<'a, v1::ListAdmittedPlugins>,
+    ) -> Served<'a, plugins_model::AdmittedPluginPage> {
+        Box::pin(async move {
+            let context = ctx.call();
+            let local = context.get::<super::access::Principal>().is_some_and(super::access::Principal::is_local);
+            inventory::page(&self.runtime, &mut request, self.max_message_bytes, local)
+        })
+    }
+}
+
+impl Resources {
     async fn install(
-        &mut self, input: &mut StreamInput<plugins_model::InstallPluginFrame>, operation: &dokime::runtime::progress::Operation,
+        &self, input: &StreamInput<plugins_model::InstallPluginFrame>, operation: &dokime::runtime::progress::Operation,
     ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
-        let permit = self.resources.admission.mutation().map_err(reject)?;
+        let permit = self.admission.mutation().map_err(reject)?;
         let first = message(input, SERVER_PLUGIN_UPLOAD_IDLE_MS)
             .await?
             .ok_or_else(|| reject(Status::invalid_argument("install header is required")))?;
@@ -232,7 +247,7 @@ impl Install {
             let Some(plugins_model::InstallPluginFrameFrame::Chunk(chunk)) = &frame.frame else {
                 return Err(reject(Status::invalid_argument("only chunks may follow install header")));
             };
-            if chunk.offset != bytes.len() as u64 || chunk.data.is_empty() || chunk.data.len() > self.resources.max_message_bytes {
+            if chunk.offset != bytes.len() as u64 || chunk.data.is_empty() || chunk.data.len() > self.max_message_bytes {
                 return Err(reject(Status::invalid_argument("invalid install chunk offset or size")));
             }
             if chunk.data.len() as u64 > size_bytes.saturating_sub(bytes.len() as u64) {
@@ -254,9 +269,9 @@ impl Install {
         );
         operation.phase("Inspecting Archive");
         operation.indeterminate();
-        let runtime = self.resources.runtime.clone();
+        let runtime = self.runtime.clone();
         let inspect_started = Instant::now();
-        let maximum = self.resources.max_message_bytes;
+        let maximum = self.max_message_bytes;
         let entry = match tokio::spawn(async move {
             let _permit = permit;
             runtime
@@ -279,106 +294,40 @@ impl Install {
             Err(status) => return Err(reject(status)),
         };
         tracing::info!(elapsed_ms = inspect_started.elapsed().as_millis(), "plugin installation inspection completed",);
-        self.resources.entry(entry)
-    }
-}
-
-impl Operation for SetEnabled {
-    type Declaration = v1::SetEnabled;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::SetEnabled, _: &mut Self::Endpoints,
-    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
-        let id = id(&request.install_id)?;
-        let enabled = request.enabled;
-        let entry = self
-            .resources
-            .submit(self.resources.admission.mutation()?, move |store| async move {
-                store.set_enabled(id, enabled).await?;
-                store.get(id).await
-            })
-            .await?;
-        self.resources.entry(entry)
-    }
-}
-
-impl Operation for Remove {
-    type Declaration = v1::Remove;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::Remove, _: &mut Self::Endpoints,
-    ) -> Result<Response<plugins_model::RemovePluginReply>, Status> {
-        let id = id(&request.install_id)?;
-        let entry = self
-            .resources
-            .submit(self.resources.admission.mutation()?, move |store| async move {
-                store.remove(id).await?;
-                match store.get(id).await {
-                    Ok(entry) => Ok(Some(entry)),
-                    Err(PluginError::Unknown(_)) => Ok(None),
-                    Err(error) => Err(error),
-                }
-            })
-            .await?;
-        let mut entry = entry;
-        if let Some(entry) = &mut entry {
-            self.resources.runtime.plugin_process_state(entry);
-            wire::normalize(entry, self.resources.max_message_bytes)?;
-        }
-        self.resources.produce(|| {
-            Ok(plugins_model::RemovePluginReply {
-                installation: entry.map(|entry| wire::entry(entry, self.resources.max_message_bytes)).transpose()?,
-            })
-        })
-    }
-}
-
-impl Operation for ListAdmittedPlugins {
-    type Declaration = v1::ListAdmittedPlugins;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut v1::ListAdmittedPlugins, _: &mut Self::Endpoints,
-    ) -> Result<Response<plugins_model::AdmittedPluginPage>, Status> {
-        let local = context.context().get::<super::access::Principal>().is_some_and(super::access::Principal::is_local);
-        inventory::page(&self.resources.runtime, request, self.resources.max_message_bytes, local)
+        self.entry(entry)
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), admission: admission::Admission::new(), max_message_bytes: maximum });
-    runtime.operations().register_wire_operation::<ListInstallations>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<GetInstallation>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Install>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<SetEnabled>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Remove>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<ListAdmittedPlugins>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        admission: admission::Admission::new(),
+        max_message_bytes: maximum,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<v1::ListInstallations>::new(served.clone()))?;
+    dependencies.insert(Host::<v1::GetInstallation>::new(served.clone()))?;
+    dependencies.insert(Host::<v1::Install>::new(served.clone()))?;
+    dependencies.insert(Host::<v1::SetEnabled>::new(served.clone()))?;
+    dependencies.insert(Host::<v1::Remove>::new(served.clone()))?;
+    dependencies.insert(Host::<v1::ListAdmittedPlugins>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<v1::ListInstallations>()
+        .operation::<v1::GetInstallation>()
+        .operation::<v1::Install>()
+        .operation::<v1::SetEnabled>()
+        .operation::<v1::Remove>()
+        .operation::<v1::ListAdmittedPlugins>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
 /* === Private Functions === */
 
 async fn message(
-    input: &mut StreamInput<plugins_model::InstallPluginFrame>, idle_ms: u64,
+    input: &StreamInput<plugins_model::InstallPluginFrame>, idle_ms: u64,
 ) -> Result<Option<StreamItem<plugins_model::InstallPluginFrame>>, Status> {
     tokio::time::timeout(Duration::from_millis(idle_ms), input.recv())
         .await

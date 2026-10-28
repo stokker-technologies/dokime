@@ -174,8 +174,8 @@ impl dokime::harmos::grpc::authentication::Authenticator for Listeners {
 
 /* === Public Functions === */
 
-pub(super) fn revocation(context: &dokime::harmos::operations::Context<'_>) -> Option<tokio_util::sync::CancellationToken> {
-    context.context().get::<Principal>().and_then(|principal| principal.revoked.clone())
+pub(super) fn revocation(call: &dokime::harmos::operations::CallContext) -> Option<tokio_util::sync::CancellationToken> {
+    call.get::<Principal>().and_then(|principal| principal.revoked.clone())
 }
 
 pub(super) async fn during<T>(

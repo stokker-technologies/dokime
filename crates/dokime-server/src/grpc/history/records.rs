@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::{Code, Status};
 
 // Local Imports
@@ -26,6 +26,7 @@ use super::wire;
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::operations::history as contract;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::checkpoint_records::ExecutionRecordPage;
 
 /* === Constants === */
@@ -41,50 +42,39 @@ struct Resources {
     maximum: usize,
 }
 
-struct List {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for List {
-    type Declaration = contract::ListCheckpointRecords;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::ListCheckpointRecords, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::history::wire::CheckpointRecordPage>, Status> {
-        let checkpoint = wire::checkpoint(request.checkpoint.take())?;
-        let query = dokime::runtime::query::checkpoint_records::ExecutionRecordQuery {
-            after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),
-            limit: (request.limit != 0).then_some(request.limit as usize),
-        };
-        self.resources
-            .runtime
-            .execution_checkpoint_records(checkpoint, query)
-            .await
-            .map_err(wire::query_failure)
-            .and_then(|page| project(page, self.resources.maximum).map_err(|source| wire::query_failure(source.into())))
+impl Serve<contract::ListCheckpointRecords> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: contract::ListCheckpointRecords, _: Context<'a, contract::ListCheckpointRecords>,
+    ) -> Served<'a, dokime::domain::model::history::wire::CheckpointRecordPage> {
+        Box::pin(async move {
+            let checkpoint = wire::checkpoint(request.checkpoint.take())?;
+            let query = dokime::runtime::query::checkpoint_records::ExecutionRecordQuery {
+                after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),
+                limit: (request.limit != 0).then_some(request.limit as usize),
+            };
+            self.runtime
+                .execution_checkpoint_records(checkpoint, query)
+                .await
+                .map_err(wire::query_failure)
+                .and_then(|page| project(page, self.maximum).map_err(|source| wire::query_failure(source.into())))
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<List>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<contract::ListCheckpointRecords>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<contract::ListCheckpointRecords>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -136,7 +126,9 @@ fn original_error(source: Status) -> dokime::harmos::Error {
 }
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint record page" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical checkpoint record page",
+    }
 }
 
 /* === Tests === */

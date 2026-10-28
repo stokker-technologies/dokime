@@ -29,6 +29,7 @@ pub mod plugins;
 pub mod process;
 pub mod prompts;
 pub mod query;
+pub mod records;
 pub mod remote;
 pub mod reports;
 pub mod runtime;

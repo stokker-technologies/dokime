@@ -155,7 +155,7 @@ pub(super) async fn capture(
 
 pub(crate) async fn download(
     runtime: &RuntimeHandle, request: content::DownloadAppearanceAsset, max_message_bytes: usize,
-    output: &mut StreamOutput<dokime::domain::model::content::wire::AppearanceAssetFrame>,
+    output: &StreamOutput<dokime::domain::model::content::wire::AppearanceAssetFrame>,
 ) -> Result<(), Status> {
     let reference =
         request.reference.ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::InvalidReference))?;
@@ -200,7 +200,9 @@ pub(crate) async fn download(
             })
         })
         .map_err(native_failure)?;
-    let frames = AssetFrames { metadata: Response::from_owner(metadata.owner()) };
+    let frames = AssetFrames {
+        metadata: Response::from_owner(metadata.owner()),
+    };
     chunked::Download {
         size_bytes,
         sha256: Some(sha256),
@@ -225,7 +227,9 @@ pub(crate) async fn download(
 /* === Private Functions === */
 
 fn allocation() -> dokime::harmos::storage::Error {
-    dokime::harmos::storage::Error::ResourceExhausted { resource: "appearance asset construction" }
+    dokime::harmos::storage::Error::ResourceExhausted {
+        resource: "appearance asset construction",
+    }
 }
 
 pub(super) fn native_failure(error: dokime::harmos::storage::Error) -> Status {

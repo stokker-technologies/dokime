@@ -63,8 +63,8 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
         restart: harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
+        harmos::model::operations::lifecycle::Descriptor::new(harmos::model::operations::lifecycle::Action::Initialize, policy).unwrap(),
+        harmos::model::operations::lifecycle::Descriptor::new(harmos::model::operations::lifecycle::Action::Shutdown, policy).unwrap(),
     ];
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});

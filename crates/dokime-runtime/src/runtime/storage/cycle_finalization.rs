@@ -224,7 +224,7 @@ impl RuntimeHandle {
             drop(order);
             runtime
                 .operations()
-                .call(crate::operations::reports::MaterializeReport {
+                .call::<crate::operations::reports::MaterializeReport>(crate::operations::reports::MaterializeReport {
                     subject: dokime_domain::model::reports::wire::ReportSubject::Cycle(id.to_string()),
                     at,
                 })

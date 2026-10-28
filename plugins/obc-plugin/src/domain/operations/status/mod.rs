@@ -29,7 +29,7 @@ use dokime::prelude::StatusResponse;
 /* === Structs === */
 
 #[dokime::operation(
-    id = "obc-plugin.get_status",
+    id = "obc.bench.get_status",
     response = StatusResponse,
     description = "Reports bench readiness without advancing the Charger. The settings section selects this operation as its readiness probe.",
     policy = super::POLICY,

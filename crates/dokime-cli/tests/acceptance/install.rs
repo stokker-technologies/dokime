@@ -20,7 +20,9 @@ use std::{
 };
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, OperationDeclaration, Response, StreamInput};
+use dokime::harmos::operations::{OperationDeclaration, Response};
+use dokime::harmos::{Context, RegistrationExt};
+use dokime::operations::hosting::{Serve, Served};
 use harmos_packaging::bundle::Bundle;
 use sha2::{Digest, Sha256};
 
@@ -37,24 +39,18 @@ const CHUNK_LIMIT_BYTES: u32 = 256 * 1024;
 /* === Macros === */
 
 macro_rules! operation {
-    ($name:ident, $declaration:ty, $endpoints:ty, $host:ident, $message:ident, $input:ident, $body:block) => {
-        struct $name {
-            host: Arc<Host>,
-        }
-        impl Operation for $name {
-            type Declaration = $declaration;
-            type Resources = Host;
-            type Error = tonic::Status;
-            type Context<'a> = Context<'a>;
-            type Endpoints = $endpoints;
-            async fn initialize<'ctx>(host: Arc<Host>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-                Ok(Self { host })
-            }
-            async fn run<'ctx>(
-                &mut self, _: Self::Context<'ctx>, $message: &mut $declaration, $input: &mut Self::Endpoints,
-            ) -> Result<Response<<$declaration as OperationDeclaration>::Response>, Self::Error> {
-                let $host = &self.host;
-                $body
+    ($declaration:ty, $host:ident, $message:ident, $input:ident, $body:block) => {
+        impl Serve<$declaration> for Host {
+            fn serve<'a>(
+                &'a self, $message: $declaration, ctx: Context<'a, $declaration>,
+            ) -> Served<'a, <$declaration as OperationDeclaration>::Response> {
+                Box::pin(async move {
+                    let $host = self;
+                    let $input = ctx.streams();
+                    let served: Result<Response<<$declaration as OperationDeclaration>::Response>, tonic::Status> =
+                        async move { $body }.await;
+                    served
+                })
             }
         }
     };
@@ -100,7 +96,7 @@ impl dokime::harmos::Application for Fixture {
     type Resources = ();
 }
 
-operation!(Install, v1::Install, StreamInput<model::plugins::wire::InstallPluginFrame>, host, _request, input, {
+operation!(v1::Install, host, _request, input, {
     host.calls.lock().unwrap().push("install");
     let header = input.recv().await.unwrap();
     let Some(model::plugins::wire::InstallPluginFrameFrame::Header(header)) = &header.frame else { panic!("header first") };
@@ -120,7 +116,7 @@ operation!(Install, v1::Install, StreamInput<model::plugins::wire::InstallPlugin
     Ok(host.entry.clone().into())
 });
 
-operation!(Identity, backend::GetIdentity, (), host, _request, _input, {
+operation!(backend::GetIdentity, host, _request, _input, {
     Ok(model::backend::wire::BackendIdentity {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -137,7 +133,7 @@ operation!(Identity, backend::GetIdentity, (), host, _request, _input, {
     .into())
 });
 
-operation!(Health, backend::GetHealth, (), _host, _request, _input, {
+operation!(backend::GetHealth, _host, _request, _input, {
     Ok(model::backend::wire::BackendHealth {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -148,7 +144,7 @@ operation!(Health, backend::GetHealth, (), _host, _request, _input, {
     .into())
 });
 
-operation!(Availability, backend::GetAvailability, (), _host, _request, _input, {
+operation!(backend::GetAvailability, _host, _request, _input, {
     Ok(model::backend::wire::BackendAvailability {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -174,7 +170,7 @@ operation!(Availability, backend::GetAvailability, (), _host, _request, _input, 
     .into())
 });
 
-operation!(RuntimeIdentity, runtime::GetIdentity, (), _host, _request, _input, {
+operation!(runtime::GetIdentity, _host, _request, _input, {
     Ok(model::runtime::wire::Identity {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -184,7 +180,7 @@ operation!(RuntimeIdentity, runtime::GetIdentity, (), _host, _request, _input, {
     .into())
 });
 
-operation!(RuntimeHealth, runtime::GetHealth, (), _host, _request, _input, {
+operation!(runtime::GetHealth, _host, _request, _input, {
     Ok(model::runtime::wire::Health {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -309,12 +305,21 @@ async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
     };
     let runtime = dokime::harmos::Runtime::<Fixture>::builder((), ()).register(Lanes::catalog()).runtime().await.unwrap();
     let host = Arc::new(host);
-    runtime.operations.register_wire_operation::<Install>("dokime", Lanes::Open, host.clone()).unwrap();
-    runtime.operations.register_wire_operation::<Identity>("dokime", Lanes::Open, host.clone()).unwrap();
-    runtime.operations.register_wire_operation::<Health>("dokime", Lanes::Open, host.clone()).unwrap();
-    runtime.operations.register_wire_operation::<Availability>("dokime", Lanes::Open, host.clone()).unwrap();
-    runtime.operations.register_wire_operation::<RuntimeIdentity>("dokime", Lanes::Open, host.clone()).unwrap();
-    runtime.operations.register_wire_operation::<RuntimeHealth>("dokime", Lanes::Open, host).unwrap();
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(dokime::operations::hosting::Host::<v1::Install>::new(host.clone())).unwrap();
+    dependencies.insert(dokime::operations::hosting::Host::<backend::GetIdentity>::new(host.clone())).unwrap();
+    dependencies.insert(dokime::operations::hosting::Host::<backend::GetHealth>::new(host.clone())).unwrap();
+    dependencies.insert(dokime::operations::hosting::Host::<backend::GetAvailability>::new(host.clone())).unwrap();
+    dependencies.insert(dokime::operations::hosting::Host::<runtime::GetIdentity>::new(host.clone())).unwrap();
+    dependencies.insert(dokime::operations::hosting::Host::<runtime::GetHealth>::new(host)).unwrap();
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<v1::Install>()
+        .operation::<backend::GetIdentity>()
+        .operation::<backend::GetHealth>()
+        .operation::<backend::GetAvailability>()
+        .operation::<runtime::GetIdentity>()
+        .operation::<runtime::GetHealth>();
+    runtime.register(batch.lane(Lanes::Open)).await.unwrap();
     let attachment = runtime
         .grpc()
         .attach(dokime::harmos::grpc::Settings { address: "127.0.0.1:0".parse().unwrap(), ..Default::default() })

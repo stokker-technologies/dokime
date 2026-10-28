@@ -21,7 +21,7 @@ use crate::grpc::transcode::Transcode;
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
 // Local Imports
@@ -31,9 +31,10 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::identity::IdentifierPattern;
 use dokime::domain::model::identity::wire as common;
 use dokime::domain::model::time::Timestamp;
-use dokime::operations::telemetry as wire;
 use dokime::domains::evidence::ScopeSelection;
 use dokime::domains::evidence::TelemetrySelection;
+use dokime::operations::hosting::{Host, Serve, Served};
+use dokime::operations::telemetry as wire;
 
 /* === Constants === */
 
@@ -52,16 +53,8 @@ struct Resources {
     pub(super) max_message_bytes: usize,
 }
 
-struct Watch {
-    resources: Arc<Resources>,
-}
-
 struct Selection {
     query: TelemetrySelection,
-}
-
-struct List {
-    resources: Arc<Resources>,
 }
 
 /* === Enums === */
@@ -76,11 +69,13 @@ impl From<Status> for ProjectionError {
         Self::Status(error)
     }
 }
+
 impl From<dokime::harmos::storage::Error> for ProjectionError {
     fn from(error: dokime::harmos::storage::Error) -> Self {
         Self::Storage(error)
     }
 }
+
 impl ProjectionError {
     fn status(self) -> Status {
         match self {
@@ -97,22 +92,55 @@ impl ProjectionError {
 
 /* === Implementations === */
 
-impl Operation for List {
-    type Declaration = wire::ListSamples;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
+impl Serve<wire::ListSamples> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: wire::ListSamples, _: Context<'a, wire::ListSamples>,
+    ) -> Served<'a, dokime::domain::model::telemetry::wire::TelemetrySamplesReply> {
+        Box::pin(async move {
+            let session = self.runtime.storage().clone();
+            let selection = self.selection(&mut request)?;
+            let at = session.cursor_saved();
+            self.page(&session, &selection, &at, 0, false).await.map(|(page, ..)| page)
+        })
     }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::ListSamples, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::telemetry::wire::TelemetrySamplesReply>, Status> {
-        let session = self.resources.runtime.storage().clone();
-        let selection = self.resources.selection(request)?;
-        let at = session.cursor_saved();
-        self.resources.page(&session, &selection, &at, 0, false).await.map(|(page, ..)| page)
+}
+
+impl Serve<wire::WatchSamples> for Resources {
+    fn serve<'a>(&'a self, mut request: wire::WatchSamples, ctx: Context<'a, wire::WatchSamples>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let mut selection = request.selection.take().ok_or_else(|| Status::invalid_argument("telemetry selection is missing"))?;
+                if selection.latest || request.follow && selection.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()).is_none() {
+                    return Err(Status::invalid_argument("telemetry watch requires forward paging and an execution scope when following"));
+                }
+                let runtime = &self.runtime;
+                let session = runtime.storage().clone();
+                let mut selection = self.selection(&mut selection)?;
+                let mut at = session.cursor_saved();
+                // Every Selected Row At Or Below `after` Was Delivered, So Each Page And Wake Scans Only Newer Rows.
+                let mut after = 0;
+                loop {
+                    let (page, sealed, settled) = self.page(&session, &selection, &at, after, true).await?;
+                    let complete = page.complete;
+                    let through = page.through_stream_cursors.clone();
+                    output.send_owned(page).await.map_err(|error| Status::unavailable(error.to_string()))?;
+                    selection.advance_cursors(&through);
+                    after = settled;
+                    if !complete {
+                        continue;
+                    }
+                    if !request.follow || sealed {
+                        return Ok(().into());
+                    }
+                    // Native Wait Registers Before Inspecting The Saved Frontier.
+                    at = session.wait_saved_after(&at).await.map_err(storage_failure)?;
+                }
+            })
+            .await
+        })
     }
 }
 
@@ -199,51 +227,6 @@ impl Resources {
     }
 }
 
-impl Operation for Watch {
-    type Declaration = wire::WatchSamples;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::telemetry::wire::TelemetrySamplesReply>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchSamples, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let mut selection = request.selection.take().ok_or_else(|| Status::invalid_argument("telemetry selection is missing"))?;
-            if selection.latest || request.follow && selection.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()).is_none() {
-                return Err(Status::invalid_argument("telemetry watch requires forward paging and an execution scope when following"));
-            }
-            let runtime = &self.resources.runtime;
-            let session = runtime.storage().clone();
-            let mut selection = self.resources.selection(&mut selection)?;
-            let mut at = session.cursor_saved();
-            // Every Selected Row At Or Below `after` Was Delivered, So Each Page And Wake Scans Only Newer Rows.
-            let mut after = 0;
-            loop {
-                let (page, sealed, settled) = self.resources.page(&session, &selection, &at, after, true).await?;
-                let complete = page.complete;
-                let through = page.through_stream_cursors.clone();
-                output.send_owned(page).await.map_err(|error| Status::unavailable(error.to_string()))?;
-                selection.advance_cursors(&through);
-                after = settled;
-                if !complete {
-                    continue;
-                }
-                if !request.follow || sealed {
-                    return Ok(().into());
-                }
-                // Native Wait Registers Before Inspecting The Saved Frontier.
-                at = session.wait_saved_after(&at).await.map_err(storage_failure)?;
-            }
-        })
-        .await
-    }
-}
-
 impl Selection {
     fn advance_cursors(&mut self, cursors: &[dokime::domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry]) {
         for cursor in cursors {
@@ -259,10 +242,16 @@ impl Selection {
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum });
-    runtime.operations().register_wire_operation::<List>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Watch>("dokime", dokime::app::Lanes::Open, resources)?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes: maximum,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::ListSamples>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::WatchSamples>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::ListSamples>().operation::<wire::WatchSamples>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

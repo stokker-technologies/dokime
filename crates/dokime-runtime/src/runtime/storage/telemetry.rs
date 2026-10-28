@@ -25,7 +25,7 @@ use harmos::{
     Identifier,
     storage::{
         RecordInput, SchemaKey, StreamInput,
-        operations::Query,
+        Query,
         query::{QueryArrow, RowSlice, Source, StreamSelection},
     },
 };

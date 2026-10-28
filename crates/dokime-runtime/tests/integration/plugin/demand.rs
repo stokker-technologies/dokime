@@ -222,9 +222,9 @@ struct PushedRow {
 
 struct RecordObserver(Arc<Probe>);
 
-struct Noted(Arc<Probe>);
+struct Noted;
 
-struct Echoed(Arc<Probe>);
+struct Echoed;
 
 #[dokime_runtime::stream(id = "owned-stream.raw-identifiers", label = "Raw Identifiers", window = 8)]
 struct RawIdentifiers {
@@ -300,7 +300,7 @@ impl Drop for Resource {
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for Measured {
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for Measured {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
@@ -340,8 +340,10 @@ impl dokime_runtime::Plugin for Measured {
         Arc::clone(&self.resource)
     }
 
-    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<MeasuredListeners, _>(self.resources())?;
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
+        let mut dependencies = dokime_runtime::harmos::Dependencies::new();
+        dependencies.insert(self.resources()).map_err(|_| ServingError::Catalog)?;
+        table.register(dokime_runtime::harmos::RegistrationBatch::new(dependencies).operation::<Noted>().operation::<Echoed>())?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
 
@@ -390,14 +392,12 @@ impl RecordObserver {
     }
 }
 
-#[dokime_runtime::listener(id = "owned-stream.noted", record = UnitConnected)]
+#[dokime_runtime::listener(id = "owned-stream.noted", record = UnitConnected, resources = [Resource])]
 impl Noted {
-    async fn initialize(resource: Arc<Resource>, _: &Supervisor) -> Self {
-        Self(Arc::clone(&resource.0))
-    }
-
-    async fn hear(&mut self, host: &Supervisor, connected: UnitConnected) -> Result<(), Error> {
-        let probe = &self.0;
+    async fn hear(ctx: &dokime_runtime::plugin::ListenerContext<'_, Self>, connected: UnitConnected) -> Result<(), Error> {
+        let resource = ctx.resource::<Resource>();
+        let probe = &resource.0;
+        let host = &*ctx.host();
         probe.bump(&probe.active_listeners);
         let _listening = Listening(Arc::clone(probe));
         if connected.serial == "STALL" {
@@ -431,15 +431,12 @@ impl Noted {
     }
 }
 
-#[dokime_runtime::listener(id = "owned-stream.echoed", record = UnitConnected)]
+#[dokime_runtime::listener(id = "owned-stream.echoed", record = UnitConnected, resources = [Resource])]
 impl Echoed {
-    async fn initialize(resource: Arc<Resource>, _: &Supervisor) -> Self {
-        Self(Arc::clone(&resource.0))
-    }
-
-    async fn hear(&mut self, _: &Supervisor, connected: UnitConnected) -> Result<(), Error> {
+    async fn hear(ctx: &dokime_runtime::plugin::ListenerContext<'_, Self>, connected: UnitConnected) -> Result<(), Error> {
         assert_eq!(connected.serial, "SN-7", "the record decodes as its type");
-        self.0.bump(&self.0.echoed);
+        let probe = &ctx.resource::<Resource>().0;
+        probe.bump(&probe.echoed);
 
         Ok(())
     }
@@ -563,8 +560,8 @@ async fn listener_publishes_asked() {
     let mut invocation = runtime
         .operations
         .submit_encoded(
-            <dokime_runtime::plugin::Heard<Noted> as dokime_runtime::harmos::operations::OperationDeclaration>::ID,
-            connected("STALL").encode_to_vec(),
+            <Noted as dokime_runtime::harmos::operations::OperationDeclaration>::ID,
+            connected("STALL").encode(),
         )
         .unwrap();
     // A Paused Clock Advances Without Turning Pending Delivery Into A Success

@@ -73,14 +73,14 @@ fn executable_declares_routes() {
         std::collections::BTreeSet::from(
             [
                 // The bench's own operations and its connection listener.
-                "obc-plugin.check_readiness",
-                "obc-plugin.connection",
-                "obc-plugin.get_status",
-                "obc-plugin.list_connections",
+                "obc.bench.check_readiness",
+                "obc.bench.connection",
+                "obc.bench.get_status",
+                "obc.bench.list_connections",
                 "obc.device.read",
                 "obc.device.set_power",
                 // The ripple analysis the plugin contributes is an operation too.
-                "obc-plugin.ripple",
+                "obc.analysis.ripple",
                 // Every template of every suite serves a run and a signal.
                 "obc.charger.protection.overcurrent.run",
                 "obc.charger.protection.overcurrent.signal",

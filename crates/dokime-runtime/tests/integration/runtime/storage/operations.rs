@@ -19,7 +19,7 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::operations::{StreamSettings, stream};
 use harmos::storage::ObjectCatalog;
-use harmos::storage::operations::{Query, StorageStatus};
+use harmos::builtins::storage::{Query, StorageStatus};
 use harmos::storage::query::{ObjectSelection, ObjectVersions, QueryOutput, RowSlice, Source};
 
 // Local Imports
@@ -59,7 +59,7 @@ async fn storage_operations_view() {
     handle.storage().flush().await.unwrap();
     drop(suite);
 
-    let info = handle.operations().call(StorageStatus {}).await.unwrap();
+    let info = handle.operations().call::<StorageStatus>(StorageStatus {}).await.unwrap();
     assert_eq!(info.saved, handle.storage().cursor_saved());
     assert_eq!(info.accepted, handle.storage().cursor_accepted());
     assert!(info.saved.covers(&receipt.position).unwrap());

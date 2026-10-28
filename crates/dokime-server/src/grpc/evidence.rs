@@ -21,7 +21,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::Response;
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -30,6 +31,7 @@ use crate::grpc::transcode::Transcode;
 use dokime::domain::model::definition::wire::RecordSchema;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::operations::evidence as v1;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{RuntimeHandle, runtime::CapturedRecords};
 use selection::Selection;
 
@@ -73,18 +75,6 @@ struct Tail {
     oversized: bool,
 }
 
-struct List {
-    resources: Arc<Resources>,
-}
-
-struct Watch {
-    resources: Arc<Resources>,
-}
-
-struct Schema {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -116,7 +106,15 @@ impl Reader {
         if scanned > through {
             return Err(Status::invalid_argument("record cursor exceeds replay frontier"));
         }
-        Ok(Self { source, selection, scanned, through, bytes: bytes.min(page_bytes), scan_items, record_items })
+        Ok(Self {
+            source,
+            selection,
+            scanned,
+            through,
+            bytes: bytes.min(page_bytes),
+            scan_items,
+            record_items,
+        })
     }
     fn cursor(&self, position: u64) -> dokime::harmos::Result<Cursor> {
         Ok(Cursor {
@@ -205,7 +203,14 @@ impl Reader {
                 let mut kept = VecDeque::new();
                 kept.try_reserve_exact(keep).map_err(|_| projection_error(exhausted()))?;
 
-                Ok::<_, dokime::harmos::Error>(Tail { page, kept, keep, budget, bytes: 0, oversized: false })
+                Ok::<_, dokime::harmos::Error>(Tail {
+                    page,
+                    kept,
+                    keep,
+                    budget,
+                    bytes: 0,
+                    oversized: false,
+                })
             })
             .map_err(memory_error)?;
         let mut scanned = self.scanned;
@@ -263,114 +268,90 @@ impl Tail {
     }
 }
 
-impl Operation for List {
-    type Declaration = v1::ListRecords;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::ListRecords, _: &mut (),
-    ) -> Result<Response<dokime::domain::model::evidence::wire::RecordPage>, Status> {
-        if request.after.is_some() != request.through.is_some() {
-            return Err(Status::invalid_argument("pagination requires both after and through cursors"));
-        }
-        if request.latest > 0 && request.after.is_some() {
-            return Err(Status::invalid_argument("a tail request takes no cursors"));
-        }
-        let mut reader = Reader::new(
-            &self.resources.runtime,
-            request.selection.take(),
-            request.after.take(),
-            request.through.take(),
-            self.resources.max_message_bytes,
-        )?;
-        let page = match request.latest {
-            0 => reader.page().await?,
-            latest => reader.tail(latest as usize).await?,
-        };
-        Ok(Response::from_owner(page.owner()))
-    }
-}
-
-impl Operation for Watch {
-    type Declaration = v1::WatchRecords;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::evidence::wire::RecordPage>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut v1::WatchRecords, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let mut reader = Reader::new(
-                &self.resources.runtime,
-                request.selection.take(),
-                request.after.take(),
-                None,
-                self.resources.max_message_bytes,
-            )?;
-            let mut initial = true;
-            loop {
-                if !initial && reader.scanned == reader.through {
-                    match reader.source.wait_after(reader.scanned).await.map_err(capture_error)? {
-                        Some(through) => reader.through = through,
-                        None => return Ok(().into()),
-                    }
-                }
-                let page = reader.page().await?;
-                output.send_owned(Response::from_owner(page.owner())).await.map_err(memory_error)?;
-                initial = false;
+impl Serve<v1::ListRecords> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: v1::ListRecords, _: Context<'a, v1::ListRecords>,
+    ) -> Served<'a, dokime::domain::model::evidence::wire::RecordPage> {
+        Box::pin(async move {
+            if request.after.is_some() != request.through.is_some() {
+                return Err(Status::invalid_argument("pagination requires both after and through cursors"));
             }
+            if request.latest > 0 && request.after.is_some() {
+                return Err(Status::invalid_argument("a tail request takes no cursors"));
+            }
+            let mut reader =
+                Reader::new(&self.runtime, request.selection.take(), request.after.take(), request.through.take(), self.max_message_bytes)?;
+            let page = match request.latest {
+                0 => reader.page().await?,
+                latest => reader.tail(latest as usize).await?,
+            };
+            Ok(Response::from_owner(page.owner()))
         })
-        .await
     }
 }
 
-impl Operation for Schema {
-    type Declaration = v1::GetCapturedRecordSchema;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
+impl Serve<v1::WatchRecords> for Resources {
+    fn serve<'a>(&'a self, mut request: v1::WatchRecords, ctx: Context<'a, v1::WatchRecords>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let revoked = crate::grpc::access::revocation(ctx.call());
+            crate::grpc::access::during(revoked, async {
+                let mut reader = Reader::new(&self.runtime, request.selection.take(), request.after.take(), None, self.max_message_bytes)?;
+                let mut initial = true;
+                loop {
+                    if !initial && reader.scanned == reader.through {
+                        match reader.source.wait_after(reader.scanned).await.map_err(capture_error)? {
+                            Some(through) => reader.through = through,
+                            None => return Ok(().into()),
+                        }
+                    }
+                    let page = reader.page().await?;
+                    ctx.streams().send_owned(Response::from_owner(page.owner())).await.map_err(memory_error)?;
+                    initial = false;
+                }
+            })
+            .await
+        })
     }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::GetCapturedRecordSchema, _: &mut (),
-    ) -> Result<Response<RecordSchema>, Status> {
-        let snapshot = self.resources.runtime.watch_state().latest();
-        if request.epoch != self.resources.runtime.captured_records().epoch() {
-            return Err(Status::failed_precondition("record schema epoch mismatch; resynchronize"));
-        }
-        let kind = dokime::domain::model::identity::Identifier::new(std::mem::take(&mut request.record_type))
-            .map_err(|_| Status::invalid_argument("invalid record type"))?;
-        let contract = snapshot
-            .state()
-            .historical_record_contract(&kind, request.schema_version)
-            .ok_or_else(|| Status::not_found("exact admitted record schema is unavailable"))?;
-        let schema = super::catalog::schemas::record(contract)?;
-        if schema.wire_len()? > self.resources.max_message_bytes {
-            return Err(Status::resource_exhausted("record schema exceeds transport response budget"));
-        }
-        Ok(schema.into())
+}
+
+impl Serve<v1::GetCapturedRecordSchema> for Resources {
+    fn serve<'a>(&'a self, request: v1::GetCapturedRecordSchema, _: Context<'a, v1::GetCapturedRecordSchema>) -> Served<'a, RecordSchema> {
+        Box::pin(async move {
+            let snapshot = self.runtime.watch_state().latest();
+            if request.epoch != self.runtime.captured_records().epoch() {
+                return Err(Status::failed_precondition("record schema epoch mismatch; resynchronize"));
+            }
+            let kind = dokime::domain::model::identity::Identifier::new(request.record_type)
+                .map_err(|_| Status::invalid_argument("invalid record type"))?;
+            let contract = snapshot
+                .state()
+                .historical_record_contract(&kind, request.schema_version)
+                .ok_or_else(|| Status::not_found("exact admitted record schema is unavailable"))?;
+            let schema = super::catalog::schemas::record(contract)?;
+            if schema.wire_len()? > self.max_message_bytes {
+                return Err(Status::resource_exhausted("record schema exceeds transport response budget"));
+            }
+            Ok(schema.into())
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum });
-    runtime.operations().register_wire_operation::<List>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Watch>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Schema>("dokime", dokime::app::Lanes::Open, resources)?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes: maximum,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<v1::ListRecords>::new(served.clone()))?;
+    dependencies.insert(Host::<v1::WatchRecords>::new(served.clone()))?;
+    dependencies.insert(Host::<v1::GetCapturedRecordSchema>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<v1::ListRecords>()
+        .operation::<v1::WatchRecords>()
+        .operation::<v1::GetCapturedRecordSchema>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

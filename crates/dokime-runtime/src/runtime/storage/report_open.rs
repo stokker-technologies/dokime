@@ -109,7 +109,7 @@ impl RuntimeHandle {
                 .unwrap_or_else(|| self.storage().cursor_saved());
             let materialized = self
                 .operations()
-                .call(crate::operations::reports::MaterializeReport {
+                .call::<crate::operations::reports::MaterializeReport>(crate::operations::reports::MaterializeReport {
                     subject: dokime_domain::model::reports::wire::ReportSubject::Execution(id.to_string()),
                     at,
                 })
@@ -153,7 +153,7 @@ impl RuntimeHandle {
         let at = self.execution_storage.cycle_materialization_cursor(id).await?.unwrap_or_else(|| self.storage().cursor_saved());
         let materialized = self
             .operations()
-            .call(crate::operations::reports::MaterializeReport {
+            .call::<crate::operations::reports::MaterializeReport>(crate::operations::reports::MaterializeReport {
                 subject: dokime_domain::model::reports::wire::ReportSubject::Cycle(id.to_string()),
                 at,
             })

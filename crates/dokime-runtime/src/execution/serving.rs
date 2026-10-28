@@ -64,6 +64,10 @@ pub struct Run<T>(pub RunExecution, PhantomData<fn() -> T>);
 // One template's signal operation over the portable `ExecutionSignal`.
 pub struct Signal<T>(pub ExecutionSignal, PhantomData<fn() -> T>);
 
+// The resource the generic template pair reads; see `EmbeddedRegistry`.
+#[derive(Clone)]
+pub struct EmbeddedTemplates(pub Arc<dyn EmbeddedRegistry>);
+
 /* === Enums === */
 
 enum Answered {
@@ -72,6 +76,16 @@ enum Answered {
 }
 
 /* === Traits === */
+
+// The host's embedded template registry behind the generic
+// `dokime.template.run`/`dokime.template.signal` pair (`Run<()>`/`Signal<()>`):
+// the host inserts `EmbeddedTemplates(Arc<dyn EmbeddedRegistry>)` as the
+// registration resource and routes each request to its embedded template.
+pub trait EmbeddedRegistry: Send + Sync + 'static {
+    fn run(&self, request: RunExecution) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>>;
+
+    fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>>;
+}
 
 pub trait ExecutionHost: Send + Sync + 'static {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>>;
@@ -176,6 +190,34 @@ impl<T: SidecarTemplate> harmos::Operation for Signal<T> {
 
     async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Refusal> {
         ctx.resource::<Workflow<T>>().signal(self.0).map(Into::into)
+    }
+}
+
+impl Requires<EmbeddedTemplates> for Run<()> {}
+
+impl Requires<EmbeddedTemplates> for Signal<()> {}
+
+impl harmos::Dependent for Run<()> {
+    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<EmbeddedTemplates>()];
+}
+
+impl harmos::Dependent for Signal<()> {
+    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<EmbeddedTemplates>()];
+}
+
+impl harmos::Operation for Run<()> {
+    type Error = Refusal;
+
+    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SidecarExecutionOutcome>, Refusal> {
+        ctx.resource::<EmbeddedTemplates>().0.run(self.0).await.map(Into::into)
+    }
+}
+
+impl harmos::Operation for Signal<()> {
+    type Error = Refusal;
+
+    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Refusal> {
+        ctx.resource::<EmbeddedTemplates>().0.signal(self.0).await.map(Into::into)
     }
 }
 

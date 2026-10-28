@@ -90,7 +90,7 @@ pub(super) async fn read_native<T: Message + harmos::MemorySize>(
     }
 
     let mut reader = session
-        .read_file(harmos::storage::operations::ReadFile {
+        .read_file(harmos::storage::FileRead {
             source: harmos::storage::FileSource::Stored(file.clone()),
             range: harmos::storage::ByteRange { offset: 0, limit: None },
         })

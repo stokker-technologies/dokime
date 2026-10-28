@@ -52,9 +52,9 @@ use dokime::{
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    evidence::register(runtime, maximum)?;
-    artifacts::register(runtime, maximum)
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    evidence::register(runtime, maximum).await?;
+    artifacts::register(runtime, maximum).await
 }
 
 pub(super) fn download_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> Result<usize, Status> {
@@ -72,14 +72,9 @@ pub(super) fn transfer_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> R
     let plugin = plugins::InstallPluginFrame {
         frame: Some(plugins::InstallPluginFrameFrame::Chunk(plugins::InstallPluginChunk { offset: u64::MAX, data: Vec::new() })),
     };
-    let artifact = input_allowance::<dokime::operations::content::UploadArtifact>(
-        &artifact,
-        &["payload", "Chunk", "field_0", "data"],
-        cap,
-        maximum,
-    )?;
-    let plugin =
-        input_allowance::<dokime::operations::plugins::Install>(&plugin, &["frame", "Chunk", "field_0", "data"], cap, maximum)?;
+    let artifact =
+        input_allowance::<dokime::operations::content::UploadArtifact>(&artifact, &["payload", "Chunk", "field_0", "data"], cap, maximum)?;
+    let plugin = input_allowance::<dokime::operations::plugins::Install>(&plugin, &["frame", "Chunk", "field_0", "data"], cap, maximum)?;
     Ok(artifact.min(plugin))
 }
 

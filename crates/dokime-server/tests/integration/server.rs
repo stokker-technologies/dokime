@@ -529,7 +529,7 @@ async fn discovery_shares_independently() {
         })
         .collect::<std::collections::BTreeSet<_>>();
     // Runtime Startup Also Registers The Shared Storage Provider's Original Catalog.
-    let storage = dokime::harmos::operations::Contracts::of::<dokime::harmos::storage::operations::Operations>().unwrap();
+    let storage = dokime::harmos::operations::Contracts::of::<dokime::harmos::builtins::storage::Storage>().unwrap();
     for contract in storage {
         if let Some(binding) = contract.grpc() {
             expected.insert(binding.path());

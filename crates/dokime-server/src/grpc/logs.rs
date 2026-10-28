@@ -128,7 +128,7 @@ impl Tail {
         })
     }
 
-    pub(super) async fn watch(self: &Arc<Self>, watch: Watch, output: &mut StreamOutput<LogFrame>) -> Result<(), Status> {
+    pub(super) async fn watch(self: &Arc<Self>, watch: Watch, output: &StreamOutput<LogFrame>) -> Result<(), Status> {
         let replay_lines = if watch.replay_lines == 0 {
             SERVER_DEFAULT_REPLAY_LINES
         } else {
@@ -424,13 +424,14 @@ fn timestamp(value: &str) -> Option<Timestamp> {
     })
 }
 
-fn memory_failure(source: dokime::harmos::Error) -> Status {
-    let status = if matches!(source, dokime::harmos::Error::ResourceExhausted { .. }) {
+fn memory_failure(source: dokime::harmos::operations::StreamError) -> Status {
+    use dokime::harmos::operations::StreamError;
+    let status = if matches!(source, StreamError::Capacity | StreamError::Construction) {
         Status::resource_exhausted("log frame admission failed")
     } else {
         Status::internal("log frame admission failed")
     };
-    crate::grpc::error::detailed(status, &source.into())
+    crate::grpc::error::detailed_error(status, &source)
 }
 
 /* === Tests === */

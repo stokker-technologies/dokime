@@ -388,7 +388,7 @@ async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records:
         if handle.execution_sessions.deliver_records(&execution).await {
             continue;
         }
-        let target = crate::domains::execution::run::Target::of(handle.operations.clone(), &template);
+        let target = crate::domains::execution::run::Target::of(handle, &template);
         let signal = ExecutionSignal {
             execution_token: execution,
             record: Some(DeliverRecordRequest {

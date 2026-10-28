@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation};
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -27,8 +27,9 @@ use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::StepId;
 use dokime::domain::model::identity::TestExecutionId;
-use dokime::operations::execution as wire;
 use dokime::domains::execution::requests::{Receipt, StepCommand, StepCommandPhase, StepCommandReceipt};
+use dokime::operations::execution as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
@@ -39,66 +40,42 @@ use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Structs === */
 
-struct Submit {
-    resources: Arc<super::Resources>,
-}
-
-struct Lookup {
-    resources: Arc<super::Resources>,
-}
-
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    Submit(Submit),
-    Lookup(Lookup),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Submit {
-    type Declaration = wire::SubmitExecutionCommand;
-    type Resources = super::Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::SubmitExecutionCommand, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
-        submit(&self.resources, request).await
+impl Serve<wire::SubmitExecutionCommand> for super::Resources {
+    fn serve<'a>(
+        &'a self, request: wire::SubmitExecutionCommand, _: Context<'a, wire::SubmitExecutionCommand>,
+    ) -> Served<'a, dokime::domain::model::execution::wire::ExecutionCommandReceipt> {
+        Box::pin(async move { submit(self, &request).await })
     }
 }
 
-impl Operation for Lookup {
-    type Declaration = wire::GetExecutionCommand;
-    type Resources = super::Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::GetExecutionCommand, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
-        get(&self.resources, request).await
+impl Serve<wire::GetExecutionCommand> for super::Resources {
+    fn serve<'a>(
+        &'a self, request: wire::GetExecutionCommand, _: Context<'a, wire::GetExecutionCommand>,
+    ) -> Served<'a, dokime::domain::model::execution::wire::ExecutionCommandReceipt> {
+        Box::pin(async move { get(self, &request).await })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operations::<Operations, super::Resources>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(super::Resources { runtime: runtime.clone(), max_message_bytes }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(super::Resources {
+        runtime: runtime.clone(),
+        max_message_bytes,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::SubmitExecutionCommand>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::GetExecutionCommand>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<wire::SubmitExecutionCommand>()
+        .operation::<wire::GetExecutionCommand>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 

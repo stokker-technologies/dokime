@@ -87,9 +87,9 @@ pub struct RuntimeHandle {
     pub(crate) streams: crate::app::Streams,
     pub(crate) operations: crate::app::OperationManager,
     grpc: harmos::grpc::GrpcManager,
-    pub(crate) publication_core: Arc<super::sidecars::core::Publications>,
     pub(crate) record_ingress: Arc<super::sidecars::core::RecordIngress>,
     pub(crate) execution_sessions: Arc<crate::domains::execution::run::Sessions>,
+    pub(crate) embedded_templates: Arc<crate::runtime::EmbeddedTemplates>,
 
     pub(crate) sampling: Arc<Sampling>,
     pub(crate) stream_leases: Arc<crate::telemetry_runtime::StreamLeases>,
@@ -106,6 +106,7 @@ pub struct RuntimeHandle {
     pub(crate) publication_ingest: Arc<std::sync::OnceLock<super::sidecars::PublicationIngest>>,
     pub(crate) shutdown_requested: tokio::sync::watch::Sender<bool>,
     pub(crate) provider_tasks: Arc<Mutex<Vec<crate::runtime::operations::provider::ProviderTask>>>,
+    pub(crate) provider_invocations: Arc<crate::runtime::operations::provider::ProviderInvocations>,
     pub(crate) provider_completion_failure: Arc<Mutex<Option<crate::runtime::operations::provider::PublicationFailure>>>,
     // Detached work shutdown drains before the runtime closes.
     pub(crate) owned_work: tokio_util::task::TaskTracker,
@@ -346,13 +347,16 @@ impl RuntimeHandle {
                 crate::app::Lanes::Open,
             ))
             .await?;
-        crate::runtime::operations::provider::register(&harmos_runtime.operations)?;
+        let provider_invocations = Arc::new(crate::runtime::operations::provider::ProviderInvocations::default());
+        crate::runtime::operations::provider::register(&harmos_runtime.operations, provider_invocations.clone()).await?;
         let execution_sessions = Arc::new(crate::domains::execution::run::Sessions::default());
-        crate::domains::execution::run::host::register(&harmos_runtime.operations, &execution_sessions)?;
-        crate::plot::builtins::register(&harmos_runtime.operations)?;
-        let step_builtins = crate::domains::files::register(&harmos_runtime.operations)?;
-        let publication_core = super::sidecars::core::Publications::register(&harmos_runtime.operations)?;
-        let record_ingress = super::sidecars::core::RecordIngress::register(&harmos_runtime.operations)?;
+        crate::domains::execution::run::host::register(&harmos_runtime.operations, &execution_sessions).await?;
+        let embedded_templates = Arc::new(crate::runtime::EmbeddedTemplates::new(Arc::clone(&execution_sessions)));
+        super::embedded::register(&harmos_runtime.operations, &embedded_templates).await?;
+        crate::plot::builtins::register(&harmos_runtime.operations).await?;
+        let step_builtins = crate::domains::files::register(&harmos_runtime.operations).await?;
+        super::sidecars::core::register_publications(&harmos_runtime.operations).await?;
+        let record_ingress = super::sidecars::core::RecordIngress::register(&harmos_runtime.operations).await?;
 
         let initial = harmos_runtime
             .state
@@ -405,9 +409,9 @@ impl RuntimeHandle {
             streams: harmos_runtime.streams.clone(),
             operations: harmos_runtime.operations.clone(),
             grpc: harmos_runtime.grpc().clone(),
-            publication_core,
             record_ingress,
             execution_sessions,
+            embedded_templates,
             sampling: Arc::new(sampling),
             evidence_admission: Default::default(),
             evidence_exports: crate::domains::exports::evidence::Manager::new(config.application_root.join("cache/exports")),
@@ -423,6 +427,7 @@ impl RuntimeHandle {
             publication_ingest: Default::default(),
             shutdown_requested: tokio::sync::watch::channel(false).0,
             provider_tasks: Default::default(),
+            provider_invocations,
             provider_completion_failure: Default::default(),
             owned_work: Default::default(),
             plugin_admission: Default::default(),
@@ -468,8 +473,8 @@ impl RuntimeHandle {
         let contracts = self.state_read().telemetry_contracts();
         self.execution_storage.register_schemas(&contracts).await?;
         crate::runtime::operations::runtime::register(self).await?;
-        crate::runtime::operations::secrets::register(self)?;
-        crate::runtime::operations::reports::register(self)?;
+        crate::runtime::operations::secrets::register(self).await?;
+        crate::runtime::operations::reports::register(self).await?;
         Ok(())
     }
 

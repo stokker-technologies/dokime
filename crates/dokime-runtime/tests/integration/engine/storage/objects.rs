@@ -40,6 +40,7 @@ struct Reader;
 
 /* === Implementations === */
 impl Application for Reader {
+    type Lanes = dokime_runtime::app::Lanes;
     type State = ();
     type Transaction = Never;
     type Record = Never;

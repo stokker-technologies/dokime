@@ -14,13 +14,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 use crate::analysis::{
-    Analysis, Axis, Definition, Definitions, Error, Handler, Limits, MAX_SAMPLES, Output, Response, ResultData, Samples, Values,
+    Analysis, Axis, Definition, Definitions, Error, Limits, MAX_SAMPLES, Operation, Output, Response, ResultData, Samples, Values,
 };
 use crate::catalog::Catalog;
 
@@ -74,15 +74,15 @@ struct Fourier {
 
 #[harmos::catalog]
 enum Operations {
-    Mean(Handler<Mean>),
-    Lttb(Handler<Lttb>),
-    Extrema(Handler<Extrema>),
+    Mean(Operation<Mean>),
+    Lttb(Operation<Lttb>),
+    Extrema(Operation<Extrema>),
 }
 
 #[cfg(feature = "fft")]
 #[harmos::catalog]
 enum FourierOperations {
-    Fft(Handler<Fft>),
+    Fft(Operation<Fft>),
 }
 
 /* === Traits === */
@@ -235,20 +235,24 @@ pub(crate) fn definitions() -> Result<Vec<Definition>, Error> {
 
 pub(crate) fn evaluate_report(operation: &str, request: crate::analysis::Request) -> Result<Response, Error> {
     match operation {
-        Mean::ID => crate::analysis::Operation::<Mean>::evaluate(request),
-        Lttb::ID => crate::analysis::Operation::<Lttb>::evaluate(request),
-        Extrema::ID => crate::analysis::Operation::<Extrema>::evaluate(request),
+        Mean::ID => Operation::<Mean>::evaluate(request),
+        Lttb::ID => Operation::<Lttb>::evaluate(request),
+        Extrema::ID => Operation::<Extrema>::evaluate(request),
         #[cfg(feature = "fft")]
-        Fft::ID => crate::analysis::Operation::<Fft>::evaluate(request),
+        Fft::ID => Operation::<Fft>::evaluate(request),
         _ => Err(Error::Input("report builtin analysis is unavailable".into())),
     }
 }
 
-pub(crate) fn register(operations: &crate::app::OperationManager) -> harmos::Result<()> {
-    operations.register_wire_operations::<Operations, _>("dokime.analysis", crate::app::Lanes::Open, Arc::new(()))?;
+pub(crate) async fn register(operations: &crate::app::OperationManager) -> harmos::Result<()> {
+    use harmos::RegistrationExt;
+    let batch = harmos::RegistrationBatch::new(harmos::Dependencies::new())
+        .operation::<Operation<Mean>>()
+        .operation::<Operation<Lttb>>()
+        .operation::<Operation<Extrema>>();
     #[cfg(feature = "fft")]
-    operations.register_wire_operations::<FourierOperations, _>("dokime.analysis", crate::app::Lanes::Open, Arc::new(()))?;
-    Ok(())
+    let batch = batch.operation::<Operation<Fft>>();
+    operations.register(batch.lane(crate::app::Lanes::Open)).await
 }
 
 /* === Private Functions === */

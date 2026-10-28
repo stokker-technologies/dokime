@@ -32,7 +32,7 @@ pub(crate) mod catalog_lifecycle {
         }
 
         fn bind<P: dokime_runtime::harmos::plugin::Declared>(
-            _: &mut WireTable<dokime_runtime::Supervisor>, _: &str, _: &[dokime_runtime::records::RecordContract],
+            _: &mut WireTable, _: &str, _: &[dokime_runtime::records::RecordContract],
         ) -> Result<(), ServingError> {
             Ok(())
         }

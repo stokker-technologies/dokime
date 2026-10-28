@@ -17,10 +17,9 @@
 
 // Third Party Imports
 use harmos::{
-    operations::Context,
     storage::{
         StorageCursor,
-        operations::Query,
+        Query,
         query::{RowSlice, Source, StreamSelection, transform::Transform},
     },
 };
@@ -67,7 +66,7 @@ pub(super) fn plan(at: &StorageCursor, scope: &str, codec: &TypedCodec, transfor
 }
 
 pub(in crate::report) async fn visit(
-    ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
+    ctx: &crate::report::Scope, session: &crate::storage::Manager, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
     mut visit: impl FnMut(&TelemetrySample) -> Result<()>,
 ) -> Result<()> {
     let codec = saved_codec(ctx, session, at, contract).await?;
@@ -85,7 +84,7 @@ pub(in crate::report) async fn visit(
 /* === Private Functions === */
 
 pub(in crate::report) async fn saved_codec(
-    ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, contract: &TelemetryContract,
+    ctx: &crate::report::Scope, session: &crate::storage::Manager, at: &StorageCursor, contract: &TelemetryContract,
 ) -> Result<harmos::storage::ReadBatch<TypedCodec>> {
     let identifier_bytes = "dokime.telemetry."
         .len()
@@ -104,7 +103,7 @@ pub(in crate::report) async fn saved_codec(
         session,
         at,
         Some(&schema),
-        &ctx.scope().resources::<crate::app::Dokime>().schema_settings,
+        &ctx.resources().schema_settings,
         |id, version| id.strip_prefix("dokime.telemetry.") == Some(contract.stream.as_str()) && version == contract.schema_version,
     )
     .await?;

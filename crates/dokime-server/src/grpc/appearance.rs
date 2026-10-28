@@ -20,7 +20,7 @@ mod convert;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, StreamOutput};
+use dokime::harmos::{Context, RegistrationExt};
 use prost::Message;
 use tonic::Status;
 
@@ -29,6 +29,7 @@ use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::operations::appearance as wire;
 use dokime::operations::content;
+use dokime::operations::hosting::{Host, Serve, Served};
 
 /* === Constants === */
 
@@ -46,114 +47,93 @@ struct Resources {
     pub max_message_bytes: usize,
 }
 
-struct Download {
-    resources: Arc<Resources>,
-}
-
-struct Read {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    Read(Read),
-    Download(Download),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Read {
-    type Declaration = wire::GetAppearance;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _: &mut wire::GetAppearance, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::appearance::wire::AppearanceSnapshot>, Status> {
-        let session = self.resources.runtime.storage().clone();
-        let captured =
-            self.resources.runtime.capture_appearance(source_budget(self.resources.max_message_bytes)).map_err(assets::native_failure)?;
+impl Serve<wire::GetAppearance> for Resources {
+    fn serve<'a>(
+        &'a self, _: wire::GetAppearance, _: Context<'a, wire::GetAppearance>,
+    ) -> Served<'a, dokime::domain::model::appearance::wire::AppearanceSnapshot> {
+        Box::pin(async move {
+            let session = self.runtime.storage().clone();
+            let captured = self.runtime.capture_appearance(source_budget(self.max_message_bytes)).map_err(assets::native_failure)?;
 
-        let mut logos = dokime::harmos::storage::ReadBatch::new(())
-            .try_map(|_| {
-                let mut logos = Vec::new();
-                logos
-                    .try_reserve_exact(captured.frame.logos.len())
-                    .map_err(|_| dokime::harmos::storage::Error::ResourceExhausted { resource: "appearance logo slots" })?;
-                Ok(logos)
-            })
-            .map_err(assets::native_failure)?;
-
-        for (logo, source) in captured.frame.logos.iter().zip(captured.logos.iter()) {
-            let source =
-                source.as_ref().ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
-            let asset = assets::capture(
-                &session,
-                source,
-                logo.plugin_id.as_str(),
-                logo.asset_id.as_str(),
-                usize::try_from(SERVER_APPEARANCE_ASSET_BYTES).expect("validated appearance asset size"),
-            )
-            .await?;
-
-            logos = logos
-                .try_map_with(asset.metadata, |mut logos, metadata| {
-                    logos.push(dokime::domain::model::appearance::wire::AppearanceLogo {
-                        variant: logo.variant,
-                        asset: Some(metadata),
-                        alt: logo.alt.clone(),
-                    });
+            let mut logos = dokime::harmos::storage::ReadBatch::new(())
+                .try_map(|_| {
+                    let mut logos = Vec::new();
+                    logos
+                        .try_reserve_exact(captured.frame.logos.len())
+                        .map_err(|_| dokime::harmos::storage::Error::ResourceExhausted { resource: "appearance logo slots" })?;
                     Ok(logos)
                 })
                 .map_err(assets::native_failure)?;
-        }
-        let frame = captured
-            .try_map_with(logos, |captured, logos| convert::appearance(captured.frame, logos))
-            .map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
-        if frame.wire_len()? > self.resources.max_message_bytes {
-            return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
-        }
-        Ok(dokime::harmos::operations::Response::from_owner(frame.owner()))
+
+            for (logo, source) in captured.frame.logos.iter().zip(captured.logos.iter()) {
+                let source =
+                    source.as_ref().ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
+                let asset = assets::capture(
+                    &session,
+                    source,
+                    logo.plugin_id.as_str(),
+                    logo.asset_id.as_str(),
+                    usize::try_from(SERVER_APPEARANCE_ASSET_BYTES).expect("validated appearance asset size"),
+                )
+                .await?;
+
+                logos = logos
+                    .try_map_with(asset.metadata, |mut logos, metadata| {
+                        logos.push(dokime::domain::model::appearance::wire::AppearanceLogo {
+                            variant: logo.variant,
+                            asset: Some(metadata),
+                            alt: logo.alt.clone(),
+                        });
+                        Ok(logos)
+                    })
+                    .map_err(assets::native_failure)?;
+            }
+            let frame = captured
+                .try_map_with(logos, |captured, logos| convert::appearance(captured.frame, logos))
+                .map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
+            if frame.wire_len()? > self.max_message_bytes {
+                return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
+            }
+            Ok(dokime::harmos::operations::Response::from_owner(frame.owner()))
+        })
     }
 }
 
-impl Operation for Download {
-    type Declaration = content::DownloadAppearanceAsset;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::content::wire::AppearanceAssetFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut content::DownloadAppearanceAsset, output: &mut Self::Endpoints,
-    ) -> Result<dokime::harmos::operations::Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            assets::download(&self.resources.runtime, std::mem::take(request), self.resources.max_message_bytes, output).await?;
-            Ok(().into())
+impl Serve<content::DownloadAppearanceAsset> for Resources {
+    fn serve<'a>(
+        &'a self, request: content::DownloadAppearanceAsset, ctx: Context<'a, content::DownloadAppearanceAsset>,
+    ) -> Served<'a, ()> {
+        Box::pin(async move {
+            let revoked = crate::grpc::access::revocation(ctx.call());
+            crate::grpc::access::during(revoked, async {
+                assets::download(&self.runtime, request, self.max_message_bytes, ctx.streams()).await?;
+                Ok(().into())
+            })
+            .await
         })
-        .await
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operations::<Operations, Resources>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::GetAppearance>::new(served.clone()))?;
+    dependencies.insert(Host::<content::DownloadAppearanceAsset>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<wire::GetAppearance>()
+        .operation::<content::DownloadAppearanceAsset>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -184,7 +164,10 @@ fn failure(kind: dokime::domain::model::appearance::wire::AppearanceFailureKind)
         // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
         details: crate::grpc::transcode::Transcode::wire_bytes(&dokime::domain::model::appearance::wire::AppearanceFailure { kind })
             .ok()
-            .map(|value| prost_types::Any { type_url: "type.googleapis.com/dokime.v1.AppearanceFailure".into(), value })
+            .map(|value| prost_types::Any {
+                type_url: "type.googleapis.com/dokime.v1.AppearanceFailure".into(),
+                value,
+            })
             .into_iter()
             .collect(),
     };

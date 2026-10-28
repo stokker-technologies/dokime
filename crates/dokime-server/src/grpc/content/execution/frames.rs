@@ -66,7 +66,10 @@ pub(super) fn chunk(
         checked(
             dokime::domain::model::content::wire::ExecutionFileDownloadFrame {
                 payload: Some(dokime::domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
-                    dokime::domain::model::content::wire::ArtifactChunk { offset: content.offset, data: content.bytes },
+                    dokime::domain::model::content::wire::ArtifactChunk {
+                        offset: content.offset,
+                        data: content.bytes,
+                    },
                 )),
             },
             maximum,
@@ -112,7 +115,9 @@ fn checked(
 }
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical execution download frame" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical execution download frame",
+    }
 }
 
 /* === Tests === */

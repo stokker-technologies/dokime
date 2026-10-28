@@ -97,7 +97,7 @@ pub use scope::{ExecutionScope, IdempotencyKey};
 
 #[cfg(feature = "native")]
 pub use serving::{
-    ExecutionHost, Run, Runnable, SIGNAL_POLICY, Served, Signal, bind, contracts, contracts_with_settings, interrupt, runner, serve,
+    EmbeddedRegistry, EmbeddedTemplates, ExecutionHost, Run, Runnable, SIGNAL_POLICY, Served, Signal, bind, contracts, contracts_with_settings, interrupt, runner, serve,
 };
 
 #[cfg(feature = "native")]

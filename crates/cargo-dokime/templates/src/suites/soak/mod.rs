@@ -50,7 +50,7 @@ pub enum Templates {
 // template's own attribute — and reaches the host through the template list
 // below, bound to the template that publishes it.
 #[dokime::suite(
-    id = "{{owner}}.soak",
+    id = "{{crate}}.soak",
     label = "Thermal Soak",
     tags = ["device", "thermal"],
     templates = Templates, description = "Hold the unit at temperature and watch it stay in band.")]

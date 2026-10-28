@@ -7,6 +7,11 @@ rust-version = "1.99"
 description = "A native Dokime plugin driving a simulated thermal bench"
 license = "Apache-2.0"
 
+[features]
+default = ["runtime"]
+# Generated operation resource wiring is gated on this crate's `runtime` feature.
+runtime = []
+
 [dependencies]
 tracing = "0.1"
 dokime = { git = "{{repository}}", branch = "dev", features = ["plugin-sidecar"] }

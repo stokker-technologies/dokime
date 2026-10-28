@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
 // Local Imports
@@ -27,6 +27,7 @@ use crate::grpc::value::{canonical, projection};
 use dokime::RuntimeHandle;
 use dokime::domain::model::history::wire::{CycleBrowsePage, SavedCycleSummary};
 use dokime::operations::history::BrowseCycles;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::cycle_history::{CycleBrowsePage as NativePage, CycleBrowseQuery};
 
 /* === Constants === */
@@ -42,47 +43,41 @@ struct Resources {
     maximum: usize,
 }
 
-struct Browse {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Browse {
-    type Declaration = BrowseCycles;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
+impl Serve<BrowseCycles> for Resources {
+    fn serve<'a>(&'a self, mut request: BrowseCycles, _: Context<'a, BrowseCycles>) -> Served<'a, CycleBrowsePage> {
+        Box::pin(async move {
+            let at = request.at.take().map(|at| wire::cursor(Some(at))).transpose()?;
+            let filter = crate::grpc::execution::cycle_filter(request.filter.as_ref())?;
+            let limit = (request.limit != 0).then_some(request.limit as usize);
+            let query = CycleBrowseQuery {
+                at,
+                after: request.after_sequence,
+                limit,
+                max_bytes: self.maximum,
+                filter,
+            };
 
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-
-    async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut BrowseCycles, _: &mut ()) -> Result<Response<CycleBrowsePage>, Status> {
-        let at = request.at.take().map(|at| wire::cursor(Some(at))).transpose()?;
-        let filter = crate::grpc::execution::cycle_filter(request.filter.as_ref())?;
-        let limit = (request.limit != 0).then_some(request.limit as usize);
-        let query = CycleBrowseQuery { at, after: request.after_sequence, limit, max_bytes: self.resources.maximum, filter };
-
-        // Project Only The Selected Headers
-        let page = self.resources.runtime.browse_cycles(query).await.map_err(wire::query_failure)?;
-        project(page, self.resources.maximum).map_err(|source| wire::query_failure(source.into()))
+            // Project Only The Selected Headers
+            let page = self.runtime.browse_cycles(query).await.map_err(wire::query_failure)?;
+            project(page, self.maximum).map_err(|source| wire::query_failure(source.into()))
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<Browse>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<BrowseCycles>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<BrowseCycles>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -109,7 +104,11 @@ fn project_wire(page: NativePage) -> dokime::harmos::Result<CycleBrowsePage> {
             archived: cycle.archived,
         });
     }
-    Ok(CycleBrowsePage { entries, at: Some(wire::cursor_wire_ref(&page.at)), next_after_sequence: page.next })
+    Ok(CycleBrowsePage {
+        entries,
+        at: Some(wire::cursor_wire_ref(&page.at)),
+        next_after_sequence: page.next,
+    })
 }
 
 fn original_error(source: Status) -> dokime::harmos::Error {

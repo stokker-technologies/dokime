@@ -30,7 +30,7 @@ use dokime::prelude::Discovered;
 /* === Structs === */
 
 #[dokime::operation(
-    id = "{{owner}}.get_chamber",
+    id = "{{crate}}.get_chamber",
     response = ChamberReading,
     description = "Reads the chamber. A template calls it with `ctx.call::<ReadChamber>(ReadChamber {})`.",
     policy = super::POLICY,
@@ -40,7 +40,7 @@ use dokime::prelude::Discovered;
 pub struct ReadChamber {}
 
 #[dokime::operation(
-    id = "{{owner}}.detect_port",
+    id = "{{crate}}.detect_port",
     response = Discovered,
     description = "Finds the sensor port the settings card offers before anybody saved one.",
     policy = super::POLICY,

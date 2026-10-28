@@ -22,7 +22,7 @@ pub(super) use parameters::{unit, wire as parameters};
 use std::{collections::BTreeSet, sync::Arc};
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation};
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -30,6 +30,7 @@ use super::value::{Budget, canonical};
 use dokime::RuntimeHandle;
 use dokime::domain::model::definition::wire as schema;
 use dokime::operations::catalog as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
 
 /* === Constants === */
 
@@ -44,162 +45,104 @@ struct Resources {
     max_message_bytes: usize,
 }
 
-struct ListSuites {
-    resources: Arc<Resources>,
-}
-
-struct GetSuite {
-    resources: Arc<Resources>,
-}
-
-struct ListRecordSchemas {
-    resources: Arc<Resources>,
-}
-
-struct GetRecordSchema {
-    resources: Arc<Resources>,
-}
-
-struct ListTelemetrySchemas {
-    resources: Arc<Resources>,
-}
-
-struct GetTelemetrySchema {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    ListSuites(ListSuites),
-    GetSuite(GetSuite),
-    ListRecordSchemas(ListRecordSchemas),
-    GetRecordSchema(GetRecordSchema),
-    ListTelemetrySchemas(ListTelemetrySchemas),
-    GetTelemetrySchema(GetTelemetrySchema),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for ListSuites {
-    type Declaration = wire::ListSuites;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::ListSuites, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::catalog::wire::ListSuitesReply>, Status> {
-        let reply = list_suites(&self.resources, request).await?;
-        check(&self.resources, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
-        Ok(reply.into())
+impl Serve<wire::ListSuites> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::ListSuites, _: Context<'a, wire::ListSuites>,
+    ) -> Served<'a, dokime::domain::model::catalog::wire::ListSuitesReply> {
+        Box::pin(async move {
+            let reply = list_suites(self, &request).await?;
+            check(self, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
+            Ok(reply.into())
+        })
     }
 }
 
-impl Operation for GetSuite {
-    type Declaration = wire::GetSuite;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::GetSuite, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::catalog::wire::SuiteDefinition>, Status> {
-        let reply = get_suite(&self.resources, request).await?;
-        check(&self.resources, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
-        Ok(reply.into())
+impl Serve<wire::GetSuite> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::GetSuite, _: Context<'a, wire::GetSuite>,
+    ) -> Served<'a, dokime::domain::model::catalog::wire::SuiteDefinition> {
+        Box::pin(async move {
+            let reply = get_suite(self, &request).await?;
+            check(self, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
+            Ok(reply.into())
+        })
     }
 }
 
-impl Operation for ListRecordSchemas {
-    type Declaration = wire::ListRecordSchemas;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::ListRecordSchemas, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::catalog::wire::ListRecordSchemasReply>, Status> {
-        let reply = list_record_schemas(&self.resources, request).await?;
-        check(&self.resources, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
-        Ok(reply.into())
+impl Serve<wire::ListRecordSchemas> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::ListRecordSchemas, _: Context<'a, wire::ListRecordSchemas>,
+    ) -> Served<'a, dokime::domain::model::catalog::wire::ListRecordSchemasReply> {
+        Box::pin(async move {
+            let reply = list_record_schemas(self, &request).await?;
+            check(self, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
+            Ok(reply.into())
+        })
     }
 }
 
-impl Operation for GetRecordSchema {
-    type Declaration = wire::GetRecordSchema;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::GetRecordSchema, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<schema::RecordSchema>, Status> {
-        let reply = get_record_schema(&self.resources, request).await?;
-        check(&self.resources, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
-        Ok(reply.into())
+impl Serve<wire::GetRecordSchema> for Resources {
+    fn serve<'a>(&'a self, request: wire::GetRecordSchema, _: Context<'a, wire::GetRecordSchema>) -> Served<'a, schema::RecordSchema> {
+        Box::pin(async move {
+            let reply = get_record_schema(self, &request).await?;
+            check(self, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
+            Ok(reply.into())
+        })
     }
 }
 
-impl Operation for ListTelemetrySchemas {
-    type Declaration = wire::ListTelemetrySchemas;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::ListTelemetrySchemas, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::catalog::wire::ListTelemetrySchemasReply>, Status> {
-        let reply = list_telemetry_schemas(&self.resources, request).await?;
-        check(&self.resources, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
-        Ok(reply.into())
+impl Serve<wire::ListTelemetrySchemas> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::ListTelemetrySchemas, _: Context<'a, wire::ListTelemetrySchemas>,
+    ) -> Served<'a, dokime::domain::model::catalog::wire::ListTelemetrySchemasReply> {
+        Box::pin(async move {
+            let reply = list_telemetry_schemas(self, &request).await?;
+            check(self, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
+            Ok(reply.into())
+        })
     }
 }
 
-impl Operation for GetTelemetrySchema {
-    type Declaration = wire::GetTelemetrySchema;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::GetTelemetrySchema, _: &mut (),
-    ) -> Result<dokime::harmos::operations::Response<schema::TelemetrySchema>, Status> {
-        let reply = get_telemetry_schema(&self.resources, request).await?;
-        check(&self.resources, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
-        Ok(reply.into())
+impl Serve<wire::GetTelemetrySchema> for Resources {
+    fn serve<'a>(
+        &'a self, request: wire::GetTelemetrySchema, _: Context<'a, wire::GetTelemetrySchema>,
+    ) -> Served<'a, schema::TelemetrySchema> {
+        Box::pin(async move {
+            let reply = get_telemetry_schema(self, &request).await?;
+            check(self, crate::grpc::transcode::Transcode::wire_len(&reply)?)?;
+            Ok(reply.into())
+        })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operations::<Operations, Resources>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::ListSuites>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::GetSuite>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::ListRecordSchemas>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::GetRecordSchema>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::ListTelemetrySchemas>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::GetTelemetrySchema>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<wire::ListSuites>()
+        .operation::<wire::GetSuite>()
+        .operation::<wire::ListRecordSchemas>()
+        .operation::<wire::GetRecordSchema>()
+        .operation::<wire::ListTelemetrySchemas>()
+        .operation::<wire::GetTelemetrySchema>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -249,7 +192,11 @@ async fn list_suites(
     } else {
         None
     };
-    Ok(dokime::domain::model::catalog::wire::ListSuitesReply { suites, next_after_suite_id, cursor: Some(canonical::cursor(&snapshot)) })
+    Ok(dokime::domain::model::catalog::wire::ListSuitesReply {
+        suites,
+        next_after_suite_id,
+        cursor: Some(canonical::cursor(&snapshot)),
+    })
 }
 
 async fn get_suite(

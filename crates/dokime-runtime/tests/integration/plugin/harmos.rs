@@ -53,7 +53,7 @@ enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
-impl dokime_runtime::harmos::operations::lifecycle::Policy for DirectStreams {
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for DirectStreams {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
@@ -86,7 +86,7 @@ impl dokime_runtime::Plugin for DirectStreams {
         Arc::new(())
     }
 
-    fn bind_operations(&self, _: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
+    fn bind_operations(&self, _: &mut WireTable) -> Result<(), ServingError> {
         Ok(())
     }
 

@@ -36,7 +36,6 @@ const LATE: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime
     timeout: Duration::from_millis(20),
     attempt_timeout: Duration::from_millis(20),
     retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
-    restart: dokime_runtime::harmos::operations::RestartPolicy::Never,
 };
 
 static OBSERVER_PROBES: LazyLock<Mutex<BTreeMap<String, ObserverTicks>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
@@ -83,13 +82,7 @@ struct Bench {
     shared: Arc<Shared>,
     observers: Option<Arc<ObserverAttachment<Shared>>>,
 }
-struct GetReadingHandler(Arc<Shared>);
-struct GetLateReadingHandler;
-struct GetStatusHandler;
-struct EchoHandler;
-struct DoubleHandler;
 #[allow(dead_code)]
-struct HiddenHandler;
 struct Watch(Option<ObserverTicks>);
 
 struct Checks;
@@ -103,11 +96,11 @@ struct WireCancellation {
 /* === Enums === */
 #[dokime_runtime::catalog]
 enum Implemented {
-    GetReading(GetReadingHandler),
-    GetLateReading(GetLateReadingHandler),
-    GetStatus(GetStatusHandler),
-    Echo(EchoHandler),
-    Double(DoubleHandler),
+    GetReading(GetReading),
+    GetLateReading(GetLateReading),
+    GetStatus(GetStatus),
+    Echo(Echo),
+    Double(Double),
 }
 
 #[dokime_runtime::catalog]
@@ -134,94 +127,114 @@ enum ProbeRequired {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation(id = "call-fixture.get_reading", policy = super::native::POLICY, response = GetReadingResponse)]
+#[dokime_runtime::operation(id = "call-fixture.get_reading", policy = super::native::POLICY, response = GetReadingResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetReading {}
-#[dokime_runtime::operation]
-impl GetReadingHandler {
-    async fn initialize(shared: Arc<Shared>, _: &Supervisor) -> Self {
-        Self(shared)
-    }
-    async fn run(&mut self, _: &Supervisor, _: &mut GetReading) -> Result<GetReadingResponse, Refusal> {
-        Ok(GetReadingResponse { reads: self.0.reads.fetch_add(1, Ordering::SeqCst) + 1 })
+impl dokime_runtime::Operation for GetReading {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
+        let resource = context.resource::<Shared>();
+        let answered: Result<GetReadingResponse, Refusal> = async {
+        Ok(GetReadingResponse { reads: resource.reads.fetch_add(1, Ordering::SeqCst) + 1 })
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call-fixture.get_late_reading", policy = LATE, response = GetReadingResponse)]
+#[dokime_runtime::operation(id = "call-fixture.get_late_reading", policy = LATE, response = GetReadingResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetLateReading {}
-#[dokime_runtime::operation]
-impl GetLateReadingHandler {
-    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
-        Self
-    }
-    async fn run(&mut self, _: &Supervisor, _: &mut GetLateReading) -> Result<GetReadingResponse, Refusal> {
+impl dokime_runtime::Operation for GetLateReading {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
+        let resource = context.resource::<Shared>();
+        let answered: Result<GetReadingResponse, Refusal> = async {
         let mut cancellation = WireCancellation { completed: false };
         std::future::pending::<()>().await;
         cancellation.completed = true;
 
         Ok(GetReadingResponse { reads: 0 })
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
 #[dokime_runtime::operation(id = "call-fixture.get_status",
     policy = super::native::POLICY,
-    response = dokime_runtime::domains::StatusResponse)]
+    response = dokime_runtime::domains::StatusResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetStatus {}
-#[dokime_runtime::operation]
-impl GetStatusHandler {
-    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
-        Self
-    }
-    async fn run(&mut self, _: &Supervisor, _: &mut GetStatus) -> Result<dokime_runtime::domains::StatusResponse, Refusal> {
+impl dokime_runtime::Operation for GetStatus {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<dokime_runtime::domains::StatusResponse>, Refusal> {
+        let resource = context.resource::<Shared>();
+        let answered: Result<dokime_runtime::domains::StatusResponse, Refusal> = async {
         Ok(dokime_runtime::domains::StatusResponse::ready())
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call-fixture.echo", policy = super::native::POLICY, response = SharedReading)]
+#[dokime_runtime::operation(id = "call-fixture.echo", policy = super::native::POLICY, response = SharedReading, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct Echo {
     value: u64,
 }
-#[dokime_runtime::operation]
-impl EchoHandler {
-    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
-        Self
-    }
-    async fn run(&mut self, _: &Supervisor, request: &mut Echo) -> Result<SharedReading, Refusal> {
+impl dokime_runtime::Operation for Echo {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<SharedReading>, Refusal> {
+        let resource = context.resource::<Shared>();
+        let request = &mut { self };
+        let answered: Result<SharedReading, Refusal> = async {
         Ok(SharedReading { value: request.value })
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call-fixture.double", policy = super::native::POLICY, response = SharedReading)]
+#[dokime_runtime::operation(id = "call-fixture.double", policy = super::native::POLICY, response = SharedReading, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct Double {
     value: u64,
 }
-#[dokime_runtime::operation]
-impl DoubleHandler {
-    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
-        Self
-    }
-    async fn run(&mut self, _: &Supervisor, request: &mut Double) -> Result<SharedReading, Refusal> {
+impl dokime_runtime::Operation for Double {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<SharedReading>, Refusal> {
+        let resource = context.resource::<Shared>();
+        let request = &mut { self };
+        let answered: Result<SharedReading, Refusal> = async {
         Ok(SharedReading { value: request.value * 2 })
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
 
 #[allow(dead_code)]
-#[dokime_runtime::operation(id = "call-fixture.hidden", policy = super::native::POLICY, response = ())]
+#[dokime_runtime::operation(id = "call-fixture.hidden", policy = super::native::POLICY, response = (), resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct Hidden {}
 // Never dispatched: the story proves no catalog lists it.
 #[allow(dead_code)]
-#[dokime_runtime::operation]
-impl HiddenHandler {
-    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
-        Self
-    }
-    async fn run(&mut self, _: &Supervisor, _: &mut Hidden) -> Result<(), Refusal> {
+impl dokime_runtime::Operation for Hidden {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<()>, Refusal> {
+        let resource = context.resource::<Shared>();
+        let answered: Result<(), Refusal> = async {
         panic!("an operation no catalog lists must never be dispatched")
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for Bench {
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for Bench {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
@@ -259,8 +272,8 @@ impl dokime_runtime::Plugin for Bench {
         Arc::clone(&self.shared)
     }
 
-    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<Implemented, _>(self.resources())?;
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
+        table.register(Implemented::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))?;
         dokime_runtime::execution::serve::<Self, BenchSuites>(table)?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }

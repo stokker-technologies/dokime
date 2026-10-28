@@ -71,7 +71,9 @@ pub(in crate::grpc) fn project(
 /* === Private Functions === */
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical file window projection" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical file window projection",
+    }
 }
 
 /* === Tests === */

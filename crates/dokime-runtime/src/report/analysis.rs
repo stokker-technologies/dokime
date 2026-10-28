@@ -20,7 +20,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::operations::Context;
+use super::Scope;
 
 // Local Imports
 use crate::domains::ActionDispatcher;
@@ -89,11 +89,11 @@ impl Resources {
 /* === Public Functions === */
 
 pub(crate) async fn materialize(
-    ctx: &Context<'_>, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: harmos::storage::ReadBatch<PlotPayload>,
+    ctx: &Scope, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: harmos::storage::ReadBatch<PlotPayload>,
     contract: Option<&TelemetryContract>, position: &harmos::storage::StorageCursor,
 ) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
-    let resources = &ctx.scope().resources::<crate::app::Dokime>().analysis;
-    let state = ctx.scope().state::<crate::app::Dokime>().state();
+    let resources = &ctx.resources().analysis;
+    let state = ctx.state().state();
     let prepared = state
         .read(|state| crate::runtime::query::plots::analysis::Prepared::resolve_with(resources, state, request))
         .await

@@ -661,7 +661,7 @@ impl RuntimeHandle {
         else {
             return;
         };
-        let target = crate::domains::execution::run::Target::of(self.operations.clone(), &template);
+        let target = crate::domains::execution::run::Target::of(self, &template);
         if let Err(error) = target
             .signal(crate::transport::ExecutionSignal {
                 execution_token: execution.to_string(),

@@ -33,7 +33,7 @@ struct routeless;
 /* === Traits === */
 
 /* === Implementations === */
-impl sdk::harmos::operations::lifecycle::Policy for routeless {
+impl sdk::harmos::builtins::lifecycle::Policy for routeless {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy =
         sdk::harmos::operations::OperationPolicy {
             timeout: std::time::Duration::from_secs(5),
@@ -41,7 +41,7 @@ impl sdk::harmos::operations::lifecycle::Policy for routeless {
             retries: sdk::harmos::operations::RetryPolicy::Never,
         };
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy =
-        <Self as sdk::harmos::operations::lifecycle::Policy>::INITIALIZATION_POLICY;
+        <Self as sdk::harmos::builtins::lifecycle::Policy>::INITIALIZATION_POLICY;
 }
 
 #[sdk::plugin(id = "routeless", provides = (), requires(), restart = "never", description = "No authored operations, streams or contributions.")]

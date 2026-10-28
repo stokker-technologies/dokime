@@ -29,7 +29,7 @@ use crate::domain::model::readiness::Readiness;
 /* === Structs === */
 
 #[dokime::operation(
-    id = "obc-plugin.check_readiness",
+    id = "obc.bench.check_readiness",
     response = Readiness,
     description = "Reports whether the testbench will still take work. A template calls it with `AskReadiness {}`.",
     policy = super::POLICY,

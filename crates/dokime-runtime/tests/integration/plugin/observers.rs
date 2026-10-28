@@ -112,8 +112,6 @@ struct Watch(Arc<Probe>);
 
 #[derive(Default)]
 struct StatelessWatch;
-struct GetCountHandler(Arc<Shared>);
-struct GetProbeHandler(Arc<Shared>);
 struct Checks;
 
 struct AwaitEvent;
@@ -167,8 +165,8 @@ enum ObserveRecords {
 
 #[dokime_runtime::catalog]
 enum Implemented {
-    GetCount(GetCountHandler),
-    GetProbe(GetProbeHandler),
+    GetCount(GetCount),
+    GetProbe(GetProbe),
 }
 
 #[dokime_runtime::catalog]
@@ -232,32 +230,38 @@ impl Probe {
         }
     }
 }
-#[dokime_runtime::operation(id = "observer-fixture.get_count", policy = super::native::POLICY, response = GetCountResponse)]
+#[dokime_runtime::operation(id = "observer-fixture.get_count", policy = super::native::POLICY, response = GetCountResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetCount {}
-#[dokime_runtime::operation]
-impl GetCountHandler {
-    async fn initialize(shared: Arc<Shared>, _: &Supervisor) -> Self {
-        Self(shared)
-    }
-    async fn run(&mut self, _: &Supervisor, _: &mut GetCount) -> Result<GetCountResponse, Refusal> {
-        Ok(GetCountResponse { checks: self.0.probe.checks.load(Ordering::SeqCst) as u64 })
+impl dokime_runtime::Operation for GetCount {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetCountResponse>, Refusal> {
+        let resource = context.resource::<Shared>();
+        let answered: Result<GetCountResponse, Refusal> = async {
+        Ok(GetCountResponse { checks: resource.probe.checks.load(Ordering::SeqCst) as u64 })
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "observer-fixture.get_probe", policy = super::native::POLICY, response = GetProbeResponse)]
+#[dokime_runtime::operation(id = "observer-fixture.get_probe", policy = super::native::POLICY, response = GetProbeResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetProbe {}
-#[dokime_runtime::operation]
-impl GetProbeHandler {
-    async fn initialize(shared: Arc<Shared>, _: &Supervisor) -> Self {
-        Self(shared)
-    }
-    async fn run(&mut self, _: &Supervisor, _: &mut GetProbe) -> Result<GetProbeResponse, Refusal> {
-        Ok(GetProbeResponse { token: self.0.token.clone(), secrets: self.0.secrets })
+impl dokime_runtime::Operation for GetProbe {
+    type Error = Refusal;
+
+    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetProbeResponse>, Refusal> {
+        let resource = context.resource::<Shared>();
+        let answered: Result<GetProbeResponse, Refusal> = async {
+        Ok(GetProbeResponse { token: resource.token.clone(), secrets: resource.secrets })
+        }
+        .await;
+        answered.map(Into::into)
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for Owner {
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for Owner {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
@@ -300,8 +304,8 @@ impl dokime_runtime::Plugin for Owner {
         Arc::clone(&self.shared)
     }
 
-    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<Implemented, _>(self.resources())?;
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
+        table.register(Implemented::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))?;
         dokime_runtime::execution::serve::<Self, OwnerSuites>(table)?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
@@ -360,7 +364,7 @@ impl Watch {
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for MissingSecrets {
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for MissingSecrets {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
@@ -391,7 +395,7 @@ impl dokime_runtime::Plugin for MissingSecrets {
         Arc::new(())
     }
 
-    fn bind_operations(&self, _: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
+    fn bind_operations(&self, _: &mut WireTable) -> Result<(), ServingError> {
         Ok(())
     }
 

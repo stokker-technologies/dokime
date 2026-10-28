@@ -30,7 +30,10 @@ test = false
 # === Features === #
 
 [features]
+default = ["runtime"]
 benchmarks = []
+# Generated operation resource wiring is gated on the consuming crate's `runtime` feature.
+runtime = []
 
 # === Dependencies === #
 

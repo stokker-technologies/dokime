@@ -47,7 +47,7 @@ impl Analysis for Ripple {
     type Parameters = ();
     type Output = Amplitude;
     type Error = Infallible;
-    const ID: &'static str = "obc-plugin.ripple";
+    const ID: &'static str = "obc.analysis.ripple";
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Ripple";
     const DESCRIPTION: &'static str = "Peak-to-peak ripple: the maximum minus the minimum of the trace's original samples.";

@@ -166,7 +166,7 @@ pub fn provider_tracking_row(elapsed_s: f64, target_locked: bool) -> dokime_runt
             ("elapsed_s".into(), dokime_runtime::Value::Number(elapsed_s)),
             ("target_locked".into(), dokime_runtime::Value::Bool(target_locked)),
         ]),
-        payload: row.encode_to_vec(),
+        payload: row.encode(),
     }
 }
 
@@ -436,7 +436,7 @@ fn host_fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(
 ) -> Vec<u8> {
     let mut values = Value::Object(sample.values.clone()).to_plain_json().unwrap();
     values.as_object_mut().unwrap().insert("timestamp".into(), serde_json::json!({ "value": sample.timestamp.as_str() }));
-    serde_json::from_value::<T>(values).unwrap().encode_to_vec()
+    serde_json::from_value::<T>(values).unwrap().encode()
 }
 
 fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(sample: &dokime_runtime::telemetry::TelemetrySample) -> Vec<u8> {
@@ -447,7 +447,7 @@ fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(sample:
     } else {
         values.as_object_mut().unwrap().remove("timestamp");
     }
-    serde_json::from_value::<T>(values).unwrap().encode_to_vec()
+    serde_json::from_value::<T>(values).unwrap().encode()
 }
 
 /* === Tests === */

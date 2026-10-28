@@ -108,11 +108,16 @@ fn variant(value: ThemeVariant) -> dokime::harmos::Result<dokime::domain::model:
     for (key, value) in value.variables {
         variables.push(dokime::domain::model::appearance::wire::ThemeVariantVariablesEntry { key, value });
     }
-    Ok(dokime::domain::model::appearance::wire::ThemeVariant { variables, plot_palette: value.plot_palette })
+    Ok(dokime::domain::model::appearance::wire::ThemeVariant {
+        variables,
+        plot_palette: value.plot_palette,
+    })
 }
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "historical appearance construction" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "historical appearance construction",
+    }
 }
 
 /* === Tests === */

@@ -159,7 +159,7 @@ impl FirstSuite {}
 #[sdk::suite(id = SECOND_SUITE, label = "Second", templates = SecondTemplates)]
 impl SecondSuite {}
 
-impl sdk::harmos::operations::lifecycle::Policy for Plugin {
+impl sdk::harmos::builtins::lifecycle::Policy for Plugin {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
 }

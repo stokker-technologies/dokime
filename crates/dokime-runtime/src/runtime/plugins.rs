@@ -1020,9 +1020,7 @@ fn plan_graph(
                         return Err(operation(error));
                     }
                     harmos::plugin::Error::Definition { artifact: plugin, .. } => plugin,
-                    harmos::plugin::Error::StreamConflict { second, .. } | harmos::plugin::Error::OperationConflict { second, .. } => {
-                        second
-                    }
+                    harmos::plugin::Error::StreamConflict { second, .. } => second,
                     harmos::plugin::Error::Duplicate { id } => id,
                     harmos::plugin::Error::Missing { artifact: plugin, .. }
                     | harmos::plugin::Error::Incompatible { artifact: plugin, .. }

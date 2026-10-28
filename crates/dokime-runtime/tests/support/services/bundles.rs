@@ -42,11 +42,10 @@ pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
         retries: harmos::operations::RetryPolicy::Never,
-        restart: harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
+        harmos::builtins::lifecycle::Descriptor::new(harmos::builtins::lifecycle::Action::Initialize, policy).unwrap(),
+        harmos::builtins::lifecycle::Descriptor::new(harmos::builtins::lifecycle::Action::Shutdown, policy).unwrap(),
     ];
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});

@@ -240,7 +240,7 @@ impl RuntimeHandle {
         let gate = self.execution_storage.materialization_gate(id).await?;
         self.capture_report_lifecycle(execution).await?;
         self.operations
-            .call(MaterializeReport {
+            .call::<MaterializeReport>(MaterializeReport {
                 subject: ReportSubject::Execution(id.to_string()),
                 at: at.clone(),
             })

@@ -21,7 +21,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::{services::Fault, services::Resident, services::Service};
+use harmos::{ServiceContext, services::Resident};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::Instant;
 
@@ -455,13 +455,13 @@ impl Sampling {
 impl Resident<Dokime> for Producer {
     type Error = ProduceError;
 
-    async fn run(&mut self, context: Service<Dokime>) -> std::result::Result<(), Fault<Self::Error>> {
+    async fn run(&mut self, context: ServiceContext<Dokime>) -> std::result::Result<(), Self::Error> {
         {
             let mut owner = self.session.borrow().await;
-            owner.settle(&self.runtime, &self.producer_key).await.map_err(Fault::Environmental)?;
+            owner.settle(&self.runtime, &self.producer_key).await?;
         }
         let result = self.sampling.produce(context, &self.runtime, &self.producer_key, &self.session).await;
-        result.map_err(Fault::Environmental)
+        result
     }
 
     async fn cleanup(&mut self) -> std::result::Result<(), Self::Error> {
@@ -842,7 +842,7 @@ impl Sampling {
     }
 
     async fn produce(
-        &self, mut context: Service<Dokime>, runtime: &RuntimeHandle, key: &str, session: &SamplingSession,
+        &self, mut context: ServiceContext<Dokime>, runtime: &RuntimeHandle, key: &str, session: &SamplingSession,
     ) -> std::result::Result<(), ProduceError> {
         let mut idle_since: Option<Instant> = None;
         let mut state_changes = runtime.state_watch.subscribe();
@@ -872,7 +872,7 @@ impl Sampling {
     }
 
     async fn advance(
-        &self, context: &mut Service<Dokime>, runtime: &RuntimeHandle, key: &str, session: &SamplingSession,
+        &self, context: &mut ServiceContext<Dokime>, runtime: &RuntimeHandle, key: &str, session: &SamplingSession,
         idle_since: &mut Option<Instant>,
     ) -> std::result::Result<Option<Instant>, ProduceError> {
         let mut owner = session.borrow().await;

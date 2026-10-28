@@ -341,7 +341,7 @@ pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Resul
             }
         }
     });
-    operations::register(runtime, controller.clone())?;
+    operations::register(runtime, controller.clone()).await?;
     Ok(controller)
 }
 

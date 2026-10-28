@@ -31,7 +31,7 @@ use dokime::prelude::StatusResponse;
 // Each request is its operation: the struct is what a caller sends, and the
 // attribute is everything the host reads about it before the plugin runs.
 #[dokime::operation(
-    id = "{{owner}}.get_status",
+    id = "{{crate}}.get_status",
     response = StatusResponse,
     description = "Reports whether the bench is reachable.",
     policy = super::POLICY,

@@ -546,7 +546,7 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn materialize_final_report(
-        self: &Arc<Self>, ctx: &harmos::operations::Context<'_>, inspection: super::execution::ExecutionView,
+        self: &Arc<Self>, ctx: &crate::report::Scope, inspection: super::execution::ExecutionView,
         prepared: PreparedExecutionReport, sealed_at: Timestamp,
     ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         inspection.captured_source().ok_or_else(|| invalid("report requires an original captured source"))?;
@@ -764,7 +764,7 @@ fn validate_report(
 }
 
 async fn publish_final(
-    ctx: &harmos::operations::Context<'_>, acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport,
+    ctx: &crate::report::Scope, acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport,
     inspection: super::execution::ExecutionView, sealed_at: &Timestamp,
 ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
     let revision = acquisition.working.as_ref().ok_or_else(|| invalid("publication has no real native revision"))?;
@@ -791,7 +791,7 @@ async fn publish_final(
             inputs: std::slice::from_ref(&seal.source.context),
             file: &seal.report,
         },
-        &ctx.scope().resources::<crate::app::Dokime>().schema_settings,
+        &ctx.resources().schema_settings,
     )?
     .finish()
     .await?;

@@ -23,7 +23,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::storage::operations::Query;
+use harmos::storage::Query;
 use harmos::storage::query::{
     ObjectSelection, ObjectVersions, QueryArrow, RecordSelection, RowSlice, Source, StreamSelection,
     scalar::ScalarValue,
@@ -91,6 +91,7 @@ enum Objects {
 
 /* === Implementations === */
 impl Application for App {
+    type Lanes = dokime_runtime::app::Lanes;
     type State = ();
     type Transaction = Never;
     type Record = ();
@@ -160,7 +161,7 @@ async fn nominal() {
                 item: id(&format!("sample-{index}")),
                 source: Some(id("three-phase-meter")),
                 source_time: Some(UNIX_EPOCH + Duration::from_millis(index as u64)),
-                payload: waveform.encode_to_vec(),
+                payload: waveform.encode(),
             },
             stream: id("voltage"),
             sequence: index as u64,
@@ -174,7 +175,7 @@ async fn nominal() {
         item: id("calibration"),
         source: None,
         source_time: None,
-        payload: Waveform { a: amplitude, b: amplitude, c: amplitude }.encode_to_vec(),
+        payload: Waveform { a: amplitude, b: amplitude, c: amplitude }.encode(),
     };
     backend.write_records(store.batch(vec![record.clone()])).await.unwrap();
     let object_position = samples as u64 + 5;
@@ -201,7 +202,7 @@ async fn nominal() {
         Timestamp::new("2026-10-15T10:00:00Z"),
         "typed-meter",
     )
-    .with_storage_payload(typed.encode_to_vec());
+    .with_storage_payload(typed.encode());
     sample.summary.insert("health".into(), Value::Text("ok".into()));
     sample.metadata.insert("operator".into(), Value::Text("lab".into()));
     let typed_entry = TelemetryEntry { epoch: SessionId::from_seed("nominal"), ordinal: 0, sample };

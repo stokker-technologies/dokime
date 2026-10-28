@@ -17,7 +17,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::StreamOutput;
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
 // Local Imports
@@ -31,6 +32,7 @@ use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::identity::Identifier;
 use dokime::domain::model::identity::TestCycleId;
 use dokime::domain::model::identity::TestExecutionId;
+use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::reports as wire;
 
 /* === Constants === */
@@ -50,71 +52,45 @@ struct Resources {
 
 struct HtmlFrames(Response<dokime::domain::model::reports::wire::ReportHtmlFrame>);
 
-struct Download {
-    resources: Arc<Resources>,
-}
-
-struct Execution {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    Download(Download),
-    Execution(Execution),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Operation for Download {
-    type Declaration = wire::DownloadCycleReport;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut wire::DownloadCycleReport, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let cycle = TestCycleId::from_uuid(request.cycle_id.clone()).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
-            let identifier = report_identifier(&request.identifier)?;
-            let report = self.resources.runtime.open_cycle_report(&cycle).await.map_err(report_failure)?;
-            deliver(&self.resources, report, &identifier, output).await
+impl Serve<wire::DownloadCycleReport> for Resources {
+    fn serve<'a>(&'a self, request: wire::DownloadCycleReport, ctx: Context<'a, wire::DownloadCycleReport>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let cycle = TestCycleId::from_uuid(request.cycle_id.clone()).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
+                let identifier = report_identifier(&request.identifier)?;
+                let report = self.runtime.open_cycle_report(&cycle).await.map_err(report_failure)?;
+                deliver(self, report, &identifier, output).await
+            })
+            .await
         })
-        .await
     }
 }
 
-impl Operation for Execution {
-    type Declaration = wire::DownloadExecutionReport;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, call_context: Self::Context<'a>, request: &mut wire::DownloadExecutionReport, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        let revoked = crate::grpc::access::revocation(&call_context);
-        crate::grpc::access::during(revoked, async {
-            let execution =
-                TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-            let identifier =
-                Identifier::new(EXECUTION_REPORT_IDENTIFIER).map_err(|_| Status::internal("execution report identifier is invalid"))?;
-            let report = self.resources.runtime.open_execution_report(&execution).await.map_err(report_failure)?;
-            deliver(&self.resources, report, &identifier, output).await
+impl Serve<wire::DownloadExecutionReport> for Resources {
+    fn serve<'a>(&'a self, request: wire::DownloadExecutionReport, ctx: Context<'a, wire::DownloadExecutionReport>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let execution = TestExecutionId::from_uuid(request.execution_id.clone())
+                    .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+                let identifier =
+                    Identifier::new(EXECUTION_REPORT_IDENTIFIER).map_err(|_| Status::internal("execution report identifier is invalid"))?;
+                let report = self.runtime.open_execution_report(&execution).await.map_err(report_failure)?;
+                deliver(self, report, &identifier, output).await
+            })
+            .await
         })
-        .await
     }
 }
 
@@ -148,12 +124,18 @@ impl chunked::Frames for HtmlFrames {
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operations::<Operations, Resources>(
-        "dokime",
-        dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
-    )?;
+pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::DownloadCycleReport>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::DownloadExecutionReport>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<wire::DownloadCycleReport>()
+        .operation::<wire::DownloadExecutionReport>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
@@ -161,9 +143,17 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 
 async fn deliver(
     resources: &Resources, report: OpenedReport, identifier: &Identifier,
-    output: &mut StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>,
+    output: &StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>,
 ) -> Result<Response<()>, Status> {
-    let OpenedReport { test_cycle_id, test_execution_id, metadata, generated_at, origin, file, reader } = report;
+    let OpenedReport {
+        test_cycle_id,
+        test_execution_id,
+        metadata,
+        generated_at,
+        origin,
+        file,
+        reader,
+    } = report;
     let frame = dokime::domain::model::reports::wire::ReportHtmlFrame {
         payload: Some(dokime::domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
             dokime::domain::model::reports::wire::ReportMetadata {
@@ -250,8 +240,11 @@ mod tests {
         use dokime::domain::model::reports::wire::ReportHtmlFramePayload;
         use dokime::harmos::operations::{StreamSettings, stream};
         use std::num::NonZeroUsize;
-        let (mut output, mut input) =
-            stream(StreamSettings { items: NonZeroUsize::new(4).unwrap(), bytes: NonZeroUsize::new(4 * 1_048_576).unwrap() }).unwrap();
+        let (mut output, mut input) = stream(StreamSettings {
+            items: NonZeroUsize::new(4).unwrap(),
+            bytes: NonZeroUsize::new(4 * 1_048_576).unwrap(),
+        })
+        .unwrap();
         let length = 2 * 1_048_576 + 13;
         let digest = "ab".repeat(32);
         let expected = digest.clone();

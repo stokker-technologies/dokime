@@ -45,7 +45,7 @@ pub struct ChamberReading {
 // The observer below says how often, and everything that reads these rows names
 // this type.
 #[dokime::stream(
-    id = "{{owner}}.temperature",
+    id = "{{crate}}.temperature",
     window = 4096,
     label = "Bench Temperature",
     description = "The chamber's temperature, independent of any execution."
