@@ -22,6 +22,7 @@ mod telemetry;
 
 pub use backend::Backend;
 pub(crate) use entry::Entry;
+pub(super) use files::VerifiedPrefix;
 
 /* === Imports === */
 
@@ -141,7 +142,12 @@ impl State {
         for<'a> Borrowed<'a>: From<&'a T>,
     {
         let owner = self.0.clone();
-        self.call(move |connection| Ok(write(connection, &root, batch, &mut owner.files.lock().unwrap()))).await?
+        self.call(move |connection| {
+            let mut files = owner.files.lock().unwrap();
+            let mut prefix = owner.verification_prefix.lock().unwrap();
+            Ok(write(connection, &root, batch, &mut files, &mut prefix))
+        })
+        .await?
     }
 
     async fn data_object(&self, at: u64, generation: u64, point: ObjectPoint) -> Result<Option<ObjectEntry>, Error> {
@@ -337,7 +343,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
 
 fn write<T>(
     connection: &mut Connection, root: &std::path::Path, batch: StorageBatch<T>,
-    retained: &mut std::collections::BTreeMap<harmos::Identifier, std::fs::File>,
+    retained: &mut std::collections::BTreeMap<harmos::Identifier, std::fs::File>, prefix: &mut VerifiedPrefix,
 ) -> Result<SavedData, Error>
 where
     for<'a> Borrowed<'a>: From<&'a T>,
@@ -372,7 +378,7 @@ where
             }
         }
         if let Borrowed::File(reference) = value {
-            files::confirm(&transaction, root, reference, retained.get_mut(&reference.metadata.id))?;
+            files::confirm(&transaction, root, reference, retained.get_mut(&reference.metadata.id), prefix)?;
         }
         if retry {
             continue;

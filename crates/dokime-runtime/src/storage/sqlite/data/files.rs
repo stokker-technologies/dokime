@@ -40,11 +40,31 @@ const CHUNK_BYTES: usize = 1024 * 1024;
 
 /* === Structs === */
 
+// One Exact First Block And Its Digest State; At Most CHUNK_BYTES Per Store.
+#[derive(Default)]
+pub(in crate::storage::sqlite) struct VerifiedPrefix {
+    bytes: Vec<u8>,
+    digest: Sha256,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl VerifiedPrefix {
+    fn begin(&mut self, bytes: &[u8]) -> Sha256 {
+        // Reuse Hash Work Only After Comparing The Bytes Actually Read.
+        if self.bytes != bytes {
+            self.bytes.clear();
+            self.bytes.extend_from_slice(bytes);
+            self.digest = Sha256::new();
+            self.digest.update(bytes);
+        }
+        self.digest.clone()
+    }
+}
 
 impl State {
     pub(crate) async fn data_create_file(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
@@ -154,7 +174,8 @@ impl State {
                     retained.remove(&staging.id);
                     verify(&destination, &reference)?;
                 } else if let Some(file) = retained.get_mut(&staging.id) {
-                    verify_opened(file, &reference)?;
+                    let mut prefix = owner.verification_prefix.lock().unwrap();
+                    verify_opened(file, &reference, &mut prefix)?;
                 } else {
                     verify(&source, &reference)?;
                 }
@@ -350,7 +371,9 @@ pub(super) fn confirm_durability(path: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-pub(super) fn confirm(connection: &Connection, root: &Path, reference: &FileReference, retained: Option<&mut File>) -> Result<(), Error> {
+pub(super) fn confirm(
+    connection: &Connection, root: &Path, reference: &FileReference, retained: Option<&mut File>, prefix: &mut VerifiedPrefix,
+) -> Result<(), Error> {
     let (_, finished) = metadata_for(connection, &reference.metadata.id)?.ok_or(Error::Data("file reference has no finished bytes"))?;
     if finished.as_ref() != Some(reference) {
         return Err(Error::Conflict("file publication differs from finished bytes"));
@@ -360,9 +383,10 @@ pub(super) fn confirm(connection: &Connection, root: &Path, reference: &FileRefe
     // The Finished Row Proves Publication Completed Durably. Verify The Bytes
     // Again Before Admission, Without Copying And Replacing The Immutable File.
     if let Some(file) = retained {
-        verify_opened(file, reference)?;
+        verify_opened(file, reference, prefix)?;
     } else {
-        verify(&path, reference)?;
+        let mut file = File::open(&path)?;
+        verify_opened(&mut file, reference, prefix)?;
     }
     Ok(())
 }
@@ -487,21 +511,19 @@ pub(super) fn regular(path: &Path) -> Result<bool, Error> {
 pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error> {
     regular(path)?;
     let mut file = File::open(path)?;
-    verify_opened(&mut file, reference)
+    verify_opened(&mut file, reference, &mut VerifiedPrefix::default())
 }
 
-fn verify_opened(file: &mut File, reference: &FileReference) -> Result<(), Error> {
+fn verify_opened(file: &mut File, reference: &FileReference, prefix: &mut VerifiedPrefix) -> Result<(), Error> {
     if file.metadata()?.len() != reference.length {
         return Err(Error::Data("file finish length differs"));
     }
     file.seek(SeekFrom::Start(0))?;
-    let mut digest = Sha256::new();
     let mut buffer = vec![0; CHUNK_BYTES];
-    loop {
-        let count = file.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
+    let mut count = file.read(&mut buffer)?;
+    let mut digest = if count == CHUNK_BYTES { prefix.begin(&buffer) } else { Sha256::new_with_prefix(&buffer[..count]) };
+    while count != 0 {
+        count = file.read(&mut buffer)?;
         digest.update(&buffer[..count]);
     }
     if digest.finalize().as_slice() != reference.sha256.as_slice() {
@@ -526,3 +548,52 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cached_verification_rejects_changed_prefix_and_suffix() {
+        let mut file = tempfile::tempfile().unwrap();
+        let bytes = vec![0x5a; CHUNK_BYTES + 32];
+        file.write_all(&bytes).unwrap();
+
+        let reference = FileReference {
+            position: StorageCursor {
+                history: StoreHistory {
+                    store: harmos::Identifier::new("fixture.files").unwrap(),
+                    epoch: harmos::Identifier::new("fixture.epoch").unwrap(),
+                },
+                sequence: 1,
+            },
+            metadata: FileMetadata {
+                id: harmos::Identifier::new("fixture.file").unwrap(),
+                scope: None,
+                media_type: "application/octet-stream".into(),
+                expected_length: Some(bytes.len() as u64),
+                expected_sha256: None,
+            },
+            length: bytes.len() as u64,
+            sha256: Sha256::digest(&bytes).into(),
+        };
+
+        let mut prefix = VerifiedPrefix::default();
+        verify_opened(&mut file, &reference, &mut prefix).unwrap();
+        verify_opened(&mut file, &reference, &mut prefix).unwrap();
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.write_all(&[0]).unwrap();
+        assert!(verify_opened(&mut file, &reference, &mut prefix).is_err());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.write_all(&[0x5a]).unwrap();
+        file.seek(SeekFrom::End(-1)).unwrap();
+        file.write_all(&[0]).unwrap();
+        assert!(verify_opened(&mut file, &reference, &mut prefix).is_err());
+
+        file.seek(SeekFrom::End(-1)).unwrap();
+        file.write_all(&[0x5a]).unwrap();
+        verify_opened(&mut file, &reference, &mut prefix).unwrap();
+    }
+}

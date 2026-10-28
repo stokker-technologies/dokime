@@ -99,6 +99,7 @@ struct Owner {
     running: std::sync::Mutex<u64>,
     reads: AtomicU64,
     files: std::sync::Mutex<std::collections::BTreeMap<harmos::Identifier, File>>,
+    verification_prefix: std::sync::Mutex<data::VerifiedPrefix>,
 }
 
 struct Live {
@@ -152,6 +153,8 @@ impl State {
             transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             commit(transaction)?;
             let interrupt = connection.get_interrupt_handle();
+            let verification_prefix = data::VerifiedPrefix::default();
+            let verification_prefix = std::sync::Mutex::new(verification_prefix);
             Ok(Self(Arc::new(Owner {
                 read_metrics: Arc::new(ReadMetrics::default()),
                 live: Arc::new(Mutex::new(Some(Live { connection, _lease: lease }))),
@@ -160,6 +163,7 @@ impl State {
                 running: std::sync::Mutex::new(0),
                 reads: AtomicU64::new(1),
                 files: std::sync::Mutex::new(std::collections::BTreeMap::new()),
+                verification_prefix,
             })))
         })
         .await?
@@ -171,6 +175,7 @@ impl State {
         let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
             owner.files.lock().unwrap().clear();
+            *owner.verification_prefix.lock().unwrap() = data::VerifiedPrefix::default();
             let Some(Live { connection, _lease }) = live.take() else {
                 return Ok(());
             };
