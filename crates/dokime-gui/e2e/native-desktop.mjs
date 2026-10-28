@@ -658,7 +658,7 @@ async function startSession(work, endpoint, evidence) {
     const literal = xpathLiteral(name);
     const tag = role === "button" ? "button" : `*[@role=${xpathLiteral(role)}]`;
     const text = `(normalize-space(.) = ${literal} or .//span[normalize-space(.) = ${literal}] or @aria-label = ${literal} or @title = ${literal})`;
-    return session.find("xpath", `//${tag}[${text}${enabled ? " and not(@disabled)" : ""}]`);
+    return session.find("xpath", `//${tag}[${text}${enabled ? " and not(@disabled) and not(@aria-disabled='true')" : ""}]`);
   };
   session.clickNamed = async (role, name, options) =>
     session.click(await until(`${role} ${name}`, () => session.named(role, name, options)));
@@ -1358,7 +1358,7 @@ async function startupPromptOpen(session) {
 async function setDensity(session, variant) {
   await session.goto("/settings/appearance");
   await until("appearance section", async () => hasText(await session.text(), "Density"), 120000);
-  await session.clickNamed("radio", variant.density === "touch" ? "Touch" : "Comfortable");
+  await selectDensity(session, variant.density);
   await until(
     `density ${variant.density}`,
     async () => (await session.execute("return document.documentElement.dataset.density")) === variant.density,
@@ -1366,6 +1366,19 @@ async function setDensity(session, variant) {
   );
   await sizeViewport(session, variant);
   await delay(400);
+}
+
+async function selectDensity(session, density) {
+  const control = await until("local density preference", () => session.find("css selector", "select#local-appearance-density"));
+  await session.execute(
+    `
+    const select = arguments[0], value = arguments[1];
+    if (![...select.options].some(option => option.value === value)) throw new Error('Density option is absent');
+    select.value = value;
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+  `,
+    [control, density],
+  );
 }
 
 /** Let the transient notifications clear before the next pointer-like click. */
@@ -2024,8 +2037,7 @@ async function cycleJourney(session, cycleId) {
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
   assert.ok(hasText(header, "Active · Idle"), "A materialized cycle that runs nothing must render its Active · Idle state");
   assert.ok(await session.exists("button", "Cycle Actions"), "The header must carry the overflow menu");
-  assert.ok(await session.exists("button", "Export Evidence"), "The cycle header must name its evidence export");
-  assert.ok(await session.exists("button", "Download Report"), "The cycle header must name its report download");
+  await assertNodeDeliveries(session, "Cycle Actions");
   assert.ok(!(await session.exists("button", "Start Cycle")), "Containers have no Start control");
   assert.ok(!(await session.exists("button", "Stop Cycle")), "Containers have one Seal action");
   /* Observe The Measuring Execution Before Admitting Its Work. */
@@ -2201,8 +2213,7 @@ async function cycleJourney(session, cycleId) {
   );
   assert.match(normalize(evidence), /Execution \d+/i);
   await checkParameterGeometry(session);
-  assert.ok(await session.exists("button", "Export Evidence"), "The execution header must name its evidence export");
-  assert.ok(await session.exists("button", "Download Report"), "The execution header must name its report download");
+  await assertNodeDeliveries(session, "Execution Actions");
   assert.ok(!(await session.exists("button", "Choose Attempt")), "Execution selection belongs to the list");
 
   /* A Re-Run Appends A New Row And Preserves The Earlier Evidence. */
@@ -2701,18 +2712,30 @@ async function cyclePhase(session, phase) {
 }
 
 async function exportAvailability(session, enabled) {
+  await openMenu(session, "Cycle Actions");
   const state = await until(`evidence export ${enabled ? "enabled" : "disabled"}`, () =>
     session.execute(
       `
-    const button = [...document.querySelectorAll('button')].find((candidate) => candidate.innerText.trim() === 'Export Evidence');
-    if (!button || button.disabled === arguments[0]) return null;
-    return { disabled: button.disabled, title: button.title };
+    const button = [...document.querySelectorAll('[role=menuitem]')].find((candidate) => candidate.innerText.trim() === 'Export Evidence');
+    if (!button) return null;
+    const disabled = button.getAttribute('aria-disabled') === 'true';
+    if (disabled === arguments[0]) return null;
+    return { disabled, title: button.title };
   `,
       [enabled],
     ),
   );
   assert.equal(state.disabled, !enabled);
   assert.equal(state.title, enabled ? "Download SQLite, Files And Saved Reports" : "Seal This Cycle Before Exporting");
+  await session.key("Escape");
+}
+
+async function assertNodeDeliveries(session, trigger) {
+  await openMenu(session, trigger);
+  for (const name of ["Export Evidence", "Download Report"]) {
+    assert.ok(await session.named("menuitem", name, { enabled: false }), `${trigger} must name ${name}`);
+  }
+  await session.key("Escape");
 }
 
 async function sealContainer(session) {
@@ -2744,7 +2767,22 @@ async function cyclesHomeJourney(session, cycleTitle) {
   assert.ok(hasText(body, "Attention"), "The group must render its column headings");
   await checkStatusBounds(session);
   assert.ok(/\d+ \/ \d+/.test(normalize(body)), "A row must state executions over cases");
-  assert.ok(/\d+[smhd] Ago/.test(normalize(body)), "A row must state when the cycle last moved");
+  const updated = await session.execute(
+    `
+    return [...document.querySelectorAll('tbody tr')]
+      .filter(row => row.cells[0]?.innerText.trim() === arguments[0])
+      .map(row => ({text: row.cells[4]?.innerText.trim(), detail: row.cells[4]?.querySelector('[title]')?.title}));
+  `,
+    [cycleTitle],
+  );
+  assert.ok(updated.length > 0, "The cycle must have a dated row");
+  for (const row of updated) {
+    assert.ok(Number.isFinite(Date.parse(row.text)), "A row must state its absolute update time");
+    assert.ok(
+      row.detail?.includes(`Updated ${row.text}`) && /Created [^\n]+/.test(row.detail),
+      "The time tooltip preserves update and creation instants",
+    );
+  }
 
   /* Nothing is archived yet, so the Archived view is one empty group, and
      leaving it brings the run's cycle back. */
@@ -2930,7 +2968,9 @@ async function remoteAccessJourney() {
   // Enable A Stable TLS Endpoint Before Exporting Client Pairings.
   await session.goto("/settings/remote");
   await until("remote settings", async () => hasText(await session.text(), "Listener Enabled"));
+  await openMenu(session, "Page Actions");
   await toggle("Show advanced", true);
+  await session.key("Escape");
   const reservation = net.createServer();
   reservation.listen(0, "127.0.0.1");
   await once(reservation, "listening");
@@ -2950,7 +2990,7 @@ async function remoteAccessJourney() {
   await connect("desktop-second", true);
 
   // Import Through The Desktop's Native Picker Without Exposing Credentials To The WebView.
-  await session.goto("/settings/general");
+  await session.goto("/settings/backends");
   await session.clickNamed("button", "Add Backend");
   const identifier = await until("backend identifier", () => session.find("css selector", '[aria-label="Backend Identifier"]'));
   await session.type(identifier, "desktop-pairing");
@@ -3083,7 +3123,7 @@ async function remoteAccessJourney() {
   for (const identifier of ["desktop-first", "desktop-second", "desktop-regenerated", "desktop-lab-anonymous", "desktop-lab-http"]) {
     await cli(["backend", "remove", "--identifier", identifier, "--profiles-file", profiles]);
   }
-  await session.goto("/settings/general");
+  await session.goto("/settings/backends");
   await openMenu(session, "Actions for desktop-pairing");
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
@@ -3093,12 +3133,12 @@ async function remoteAccessJourney() {
 /** Settings: every section, and the rows the redesign promises in each. */
 async function settingsJourney(session, notes) {
   const sections = [
-    ["general", "General"],
+    ["backends", "Backends"],
     ["appearance", "Appearance"],
-    ["identity", "Identity"],
+    ["organization", "Organization"],
     ["plugins", "Plugins"],
-    ["secrets", "Secret Storage"],
-    ["account-updates", "Account"],
+    ["secrets", "Secrets"],
+    ["remote", "Remote Access"],
     ["diagnostics", "Diagnostics"],
     ["about", "About"],
   ];
@@ -3117,17 +3157,17 @@ async function settingsJourney(session, notes) {
     assert.ok(rows > 0, `The ${id} section must render rows`);
   }
 
-  /* Appearance: the density radios autosave, with no Save button anywhere. */
+  /* Appearance: the local density preference autosaves, with no Save button anywhere. */
   await session.goto("/settings/appearance");
   await until("appearance", async () => hasText(await session.text(), "Density"), 120000);
   assert.ok(!(await session.exists("button", "Save")), "Settings autosave; no section may carry a Save button");
-  await session.clickNamed("radio", "Touch");
+  await selectDensity(session, "touch");
   await until(
     "touch density applied",
     async () => (await session.execute("return document.documentElement.dataset.density")) === "touch",
     120000,
   );
-  await session.clickNamed("radio", "Comfortable");
+  await selectDensity(session, "comfortable");
   await until(
     "comfortable density applied",
     async () => (await session.execute("return document.documentElement.dataset.density")) === "comfortable",
@@ -3135,7 +3175,7 @@ async function settingsJourney(session, notes) {
   );
 
   /* Storage sources: one row per configured source. */
-  await session.goto("/settings/general");
+  await session.goto("/settings/diagnostics");
   const storage = await until(
     "storage sources",
     async () => {
@@ -3158,8 +3198,11 @@ async function settingsJourney(session, notes) {
     "the plugins section",
     async () => {
       const state = await session.execute(`
-        const buttons = [...document.querySelectorAll('button[aria-label="Plugin Settings"]')];
-        return {rows: buttons.length, configurable: buttons.filter(button => !button.disabled).length, text: document.body.innerText};
+        const buttons = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr button')]
+          .filter(button => button.textContent.trim() === 'Settings');
+        const configurable = buttons.filter(button => !button.disabled);
+        return {rows: buttons.length, configurable: configurable.length,
+          host: configurable[0]?.closest('tr')?.cells[0]?.innerText.trim().endsWith(' Host'), text: document.body.innerText};
       `);
       return state.rows || hasText(state.text, "Loaded from the launch configuration; managed outside the installation store.")
         ? state
@@ -3180,10 +3223,19 @@ async function settingsJourney(session, notes) {
     );
   }
   if (plugins.configurable) {
-    await session.clickNamed("button", "Plugin Settings");
-    await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 120000);
-    assert.ok(hasText(await session.text(), "Plugins"), "The plugin page must carry its breadcrumb");
-    await session.clickNamed("button", "Back");
+    await session.click(
+      await session.find("xpath", "//table[@aria-label='Plugins']//button[normalize-space(.)='Settings' and not(@disabled)]"),
+    );
+    await until(
+      "plugin page",
+      async () =>
+        plugins.host
+          ? (await session.location()).pathname === "/settings/appearance"
+          : (await session.location()).pathname.startsWith("/settings/plugins/"),
+      120000,
+    );
+    assert.ok(hasText(await session.text(), "Settings"), "The plugin page must carry its settings breadcrumb");
+    await session.goto("/settings/plugins");
     await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 120000);
   } else {
     notes.push("settings: no installed plugin declares settings, so the plugin page stayed shut");
@@ -3203,7 +3255,7 @@ async function settingsJourney(session, notes) {
     secrets.add(value);
     await session.clickNamed("button", "Add Secret");
     for (const [label, text] of [
-      ["Name", name],
+      ["Identifier", name],
       ["Label", name],
       ["Value", value],
     ]) {
@@ -3216,17 +3268,22 @@ async function settingsJourney(session, notes) {
       await session.type(input, text);
     }
     await session.clickNamed("button", "Save Secret");
-    await until("shared keyring entry saved", () => session.exists("button", `Edit ${name}`));
+    await until("shared keyring entry saved", () => session.exists("button", `Actions for ${name}`));
+    assert.ok(
+      await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='Edit' and not(@disabled)]`),
+      "The saved secret remains editable",
+    );
     assert.ok(!(await session.text()).includes(value), "stored secret values stay masked");
   }
   for (const name of ["e2e.settings.first", "e2e.settings.second"]) {
-    await session.clickNamed("button", `Delete ${name}`);
+    await openMenu(session, `Actions for ${name}`);
+    await session.clickNamed("menuitem", "Delete");
     await session.clickNamed("button", "Confirm Delete");
-    await until("shared keyring entry removed", async () => !(await session.exists("button", `Edit ${name}`)));
+    await until("shared keyring entry removed", async () => !(await session.exists("button", `Actions for ${name}`)));
   }
 
   /* Backend Dialog Validation, Cancelled Deletion And Selection Recovery. */
-  await session.goto("/settings/general");
+  await session.goto("/settings/backends");
   await until("backend registry", () => session.exists("button", "Add Backend"));
   const original = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
   const endpoint = original.connection.endpoint;
@@ -3261,7 +3318,7 @@ async function settingsJourney(session, notes) {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     return status.connection.phase === "connected";
   });
-  await session.goto("/settings/general");
+  await session.goto("/settings/backends");
   await until("registry after selection", () => rowAction("native-stale", "Select"));
   await session.click(await rowAction("native-stale", "Select"));
   await until("failed selection displays the registry", () => session.find("css selector", 'main [role="alert"]'));
@@ -3272,7 +3329,7 @@ async function settingsJourney(session, notes) {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     return status.connection.phase === "connected";
   });
-  await session.goto("/settings/general");
+  await session.goto("/settings/backends");
   await until("stale profile deletion", () => rowAction("native-stale", "Delete"));
   await session.click(await rowAction("native-stale", "Delete"));
   await session.clickNamed("button", "Confirm Delete");
@@ -3330,7 +3387,8 @@ async function reportJourney(session, cycleId) {
   /* The report lists every planned member, run or not, as the live tree does. */
   const liveMembers = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
   await installSaveTap(session);
-  await session.clickNamed("button", "Download Report");
+  await openMenu(session, "Cycle Actions");
+  await session.clickNamed("menuitem", "Download Report");
   /* The toast carries the backend's own words when the report fails, and a
      report that is never saved is otherwise five silent minutes. */
   let announcement = "";
@@ -4207,6 +4265,7 @@ async function pluginInstallJourney() {
   try {
     backend = await startBackend(root, evidence, undefined, "plugin-install", false);
     session = await startSession(root, backend.endpoint, evidence);
+    await session.connected();
     await sizeViewport(session, densities.desktop);
     await installSaveTap(session);
     await installPluginThroughPicker(session);
@@ -4215,13 +4274,14 @@ async function pluginInstallJourney() {
     await stopBackend();
     backend = await startBackend(root, evidence, undefined, "plugin-activation", false);
     session = await startSession(root, backend.endpoint, evidence);
+    await session.connected();
     await sizeViewport(session, densities.desktop);
     await session.goto("/settings/plugins");
     await until(
       "installed bundle active after restart",
       () =>
         session.execute(`
-      const row = [...document.querySelectorAll('[aria-label="Installed Plugins"] tbody tr')]
+      const row = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr')]
         .find(row => row.innerText.includes('obc'));
       return Boolean(row && [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
     `),
@@ -4521,7 +4581,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
     { windowsHide: true, timeout: 120000 },
   );
   const choose = async () => {
-    await session.goto("/settings/appearance");
+    await session.goto("/settings/organization");
     await session.clickNamed("button", "Choose File…");
     const picker = { window: null };
     await until("native organization file picker", () => chooseNativeFile(picker, archive), 120000);
@@ -4532,7 +4592,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
     session = await startSession(work, backend.endpoint, evidence);
     await sizeViewport(session, densities.desktop);
     await session.connected();
-    await session.goto("/settings/appearance");
+    await session.goto("/settings/organization");
   };
   await choose();
   assert.equal(
@@ -4611,7 +4671,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await session.goto("/settings/diagnostics");
   await until("visible organization activation error", async () => /pending organization pack/i.test(await session.text()));
   await session.screenshot("organization-invalid-pending");
-  await session.goto("/settings/appearance");
+  await session.goto("/settings/organization");
   await session.clickNamed("button", "Remove");
   await until("organization removal queued", async () => hasText(await session.text(), "Bundled organization applies on next start."));
   await restart();
