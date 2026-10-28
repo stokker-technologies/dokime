@@ -234,28 +234,16 @@ pub(super) fn index(connection: &Connection, row: &StoredRow) -> Result<(), Erro
     let (scope, source, signals) = crate::storage::telemetry::index_metadata(&row.record.payload)?;
     let scope = serde_json::to_string(&scope)?;
     let time = row.record.source_time.ok_or(Error::Data("telemetry index has no timestamp"))?;
-    connection.execute(
-        "INSERT INTO storage_telemetry_index VALUES (?1,?2,?3,?4,?5)",
-        params![
-            position(row.record.position.sequence),
-            serde_json::to_string(&row.record.schema)?,
-            entry::timestamp_key(time).as_slice(),
-            scope,
-            source,
-        ],
-    )?;
+    let position = position(row.record.position.sequence);
+    let schema = serde_json::to_string(&row.record.schema)?;
+    let time = entry::timestamp_key(time);
+
+    // Reuse The Batch's Index Programs And Metadata For Every Signal.
+    let mut index = connection.prepare_cached("INSERT INTO storage_telemetry_index VALUES (?1,?2,?3,?4,?5)")?;
+    index.execute(params![position, schema, time.as_slice(), scope, source])?;
+    let mut signal_index = connection.prepare_cached("INSERT INTO storage_telemetry_signals VALUES (?1,?2,?3,?4,?5,?6)")?;
     for signal in signals {
-        connection.execute(
-            "INSERT INTO storage_telemetry_signals VALUES (?1,?2,?3,?4,?5,?6)",
-            params![
-                serde_json::to_string(&row.record.schema)?,
-                signal,
-                position(row.record.position.sequence),
-                entry::timestamp_key(time).as_slice(),
-                scope,
-                source
-            ],
-        )?;
+        signal_index.execute(params![schema, signal, position, time.as_slice(), scope, source])?;
     }
     Ok(())
 }

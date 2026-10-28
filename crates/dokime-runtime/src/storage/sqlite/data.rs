@@ -371,9 +371,8 @@ where
             if head.sequence.checked_add(1) != Some(entry.position) {
                 return Err(Error::Data("data write has a gap or pruned retry"));
             }
-            if transaction.query_row("SELECT EXISTS(SELECT 1 FROM storage_data_entries WHERE identity=?1)", [&entry.identity], |row| {
-                row.get::<_, bool>(0)
-            })? {
+            let mut identity = transaction.prepare_cached("SELECT EXISTS(SELECT 1 FROM storage_data_entries WHERE identity=?1)")?;
+            if identity.query_row([&entry.identity], |row| row.get::<_, bool>(0))? {
                 return Err(Error::Conflict("data identity already belongs to another position"));
             }
         }
@@ -383,23 +382,24 @@ where
         if retry {
             continue;
         }
-        transaction.execute(
-            "INSERT INTO storage_data_entries VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,NULL)",
-            params![
-                position(entry.position),
-                entry.kind,
-                entry.identity,
-                entry.schema_id,
-                entry.schema_key,
-                entry.item,
-                entry.scope,
-                entry.stream,
-                entry.source_time.as_ref().map(|time| time.as_slice()),
-                entry.object_version,
-                entry.body,
-                entry.digest.as_slice()
-            ],
-        )?;
+        let mut insert =
+            transaction.prepare_cached("INSERT INTO storage_data_entries VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,NULL)")?;
+        insert.execute(params![
+            position(entry.position),
+            entry.kind,
+            entry.identity,
+            entry.schema_id,
+            entry.schema_key,
+            entry.item,
+            entry.scope,
+            entry.stream,
+            entry.source_time.as_ref().map(|time| time.as_slice()),
+            entry.object_version,
+            entry.body,
+            entry.digest.as_slice()
+        ])?;
+        // Release The Bound Row Before Decoding Its Secondary Index Metadata.
+        drop(insert);
         if let Borrowed::Stream(row) = value {
             telemetry::index(&transaction, row)?;
         }
@@ -420,7 +420,7 @@ where
 }
 
 fn retried(connection: &Connection, entry: &Encoded<'_>, saved: u64) -> Result<bool, Error> {
-    let mut statement = connection.prepare("SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1")?;
+    let mut statement = connection.prepare_cached("SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1")?;
     let mut rows = statement.query([position(entry.position)])?;
     let Some(row) = rows.next()? else {
         return Ok(false);

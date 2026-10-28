@@ -112,6 +112,33 @@ async fn retries_are_exact() {
     backend.close().await.unwrap();
 }
 
+// A Late Batch Failure Rolls Back Its Earlier Rows And Leaves Cached Statements Reusable.
+#[tokio::test]
+async fn batch_rollback_retries() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::<()>::open(root.path()).await;
+    store.backend.write_schemas(store.batch(vec![store.schema()])).await.unwrap();
+
+    let invalid = vec![store.record(2), store.record(4)];
+    assert!(store.backend.write_records(store.batch(invalid)).await.is_err());
+    assert_eq!(store.backend.cursor_saved().await.unwrap(), store.at(1));
+    assert!(store.records(1).await.is_empty());
+
+    let records = (2..=4).map(|sequence| store.record(sequence)).collect::<Vec<_>>();
+    store.backend.write_records(store.batch(records[..1].to_vec())).await.unwrap();
+    let saved = store.backend.write_records(store.batch(records.clone())).await.unwrap();
+    assert_eq!(saved, store.at(4));
+    assert_eq!(store.records(4).await, records);
+    store.backend.close().await.unwrap();
+    drop(store);
+
+    let reopened = Store::<()>::open(root.path()).await;
+    assert_eq!(reopened.backend.cursor_saved().await.unwrap(), reopened.at(4));
+    assert_eq!(reopened.records(4).await, records);
+    exact_retry(&reopened, &records, 4).await;
+    reopened.backend.close().await.unwrap();
+}
+
 // Distinct Records Share An Item Without Weakening Position Retry Integrity.
 #[tokio::test]
 async fn records_share_item_with_exact_retries() {
