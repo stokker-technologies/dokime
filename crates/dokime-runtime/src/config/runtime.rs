@@ -46,6 +46,8 @@ pub struct RuntimeConfig {
 
     pub storage: StorageSettings,
 
+    pub local_storage: crate::storage::sqlite::Settings,
+
     pub managed_storage: harmos::config::ManagedStorageSettings,
 
     pub storage_state: harmos::config::StorageStateSettings,
@@ -82,6 +84,7 @@ impl RuntimeConfig {
             schema: harmos::config::SchemaSettings::default(),
             session_id: crate::model::identity::new_id::<SessionId>(),
             storage: crate::config::storage_defaults(),
+            local_storage: crate::config::local_storage_defaults(),
             managed_storage: super::managed_storage_defaults(),
             storage_state: super::storage_state_defaults(),
             // Programmatic configurations keep one disposable tree; shipped

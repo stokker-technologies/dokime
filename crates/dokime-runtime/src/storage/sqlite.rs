@@ -25,7 +25,7 @@ pub use rusqlite;
 // Standard Library Imports
 use std::{
     fs::{File, OpenOptions},
-    num::NonZeroUsize,
+    num::{NonZeroU32, NonZeroUsize},
     path::Path,
     sync::{
         Arc,
@@ -64,6 +64,16 @@ pub(super) static DATA_SCAN_ROWS: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone)]
 pub struct State(Arc<Owner>);
+
+// Local SQLite Connection Settings; `config::local_storage_defaults` Owns Their Defaults.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Settings {
+    // Reader Connections, One Per Admitted Active Query.
+    pub readers: NonZeroUsize,
+    // WAL Pages A Commit May Leave Before It Checkpoints Them Into The Database File; Larger
+    // Spans Write Each Repeatedly Updated Index Page Once Instead Of After Every Commit.
+    pub checkpoint_pages: NonZeroU32,
+}
 
 // Process-Wide SQLite Diagnostics; These Exclude Autocommit Statements And The Harmos State Journal.
 #[derive(Clone, Copy, Debug, serde::Serialize)]
@@ -154,15 +164,15 @@ impl State {
         }
     }
 
-    // Opens With The Configured Default Reader Count.
+    // Opens With The Configured Default Settings.
     #[cfg(feature = "configuration")]
     pub async fn open(root: impl AsRef<Path>) -> Result<Self, Error> {
-        Self::open_with(root, crate::config::storage_defaults().request.max_active_queries).await
+        Self::open_with(root, crate::config::local_storage_defaults()).await
     }
 
-    // `readers` Bounds The Concurrent Read Connections: The Storage Settings' Active Queries.
-    pub async fn open_with(root: impl AsRef<Path>, readers: NonZeroUsize) -> Result<Self, Error> {
+    pub async fn open_with(root: impl AsRef<Path>, settings: Settings) -> Result<Self, Error> {
         let root = root.as_ref().to_path_buf();
+        let readers = settings.readers;
         let count = u32::try_from(readers.get())
             .ok()
             .filter(|count| *count as usize <= Semaphore::MAX_PERMITS)
@@ -177,6 +187,7 @@ impl State {
                 "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;
                 PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-65536;",
             )?;
+            connection.pragma_update(None, "wal_autocheckpoint", settings.checkpoint_pages.get())?;
             // Idempotent DDL Over A Current Layout Dirties No Page, So Its Commit Writes And
             // Syncs Nothing; Restamping The Version Would Rewrite The Header On Every Open.
             let transaction = connection.transaction()?;
@@ -376,7 +387,11 @@ mod tests {
     async fn readers_never_hold_the_writer() {
         let root = tempfile::tempdir().unwrap();
         let readers = NonZeroUsize::new(4).unwrap();
-        let state = State::open_with(root.path(), readers).await.unwrap();
+        let settings = Settings {
+            readers,
+            ..crate::config::local_storage_defaults()
+        };
+        let state = State::open_with(root.path(), settings).await.unwrap();
         state.call(|connection| connection.execute_batch("CREATE TABLE samples(value INTEGER NOT NULL)")).await.unwrap();
 
         let (entered, mut entries) = tokio::sync::mpsc::unbounded_channel();

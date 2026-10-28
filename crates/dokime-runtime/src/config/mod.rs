@@ -45,6 +45,9 @@ pub use dokime_domain::model::settings::{Appearance, Density, ReportDefaults, Th
 
 pub use storage::{managed_storage_defaults, storage_defaults, storage_state_defaults};
 
+#[cfg(feature = "storage")]
+pub use storage::local_storage_defaults;
+
 /* === Imports === */
 
 // Standard Library Imports

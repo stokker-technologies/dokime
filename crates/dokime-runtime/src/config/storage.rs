@@ -63,6 +63,15 @@ pub fn managed_storage_defaults() -> ManagedStorageSettings {
     }
 }
 
+// One Reader Per Default Active Query; 16,384 Four-KiB WAL Pages (64 MiB) Between Checkpoints.
+#[cfg(feature = "storage")]
+pub fn local_storage_defaults() -> crate::storage::sqlite::Settings {
+    crate::storage::sqlite::Settings {
+        readers: storage_defaults().request.max_active_queries,
+        checkpoint_pages: std::num::NonZeroU32::new(16_384).unwrap(),
+    }
+}
+
 pub fn storage_state_defaults() -> StorageStateSettings {
     StorageStateSettings {
         max_entry_bytes: NonZeroUsize::new(731_820).unwrap(),
