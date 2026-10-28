@@ -44,6 +44,8 @@ pub(crate) const HOST_PRODUCER_KEY: &str = "host";
 
 pub(crate) struct StreamLeases {
     state: Mutex<LeaseState>,
+    // One FIFO Per Leaseholder Run: Admission Queues Rows Without Awaiting Any Plugin Call.
+    deliveries: Mutex<BTreeMap<String, tokio::sync::mpsc::UnboundedSender<Delivery>>>,
 }
 
 #[derive(Default)]
@@ -109,6 +111,12 @@ struct Holder {
 
 pub(crate) struct LeasedRows {
     holders: BTreeMap<Identifier, Vec<Holder>>,
+}
+
+struct Delivery {
+    requester: String,
+    request: DeliverSamplesRequest,
+    delivered: tokio::sync::oneshot::Sender<()>,
 }
 
 /* === Enums === */
@@ -284,6 +292,7 @@ impl StreamLeases {
         let closed_windows = 4096;
         Self {
             state: Mutex::new(LeaseState { closed_windows, ..LeaseState::default() }),
+            deliveries: Mutex::default(),
         }
     }
 
@@ -512,17 +521,19 @@ impl RuntimeHandle {
     }
 
     // Encode Measurement Fields Once; Append Each Leaseholder's Captured Scope To Its Wire Row.
-    pub(crate) async fn forward_leased_rows(
+    // Rows Are Only Queued Here; Each Returned Receipt Settles Once Its Run Took Its Rows.
+    pub(crate) async fn queue_leased_rows(
         &self, delivery: harmos::storage::ReadBatch<LeasedRows>, samples: &[super::streams::PreparedSample],
         identities: &[super::streams::admission::SampleIdentity<'_>],
-    ) {
+    ) -> Vec<tokio::sync::oneshot::Receiver<()>> {
+        let mut queued = Vec::new();
         if delivery.holders.values().all(Vec::is_empty) {
-            return;
+            return queued;
         }
         let mut frames = Vec::new();
         if frames.try_reserve_exact(samples.len()).is_err() {
             tracing::warn!(rows = samples.len(), "leased rows could not reserve their delivery frames");
-            return;
+            return queued;
         }
         frames.resize(samples.len(), None::<String>);
         for (stream, holders) in &delivery.holders {
@@ -541,19 +552,30 @@ impl RuntimeHandle {
                 }
                 let request = (|| -> crate::runtime::Result<_> {
                     let mut encoded = super::streams::admission::slots(count)?;
-                    for (row, frame) in samples.iter().zip(frames.iter_mut()).filter(|(row, _)| delivered(row)) {
+                    for (index, frame) in frames.iter_mut().enumerate().filter(|(index, _)| delivered(&&samples[*index])) {
+                        let row = &samples[index];
+                        // The Holder Reads The Ordinal Its Own Captured Copy Was Saved Under, As Its Replay Does.
+                        let Some(sequence) = holder_ordinal(samples, index, holder) else {
+                            return Err(crate::runtime::Error::Operation("a leased row has no captured copy for its leaseholder".into()));
+                        };
                         let frame = lease_frame(frame, &LeaseSample(&row.sample))?;
                         let source = row.sample.scope.as_ref();
                         let scope = source
                             .filter(|scope| scope.test_execution_id.is_some() && scope.test_execution_id == holder.scope.test_execution_id)
                             .unwrap_or(&holder.scope);
                         let scope = lease_json(scope)?;
+                        let sequence = sequence.to_string();
                         let mut copy = String::new();
                         copy.try_reserve_exact(
-                            frame.len().checked_add(scope.len()).and_then(|size| size.checked_add(10)).ok_or_else(lease_memory_error)?,
+                            [frame.len(), scope.len(), sequence.len(), 22]
+                                .into_iter()
+                                .try_fold(0_usize, usize::checked_add)
+                                .ok_or_else(lease_memory_error)?,
                         )
                         .map_err(|_| lease_memory_error())?;
                         copy.push_str(&frame[..frame.len() - 1]);
+                        copy.push_str(",\"sequence\":");
+                        copy.push_str(&sequence);
                         copy.push_str(",\"scope\":");
                         copy.push_str(&scope);
                         copy.push('}');
@@ -566,13 +588,14 @@ impl RuntimeHandle {
                     })
                 })();
                 match request {
-                    Ok(request) => self.deliver_to_leaseholder(holder, request).await,
+                    Ok(request) => queued.extend(self.queue_for_leaseholder(holder, request)),
                     Err(error) => {
                         tracing::warn!(stream = stream.as_str(), detail = %error, "a leased row could not be encoded for its leaseholder")
                     }
                 }
             }
         }
+        queued
     }
 
     pub(crate) async fn forward_lease_gap(&self, stream: &Identifier, reason: &str) {
@@ -648,33 +671,86 @@ impl RuntimeHandle {
     }
 
     async fn deliver_to_leaseholder(&self, holder: &Holder, request: DeliverSamplesRequest) {
+        if let Some(delivered) = self.queue_for_leaseholder(holder, request) {
+            let _ = delivered.await;
+        }
+    }
+
+    // Queues Behind Every Earlier Delivery To The Same Run Without Awaiting Its Plugin, So A
+    // Caller Holding Admission Order Never Waits On A Leaseholder That Itself Waits On Admission.
+    fn queue_for_leaseholder(&self, holder: &Holder, request: DeliverSamplesRequest) -> Option<tokio::sync::oneshot::Receiver<()>> {
         // A hold that names no run has nobody to be evidence for. A dashboard
         // viewing a stream is exactly that hold, and delivering it would be
         // worse than useless: the sidecar decides which of its executions a
         // scope covers, and a scope naming nothing covers all of them — every
         // live run in that process would take a viewer's rows as its own.
-        let Some(execution) = holder.scope.test_execution_id.clone() else {
-            return;
+        let execution = holder.scope.test_execution_id.clone()?;
+        let (delivered, receipt) = tokio::sync::oneshot::channel();
+        let delivery = Delivery {
+            requester: holder.requester.clone(),
+            request,
+            delivered,
         };
-        let Some(template) =
-            self.state_read().executions.get(&execution).map(|execution| execution.snapshot.case().metadata.identifier.to_string())
-        else {
+
+        // A Live Queue Takes It In Order; Otherwise This Delivery Starts The Run's Queue.
+        let leases = self.stream_leases();
+        let mut queues = leases.deliveries.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let delivery = match queues.get(execution.as_str()) {
+            Some(queue) => match queue.send(delivery) {
+                Ok(()) => return Some(receipt),
+                Err(closed) => closed.0,
+            },
+            None => delivery,
+        };
+        let (queue, pending) = tokio::sync::mpsc::unbounded_channel();
+        let _ = queue.send(delivery);
+        queues.insert(execution.to_string(), queue);
+        drop(queues);
+        let runtime = self.clone();
+        tokio::spawn(async move { runtime.drain_leaseholder(execution, pending).await });
+        Some(receipt)
+    }
+
+    // Signals One Run's Queued Deliveries In Order; Retires Its Queue Under The Table Lock Once Empty.
+    async fn drain_leaseholder(
+        &self, execution: dokime_domain::model::identity::TestExecutionId, mut pending: tokio::sync::mpsc::UnboundedReceiver<Delivery>,
+    ) {
+        while let Some(delivery) = self.next_delivery(execution.as_str(), &mut pending) {
+            self.signal_leaseholder(&execution, &delivery.requester, delivery.request).await;
+            let _ = delivery.delivered.send(());
+        }
+    }
+
+    fn next_delivery(&self, execution: &str, pending: &mut tokio::sync::mpsc::UnboundedReceiver<Delivery>) -> Option<Delivery> {
+        if let Ok(delivery) = pending.try_recv() {
+            return Some(delivery);
+        }
+        // Senders Queue Under This Lock, So An Empty Check Here Cannot Strand A Delivery.
+        let leases = self.stream_leases();
+        let mut queues = leases.deliveries.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let delivery = pending.try_recv().ok();
+        if delivery.is_none() {
+            queues.remove(execution);
+        }
+        delivery
+    }
+
+    async fn signal_leaseholder(
+        &self, execution: &dokime_domain::model::identity::TestExecutionId, requester: &str, request: DeliverSamplesRequest,
+    ) {
+        let template =
+            self.state_read().executions.get(execution).map(|execution| execution.snapshot.case().metadata.identifier.to_string());
+        let Some(template) = template else {
             return;
         };
         let target = crate::domains::execution::run::Target::of(self, &template);
-        if let Err(error) = target
-            .signal(crate::transport::ExecutionSignal {
-                execution_token: execution.to_string(),
-                samples: Some(request),
-                ..crate::transport::ExecutionSignal::default()
-            })
-            .await
-        {
-            tracing::debug!(
-                requester = holder.requester,
-                detail = %error.message,
-                "a leaseholder's run did not take its stream's rows"
-            );
+        let signal = crate::transport::ExecutionSignal {
+            execution_token: execution.to_string(),
+            samples: Some(request),
+            ..crate::transport::ExecutionSignal::default()
+        };
+        if let Err(error) = target.signal(signal).await {
+            tracing::debug!(requester, detail = %error.message, "a leaseholder's run did not take its stream's rows");
         }
     }
 
@@ -760,6 +836,16 @@ fn lease_delivers(
         && super::streams::lease_accepts_sample(sample.scope.as_ref(), &holder.scope)
 }
 
+// The Ordinal Of The Row Saved For This Holder: The Original Row Or One Of Its Contiguous Lease Copies.
+fn holder_ordinal(samples: &[super::streams::PreparedSample], index: usize, holder: &Holder) -> Option<u64> {
+    let original = &samples.get(index)?.sample;
+    let execution = holder.scope.test_execution_id.as_ref()?;
+    let saved_for_holder =
+        |row: &&super::streams::PreparedSample| row.scope().and_then(|scope| scope.test_execution_id.as_ref()) == Some(execution);
+    let mut copies = samples[index..].iter().take_while(|row| std::sync::Arc::ptr_eq(&row.sample, original));
+    copies.find(saved_for_holder).map(|row| row.ordinal)
+}
+
 #[derive(Default)]
 struct LeaseJson(Vec<u8>);
 impl std::io::Write for LeaseJson {
@@ -778,11 +864,11 @@ impl serde::Serialize for LeaseSample<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         use serde::ser::SerializeMap;
         let sample = self.0;
-        let mut map = serializer.serialize_map(Some(10))?;
+        // The Sequence Is Each Holder's Own Stream Ordinal, Appended Per Holder Like Its Scope.
+        let mut map = serializer.serialize_map(Some(9))?;
         map.serialize_entry("sample_id", &sample.sample_id)?;
         map.serialize_entry("stream", &sample.stream)?;
         map.serialize_entry("schema_version", &sample.schema_version)?;
-        map.serialize_entry("sequence", &sample.sequence)?;
         map.serialize_entry("timestamp", &sample.timestamp)?;
         map.serialize_entry("received_at", &sample.received_at)?;
         map.serialize_entry("source", &sample.source)?;

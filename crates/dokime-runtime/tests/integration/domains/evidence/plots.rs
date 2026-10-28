@@ -18,16 +18,13 @@
 
 // Local Imports
 use super::*;
+use crate::service_support::plots::{plot_query_suite, register_plot_suite, wifi_request};
 use dokime_runtime::runtime::query::{
     DownsampleTechnique, PlotAnalysis, PlotDomain, PlotPayloadRequest, PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode, WifiBandScan,
     WifiBandWindow, WifiChannelCount,
 };
 
 /* === Constants === */
-const LARGE_PLOT_SAMPLES: usize = 50_000;
-
-const SAMPLE_BATCH: usize = 1_000;
-
 const PLOT_POINTS: usize = 400;
 
 /* === Macros === */
@@ -599,27 +596,10 @@ async fn execution_plots_samples() {
     owner.shutdown().await.unwrap();
 }
 
-// A plot over a large sample set reads within its display budget.
+// The 5,000-row guard of the saved-sample plot path; `system/telemetry_plot_history.rs` reads 50,000.
 #[tokio::test]
 async fn large_sample_plot() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = booted(root.path()).await;
-    register_plot_suite(&runtime).await;
-    for _ in 0..LARGE_PLOT_SAMPLES / SAMPLE_BATCH {
-        runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", SAMPLE_BATCH, None)).await.unwrap();
-        runtime.storage().flush().await.unwrap();
-    }
-    let mut request = wifi_request(None, Some(PLOT_POINTS));
-    // Markers And Samples Read The Same Saved Storage Cut.
-    request.marker_record_types = vec!["test.cycle.started".to_owned()];
-    let envelopes = runtime
-        .query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot)
-        .await
-        .expect("a large sample set plots within its display budget");
-    let series = &envelopes[0].payload.series[0];
-    assert!(series.raw_points > PLOT_POINTS);
-    assert!(series.downsampled);
-    assert!(series.points.len() <= PLOT_POINTS);
+    crate::service_support::plots::sample_plot(5_000, PLOT_POINTS).await;
 }
 
 fn assert_summary(summaries: &[PlotSeriesSummary], count: usize, statistics: [f64; 6], window: [f64; 2]) {
@@ -636,32 +616,6 @@ fn assert_summary(summaries: &[PlotSeriesSummary], count: usize, statistics: [f6
     assert_eq!(summary.window, Some(PlotWindow { from: window[0], to: window[1] }));
 }
 
-async fn register_plot_suite(runtime: &RuntimeHandle) {
-    runtime
-        .set_suites(
-            "plot-query",
-            dokime_runtime::definition::SuiteSet::new([TestSuiteDefinition {
-                suite_id: "plot.query.suite".to_owned(),
-                tags: Vec::new(),
-                workflow: None,
-                suite: plot_query_suite(),
-                record_contracts: Vec::new(),
-                telemetry_contracts: vec![wifi_occupancy_contract()],
-            }]),
-        )
-        .await
-        .unwrap();
-}
-
-fn plot_query_suite() -> TestSuite {
-    TestSuite {
-        metadata: Metadata::new(Identifier::new("plot.query.suite").unwrap(), "Plot Query Suite", None),
-        tags: Vec::new(),
-        parameter_groups: Vec::new(),
-        test_case_templates: Vec::new(),
-    }
-}
-
 fn band_window(band: &str, occupied_channels: usize) -> WifiBandWindow {
     WifiBandWindow { band: band.to_owned(), occupied_channels }
 }
@@ -672,34 +626,6 @@ fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBand
         occupied_channels: occupied,
         total_networks: total,
         peak_count: peak,
-    }
-}
-
-fn wifi_request(scope: Option<RecordScope>, max_points: Option<usize>) -> PlotPayloadRequest {
-    PlotPayloadRequest {
-        plot_id: Some("wifi.network_count".to_owned()),
-        plot_type: None,
-        x_scale: Default::default(),
-        y_scale: Default::default(),
-        stream: "host.wifi.channel_occupancy".to_owned(),
-        y_keys: vec!["network_count".to_owned()],
-        marker_record_types: Vec::new(),
-        filters: Vec::new(),
-        x_key: Some("sample_index".to_owned()),
-        series_by: None,
-        x_expression: None,
-        y_expressions: Vec::new(),
-        series_by_expression: None,
-        z_stream: None,
-        z_field: None,
-        unit: Some("count".to_owned()),
-        x_format: None,
-        y_format: None,
-        max_points,
-        window_s: None,
-        scope,
-        technique: DownsampleTechnique::Raw,
-        ..Default::default()
     }
 }
 
@@ -1034,56 +960,8 @@ async fn external_analysis_reload() {
     owner.shutdown().await.unwrap();
 }
 
+// The one-day guard of the saved-window path; `system/telemetry_plot_history.rs` saves seven days.
 #[tokio::test]
-async fn seven_day_saved_windows_keep_payload_and_snapshot_bounded() {
-    const DAYS: usize = 7;
-    const MINUTES_PER_DAY: usize = 24 * 60;
-    let root = tempdir().unwrap();
-    let (mut owner, runtime) = booted(root.path()).await;
-    register_plot_suite(&runtime).await;
-    let baseline = serde_json::to_vec(runtime.watch_state().latest().state()).unwrap().len();
-    let midnight = 1_767_225_600_u64;
-
-    for day in 0..DAYS {
-        for start in (0..MINUTES_PER_DAY).step_by(120) {
-            let mut batch = samples("host.wifi.channel_occupancy", 120, None);
-            for (offset, sample) in batch.samples.iter_mut().enumerate() {
-                let minute = day * MINUTES_PER_DAY + start + offset;
-                let elapsed = Duration::from_secs(midnight + minute as u64 * 60);
-                sample.timestamp = Timestamp::from_system_time(std::time::UNIX_EPOCH + elapsed);
-                sample.values.insert("sample_index".into(), Value::Integer(minute as i64));
-                sample.values.insert("network_count".into(), Value::Integer(minute as i64));
-                *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
-            }
-            runtime.publish_telemetry_batch(batch).await.unwrap();
-            runtime.storage().flush().await.unwrap();
-            assert_eq!(runtime.storage().status().pending_bytes, 0);
-        }
-
-        let mut request = wifi_request(None, Some(8));
-        request.plot_type = Some(dokime_runtime::document::PlotType::TimeSeries);
-        request.x_key = None;
-        request.window_s = Some(5.0 * 60.0);
-        request.technique = DownsampleTechnique::MinMax;
-        let mut second = request.clone();
-        second.plot_id = Some("second".into());
-        let requests = vec![request, second];
-        let results = runtime.query_plot_payloads(requests, RuntimePlotQueryMode::Snapshot).await.unwrap();
-        for result in &results {
-            assert_eq!(result.payload.series[0].raw_points, 6);
-            assert!(result.payload.series[0].points.len() <= 8);
-        }
-        assert_eq!(results[0].payload.series, results[1].payload.series);
-        let snapshot = serde_json::to_vec(runtime.watch_state().latest().state()).unwrap();
-        assert!(snapshot.len() <= baseline + 128 * 1024, "host history must not accumulate in managed snapshots");
-    }
-
-    let mut request = wifi_request(None, Some(16));
-    request.technique = DownsampleTechnique::MinMax;
-    let requests = vec![request];
-    let whole = runtime.query_plot_payloads(requests, RuntimePlotQueryMode::Snapshot).await.unwrap();
-    assert_eq!(whole[0].payload.series[0].raw_points, DAYS * MINUTES_PER_DAY);
-    assert!(whole[0].payload.series[0].points.len() <= 16);
-    drop(runtime);
-    owner.shutdown().await.unwrap();
+async fn saved_windows_keep_payload_and_snapshot_bounded() {
+    crate::service_support::plots::saved_windows(1).await;
 }

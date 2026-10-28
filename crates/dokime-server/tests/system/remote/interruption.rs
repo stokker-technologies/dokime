@@ -186,15 +186,8 @@ impl Gate {
         use dokime::operations::execution::ListCycles;
 
         // Locate The Script's Cycle Without Depending On Its Pending Reply.
-        let filter = CycleFilter {
-            text: self.label.clone(),
-            ..Default::default()
-        };
-        let request = ListCycles {
-            limit: 100,
-            filter: Some(filter),
-            ..Default::default()
-        };
+        let filter = CycleFilter { text: self.label.clone(), ..Default::default() };
+        let request = ListCycles { limit: 100, filter: Some(filter), ..Default::default() };
         let reply = self.client.execution_list_cycles(request).await.map_err(|error| std::io::Error::other(error.to_string()))?;
         let cycle = reply.cycles.into_iter().find(|cycle| cycle.metadata.as_ref().is_some_and(|metadata| metadata.label == self.label));
         let Some(cycle) = cycle else {
@@ -277,17 +270,10 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
     let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
     let parameters = vec![RegisteredSelectionParametersEntry {
         key: "require_confirmation".into(),
-        value: Some(SelectionValues {
-            values: vec![Value::Bool(true).try_into().unwrap()],
-        }),
+        value: Some(SelectionValues { values: vec![Value::Bool(true).try_into().unwrap()] }),
     }];
     let (_, template) = client.template("obc.checks.pulse").await.unwrap();
-    let selection = RegisteredSelection {
-        suite_id: "obc.checks".into(),
-        template_id: template.template_id,
-        parameters,
-        files: Vec::new(),
-    };
+    let selection = RegisteredSelection { suite_id: "obc.checks".into(), template_id: template.template_id, parameters, files: Vec::new() };
     let materialized = client.materialize_template(MaterializeTemplate { selection: Some(selection) }).await.unwrap();
     assert_eq!(materialized.cases.len(), 1);
     let metadata = Metadata {
@@ -299,16 +285,9 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
         created_at: None,
         updated_at: None,
     };
-    let request = CreateCycle {
-        metadata: Some(metadata),
-        continue_automatically: false,
-        context: None,
-    };
+    let request = CreateCycle { metadata: Some(metadata), continue_automatically: false, context: None };
     let cycle = client.create_cycle(request).await.unwrap();
-    let binding = ExecutionBinding {
-        execution_id: uuid::Uuid::now_v7().to_string(),
-        case_id: materialized.cases[0].case_id.clone(),
-    };
+    let binding = ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: materialized.cases[0].case_id.clone() };
     cycle.append(vec![binding]).await.unwrap();
     let mut members = cycle.executions().await.unwrap();
     let execution = members.pop().unwrap();
@@ -511,7 +490,8 @@ fn terminal_command(command: &Command, batch: bool) -> CommandBuilder {
     let mut terminal = if batch {
         let mut terminal = CommandBuilder::new("cmd.exe");
         terminal.args(["/D", "/C"]);
-        terminal.arg(program.file_name().unwrap());
+        // An Explicit Relative Path: cmd.exe Skips Its Current Directory When NoDefaultCurrentDirectoryInExePath Is Set.
+        terminal.arg(Path::new(".").join(program.file_name().unwrap()));
         terminal.cwd(program.parent().unwrap());
         terminal
     } else {
@@ -531,12 +511,7 @@ fn terminal_command(command: &Command, batch: bool) -> CommandBuilder {
 
 fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     let runtime = tokio::runtime::Handle::current();
-    let size = PtySize {
-        rows: 40,
-        cols: 240,
-        pixel_width: 0,
-        pixel_height: 0,
-    };
+    let size = PtySize { rows: 40, cols: 240, pixel_width: 0, pixel_height: 0 };
     let pair = native_pty_system().openpty(size).unwrap();
     let child = pair.slave.spawn_command(command).unwrap();
     let mut process = Process { child, reaped: false };
@@ -555,11 +530,11 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     });
     // A Stuck Script Fails With Its Terminal Text Instead Of Hanging The Lane.
     let (finished, exited) = std::sync::mpsc::channel::<()>();
-    let mut stuck = process.child.clone_killer();
+    let root = process.child.process_id();
     let watchdog = std::thread::spawn(move || {
         let expired = exited.recv_timeout(SCRIPT_DEADLINE).is_err();
-        if expired {
-            let _ = stuck.kill();
+        if expired && let Some(root) = root {
+            kill_tree(root);
         }
         expired
     });
@@ -569,13 +544,29 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     let expired = watchdog.join().unwrap();
     drop(pair.master);
 
-    let (text, triggered) = read.join().unwrap().unwrap();
-    assert!(!expired, "the remote script did not exit within {SCRIPT_DEADLINE:?}:\n{text}");
-    Outcome {
-        success: status.success(),
-        triggered,
-        text,
-    }
+    // Surviving Descendants Keep The Terminal Open, So The Reader Join Is Bounded.
+    let (delivered, result) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = delivered.send(read.join());
+    });
+    let joined = result.recv_timeout(std::time::Duration::from_secs(30));
+    let (text, triggered) = match joined {
+        Ok(joined) => joined.unwrap().unwrap(),
+        Err(_) => panic!("the remote script exceeded {SCRIPT_DEADLINE:?} and its terminal stayed open after the process tree was killed"),
+    };
+    assert!(!expired, "the remote script exceeded {SCRIPT_DEADLINE:?} and its process tree was killed:
+{text}");
+    Outcome { success: status.success(), triggered, text }
+}
+
+// Kill The Script And Every Descendant, Such As Waiting CLI Processes.
+fn kill_tree(root: u32) {
+    let root = root.to_string();
+    #[cfg(windows)]
+    let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &root]).output();
+    // The pseudo terminal makes the script a session and group leader.
+    #[cfg(not(windows))]
+    let _ = Command::new("kill").args(["-KILL", "--", &format!("-{root}")]).output();
 }
 
 fn read_terminal(

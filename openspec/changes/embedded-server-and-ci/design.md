@@ -6,13 +6,9 @@ The existing server library owns boot, listener/runtime resources and bounded dr
 
 The GUI starts and stops its embedded session in process. Shutdown retains the authoritative session and resumable listener/runtime drain until completion, including timeout, cancelled waits and Retry. Attached and profile-selected remotes retain authentication and origin guards. One root-scoped desktop-owned local socket arbitrates ordinary launches and requests focus before a second backend can start; it does not change application identity, discover backends or replace the storage lease. Explicit distinct roots remain independent. Desktop selection persists only Local or a saved profile name, separately from the CLI default; transient attachments and ephemeral endpoints are not persisted. An unavailable remembered remote stays selected for reconnection. Native close failures retain the owned WebView, invocation ledger, listener/session state and dialog evidence; diagnostic failures never replace the original error or relax the existing close deadline.
 
-Runtime composition accepts an explicit credential-store resource, separate from serialized settings. Production selects its existing OS-backed adapter; tests use the upstream in-memory store without global mutation, fault features, silent file fallback or a bespoke mocking framework. Existing keyring secrets remain unchanged; legacy adoption is removed as specified below.
+Runtime composition accepts an explicit credential-store resource, separate from serialized settings. Production selects its existing OS-backed adapter; tests use the upstream in-memory store without global mutation, fault features, silent file fallback or a bespoke mocking framework. Existing keyring secrets remain unchanged; legacy adoption is removed as specified in `specs/runtime-and-ci/spec.md`.
 
 Product uses default dev/release; Tests and preceding Clippy use built-in test, including release graph contexts. Artifact paths preserve the graph profile. Packaging symbol policy remains separate from compiler flags. Contract tests consume the just-built archive and explicit graph namespace. The shared test runner assigns child-only `STKR_TEST_PROFILE` from its parsed profile for ordinary tests and coverage. Archive contract execution supplies the same value explicitly; Rust fixture readers validate dev/release and default to dev when no graph profile is supplied. Mise task environment tables do not reference usage arguments. Nightly runs full ordinary validation with default release Product and Package outputs, unsigned downloadable installers, default unoptimized test-profile Tests and coverage, and default bench-profile benchmarks. It does not sign or publish.
-
-## Report Browser Ownership
-
-Native report journeys supply a test-scoped opener resource targeting an owned browser profile and debugging endpoint. The gate records exact report tab identities and closes those tabs in its final cleanup before deleting fixtures, including failure and timeout paths. Production keeps the system opener. No user browser enumeration, tab closure or process termination is permitted.
 
 ## Local Simulation
 
@@ -77,13 +73,7 @@ The user retired the compiler-color test; remove it and its routing rather than 
 
 An explicit nonempty `DOKIME_APPLICATION_ROOT` also owns Tauri's native application directories. Resolve relative roots against the working directory before configuring the native directory override. This keeps report and media staging within the selected application root on Windows; absent or empty overrides preserve native defaults. Owned report-browser path checks remain enforced.
 
-## Shared Secrets And Saved Files
-
-Canonical secret values remain in the host OS keyring with its existing catalog and explicit composed credential provider. Remove legacy-source adoption, its runtime/configuration/API/UI surfaces and obsolete Memory/LocalFile backend choices; retain OS-keyring binding semantics and unrelated authentication credentials. Existing legacy stores and files are neither read nor deleted.
-
-The runtime owns standard Base64 encoding of the v1 JSON metadata/value document. Archive.data contains the resulting ASCII file bytes; Export takes names/generation, Preview takes data, and Import takes data/choices/generation. Files use .b64 and no passwords, encryption, ciphertext fields or age dependency. Bound decoded documents to 512 KiB and encoded files to four times the rounded-up third of that limit; keep catalog generation and explicit replace/skip choices. Generic native IPC Base64 wrapping remains transport-only.
-
-One in-process saved-file roundtrip proves this codec with isolated keyring stores. The existing native Settings story adds and removes two secrets. Retire the separate shared-secrets journey, crypto/provider test suite and encrypted fixtures; preserve independent plugin/binding/authentication tests. No watchdog, compiler-profile or native keyring-policy change accompanies this replacement.
+## Shared Preflight And Report File Retries
 
 Compiler entry points adopt the shared preflight that reclaims idle disposable Cargo output above 64 GiB while preserving declared build/test/package artifacts; local simulation retains serial jobs without thread or memory limits. Shared Docker cleanup removes only owned disposable execution state. Root and managed starters use the same rendered helpers. Impact rules use include with their existing selectors; provider protections remain untouched by --no-provider renders.
 

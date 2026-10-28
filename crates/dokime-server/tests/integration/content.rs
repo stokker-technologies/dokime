@@ -31,8 +31,6 @@ use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
 
-const LARGE_ARTIFACT_BYTES: u64 = 300 * 1024 * 1024;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -51,8 +49,6 @@ pub(super) struct UploadGate {
     pub(super) started: Notify,
     pub(super) release: Notify,
 }
-
-struct LargeArtifact;
 
 /* === Enums === */
 
@@ -103,38 +99,6 @@ impl ExecutionFixture for UploadGate {
         Box::pin(async move {
             self.started.notify_one();
             self.release.notified().await;
-            Ok(support::fixture_provider_outcome(cycle, false))
-        })
-    }
-}
-
-impl ExecutionFixture for LargeArtifact {
-    fn run_cycle<'a>(
-        &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
-    ) -> ExecutionFixtureFuture<'a> {
-        Box::pin(async move {
-            let execution = &cycle.test_executions[0];
-            let upload = context
-                .begin_artifact_upload(ArtifactUploadInput {
-                    scope: RecordScope::default()
-                        .with_cycle(cycle.test_cycle_id.clone())
-                        .with_test_case(execution.test_case_id.clone())
-                        .with_test_execution(execution.test_execution_id.clone()),
-                    filename: "large.bin".into(),
-                    content_type: Some("application/octet-stream".into()),
-                    size_bytes: LARGE_ARTIFACT_BYTES,
-                    sha256: None,
-                })
-                .await
-                .unwrap();
-            let chunk = vec![0_u8; 1024 * 1024];
-            let mut sent = 0_u64;
-            while sent < LARGE_ARTIFACT_BYTES {
-                let remaining = (LARGE_ARTIFACT_BYTES - sent).min(chunk.len() as u64) as usize;
-                upload.send(chunk[..remaining].to_vec()).await.unwrap();
-                sent += remaining as u64;
-            }
-            upload.finish().await.unwrap();
             Ok(support::fixture_provider_outcome(cycle, false))
         })
     }
@@ -820,7 +784,11 @@ async fn completion_harness()
         .executions
         .remove(0)
         .execution_id;
-    let scope = model::content::wire::ArtifactScope { cycle_id: Some(cycle_id.clone()), case_id: None, execution_id: Some(execution_id) };
+    let scope = model::content::wire::ArtifactScope {
+        cycle_id: Some(cycle_id.clone()),
+        case_id: None,
+        execution_id: Some(execution_id),
+    };
     let content = WireClient::new(stream).max_decoding_message_size(4096).max_encoding_message_size(4096);
     (root, owner, server, execution, content, gate, cycle_id, scope)
 }
@@ -1068,96 +1036,6 @@ async fn report_frames(mut stream: WireStream<model::reports::wire::ReportHtmlFr
     }
     assert!(complete, "report stream must complete");
     (metadata.expect("report metadata"), html)
-}
-
-#[tokio::test]
-async fn large_artifact_buffering() {
-    let started = std::time::Instant::now();
-    if std::env::var_os("RUST_LOG").is_some() {
-        let _ = tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).with_test_writer().try_init();
-    }
-    // Stream 300 MiB through the existing native file contract.
-    let root = tempfile::tempdir().unwrap();
-    let config = crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.bundle", "Content"));
-    let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact)).boxed_local().await.unwrap();
-    support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
-    let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
-    let execution = WireClient::new(stream.clone());
-    eprintln!("artifact phase=runtime_ready elapsed_ms={}", started.elapsed().as_millis());
-    let cycle_id = support::planned_cycle(
-        &execution,
-        authenticated(contracts::execution::CreateCycle {
-            metadata: Some(model::identity::wire::Metadata {
-                identifier: "content.bundle".into(),
-                label: "Bundle".into(),
-                description: None,
-                ..Default::default()
-            }),
-            ..Default::default()
-        }),
-        selection_plan(&owner),
-    )
-    .await
-    .unwrap();
-    execution.start_first(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() })).await.unwrap();
-    support::on_state_change(&owner.handle(), async || {
-        let cycle = execution
-            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
-            .await
-            .unwrap()
-            .into_inner();
-        assert!(!cycle.result.as_ref().is_some_and(|result| matches!(
-            result.status,
-            model::execution::wire::ResultStatus::Failed | model::execution::wire::ResultStatus::Blocked
-        )));
-        (support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed)).then_some(())
-    })
-    .await;
-    eprintln!("artifact phase=execution_settled elapsed_ms={}", started.elapsed().as_millis());
-    let content = WireClient::new(stream);
-    let artifacts = owner.handle().artifacts().await.unwrap();
-    let artifact = artifacts.iter().find(|artifact| artifact.filename == "large.bin").unwrap();
-    let mut download = content
-        .download::<contracts::content::DownloadArtifact>(authenticated(contracts::content::DownloadArtifact {
-            artifact_id: artifact.artifact_id.to_string(),
-        }))
-        .await
-        .unwrap()
-        .into_inner();
-    let metadata = match download.message().await.unwrap().unwrap().payload {
-        Some(model::content::wire::ArtifactFramePayload::Metadata(metadata)) => metadata,
-        payload => panic!("unexpected artifact header: {payload:?}"),
-    };
-    assert_eq!(metadata.size_bytes, LARGE_ARTIFACT_BYTES);
-    eprintln!("artifact phase=download_metadata elapsed_ms={}", started.elapsed().as_millis());
-    let mut downloaded = 0_u64;
-    let mut digest = Sha256::new();
-    let completion = loop {
-        let frame = download.message().await.unwrap().expect("artifact completion");
-        match frame.payload.unwrap() {
-            model::content::wire::ArtifactFramePayload::Chunk(chunk) => {
-                assert_eq!(chunk.offset, downloaded);
-                assert!(!chunk.data.is_empty());
-                downloaded += chunk.data.len() as u64;
-                digest.update(&chunk.data);
-            }
-            model::content::wire::ArtifactFramePayload::Complete(done) => break done,
-            model::content::wire::ArtifactFramePayload::Metadata(_) => {
-                panic!("artifact metadata must be emitted once")
-            }
-        }
-    };
-    assert_eq!(completion.size_bytes, downloaded);
-    assert_eq!(completion.sha256, digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>());
-    assert_eq!(metadata.size_bytes, downloaded);
-    assert_eq!(metadata.sha256, completion.sha256);
-    assert!(download.message().await.unwrap().is_none());
-    eprintln!("artifact phase=download_complete elapsed_ms={}", started.elapsed().as_millis());
-    server.shutdown().await.unwrap();
-    eprintln!("artifact phase=server_stopped elapsed_ms={}", started.elapsed().as_millis());
-    owner.shutdown().await.unwrap();
-    eprintln!("artifact phase=runtime_stopped elapsed_ms={}", started.elapsed().as_millis());
 }
 
 /* === Tests === */

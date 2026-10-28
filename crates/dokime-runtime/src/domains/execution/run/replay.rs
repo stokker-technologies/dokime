@@ -106,7 +106,16 @@ async fn replay_stream(
         let schema = announced.as_ref().ok_or_else(|| failed("replay query emitted data before its schema"))?;
         batch.validate_schema(schema.as_schema()).map_err(failed)?;
         consumed = consumed.checked_add(u64::try_from(batch.as_record_batch().num_rows()).map_err(failed)?).ok_or_else(overflow)?;
-        let entries = crate::storage::telemetry::decode_positioned(codec, batch).map_err(failed)?;
+        // The Receiver Orders Each Stream By The Ordinal Its Capture Scope Saved, Never By A Producer's Own Count.
+        let decoded = crate::storage::telemetry::decode_positioned(codec, batch).map_err(failed)?;
+        let entries = decoded
+            .try_map(|mut entries| {
+                for (_, entry) in &mut entries {
+                    entry.sample.sequence = entry.ordinal;
+                }
+                Ok::<_, crate::storage::Error>(entries)
+            })
+            .map_err(failed)?;
         let mut offset = 0;
         while offset < entries.len() {
             let mut end = offset;

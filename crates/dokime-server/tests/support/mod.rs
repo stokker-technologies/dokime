@@ -14,6 +14,7 @@
 pub mod artifacts;
 pub mod budgets;
 pub mod host;
+pub mod plots;
 pub mod wire;
 
 /* === Re-Exports === */

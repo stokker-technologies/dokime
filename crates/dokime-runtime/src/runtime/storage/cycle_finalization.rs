@@ -147,7 +147,9 @@ impl super::executions::ExecutionStorage {
         let pending = owner.lock().await;
         for member in &pending.snapshot.source().execution_ids {
             if let Some(acquisition) = self.acquisition(member).await {
-                acquisition.lock().await.cycle_context = None;
+                let mut acquisition = acquisition.lock().await;
+                acquisition.cycle_context = None;
+                acquisition.cycle_member = None;
             }
         }
     }
