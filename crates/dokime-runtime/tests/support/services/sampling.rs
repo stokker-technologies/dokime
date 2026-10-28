@@ -172,7 +172,9 @@ pub async fn running_report_follows(size: Sampling) {
     }
 
     behaviour.release();
-    assert_eq!(settled(&handle, &command).await.summary.phase, RunPhase::Completed);
+    let receipt = settled(&handle, &command).await;
+    assert_eq!(receipt.summary.phase, RunPhase::Completed, "{:?}", *receipt);
+    drop(receipt);
     let html = super::native::report(&handle, &execution).await;
     assert_live_plot(&super::reports::parse(&html), PULSE_PLOT, 4, size.rows);
     drop(handle);

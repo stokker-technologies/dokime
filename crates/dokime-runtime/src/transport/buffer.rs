@@ -133,12 +133,13 @@ struct SampleStream {
 struct RecentRecord {
     ordinal: u64,
     identity: String,
-    row: crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::Record>,
+    row: crate::execution::evidence_rows::EvidenceRow<dokime_domain::model::records::evidence::Record>,
 }
 
 struct RecentSample {
     sample_id: String,
-    row: crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
+    row: crate::execution::evidence_rows::EvidenceRow<crate::telemetry::TelemetrySample>,
+    confirmed: bool,
 }
 
 /* === Enums === */
@@ -272,7 +273,7 @@ impl ExecutionState {
         };
         let previous = stream.recent.iter().find(|previous| previous.sample_id == sample.sample_id.as_str());
         let previous = match previous {
-            Some(previous) => previous.row.get(sample.sample_id.as_str())?,
+            Some(previous) => Some(previous.row.read()?),
             None => None,
         };
         if let Some(previous) = &previous
@@ -413,7 +414,7 @@ impl ExecutionState {
         }
         let admitted = (|| -> Result<bool, String> {
             if let Some(recent) = self.recent_records.iter().find(|recent| recent.ordinal == ordinal) {
-                let previous = recent.row.iter().read_next().transpose()?.ok_or("captured record receipt is empty")?;
+                let previous = recent.row.read()?;
                 return if previous == record {
                     Ok(false)
                 } else {
@@ -428,16 +429,14 @@ impl ExecutionState {
                     return Err("captured record identity was reused".into());
                 }
             }
-            let mut recent = crate::execution::evidence_rows::EvidenceRows::default();
-            recent.append(&record)?;
-            self.captured_records.append(&record)?;
+            let row = self.captured_records.retain(&record)?;
             if self.recent_records.len() == RECENT_STREAM_SAMPLES {
                 self.recent_records.pop_front();
             }
             self.recent_records.push_back(RecentRecord {
                 ordinal,
                 identity: record.record_id.to_string(),
-                row: recent,
+                row,
             });
             self.record_ordinal = ordinal;
             Ok(true)
@@ -714,15 +713,14 @@ impl ExecutionState {
         self.validate_sample(&sample)?;
         let stream = self.sample_streams.entry(sample.stream.to_string()).or_default();
         if let Some(previous) = stream.recent.iter_mut().find(|previous| previous.sample_id == sample.sample_id.as_str()) {
-            if self.subscriptions_settling && previous.row.confirm(sample.sample_id.as_str())? {
+            if self.subscriptions_settling && !previous.confirmed {
+                previous.confirmed = true;
                 self.confirmed_samples += 1;
                 self.settled.notify_waiters();
             }
             return Ok(false);
         }
-        let mut row = crate::execution::evidence_rows::EvidenceRows::default();
-        row.push(sample.sample_id.as_str(), &sample)?;
-        self.stream_rows.append(&sample)?;
+        let row = self.stream_rows.retain(&sample)?;
         stream.high_water = Some(sample.sequence);
         if stream.recent.len() == RECENT_STREAM_SAMPLES {
             stream.recent.pop_front();
@@ -730,6 +728,7 @@ impl ExecutionState {
         stream.recent.push_back(RecentSample {
             sample_id: sample.sample_id.to_string(),
             row,
+            confirmed: false,
         });
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
         self.settled.notify_waiters();
@@ -1373,18 +1372,26 @@ mod tests {
             "fixture",
         );
         assert!(!state.receive(recent.clone()).unwrap());
-        let mut conflicting = recent;
+        let mut conflicting = recent.clone();
         conflicting.values.insert("value".into(), Value::from(2.0));
         assert!(state.receive(conflicting).unwrap_err().starts_with("sample identity was reused"));
         assert_eq!(state.produced("reading"), 7 * 1440);
 
+        let progress = state.settlement_progress();
+        state.subscriptions_settling = true;
+        assert!(!state.receive(recent.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), progress + 1);
+        assert!(!state.receive(recent).unwrap());
+        assert_eq!(state.settlement_progress(), progress + 1);
+
         let staged = state.take_staged();
-        for receipt in &state.sample_streams["reading"].recent {
-            assert_eq!(receipt.row.len(), 1);
-            assert_eq!(receipt.row.retained_rows(), 0);
-        }
+        assert_eq!(staged.retained_rows(), 0);
         for (minute, sample) in staged.iter().enumerate() {
             assert_eq!(sample.sequence, minute as u64);
+        }
+        drop(staged);
+        for receipt in &state.sample_streams["reading"].recent {
+            assert_eq!(receipt.row.read().unwrap().sample_id.as_str(), receipt.sample_id);
         }
     }
 

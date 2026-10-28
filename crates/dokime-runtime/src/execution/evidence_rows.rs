@@ -44,9 +44,6 @@ mod tests {
         let second = uuid::Uuid::from_u128(2).to_string();
         assert!(rows.push(&first, &vec![1; 1024]).unwrap());
         assert!(!rows.push(&first, &vec![2; 1024]).unwrap());
-        assert_eq!(rows.get(&first).unwrap(), Some(vec![1; 1024]));
-        assert!(rows.confirm(&first).unwrap());
-        assert!(!rows.confirm(&first).unwrap());
         assert!(rows.push(&second, &vec![3; 1024]).unwrap());
         assert_eq!(rows.iter().collect::<Vec<_>>(), vec![vec![1; 1024], vec![3; 1024]]);
         assert_eq!(rows.clone().len(), 2);
@@ -91,6 +88,14 @@ pub struct EvidenceRows<T> {
     #[cfg(not(feature = "native"))]
     rows: Vec<T>,
 
+    marker: std::marker::PhantomData<T>,
+}
+
+// One Scratch Row Keeps Its Shared Spool Alive Without Retaining Its Payload In Memory.
+#[cfg(feature = "native")]
+pub(crate) struct EvidenceRow<T> {
+    spool: Arc<Mutex<Option<Spool>>>,
+    offset: u64,
     marker: std::marker::PhantomData<T>,
 }
 
@@ -190,6 +195,20 @@ impl<T> EvidenceRows<T> {
 }
 
 impl<T: Serialize + DeserializeOwned> EvidenceRows<T> {
+    #[cfg(feature = "native")]
+    pub(crate) fn retain(&mut self, value: &T) -> Result<EvidenceRow<T>, String> {
+        let mut owner = self.spool.lock().unwrap();
+        if owner.is_none() {
+            *owner = Some(Spool::new().map_err(|error| error.to_string())?);
+        }
+        let offset = owner.as_mut().unwrap().append(value).map_err(|error| error.to_string())?;
+        Ok(EvidenceRow {
+            spool: Arc::clone(&self.spool),
+            offset,
+            marker: std::marker::PhantomData,
+        })
+    }
+
     pub(crate) fn append(&mut self, value: &T) -> Result<(), String> {
         #[cfg(feature = "native")]
         {
@@ -236,19 +255,14 @@ impl<T: Serialize + DeserializeOwned> EvidenceRows<T> {
         }
         rows
     }
+}
 
-    #[cfg(feature = "native")]
-    pub(crate) fn get(&self, key: &str) -> Result<Option<T>, String> {
+#[cfg(feature = "native")]
+impl<T: DeserializeOwned> EvidenceRow<T> {
+    pub(crate) fn read(&self) -> Result<T, String> {
         let mut owner = self.spool.lock().unwrap();
-        let Some(spool) = owner.as_mut() else { return Ok(None) };
-        spool.get(key).map_err(|error| error.to_string())
-    }
-
-    #[cfg(feature = "native")]
-    pub(crate) fn confirm(&mut self, key: &str) -> Result<bool, String> {
-        let mut owner = self.spool.lock().unwrap();
-        let Some(spool) = owner.as_mut() else { return Ok(false) };
-        spool.confirm(key).map_err(|error| error.to_string())
+        let mut offset = self.offset;
+        owner.as_mut().expect("retained evidence has a spool").read(&mut offset).map_err(|error| error.to_string())
     }
 }
 
@@ -372,9 +386,7 @@ impl Spool {
         // Only After Its Complete Payload, And A Failed Receipt Is Retried Exactly.
         let receipt = (|| -> std::io::Result<()> {
             std::fs::create_dir_all(path.parent().unwrap())?;
-            let mut receipt = std::fs::OpenOptions::new().write(true).create_new(true).open(&path)?;
-            receipt.write_all(&offset.to_le_bytes())?;
-            receipt.write_all(&[0])?;
+            let _receipt = std::fs::OpenOptions::new().write(true).create_new(true).open(&path)?;
             Ok(())
         })();
         if let Err(error) = receipt {
@@ -383,30 +395,6 @@ impl Spool {
             let _ = std::fs::remove_file(path);
             return Err(error);
         }
-        Ok(true)
-    }
-
-    fn get<T: DeserializeOwned>(&mut self, key: &str) -> std::io::Result<Option<T>> {
-        let mut receipt = match std::fs::File::open(self.key(key)?) {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let mut offset = [0; 8];
-        receipt.read_exact(&mut offset)?;
-        self.read(&mut u64::from_le_bytes(offset)).map(Some)
-    }
-
-    fn confirm(&mut self, key: &str) -> std::io::Result<bool> {
-        let mut receipt = std::fs::OpenOptions::new().read(true).write(true).open(self.key(key)?)?;
-        receipt.seek(SeekFrom::Start(8))?;
-        let mut confirmed = [0];
-        receipt.read_exact(&mut confirmed)?;
-        if confirmed[0] == 1 {
-            return Ok(false);
-        }
-        receipt.seek(SeekFrom::Start(8))?;
-        receipt.write_all(&[1])?;
         Ok(true)
     }
 
