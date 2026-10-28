@@ -3302,7 +3302,14 @@ async function settingsJourney(session, notes) {
       const pairing = join(work, `${name}-pairing.json`);
       await writeFile(
         pairing,
-        JSON.stringify({ version: 1, endpoint, backend_identifier: identity, label: name, ca_certificate_pem: null, access_key: null }),
+        JSON.stringify({
+          version: 1,
+          endpoint: new URL(endpoint).origin,
+          backend_identifier: identity,
+          label: name,
+          ca_certificate_pem: null,
+          access_key: null,
+        }),
       );
       await session.clickNamed("button", "Import Pairing File");
       const picker = { window: null };
