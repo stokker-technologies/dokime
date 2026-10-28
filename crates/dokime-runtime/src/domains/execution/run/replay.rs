@@ -19,8 +19,7 @@
 use std::num::NonZeroU32;
 
 // Third Party Imports
-use harmos::storage::Query;
-use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
+use harmos::storage::query::{StreamRead, StreamSelection};
 
 // Local Imports
 use super::{ExecutionFixtureContext, ExecutionSignal, ProviderExecutionFailure, Target, TestExecution, failure};
@@ -102,7 +101,6 @@ async fn replay_stream(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, at: &harmos::storage::StorageCursor,
     contract: &crate::telemetry::TelemetryContract, replayed: &mut u64, codecs: &[crate::storage::telemetry::TypedCodec],
 ) -> Result<(), ProviderExecutionFailure> {
-    let session = context.runtime.storage().clone();
     let key_bytes = "dokime.telemetry.".len().checked_add(contract.stream.as_str().len()).ok_or_else(overflow)?;
     let mut schema_id = String::new();
     schema_id.try_reserve_exact(key_bytes).map_err(failed)?;
@@ -120,10 +118,14 @@ async fn replay_stream(
     if selected.next().is_some() {
         return Err(failed("saved replay schema is absent or ambiguous"));
     }
-    let mut reader = session
-        .query(Query {
+    // Read Saved Envelopes Without An Arrow Projection And A Second Decode.
+    // The Reader Owns The Snapshot Pin And Configured Page Memory Admission.
+    let mut reader = context
+        .runtime
+        .storage()
+        .read_stream(StreamRead {
             at: at.clone(),
-            source: Source::Stream(StreamSelection {
+            selection: StreamSelection {
                 schema: codec.schema().clone(),
                 scope: Some(harmos::Identifier::new(execution.test_execution_id.as_str()).map_err(failed)?),
                 item: None,
@@ -131,34 +133,27 @@ async fn replay_stream(
                 source_start: None,
                 source_end: None,
                 after: *replayed,
-            }),
-            transforms: Vec::new(),
-            slice: RowSlice::default(),
+            },
         })
         .await
         .map_err(failed)?;
-    let mut announced = None;
-    let mut consumed = 0_u64;
-    while let Some(output) = reader.next().await.map_err(failed)? {
-        let batch = match output {
-            QueryArrow::Schema(schema) => {
-                if announced.is_some() || consumed != 0 {
-                    return Err(failed("replay query emitted a repeated or late schema"));
-                }
-                announced = Some(schema);
-                continue;
-            }
-            QueryArrow::Batch(batch) => batch,
-        };
-        let schema = announced.as_ref().ok_or_else(|| failed("replay query emitted data before its schema"))?;
-        batch.validate_schema(schema.as_schema()).map_err(failed)?;
-        consumed = consumed.checked_add(u64::try_from(batch.as_record_batch().num_rows()).map_err(failed)?).ok_or_else(overflow)?;
-        // The Receiver Orders Each Stream By The Ordinal Its Capture Scope Saved, Never By A Producer's Own Count.
-        let decoded = crate::storage::telemetry::decode_positioned(codec, batch).map_err(failed)?;
-        let entries = decoded
-            .try_map(|mut entries| {
-                for (_, entry) in &mut entries {
+    let mut scanned = *replayed;
+    while let Some(rows) = reader.next().await.map_err(failed)? {
+        let entries = rows
+            .try_map(|rows| {
+                let mut entries = Vec::new();
+                entries.try_reserve_exact(rows.len()).map_err(std::io::Error::other)?;
+                for row in rows {
+                    at.history.check(&row.record.position.history)?;
+                    let position = row.record.position.sequence;
+                    if position <= scanned || position > at.sequence {
+                        return Err(crate::storage::Error::Invalid("replay page differs from the saved cursor"));
+                    }
+                    scanned = position;
+                    let mut entry = codec.decode_stored(&row)?;
+                    // The Receiver Orders Each Stream By Its Saved Capture Ordinal.
                     entry.sample.sequence = entry.ordinal;
+                    entries.push((position, entry));
                 }
                 Ok::<_, crate::storage::Error>(entries)
             })
@@ -220,10 +215,6 @@ async fn replay_stream(
                 .map_err(failed)?;
             offset = end;
         }
-    }
-    let complete = reader.completion().map_err(failed)?;
-    if announced.is_none() || complete.at != *at || complete.rows != consumed {
-        return Err(failed("replay query completion differs from the consumed evidence"));
     }
     Ok(())
 }
