@@ -296,9 +296,13 @@ fn installs_large_bundle() {
     let generation = fixture.generation();
     let bytes = large_bundle(70 * 1024 * 1024);
     let frames = install(&harness, generation, &bytes);
-    assert_eq!(frames.len(), 2, "one reply, then the final status");
+
+    let terminal = frames.last().expect("the stream returns a terminal status");
+    let terminal = String::from_utf8_lossy(&terminal[9..]);
+    assert_eq!(frames.len(), 2, "one reply, then the final status: {terminal:?}");
     assert_eq!(frames[0][8], FRAME_MESSAGE);
     assert_eq!(frames[1][8], FRAME_END);
+
     let (installation, _admitted_memory) =
         model::plugins::wire::PluginInstallation::from_wire(&frames[0][9..]).expect("the reply is a PluginInstallation");
     assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
