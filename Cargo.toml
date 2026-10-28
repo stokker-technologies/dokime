@@ -63,10 +63,10 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-harmos = "=0.1.8"
-harmos-domain = "=0.1.8"
-harmos-packaging = "=0.1.8"
-harmos-sdk = "=0.1.8"
+harmos = "=0.1.9"
+harmos-domain = "=0.1.9"
+harmos-packaging = "=0.1.9"
+harmos-sdk = "=0.1.9"
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
