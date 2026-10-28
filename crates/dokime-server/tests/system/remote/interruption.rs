@@ -490,7 +490,8 @@ fn terminal_command(command: &Command, batch: bool) -> CommandBuilder {
     let mut terminal = if batch {
         let mut terminal = CommandBuilder::new("cmd.exe");
         terminal.args(["/D", "/C"]);
-        terminal.arg(program.file_name().unwrap());
+        // An Explicit Relative Path: cmd.exe Skips Its Current Directory When NoDefaultCurrentDirectoryInExePath Is Set.
+        terminal.arg(Path::new(".").join(program.file_name().unwrap()));
         terminal.cwd(program.parent().unwrap());
         terminal
     } else {
