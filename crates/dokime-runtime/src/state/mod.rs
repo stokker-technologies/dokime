@@ -853,14 +853,14 @@ mod tests {
             record_contracts: vec![RecordContract::declared("fixture.reading", label)],
             ..Default::default()
         };
-        state.install_plugin(plugin("fixture.first", "First")).unwrap();
+        state.install_plugin(plugin("fixture_first", "First")).unwrap();
         let installed = state.clone();
 
         // A Conflicting Record Refuses Inside The Rebuild And Leaves Every Catalog Field
-        assert!(state.install_plugin(plugin("fixture.second", "Second")).is_err());
+        assert!(state.install_plugin(plugin("fixture_second", "Second")).is_err());
         assert_eq!(state, installed);
 
-        state.remove_plugin("fixture.first").unwrap();
+        state.remove_plugin("fixture_first").unwrap();
         assert!(!state.record_definitions.contains_key(&dokime_domain::model::identity::Identifier::new("fixture.reading").unwrap()));
     }
 }

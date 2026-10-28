@@ -199,7 +199,7 @@ operation!(runtime::GetHealth, _host, _request, _input, {
 
 fn install_bundle(schema: u32) -> Bundle {
     use harmos_packaging::bundle::{Executable, Facility, Identity, Limits, Source};
-    let owner = "fixture.worker";
+    let owner = "fixture_worker";
     let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Install fixture","config":"()"});
     let policy = dokime::harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
@@ -288,7 +288,7 @@ async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
                     version: bundle.manifest().identity.version.to_string(),
                     description: bundle.manifest().identity.description.clone(),
                 }),
-                owners: vec!["fixture.worker".into()],
+                owners: vec!["fixture_worker".into()],
                 size_bytes: bundle.bytes().len() as u64,
             }),
             error: None,

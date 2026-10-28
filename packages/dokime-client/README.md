@@ -314,7 +314,7 @@ remain enforced independently of the access key.
 ```python
 async with DokimeClient(endpoint, key_file="remote.key") as client:
     providers = await client.operations()
-    provider = await client.show("stokker.sensor.read", owner="stokker.sensor")
+    provider = await client.show("stokker_sensor.read", owner="stokker_sensor")
     request = provider.operation.request()
     response = await client.call(provider.operation, request)
 ```

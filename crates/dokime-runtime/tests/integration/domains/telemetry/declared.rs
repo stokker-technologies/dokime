@@ -30,7 +30,7 @@ use dokime_runtime::{Refusal, Supervisor};
 use harmos::sidecar::StreamDeclaration;
 
 /* === Constants === */
-const SOURCE: &str = "fixture.declaring";
+const SOURCE: &str = "fixture_declaring";
 const SUITE: &str = "fixture.declaring.checks";
 const RECORD: &str = "fixture.declaring.measured";
 const PROMPT: &str = "fixture.declaring.confirm";

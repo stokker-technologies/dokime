@@ -132,7 +132,7 @@ function withOrganizationPack(frame: RuntimeAppearanceFrame): RuntimeAppearanceF
     title_template: organizationPack.titleTemplate,
     logos: Object.entries(packLogos(organizationPack)).map(([variant, logo]) => ({
       variant: variant as RuntimeAppLogo["variant"],
-      plugin_id: "brand.pack",
+      plugin_id: "brand_pack",
       asset_id: variant,
       url: logo.src,
       alt: logo.alt ?? null,

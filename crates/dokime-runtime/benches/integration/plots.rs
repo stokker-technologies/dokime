@@ -29,6 +29,7 @@ use dokime_runtime::{Identifier, Metadata, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig};
 
 /* === Constants === */
+const OWNER: &str = "bench_plot";
 const STREAM: &str = "bench.plot";
 
 /* === Macros === */
@@ -136,7 +137,7 @@ async fn measure_queries() {
 fn config(root: &std::path::Path) -> RuntimeConfig {
     let schema = harmos::schema::graph::Schema::from_declaration(PlotRow::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
     let plugin = InstalledPlugin {
-        source: STREAM.into(),
+        source: OWNER.into(),
         version: "bench".into(),
         description: "Stored plot visibility benchmark".into(),
         enabled: true,
@@ -165,7 +166,7 @@ fn batch(rows: usize) -> TelemetryBatch {
     let samples = (0..rows)
         .map(|index| {
             let timestamp = dokime_runtime::model::time::now_utc();
-            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, timestamp.clone(), STREAM);
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, timestamp.clone(), OWNER);
             let value = index as f64;
             sample.values.insert("value".to_owned(), value.into());
             sample.storage_payload = Some(

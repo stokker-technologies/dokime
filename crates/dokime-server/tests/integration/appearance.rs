@@ -126,7 +126,7 @@ async fn appearance_asset_bound() {
         content
             .download::<contracts::content::DownloadAppearanceAsset>(authenticated(contracts::content::DownloadAppearanceAsset {
                 reference: Some(model::appearance::wire::AppearanceAssetReference {
-                    plugin_id: "unselected.owner".into(),
+                    plugin_id: "unselected_owner".into(),
                     ..reference.clone()
                 }),
             }))
