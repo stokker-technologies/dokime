@@ -1,8 +1,15 @@
 # Dokime Plugins
 
-`obc-plugin/` is the maintained onboard charger demo and validation plugin. Its
-`runtime/` crate owns the simulated testbench. The demo is installed explicitly
-and uses the same native delivery conventions as other plugins.
+`sidecars/host/` supplies the six host telemetry streams through the supervised
+plugin ingest boundary. Its single catalog contains the collection operations,
+stream declarations and demand-driven observers. Operation definitions own the
+policies; Windows and Unix implementations are selected at module declarations.
+Its Collection settings retain the Wi-Fi/Bluetooth adapter selectors and latency
+host. Empty adapter selectors use the native default.
+
+`sidecars/obc/` is the test-only onboard charger plugin. Its `runtime/` crate owns
+the simulated testbench. It is built explicitly for tests and is never included
+in the product's default bundles or installer.
 
 A plugin declares its identity, requirements and contributions on
 `#[dokime::plugin] impl dokime::Plugin`; `const CATALOGS` lists its executable
@@ -29,7 +36,9 @@ frozen registrations and `assets/`. Ordinary `cargo build` only compiles.
 Catalog export must be deterministic: declaration identities use stable seeds,
 while runtime execution identities remain fresh.
 
-`mise run build:plugins:dev` builds development and test bundles explicitly.
+`mise run build:rust` produces the shipping `plugins/host.dokime` bundle.
+`mise run build:rust:tests` prepares the explicit OBC test fixture under
+`fixtures/plugins/obc-plugin.dokime`.
 Operators select or install bundles; the product does not seed these fixtures. A card's probe
 and dropdown sources come off the authored settings aggregate —
 `PluginSettings::status_operation()`, `PluginSettings::option_providers()` — read

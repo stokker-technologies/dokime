@@ -78,7 +78,7 @@ async fn data_root_reopens() {
     assert!(!first.exists(), "the first launch creates the data root");
     for launch in 0..3 {
         // Resolve The Same Options The Way Every Shell Launch Does
-        let mut config = options.clone().resolve().unwrap();
+        let config = options.clone().resolve().unwrap();
         assert_eq!(config.output_root, first, "launch {launch} resolved a different data root form");
         #[cfg(windows)]
         assert!(
@@ -89,7 +89,6 @@ async fn data_root_reopens() {
             "launch {launch} resolved a verbatim data root: {}",
             config.output_root.display()
         );
-        config.seed_plugins = false;
 
         // Open, Prove Readiness, And Close The Root
         let mut runtime = dokime_runtime::app::launch(config).await.unwrap_or_else(|error| panic!("launch {launch} failed: {error}"));

@@ -39,8 +39,12 @@ pub fn host_binary() -> PathBuf {
     artifact(&format!("bin/dokime{EXECUTABLE_SUFFIX}"))
 }
 
+pub fn host_plugin_bundle() -> PathBuf {
+    artifact("plugins/host.dokime")
+}
+
 pub fn obc_plugin_bundle() -> PathBuf {
-    artifact("plugins/obc-plugin.dokime")
+    artifact("fixtures/plugins/obc-plugin.dokime")
 }
 
 pub fn workspace_root() -> PathBuf {

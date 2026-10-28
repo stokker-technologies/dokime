@@ -76,11 +76,12 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
 
     destination = paths.output(root, "package", profile) / "rust"
     installers = destination / "installers"
+    host_plugin = build / "plugins/host.dokime"
     with temporary.directory() as scratch:
         manifest = scratch / "installer.toml"
         manifest.write_text(_manifest(root, metadata, signed), encoding="utf-8")
         command = [str(tool), "installer", "package", "--manifest", str(manifest), "--artifacts", str(source)]
-        command += ["--plugin", str(build / "plugins/host.dokime")]
+        command += ["--plugin", str(host_plugin)]
         command += ["--output", str(scratch / "installers"), "--json", *(["--sign"] if signed else [])]
         result = scratch / "packages.json"
         _record(command, result, root)
@@ -95,14 +96,10 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
             stage_file(artifact, installers / artifact.name)
         _inspect(tool, installers, root)
 
-    # Preserve The Portable Release Payload And Example Plugins
+    # Preserve The Portable Release Payload And Explicit Shipping Plugin
     payload.archive(source, destination)
-    plugins = sorted((build / "plugins").glob("*.dokime"))
-    if not plugins:
-        raise ValueError("packaging requires the matching built plugin bundle")
     clear_output(destination / "plugins")
-    for plugin in plugins:
-        stage_file(plugin, destination / "plugins" / plugin.name)
+    stage_file(host_plugin, destination / "plugins" / host_plugin.name)
 
 
 def check_package(

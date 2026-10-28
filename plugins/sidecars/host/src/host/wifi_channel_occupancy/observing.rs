@@ -1,0 +1,57 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Imports === */
+
+use super::WifiChannelOccupancy;
+use crate::{Error, HostPlugin, HostTelemetryStream};
+use dokime::harmos::operations::Host;
+use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};
+use std::time::Duration;
+
+/* === Structs === */
+
+pub struct State {
+    pub(crate) collector: crate::collectors::wifi::WifiCollector,
+    pub(crate) options: crate::HostOptions,
+}
+
+/* === Implementations === */
+
+impl Observer<Publisher<HostPlugin>> for WifiChannelOccupancy {
+    type Error = Error;
+    const ID: &'static str = "host.wifi.channel_occupancy";
+    const STREAMS: &'static [dokime::harmos::sidecar::inventory::publications::Entry] =
+        &[dokime::harmos::sidecar::inventory::publications::Entry::of::<Self>()];
+    const ACTIVATION: Activation = Activation::Demand;
+    const INTERVAL: Duration = Duration::from_millis(HostTelemetryStream::WifiChannelOccupancy.interval().0);
+
+    async fn initialize(_: &dokime::harmos::ExecutionContext) -> Result<Self, Error> {
+        Ok(Self {})
+    }
+
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<HostPlugin>>) -> Result<(), Error> {
+        let response = ctx.host().supervisor().call::<Self>(Self {}).await.map_err(|error| Error::Probe(error.to_string()))?;
+        for row in &response.rows {
+            ctx.publish_on::<Self>(row).await.map_err(|error| Error::Probe(error.to_string()))?;
+        }
+        Ok(())
+    }
+}
+
+impl dokime::harmos::sidecar::inventory::observers::Declared for WifiChannelOccupancy {
+    const ENTRY: dokime::harmos::sidecar::inventory::observers::Entry = dokime::harmos::sidecar::inventory::observers::Entry {
+        id: <Self as Observer<Publisher<HostPlugin>>>::ID,
+        description: <Self as Observer<Publisher<HostPlugin>>>::DESCRIPTION,
+        interval: <Self as Observer<Publisher<HostPlugin>>>::INTERVAL,
+        activation: <Self as Observer<Publisher<HostPlugin>>>::ACTIVATION,
+        streams: <Self as Observer<Publisher<HostPlugin>>>::STREAMS,
+        demand_keys: <Self as Observer<Publisher<HostPlugin>>>::DEMAND_KEYS,
+    };
+}

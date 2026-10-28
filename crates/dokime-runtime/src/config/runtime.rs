@@ -59,7 +59,7 @@ pub struct RuntimeConfig {
 
     pub hub_metadata: Metadata,
 
-    #[cfg(feature = "host")]
+    #[cfg(feature = "native")]
     #[serde(skip)]
     pub(crate) credential_store: Option<Arc<keyring_core::CredentialStore>>,
 
@@ -103,7 +103,7 @@ impl RuntimeConfig {
             application_root: storage_root.join("application"),
             hub_metadata,
 
-            #[cfg(feature = "host")]
+            #[cfg(feature = "native")]
             credential_store: None,
             trusted_bench: false,
             installed_plugins: Vec::new(),
@@ -127,7 +127,7 @@ impl RuntimeConfig {
     }
 
     /// Supply Credential Storage As A Live Composition Resource, Separate From Settings.
-    #[cfg(feature = "host")]
+    #[cfg(feature = "native")]
     pub fn with_credential_store(mut self, store: Arc<keyring_core::CredentialStore>) -> Self {
         self.credential_store = Some(store);
         self

@@ -56,7 +56,6 @@ pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
         env_file: None,
         plugins: Vec::new(),
         plugins_root: std::env::var_os("DOKIME_PLUGINS_DIR").map(std::path::PathBuf::from),
-        no_seed_validation_artifact: false,
     };
     Ok(Backend::new(args).with_log(super::logging::active_log()))
 }

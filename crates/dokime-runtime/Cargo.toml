@@ -37,46 +37,38 @@ native = [
   "dep:tokio-stream",
   "dep:tracing-subscriber",
   "dep:tracing-error",
-]
-derive = ["dep:dokime-macros"]
-# Activates the Harmos operation resource bindings for operations this package declares.
-runtime = []
-configuration = ["dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
-storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
-host = [
   "configuration",
-  "native",
   "derive",
   "storage",
   "dep:async-trait",
   "dep:base64",
-  "dep:dokime-host",
-  "dep:futures-util",
   "dep:keyring",
   "dep:image",
   "dep:keyring-core",
   "dep:rustls-platform-verifier",
   "dep:sha2",
   "dep:suppaftp",
-  "dep:tokio",
   "dep:tokio-util",
   "dep:tonic",
   "dep:walkdir",
   "dep:zip",
   "dep:zeroize",
-  "harmos/sidecar",
 ]
-fault-injection = ["host"]
-fft = ["host", "harmos/signal-fft"]
-media-native = ["host", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]
-simulation = ["host", "harmos/simulation"]
+derive = ["dep:dokime-macros"]
+# Activates the Harmos operation resource bindings for operations this package declares.
+runtime = []
+configuration = ["dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
+storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
+fault-injection = ["native"]
+fft = ["native", "harmos/signal-fft"]
+media-native = ["native", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]
+simulation = ["native", "harmos/simulation"]
 
 # === Dependencies === #
 
 [dependencies]
 # Local
 dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
-dokime-host = { version = "0.1.0", path = "../dokime-host", optional = true }
 dokime-macros = { version = "0.1.0", path = "../dokime-macros", optional = true }
 dokime-operations = { version = "0.1.0", path = "../dokime-operations", features = ["runtime"] }
 
@@ -329,17 +321,17 @@ xcap = { workspace = true, optional = true }
 [[test]]
 name = "integration"
 path = "tests/integration/main.rs"
-required-features = ["host"]
+required-features = ["native"]
 
 [[test]]
 name = "acceptance"
 path = "tests/acceptance/main.rs"
-required-features = ["host"]
+required-features = ["native"]
 
 [[test]]
 name = "system"
 path = "tests/system/main.rs"
-required-features = ["host"]
+required-features = ["native"]
 
 # === Bench Targets === #
 
@@ -347,25 +339,25 @@ required-features = ["host"]
 name = "unit-runtime"
 path = "benches/unit/main.rs"
 harness = false
-required-features = ["host"]
+required-features = ["native"]
 
 [[bench]]
 name = "integration-runtime"
 path = "benches/integration/main.rs"
 harness = false
-required-features = ["host"]
+required-features = ["native"]
 
 [[bench]]
 name = "system-runtime"
 path = "benches/system/main.rs"
 harness = false
-required-features = ["host"]
+required-features = ["native"]
 
 [[bench]]
 name = "integration-storage"
 path = "benches/storage/main.rs"
 harness = false
-required-features = ["host"]
+required-features = ["native"]
 
 # === Example Targets === #
 

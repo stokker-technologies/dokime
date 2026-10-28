@@ -19,11 +19,11 @@ members = [
   "crates/cargo-dokime",
   "crates/dokime-packaging",
   "crates/dokime-gui/src-tauri",
-  "crates/dokime-host",
+  "plugins/sidecars/host",
   "crates/dokime-macros",
   "crates/dokime-server",
-  "plugins/obc-plugin",
-  "plugins/obc-plugin/runtime",
+  "plugins/sidecars/obc",
+  "plugins/sidecars/obc/runtime",
 ]
 resolver = "2"
 

@@ -119,7 +119,6 @@ impl Application for Dokime {
     skip_all,
     fields(
         output_root = %config.output_root.display(),
-        seed_plugins = config.seed_plugins,
     )
 )]
 pub async fn launch(config: Config) -> crate::runtime::Result<crate::Runtime> {
@@ -136,11 +135,6 @@ pub async fn launch_with(config: Config, composition: Vec<Composition>) -> crate
     let runtime = crate::Runtime::start(runtime_config).await?;
     let handle = runtime.handle();
     handle.set_brand(startup.brand);
-    if startup.native_host_telemetry {
-        // Binding declares the native host source. Hardware collection starts
-        // only when an execution requests a host capture.
-        handle.bind_native_host_telemetry();
-    }
     Ok(runtime)
 }
 

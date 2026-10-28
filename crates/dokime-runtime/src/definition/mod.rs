@@ -12,10 +12,10 @@
 pub mod authoring;
 pub mod conditions;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod cycle;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod registry;
 
 /* === Re-Exports === */
@@ -27,7 +27,7 @@ pub use authoring::{
 };
 pub use conditions::{RuntimeCondition, RuntimeConditionEvaluation, evaluate_runtime_condition};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use cycle::TestCycleInstance;
 pub use dokime_domain::model::definition::CaseMaterializationError;
 pub use dokime_domain::model::definition::CaseMaterializationOptions;
@@ -69,7 +69,7 @@ pub use dokime_domain::model::definition::resolve_parameter_spaces;
 pub use dokime_domain::model::definition::suite;
 pub use dokime_domain::model::definition::template_identifier;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use registry::SuiteRegistry;
 
 /* === Imports === */

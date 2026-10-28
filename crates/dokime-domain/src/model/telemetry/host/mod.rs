@@ -71,6 +71,15 @@ pub enum HostTelemetryStream {
 /* === Implementations === */
 
 impl HostTelemetryStream {
+    pub const fn interval(self) -> crate::model::time::DurationMillis {
+        crate::model::time::DurationMillis(match self {
+            Self::System | Self::Network => 1_000,
+            Self::Wifi | Self::Bluetooth => 5_000,
+            Self::WifiLatency => 10_000,
+            Self::WifiChannelOccupancy => 30_000,
+        })
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::System => "host.system",

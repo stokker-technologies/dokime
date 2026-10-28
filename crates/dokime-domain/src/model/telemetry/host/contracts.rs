@@ -102,13 +102,7 @@ macro_rules! host_contracts {
         pub fn host_telemetry_contract(
             stream: HostTelemetryStream,
         ) -> TelemetryContract {
-            let interval_ms = match stream {
-                HostTelemetryStream::System | HostTelemetryStream::Network => 1_000,
-                HostTelemetryStream::Wifi | HostTelemetryStream::Bluetooth => 5_000,
-                HostTelemetryStream::WifiLatency => 10_000,
-                HostTelemetryStream::WifiChannelOccupancy => 30_000,
-            };
-            let interval = crate::model::time::DurationMillis(interval_ms);
+            let interval = stream.interval();
             match stream {
                 $(
                     HostTelemetryStream::$stream => TelemetryContract {

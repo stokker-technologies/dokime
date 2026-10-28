@@ -347,14 +347,6 @@ fn normalize_batch(
         sample.stream = contract.stream.clone();
         sample.schema_version = contract.schema_version;
         sample.received_at = received_at.clone();
-        if sample.storage_payload.is_none()
-            && let Ok(host) = crate::host::HostTelemetryStream::try_from(contract.stream.as_str())
-        {
-            use dokime_domain::model::telemetry::host::prepare_host_telemetry_payload;
-            let row = prepare_host_telemetry_payload(host, &sample.values)
-                .map_err(|error| validation_rejection(error.to_string(), "telemetry.payload", None))?;
-            sample.storage_payload = Some(row.into_bytes());
-        }
         if contract.storage_schema.is_none() || sample.storage_payload.is_none() {
             return Err(validation_rejection(
                 "telemetry storage requires an explicit row graph and original canonical payload bytes",

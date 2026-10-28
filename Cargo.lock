@@ -2558,6 +2558,7 @@ name = "dokime-host"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "dokime",
  "dokime-domain",
  "dokime-runtime",
  "getifs",
@@ -2568,6 +2569,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-util",
  "tracing",
  "uuid",
  "windows",
@@ -2639,7 +2641,6 @@ dependencies = [
  "criterion",
  "cssparser 0.38.0",
  "dokime-domain",
- "dokime-host",
  "dokime-macros",
  "dokime-operations",
  "file-id",

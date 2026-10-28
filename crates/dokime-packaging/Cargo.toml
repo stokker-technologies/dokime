@@ -17,7 +17,7 @@ version = { workspace = true }
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["terminal", "plugin-sidecar", "host"] }
+dokime = { workspace = true, features = ["terminal", "plugin-sidecar"] }
 
 # Git
 

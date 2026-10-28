@@ -86,6 +86,8 @@ impl Session {
         std::fs::create_dir_all(bundle.parent().unwrap()).unwrap();
         std::fs::write(&bundle, &bytes).unwrap();
         let home = root.path().join("host");
+        std::fs::create_dir_all(home.join("plugins")).unwrap();
+        std::fs::copy(support::artifacts::host_plugin_bundle(), home.join("plugins/host.dokime")).unwrap();
         let host = Host::launch_in(&home, Some(&bundle)).await;
         let client = host.connect().await;
         let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
@@ -955,7 +957,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     );
 
     // A template naming every host stream in `subscribes(...)` leases them all.
-    // Due collectors start on the shared tick and publish independently.
+    // Demand observers call the host sidecar operations and publish independently.
     // Alignment is carried by the timestamp rather than by waiting, so a wifi
     // scan that takes seconds costs only its own stream's ticks.
     let mut host_instants: BTreeMap<&str, Vec<_>> = BTreeMap::new();
@@ -970,6 +972,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
             .await
             .unwrap();
         for sample in page.samples {
+            assert_eq!(sample.source, "host", "host rows arrive from the sidecar owner");
             host_instants.entry(*stream).or_default().push(sample.timestamp.expect("a host row carries its instant"));
         }
     }

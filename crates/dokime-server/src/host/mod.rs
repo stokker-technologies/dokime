@@ -89,7 +89,6 @@ impl Session {
             config.title = title.clone();
         }
         config.label = args.label.clone();
-        config.seed_plugins = !args.no_seed_validation_artifact;
         config.explicit_plugins = if args.dev_control { Vec::new() } else { args.plugins.clone() };
         let expected = expected_plugins(&args.plugins, SERVER_PLUGIN_BUNDLE_BYTES, &config.schema)?;
         on_phase("storage");
@@ -373,7 +372,6 @@ mod tests {
             env_file: None,
             plugins: Vec::new(),
             plugins_root: None,
-            no_seed_validation_artifact: true,
         }
     }
 

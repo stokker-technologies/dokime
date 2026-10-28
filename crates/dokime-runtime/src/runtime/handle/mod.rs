@@ -99,7 +99,6 @@ pub struct RuntimeHandle {
     pub(crate) evidence_exports: crate::domains::exports::evidence::Manager,
     pub(crate) telemetry_admission: Arc<tokio::sync::Mutex<()>>,
     pub(crate) telemetry_cursors: Arc<Mutex<crate::domains::telemetry::TelemetryCursors>>,
-    pub(crate) host_telemetry_source: Arc<RwLock<Option<Arc<crate::telemetry_runtime::HostTelemetrySource>>>>,
     pub(crate) providers: Arc<ProviderExecutorRegistry>,
     pub(crate) progress: Arc<crate::domains::execution::progress::ProgressRegistry>,
     pub(crate) operation_progress: Arc<crate::runtime::progress::OperationRegistry>,
@@ -405,7 +404,6 @@ impl RuntimeHandle {
             telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),
             telemetry_cursors: Arc::new(Mutex::new(crate::domains::telemetry::TelemetryCursors::default())),
             stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::new()),
-            host_telemetry_source: Arc::new(RwLock::new(None)),
             providers: Arc::new(providers),
             progress: Arc::new(crate::domains::execution::progress::ProgressRegistry::new()),
             operation_progress: crate::runtime::progress::OperationRegistry::new(),
@@ -447,8 +445,7 @@ impl RuntimeHandle {
         .map_err(|error| Error::Operation(format!("failed to establish node identity: {error}")))?;
 
         step_builtins.bind(self);
-        for mut plugin in installed_plugins.into_values() {
-            dokime_host::configure_contracts(&mut plugin);
+        for plugin in installed_plugins.into_values() {
             if self.state_read().host_plugin_current(&plugin) {
                 continue;
             }

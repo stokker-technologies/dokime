@@ -64,4 +64,31 @@ def test_release_feed_uses_inspected_identity_targets_and_complete_digest(tmp_pa
 
 # === Private Functions === #
 
+
+@pytest.mark.parametrize("fixture", [False, True])
+def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture: bool) -> None:
+    output = tmp_path / ("fixtures/plugins" if fixture else "plugins")
+    selected = []
+
+    def run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        if command[:2] == ["cargo", "metadata"]:
+            kwargs["stdout"].write("{}")
+        elif "build" in command:
+            selected.append(command[command.index("--package") + 1])
+            kwargs["stdout"].write("{}")
+        else:
+            path = output / f"{selected[-1]}.dokime"
+            path.write_bytes(b"packaged executable")
+            item = {"path": str(path)}
+            return SimpleNamespace(stdout=json.dumps([item]))
+        return SimpleNamespace()
+
+    monkeypatch.setattr(plugins.subprocess, "run", run)
+    arguments = {"packages": plugins.FIXTURES} if fixture else {}
+    staged = plugins.prepare(tmp_path, tmp_path / "compiler.json", "dev", tool=tmp_path / "cargo-dokime", output=output, **arguments)
+    assert selected == (["obc-plugin"] if fixture else ["dokime-host"])
+    assert [path.name for path in staged] == (["obc-plugin.dokime"] if fixture else ["host.dokime"])
+    assert staged[0].read_bytes() == b"packaged executable"
+
+
 # === Entry Point === #

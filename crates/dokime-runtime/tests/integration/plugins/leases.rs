@@ -14,12 +14,10 @@
 /* === Imports === */
 // Standard Library Imports
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 // Third Party Imports
 use harmos::Message;
 // Local Imports
 use super::*;
-use dokime_domain::model;
 use dokime_runtime::execution::Signal;
 use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
 use dokime_runtime::transport::{ExecutionSignal, SignalReply};
@@ -33,7 +31,6 @@ const DELIVERY_POLICY: harmos::OperationPolicy = <Signal<()> as harmos::Operatio
 /* === Macros === */
 
 /* === Type Aliases === */
-type Reads = Arc<tokio::sync::watch::Sender<usize>>;
 
 /* === Structs === */
 #[harmos::message]
@@ -45,10 +42,6 @@ struct GatewayRow {
 #[derive(Default)]
 struct RecordingSidecar {
     calls: Mutex<Vec<(String, Vec<u8>)>>,
-}
-
-struct CountingCollector {
-    reads: Reads,
 }
 
 struct Recorders(std::collections::BTreeMap<&'static str, Arc<RecordingSidecar>>);
@@ -76,40 +69,6 @@ impl RecordingSidecar {
             .flat_map(|request| request.samples)
             .filter_map(|encoded| serde_json::from_str::<TelemetrySample>(&encoded).ok())
             .collect()
-    }
-}
-
-impl dokime_host::HostTelemetryCollector for CountingCollector {
-    fn interval(&self, stream: &str) -> Duration {
-        dokime_host::host_telemetry_contracts()
-            .into_iter()
-            .find(|contract| contract.stream.as_str() == stream)
-            .and_then(|contract| contract.interval)
-            .map(|interval| Duration::from_millis(interval.0))
-            .unwrap_or(Duration::from_secs(1))
-    }
-
-    fn collect(&self, stream: &str) -> Result<Option<TelemetryBatch>, String> {
-        self.reads.send_modify(|reads| *reads += 1);
-        let identifier = Identifier::new(stream).expect("a fixture stream is addressable");
-        let mut sample = TelemetrySample::new(
-            dokime_runtime::model::identity::new_id(),
-            identifier.clone(),
-            0,
-            dokime_runtime::model::time::now_utc(),
-            "counting-fixture",
-        );
-        let host_stream = dokime_host::HostTelemetryStream::try_from(stream).map_err(|error| error.to_string())?;
-        // Each Stream Carries Only Its Declared Row Fields
-        if host_stream == dokime_host::HostTelemetryStream::System {
-            sample.values.insert("cpu_load_percent".to_owned(), dokime_runtime::Value::from(1.0));
-        }
-        sample.storage_payload = Some(
-            model::telemetry::host::prepare_host_telemetry_payload(host_stream, &sample.values)
-                .map_err(|error| error.to_string())?
-                .into_bytes(),
-        );
-        Ok(Some(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier, vec![sample])))
     }
 }
 
@@ -169,22 +128,18 @@ fn sidecars(sidecars: &[(&str, &Arc<RecordingSidecar>)]) -> dokime_runtime::app:
     }
 }
 
-async fn runtime(root: &std::path::Path) -> (Runtime, Reads) {
-    // The host is an installed plugin like any other, and its six streams
-    // are leasable because it declared their contracts — cadence included.
-    runtime_with(root, [dokime_host::installed_plugin()], None).await
+async fn runtime(root: &std::path::Path) -> Runtime {
+    let configuration =
+        config(root).with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+    started(configuration).await.0
 }
 
 async fn runtime_with(
     root: &std::path::Path, artifacts: impl IntoIterator<Item = InstalledPlugin>, composition: Option<dokime_runtime::app::Composition>,
-) -> (Runtime, Reads) {
-    let mut config = config(root).with_installed_plugins(artifacts);
-    config.composition.extend(composition);
-    let (runtime, _) = started(config).await;
-    let reads = Reads::new(tokio::sync::watch::Sender::new(0));
-    runtime.handle().bind_host_telemetry_source(Arc::new(CountingCollector { reads: Arc::clone(&reads) }));
-
-    (runtime, reads)
+) -> Runtime {
+    let mut configuration = config(root).with_installed_plugins(artifacts);
+    configuration.composition.extend(composition);
+    started(configuration).await.0
 }
 
 fn stream() -> Identifier {
@@ -288,7 +243,7 @@ fn scope_of(execution: &TestExecutionId) -> SamplingScope {
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_group_holds() {
     let root = tempdir().expect("a temporary root");
-    let (mut runtime, _) = runtime_with(root.path(), [gateway_artifact()], None).await;
+    let mut runtime = runtime_with(root.path(), [gateway_artifact()], None).await;
     let handle = runtime.handle();
     let execution = admitted_execution(&handle, 0).await;
     let scope = dokime_runtime::RecordScope::default().with_test_execution(execution.clone());
@@ -316,7 +271,7 @@ async fn two_executions_rows() {
     let owner = Arc::new(RecordingSidecar::default());
     let first_reader = Arc::new(RecordingSidecar::default());
     let second_reader = Arc::new(RecordingSidecar::default());
-    let (mut runtime, _) = runtime_with(
+    let mut runtime = runtime_with(
         root.path(),
         [gateway_artifact(), bench_artifact(), probe_artifact()],
         Some(sidecars(&[("gateway", &owner), ("bench", &first_reader), ("probe", &second_reader)])),
@@ -378,7 +333,7 @@ async fn two_executions_rows() {
 #[tokio::test(flavor = "multi_thread")]
 async fn two_holds_reading() {
     let root = tempdir().expect("a temporary root");
-    let (mut runtime, reads) = runtime(root.path()).await;
+    let mut runtime = runtime(root.path()).await;
     let handle = runtime.handle();
     let unscoped = || SamplingScope {
         test_cycle_id: None,
@@ -387,7 +342,7 @@ async fn two_holds_reading() {
     };
 
     let first = handle.lease_streams(unscoped(), &[stream()], "fixture.a").await.expect("the first execution leases the host stream");
-    wait_for_reads(&reads, 1).await;
+    wait_for_rows(&handle, 1).await;
 
     // A second hold on the same stream joins the one session, and a second
     // stream leases independently of both.
@@ -405,8 +360,8 @@ async fn two_holds_reading() {
     handle.release_stream_leases(first.clone()).await.unwrap();
     assert!(!handle.stream_lease_is_active(&first[0]).await);
     assert!(handle.stream_lease_is_active(&second[0]).await);
-    let before = *reads.borrow();
-    wait_for_reads(&reads, before + 1).await;
+    let before = host_rows(&handle).await;
+    wait_for_rows(&handle, before + 1).await;
 
     handle.release_stream_leases(second.clone()).await.unwrap();
     assert!(!handle.stream_lease_is_active(&second[0]).await, "a stream nobody holds has no active lease");
@@ -415,9 +370,19 @@ async fn two_holds_reading() {
     runtime.shutdown().await.expect("the runtime stops");
 }
 
-// Liveness only: waits until the collector has read at least `count` times.
-async fn wait_for_reads(reads: &Reads, count: usize) {
-    reads.subscribe().wait_for(|reads| *reads >= count).await.expect("the collector count outlives the story");
+async fn host_rows(handle: &RuntimeHandle) -> usize {
+    handle
+        .collect_telemetry(&dokime_runtime::domains::evidence::TelemetrySelection {
+            streams: vec![stream().into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .len()
+}
+
+async fn wait_for_rows(handle: &RuntimeHandle, count: usize) {
+    crate::service_support::waits::until_telemetry(handle, || async { (host_rows(handle).await >= count).then_some(()) }).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -425,7 +390,7 @@ async fn foreign_stream_refuses() {
     let root = tempdir().expect("a temporary root");
     let owner = Arc::new(RecordingSidecar::default());
     let reader = Arc::new(RecordingSidecar::default());
-    let (mut runtime, _) =
+    let mut runtime =
         runtime_with(root.path(), [gateway_artifact(), bench_artifact()], Some(sidecars(&[("gateway", &owner), ("bench", &reader)]))).await;
     let handle = runtime.handle();
 

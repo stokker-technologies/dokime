@@ -18,8 +18,8 @@ from time import perf_counter
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import cargo, configuration, frontend
-from dokime_tools.package.staging import clear_output
+from dokime_tools.build import cargo, configuration, frontend, paths
+from dokime_tools.package import plugins
 from dokime_tools.test import archive, policy
 
 # Type Checking Imports
@@ -62,12 +62,12 @@ def build(profile: str, *, extended: bool = False) -> list[str]:
             stderr=sys.stderr,
         )
     staged = [built, built.with_name("compiler.json"), metadata]
-    root = ROOT.resolve()
-    resolved = [path.resolve() for path in staged]
-    relative = {path.relative_to(root) for path in resolved}
-    names = [path.as_posix() for path in relative]
-    names.sort()
-    clear_output(built.parent.parent / "fixtures")
+    output = paths.output(ROOT, "build", profile)
+    tool = output / "bin" / f"cargo-dokime{'.exe' if sys.platform == 'win32' else ''}"
+    staged += plugins.prepare(
+        ROOT, built.with_name("compiler.json"), profile, tool=tool, output=output / "fixtures/plugins", packages=plugins.FIXTURES
+    )
+    names = configuration.relative(staged)
     archive.stamp(ROOT, profile, names)
     return names
 

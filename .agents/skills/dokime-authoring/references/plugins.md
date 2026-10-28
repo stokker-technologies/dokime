@@ -31,3 +31,14 @@ src/
 ```
 
 Use unprefixed suite names and only populated modules. Keep the selected repository skeleton and all its section markers. Keep declarations explicit, with no prelude modules or placeholder suites.
+
+The host sidecar keeps one request definition per `host/<operation>/mod.rs`:
+request struct, id, policy, response and contract tests. Runtime implementations
+live in parallel `windows.rs` and `unix.rs` modules selected only by
+`#[cfg(all(feature = "runtime", target_os = "windows"))] mod windows;` and
+`#[cfg(all(feature = "runtime", unix))] mod unix;`. Gate module declarations and
+re-exports, never implementations or catalog variants. One `host/catalog.rs`
+assembles every operation on both platforms. The telemetry requests also carry
+their stream and observer declarations, so those inventories share the catalog.
+Preparation registers mutable collector resources as `Arc<tokio::sync::Mutex<T>>`;
+operation policies own collection deadlines and configuration owns probe parameters.

@@ -105,8 +105,7 @@ impl Fixture {
 
 impl Published {
     pub async fn start(root: &Path) -> Self {
-        let mut config = dokime::config::Config::local(root);
-        config.seed_plugins = false;
+        let config = dokime::config::Config::local(root);
         let prepared_runtime = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
         let runtime = dokime::app::launch_with(config, vec![prepared_runtime.composition()]).await.unwrap();
         let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();

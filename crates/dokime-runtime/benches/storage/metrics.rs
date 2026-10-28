@@ -154,7 +154,7 @@ pub fn provenance() -> &'static Value {
             "rustc": command("rustc", &["--version", "--verbose"]),
             "lock_sha256": file_hash(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.lock")),
             "tracked_diff_sha256": command("git", &["diff", "HEAD", "--binary"]).map(|diff| digest(diff.as_bytes())),
-            "package_version": env!("CARGO_PKG_VERSION"), "host_enabled": cfg!(feature = "host"),
+            "package_version": env!("CARGO_PKG_VERSION"), "host_enabled": cfg!(feature = "native"),
             "os": std::env::consts::OS, "arch": std::env::consts::ARCH,
             "available_parallelism": std::thread::available_parallelism().ok().map(|count| count.get()),
             "product": "Dokime", "harness": "Dokime Storage Benchmark Suite",

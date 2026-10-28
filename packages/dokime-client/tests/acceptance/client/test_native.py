@@ -65,7 +65,7 @@ def native(
     artifact: Callable[[str], Path],
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[Host]:
-    bundle = artifact("plugins/obc-plugin.dokime")
+    bundle = artifact("fixtures/plugins/obc-plugin.dokime")
     root = tmp_path_factory.mktemp("native")
     env_file = root / "empty.env"
     env_file.touch()

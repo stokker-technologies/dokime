@@ -645,12 +645,10 @@ async fn live_replay_settles() {
 async fn provider_failure_releases() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Failure));
-    let configuration =
-        config(root.path()).with_installed_plugins([dokime_host::installed_plugin()]).register(Arc::new(Provider(probe.clone())));
+    let configuration = config(root.path())
+        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())])
+        .register(Arc::new(Provider(probe.clone())));
     let (mut owner, handle) = started(configuration).await;
-    handle.bind_host_telemetry_source(dokime_host::host_telemetry_collector(
-        dokime_host::HostTelemetryConfig::default().with_source(dokime_host::HostTelemetrySourceKind::Fixture),
-    ));
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.failure", "Provider Failure"), materialize_cases(SOURCE, &suite)).await;
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;

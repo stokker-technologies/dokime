@@ -33,7 +33,7 @@ media-native = ["dokime/media-native"]
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["host", "fft", "diagnostics", "terminal", "client"] }
+dokime = { workspace = true, features = ["native", "fft", "diagnostics", "terminal", "client"] }
 
 # Git
 

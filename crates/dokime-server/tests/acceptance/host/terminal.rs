@@ -150,7 +150,7 @@ async fn environment_file_precedence() {
         command
             .args(["--env-file"])
             .arg(&env)
-            .args(["--shutdown-stdin", "--port", "0", "--no-seed-validation-artifact"])
+            .args(["--shutdown-stdin", "--port", "0"])
             .current_dir(&scenario)
             .env_remove("DOKIME_APPLICATION_ROOT")
             .env_remove("DOKIME_OUTPUT_ROOT");
@@ -254,7 +254,6 @@ async fn incompatible_storage_refused() {
     // The Same Refusal Is Typed In Process
     let mut config = dokime::config::Config::local(&data);
     config.application_root = Some(application.clone());
-    config.seed_plugins = false;
     let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, data.clone());
     assert!(matches!(&error, dokime_server::host::Error::IncompatibleStorage { root, .. } if root == &data), "{error}");
@@ -265,7 +264,6 @@ async fn incompatible_storage_refused() {
     let owner = sqlite::State::open(&fresh).await.unwrap();
     let mut config = dokime::config::Config::local(&fresh);
     config.application_root = Some(application);
-    config.seed_plugins = false;
     let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, fresh);
     assert!(matches!(&error, dokime_server::host::Error::Runtime(_)), "{error}");

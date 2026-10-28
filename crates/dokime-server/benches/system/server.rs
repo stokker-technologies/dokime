@@ -66,7 +66,7 @@ impl Server {
         #[cfg(windows)]
         command.creation_flags(0x0800_0000);
         command
-            .args(["--dev-control", "--shutdown-stdin", "--no-seed-validation-artifact", "--port", "0", "--output-root"])
+            .args(["--dev-control", "--shutdown-stdin", "--port", "0", "--output-root"])
             .arg(root.path().join("data"))
             .arg("--application-root")
             .arg(root.path().join("application"))

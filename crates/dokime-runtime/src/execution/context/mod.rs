@@ -13,14 +13,14 @@
 
 mod authoring;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod captured;
 
 /* === Re-Exports === */
 
 pub use authoring::*;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use captured::{ExecutionContext, ExecutionCycleContext};
 
 /* === Imports === */

@@ -29,7 +29,8 @@ from dokime_tools.package.staging import clear_output
 
 # === Constants === #
 
-PACKAGES = ("obc-plugin",)
+SHIPPING = ("dokime-host",)
+FIXTURES = ("obc-plugin",)
 
 # === Types === #
 
@@ -38,7 +39,7 @@ PACKAGES = ("obc-plugin",)
 # === Public Functions === #
 
 
-def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path) -> list[Path]:
+def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path, packages: tuple[str, ...] = SHIPPING) -> list[Path]:
     """Collect The Product Build's Plugin Executables Without Another Compiler."""
     root = root.resolve()
     metadata = messages.with_name("metadata.json")
@@ -55,7 +56,7 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
     clear_output(output)
     output.mkdir(parents=True)
     staged: list[Path] = []
-    for package in PACKAGES:
+    for package in packages:
         build_json = output / f"{package}.build.json"
         collector = [str(tool), "dokime", "sidecar", "build", "--from-cargo-json", str(messages), "--metadata-json", str(metadata)]
         collector += ["--profile", profile, "--package", package, "--json"]
@@ -81,7 +82,13 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
         ).stdout
         for item in json.loads(packaged):
             path = Path(item["path"])
-            staged.append(path if path.is_absolute() else root / path)
+            path = path if path.is_absolute() else root / path
+            if package == "dokime-host":
+                selected = path.with_name("host.dokime")
+                if selected != path:
+                    path.rename(selected)
+                path = selected
+            staged.append(path)
     return staged
 
 
