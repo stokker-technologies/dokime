@@ -1346,6 +1346,14 @@ async function drainInvokeLedger(session) {
 
 /* Shared Interactions */
 
+async function startupPromptOpen(session) {
+  return session.execute(
+    `return [...document.querySelectorAll('ol[aria-label="Pending Prompts"] li[data-prompt-state="open"] #active-prompt-title')]
+      .some((title) => title.textContent.trim() === arguments[0]);`,
+    [STARTUP_PROMPT],
+  );
+}
+
 /** Set the density through Appearance, which is the only honest switch. */
 async function setDensity(session, variant) {
   await session.goto("/settings/appearance");
@@ -2984,7 +2992,7 @@ async function remoteAccessJourney() {
   // Revocation Preserves An Admitted Execution Waiting For Its Operator.
   const activeCycle = (await libraryJourney(session)).id;
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE));
-  await until("operator prompt before revocation", async () => hasText(await session.text(), STARTUP_PROMPT), 120000);
+  await until("operator prompt before revocation", () => startupPromptOpen(session), 120000);
   await session.goto("/settings/remote");
 
   // Revoking One Client Leaves The Other Client And Local Desktop Connected.
@@ -3015,7 +3023,7 @@ async function remoteAccessJourney() {
      row.querySelector('button[data-tree-select]').click();`,
     [STARTUP_TEMPLATE],
   );
-  await until("the surviving prompt on its execution", async () => hasText(await session.text(), STARTUP_PROMPT), 120000);
+  await until("the surviving prompt on its execution", () => startupPromptOpen(session), 120000);
   const decision = await session.execute(`
     const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
     return {actions: [...panel.querySelectorAll('button')].map(button => button.innerText.trim()),
@@ -3823,7 +3831,7 @@ async function ownedStartupJourney() {
   await session.connected();
   const runningCycle = await libraryJourney(session);
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "The owned backend starts its installed plugin");
-  await until("owned execution awaits its operator", async () => hasText(await session.text(), STARTUP_PROMPT), 120000);
+  await until("owned execution awaits its operator", () => startupPromptOpen(session), 120000);
   const running = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
