@@ -89,9 +89,15 @@ impl Drop for ActiveRead {
 }
 
 impl<C: ObjectCatalog> Backend<C> {
+    #[cfg(feature = "configuration")]
     pub async fn primary(root: PathBuf) -> harmos::storage::Result<Self> {
+        Self::primary_with(root, crate::config::storage_defaults().request.max_active_queries).await
+    }
+
+    // One SQLite Reader Per Admitted Active Query, So Reads Never Occupy The Writer.
+    pub async fn primary_with(root: PathBuf, readers: std::num::NonZeroUsize) -> harmos::storage::Result<Self> {
         C::validate()?;
-        let state = State::open(&root).await.map_err(|error| failure("open SQLite", error))?;
+        let state = State::open_with(&root, readers).await.map_err(|error| failure("open SQLite", error))?;
         let history = state.data_history().await.map_err(|error| failure("initialize SQLite identity", error))?;
         let root = root
             .canonicalize()

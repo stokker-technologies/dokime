@@ -228,7 +228,8 @@ impl RuntimeHandle {
         let installed_plugins = check_boot_config(&config)?;
         config.storage.validate()?;
         harmos::filesystem::publication::create_dir_all(&config.storage_root)?;
-        let backend = Arc::new(crate::storage::Backend::primary(config.storage_root.clone()).await?);
+        let backend =
+            Arc::new(crate::storage::Backend::primary_with(config.storage_root.clone(), config.storage.request.max_active_queries).await?);
         let local_state = backend.local_state();
         let application_settings = crate::config::Settings::open(config.application_root.clone(), local_state.clone()).await?;
         let node_identity = application_settings.read(|document| document.identity.clone()).await?;
