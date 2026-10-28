@@ -33,9 +33,6 @@ pub use error::Result;
 
 pub const DEV_PROTOCOL: u32 = 4;
 pub const READINESS_PROTOCOL: u64 = 3;
-// How long a stopped run has to answer before the host settles it as
-// stopped; the desktop's close deadline is built on it.
-pub const STOP_SETTLEMENT_SECONDS: u64 = 5;
 
 /* === Macros === */
 

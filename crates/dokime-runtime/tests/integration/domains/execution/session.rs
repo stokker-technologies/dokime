@@ -387,7 +387,7 @@ async fn ignored_stop(mode: Settlement) {
     // The paused clock reaches the stop budget only while the runtime is idle: forcing it forward
     // with `advance` also expired storage deadlines of writes still in flight on a slow machine,
     // failing the journal capture and leaving the run unsettled.
-    tokio::time::sleep(Duration::from_secs(dokime_domain::STOP_SETTLEMENT_SECONDS + 1)).await;
+    tokio::time::sleep(dokime_runtime::operations::STOP_SETTLEMENT.timeout + Duration::from_secs(1)).await;
     tokio::time::resume();
     stopping.await.unwrap();
     wait_for_run_settled(&handle, &receipt.command_id).await;
@@ -405,11 +405,10 @@ async fn ignored_stop(mode: Settlement) {
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
     let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
-    assert!(
-        std::str::from_utf8(&log.bytes)
-            .unwrap()
-            .contains(&format!("the run did not answer its stop within {} seconds", dokime_domain::STOP_SETTLEMENT_SECONDS))
-    );
+    assert!(std::str::from_utf8(&log.bytes).unwrap().contains(&format!(
+        "the run did not answer its stop within {} seconds",
+        dokime_runtime::operations::STOP_SETTLEMENT.timeout.as_secs()
+    )));
     probe.released.send_replace(true);
     drop(handle);
     owner.shutdown().await.unwrap();

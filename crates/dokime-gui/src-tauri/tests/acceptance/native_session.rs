@@ -117,7 +117,7 @@ async fn shutdown_retry_retains() {
         std::task::Poll::Ready(())
     })
     .await;
-    let budget = std::time::Duration::from_secs(dokime::domain::STOP_SETTLEMENT_SECONDS + 21);
+    let budget = dokime::operations::STOP_SETTLEMENT.timeout + std::time::Duration::from_secs(21);
     tokio::time::advance(budget).await;
     assert!(matches!(shutdown.await, Err(dokime_server::host::Error::StopIncomplete { .. })));
     tokio::time::resume();

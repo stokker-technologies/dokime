@@ -21,7 +21,7 @@
 
 // Local Imports
 use super::{
-    Duration, ExecutionCleanup, ExecutionFixtureContext, ExecutionSignal, Finalization, HostCapture, Identifier, Instant, ProgressCleanup,
+    ExecutionCleanup, ExecutionFixtureContext, ExecutionSignal, Finalization, HostCapture, Identifier, Instant, ProgressCleanup,
     ProviderExecutionFailure, StepLeaseBridge, TestExecution, close_record_subscriptions, failure, sampling_scope,
 };
 
@@ -106,7 +106,7 @@ impl ExecutionCleanup {
         self.session.prompts.lock().await.settle_on_cancel(context).await;
         let deadline = || {
             let now = tokio::time::Instant::now();
-            now + Duration::from_millis(dokime_domain::STOP_SETTLEMENT_SECONDS * 1000)
+            now + dokime_operations::STOP_SETTLEMENT.timeout
         };
         let deadline = *self.stop_deadline.get_or_insert_with(deadline);
         let signal = self.session.target.signal(ExecutionSignal {

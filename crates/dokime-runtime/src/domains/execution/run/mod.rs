@@ -25,11 +25,7 @@ pub(crate) use host::Sessions;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
 // Third Party Imports
 use crate::app::OperationManager;
@@ -531,7 +527,7 @@ async fn execute_case(
         let stopping = !cancelled && stop_requested(context, &session, supervision.concern()).await;
         if stopping {
             cancelled = true;
-            let deadline = tokio::time::Instant::now() + Duration::from_millis(dokime_domain::STOP_SETTLEMENT_SECONDS * 1000);
+            let deadline = tokio::time::Instant::now() + dokime_operations::STOP_SETTLEMENT.timeout;
             stop_deadline = Some(deadline);
             context.finalization.cancelling(deadline).await;
             let cancel = async {
@@ -579,10 +575,10 @@ async fn execute_case(
         // stopped with the evidence captured so far; cleanup signals the run
         // once more and releases everything the execution held.
         tracing::warn!(execution_id = %execution.test_execution_id,
-            budget_s = Duration::from_millis(dokime_domain::STOP_SETTLEMENT_SECONDS * 1000).as_secs(), "cancelled run did not settle; host settled it as stopped");
+            budget_s = dokime_operations::STOP_SETTLEMENT.timeout.as_secs(), "cancelled run did not settle; host settled it as stopped");
         let message = format!(
             "the run did not answer its stop within {} seconds; the host settled it as stopped",
-            Duration::from_millis(dokime_domain::STOP_SETTLEMENT_SECONDS * 1000).as_secs()
+            dokime_operations::STOP_SETTLEMENT.timeout.as_secs()
         );
         let refused = failure("stop_settlement", message.clone());
         session.narrate_refusal(&refused).await;

@@ -77,6 +77,10 @@ pub const INSTALLATION: OperationPolicy = policy(Duration::from_secs(3_600));
 // Bounds A Follow Stream, Which Ends When The Caller Cancels Or The Runtime Stops.
 pub const FOLLOW: OperationPolicy = policy(Duration::from_secs(86_400));
 
+// Bounds How Long A Stopped Run Has To Answer Before The Host Settles It As Stopped. It Fits
+// Inside An `ORDINARY` Stop With Room To Save The Evidence; The Desktop And Server Stops Build On It.
+pub const STOP_SETTLEMENT: OperationPolicy = policy(Duration::from_secs(5));
+
 /* === Macros === */
 
 /* === Type Aliases === */

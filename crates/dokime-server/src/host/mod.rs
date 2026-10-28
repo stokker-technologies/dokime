@@ -45,7 +45,7 @@ use futures_util::future::BoxFuture;
 
 // The run's settle budget plus the final checkpoint; the desktop waits ten seconds longer.
 const SERVER_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
-const STOP_BUDGET: std::time::Duration = std::time::Duration::from_secs(dokime::domain::STOP_SETTLEMENT_SECONDS + 20);
+const STOP_BUDGET: std::time::Duration = std::time::Duration::from_secs(dokime::operations::STOP_SETTLEMENT.timeout.as_secs() + 20);
 
 /* === Macros === */
 
