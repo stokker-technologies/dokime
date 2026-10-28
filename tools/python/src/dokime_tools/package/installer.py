@@ -80,6 +80,7 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
         manifest = scratch / "installer.toml"
         manifest.write_text(_manifest(root, metadata, signed), encoding="utf-8")
         command = [str(tool), "installer", "package", "--manifest", str(manifest), "--artifacts", str(source)]
+        command += ["--plugin", str(build / "plugins/host.dokime")]
         command += ["--output", str(scratch / "installers"), "--json", *(["--sign"] if signed else [])]
         result = scratch / "packages.json"
         _record(command, result, root)

@@ -44,6 +44,9 @@ pub struct PackageArgs {
     #[arg(long)]
     artifacts: Option<PathBuf>,
 
+    #[arg(long = "plugin", value_name = "BUNDLE", help = "Include A Plugin Bundle; Repeat For Each Bundle")]
+    plugins: Vec<PathBuf>,
+
     #[arg(long, default_value = "dist")]
     output: PathBuf,
 
@@ -96,6 +99,7 @@ pub async fn run(args: Args) -> Result<(), Error> {
                 .collect();
             let options = dokime_packaging::installer::PackageOptions {
                 artifacts: args.artifacts,
+                plugins: args.plugins,
                 output: args.output,
                 sign: args.sign,
                 formats,
@@ -134,3 +138,27 @@ pub async fn run(args: Args) -> Result<(), Error> {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct Installer {
+        #[command(flatten)]
+        args: Args,
+    }
+
+    #[test]
+    fn plugin_flags_are_explicit_and_repeatable() {
+        let parsed = Installer::try_parse_from(["installer", "package"]).unwrap();
+        let Command::Package(args) = parsed.args.command else { panic!("package command") };
+        assert!(args.plugins.is_empty());
+
+        let parsed = Installer::try_parse_from(["installer", "package", "--plugin", "host.dokime", "--plugin", "bench.dokime"]).unwrap();
+        let Command::Package(args) = parsed.args.command else { panic!("package command") };
+        assert_eq!(args.plugins, [PathBuf::from("host.dokime"), PathBuf::from("bench.dokime")]);
+        assert!(Installer::try_parse_from(["installer", "package", "--plugin"]).is_err());
+    }
+}

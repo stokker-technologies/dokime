@@ -91,6 +91,10 @@ The [OBC plugin](plugins/obc-plugin/) simulates a charger without physical
 hardware. Follow its [procedure and measurement examples](docs/product-guide.md#run-the-procedure-and-capture-evidence)
 to see the public authoring API in context.
 
+Custom installers select bundles explicitly with repeatable `cargo dokime installer
+package --plugin <bundle>` arguments. See the [installer guide](docs/product-guide.md#native-installers)
+for packaging options.
+
 ## Quick Start
 
 1. **Download An Installer.** Choose a matching successful [CI candidate](https://github.com/stokker-technologies/dokime/actions). Dokime has no published release yet; the [download walkthrough](packages/dokime-client/examples/remote/README.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.

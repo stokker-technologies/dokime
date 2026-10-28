@@ -14,6 +14,7 @@ mod inspect;
 mod manifest;
 mod native;
 mod payload;
+mod plugins;
 mod signing;
 
 #[cfg(windows)]
@@ -44,6 +45,7 @@ use crate::Error;
 
 pub struct PackageOptions {
     pub artifacts: Option<PathBuf>,
+    pub plugins: Vec<PathBuf>,
     pub output: PathBuf,
     pub sign: bool,
     pub formats: Vec<Format>,
@@ -82,11 +84,12 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
         downloaded
     };
     let payload = payload::validate(&source, &manifest.dokime)?;
+    let plugins = plugins::stage(&options.plugins, scratch.path())?;
     std::fs::create_dir_all(&options.output)?;
     let output = options.output.canonicalize()?;
     let staged = scratch.path().join("installers");
     std::fs::create_dir_all(&staged)?;
-    let outputs = native::assemble(&manifest, &payload, &source, scratch.path(), &staged, options.sign)?;
+    let outputs = native::assemble(&manifest, &payload, &source, &plugins, scratch.path(), &staged, options.sign)?;
     let mut published = Vec::new();
     for path in outputs {
         let destination = output.join(path.file_name().ok_or_else(|| Error::Invalid("invalid installer output".into()))?);

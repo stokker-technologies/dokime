@@ -814,7 +814,7 @@ replaced by the `sidecar` group.
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
-| `cargo dokime installer package` | Assemble unchanged local or pinned release payloads. | `--manifest`, `--artifacts`, `--output`, `--format`, `--target`, `--sign`, `--json` |
+| `cargo dokime installer package` | Assemble unchanged local or pinned release payloads. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
 | `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
 
 An installer manifest selects the distribution version, optional organization
@@ -853,6 +853,10 @@ Using that directory requires no application compilation:
 cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-payload --output dist
 cargo dokime installer inspect dist/dokime-0.1.0-windows-x86_64-setup.exe --json
 ```
+
+Pass `--plugin path/to/host.dokime` to include host telemetry, and repeat `--plugin`
+for other bundles. Only explicitly selected bundles are installed; omitting the flag
+includes no plugins. The Dokime packaging task selects `host.dokime`.
 
 Product `mise run package:rust --profile dev` invokes the matching built
 `cargo-dokime`, packages and inspects those outputs, and publishes a portable

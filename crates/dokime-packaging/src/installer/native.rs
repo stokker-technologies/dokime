@@ -49,7 +49,7 @@ use crate::Error;
 /* === Public Functions === */
 
 pub fn assemble(
-    manifest: &Manifest, payload: &Payload, source: &Path, scratch: &Path, output: &Path, sign: bool,
+    manifest: &Manifest, payload: &Payload, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path, sign: bool,
 ) -> Result<Vec<PathBuf>, Error> {
     let pack = resolve_organization(manifest, source)?;
     let Some((_, application_bytes)) = pack.asset("application") else {
@@ -94,6 +94,15 @@ pub fn assemble(
     // Stage Resolved Organization
     let mut resources = HashMap::new();
     let mut linux_files = HashMap::new();
+    for (name, staged) in plugins {
+        let relative = format!("plugins/{name}");
+        resources.insert(staged.to_string_lossy().into_owned(), relative.clone());
+        let linux_path = PathBuf::from(format!("/usr/lib/dokime/{relative}"));
+        linux_files.insert(linux_path, staged.clone());
+        let bytes = std::fs::read(staged)?;
+        let installed = format!("{installed_resource_prefix}{relative}");
+        files.insert(installed, payload::digest(&bytes));
+    }
     for name in pack.files.keys() {
         let relative = format!("organization/{name}");
         let pack_path = payload::relative(name)?;
