@@ -953,186 +953,192 @@ async fn plugin_host_walkthrough() {
     std::fs::create_dir_all(bundle.parent().unwrap()).unwrap();
     std::fs::write(&bundle, &bytes).unwrap();
 
-    // Scene: A Development Session Serves Its Selected Bundle From The First Reload, Without An Installation
-    let mut host = Host::launch_in(&root.path().join("configured"), Some(&bundle)).await;
-    let client = host.connect().await;
-    assert!(!serves_startup(&client).await, "a development host activates its bundle on the first reload");
-    let reload = serde_json::json!({"command": "reload", "path": bundle});
-    assert_eq!(host.command(reload.clone()).await["event"], "reloaded");
-    assert!(serves_startup(&client).await);
-    status_ready(&client).await;
-    assert!(installations(&client).await.is_empty());
+    // Each Scene Group Runs As Its Own Boxed Future: A Debug Poll Frame Keeps Every Await Temporary
+    // Of Its Function On The Stack, So One Unsplit Walkthrough Outgrew The Test Thread's Stack.
+    let (host, client, mut changes, report) = Box::pin(async {
+        // Scene: A Development Session Serves Its Selected Bundle From The First Reload, Without An Installation
+        let mut host = Host::launch_in(&root.path().join("configured"), Some(&bundle)).await;
+        let client = host.connect().await;
+        assert!(!serves_startup(&client).await, "a development host activates its bundle on the first reload");
+        let reload = serde_json::json!({"command": "reload", "path": bundle});
+        assert_eq!(host.command(reload.clone()).await["event"], "reloaded");
+        assert!(serves_startup(&client).await);
+        status_ready(&client).await;
+        assert!(installations(&client).await.is_empty());
 
-    // Scene: Reloading Unchanged Bytes Keeps The Suites
-    assert_eq!(host.command(reload.clone()).await["event"], "reloaded");
-    assert!(serves_startup(&client).await);
+        // Scene: Reloading Unchanged Bytes Keeps The Suites
+        assert_eq!(host.command(reload.clone()).await["event"], "reloaded");
+        assert!(serves_startup(&client).await);
 
-    // Scene: A Reload Refuses Bytes That Are Not A Distribution
-    std::fs::write(&bundle, b"not a distribution").unwrap();
-    assert_eq!(host.command(reload.clone()).await["event"], "reload_failed");
-    assert!(serves_startup(&client).await, "a refused reload keeps the suites");
-    std::fs::write(&bundle, &bytes).unwrap();
-    assert_eq!(host.command(reload).await["event"], "reloaded");
+        // Scene: A Reload Refuses Bytes That Are Not A Distribution
+        std::fs::write(&bundle, b"not a distribution").unwrap();
+        assert_eq!(host.command(reload.clone()).await["event"], "reload_failed");
+        assert!(serves_startup(&client).await, "a refused reload keeps the suites");
+        std::fs::write(&bundle, &bytes).unwrap();
+        assert_eq!(host.command(reload).await["event"], "reloaded");
 
-    // Scene: A Suite Runs Through Its Prompt, Evidence And Sealed Report
-    let mut changes = client.observation_watch_runtime(Default::default()).await.unwrap();
-    let mut catalog = client.clone();
-    let startup = suite(&mut catalog, STARTUP_SUITE).await;
-    let template = startup
-        .templates
-        .iter()
-        .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == STARTUP_TEMPLATE))
-        .unwrap_or_else(|| panic!("startup template is registered: {:?}", startup.templates));
-    let mut planning = client.clone();
-    let plan = selection(
-        STARTUP_SUITE,
-        &template.template_id,
-        [
-            ("duration_s", number(STARTUP_SAMPLE_COUNT as f64 * 0.1)),
-            ("frequency_hz", number(1.0)),
-            ("sample_interval_s", number(0.1)),
-            ("realtime", boolean(true)),
-        ],
-    );
-    let mut execution = client.clone();
-    let cycle_id = create_cycle(&mut planning, &mut execution, plan, "native.charger.startup", 1).await;
-    run_cycle(&mut execution, &cycle_id).await;
+        // Scene: A Suite Runs Through Its Prompt, Evidence And Sealed Report
+        let mut changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+        let mut catalog = client.clone();
+        let startup = suite(&mut catalog, STARTUP_SUITE).await;
+        let template = startup
+            .templates
+            .iter()
+            .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == STARTUP_TEMPLATE))
+            .unwrap_or_else(|| panic!("startup template is registered: {:?}", startup.templates));
+        let mut planning = client.clone();
+        let plan = selection(
+            STARTUP_SUITE,
+            &template.template_id,
+            [
+                ("duration_s", number(STARTUP_SAMPLE_COUNT as f64 * 0.1)),
+                ("frequency_hz", number(1.0)),
+                ("sample_interval_s", number(0.1)),
+                ("realtime", boolean(true)),
+            ],
+        );
+        let mut execution = client.clone();
+        let cycle_id = create_cycle(&mut planning, &mut execution, plan, "native.charger.startup", 1).await;
+        run_cycle(&mut execution, &cycle_id).await;
 
-    let mut prompts = client.clone();
-    let pending = wait_prompt(&mut changes, &mut prompts, &cycle_id).await;
-    assert_eq!(pending.definition.as_ref().expect("prompt definition").prompt_type, "obc.charger.startup.check");
-    let prompt_scope = pending.scope.expect("prompt scope");
-    let execution_id = prompt_scope.execution_id.clone().expect("execution scope");
+        let mut prompts = client.clone();
+        let pending = wait_prompt(&mut changes, &mut prompts, &cycle_id).await;
+        assert_eq!(pending.definition.as_ref().expect("prompt definition").prompt_type, "obc.charger.startup.check");
+        let prompt_scope = pending.scope.expect("prompt scope");
+        let execution_id = prompt_scope.execution_id.clone().expect("execution scope");
 
-    let mut content = client.clone();
+        let mut content = client.clone();
 
-    // The Viewer's Live Path: Follow The Same Log Mid-Run From Offset Zero
-    let follow = content
-        .content_follow_execution_file(contracts::content::FollowExecutionFile {
-            execution_id: execution_id.clone(),
-            relative_path: STARTUP_STREAM_LOG.into(),
-            identity: None,
-            offset: 0,
-            max_bytes: 64 * 1024,
-        })
-        .await
-        .unwrap();
-    let Some(model::content::wire::ExecutionFileFollowFramePayload::Metadata(metadata)) =
-        follow.message().await.unwrap().and_then(|frame| frame.payload)
-    else {
-        panic!("a live follow begins with its metadata frame");
-    };
-    assert_eq!(metadata.phase, model::content::wire::ExecutionFilePhase::Producing);
-    assert_eq!(metadata.offset, 0);
-    let identity = metadata.identity.expect("a live follow names its retained identity");
-    assert_eq!(identity.relative_path, STARTUP_STREAM_LOG);
-    let followed = {
-        let mut followed = Vec::new();
-        loop {
-            match follow.message().await.unwrap().and_then(|frame| frame.payload) {
-                Some(model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
-                    assert_eq!(chunk.offset, followed.len() as u64);
-                    assert!(!chunk.data.is_empty() && chunk.data.len() <= 64 * 1024);
-                    followed.extend_from_slice(&chunk.data);
+        // The Viewer's Live Path: Follow The Same Log Mid-Run From Offset Zero
+        let follow = content
+            .content_follow_execution_file(contracts::content::FollowExecutionFile {
+                execution_id: execution_id.clone(),
+                relative_path: STARTUP_STREAM_LOG.into(),
+                identity: None,
+                offset: 0,
+                max_bytes: 64 * 1024,
+            })
+            .await
+            .unwrap();
+        let Some(model::content::wire::ExecutionFileFollowFramePayload::Metadata(metadata)) =
+            follow.message().await.unwrap().and_then(|frame| frame.payload)
+        else {
+            panic!("a live follow begins with its metadata frame");
+        };
+        assert_eq!(metadata.phase, model::content::wire::ExecutionFilePhase::Producing);
+        assert_eq!(metadata.offset, 0);
+        let identity = metadata.identity.expect("a live follow names its retained identity");
+        assert_eq!(identity.relative_path, STARTUP_STREAM_LOG);
+        let followed = {
+            let mut followed = Vec::new();
+            loop {
+                match follow.message().await.unwrap().and_then(|frame| frame.payload) {
+                    Some(model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
+                        assert_eq!(chunk.offset, followed.len() as u64);
+                        assert!(!chunk.data.is_empty() && chunk.data.len() <= 64 * 1024);
+                        followed.extend_from_slice(&chunk.data);
+                    }
+                    _ => panic!("a producing follow delivers only contiguous chunks"),
                 }
-                _ => panic!("a producing follow delivers only contiguous chunks"),
+                let text = String::from_utf8_lossy(&followed).into_owned();
+                if text.contains("record=prompt_requested") {
+                    break text;
+                }
             }
-            let text = String::from_utf8_lossy(&followed).into_owned();
-            if text.contains("record=prompt_requested") {
-                break text;
+        };
+        assert!(followed.contains("record=started"));
+        drop(follow);
+
+        // The Followed Prefix Is Also What A Plain Read Serves While Still Streaming
+        let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+        assert_eq!(file.state, model::content::wire::ExecutionFileState::Streaming);
+        let window = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+        let running_log = String::from_utf8_lossy(&window.data).into_owned();
+        assert!(running_log.contains("record=started"));
+        assert!(running_log.contains("record=prompt_requested"));
+
+        prompts
+            .prompts_respond(contracts::prompts::Respond {
+                prompt_id: pending.prompt_id,
+                action: "submit".into(),
+                values: Some(value_object([("operator_note", text("native-test-confirmed")), ("accepted", boolean(true))])),
+                accepted: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
+        if !passed(&cycle) {
+            let diagnosis = diagnosis::execution(&client, &execution_id, STARTUP_STREAM_LOG).await;
+            assert!(passed(&cycle), "{diagnosis}");
+        }
+        let telemetry = client.clone();
+        let telemetry = telemetry
+            .telemetry_list_samples(contracts::telemetry::ListSamples {
+                streams: vec![STARTUP_SAMPLES.into()],
+                scope: Some(scope(&cycle_id, &execution_id)),
+                limit: 100,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert!(telemetry.complete);
+        assert_eq!(telemetry.samples.len() as u64, STARTUP_SAMPLE_COUNT);
+        assert_eq!(telemetry.samples.iter().map(|sample| sample.stream.as_str()).collect::<HashSet<_>>(), HashSet::from([STARTUP_SAMPLES]));
+
+        let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+        assert_eq!(file.kind, model::content::wire::ExecutionFileKind::Text);
+        assert_eq!(file.state, model::content::wire::ExecutionFileState::Finalized);
+        let final_log = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+        let final_text = String::from_utf8_lossy(&final_log.data);
+        assert!(final_text.contains("record=prompt_answered action=continue accepted=true"));
+        assert!(final_text.contains("Charger resources released"));
+
+        // The Explicitly Sealed Cycle Serves Its Report
+        let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
+        execution.cycle(id).seal().await.unwrap();
+        on_change(&mut changes, "the startup cycle to seal", async || {
+            execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap().sealed.then_some(())
+        })
+        .await;
+        let report = client
+            .reports_download_cycle_report(contracts::reports::DownloadCycleReport {
+                cycle_id: cycle_id.clone(),
+                identifier: String::new(),
+            })
+            .await
+            .unwrap();
+        let mut metadata = None;
+        let mut html = Vec::new();
+        let mut complete = false;
+        while let Some(frame) = report.message().await.unwrap() {
+            match frame.payload.expect("report payload") {
+                model::reports::wire::ReportHtmlFramePayload::Report(header) => {
+                    assert!(metadata.replace(*header).is_none(), "one metadata frame");
+                }
+                model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => {
+                    assert_eq!(chunk.offset, html.len() as u64);
+                    html.extend_from_slice(&chunk.data);
+                }
+                model::reports::wire::ReportHtmlFramePayload::Complete(done) => {
+                    assert_eq!(done.size_bytes, html.len() as u64);
+                    complete = true;
+                }
             }
         }
-    };
-    assert!(followed.contains("record=started"));
-    drop(follow);
-
-    // The Followed Prefix Is Also What A Plain Read Serves While Still Streaming
-    let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-    assert_eq!(file.state, model::content::wire::ExecutionFileState::Streaming);
-    let window = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-    let running_log = String::from_utf8_lossy(&window.data).into_owned();
-    assert!(running_log.contains("record=started"));
-    assert!(running_log.contains("record=prompt_requested"));
-
-    prompts
-        .prompts_respond(contracts::prompts::Respond {
-            prompt_id: pending.prompt_id,
-            action: "submit".into(),
-            values: Some(value_object([("operator_note", text("native-test-confirmed")), ("accepted", boolean(true))])),
-            accepted: true,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-
-    let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
-    if !passed(&cycle) {
-        let diagnosis = diagnosis::execution(&client, &execution_id, STARTUP_STREAM_LOG).await;
-        assert!(passed(&cycle), "{diagnosis}");
-    }
-    let telemetry = client.clone();
-    let telemetry = telemetry
-        .telemetry_list_samples(contracts::telemetry::ListSamples {
-            streams: vec![STARTUP_SAMPLES.into()],
-            scope: Some(scope(&cycle_id, &execution_id)),
-            limit: 100,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    assert!(telemetry.complete);
-    assert_eq!(telemetry.samples.len() as u64, STARTUP_SAMPLE_COUNT);
-    assert_eq!(telemetry.samples.iter().map(|sample| sample.stream.as_str()).collect::<HashSet<_>>(), HashSet::from([STARTUP_SAMPLES]));
-
-    let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-    assert_eq!(file.kind, model::content::wire::ExecutionFileKind::Text);
-    assert_eq!(file.state, model::content::wire::ExecutionFileState::Finalized);
-    let final_log = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-    let final_text = String::from_utf8_lossy(&final_log.data);
-    assert!(final_text.contains("record=prompt_answered action=continue accepted=true"));
-    assert!(final_text.contains("Charger resources released"));
-
-    // The Explicitly Sealed Cycle Serves Its Report
-    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
-    execution.cycle(id).seal().await.unwrap();
-    on_change(&mut changes, "the startup cycle to seal", async || {
-        execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap().sealed.then_some(())
+        assert!(complete, "the report stream completes");
+        assert_eq!(metadata.expect("report metadata").test_cycle_id, cycle_id);
+        assert!(!html.is_empty());
+        (host, client, changes, report)
     })
     .await;
-    let report = client
-        .reports_download_cycle_report(contracts::reports::DownloadCycleReport {
-            cycle_id: cycle_id.clone(),
-            identifier: String::new(),
-        })
-        .await
-        .unwrap();
-    let mut metadata = None;
-    let mut html = Vec::new();
-    let mut complete = false;
-    while let Some(frame) = report.message().await.unwrap() {
-        match frame.payload.expect("report payload") {
-            model::reports::wire::ReportHtmlFramePayload::Report(header) => {
-                assert!(metadata.replace(*header).is_none(), "one metadata frame");
-            }
-            model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => {
-                assert_eq!(chunk.offset, html.len() as u64);
-                html.extend_from_slice(&chunk.data);
-            }
-            model::reports::wire::ReportHtmlFramePayload::Complete(done) => {
-                assert_eq!(done.size_bytes, html.len() as u64);
-                complete = true;
-            }
-        }
-    }
-    assert!(complete, "the report stream completes");
-    assert_eq!(metadata.expect("report metadata").test_cycle_id, cycle_id);
-    assert!(!html.is_empty());
 
-    steady_sweep(&client, &mut changes).await;
-    steady_reports(&client, &mut changes).await;
+    Box::pin(steady_sweep(&client, &mut changes)).await;
+    Box::pin(steady_reports(&client, &mut changes)).await;
 
     // Scene: The Actual Remote Scripts Control The Built Plugin And Export Saved Evidence
-    super::remote::scripts(&client, host.endpoint(), &root.path().join("remote scripts")).await;
+    Box::pin(super::remote::scripts(&client, host.endpoint(), &root.path().join("remote scripts"))).await;
 
     // Scene: The Host Stops Cleanly With Its Watch Still Open
     drop(report);
@@ -1140,58 +1146,61 @@ async fn plugin_host_walkthrough() {
     drop(changes);
     drop(client);
 
-    // Scene: A Installed Plugin Activates Only After A Restart
-    let store = root.path().join("store");
-    let host = Host::launch_in(&store, None).await;
-    let client = host.connect().await;
-    assert!(!serves_startup(&client).await);
-    let installation = install(&client, &bytes).await;
-    assert!(!installation.active && installation.restart_required);
-    assert!(!serves_startup(&client).await);
-    host.stop(false).await;
-    let host = Host::launch_in(&store, None).await;
-    let client = host.connect().await;
-    let listed = installations(&client).await;
-    assert_eq!(listed.len(), 1);
-    assert!(listed[0].active && !listed[0].restart_required);
-    assert!(serves_startup(&client).await);
-    status_ready(&client).await;
+    Box::pin(async {
+        // Scene: A Installed Plugin Activates Only After A Restart
+        let store = root.path().join("store");
+        let host = Host::launch_in(&store, None).await;
+        let client = host.connect().await;
+        assert!(!serves_startup(&client).await);
+        let installation = install(&client, &bytes).await;
+        assert!(!installation.active && installation.restart_required);
+        assert!(!serves_startup(&client).await);
+        host.stop(false).await;
+        let host = Host::launch_in(&store, None).await;
+        let client = host.connect().await;
+        let listed = installations(&client).await;
+        assert_eq!(listed.len(), 1);
+        assert!(listed[0].active && !listed[0].restart_required);
+        assert!(serves_startup(&client).await);
+        status_ready(&client).await;
 
-    // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
-    let removed = client
-        .plugins_remove(contracts::plugins::Remove {
-            install_id: installation.install_id.clone(),
-        })
-        .await
-        .unwrap()
-        .installation
-        .expect("a installed installation stays pending removal");
-    assert_eq!(removed.state, model::plugins::wire::PluginInstallationState::RemovalPending);
-    assert!(removed.active && removed.restart_required);
-    assert!(serves_startup(&client).await);
-    host.stop(false).await;
-    let host = Host::launch_in(&store, None).await;
-    let client = host.connect().await;
-    assert!(installations(&client).await.is_empty());
-    assert!(!serves_startup(&client).await);
+        // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
+        let removed = client
+            .plugins_remove(contracts::plugins::Remove {
+                install_id: installation.install_id.clone(),
+            })
+            .await
+            .unwrap()
+            .installation
+            .expect("a installed installation stays pending removal");
+        assert_eq!(removed.state, model::plugins::wire::PluginInstallationState::RemovalPending);
+        assert!(removed.active && removed.restart_required);
+        assert!(serves_startup(&client).await);
+        host.stop(false).await;
+        let host = Host::launch_in(&store, None).await;
+        let client = host.connect().await;
+        assert!(installations(&client).await.is_empty());
+        assert!(!serves_startup(&client).await);
 
-    // Scene: A Corrupted Installed Bundle Is Skipped And Boot Succeeds
-    install(&client, &bytes).await;
-    host.stop(false).await;
-    let installed = installed_copy(&store, &bytes).expect("the store keeps the installed bytes");
-    std::fs::write(&installed, b"corrupted after installation").unwrap();
-    let host = Host::launch_in(&store, None).await;
-    let client = host.connect().await;
-    let listed = installations(&client).await;
-    assert_eq!(listed.len(), 1);
-    assert!(
-        matches!(
-            listed[0].last_boot.as_ref().and_then(|boot| boot.result.as_ref()),
-            Some(model::plugins::wire::PluginLastBootResult::Error(_))
-        ),
-        "the broken installation reports its failed boot: {:?}",
-        listed[0].last_boot
-    );
-    assert!(!serves_startup(&client).await);
-    host.stop(false).await;
+        // Scene: A Corrupted Installed Bundle Is Skipped And Boot Succeeds
+        install(&client, &bytes).await;
+        host.stop(false).await;
+        let installed = installed_copy(&store, &bytes).expect("the store keeps the installed bytes");
+        std::fs::write(&installed, b"corrupted after installation").unwrap();
+        let host = Host::launch_in(&store, None).await;
+        let client = host.connect().await;
+        let listed = installations(&client).await;
+        assert_eq!(listed.len(), 1);
+        assert!(
+            matches!(
+                listed[0].last_boot.as_ref().and_then(|boot| boot.result.as_ref()),
+                Some(model::plugins::wire::PluginLastBootResult::Error(_))
+            ),
+            "the broken installation reports its failed boot: {:?}",
+            listed[0].last_boot
+        );
+        assert!(!serves_startup(&client).await);
+        host.stop(false).await;
+    })
+    .await;
 }

@@ -67,17 +67,18 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     let workflows = extensions.iter().flat_map(|extension| ["device", "test", "prompt"].map(|workflow| (*extension, workflow)));
     for (extension, workflow) in workflows {
         let directory = root.join(format!("{extension} {workflow}"));
-        let stdout = execute(extension, workflow, endpoint, &directory).await;
+        // Each Script Story Is Boxed So Only The Running One's Await Temporaries Occupy The Stack.
+        let stdout = Box::pin(execute(extension, workflow, endpoint, &directory)).await;
         if workflow == "device" {
-            device(client, extension, &stdout, &directory).await;
+            Box::pin(device(client, extension, &stdout, &directory)).await;
             continue;
         }
-        evidence(client, extension, workflow, &stdout, &directory).await;
+        Box::pin(evidence(client, extension, workflow, &stdout, &directory)).await;
     }
     for extension in extensions {
-        conflicts(endpoint, &root.join(format!("{extension} conflicts")), extension).await;
+        Box::pin(conflicts(endpoint, &root.join(format!("{extension} conflicts")), extension)).await;
     }
-    interruption::scripts(client, endpoint, &root.join("interruptions")).await;
+    Box::pin(interruption::scripts(client, endpoint, &root.join("interruptions"))).await;
 }
 
 /* === Private Functions === */

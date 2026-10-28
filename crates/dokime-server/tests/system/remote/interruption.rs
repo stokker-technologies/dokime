@@ -250,16 +250,17 @@ async fn relay(mut incoming: TcpStream, mut outgoing: TcpStream, gate: Option<Ga
 
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
-    let (other_cycle, other_execution) = waiting_execution(client).await;
+    // Each Interruption Story Is Boxed So Only The Running One's Await Temporaries Occupy The Stack.
+    let (other_cycle, other_execution) = Box::pin(waiting_execution(client)).await;
     let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
     for extension in extensions {
-        scenario(client, endpoint, root, extension, "test").await;
-        scenario(client, endpoint, root, extension, "prompt").await;
-        disconnected(client, endpoint, root, extension, "test").await;
-        disconnected(client, endpoint, root, extension, "prompt").await;
+        Box::pin(scenario(client, endpoint, root, extension, "test")).await;
+        Box::pin(scenario(client, endpoint, root, extension, "prompt")).await;
+        Box::pin(disconnected(client, endpoint, root, extension, "test")).await;
+        Box::pin(disconnected(client, endpoint, root, extension, "prompt")).await;
         if *extension != "py" {
-            mutation_interruption(client, endpoint, root, extension, Boundary::Append).await;
-            mutation_interruption(client, endpoint, root, extension, Boundary::Start).await;
+            Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Append)).await;
+            Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Start)).await;
         }
         let summary = other_execution.snapshot().await.unwrap();
         assert!(!summary.summary.unwrap().sealed, "another client's execution must survive every script interrupt");
@@ -268,7 +269,7 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     other_cycle.seal().await.unwrap();
     let saved = other_execution.wait(None, None).await.unwrap();
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
-    partial_capture(client, endpoint, root).await;
+    Box::pin(partial_capture(client, endpoint, root)).await;
 }
 
 /* === Private Functions === */
