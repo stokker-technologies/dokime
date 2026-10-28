@@ -174,8 +174,7 @@ impl WifiCollector {
                     maybe_insert(&mut values, "wifi_band", link.channel.and_then(wifi_channel_band).map(Value::from));
                     maybe_insert(&mut values, "wifi_signal_percent", link.signal_percent.map(Value::from));
                     // The Kernel Link: Received Signal And Negotiated PHY Rates
-                    let wireless =
-                        adapter.as_deref().and_then(|adapter| crate::platform::linux::wifi::wireless_link(adapter)).unwrap_or_default();
+                    let wireless = adapter.as_deref().and_then(crate::platform::linux::wifi::wireless_link).unwrap_or_default();
                     maybe_insert(&mut values, "wifi_rssi_dbm", wireless.rssi_dbm.map(Value::from));
                     maybe_insert(&mut values, "wifi_rx_phy_mbps", wireless.rx_phy_mbps.map(Value::from));
                     maybe_insert(&mut values, "wifi_tx_phy_mbps", wireless.tx_phy_mbps.map(Value::from));
@@ -272,7 +271,10 @@ impl WifiCollector {
                     let active_adapter = channels.iter().find_map(|channel| channel.adapter.clone());
                     let counts = channels
                         .iter()
-                        .map(|channel| WifiChannelCount { channel: channel.channel, network_count: channel.network_count })
+                        .map(|channel| WifiChannelCount {
+                            channel: channel.channel,
+                            network_count: channel.network_count,
+                        })
                         .collect::<Vec<_>>();
                     let congestion = wifi_congestion_summary(active_channel, active_band, &counts);
                     self.update_congestion_cache(congestion.clone());
@@ -373,7 +375,10 @@ impl WifiCollector {
                     }
                     let counts = by_channel
                         .iter()
-                        .map(|(channel, network_count)| WifiChannelCount { channel: *channel, network_count: *network_count })
+                        .map(|(channel, network_count)| WifiChannelCount {
+                            channel: *channel,
+                            network_count: *network_count,
+                        })
                         .collect::<Vec<_>>();
                     let congestion = wifi_congestion_summary(active_channel, active_band, &counts);
                     self.update_congestion_cache(congestion.clone());
@@ -502,7 +507,11 @@ fn active_wifi_context(options: &HostOptions) -> ActiveWifiContext {
         crate::platform::windows::wifi::active_link(options)
             .ok()
             .flatten()
-            .map(|link| ActiveWifiContext { channel: link.channel, band: link.band, adapter: link.adapter })
+            .map(|link| ActiveWifiContext {
+                channel: link.channel,
+                band: link.band,
+                adapter: link.adapter,
+            })
             .unwrap_or_default()
     }
 
@@ -515,7 +524,11 @@ fn active_wifi_context(options: &HostOptions) -> ActiveWifiContext {
                 rows.into_iter()
                     .find(|row| row.active && crate::platform::linux::wifi::adapter_matches(row.device.as_deref(), adapter_filter))
             })
-            .map(|row| ActiveWifiContext { channel: row.channel, band: row.channel.and_then(wifi_channel_band), adapter: row.device })
+            .map(|row| ActiveWifiContext {
+                channel: row.channel,
+                band: row.channel.and_then(wifi_channel_band),
+                adapter: row.device,
+            })
             .unwrap_or_default()
     }
 }
