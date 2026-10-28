@@ -90,6 +90,14 @@ impl SuiteRegistry {
         }
     }
 
+    // The source that registered the suite declaring this template.
+    pub(crate) fn template_source(&self, template: &str) -> Option<&str> {
+        self.suites
+            .values()
+            .find(|snapshot| snapshot.suite.test_case_templates.iter().any(|candidate| candidate.metadata.identifier.as_str() == template))
+            .map(|snapshot| snapshot.source.as_str())
+    }
+
     pub fn case(&self, id: &CaseId) -> Option<&TestCase> {
         self.cases.get(id)
     }

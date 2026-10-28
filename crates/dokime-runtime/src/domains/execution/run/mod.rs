@@ -154,7 +154,8 @@ impl ExecutionFixture for TemplateRunExecutor {
 
 impl Target {
     // An embedded template runs through the host-level template operations;
-    // a sidecar template answers under its own identity.
+    // any other template answers under its own identity, qualified by the
+    // owner that serves it: its bundle's plugin id, or the host.
     pub(crate) fn of(runtime: &RuntimeHandle, template: &str) -> Self {
         let operations = runtime.operations.clone();
         if runtime.embedded_templates.contains(template) {
@@ -165,10 +166,19 @@ impl Target {
                 signal: format!("host.{}", <crate::execution::Signal<()> as OperationDeclaration>::ID),
             };
         }
+        let owner = {
+            let snapshot = runtime.watch_state().latest();
+            let state = snapshot.state();
+            state
+                .suites
+                .template_source(template)
+                .filter(|source| matches!(state.plugin_owners.get(*source), Some(crate::state::PluginOwner::Bundle { .. })))
+                .map_or_else(|| "host".to_owned(), str::to_owned)
+        };
         Self {
             operations,
-            run: format!("{template}.run"),
-            signal: format!("{template}.signal"),
+            run: format!("{owner}.{template}.run"),
+            signal: format!("{owner}.{template}.signal"),
         }
     }
 
