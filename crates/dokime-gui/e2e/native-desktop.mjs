@@ -2338,7 +2338,11 @@ async function cycleJourney(session, cycleId) {
       .find((row) => row.dataset.executionId === arguments[0])?.innerText ?? '';`,
     [rerunId],
   );
-  assert.match(rerunOutcome, /\bPassed\b/, "Closing plot settings must leave the prompting re-run able to pass");
+  assert.match(
+    rerunOutcome,
+    /\bPassed\b/,
+    `Closing plot settings must leave the prompting re-run able to pass: ${normalize(rerunOutcome)}`,
+  );
   const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
   assertPromptHovers(promptHovers);
   assertHistogram(await until("live voltage histogram", () => session.execute(`return (${histogramPresentation.toString()})();`)));
@@ -2912,7 +2916,10 @@ async function remoteAccessJourney() {
   const notice = async (text, action) => {
     await until(`no earlier ${text}`, async () => !hasText(await toastText(session), text), 120000);
     await action();
-    await until(text, async () => hasText(await toastText(session), text));
+    return until(text, async () => {
+      const shown = await toastText(session);
+      return hasText(shown, text) ? shown : null;
+    });
   };
   const endpoint = () =>
     until("remote listening address", async () => {
@@ -2953,12 +2960,14 @@ async function remoteAccessJourney() {
   const createPairing = async (identifier, address) => {
     await session.type(await input("Label"), identifier);
     await session.type(await input("Reachable Endpoint"), address);
-    const path = join(work, `${identifier}.dokime-pair`);
-    await notice("Pairing File Saved", async () => {
+    const path = join(await realpath(work), `${identifier}.dokime-pair`);
+    const saved = await notice("Pairing File Saved", async () => {
       await session.clickNamed("button", "Create Pairing File");
       const picker = { window: null };
       await until("native pairing save", () => chooseNativeFile(picker, path, "Save"), 120000);
     });
+    /* The notice names the file the product wrote; it must be the one the operator chose. */
+    assert.ok(hasText(saved, path), `The pairing file is saved where the operator chose: ${normalize(saved)}`);
     const pairing = JSON.parse(await readFile(path, "utf8"));
     assert.equal(pairing.version, 1);
     assert.equal(pairing.endpoint, address);
@@ -4552,6 +4561,7 @@ for index in range(desktop.get_child_count()):
             }
             continue
           }
+          if ($env:DOKIME_PICKER_ENTERED -and $window.Current.NativeWindowHandle.ToString() -ne $env:DOKIME_PICKER_ENTERED) { continue }
           $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $filenameId)
           $fieldType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
           $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldId, $fieldType)
@@ -4573,13 +4583,19 @@ for index in range(desktop.get_child_count()):
           }
           if ($field -and $button) {
             $selectedWindow = $window.Current.NativeWindowHandle
-            $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($env:DOKIME_PICKER_FILE)
-            [Console]::Error.WriteLine(('picker entered={0}' -f $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value))
-            Write-PickerState 'before-invoke' $window $pidCondition
-            $entered = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
-            if (![String]::Equals($entered, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
-              throw 'The Native Picker Filename Differs From The Requested File Before Selection'
+            $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+            # Invoke Only A Filename That Survived The Dialog's Own Initialization Since An Earlier Observation.
+            if (!$env:DOKIME_PICKER_ENTERED -or ![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
+              $value.SetValue($env:DOKIME_PICKER_FILE)
+              [Console]::Error.WriteLine(('picker entered={0}' -f $value.Current.Value))
+              Write-PickerState 'entered' $window $pidCondition
+              if (![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
+                throw 'The Native Picker Filename Differs From The Requested File After Entry'
+              }
+              Write-Output ('entered:' + $selectedWindow)
+              exit 0
             }
+            Write-PickerState 'before-invoke' $window $pidCondition
             $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             Write-PickerState 'after-invoke' $window $pidCondition
             Write-Output ('selected:' + $selectedWindow)
@@ -4587,20 +4603,29 @@ for index in range(desktop.get_child_count()):
           }
         }
       }
-      if ($env:DOKIME_PICKER_WINDOW) { Write-Output 'closed' }`;
+      if ($env:DOKIME_PICKER_WINDOW) { Write-Output 'closed' }
+      elseif ($env:DOKIME_PICKER_ENTERED) { Write-Output 'vanished' }`;
+  /* The dialog resolves what is typed, so it receives the long form of a short 8.3 temporary path. */
+  const target = join(await realpath(dirname(resolve(file))), basename(file));
   const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
     windowsHide: true,
     env: {
       ...process.env,
       DOKIME_PICKER_SHELL: resolve(shellBinary),
-      DOKIME_PICKER_FILE: resolve(file),
+      DOKIME_PICKER_FILE: target,
       DOKIME_PICKER_OPERATION: operation,
+      DOKIME_PICKER_ENTERED: picker.entered ? String(picker.entered) : "",
       DOKIME_PICKER_WINDOW: picker.window === null ? "" : String(picker.window),
     },
     timeout: 120000,
   });
   await appendFile(join(evidence, "native-picker.log"), `${result.stderr}\n${result.stdout}\n`);
   const outcome = result.stdout.trim();
+  assert.notEqual(outcome, "vanished", "The native dialog that received the filename closed before its selection");
+  if (outcome.startsWith("entered:")) {
+    picker.entered = Number(outcome.slice("entered:".length));
+    assert.ok(Number.isSafeInteger(picker.entered), "The entered native dialog has a window handle");
+  }
   if (outcome.startsWith("selected:")) {
     picker.window = Number(outcome.slice("selected:".length));
     assert.ok(Number.isSafeInteger(picker.window), "The selected native dialog has a window handle");
