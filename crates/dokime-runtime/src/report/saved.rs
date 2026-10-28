@@ -23,7 +23,7 @@ use std::{
 // Third Party Imports
 use harmos::{
     Message,
-    storage::{FileMetadata, FileReference, StorageCursor, StorageFile},
+    storage::{FileChunk, FileMetadata, FileReference, StorageCursor, StorageFile},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -486,9 +486,7 @@ impl ReportFile {
             .await??;
             let end = offset + length as u64;
             let producer = self.producer.as_mut().expect("created report file");
-            // Harmos Admits Each Chunk Under The Shared Pending Write Budget And
-            // Wakes This Producer On Every Capacity Release; Failures Surface Here.
-            producer.write_all(bytes).await?;
+            append_report_chunk(manager, producer, offset, FileChunk::new(bytes)).await?;
             if producer.length() != end {
                 return Err(Error::InvalidReportInputs("report append returned a different offset".into()));
             }
@@ -543,6 +541,22 @@ impl Write for ReportWriter {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+// The Producer Retains An Admitted Chunk Across Failures, So A Retry Resends The
+// Same Offset And Bytes. A Refused Chunk Admitted Nothing: Await Durability Of
+// The Accepted Data Queue Only (No File Checkpoint, No Exclusive Lifecycle Lock),
+// Refresh The Shared Accounting And Retry. Storage Failures Surface As Errors.
+async fn append_report_chunk(manager: &Manager, producer: &mut StorageFile, offset: u64, bytes: FileChunk) -> Result<()> {
+    loop {
+        let result = producer.write_retained_at(offset, bytes.clone()).await;
+        if !matches!(result, Err(harmos::storage::Error::ResourceExhausted { resource: "file append" })) {
+            return result.map_err(Into::into);
+        }
+        manager.await_durable(&manager.cursor_accepted()).await?;
+        manager.status();
+        tokio::task::yield_now().await;
+    }
+}
 
 fn report_text(length: usize) -> Result<String> {
     let mut value = String::new();
