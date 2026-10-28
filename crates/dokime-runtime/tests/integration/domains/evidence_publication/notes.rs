@@ -41,29 +41,18 @@ use model::execution::notes::NoteOwner;
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn fixture(root: &std::path::Path) -> (Runtime, CreateNote) {
+pub(super) async fn empty_cycle_datasets(owner: &Runtime) {
+    let runtime = owner.handle();
     let metadata = Metadata::new(Identifier::new("notes.fixture").unwrap(), "Notes", None);
-    let owner = Runtime::start(crate::service_support::budgets::runtime_config(root, metadata.clone())).await.unwrap();
-    let handle = owner.handle();
-    let cycle_id =
-        handle.create_cycle(CycleDefinition { metadata, continue_automatically: false }, CommandContext::default()).await.unwrap();
+    let cycle =
+        runtime.create_cycle(CycleDefinition { metadata, continue_automatically: false }, CommandContext::default()).await.unwrap();
     let request = CreateNote {
-        epoch: handle.process_epoch(),
+        epoch: runtime.process_epoch(),
         mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
-        owner: NoteOwner::Cycle { cycle_id },
+        owner: NoteOwner::Cycle { cycle_id: cycle },
         actor: "operator".into(),
         message: "inspected".into(),
     };
-    (owner, request)
-}
-
-/* === Tests === */
-
-#[tokio::test]
-async fn empty_cycle_datasets() {
-    let root = tempdir().unwrap();
-    let (mut owner, request) = fixture(root.path()).await;
-    let runtime = owner.handle();
     let cycle_id = request.owner.cycle_id().to_string();
     let before = runtime
         .storage()
@@ -85,5 +74,4 @@ async fn empty_cycle_datasets() {
         .unwrap()
         .unwrap();
     assert_eq!(after.version, before.version, "notes and retries do not rewrite an unrelated cycle projection");
-    owner.shutdown().await.unwrap();
 }

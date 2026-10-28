@@ -39,16 +39,13 @@ use dokime_domain::model;
 /* === Private Functions === */
 // the default document shows every section in one composed order.
 
-#[tokio::test]
-async fn default_document_order() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+pub(super) async fn default_document_order(runtime: &RuntimeHandle) {
 
     let suite = suite_with_authored_document();
-    register_custom_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite).await;
+    register_custom_suite(runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
+    let cycle = wait_for_cycle_outcome(runtime, &test_cycle_id, ResultStatus::Passed).await;
     let execution = cycle.test_executions.first().unwrap();
     let default_document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
 
@@ -104,19 +101,16 @@ async fn default_document_order() {
     assert!(unselected.is_err());
 }
 
-#[tokio::test]
-async fn current_cycle_state() {
+pub(super) async fn current_cycle_state(runtime: &RuntimeHandle) {
     use dokime_runtime::document::DocumentCardBody;
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = suite_with_authored_document();
-    register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite).await;
+    register_custom_suite(runtime, suite.clone()).await;
+    let cycle_id = start_cycle(runtime, suite).await;
     let document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
     let prepared = runtime.prepare_current_cycle_document(&cycle_id, &document_id).unwrap();
     let revision = runtime.watch_state().latest().revision();
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+    wait_for_cycle_outcome(runtime, &cycle_id, ResultStatus::Passed).await;
     assert!(runtime.watch_state().latest().revision() > revision);
     let captured = prepared.capture().await.unwrap();
     assert_eq!(captured.state_revision, revision);
@@ -186,25 +180,22 @@ async fn current_cycle_state() {
     assert!(current.artifacts_sha256.is_some());
 }
 
-#[tokio::test]
-async fn cycle_report_executions() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+pub(super) async fn cycle_report_executions(runtime: &RuntimeHandle) {
     let suite = suite_with_authored_document();
-    register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite).await;
+    register_custom_suite(runtime, suite.clone()).await;
+    let cycle_id = start_cycle(runtime, suite).await;
     let case = runtime.watch_state().latest().state().cycle_view(&cycle_id).unwrap().test_executions[0].snapshot.case().clone();
     runtime.append_fixture_cases(cycle_id.clone(), vec![case], CommandContext::default()).await.unwrap();
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+    wait_for_cycle_outcome(runtime, &cycle_id, ResultStatus::Passed).await;
     runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
-    let cycle = cycle_snapshot(&runtime, &cycle_id).await;
+    let cycle = cycle_snapshot(runtime, &cycle_id).await;
     let mut member_payloads = Vec::new();
     let mut samples = Vec::new();
     for execution in &cycle.test_executions {
-        let checkpoint = crate::service_support::native::checkpoint(&runtime, &execution.test_execution_id).await;
-        let captured_samples = crate::service_support::native::samples(&runtime, &checkpoint).await;
-        let html = crate::service_support::native::report(&runtime, &execution.test_execution_id).await;
+        let checkpoint = crate::service_support::native::checkpoint(runtime, &execution.test_execution_id).await;
+        let captured_samples = crate::service_support::native::samples(runtime, &checkpoint).await;
+        let html = crate::service_support::native::report(runtime, &execution.test_execution_id).await;
         let payload = crate::service_support::reports::parse(&html);
         samples
             .extend(captured_samples.into_iter().filter(|sample| payload["snapshot"]["telemetry"].get(sample.stream.as_str()).is_some()));
@@ -240,8 +231,7 @@ async fn cycle_report_executions() {
 
 // a section a run added is in the live document and in the stored report.
 
-#[tokio::test]
-async fn section_run_report() {
+pub(super) async fn section_run_report() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(DocumentAddingExecutor)).await;
 
@@ -302,8 +292,7 @@ async fn section_run_report() {
     assert!(html.contains("The bench answered on one stream."), "the stored report shows the note that section carries");
 }
 
-#[tokio::test]
-async fn current_fact_frontiers() {
+pub(super) async fn current_fact_frontiers() {
     use dokime_runtime::document::{
         DocumentCard, TelemetrySummaryDefinition, TelemetrySummaryGroupDefinition, TelemetrySummaryTileDefinition,
     };
@@ -409,8 +398,7 @@ async fn current_fact_frontiers() {
     owner.shutdown().await.unwrap();
 }
 
-#[tokio::test]
-async fn document_routes_samples() {
+pub(super) async fn document_routes_samples() {
     use dokime_runtime::document::{
         DocumentCard, DocumentCardBodyPayload, DocumentPayload, DocumentSelection, TelemetrySummaryDefinition,
         TelemetrySummaryGroupDefinition, TelemetrySummaryTileDefinition,
@@ -508,8 +496,7 @@ async fn document_routes_samples() {
     owner.shutdown().await.unwrap();
 }
 
-#[tokio::test]
-async fn repeated_sections_follow() {
+pub(super) async fn repeated_sections_follow() {
     use dokime_runtime::document::{DocumentDefinition, DocumentSection, DocumentSelection};
 
     let root = tempdir().unwrap();
@@ -640,11 +627,8 @@ fn suite_with_authored_document() -> TestSuite {
 
 /* === Tests === */
 
-#[tokio::test]
-async fn saved_report_evidence() {
+pub(super) async fn saved_report_evidence(runtime: &RuntimeHandle) {
     use dokime_runtime::document::{DocumentDefinition, DocumentSection, PlotDefinition, PlotType};
-    let root = tempdir().unwrap();
-    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let mut suite = custom_suite();
     let mut document = DocumentDefinition::new("default", "Analysis");
     let mut section = DocumentSection::new("Samples");
@@ -661,15 +645,15 @@ async fn saved_report_evidence() {
     section.plot(plot);
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
-    register_custom_suite(&runtime, suite.clone()).await;
+    register_custom_suite(runtime, suite.clone()).await;
     let admitted =
         runtime.test_suites().await.into_iter().find(|entry| entry.suite.metadata.identifier == suite.metadata.identifier).unwrap().suite;
-    let cycle_id = start_cycle(&runtime, admitted).await;
+    let cycle_id = start_cycle(runtime, admitted).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
 
-    let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+    let cycle = wait_for_cycle_outcome(runtime, &cycle_id, ResultStatus::Passed).await;
     let execution = &cycle.test_executions[0];
-    let html = crate::service_support::native::report(&runtime, &execution.test_execution_id).await;
+    let html = crate::service_support::native::report(runtime, &execution.test_execution_id).await;
     let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;
     let payload: serde_json::Value = serde_json::from_str(json).unwrap();
     assert_eq!(payload["plots"], serde_json::json!({}));
@@ -686,6 +670,4 @@ async fn saved_report_evidence() {
     assert_eq!(computed["series"][0]["output"]["outputs"][0]["values"][0], 1.0);
     assert!(computed["source"]["position"]["sequence"].as_u64().is_some_and(|sequence| sequence > 0));
     assert!(computed["source"].get("cursor").is_none());
-    drop(runtime);
-    owner.shutdown().await.unwrap();
 }

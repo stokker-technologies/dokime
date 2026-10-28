@@ -37,22 +37,19 @@ use super::*;
 
 /* === Private Functions === */
 
-#[tokio::test]
-async fn definitions_survive_completion() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+pub(super) async fn definitions_survive_completion(runtime: &RuntimeHandle) {
     let custom_batch = tracking_batch();
     let custom_record = custom_record();
 
     assert!(runtime.publish_telemetry_batch(custom_batch.clone()).await.is_err());
     assert!(runtime.publish_record(custom_record.clone()).await.is_err());
 
-    register_custom_suite(&runtime, custom_suite()).await;
-    let test_cycle_id = start_cycle(&runtime, custom_suite()).await;
+    register_custom_suite(runtime, custom_suite()).await;
+    let test_cycle_id = start_cycle(runtime, custom_suite()).await;
     let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
 
     assert_eq!(receipt.status, CommandStatus::Accepted);
-    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
+    wait_for_cycle_outcome(runtime, &test_cycle_id, ResultStatus::Passed).await;
 
     let evidence = runtime.evidence_snapshot().await.unwrap();
     assert!(evidence.records.iter().any(|record| record.record_type == custom_record.record_type));
@@ -61,12 +58,8 @@ async fn definitions_survive_completion() {
     assert_eq!(post_execution_publish.status, PublishStatus::Accepted);
 }
 
-#[tokio::test]
-async fn conflicting_contracts_rejected() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
-
-    register_custom_suite(&runtime, custom_suite()).await;
+// The custom suite is already registered by the completion stage.
+pub(super) async fn conflicting_contracts_rejected(runtime: &RuntimeHandle) {
     let mut other_suite = custom_suite();
     other_suite.test_case_templates[0].test_case_template_id = TemplateId::from_seed("evidence.other.template");
     let result = runtime
@@ -86,8 +79,7 @@ async fn conflicting_contracts_rejected() {
     assert!(result.as_ref().is_err_and(|detail| { detail.to_string().contains("conflicting telemetry contract") }));
 }
 
-#[tokio::test]
-async fn tracking_derives_kpis() {
+pub(super) async fn tracking_derives_kpis() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(TrackingTransitionExecutor)).await;
 

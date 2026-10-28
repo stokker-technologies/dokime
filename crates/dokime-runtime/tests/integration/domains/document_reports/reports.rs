@@ -44,8 +44,7 @@ fn whole() -> harmos::storage::ByteRange {
 
 /* === Tests === */
 
-#[tokio::test]
-async fn report_save_receipt() {
+pub(super) async fn report_save_receipt() {
     use dokime_domain::model::execution::saved::ExecutionRevision;
     use dokime_runtime::storage::{
         Backend,
@@ -311,8 +310,7 @@ async fn report_save_receipt() {
     runtime.shutdown().await.unwrap();
 }
 
-#[tokio::test]
-async fn report_opens_anytime() {
+pub(super) async fn report_opens_anytime() {
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
@@ -360,8 +358,7 @@ async fn report_opens_anytime() {
 // A download always serves the report: a member whose final report is sealed
 // while its cycle still runs serves those bytes, the running cycle materializes
 // its current state, and after finalization both serve the sealed artifacts.
-#[tokio::test]
-async fn report_download_serves() {
+pub(super) async fn report_download_serves() {
     let root = tempdir().unwrap();
     let executor = Arc::new(SecondExecutionHoldExecutor::default());
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
@@ -433,8 +430,7 @@ async fn report_download_serves() {
 
 // The same running execution's report renders three times in a row: the first
 // render releases everything it held, and each carries the same evidence.
-#[tokio::test]
-async fn open_report_repeatedly() {
+pub(super) async fn open_report_repeatedly() {
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
@@ -523,8 +519,7 @@ fn remove_named(directory: &std::path::Path, name: &str) -> bool {
     false
 }
 
-#[tokio::test]
-async fn cycle_report_reboot() {
+pub(super) async fn cycle_report_reboot() {
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;

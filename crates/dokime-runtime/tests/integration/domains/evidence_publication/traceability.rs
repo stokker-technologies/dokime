@@ -38,15 +38,10 @@ use super::*;
 /* === Private Functions === */
 // resource records project into instance groups without mutating parameters.
 
-#[tokio::test]
-async fn resource_records_absent() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
-
-    register_custom_suite(&runtime, custom_suite()).await;
-    let test_cycle_id = start_cycle(&runtime, custom_suite()).await;
+pub(super) async fn resource_records_absent(runtime: &RuntimeHandle) {
+    let test_cycle_id = start_cycle(runtime, custom_suite()).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
+    let cycle = wait_for_cycle_outcome(runtime, &test_cycle_id, ResultStatus::Passed).await;
     let execution = cycle.test_executions.first().unwrap();
     let execution_scope = execution.scope.clone();
 
@@ -79,12 +74,12 @@ async fn resource_records_absent() {
     runtime.publish_record(relay).await.unwrap();
     // The same resource opened twice is two instances; closing one does not
     // renumber the next.
-    publish_tooling_resource(&runtime, &execution_scope, "resource.opened", Some("TOOL-1")).await;
-    publish_tooling_resource(&runtime, &execution_scope, "resource.closed", None).await;
-    publish_tooling_resource(&runtime, &execution_scope, "resource.opened", Some("TOOL-2")).await;
+    publish_tooling_resource(runtime, &execution_scope, "resource.opened", Some("TOOL-1")).await;
+    publish_tooling_resource(runtime, &execution_scope, "resource.closed", None).await;
+    publish_tooling_resource(runtime, &execution_scope, "resource.opened", Some("TOOL-2")).await;
 
     let evidence = runtime.evidence_snapshot().await.unwrap();
-    let cycles = runtime.cycles().await;
+    let ours = runtime.cycles().await.into_iter().find(|item| item.test_cycle_id == test_cycle_id).unwrap();
     let grouped = |prefix: &str| {
         evidence
             .traceability
@@ -117,7 +112,7 @@ async fn resource_records_absent() {
 
     // None of it wrote a parameter on the execution.
     for key in ["resource.tracking_resource_1.traceability.serial_number", "resource.relay_1.traceability.serial_number"] {
-        assert!(!cycles[0].test_executions[0].output_parameters.contains_key(key));
+        assert!(!ours.test_executions[0].output_parameters.contains_key(key));
     }
 }
 

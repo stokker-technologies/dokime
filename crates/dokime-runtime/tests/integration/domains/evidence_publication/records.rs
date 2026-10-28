@@ -84,10 +84,8 @@ impl EmbeddedProvider for Publisher {
 
 /* === Tests === */
 
-#[tokio::test]
-async fn native_publications_order() {
-    let root = tempfile::tempdir().unwrap();
-    let mut owner = Runtime::start(config(root.path()).register(Arc::new(Publisher))).await.unwrap();
+pub(super) async fn native_publications_order(owner: &mut Runtime) {
+    owner.register(Arc::new(Publisher)).await.unwrap();
     let runtime = owner.handle();
     let caller = owner.fixture_operation_caller("fixture_records").unwrap();
     let mut records = runtime.subscribe_records();
@@ -145,6 +143,4 @@ async fn native_publications_order() {
         assert_eq!(entry.details["value"], dokime_runtime::Value::Number(7.0));
     }
     drop(records);
-    drop(runtime);
-    owner.shutdown().await.unwrap();
 }

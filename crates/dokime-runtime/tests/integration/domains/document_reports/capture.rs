@@ -44,8 +44,7 @@ use model::execution::notes::NoteOwner;
 
 /* === Tests === */
 // operator notes are editable by their author until the seal freezes them.
-#[tokio::test]
-async fn notes_until_seal() {
+pub(super) async fn notes_until_seal() {
     let root = tempfile::tempdir().unwrap();
     let (mut owner, handle, id, _executor) = blocked_cycle(root.path()).await;
     let running = wait_for_cycle_lifecycle(&handle, &id, CycleStatus::Running).await;
@@ -141,8 +140,7 @@ async fn notes_until_seal() {
 
 // an undeclared record type that reaches finalization settles the run, naming it.
 #[cfg(feature = "fault-injection")]
-#[tokio::test]
-async fn undeclared_records_settle() {
+pub(super) async fn undeclared_records_settle() {
     const UNDECLARED: &str = "operator.note_deleted";
     let root = tempfile::tempdir().unwrap();
     let (mut owner, handle, id, _executor) = blocked_cycle(root.path()).await;

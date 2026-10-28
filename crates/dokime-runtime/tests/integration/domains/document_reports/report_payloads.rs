@@ -580,8 +580,7 @@ fn document_section_node(section_identifier: &str, section_label: &str, cards: &
 
 /* === Tests === */
 
-#[tokio::test]
-async fn rendered_html_data() {
+pub(super) async fn rendered_html_data() {
     let input = fixture_input("<script>alert('x')</script>");
     let html = render(&input).await;
 
@@ -599,8 +598,7 @@ async fn rendered_html_data() {
     assert_eq!(payload["test_executions"].as_array().unwrap().len(), 1);
 }
 
-#[tokio::test]
-async fn rendered_html_payload() {
+pub(super) async fn rendered_html_payload() {
     let mut input = fixture_input("Safe Cycle");
     let test_cycle_id = input.cycle.test_cycle_id.clone();
     let document = fixture_document(input.cycle.test_cycle_id.clone());
@@ -643,8 +641,7 @@ async fn rendered_html_payload() {
     assert_eq!(payload["plots"]["cycle.telemetry"]["series"][0]["raw_points"], 1);
 }
 
-#[tokio::test]
-async fn materialized_report_axis() {
+pub(super) async fn materialized_report_axis() {
     let mut input = fixture_input("Elapsed Cycle");
     let document = fixture_document(input.cycle.test_cycle_id.clone());
     insert_report_document(&mut input, "default", document);
@@ -663,8 +660,7 @@ async fn materialized_report_axis() {
 
 // rendered cycle payload keeps cycle document plots out of case runs.
 
-#[tokio::test]
-async fn rendered_cycle_out() {
+pub(super) async fn rendered_cycle_out() {
     let mut input = fixture_input("WiFi Cycle");
     let document = fixture_wifi_document(input.cycle.test_cycle_id.clone());
     insert_report_document(&mut input, "default", document);
@@ -682,8 +678,7 @@ async fn rendered_cycle_out() {
     assert!(case_run["plots"]["wifi.channel_occupancy"].is_null());
 }
 
-#[tokio::test]
-async fn execution_template_cases() {
+pub(super) async fn execution_template_cases() {
     let mut input = fixture_input("Frozen Execution");
     let case = input.cycle.cases().next().unwrap().clone();
     let id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
@@ -730,8 +725,7 @@ async fn execution_template_cases() {
     }
 }
 
-#[tokio::test]
-async fn rendered_case_plots() {
+pub(super) async fn rendered_case_plots() {
     let mut input = fixture_input("Tracking Cycle");
     let case_id = input.cycle.cases().next().unwrap().test_case_id.clone();
     let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
@@ -787,8 +781,7 @@ async fn rendered_case_plots() {
 
 // rendered case payload embeds every evidence card of the one case document.
 
-#[tokio::test]
-async fn rendered_case_one() {
+pub(super) async fn rendered_case_one() {
     let mut input = fixture_input("Evidence Cycle");
     let case_id = input.cycle.cases().next().unwrap().test_case_id.clone();
     let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
@@ -828,8 +821,7 @@ async fn rendered_case_one() {
 
 // rendered report bounds telemetry without truncating the interval.
 
-#[tokio::test]
-async fn rendered_report_interval() {
+pub(super) async fn rendered_report_interval() {
     let mut input = fixture_input("Long Telemetry Cycle");
     let stream = Identifier::new("synthetic.samples").unwrap();
     input.telemetry = (0..2_501)
@@ -861,8 +853,7 @@ async fn rendered_report_interval() {
     assert_eq!(samples.last().unwrap()["sample_index"], 2_500);
 }
 
-#[tokio::test]
-async fn rendered_html_groups() {
+pub(super) async fn rendered_html_groups() {
     let mut input = fixture_input("Traceability Cycle");
     let case = input.cycle.cases().next().unwrap().clone();
     let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
@@ -931,8 +922,7 @@ async fn rendered_html_groups() {
     assert!(!group_titles.contains(&"Cycle"));
 }
 
-#[tokio::test]
-async fn stated_section_wrote() {
+pub(super) async fn stated_section_wrote() {
     let mut input = fixture_input("Stated Cycle");
     let case = input.cycle.cases().next().unwrap().clone();
     let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
@@ -980,8 +970,7 @@ async fn stated_section_wrote() {
 
 // rendered report shows why and where a failure happened but never its frames.
 
-#[tokio::test]
-async fn rendered_report_happened() {
+pub(super) async fn rendered_report_happened() {
     let mut input = fixture_input("Failed Cycle");
     input.records = vec![model::records::evidence::RecordEntry::from_record(
         1,
@@ -1032,8 +1021,7 @@ async fn rendered_report_happened() {
     );
 }
 
-#[tokio::test]
-async fn failed_step_frames() {
+pub(super) async fn failed_step_frames() {
     let mut input = fixture_input("Failed Step Cycle");
     let case_id = input.cycle.cases().next().unwrap().test_case_id.clone();
     let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
@@ -1082,8 +1070,7 @@ async fn failed_step_frames() {
     assert!(!html.contains("thermo_bench::suites::soak::hold"));
 }
 
-#[tokio::test]
-async fn normalised_report_rows() {
+pub(super) async fn normalised_report_rows() {
     use dokime_runtime::report::ReportArtifactLink;
     use model::execution::{HealthItem, HealthSeverity, OperatorNote};
 
@@ -1173,20 +1160,17 @@ async fn normalised_report_rows() {
 // member is captured after a cycle health item is observed again and the
 // second before, so only the latest observation, not member order, keeps the
 // newer row; a cycle note both members hold appears once.
-#[tokio::test]
-async fn latest_member_annotations() {
+pub(super) async fn latest_member_annotations(runtime: &RuntimeHandle) {
     use dokime_domain::model::identity::CommandId;
     use dokime_runtime::domains::evidence::notes::CreateNote;
     use model::execution::notes::NoteOwner;
     use model::execution::{HealthItem, HealthSeverity};
 
-    let root = tempdir().unwrap();
-    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed", "passed"]);
-    register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite).await;
+    register_custom_suite(runtime, suite.clone()).await;
+    let cycle_id = start_cycle(runtime, suite).await;
     let members =
-        cycle_snapshot(&runtime, &cycle_id).await.test_executions.iter().map(|member| member.test_execution_id.clone()).collect::<Vec<_>>();
+        cycle_snapshot(runtime, &cycle_id).await.test_executions.iter().map(|member| member.test_execution_id.clone()).collect::<Vec<_>>();
     let note = runtime
         .create_current_note(CreateNote {
             epoch: runtime.process_epoch(),
@@ -1214,8 +1198,8 @@ async fn latest_member_annotations() {
             .start_execution(member.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default())
             .await;
         assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
-        let checkpoint = crate::service_support::native::checkpoint(&runtime, member).await;
-        let view = crate::service_support::native::open(&runtime, &checkpoint).await;
+        let checkpoint = crate::service_support::native::checkpoint(runtime, member).await;
+        let view = crate::service_support::native::open(runtime, &checkpoint).await;
         assert!(view.execution().saved.is_some(), "{member} is sealed");
         let captured = view.snapshot().await.unwrap();
         captured
@@ -1246,21 +1230,16 @@ async fn latest_member_annotations() {
         1,
         "a repeated cycle note appears once: {notes:?}"
     );
-    drop(runtime);
-    owner.shutdown().await.unwrap();
 }
 
 // A current cycle report lists every planned member in cycle order; a sealed one
 // lists the members sealing cancelled.
-#[tokio::test]
-async fn cycle_report_planned() {
-    let root = tempdir().unwrap();
-    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+pub(super) async fn cycle_report_planned(runtime: &RuntimeHandle) {
     let suite = fixture_suite(&["passed", "passed", "passed"]);
-    register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite).await;
+    register_custom_suite(runtime, suite.clone()).await;
+    let cycle_id = start_cycle(runtime, suite).await;
     runtime.update_cycle_policy(cycle_id.clone(), false, CommandContext::default()).await.unwrap();
-    let members = cycle_snapshot(&runtime, &cycle_id).await.test_executions;
+    let members = cycle_snapshot(runtime, &cycle_id).await.test_executions;
     let receipt = runtime
         .start_execution(
             members[0].test_execution_id.clone(),
@@ -1269,7 +1248,7 @@ async fn cycle_report_planned() {
         )
         .await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
-    crate::service_support::native::checkpoint(&runtime, &members[0].test_execution_id).await;
+    crate::service_support::native::checkpoint(runtime, &members[0].test_execution_id).await;
 
     let mut report = runtime.open_cycle_report(&cycle_id).await.unwrap();
     assert_eq!(report.origin, dokime_runtime::ReportOrigin::Current);
@@ -1297,19 +1276,16 @@ async fn cycle_report_planned() {
     assert_eq!(payload["case_runs"].as_array().unwrap().len(), 1);
 
     runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
-    let sealed = cycle_snapshot(&runtime, &cycle_id).await;
+    let sealed = cycle_snapshot(runtime, &cycle_id).await;
     let payload = crate::service_support::reports::payload(runtime.storage(), &sealed.saved.as_ref().unwrap().report).await;
     let executions = payload["test_executions"].as_array().unwrap();
     assert_eq!(executions.iter().map(|row| row["status"].as_str().unwrap()).collect::<Vec<_>>(), ["passed", "stopped", "stopped"]);
     assert_eq!(executions.iter().map(|row| row["attempt_index"].as_u64().unwrap()).collect::<Vec<_>>(), [0, 1, 2]);
     assert_eq!(payload["test_cycle_plan"]["cases"].as_array().unwrap().len(), 3);
-    drop(runtime);
-    owner.shutdown().await.unwrap();
 }
 
 // A report template carries its parameter definitions, so parameters read by label and unit.
-#[tokio::test]
-async fn template_parameter_units() {
+pub(super) async fn template_parameter_units() {
     use dokime_domain::model::values::{MeasurementUnit, UnitFamily, ValueType};
     let mut input = fixture_input("Parameter Units");
     let mut suite = fixture_suite(&["passed"]);
@@ -1354,8 +1330,7 @@ async fn template_parameter_units() {
 }
 
 // Criteria order by their step first, as the live execution numbers them.
-#[tokio::test]
-async fn criterion_step_order() {
+pub(super) async fn criterion_step_order() {
     use dokime_domain::model::execution::result::{CriterionResult, CriterionStatus, StepRecord, StepStatus};
     let mut input = fixture_input("Criterion Order");
     let step = |identifier: &str| StepRecord {
@@ -1388,8 +1363,7 @@ async fn criterion_step_order() {
     assert_eq!(orders("criterion"), [("first.criterion".into(), 0.into()), ("second.criterion".into(), 100.into())]);
 }
 
-#[tokio::test]
-async fn telemetry_index_endpoints() {
+pub(super) async fn telemetry_index_endpoints() {
     use dokime_runtime::telemetry::TelemetrySample;
 
     let mut input = fixture_input("Telemetry Ties");

@@ -47,10 +47,7 @@ type JournalRecords = dokime_runtime::runtime::RecordSubscription;
 
 /* === Private Functions === */
 
-#[tokio::test]
-async fn evidence_write_revision() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = started(wifi_config(root.path())).await;
+pub(super) async fn evidence_write_revision(runtime: &RuntimeHandle) {
     let revision = || async { runtime.runtime_overview().await.expect("runtime overview query succeeds").revision };
     let before = revision().await;
 
@@ -83,17 +80,14 @@ async fn evidence_write_revision() {
     assert_eq!(calibrations.len(), 1);
     assert!(calibrations[0].sequence > 0);
     assert_eq!(calibrations[0].schema_version, 2);
-    assert_eq!(evidence.notes.len(), 1);
-    assert_eq!(evidence.notes[0].message, "Observed setup.");
-    assert_eq!(evidence.health.len(), 1);
-    assert_eq!(evidence.health[0].message, "Runtime warning.");
-    assert_eq!(evidence.health[0].detail.as_deref(), Some("fixture detail"));
+    let observed = evidence.notes.iter().filter(|note| note.message == "Observed setup.").count();
+    assert_eq!(observed, 1);
+    let warnings = evidence.health.iter().filter(|item| item.message == "Runtime warning.").collect::<Vec<_>>();
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(warnings[0].detail.as_deref(), Some("fixture detail"));
 }
 
-#[tokio::test]
-async fn subscriptions_deliver_selection() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = started(wifi_config(root.path())).await;
+pub(super) async fn subscriptions_deliver_selection(runtime: &RuntimeHandle) {
     let mut prefixed = runtime.subscribe_records();
     let mut open = runtime.subscribe_records();
     let mut pinned = runtime.subscribe_records();
@@ -137,8 +131,7 @@ async fn subscriptions_deliver_selection() {
     assert_eq!(record.record_type.as_str(), "calibration.field.completed");
 }
 
-#[tokio::test]
-async fn telemetry_batches_sample() {
+pub(super) async fn telemetry_batches_sample() {
     for count in [2, 104, 600, 5_000] {
         let root = tempdir().unwrap();
         let (_owner, runtime) = started(wifi_config(root.path())).await;
@@ -183,10 +176,7 @@ async fn telemetry_batches_sample() {
     assert_eq!(evidence.counts().telemetry, 5_000);
 }
 
-#[tokio::test]
-async fn record_history_ranges() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = started(wifi_config(root.path())).await;
+pub(super) async fn record_history_ranges(runtime: &RuntimeHandle) {
 
     runtime.publish_product_record(product_calibration(ProductCalibrationPhase::Started)).await.unwrap();
     for index in 0..520 {
@@ -201,10 +191,7 @@ async fn record_history_ranges() {
     assert!(records.iter().any(|record| { record.record_type.as_str() == "calibration.field.completed" && record.sequence > 512 }));
 }
 
-#[tokio::test]
-async fn publish_record_warning() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = started(wifi_config(root.path())).await;
+pub(super) async fn publish_record_warning(runtime: &RuntimeHandle) {
     let result = runtime.publish_record(invalid_product_record("calibration.field.completed", "done")).await;
     let evidence = runtime.evidence_snapshot().await.unwrap();
 
@@ -220,10 +207,7 @@ async fn publish_record_warning() {
 
 // telemetry rejects unknown execution without partial publication.
 
-#[tokio::test]
-async fn telemetry_refuses_partial() {
-    let root = tempdir().unwrap();
-    let (_owner, runtime) = started(wifi_config(root.path())).await;
+pub(super) async fn telemetry_refuses_partial(runtime: &RuntimeHandle) {
     let mut batch = samples(WIFI, 2, None);
     batch.samples[1].scope = Some(RecordScope::default().with_test_execution(dokime_runtime::model::identity::new_id::<TestExecutionId>()));
 
