@@ -461,6 +461,10 @@ impl ReportFile {
         }
         let batch_bytes = usize::try_from(manager.info()?.file_batch_bytes)
             .map_err(|_| Error::InvalidReportInputs("file batch size overflows".into()))?;
+        // Concurrent File Producers Share The Configured Pending Write Budget.
+        let request = &manager.settings().request;
+        let per_file = (request.max_pending_write_bytes.get() / request.max_active_file_operations.get()).max(1);
+        let batch_bytes = batch_bytes.min(per_file);
         if self.producer.is_none() {
             self.producer = Some(manager.create_file(self.data.metadata.clone()).await?);
         }

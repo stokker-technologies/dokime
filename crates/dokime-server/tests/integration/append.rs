@@ -208,8 +208,22 @@ async fn append_cases_preserve_ordinals() {
 
 #[tokio::test]
 async fn explicit_append_retries() {
+    explicit_append_scenario(None).await;
+}
+
+#[tokio::test]
+async fn explicit_append_small_write_budget() {
+    explicit_append_scenario(std::num::NonZeroUsize::new(256 * 1024)).await;
+}
+
+async fn explicit_append_scenario(budget: Option<std::num::NonZeroUsize>) {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let metadata = Metadata::new(Identifier::new("grpc.fixture").unwrap(), "gRPC fixture", None);
+    let mut config = support::budgets::runtime_config(root.path(), metadata);
+    if let Some(budget) = budget {
+        config.storage.request.max_pending_write_bytes = budget;
+    }
+    let mut owner = Runtime::start(config).await.unwrap();
     let suite = support::fixture_suite(&["passed"]);
     let handle = owner.handle();
     support::register_fixture_execution(&handle, suite.clone()).await;
