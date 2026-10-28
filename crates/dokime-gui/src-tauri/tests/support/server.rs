@@ -57,13 +57,9 @@ impl Fixture {
         // Runtime With A Calibration Record
         let root = tempfile::tempdir().unwrap();
         let artifacts = Arc::new(artifact::Provider::default());
-        let runtime = Runtime::with_execution_fixture(
-            RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("rpc.fixture").unwrap(), "RPC fixture", None)),
-            "fixture",
-            artifacts.clone(),
-        )
-        .await
-        .unwrap();
+        let mut config = RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("rpc.fixture").unwrap(), "RPC fixture", None));
+        config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();
+        let runtime = Runtime::with_execution_fixture(config, "fixture", artifacts.clone()).await.unwrap();
         let calibration = model::records::product::ProductCalibrationDetails::new(
             "rpc-device",
             model::records::product::ProductCalibrationKind::Field,
