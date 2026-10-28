@@ -17,7 +17,6 @@
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
-use std::time::Duration;
 
 // Third Party Imports
 use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
@@ -67,6 +66,12 @@ pub struct Signal<T>(pub ExecutionSignal, PhantomData<fn() -> T>);
 // The resource the generic template pair reads; see `EmbeddedRegistry`.
 #[derive(Clone)]
 pub struct EmbeddedTemplates(pub Arc<dyn EmbeddedRegistry>);
+
+struct InputAdmission {
+    executions: crate::transport::buffer::Executions,
+    token: String,
+    changed: Arc<tokio::sync::Notify>,
+}
 
 /* === Enums === */
 
@@ -122,6 +127,16 @@ pub trait Runnable: Send + Sync + 'static {
 }
 
 /* === Implementations === */
+
+impl Drop for InputAdmission {
+    fn drop(&mut self) {
+        if let Some(state) = lock(&self.executions).get_mut(&self.token)
+            && Arc::ptr_eq(&state.changed, &self.changed)
+        {
+            state.settle_operation();
+        }
+    }
+}
 
 // The host's embedded runner serves the generic template identities.
 impl Served for () {
@@ -248,6 +263,11 @@ impl<T: SidecarTemplate> Workflow<T> {
             .get(&token)
             .map(|state| Arc::clone(&state.changed))
             .ok_or_else(|| Refusal::of("the started execution is not retained"))?;
+        let _admission = InputAdmission {
+            executions: Arc::clone(&self.executions),
+            token: token.clone(),
+            changed: Arc::clone(&changed),
+        };
         let mut cursor = 0;
         let mut settling = false;
         let mut asked = BTreeSet::new();
@@ -266,7 +286,8 @@ impl<T: SidecarTemplate> Workflow<T> {
                 let settled = batch.cleanup_settled;
                 let prompts = batch.prompt_requests.clone();
                 let leases = batch.lease_requests.clone();
-                let receipt = push(host.as_ref(), batch).await?;
+                let receipt =
+                    host.push(batch).await.map_err(|reason| Refusal::of(format!("the host did not admit the run's evidence: {reason}")))?;
                 cursor = next;
                 settling |= settle;
                 for admission in &receipt.admitted {
@@ -476,28 +497,6 @@ fn registry() -> &'static Mutex<Vec<Arc<dyn Runnable>>> {
     SERVED.get_or_init(Mutex::default)
 }
 
-async fn push(host: &dyn ExecutionHost, batch: EvidenceBatch) -> Result<EvidenceReceipt, Refusal> {
-    let mut failure = String::new();
-    for attempt in 0..5 {
-        match host.push(batch.clone()).await {
-            Ok(receipt) => return Ok(receipt),
-            Err(reason) => failure = reason,
-        }
-        if attempt + 1 < 5 {
-            let shift = u32::try_from(attempt).map_err(|_| Refusal::of("evidence retry delay exceeds the native clock range"))?;
-            let delay = 1_u64
-                .checked_shl(shift)
-                .and_then(|factor| 100_u64.checked_mul(factor))
-                .ok_or_else(|| Refusal::of("evidence retry delay exceeds the native clock range"))?;
-            let deadline = tokio::time::Instant::now()
-                .checked_add(Duration::from_millis(delay))
-                .ok_or_else(|| Refusal::of("evidence retry deadline exceeds the native clock range"))?;
-            tokio::time::sleep_until(deadline).await;
-        }
-    }
-    Err(Refusal::of(format!("the host did not admit the run's evidence: {failure}")))
-}
-
 fn ask(host: &Arc<dyn ExecutionHost>, waiting: &mut tokio::task::JoinSet<Answered>, asked: &mut BTreeSet<String>, prompt_json: String) {
     let Ok(request) = serde_json::from_str::<crate::prompts::PromptRequest>(&prompt_json) else {
         tracing::warn!("a raised prompt could not be read back");
@@ -550,6 +549,40 @@ mod tests {
     use dokime_domain::model::execution::EvidenceOrigin;
     use dokime_domain::model::execution::RecordScope;
     use dokime_domain::model::identity::TestExecutionId;
+
+    #[tokio::test(start_paused = true)]
+    async fn receipt_admission_closes_at_operation_policy_expiry() {
+        use crate::transport::buffer::{ExecutionState, lock};
+        use harmos::operations::OperationDeclaration;
+        use std::sync::{Arc, Mutex};
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let state = ExecutionState::new(Default::default(), cancel);
+        let changed = Arc::clone(&state.changed);
+        let executions = Arc::new(Mutex::new(std::collections::BTreeMap::from([("fixture".into(), state)])));
+        let admission = super::InputAdmission {
+            executions: Arc::clone(&executions),
+            token: "fixture".into(),
+            changed,
+        };
+        let policy = crate::transport::EvidenceBatch::POLICY.timeout;
+        let operation = tokio::spawn(async move {
+            tokio::time::timeout(policy, async move {
+                let _admission = admission;
+                std::future::pending::<()>().await;
+            })
+            .await
+        });
+        tokio::task::yield_now().await;
+        tokio::time::advance(policy / 2).await;
+        assert!(lock(&executions)["fixture"].samples_open());
+        tokio::time::advance(policy - policy / 2).await;
+        assert!(operation.await.unwrap().is_err());
+        let states = lock(&executions);
+        let state = &states["fixture"];
+        assert!(state.record_inputs_closed());
+        assert!(!state.samples_open());
+        assert!(state.cancelled());
+    }
 
     #[test]
     fn delivery_preserves_producer_origin_for_its_execution() {

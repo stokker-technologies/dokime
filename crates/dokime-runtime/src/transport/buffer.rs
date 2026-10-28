@@ -81,6 +81,7 @@ pub(crate) struct ExecutionState {
     sample_streams: BTreeMap<String, SampleStream>,
     confirmed_samples: usize,
     samples_closed: bool,
+    operation_settled: bool,
     local_samples: Vec<crate::telemetry::TelemetrySample>,
     // How many of the held local samples a wait has already reported.
     local_samples_announced: usize,
@@ -230,6 +231,7 @@ impl ExecutionState {
             sample_streams: BTreeMap::new(),
             confirmed_samples: 0,
             samples_closed: false,
+            operation_settled: false,
             local_samples: Vec::new(),
             local_samples_announced: 0,
             produced: BTreeMap::new(),
@@ -370,7 +372,16 @@ impl ExecutionState {
     }
 
     pub(crate) fn record_inputs_closed(&self) -> bool {
-        self.terminal
+        self.terminal || self.operation_settled || self.subscriptions_settled
+    }
+
+    pub(crate) fn settle_operation(&mut self) {
+        self.operation_settled = true;
+        self.samples_closed = true;
+        if !self.terminal {
+            self.cancel();
+        }
+        self.settled.notify_waiters();
     }
 
     pub(crate) fn settlement_progress(&self) -> usize {
@@ -381,6 +392,7 @@ impl ExecutionState {
         if self.subscriptions_settling {
             self.subscriptions_settled = true;
             self.subscriptions_settling = false;
+            self.samples_closed = true;
             self.settled.notify_waiters();
         }
     }
@@ -401,8 +413,7 @@ impl ExecutionState {
                 .as_ref()
                 .and_then(|scope| scope.test_execution_id.as_ref())
                 .is_some_and(|execution| execution.as_str() == self.request.test_execution_id);
-        if self.terminal
-            || self.subscriptions_settled
+        if self.record_inputs_closed()
             || (capture.is_none() && !self.subscriptions.contains(&record.record_type))
             || (own && capture.is_none())
         {

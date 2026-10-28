@@ -1779,9 +1779,9 @@ async fn capture_declared_scope() {
 }
 
 #[tokio::test]
-async fn settlement_record_progress() {
+async fn settlement_late_receipt() {
     let workflow = workflow();
-    let token = "record-progress";
+    let token = "late-receipt";
     let rows =
         Arc::new(PublishedExecutionRows(std::sync::Mutex::new(Vec::new()), workflow.clone(), std::sync::Mutex::new(captured(execution()))));
     workflow
@@ -1797,56 +1797,20 @@ async fn settlement_record_progress() {
         }
     }
 
-    // Observers Have Joined Before This Clock Is Paused. An accepted record
-    // extends settlement beyond the original idle window.
+    // Observers Have Joined Before Pausing The Clock; Only The Operation Policy Bounds Admission.
+    use harmos::operations::OperationDeclaration;
+    let policy = EvidenceBatch::POLICY.timeout;
+    let receipt_delay = policy / 2;
+    assert!(receipt_delay > Duration::from_secs(1));
     tokio::time::pause();
-    tokio::time::advance(Duration::from_secs(20)).await;
+    tokio::time::advance(receipt_delay).await;
     let record = admitted("probe.unit.connected", "gateway", "SN-progress");
     assert_eq!(workflow.deliver_captured(1, &record, SOURCE, &[captured(execution())]), 1);
-    tokio::time::advance(Duration::from_millis(10)).await;
-    tokio::time::advance(Duration::from_secs(20)).await;
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    assert_eq!(workflow.deliver_captured(1, &record, SOURCE, &[captured(execution())]), 0, "late redelivery stays deduplicated");
     workflow.settle_records(token);
     let replies = drain_until_terminal(&workflow, token, None).await;
     tokio::time::resume();
-    assert!(outcome(&replies).0.passed, "accepted records keep settlement alive: {:?}", outcome(&replies).0);
-    workflow.shutdown().await;
-}
-
-#[tokio::test]
-async fn settlement_duplicate_idle() {
-    let workflow = workflow();
-    let token = "duplicate-idle";
-    let rows =
-        Arc::new(PublishedExecutionRows(std::sync::Mutex::new(Vec::new()), workflow.clone(), std::sync::Mutex::new(captured(execution()))));
-    workflow
-        .start_on(start_request(token, serde_json::json!({"samples": 0})), Some(SampleOutput::Embedded(rows)), Caller::default())
-        .unwrap();
-    let mut cursor = 0;
-    loop {
-        let reply = next(&workflow, token, cursor).await;
-        cursor = reply.cursor;
-        assert!(reply.outcome.is_none());
-        if reply.record_subscriptions_settling {
-            break;
-        }
-    }
-
-    tokio::time::pause();
-    let record = admitted("probe.unit.connected", "gateway", "SN-duplicate");
-    assert_eq!(workflow.deliver_captured(1, &record, SOURCE, &[captured(execution())]), 1);
-    tokio::time::sleep(Duration::from_millis(10)).await;
-    tokio::time::advance(Duration::from_secs(20)).await;
-    assert_eq!(workflow.deliver_captured(1, &record, SOURCE, &[captured(execution())]), 0);
-    tokio::time::advance(Duration::from_secs(20)).await;
-    // Advancing Only Expires The Settlement Poll; Let It Observe The Deadline
-    // Before Draining, Or The Drain's Own Settle Can Win The Race.
-    tokio::time::sleep(Duration::from_millis(10)).await;
-    let replies = drain_until_terminal(&workflow, token, None).await;
-    tokio::time::resume();
-    let terminal = outcome(&replies).0;
-    assert!(!terminal.passed);
-    assert!(terminal.message.as_deref().unwrap_or_default().contains("host did not settle execution inputs before the deadline"));
+    assert!(outcome(&replies).0.passed, "the delayed receipt settles admitted records: {:?}", outcome(&replies).0);
     workflow.shutdown().await;
 }
 
