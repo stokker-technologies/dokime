@@ -52,6 +52,14 @@ use {
 /* === Public Functions === */
 
 /* === Private Functions === */
+// A Host-Routed Watch Carries A Ticket In Its Call Context; Its Readiness Request Repeats It.
+fn ticketed(bench: &Bench) -> (harmos::operations::OperationManager<dokime_runtime::app::Lanes>, u64) {
+    let ticket = dokime_runtime::execution::WatchTicket::issue();
+    let mut context = harmos::operations::CallContext::default();
+    context.insert_portable(ticket.clone()).unwrap();
+    (bench.handle.operations().with_context(context), ticket.ticket)
+}
+
 fn gaps(events: &[WatchEvent]) -> Vec<(String, u64, GapReason)> {
     events
         .iter()
@@ -110,13 +118,13 @@ async fn failed_initial_admission_never_reports_armed() {
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let instance = bench.handle.operations().submit::<WatchFile>(single).unwrap();
-    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: instance.id().value() };
+    let (operations, ticket) = ticketed(&bench);
+    let instance = operations.submit::<WatchFile>(single).unwrap();
+    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
     assert!(instance.join().await.is_err());
-    assert!(
-        bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready).await.is_err(),
-        "failed hosted setup cannot report readiness success"
-    );
+    let readiness = bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready).await;
+    let failure = readiness.expect_err("failed hosted setup cannot report readiness success").to_string();
+    assert!(!failure.contains("was not registered"), "the ticket names this watch's readiness: {failure}");
     bench.stop().await;
 }
 
@@ -449,8 +457,9 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let watch = bench.handle.operations().submit::<WatchFile>(request).unwrap();
-    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() };
+    let (operations, ticket) = ticketed(&bench);
+    let watch = operations.submit::<WatchFile>(request).unwrap();
+    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
     watch.cancel();
     assert!(watch.join().await.is_err());
     let result = tokio::time::timeout(
@@ -458,7 +467,8 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
         bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready),
     )
     .await;
-    assert!(result.expect("readiness settles after cancellation").is_err());
+    let failure = result.expect("readiness settles after cancellation").expect_err("a cancelled watch is never armed").to_string();
+    assert!(!failure.contains("was not registered"), "the ticket names this watch's readiness: {failure}");
     bench.stop().await;
 }
 // Stream captures only bytes written after the start, follows rotation and
@@ -795,11 +805,8 @@ async fn watch_file_matchers() {
         }],
         markers: vec![LineMarker::new(r"WARN (?P<warning_code>\w+)", "tracking.fixture_warning")],
     };
-    // The Caller Names The Watch With One Ticket In Its Call Context And Its Readiness Request.
-    let ticket = 1;
-    let mut context = harmos::operations::CallContext::default();
-    context.insert_portable(dokime_runtime::domains::files::WatchTicket { ticket }).unwrap();
-    let watch = bench.handle.operations().with_context(context).submit::<WatchFile>(request).unwrap();
+    let (operations, ticket) = ticketed(&bench);
+    let watch = operations.submit::<WatchFile>(request).unwrap();
 
     // Lines Written After The Start Are Captured And Matched
     bench

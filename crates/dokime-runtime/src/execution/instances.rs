@@ -115,7 +115,8 @@ pub(crate) struct LocalRun {
 /* === Enums === */
 
 enum Readiness {
-    Host(Supervisor),
+    // A Host-Routed Watch Is Found By The Ticket It Was Submitted With.
+    Host(Supervisor, Option<u64>),
     Local(watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>),
 }
 
@@ -220,10 +221,10 @@ impl LocalRun {
 }
 
 impl<O: OperationDeclaration> StepInstance<O> {
-    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8], host: Supervisor) -> Self {
+    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8], host: Supervisor, ticket: Option<u64>) -> Self {
         let id = instance.id();
         let mut handle = Self::tracked(handles, id, Running::Host(instance), request);
-        handle.readiness = Some(Readiness::Host(host));
+        handle.readiness = Some(Readiness::Host(host, ticket));
         handle
     }
 
@@ -309,10 +310,11 @@ impl<O: OperationDeclaration> StepInstance<O> {
 impl StepInstance<WatchFile> {
     pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, CallError> {
         match self.readiness.as_ref() {
-            Some(Readiness::Host(host)) => {
+            Some(Readiness::Host(_, None)) => Err(refused("file watch was submitted without a readiness ticket")),
+            Some(Readiness::Host(host, Some(ticket))) => {
                 let response = host
                     .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed {
-                        instance_id: self.id.value(),
+                        instance_id: *ticket,
                     })
                     .await?;
                 Ok(response.into_owned())

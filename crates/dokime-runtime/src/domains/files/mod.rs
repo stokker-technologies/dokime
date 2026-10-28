@@ -27,7 +27,7 @@ pub use dokime_domain::model::files::wire::FileWatchGapReason as GapReason;
 pub use dokime_domain::model::files::wire::FileWatchPhase as Phase;
 pub use dokime_domain::model::files::wire::FileWatchPolicy as Policy;
 pub use dokime_domain::model::files::wire::FileWatchSelection as Selection;
-pub use operation::{Resources as StepBuiltins, WatchTicket, register};
+pub use operation::{Resources as StepBuiltins, register};
 pub use watch::{FileWatch, WatchEvent};
 
 /* === Imports === */

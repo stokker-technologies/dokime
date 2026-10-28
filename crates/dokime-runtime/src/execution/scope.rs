@@ -43,6 +43,15 @@ pub struct ExecutionScope {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IdempotencyKey(String);
 
+// Names A Host-Routed `WatchFile` Call So `AwaitFileWatchArmed` Can Find Its Readiness: The
+// Caller Sends The Same Ticket In Both, Because A Served Operation Cannot Read Its Instance Id.
+#[harmos::message]
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct WatchTicket {
+    #[row(description = "The caller's ticket naming this watch for AwaitFileWatchArmed.")]
+    pub ticket: u64,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -51,6 +60,19 @@ pub struct IdempotencyKey(String);
 
 impl harmos::operations::ContextValue for ExecutionScope {
     const KEY: &'static str = "dokime.execution.scope";
+}
+
+impl harmos::operations::ContextValue for WatchTicket {
+    const KEY: &'static str = "dokime.files.watch_ticket";
+}
+
+impl WatchTicket {
+    // Random Bits Keep Tickets From Different Sidecars Apart In The Host's One Readiness Table.
+    pub fn issue() -> Self {
+        Self {
+            ticket: uuid::Uuid::now_v7().as_u64_pair().1,
+        }
+    }
 }
 
 impl ExecutionScope {

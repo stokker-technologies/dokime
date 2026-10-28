@@ -93,7 +93,7 @@ pub use calls::{Answering, Caller, StepHost};
 
 #[cfg(feature = "native")]
 pub use instances::{ExecutionIdentity, StepIdentity, StepInstance};
-pub use scope::{ExecutionScope, IdempotencyKey};
+pub use scope::{ExecutionScope, IdempotencyKey, WatchTicket};
 
 #[cfg(feature = "native")]
 pub use serving::{

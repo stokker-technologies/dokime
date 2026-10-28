@@ -154,9 +154,14 @@ impl Host for StepHost {
         match &self.caller.0 {
             Road::Unmounted => Err(CallError::Unavailable),
             Road::Host(host) => {
-                let instance = routed(host, &self.stage, O::ID).map_err(refusal)?.submit::<O>(request).await?;
                 let readiness_host = routed(host, &self.stage, O::ID).map_err(refusal)?;
-                Ok(StepInstance::host(handles, instance, &encoded, readiness_host))
+                let ticket = (O::ID == <dokime_operations::files::WatchFile as OperationDeclaration>::ID).then(super::WatchTicket::issue);
+                let submitting = match &ticket {
+                    Some(ticket) => readiness_host.with_value(ticket.clone()).map_err(refusal)?,
+                    None => readiness_host.clone(),
+                };
+                let instance = submitting.submit::<O>(request).await?;
+                Ok(StepInstance::host(handles, instance, &encoded, readiness_host, ticket.map(|ticket| ticket.ticket)))
             }
             Road::Local(operations) => {
                 let answer =

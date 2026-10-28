@@ -70,29 +70,16 @@ struct Watching {
     ticket: Option<u64>,
 }
 
-// Names a `WatchFile` call so `AwaitFileWatchArmed` can find its readiness; the
-// caller sends the same ticket in both. An authored operation cannot read its own instance id.
-#[harmos::message]
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct WatchTicket {
-    #[row(description = "The caller's ticket naming this watch for AwaitFileWatchArmed.")]
-    pub ticket: u64,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl harmos::operations::ContextValue for WatchTicket {
-    const KEY: &'static str = "dokime.files.watch_ticket";
-}
-
 impl Watching {
     fn register(resources: &Arc<Resources>, ctx: &Context<'_, WatchFile>) -> Result<Self, Error> {
         let execution = execution_of(ctx.call());
-        let ticket = ctx.call().value::<WatchTicket>().ok().flatten().map(|ticket| ticket.ticket);
+        let ticket = ctx.call().value::<crate::execution::WatchTicket>().ok().flatten().map(|ticket| ticket.ticket);
         let (ready, _) = tokio::sync::watch::channel(None);
         if let Some(ticket) = ticket {
             let mut entries = resources.readiness.lock().expect("watch readiness lock is healthy");
