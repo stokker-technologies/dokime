@@ -309,6 +309,21 @@ fn installs_large_bundle() {
     runtime.block_on(fixture.close());
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_client_installs_large_bundle() {
+    use dokime::client::{Client, Target};
+
+    let fixture = Fixture::new().await;
+    let client = Client::connect(Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
+    let bytes = large_bundle(70 * 1024 * 1024);
+    let sha256 = dokime::client::plugin_bundle_digest(&bytes);
+    let installed = client.plugins_install_bundle(bytes, sha256.clone(), |_, _| {}).await.unwrap();
+    assert_eq!(installed.sha256, sha256);
+    assert!(matches!(installed.state, model::plugins::wire::PluginInstallationState::Installed));
+    client.close();
+    fixture.close().await;
+}
+
 #[test]
 fn refuses_foreign_bundle() {
     let target = if cfg!(windows) { "x86_64-unknown-linux-gnu" } else { "x86_64-pc-windows-msvc" };
