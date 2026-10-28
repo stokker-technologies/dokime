@@ -3835,12 +3835,14 @@ async function ownedStartupJourney() {
   session = await startSession(work, undefined, evidence);
   await session.connected();
   await session.goto(`/history/${runningCycle.id}`);
+  /* The saved cycle lists its executions in one table; the stopped one is cancelled, never interrupted. */
   await until("cancelled owned execution survives restart", async () =>
     session.execute(
       `
-    const row = [...document.querySelectorAll('section')].find((node) =>
-      node.querySelector('h2')?.textContent.startsWith(arguments[0]));
-    return row?.innerText.includes('cancelled') && !row.innerText.toLowerCase().includes('interrupted');
+    const table = document.querySelector('[aria-label="History Executions"]');
+    const row = table && [...table.querySelectorAll('tbody tr')].find((node) => node.innerText.includes(arguments[0]));
+    const text = row?.innerText.toLowerCase() ?? '';
+    return text.includes('cancelled') && !text.includes('interrupted');
   `,
       [STARTUP_TEMPLATE],
     ),
