@@ -161,8 +161,8 @@ impl Target {
             use harmos::OperationDeclaration;
             return Self {
                 operations,
-                run: <crate::execution::Run<()> as OperationDeclaration>::ID.to_owned(),
-                signal: <crate::execution::Signal<()> as OperationDeclaration>::ID.to_owned(),
+                run: format!("host.{}", <crate::execution::Run<()> as OperationDeclaration>::ID),
+                signal: format!("host.{}", <crate::execution::Signal<()> as OperationDeclaration>::ID),
             };
         }
         Self {
