@@ -96,7 +96,7 @@ tonic-types = { workspace = true }
 [build-dependencies]
 # Local
 dokime = { workspace = true }
-dokime-packaging = { path = "../dokime-packaging" }
+dokime-packaging = { workspace = true }
 
 # Git
 
