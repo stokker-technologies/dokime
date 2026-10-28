@@ -123,7 +123,6 @@ async fn timeout_kills_child() {
 // descendant, which reports readiness by writing its pid.
 #[tokio::test]
 async fn deadline_stops_descendants() {
-    // Fake Cargo That Runs A Compiler Descendant
     let directory = tempfile::tempdir().unwrap();
     let pid = directory.path().join("descendant.pid");
     let executable = std::env::current_exe().unwrap();
@@ -140,7 +139,6 @@ async fn deadline_stops_descendants() {
         std::fs::set_permissions(&cargo, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 
-    // Packaging Build Under The Deadline
     let mut command = Command::new(&executable);
     command
         .args(["--exact", "process::process_fixture_mode", "--nocapture"])
@@ -150,7 +148,6 @@ async fn deadline_stops_descendants() {
         .env("CARGO", &cargo);
     run(command, "packaging deadline fixture", None, 64 * 1024, 64 * 1024).await.unwrap();
 
-    // Descendant Gone
     let pid = std::fs::read_to_string(&pid).expect("descendant started");
     wait_gone(pid.trim()).await;
 }

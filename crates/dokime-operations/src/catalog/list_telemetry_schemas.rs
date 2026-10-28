@@ -30,6 +30,9 @@ use super::*;
 
 /* === Structs === */
 
+// Current admitted schemas, ordered by type/stream ID. These catalogs exclude
+// retired definitions retained only for immutable historical evidence. A cursor
+// belongs to one runtime epoch/revision; restart pagination when it expires.
 #[harmos::operation(resources = [crate::hosting::Host<ListTelemetrySchemas>], response = ListTelemetrySchemasReply, id = "dokime.catalog.list_telemetry_schemas",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Catalog", method = "ListTelemetrySchemas"))]

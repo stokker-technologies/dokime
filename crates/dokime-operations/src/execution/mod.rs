@@ -105,56 +105,10 @@ use dokime_domain::model::planning::wire::*;
 
 /* === Enums === */
 
-// Copies the current plan, authored Definition/Operator cycle inputs, documents,
-
-// and policy into a new ready cycle. No execution evidence or derived parameters
-
-// are copied. The source remains untouched, including if currently running.
-
-// Copy does not certify provider availability; Run validates that separately.
-
-// Append cases generated from the current registered catalog to an existing
-
-// mutable cycle. The plan is resolved and validated against one captured
-
-// registry snapshot before the existing append transaction is committed.
-
-// `filter` and `order` must be repeated unchanged on every continuation, and
-
-// `after_cycle_id` must still be a member of the filtered result. A changed
-
-// selection, a changed order, or a continuation ID the filter excludes is
-
-// rejected rather than silently restarted.
-
-// Archiving is orthogonal to the lifecycle and admitted only on a terminal
-
-// cycle or execution: it hides the row from lists that do not ask for archived
-
-// rows and changes nothing else.
-
-// A rename is admitted until the subject seals: a sealed, archived or History
-
-// cycle and an execution whose case has a sealed attempt refuse it with
-
-// FailedPrecondition, since the sealed report froze the label. An execution's
-
-// label is its case's label, so every attempt of that case is renamed together.
-
-// DeleteCase Only Removes An Unexecuted Case. Reruns Bind A New Explicit Execution Identity.
-
-// Commands belong to an admitted interactive run. Reuse the same command UUID
-
-// and identical action to recover admission; a transport failure is uncertain.
-
 // Detail pages preserve native planned-case / execution-attempt vector order.
-
 // Ordinals are zero-based positions at this cursor, not permanent identities.
-
 // Continuations require the same epoch/revision and an existing after-ID in the
-
 // requested cycle; changed revisions abort and unknown markers are invalid.
-
 // Current-runtime detail. Published historical checkpoints are a separate API.
 
 #[harmos::catalog]

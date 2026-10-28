@@ -36,12 +36,9 @@ use super::*;
         grpc(package = "dokime.v1", service = "Backend", method = "WatchLogs"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchLogs {
-    // Frames below this level are never delivered. Unspecified means TRACE.
     #[row(description = "Frames below this level are never delivered. Unspecified means TRACE.")]
     pub min_level: LogLevel,
 
-    // Matching lines replayed from the end of the hub log before following it.
-    // Zero uses 500; larger values are clamped to 5000.
     #[row(
         description = "Matching lines replayed from the end of the hub log before following it. Zero uses 500; larger values are clamped to 5000."
     )]

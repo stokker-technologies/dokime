@@ -36,8 +36,6 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateCycle {
-    // The label is required and nonblank; an empty identifier is derived by the
-    // backend. Description, tags and attributes are optional.
     #[row(
         description = "The label is required and nonblank; an empty identifier is derived by the backend. Description, tags and attributes are optional."
     )]

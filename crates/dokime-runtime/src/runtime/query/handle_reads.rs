@@ -169,8 +169,6 @@ impl RuntimeHandle {
     }
 }
 
-// Read Dispatch
-
 impl RuntimeHandle {
     pub async fn evidence_snapshot(&self) -> crate::runtime::Result<harmos::storage::ReadBatch<crate::evidence_runtime::EvidenceSnapshot>> {
         let snapshot = self.capture_state().await?;

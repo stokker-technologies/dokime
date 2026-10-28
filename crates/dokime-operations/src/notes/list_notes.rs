@@ -37,13 +37,11 @@ use super::*;
 pub struct ListNotes {
     pub selection: Option<AnnotationSelection>,
 
-    // default 50, maximum 100
     #[row(description = "default 50, maximum 100")]
     pub limit: u32,
 
     pub after_id: String,
 
-    // Exact runtime revision and selection, required with after_id. Restart on change.
     #[row(description = "Exact runtime revision and selection, required with after_id. Restart on change.")]
     pub cursor: Option<Cursor>,
 }

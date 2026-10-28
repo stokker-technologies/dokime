@@ -37,12 +37,6 @@ use super::*;
 pub struct ListSamples {
     pub streams: Vec<String>,
 
-    // Most samples one page returns. Zero uses 500; larger values are clamped
-    // to 5,000, and a page is further clamped to the samples that fit the
-    // negotiated message budget. A clamped page reports complete=false: for
-    // latest=false it keeps the oldest samples and its cursors continue after
-    // them; for latest=true it keeps the newest. No request is refused for
-    // asking too much.
     #[row(
         description = "Most samples one page returns. Zero uses 500; larger values are clamped to 5,000, and a page is further clamped to the samples that fit the negotiated message budget. A clamped page reports complete=false: for latest=false it keeps the oldest samples and its cursors continue after them; for latest=true it keeps the newest. No request is refused for asking too much."
     )]
@@ -56,9 +50,6 @@ pub struct ListSamples {
     pub start: Option<Timestamp>,
     pub end: Option<Timestamp>,
 
-    // Selects an explicit tail window of the filtered selection. A latest
-    // request cannot carry after_stream_cursors; use latest=false for forward
-    // continuation through the full selection.
     #[row(
         description = "Selects an explicit tail window of the filtered selection. A latest request cannot carry after_stream_cursors; use latest=false for forward continuation through the full selection."
     )]

@@ -37,7 +37,6 @@ use super::*;
 
 /* === Private Functions === */
 // resource records project into instance groups without mutating parameters.
-
 #[tokio::test]
 async fn resource_records_absent() {
     let root = tempdir().unwrap();

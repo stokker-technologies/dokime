@@ -172,7 +172,6 @@ async fn doc_example_context() -> Result<(), Box<dyn std::error::Error>> {
 // --8<-- [end:parameter-spaces]
 
 // --8<-- [start:parameter-spaces-expand]
-
 #[test]
 fn doc_example_matrix() -> Result<(), Box<dyn std::error::Error>> {
     use std::collections::BTreeMap;

@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -96,8 +94,6 @@ pub struct ThemeFamily {
     pub label: String,
     pub description: Option<String>,
 
-    // Self-contained authored CSS, including embedded font data. Bounded by the
-    // appearance response budget; no external resource-resolution API is implied.
     #[row(
         description = "Self-contained authored CSS, including embedded font data. Bounded by the appearance response budget; no external resource-resolution API is implied."
     )]

@@ -36,9 +36,6 @@ use super::*;
         grpc(package = "dokime.v1", service = "Backend", method = "CollectDiagnostics"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectDiagnostics {
-    // Ceiling on the hub-log tail copied into the archive. Absent uses 2 MiB and
-    // larger values are clamped to it; zero omits the log entirely. The whole
-    // log is never archived.
     #[row(
         description = "Ceiling on the hub-log tail copied into the archive. Absent uses 2 MiB and larger values are clamped to it; zero omits the log entirely. The whole log is never archived."
     )]

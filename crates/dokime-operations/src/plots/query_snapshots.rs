@@ -30,6 +30,9 @@ use super::*;
 
 /* === Structs === */
 
+// The native bridge and server reject a request with more than 32 plots. The
+// reply contains repeated envelopes in one bounded message; callers must
+// lower max_points or split a batch on exhaustion.
 #[harmos::operation(resources = [crate::hosting::Host<QuerySnapshots>], response = PlotSnapshotsReply, id = "dokime.plots.query_snapshots",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plots", method = "QuerySnapshots"))]

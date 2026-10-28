@@ -46,7 +46,6 @@ fn identifier(value: impl Into<String>) -> Identifier {
 
 /* === Tests === */
 // resource store publishes lifecycle records and keeps handle runtime only.
-
 #[tokio::test(flavor = "multi_thread")]
 async fn resource_store_handle() {
     let root = tempdir().unwrap();

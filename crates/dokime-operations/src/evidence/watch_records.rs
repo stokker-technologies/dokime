@@ -37,7 +37,6 @@ use super::*;
 pub struct WatchRecords {
     pub selection: Option<CapturedRecordSelection>,
 
-    // Absent replays from zero, then follows; present resumes captured facts.
     #[row(description = "Absent replays from zero, then follows; present resumes captured facts.")]
     pub after: Option<Cursor>,
 }

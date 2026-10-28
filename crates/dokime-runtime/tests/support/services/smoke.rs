@@ -205,7 +205,6 @@ impl Check {
     async fn check(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
         let behaviour = Arc::clone(&self.behaviour);
 
-        // Publish The Requested Rows
         if behaviour.pulse_rows > 0 {
             let pulse = ctx.stream::<Pulse>().open();
             for index in 0..behaviour.pulse_rows {
@@ -244,7 +243,6 @@ impl Check {
             ctx.artifacts().write("evidence/settled.txt", b"produced after the abandoned transfers\n")?;
         }
 
-        // Hold Until The Story Releases The Step
         if behaviour.hold {
             let mut released = behaviour.released.subscribe();
             let _ = released.wait_for(|released| *released).await;

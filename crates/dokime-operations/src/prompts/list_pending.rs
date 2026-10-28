@@ -30,6 +30,8 @@ use super::*;
 
 /* === Structs === */
 
+// Current definitions are ordered by prompt type; pending requests by prompt ID.
+// Subsequent pages require the same runtime epoch/revision and selection.
 #[harmos::operation(resources = [crate::hosting::Host<ListPending>], response = ListPendingPromptsReply, id = "dokime.prompts.list_pending",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Prompts", method = "ListPending"))]

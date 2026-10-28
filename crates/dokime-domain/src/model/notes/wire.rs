@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -59,11 +57,9 @@ pub struct ExecutionNoteOwner {
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnnotationSelection {
-    // Absent selects all current annotations. Present selects this owner and descendants.
     #[row(description = "Absent selects all current annotations. Present selects this owner and descendants.")]
     pub owner: Option<AnnotationOwner>,
 
-    // Also include ancestors, including session/global annotations.
     #[row(description = "Also include ancestors, including session/global annotations.")]
     pub include_context: bool,
 }
@@ -110,7 +106,6 @@ pub struct HealthItem {
     pub health_item_id: String,
     pub scope: Option<EvidenceScope>,
 
-    // Info, Warn or Error
     #[row(description = "Info, Warn or Error")]
     pub severity: Severity,
 

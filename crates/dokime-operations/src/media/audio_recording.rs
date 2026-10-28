@@ -37,11 +37,9 @@ use super::*;
 pub struct AudioRecording {
     pub scope: Option<ArtifactScope>,
 
-    // Zero-based input device index; absent selects the default input.
     #[row(description = "Zero-based input device index; absent selects the default input.")]
     pub input: Option<u32>,
 
-    // Recording stops and seals after this many seconds: default 600, maximum 3600.
     #[row(description = "Recording stops and seals after this many seconds: default 600, maximum 3600.")]
     pub maximum_seconds: Option<u32>,
 }

@@ -91,7 +91,6 @@ pub fn assemble(
         let digest = payload::digest(&final_bytes);
         files.insert(installed, digest);
     }
-    // Stage Resolved Organization
     let mut resources = HashMap::new();
     let mut linux_files = HashMap::new();
     for name in pack.files.keys() {
@@ -121,7 +120,6 @@ pub fn assemble(
     let installed_license = format!("{installed_resource_prefix}LICENSE");
     files.insert(installed_license, license_digest);
 
-    // Describe Distribution
     let (installer_signed, updater_signed) = match &manifest.signing {
         Some(settings) => (sign && settings.installer.is_some(), sign && settings.updater.is_some()),
         None => (false, false),
@@ -143,7 +141,6 @@ pub fn assemble(
     resources.insert(metadata_path.to_string_lossy().into_owned(), "distribution.json".into());
     linux_files.insert(PathBuf::from("/usr/lib/dokime/distribution.json"), metadata_path);
 
-    // Generate Assembly Artwork
     let image_path = scratch.join("icon.png");
     application_image.save_with_format(&image_path, image::ImageFormat::Png).map_err(|error| Error::Invalid(error.to_string()))?;
     let ico_path = scratch.join("icon.ico");
@@ -166,7 +163,6 @@ pub fn assemble(
         include_str!("hooks.nsh").to_owned()
     };
     std::fs::write(&hooks, hook_source)?;
-    // Configure Native Backend
     let png_icon = image_path.to_string_lossy().into_owned();
     let ico_icon = ico_path.to_string_lossy().into_owned();
     let icons = vec![png_icon, ico_icon];
@@ -259,7 +255,6 @@ pub fn assemble(
             Error::Invalid(message)
         })?;
 
-    // Assemble And Verify
     let bundles = tauri_bundler::bundle_project(&settings).map_err(|error| {
         let message = error.to_string();
         Error::Invalid(message)

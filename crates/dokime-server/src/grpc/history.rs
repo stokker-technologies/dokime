@@ -7,8 +7,6 @@
  * ***
  */
 
-// History operations: browsing, reading and inspecting recorded executions.
-
 /* === Modules === */
 
 mod browse;

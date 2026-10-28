@@ -30,6 +30,9 @@ use super::*;
 
 /* === Structs === */
 
+// Responder identity comes from the authenticated principal, never a request
+// label. This mutation follows MutationContext's no-automatic-retry contract.
+// After an ambiguous failure, GetPrompt resolves whether an answer was recorded.
 #[harmos::operation(resources = [crate::hosting::Host<Respond>], response = PromptResponseReceipt, id = "dokime.prompts.respond",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Prompts", method = "Respond"))]

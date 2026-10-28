@@ -37,7 +37,6 @@ use super::*;
 pub struct Screenshot {
     pub scope: Option<ArtifactScope>,
 
-    // Zero-based display index; absent selects the primary display.
     #[row(description = "Zero-based display index; absent selects the primary display.")]
     pub display: Option<u32>,
 }

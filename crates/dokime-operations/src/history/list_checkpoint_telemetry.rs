@@ -37,7 +37,6 @@ use super::*;
 pub struct ListCheckpointTelemetry {
     pub checkpoint: Option<ExecutionCheckpoint>,
 
-    // Original logical native stream identifier; never a Delta table name.
     #[row(description = "Original logical native stream identifier; never a Delta table name.")]
     pub table: String,
 

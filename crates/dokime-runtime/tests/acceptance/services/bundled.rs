@@ -83,7 +83,6 @@ async fn external_analysis_reload() {
 }
 
 // Frozen Catalog Rejects Undeclared, Reserved And Duplicate Operations.
-
 #[tokio::test]
 async fn frozen_catalog_multiply() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};
@@ -128,7 +127,6 @@ async fn frozen_catalog_multiply() {
 }
 
 // Unsupported Domain Schemas Are Refused Before Admission.
-
 #[tokio::test]
 async fn unsupported_schema_refused() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};

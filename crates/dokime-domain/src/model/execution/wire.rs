@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -82,7 +80,6 @@ pub struct CycleFilter {
     pub created_after: Option<Timestamp>,
     pub created_before: Option<Timestamp>,
 
-    // Absent lists only unarchived cycles.
     #[row(description = "Absent lists only unarchived cycles.")]
     pub archive: Option<ArchiveScope>,
 }
@@ -111,7 +108,6 @@ pub struct ArchiveReply {
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenameReply {
-    // The label as stored, trimmed.
     #[row(description = "The label as stored, trimmed.")]
     pub label: String,
 }
@@ -194,13 +190,9 @@ pub struct CycleSummary {
     pub result: Option<ResultSummary>,
     pub archived: bool,
 
-    // The cycle report is sealed: its label no longer changes.
     #[row(description = "The cycle report is sealed: its label no longer changes.")]
     pub sealed: bool,
 
-    // Planned cases by their latest attempt: running counts cases whose attempt
-    // is running; queued counts cases still waiting to run (no attempt yet, an
-    // undispatched attempt, or one admitted but not started).
     #[row(
         description = "Planned cases by their latest attempt: running counts cases whose attempt is running; queued counts cases still waiting to run (no attempt yet, an undispatched attempt, or one admitted but not started)."
     )]
@@ -274,7 +266,6 @@ pub struct ExecutionSummary {
     pub ordinal: u64,
     pub archived: bool,
 
-    // The execution report is sealed: its case label no longer changes.
     #[row(description = "The execution report is sealed: its case label no longer changes.")]
     pub sealed: bool,
 }
@@ -436,17 +427,11 @@ pub struct ExecutionStep {
     pub criterion_count: u64,
     pub ordinal: u64,
 
-    // Why this step failed, for the one step that did. Present only on a failed
-    // step, and already redacted: the step is the row an event log renders with a
-    // status, so it is where the failure's own story belongs.
     #[row(
         description = "Why this step failed, for the one step that did. Present only on a failed step, and already redacted: the step is the row an event log renders with a status, so it is where the failure's own story belongs."
     )]
     pub detail: Option<Diagnostic>,
 
-    // Every criterion the step judged, in declaration order. The page ends
-    // early, with a continuation, when the next step's criteria would exceed
-    // the response budget.
     #[row(
         description = "Every criterion the step judged, in declaration order. The page ends early, with a continuation, when the next step's criteria would exceed the response budget."
     )]

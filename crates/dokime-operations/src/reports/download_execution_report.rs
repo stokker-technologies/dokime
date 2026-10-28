@@ -37,7 +37,6 @@ use super::*;
         grpc(package = "dokime.v1", service = "Reports", method = "DownloadExecutionReport"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DownloadExecutionReport {
-    // Canonical UUID of one execution, running or settled.
     #[row(description = "Canonical UUID of one execution, running or settled.")]
     pub execution_id: String,
 }

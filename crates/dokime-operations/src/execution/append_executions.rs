@@ -39,6 +39,9 @@ pub struct ExecutionBinding {
     pub case_id: String,
 }
 
+// Append cases generated from the current registered catalog to an existing
+// mutable cycle. The plan is resolved and validated against one captured
+// registry snapshot before the existing append transaction is committed.
 #[harmos::operation(resources = [crate::hosting::Host<AppendExecutions>], response = AppendCasesReply, id = "dokime.execution.append_executions",
     policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Execution", method = "AppendExecutions"))]

@@ -30,6 +30,10 @@ use super::*;
 
 /* === Structs === */
 
+// Files currently owned by an execution in this runtime. These logical names
+// select registered outputs; they never resolve arbitrary filesystem paths.
+// Listings are ordered by relative_path. A continuation binds to execution,
+// runtime epoch and metadata fingerprint; changed listings require a restart.
 #[harmos::operation(resources = [crate::hosting::Host<ListExecutionFiles>], response = ListExecutionFilesReply, id = "dokime.content.list_execution_files",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "ListExecutionFiles"))]

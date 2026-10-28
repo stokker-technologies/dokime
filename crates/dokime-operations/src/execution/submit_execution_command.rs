@@ -30,6 +30,8 @@ use super::*;
 
 /* === Structs === */
 
+// Commands belong to an admitted interactive run. Reuse the same command UUID
+// and identical action to recover admission; a transport failure is uncertain.
 #[harmos::operation(resources = [crate::hosting::Host<SubmitExecutionCommand>], response = ExecutionCommandReceipt, id = "dokime.execution.submit_execution_command",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "SubmitExecutionCommand"))]

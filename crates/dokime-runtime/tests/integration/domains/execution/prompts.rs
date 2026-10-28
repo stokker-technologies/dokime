@@ -216,7 +216,6 @@ async fn prompt_commands_records() {
 }
 
 // condition gated prompt actions require runtime condition match.
-
 #[tokio::test]
 async fn condition_gated_runtime() {
     let root = tempdir().unwrap();

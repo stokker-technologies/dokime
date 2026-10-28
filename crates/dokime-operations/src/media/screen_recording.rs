@@ -38,7 +38,6 @@ pub struct ScreenRecording {
     pub scope: Option<ArtifactScope>,
     pub display: Option<u32>,
 
-    // Absent records video only.
     #[row(description = "Absent records video only.")]
     pub audio: Option<RecordingAudio>,
 

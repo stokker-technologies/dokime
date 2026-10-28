@@ -48,13 +48,11 @@ pub struct ProcessVariable {
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessExit {
-    // Absent when a signal ended the process.
     #[row(description = "Absent when a signal ended the process.")]
     pub exit_code: Option<i32>,
 
     pub duration_ms: u64,
 
-    // The instance was cancelled before the process exited by itself.
     #[row(description = "The instance was cancelled before the process exited by itself.")]
     pub cancelled: bool,
 }

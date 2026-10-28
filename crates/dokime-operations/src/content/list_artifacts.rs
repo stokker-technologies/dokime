@@ -30,6 +30,9 @@ use super::*;
 
 /* === Structs === */
 
+// Metadata-only inventory for operator views. Entries are ordered by artifact
+// ID. A continuation is valid only while the runtime epoch and complete
+// metadata fingerprint remain unchanged.
 #[harmos::operation(resources = [crate::hosting::Host<ListArtifacts>], response = ListArtifactsReply, id = "dokime.content.list_artifacts",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "ListArtifacts"))]

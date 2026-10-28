@@ -7,8 +7,6 @@
  * ***
  */
 
-// Native Remote Listener Management Operations
-
 /* === Modules === */
 
 /* === Re-Exports === */

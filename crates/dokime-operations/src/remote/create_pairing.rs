@@ -7,8 +7,6 @@
  * ***
  */
 
-// CreatePairing
-
 /* === Modules === */
 
 /* === Re-Exports === */

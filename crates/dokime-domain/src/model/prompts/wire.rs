@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -113,7 +111,6 @@ pub struct PromptDefinition {
     pub template_identifier: Option<String>,
     pub examples: Vec<Value>,
 
-    // The declared level on the record severity scale; Unspecified reads as Info.
     #[row(description = "The declared level on the record severity scale; Unspecified reads as Info.")]
     pub level: Severity,
 }
@@ -181,11 +178,9 @@ pub struct AnswerPredicateNode {
 pub struct AnswerBinaryPredicate {
     pub op: AnswerOperator,
 
-    // Operand index.
     #[row(description = "Operand index.")]
     pub left: u32,
 
-    // Operand index.
     #[row(description = "Operand index.")]
     pub right: u32,
 }

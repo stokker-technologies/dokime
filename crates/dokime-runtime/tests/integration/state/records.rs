@@ -62,7 +62,6 @@ fn plugin_state(declarations: &[(&str, &str)]) -> dokime_runtime::state::Runtime
 
 /* === Tests === */
 // a plugin may only narrate the records its own catalog declares.
-
 #[test]
 fn plugin_may_declares() {
     let state = plugin_state(&[("bench", "unit.connected"), ("gateway", "gateway.clamped")]);

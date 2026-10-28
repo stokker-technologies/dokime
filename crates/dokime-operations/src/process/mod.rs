@@ -45,23 +45,18 @@ pub struct RunProcess {
     pub program: String,
     pub args: Vec<String>,
 
-    // Set over the plugin's own environment and the execution identity.
     #[row(description = "Set over the plugin's own environment and the execution identity.")]
     pub env: Vec<ProcessVariable>,
 
-    // Absent runs in the execution's artifact directory.
     #[row(description = "Absent runs in the execution's artifact directory.")]
     pub cwd: Option<String>,
 
-    // Absent writes each line to the execution log at info; present streams the bytes into this produced artifact.
     #[row(description = "Absent writes each line to the execution log at info; present streams the bytes into this produced artifact.")]
     pub stdout_artifact: Option<String>,
 
-    // Absent writes each line to the execution log at warning; present streams the bytes into this produced artifact.
     #[row(description = "Absent writes each line to the execution log at warning; present streams the bytes into this produced artifact.")]
     pub stderr_artifact: Option<String>,
 
-    // Milliseconds between SIGTERM and the kill when cancelled: default 2000.
     #[row(description = "Milliseconds between SIGTERM and the kill when cancelled: default 2000.")]
     pub grace_ms: Option<u32>,
 }

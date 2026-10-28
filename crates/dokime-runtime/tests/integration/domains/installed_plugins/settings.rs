@@ -20,7 +20,6 @@
 use super::*;
 use dokime_domain::model;
 
-// Installed-plugin runtime contract tests.
 use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
 
 /* === Constants === */
@@ -87,7 +86,6 @@ async fn boot_health_transaction() {
 }
 
 // install definition domains records through harmos transaction.
-
 #[tokio::test]
 async fn install_definition_harmos() {
     let root = tempdir().unwrap();

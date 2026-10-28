@@ -130,8 +130,6 @@ macro_rules! host_rows {
     };
 }
 
-// Expansions
-
 dokime_domain::host_streams!(host_rows);
 
 /* === Type Aliases === */

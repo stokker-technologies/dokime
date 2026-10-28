@@ -35,7 +35,6 @@ use super::*;
         grpc(package = "dokime.v1", service = "Reports", method = "DownloadCycleReport"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DownloadCycleReport {
-    // Canonical UUID of a saved cycle.
     #[row(description = "Canonical UUID of a saved cycle.")]
     pub cycle_id: String,
 

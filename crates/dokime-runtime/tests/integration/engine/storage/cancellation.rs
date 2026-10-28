@@ -7,8 +7,6 @@
  * ***
  */
 
-// Storage cancellation Story
-
 /* === Modules === */
 
 /* === Re-Exports === */

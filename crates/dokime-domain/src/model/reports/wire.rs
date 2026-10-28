@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -46,7 +44,6 @@ pub struct MaterializedReport {
 pub struct ReportMetadata {
     pub test_cycle_id: String,
 
-    // Set when the report is one execution's rather than its cycle's.
     #[row(description = "Set when the report is one execution's rather than its cycle's.")]
     pub test_execution_id: Option<String>,
 
@@ -76,7 +73,6 @@ pub struct ReportHtmlChunk {
 pub struct ReportHtmlCompletion {
     pub size_bytes: u64,
 
-    // SHA-256 of exactly the bytes delivered by preceding chunks.
     #[row(description = "SHA-256 of exactly the bytes delivered by preceding chunks.")]
     pub sha256: String,
 }

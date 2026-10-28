@@ -63,7 +63,6 @@ impl ApplicationOptions {
         let (brand, paths) = self.load()?;
         let root = paths.root;
 
-        // Compose The Launch
         let configured_data = match self.storage_root {
             Some(root) => Some(root),
             None => ambient(DATA_ROOT_ENV),

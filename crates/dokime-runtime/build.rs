@@ -78,7 +78,6 @@ fn embed_brand_bundle() {
     let bundle = bundle.canonicalize().unwrap_or_else(|error| panic!("organization bundle {}: {error}", bundle.display()));
     assert!(bundle.join("organization.toml").is_file(), "organization bundle has no manifest");
 
-    // Collect The Bundle Files
     println!("cargo:rerun-if-changed={}", bundle.display());
     let mut entries = Vec::new();
     collect_assets(&bundle, &mut entries);
@@ -90,7 +89,6 @@ fn embed_brand_bundle() {
         files.push((name, path));
     }
 
-    // Emit The Embedded Table
     let mut table = String::from("static FILES: &[(&str, &[u8])] = &[\n");
     for (relative, path) in &files {
         table.push_str(&format!("    ({relative:?}, include_bytes!({:?})),\n", path.display().to_string()));

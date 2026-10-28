@@ -35,13 +35,11 @@ use super::*;
         grpc(package = "dokime.v1", service = "Notes", method = "EditNote"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EditNote {
-    // Explicit process epoch from discovery.
     #[row(description = "Explicit process epoch from discovery.")]
     pub epoch: String,
 
     pub note_id: String,
 
-    // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
     #[row(description = "nonblank, at most 16 KiB UTF-8. Actor comes from authentication.")]
     pub message: String,
 }
