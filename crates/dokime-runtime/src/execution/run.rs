@@ -718,8 +718,10 @@ mod tests {
         let policy = crate::transport::EvidenceBatch::POLICY.timeout;
         let receipt_delay = policy / 2;
         assert!(receipt_delay > Duration::from_secs(1));
-        let (cancel, _) = watch::channel(true);
-        let state = ExecutionState::new(Default::default(), cancel);
+        let (cancel, _) = watch::channel(false);
+        let mut state = ExecutionState::new(Default::default(), cancel);
+        state.cancel();
+        assert!(!state.record_inputs_closed(), "execution cancellation retains the owning operation's admission");
         let stream = dokime_domain::model::identity::Identifier::new("reading").unwrap();
         let sample =
             crate::telemetry::TelemetrySample::new(crate::model::identity::new_id(), stream, 1, crate::model::time::now_utc(), "fixture");

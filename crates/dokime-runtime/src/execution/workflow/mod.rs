@@ -369,7 +369,8 @@ impl<T: SidecarTemplate> Workflow<T> {
         let callbacks: Vec<_> = lock(&self.executions)
             .values_mut()
             .map(|state| {
-                state.cancel();
+                // Owner Shutdown Ends Admission Before Joining Cleanup.
+                state.settle_operation();
                 state.callbacks.clone()
             })
             .collect();
