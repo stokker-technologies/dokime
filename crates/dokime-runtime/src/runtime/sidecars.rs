@@ -211,6 +211,7 @@ pub(crate) fn spawn_lease_gap_watch(
 
 pub(crate) fn spawn_publication_ingest(handle: RuntimeHandle) -> (PublicationIngest, BackgroundTask) {
     let streams = handle.streams.clone();
+    let limits = handle.storage().settings().response;
     let mut feed = streams.follow(harmos::storage::Cursor::ORIGIN);
     let (admitted, progress) = tokio::sync::watch::channel(harmos::storage::Cursor::ORIGIN);
     let task = tokio::spawn(async move {
@@ -231,16 +232,20 @@ pub(crate) fn spawn_publication_ingest(handle: RuntimeHandle) -> (PublicationIng
                 // Preserve global order; only consecutive rows with the same
                 // declaration and execution context share an admission.
                 let mut rows = vec![(cursor, payload.value)];
-                while rows.len() < 128
+                let mut bytes = publication_bytes(payload.value);
+                while rows.len() < limits.batch_rows.get()
                     && publications.peek().is_some_and(|(next, _, row)| {
-                        next.id() == definition.id()
-                            && next.version() == definition.version()
-                            && next.owner() == definition.owner()
-                            && row.value.context == payload.value.context
+                        let same_stream =
+                            next.id() == definition.id() && next.version() == definition.version() && next.owner() == definition.owner();
+                        let same_context = row.value.context == payload.value.context;
+                        let next_bytes = bytes.checked_add(publication_bytes(row.value));
+                        let fits = next_bytes.is_some_and(|bytes| bytes <= limits.batch_bytes.get());
+                        same_stream && same_context && fits
                     })
                 {
                     let (_, cursor, row) = publications.next().unwrap();
                     through = cursor;
+                    bytes += publication_bytes(row.value);
                     rows.push((cursor, row.value));
                 }
                 super::native_telemetry::ingest_batch(&handle, definition, &rows).await;
@@ -302,6 +307,12 @@ pub(super) fn record_publication(artifact_id: &str, publication: RecordPublicati
 }
 
 /* === Private Functions === */
+
+fn publication_bytes(row: &harmos::streams::PublicationRow) -> usize {
+    let context_bytes = row.context.as_ref().map_or(0, String::len);
+    let payload_bytes = std::mem::size_of_val(row).saturating_add(row.payload.len());
+    payload_bytes.saturating_add(context_bytes)
+}
 
 fn listener_demands(
     artifacts: &super::handle::InstalledPlugins, unavailable: &BTreeSet<String>, router: Option<&harmos::plugin::Router>,
