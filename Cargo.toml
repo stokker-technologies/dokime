@@ -183,6 +183,11 @@ debug = "line-tables-only"
 [profile.dev.package."*"]
 debug = false
 
+# The Stored Evidence Integrity Check Digests Every Row A Read Returns; Unoptimized,
+# SHA-256 Alone Cost About 21 µs Per Row In Debug Test Builds.
+[profile.dev.package.sha2]
+opt-level = 3
+
 # === Patches === #
 
 # === Other === #
