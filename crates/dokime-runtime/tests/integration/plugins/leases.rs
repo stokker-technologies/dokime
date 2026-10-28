@@ -27,6 +27,8 @@ use dokime_runtime::{Identifier, TestExecutionId, Value, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime};
 
 /* === Constants === */
+// One attribute line: rustfmt re-indents a continued attribute inside a macro body on every pass.
+const DELIVERY_POLICY: harmos::OperationPolicy = <Signal<()> as harmos::OperationDeclaration>::POLICY;
 
 /* === Macros === */
 
@@ -108,8 +110,7 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
 /* === Private Functions === */
 macro_rules! delivery_fixture {
     ($operation:ident, $id:literal) => {
-        #[harmos::operation(id = $id, response = SignalReply, policy = <Signal<()> as harmos::OperationDeclaration>::POLICY,
-                                    visibility = Host, resources = [RecordingSidecar])]
+        #[harmos::operation(id = $id, response = SignalReply, policy = DELIVERY_POLICY, visibility = Host, resources = [RecordingSidecar])]
         #[derive(Clone, PartialEq)]
         struct $operation {
             signal: ExecutionSignal,
