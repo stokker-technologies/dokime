@@ -299,9 +299,20 @@ impl Serve<v1::WatchRecords> for Resources {
                 let mut initial = true;
                 loop {
                     if !initial && reader.scanned == reader.through {
-                        match reader.source.wait_after(reader.scanned).await.map_err(capture_error)? {
-                            Some(through) => reader.through = through,
-                            None => return Ok(().into()),
+                        // A Quiet Or Queued Execution Repeats Its Complete Frontier Instead Of Going Silent.
+                        match tokio::time::timeout(super::WATCH_HEARTBEAT, reader.source.wait_after(reader.scanned)).await {
+                            Ok(waited) => match waited.map_err(capture_error)? {
+                                Some(through) => reader.through = through,
+                                None => return Ok(().into()),
+                            },
+                            Err(_) => {
+                                let heartbeat = reader.empty_page(0)?;
+                                ctx.streams()
+                                    .send_owned(Response::from_owner(heartbeat.owner()))
+                                    .await
+                                    .map_err(crate::grpc::chunked::output_failure)?;
+                                continue;
+                            }
                         }
                     }
                     let page = reader.page().await?;

@@ -37,7 +37,7 @@ const SERVER_SHELL_RESPONSE_BYTES: u64 = 524_288;
 const SERVER_TRACEABILITY_RESPONSE_BYTES: u64 = 524_288;
 const SERVER_TRACEABILITY_SCAN_ITEMS: u64 = 8_192;
 // A Quiet Watch Repeats Its Current Frame Well Inside The Client's 30 s Idle Deadline.
-const WATCH_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10);
+pub const WATCH_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10);
 
 pub(super) const STREAM: &str = "runtime.state";
 

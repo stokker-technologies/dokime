@@ -48,6 +48,7 @@ mod value;
 
 pub use config::{Config, TlsIdentity};
 pub use error::Error;
+pub use observation::WATCH_HEARTBEAT;
 pub use server::{Server, Service};
 
 /* === Imports === */

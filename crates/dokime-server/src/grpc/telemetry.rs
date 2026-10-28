@@ -135,8 +135,15 @@ impl Serve<wire::WatchSamples> for Resources {
                     if !request.follow || sealed {
                         return Ok(().into());
                     }
-                    // Native Wait Registers Before Inspecting The Saved Frontier.
-                    at = session.wait_saved_after(&at).await.map_err(storage_failure)?;
+                    // Native Wait Registers Before Inspecting The Saved Frontier; Cancellation Only Drops The Waiter.
+                    at = loop {
+                        match tokio::time::timeout(super::WATCH_HEARTBEAT, session.wait_saved_after(&at)).await {
+                            Ok(saved) => break saved.map_err(storage_failure)?,
+                            Err(_) => {
+                                output.send_owned(heartbeat().into()).await.map_err(|error| Status::unavailable(error.to_string()))?
+                            }
+                        }
+                    };
                 }
             })
             .await
@@ -256,6 +263,15 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
 }
 
 /* === Private Functions === */
+
+/// An Empty Complete Page Keeps Every Cursor And Proves The Followed Stream Is Alive.
+fn heartbeat() -> dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
+    dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
+        samples: Vec::new(),
+        through_stream_cursors: Vec::new(),
+        complete: true,
+    }
+}
 
 fn selection_memory() -> Status {
     Status::resource_exhausted("telemetry selection allocation refused")

@@ -149,6 +149,74 @@ async fn blocking_run_drains_and_preserves_work_after_callback_error() {
 }
 
 #[tokio::test]
+async fn queued_run_outlives_the_idle_deadline() {
+    let root = tempfile::tempdir().unwrap();
+    let gate = Arc::new(Gate::default());
+    let mut owner = fixture(root.path(), gate.clone()).await;
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let wire = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let client =
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+    let (_, first) = planned(&wire, &owner).await;
+    let (_, second) = planned(&wire, &owner).await;
+    accepted(wire.unary::<contracts::execution::StartExecution>(authenticated(start(&first))).await.unwrap().into_inner());
+    gate.started.notified().await;
+
+    // A Run Queued Behind Held Work Keeps Both Followed Readers Alive Past The Client's Idle Deadline.
+    let records = std::sync::atomic::AtomicUsize::new(0);
+    let samples = std::sync::atomic::AtomicUsize::new(0);
+    let mut on_records = |page: &model::evidence::wire::RecordPage| {
+        if page.records.is_empty() && page.replay_complete {
+            records.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+        Ok(())
+    };
+    let mut on_samples = |page: &model::telemetry::wire::TelemetrySamplesReply| {
+        if page.samples.is_empty() && page.complete {
+            samples.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+        Ok(())
+    };
+    let options = dokime::client::RunOptions {
+        record_types: Some(Vec::new()),
+        streams: Some(Vec::new()),
+        ..Default::default()
+    };
+    let execution = client.execution(dokime::TestExecutionId::from_uuid(second.clone()).unwrap());
+    // The Default Client Idle Deadline Applies; The Wait Outlasts It By One Server Heartbeat.
+    let idle = std::time::Duration::from_millis(client.settings().request_timeout_ms);
+    let heartbeat = dokime_server::grpc::WATCH_HEARTBEAT;
+    let beats = usize::try_from(idle.as_millis() / heartbeat.as_millis()).unwrap();
+    let running = execution.run(
+        options,
+        dokime::client::RunCallbacks {
+            records: Some(&mut on_records),
+            samples: Some(&mut on_samples),
+        },
+    );
+    let release = async {
+        tokio::time::sleep(idle + heartbeat).await;
+        let queued = gate.calls.load(std::sync::atomic::Ordering::SeqCst);
+        let quiet = (records.load(std::sync::atomic::Ordering::SeqCst), samples.load(std::sync::atomic::Ordering::SeqCst));
+        gate.release.notify_one();
+        gate.started.notified().await;
+        gate.release.notify_one();
+        (queued, quiet)
+    };
+    let (saved, (queued, (quiet_records, quiet_samples))) = tokio::join!(running, release);
+
+    // The Run Then Returns The Saved Outcome Of The Execution It Waited For.
+    saved.unwrap();
+    assert_eq!(queued, 1, "the observed execution stayed queued past the idle deadline");
+    assert!(quiet_records >= beats, "queued record watch delivered {quiet_records} of {beats} quiet frames");
+    assert!(quiet_samples >= beats, "queued sample watch delivered {quiet_samples} of {beats} quiet frames");
+    sealed(&owner.handle(), &second).await;
+    client.close_and_wait().await;
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn start_identity_survives() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
