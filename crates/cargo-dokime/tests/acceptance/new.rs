@@ -84,9 +84,10 @@ fn standalone_scaffold_offline() {
     assert!(root.path().join("my-plugin/tests/soak.rs").is_file());
     assert!(!root.path().join("my-plugin/target").exists());
     assert!(fs::read_to_string(root.path().join("my-plugin/src/main.rs")).unwrap().contains("my_plugin::Plugin"));
-    // Declared ids come from the owner namespace rather than the crate name, so
-    // a package whose name carries an underscore still declares addressable ids.
-    assert!(fs::read_to_string(root.path().join("my-plugin/src/suites/soak/hold.rs")).unwrap().contains("id = \"my-plugin.soak.hold\""));
+    // The plugin id is the crate name, one Harmos owner segment, and every
+    // declared id is scoped under it, so a hyphenated package stays addressable.
+    assert!(fs::read_to_string(root.path().join("my-plugin/src/lib.rs")).unwrap().contains("id = \"my_plugin\""));
+    assert!(fs::read_to_string(root.path().join("my-plugin/src/suites/soak/hold.rs")).unwrap().contains("id = \"my_plugin.soak.hold\""));
 
     // The Shipped Starter Includes Its Own Native Workflow And Locked Tooling
     let plugin = root.path().join("my-plugin");

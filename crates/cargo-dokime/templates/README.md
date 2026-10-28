@@ -30,7 +30,10 @@ requests it serves. Their bodies live under `src/operations/`, one folder per
 domain with the same name.
 
 Each contribution belongs to a named `#[dokime::catalog]` enum in its owning
-module. `src/lib.rs` composes these on `#[dokime::plugin]`: `provides =
+module. The plugin id is `{{crate}}`, the crate name: Harmos serves each operation
+as `<plugin id>.<operation id>`, so the id is one segment of lowercase letters,
+digits and `_`, and every declared id here starts with it. `src/lib.rs` composes
+these on `#[dokime::plugin]`: `provides =
 domain::operations::Operations` names the operations it serves, and `contributions(...)`
 lists the suites, records and listeners, evidence streams and settings it adds
 to the host. Public `Streams` and `Records` catalogs in `lib.rs` register

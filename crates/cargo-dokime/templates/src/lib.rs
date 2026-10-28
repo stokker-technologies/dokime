@@ -92,7 +92,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for Plugin {
 }
 
 #[dokime::plugin(
-    id = "{{owner}}",
+    id = "{{crate}}",
     provides = domain::operations::Operations,
     requires(),
     contributions(

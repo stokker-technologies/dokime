@@ -83,7 +83,6 @@ pub fn run(args: Args) -> Result<(), Error> {
     let (workspace, detached) = workspace(&target)?;
     let selection = if workspace.is_some() { format!(" -p {name}") } else { String::new() };
     let crate_name = name.replace('-', "_");
-    let owner = name.replace('_', "-");
     // Reserve the target exclusively. On failure only this newly created tree
     // is removed; the workspace manifest is committed last by atomic rename.
     fs::create_dir(&target)?;
@@ -96,7 +95,6 @@ pub fn run(args: Args) -> Result<(), Error> {
                 let mut contents = contents
                     .replace("{{package}}", name)
                     .replace("{{crate}}", &crate_name)
-                    .replace("{{owner}}", &owner)
                     .replace("{{repository}}", REPOSITORY)
                     .replace("{{selection}}", &selection);
                 if workspace.is_some() && path.file_name().is_some_and(|name| name == "Cargo.toml") {
