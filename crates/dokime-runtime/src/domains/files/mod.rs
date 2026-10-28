@@ -119,7 +119,10 @@ impl RuntimeHandle {
             &FileWatchRequest {
                 execution_id: request.execution_id.clone(),
                 source: None,
-                rules: vec![FileRule { glob: literal(&file), action: FileRuleAction::Include }],
+                rules: vec![FileRule {
+                    glob: literal(&file),
+                    action: FileRuleAction::Include,
+                }],
                 output: request.output.clone(),
                 policy: request.policy,
                 selection: request.selection,

@@ -133,10 +133,14 @@ struct GetReading {}
 impl dokime_runtime::Operation for GetReading {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
+    async fn run(
+        self, context: dokime_runtime::harmos::Context<'_, Self>,
+    ) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
         let resource = context.resource::<Shared>();
         let answered: Result<GetReadingResponse, Refusal> = async {
-        Ok(GetReadingResponse { reads: resource.reads.fetch_add(1, Ordering::SeqCst) + 1 })
+            Ok(GetReadingResponse {
+                reads: resource.reads.fetch_add(1, Ordering::SeqCst) + 1,
+            })
         }
         .await;
         answered.map(Into::into)
@@ -148,13 +152,15 @@ struct GetLateReading {}
 impl dokime_runtime::Operation for GetLateReading {
     type Error = Refusal;
 
-    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
+    async fn run(
+        self, _: dokime_runtime::harmos::Context<'_, Self>,
+    ) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
         let answered: Result<GetReadingResponse, Refusal> = async {
-        let mut cancellation = WireCancellation { completed: false };
-        std::future::pending::<()>().await;
-        cancellation.completed = true;
+            let mut cancellation = WireCancellation { completed: false };
+            std::future::pending::<()>().await;
+            cancellation.completed = true;
 
-        Ok(GetReadingResponse { reads: 0 })
+            Ok(GetReadingResponse { reads: 0 })
         }
         .await;
         answered.map(Into::into)
@@ -168,11 +174,11 @@ struct GetStatus {}
 impl dokime_runtime::Operation for GetStatus {
     type Error = Refusal;
 
-    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<dokime_runtime::domains::StatusResponse>, Refusal> {
-        let answered: Result<dokime_runtime::domains::StatusResponse, Refusal> = async {
-        Ok(dokime_runtime::domains::StatusResponse::ready())
-        }
-        .await;
+    async fn run(
+        self, _: dokime_runtime::harmos::Context<'_, Self>,
+    ) -> Result<dokime_runtime::harmos::Response<dokime_runtime::domains::StatusResponse>, Refusal> {
+        let answered: Result<dokime_runtime::domains::StatusResponse, Refusal> =
+            async { Ok(dokime_runtime::domains::StatusResponse::ready()) }.await;
         answered.map(Into::into)
     }
 }
@@ -186,10 +192,7 @@ impl dokime_runtime::Operation for Echo {
 
     async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<SharedReading>, Refusal> {
         let request = self;
-        let answered: Result<SharedReading, Refusal> = async {
-        Ok(SharedReading { value: request.value })
-        }
-        .await;
+        let answered: Result<SharedReading, Refusal> = async { Ok(SharedReading { value: request.value }) }.await;
         answered.map(Into::into)
     }
 }
@@ -203,10 +206,7 @@ impl dokime_runtime::Operation for Double {
 
     async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<SharedReading>, Refusal> {
         let request = self;
-        let answered: Result<SharedReading, Refusal> = async {
-        Ok(SharedReading { value: request.value * 2 })
-        }
-        .await;
+        let answered: Result<SharedReading, Refusal> = async { Ok(SharedReading { value: request.value * 2 }) }.await;
         answered.map(Into::into)
     }
 }
@@ -221,10 +221,7 @@ impl dokime_runtime::Operation for Hidden {
     type Error = Refusal;
 
     async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<()>, Refusal> {
-        let answered: Result<(), Refusal> = async {
-        panic!("an operation no catalog lists must never be dispatched")
-        }
-        .await;
+        let answered: Result<(), Refusal> = async { panic!("an operation no catalog lists must never be dispatched") }.await;
         answered.map(Into::into)
     }
 }
@@ -268,7 +265,11 @@ impl dokime_runtime::Plugin for Bench {
     }
 
     fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Implemented::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))?;
+        table.register(Implemented::registration({
+            let mut dependencies = dokime_runtime::harmos::Dependencies::new();
+            dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
+            dependencies
+        }))?;
         dokime_runtime::execution::serve::<Self, BenchSuites>(table)?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
@@ -383,7 +384,9 @@ async fn step_criterion_operation() {
     let reads = Arc::new(AtomicU64::new(0));
     let counted = Arc::clone(&reads);
     let report = Harness::template(TEMPLATE)
-        .answering::<GetReading, _>(move |_| GetReadingResponse { reads: counted.fetch_add(1, Ordering::SeqCst) + 1 })
+        .answering::<GetReading, _>(move |_| GetReadingResponse {
+            reads: counted.fetch_add(1, Ordering::SeqCst) + 1,
+        })
         .answering::<Echo, _>(|request: Echo| SharedReading { value: request.value })
         .run::<BenchSuites>()
         .await

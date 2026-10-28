@@ -253,7 +253,11 @@ pub fn plan_queue(state: &RuntimeState, run: &RunProvider) -> Result<QueuePlan, 
         {
             return Err(Error::conflict("request_identity_conflict", "request identity belongs to another selection"));
         }
-        return Ok(QueuePlan { target: request.target.clone(), summary: request.summary.clone(), execution_id: None });
+        return Ok(QueuePlan {
+            target: request.target.clone(),
+            summary: request.summary.clone(),
+            execution_id: None,
+        });
     }
     let current = prepare_run_provider(state, run)?;
     // Admission Leaves The Execution Unstarted Until It Owns The Serial Lane.
@@ -273,7 +277,11 @@ pub fn plan_queue(state: &RuntimeState, run: &RunProvider) -> Result<QueuePlan, 
         provider_started_at: None,
         finished_at: None,
     };
-    Ok(QueuePlan { target: current.target, summary, execution_id: Some(current.execution_id) })
+    Ok(QueuePlan {
+        target: current.target,
+        summary,
+        execution_id: Some(current.execution_id),
+    })
 }
 
 pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<ExecutionProviderTarget, Error> {

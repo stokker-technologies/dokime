@@ -265,7 +265,10 @@ fn run_cli(bundle: &Path, endpoint: &str) -> Result<Outcome, String> {
         .map_err(|error| error.to_string())?;
     let mut bytes = output.stdout;
     bytes.extend_from_slice(&output.stderr);
-    Ok(Outcome { success: output.status.success(), output: String::from_utf8_lossy(&bytes).into_owned() })
+    Ok(Outcome {
+        success: output.status.success(),
+        output: String::from_utf8_lossy(&bytes).into_owned(),
+    })
 }
 
 async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
@@ -323,7 +326,10 @@ async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
     runtime.register(batch.lane(Lanes::Open)).await.unwrap();
     let attachment = runtime
         .grpc()
-        .attach(dokime::harmos::grpc::Settings { address: "127.0.0.1:0".parse().unwrap(), ..Default::default() })
+        .attach(dokime::harmos::grpc::Settings {
+            address: "127.0.0.1:0".parse().unwrap(),
+            ..Default::default()
+        })
         .await
         .unwrap();
     let endpoint = format!("http://{}", attachment.local_addr());

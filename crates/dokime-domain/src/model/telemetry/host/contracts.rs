@@ -186,7 +186,9 @@ impl FieldValue for HostTimestamp {
             .to_offset(time::UtcOffset::UTC)
             .format_into(&mut bytes, &time::format_description::well_known::Rfc3339)
             .expect("a stored datetime is representable as RFC3339");
-        Ok(Self { value: String::from_utf8(bytes).expect("RFC3339 output is UTF-8") })
+        Ok(Self {
+            value: String::from_utf8(bytes).expect("RFC3339 output is UTF-8"),
+        })
     }
 }
 
@@ -235,7 +237,11 @@ fn project_host_field(values: &mut BTreeMap<String, Value>, name: &str, kind: Va
         values.insert(name.to_owned(), value);
         return Ok(());
     }
-    let invalid = || FieldError { field: name.to_owned(), declared: kind.clone(), found: Some("invalid host message value".to_owned()) };
+    let invalid = || FieldError {
+        field: name.to_owned(),
+        declared: kind.clone(),
+        found: Some("invalid host message value".to_owned()),
+    };
     let Value::Object(mut object) = value else {
         return Err(invalid());
     };

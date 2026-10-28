@@ -273,7 +273,10 @@ async fn template_declarations_register() {
     let rows = handle
         .collect_telemetry(&TelemetrySelection {
             streams: vec![Identifier::new(Sample::ID).unwrap().into()],
-            scope: ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
+            scope: ScopeSelection {
+                test_cycle_id: Some(cycle.clone()),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .await

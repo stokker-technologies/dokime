@@ -18,9 +18,9 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 // Third Party Imports
 use harmos::{
+    ServiceContext,
     operations::Response,
     services::Resident,
-    ServiceContext,
     storage::{FilePhase, FileReadBatch, FileReference, ProductionFollower, StagedFile},
 };
 
@@ -110,7 +110,10 @@ impl RuntimeHandle {
             };
             let reference = &file.descriptor().file;
             let staged = harmos::storage::ReadBatch::new(()).try_map(|_| {
-                Ok::<_, Error>(StagedFile { history: reference.position.history.clone(), id: reference.metadata.id.clone() })
+                Ok::<_, Error>(StagedFile {
+                    history: reference.position.history.clone(),
+                    id: reference.metadata.id.clone(),
+                })
             })?;
             if (*expected_staged).as_ref().is_some_and(|expected| expected != &*staged) {
                 return Err(invalid("saved output replaced the selected identity"));
@@ -130,7 +133,11 @@ impl RuntimeHandle {
                 execution,
                 path,
                 &output.file.metadata.media_type,
-                Position { phase, length: output.file.length, offset },
+                Position {
+                    phase,
+                    length: output.file.length,
+                    offset,
+                },
             )?;
             return Ok(Some(ExecutionFileFollower {
                 poll_interval: self.storage().settings().filesystem.poll_interval,
@@ -146,7 +153,10 @@ impl RuntimeHandle {
                 Some(NativeAdmission::Live(live)) => *live,
                 Some(NativeAdmission::Captured { reference, interrupted }) => {
                     let staged = harmos::storage::ReadBatch::new(()).try_map(|_| {
-                        Ok::<_, Error>(StagedFile { history: reference.position.history.clone(), id: reference.metadata.id.clone() })
+                        Ok::<_, Error>(StagedFile {
+                            history: reference.position.history.clone(),
+                            id: reference.metadata.id.clone(),
+                        })
                     })?;
                     if (*expected_staged).as_ref().is_some_and(|expected| expected != &*staged) {
                         return Err(invalid("captured output replaced the selected identity"));
@@ -221,7 +231,10 @@ impl RuntimeHandle {
             runtime
                 .operations
                 .register_service(
-                    harmos::services::ServiceDefinition { id: name.clone(), policy: harmos::services::POLICY },
+                    harmos::services::ServiceDefinition {
+                        id: name.clone(),
+                        policy: harmos::services::POLICY,
+                    },
                     move |_: Arc<()>| NativeCapture { poll_interval, source: source.clone() },
                 )
                 .map_err(Error::from)?;
@@ -424,7 +437,10 @@ fn kind(path: &str, media: &str) -> dokime_domain::model::content::wire::Executi
 }
 
 fn history(value: &harmos::storage::StoreHistory) -> checkpoint::StoreHistory {
-    checkpoint::StoreHistory { store: value.store.as_str().to_owned(), epoch: value.epoch.as_str().to_owned() }
+    checkpoint::StoreHistory {
+        store: value.store.as_str().to_owned(),
+        epoch: value.epoch.as_str().to_owned(),
+    }
 }
 
 fn hex(value: &[u8; 32]) -> String {

@@ -423,7 +423,11 @@ impl Parameter {
 
     pub fn list(identifier: impl Into<String>, label: impl Into<String>, element: ValueType) -> Self {
         let mut parameter = Self::new(identifier, label, ValueType::Array);
-        parameter.list = Some(ParameterList { element_type: element, min_items: None, max_items: None });
+        parameter.list = Some(ParameterList {
+            element_type: element,
+            min_items: None,
+            max_items: None,
+        });
         parameter
     }
 
@@ -432,7 +436,9 @@ impl Parameter {
         I: IntoIterator<Item = V>,
         V: Into<Value>,
     {
-        self.selection = Some(ParameterSelection { choices: choices.into_iter().map(Into::into).collect() });
+        self.selection = Some(ParameterSelection {
+            choices: choices.into_iter().map(Into::into).collect(),
+        });
         self
     }
 
@@ -492,7 +498,10 @@ impl ParameterDefault {
     }
 
     pub fn dynamic(key: DynamicDefaultKey, fallback: impl Into<Value>) -> Self {
-        Self::Expression(ParameterExpr::DynamicDefault { key, fallback: Some(Box::new(ParameterExpr::Literal { value: fallback.into() })) })
+        Self::Expression(ParameterExpr::DynamicDefault {
+            key,
+            fallback: Some(Box::new(ParameterExpr::Literal { value: fallback.into() })),
+        })
     }
 
     pub fn source<F, V>(source: F, fallback: impl Into<Value>) -> Self
@@ -500,7 +509,10 @@ impl ParameterDefault {
         F: Fn() -> Option<V> + Send + Sync + 'static,
         V: Into<Value>,
     {
-        Self::Source { source: Box::new(move || source().map(Into::into)), fallback: fallback.into() }
+        Self::Source {
+            source: Box::new(move || source().map(Into::into)),
+            fallback: fallback.into(),
+        }
     }
 
     pub fn space<I, V>(values: I) -> Self
@@ -595,7 +607,12 @@ impl<T: Into<Value>> From<Vec<T>> for ParameterDefault {
 
 impl Step {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { identifier: identifier.into(), label: label.into(), description: None, repeatable: false }
+        Self {
+            identifier: identifier.into(),
+            label: label.into(),
+            description: None,
+            repeatable: false,
+        }
     }
 
     pub fn repeatable(mut self) -> Self {
@@ -621,7 +638,10 @@ impl<T, C, E> StepBinding<T, C, E> {
     where
         F: Fn(&mut T, &mut C) -> Result<(), E> + Send + Sync + 'static,
     {
-        Self { step: Step::new(identifier, label), action: Box::new(action) }
+        Self {
+            step: Step::new(identifier, label),
+            action: Box::new(action),
+        }
     }
 
     pub fn with_step<F>(step: Step, action: F) -> Self
@@ -647,11 +667,20 @@ impl<T, C, E> StepBinding<T, C, E> {
 /* === Public Functions === */
 
 pub fn criterion(identifier_value: impl Into<String>, label: impl Into<String>, expected: Option<Value>) -> Criterion {
-    Criterion { identifier: identifier_value.into(), label: label.into(), description: None, expected }
+    Criterion {
+        identifier: identifier_value.into(),
+        label: label.into(),
+        description: None,
+        expected,
+    }
 }
 
 pub fn metadata(identifier_value: impl Into<String>, label: impl Into<String>, description: impl Into<Option<String>>) -> AuthoredMetadata {
-    AuthoredMetadata { identifier: identifier_value.into(), label: label.into(), description: description.into() }
+    AuthoredMetadata {
+        identifier: identifier_value.into(),
+        label: label.into(),
+        description: description.into(),
+    }
 }
 
 pub fn unit(symbol: impl Into<String>) -> MeasurementUnit {

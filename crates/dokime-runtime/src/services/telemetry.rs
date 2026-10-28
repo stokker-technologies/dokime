@@ -277,7 +277,12 @@ impl SamplingOwner {
             }
             let batches = settle_session(source.as_mut(), key).await?;
             if !batches.is_empty() {
-                self.returned = Some(CollectedSamples { batches, next: 0, accounted: 0, received_at: crate::model::time::now_utc() });
+                self.returned = Some(CollectedSamples {
+                    batches,
+                    next: 0,
+                    accounted: 0,
+                    received_at: crate::model::time::now_utc(),
+                });
                 self.publish_returned(runtime).await?;
             }
         }
@@ -312,7 +317,10 @@ impl SamplingOwner {
                 let task = publication.task.as_mut().expect("the original write is retained");
                 let outcome = match task.await {
                     Ok(outcome) => outcome,
-                    Err(source) => Err(ProduceError::DestinationJoin { lease_id: publication.lease_id.clone(), source: Arc::new(source) }),
+                    Err(source) => Err(ProduceError::DestinationJoin {
+                        lease_id: publication.lease_id.clone(),
+                        source: Arc::new(source),
+                    }),
                 };
                 publication.task = None;
                 if let Err(source) = outcome {
@@ -355,14 +363,21 @@ impl SamplingOwner {
             let runtime = runtime.clone();
             let destination = lease_id.clone();
             let task = tokio::spawn(async move { publish_to_capture(&runtime, &destination, &scope, batch, received_at).await });
-            self.publication = Some(CapturePublication { lease_id, task: Some(task), failure: None });
+            self.publication = Some(CapturePublication {
+                lease_id,
+                task: Some(task),
+                failure: None,
+            });
         }
     }
 }
 
 impl SamplingSession {
     fn new() -> Self {
-        Self { owner: std::sync::Mutex::new(Some(SamplingOwner::default())), available: tokio::sync::Notify::new() }
+        Self {
+            owner: std::sync::Mutex::new(Some(SamplingOwner::default())),
+            available: tokio::sync::Notify::new(),
+        }
     }
 
     async fn borrow(&self) -> SamplingBorrow<'_> {
@@ -504,7 +519,10 @@ impl Sampling {
                 runtime
                     .operations
                     .register_service(
-                        harmos::services::ServiceDefinition { id: service_name.clone(), policy: harmos::services::POLICY },
+                        harmos::services::ServiceDefinition {
+                            id: service_name.clone(),
+                            policy: harmos::services::POLICY,
+                        },
                         move |_: Arc<()>| Producer {
                             producer_key: key.clone(),
                             sampling: sampling.clone(),
@@ -557,7 +575,12 @@ impl Sampling {
                     closing: false,
                 },
             );
-            leases.push(TelemetryCaptureLease { lease_id, job_id: service_name.clone(), request, scope: scope.clone() });
+            leases.push(TelemetryCaptureLease {
+                lease_id,
+                job_id: service_name.clone(),
+                request,
+                scope: scope.clone(),
+            });
         }
         if let Err(error) = bind(&leases) {
             for lease in &leases {
@@ -879,7 +902,12 @@ impl Sampling {
         if let Some(source) = owner.source.as_mut() {
             let batches = collect_samples(key, source.as_mut())?;
             if !batches.is_empty() {
-                owner.returned = Some(CollectedSamples { batches, next: 0, accounted: 0, received_at: crate::model::time::now_utc() });
+                owner.returned = Some(CollectedSamples {
+                    batches,
+                    next: 0,
+                    accounted: 0,
+                    received_at: crate::model::time::now_utc(),
+                });
                 owner.publish_returned(runtime).await?;
             }
         }
@@ -950,7 +978,12 @@ impl Sampling {
 
         let batches = collect_samples(key, session.as_mut())?;
         if !batches.is_empty() {
-            owner.returned = Some(CollectedSamples { batches, next: 0, accounted: 0, received_at: crate::model::time::now_utc() });
+            owner.returned = Some(CollectedSamples {
+                batches,
+                next: 0,
+                accounted: 0,
+                received_at: crate::model::time::now_utc(),
+            });
             owner.publish_returned(runtime).await?;
         }
         Ok(next_due)
@@ -1019,14 +1052,20 @@ async fn settle_session(session: &mut dyn SamplerSession, key: &str) -> std::res
 fn open_sampler(key: &str, sampler: &dyn Sampler) -> std::result::Result<Box<dyn SamplerSession>, ProduceError> {
     sampler.open().map_err(|error| {
         tracing::warn!(producer = key, %error, "sampling source open failed");
-        ProduceError::SourceOpen { producer_key: key.to_owned(), message: error }
+        ProduceError::SourceOpen {
+            producer_key: key.to_owned(),
+            message: error,
+        }
     })
 }
 
 fn collect_samples(key: &str, session: &mut dyn SamplerSession) -> std::result::Result<Vec<TelemetryBatch>, ProduceError> {
     session.collected().map_err(|error| {
         tracing::warn!(producer = key, %error, "sampling source read failed");
-        ProduceError::SourceRead { producer_key: key.to_owned(), message: error }
+        ProduceError::SourceRead {
+            producer_key: key.to_owned(),
+            message: error,
+        }
     })
 }
 
@@ -1067,7 +1106,10 @@ async fn publish_to_capture(
             return Ok(());
         }
         Err(source) => {
-            return Err(ProduceError::DestinationRefused { lease_id: lease_id.to_owned(), source: Box::new(source) });
+            return Err(ProduceError::DestinationRefused {
+                lease_id: lease_id.to_owned(),
+                source: Box::new(source),
+            });
         }
     };
     if let Some(source) = &publication.failure
@@ -1102,7 +1144,9 @@ async fn publish_to_capture(
 fn transient_capture_failure(error: &crate::runtime::Error) -> bool {
     fn runtime(error: &harmos::Error) -> bool {
         match error {
-            harmos::Error::Backend { kind: harmos::BackendFailure::Transient, .. } => true,
+            harmos::Error::Backend {
+                kind: harmos::BackendFailure::Transient, ..
+            } => true,
             harmos::Error::Persistence { source } => runtime(source),
             _ => false,
         }

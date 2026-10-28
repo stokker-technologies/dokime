@@ -94,7 +94,10 @@ impl PluginLifecycle for Owners {
         backend: &mut PluginBackend<(), (), Staged>,
     ) -> harmos::Result<()> {
         let PluginBackend::Embedded(staged) = backend else { unreachable!() };
-        let endpoint = router.enter(&definition.id).map_err(|source| harmos::Error::TaskFailed { domain: "fixture owner", source: Arc::new(source) })?;
+        let endpoint = router.enter(&definition.id).map_err(|source| harmos::Error::TaskFailed {
+            domain: "fixture owner",
+            source: Arc::new(source),
+        })?;
         let scope = endpoint.scope().cloned().expect("a managed owner has an activation scope");
         staged.endpoint = Some(endpoint);
         let batch = harmos::RegistrationBatch::new(harmos::Dependencies::new()).operation::<ReadSecret>();
@@ -150,18 +153,36 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
     let mut plugins = PluginManager::new(owners()).unwrap();
     plugins.initialize(&mut lifecycle).await.unwrap();
 
-    let metadata = Metadata { identifier: "shared.bench".into(), label: "Shared Bench".into(), description: None };
+    let metadata = Metadata {
+        identifier: "shared.bench".into(),
+        label: "Shared Bench".into(),
+        description: None,
+    };
     for (generation, value) in [(0, "first-test-value"), (1, "replacement-test-value")] {
-        let written = operations.call::<secrets::Put>(secrets::Put { metadata: metadata.clone(), value: Some(value.into()), generation }).await.unwrap();
+        let written = operations
+            .call::<secrets::Put>(secrets::Put {
+                metadata: metadata.clone(),
+                value: Some(value.into()),
+                generation,
+            })
+            .await
+            .unwrap();
         assert_eq!(written.generation, generation + 1);
         for owner in OWNERS {
-            let reading = operations.submit_from::<ReadSecret>(owner, ReadSecret { identifier: metadata.identifier.clone() }).unwrap().await.unwrap();
+            let reading =
+                operations.submit_from::<ReadSecret>(owner, ReadSecret { identifier: metadata.identifier.clone() }).unwrap().await.unwrap();
             assert_eq!(reading.value.as_deref(), Some(value));
             assert!(!format!("{reading:?}").contains(value));
         }
     }
 
-    operations.call::<secrets::Remove>(secrets::Remove { identifiers: vec![metadata.identifier.clone()], generation: 2 }).await.unwrap();
+    operations
+        .call::<secrets::Remove>(secrets::Remove {
+            identifiers: vec![metadata.identifier.clone()],
+            generation: 2,
+        })
+        .await
+        .unwrap();
     for owner in OWNERS {
         let result = operations.submit_from::<ReadSecret>(owner, ReadSecret { identifier: metadata.identifier.clone() }).unwrap().await;
         assert!(result.is_err());

@@ -17,9 +17,9 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos::builtins::storage::{Query, StorageStatus};
 use harmos::operations::{StreamSettings, stream};
 use harmos::storage::ObjectCatalog;
-use harmos::builtins::storage::{Query, StorageStatus};
 use harmos::storage::query::{ObjectSelection, ObjectVersions, QueryOutput, RowSlice, Source};
 
 // Local Imports

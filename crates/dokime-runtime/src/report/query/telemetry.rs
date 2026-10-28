@@ -16,12 +16,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{
-    storage::{
-        StorageCursor,
-        Query,
-        query::{RowSlice, Source, StreamSelection, transform::Transform},
-    },
+use harmos::storage::{
+    Query, StorageCursor,
+    query::{RowSlice, Source, StreamSelection, transform::Transform},
 };
 
 // Local Imports
@@ -99,14 +96,11 @@ pub(in crate::report) async fn saved_codec(
         version: std::num::NonZeroU32::new(contract.schema_version).ok_or_else(|| invalid("invalid report schema version"))?,
         payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
     };
-    let codecs = crate::runtime::storage::telemetry::saved_codecs(
-        session,
-        at,
-        Some(&schema),
-        &ctx.resources().schema_settings,
-        |id, version| id.strip_prefix("dokime.telemetry.") == Some(contract.stream.as_str()) && version == contract.schema_version,
-    )
-    .await?;
+    let codecs =
+        crate::runtime::storage::telemetry::saved_codecs(session, at, Some(&schema), &ctx.resources().schema_settings, |id, version| {
+            id.strip_prefix("dokime.telemetry.") == Some(contract.stream.as_str()) && version == contract.schema_version
+        })
+        .await?;
     codecs.try_map(|mut codecs| {
         if codecs.len() != 1 {
             return Err(invalid("captured report schema is missing or ambiguous"));

@@ -12,8 +12,7 @@
 use harmos::{
     Identifier,
     storage::{
-        ReadBatch,
-        Query,
+        Query, ReadBatch,
         query::{QueryArrow, RowSlice, Source, StreamSelection},
     },
 };
@@ -103,8 +102,20 @@ impl TelemetryReader {
         }
         let mut readers = Vec::new();
         readers.try_reserve_exact(codecs.len()).map_err(|_| invalid("telemetry reader allocation failed"))?;
-        readers.extend((0..codecs.len()).map(|codec| TypedRead { codec, head: None, offset: 0, after, finished: false }));
-        Ok(Self { view: view.clone(), session, codecs, readers, page_rows: view.storage().settings().response.batch_rows.get() })
+        readers.extend((0..codecs.len()).map(|codec| TypedRead {
+            codec,
+            head: None,
+            offset: 0,
+            after,
+            finished: false,
+        }));
+        Ok(Self {
+            view: view.clone(),
+            session,
+            codecs,
+            readers,
+            page_rows: view.storage().settings().response.batch_rows.get(),
+        })
     }
 
     pub async fn next(&mut self) -> Result<Option<ReadBatch<Vec<TelemetryEntry>>>> {
@@ -151,7 +162,10 @@ impl TelemetryReader {
             let rows = source.head.as_ref().expect("selected telemetry head exists");
             let row = &rows[source.offset];
             selected = selected.try_map(|mut selected| {
-                selected.push(PositionedTelemetry { position: row.position, captured: row.captured.clone() });
+                selected.push(PositionedTelemetry {
+                    position: row.position,
+                    captured: row.captured.clone(),
+                });
                 Ok::<_, Error>(selected)
             })?;
             source.offset += 1;
@@ -185,7 +199,10 @@ async fn read_head(
             after,
         }),
         transforms: Vec::new(),
-        slice: RowSlice { offset: 0, limit: Some(u64::try_from(page_rows).map_err(|_| invalid("telemetry page rows overflow"))?) },
+        slice: RowSlice {
+            offset: 0,
+            limit: Some(u64::try_from(page_rows).map_err(|_| invalid("telemetry page rows overflow"))?),
+        },
     };
     let mut reader = session.query(query).await?;
     let mut rows = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<PositionedTelemetry>::new()))?;

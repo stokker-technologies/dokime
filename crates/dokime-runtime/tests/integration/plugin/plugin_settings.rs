@@ -140,7 +140,11 @@ impl dokime_runtime::Plugin for Bench {
     }
 
     fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))
+        table.register(Operations::registration({
+            let mut dependencies = dokime_runtime::harmos::Dependencies::new();
+            dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
+            dependencies
+        }))
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -158,10 +162,7 @@ impl dokime_runtime::Operation for GetStatus {
     type Error = Refusal;
 
     async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<StatusResponse>, Refusal> {
-        let answered: Result<StatusResponse, Refusal> = async {
-        Ok(StatusResponse::ready())
-        }
-        .await;
+        let answered: Result<StatusResponse, Refusal> = async { Ok(StatusResponse::ready()) }.await;
         answered.map(Into::into)
     }
 }
@@ -176,13 +177,13 @@ impl dokime_runtime::Operation for ListEnvironments {
 
     async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<OptionsResponse>, Refusal> {
         let answered: Result<OptionsResponse, Refusal> = async {
-        Ok(OptionsResponse::of([OptionProviderOption {
-            value: "development".to_owned(),
-            label: "Offered".to_owned(),
-            description: None,
-            disabled: false,
-            metadata: None,
-        }]))
+            Ok(OptionsResponse::of([OptionProviderOption {
+                value: "development".to_owned(),
+                label: "Offered".to_owned(),
+                description: None,
+                disabled: false,
+                metadata: None,
+            }]))
         }
         .await;
         answered.map(Into::into)
@@ -195,10 +196,7 @@ impl dokime_runtime::Operation for DetectPort {
     type Error = Refusal;
 
     async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<Discovered>, Refusal> {
-        let answered: Result<Discovered, Refusal> = async {
-        Ok(Discovered::of("/dev/bench0"))
-        }
-        .await;
+        let answered: Result<Discovered, Refusal> = async { Ok(Discovered::of("/dev/bench0")) }.await;
         answered.map(Into::into)
     }
 }
@@ -209,10 +207,7 @@ impl dokime_runtime::Operation for DetectStream {
     type Error = Refusal;
 
     async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<Discovered>, Refusal> {
-        let answered: Result<Discovered, Refusal> = async {
-        Ok(Discovered::of(7_i64))
-        }
-        .await;
+        let answered: Result<Discovered, Refusal> = async { Ok(Discovered::of(7_i64)) }.await;
         answered.map(Into::into)
     }
 }
@@ -224,12 +219,11 @@ struct GetVoltage {
 impl dokime_runtime::Operation for GetVoltage {
     type Error = Refusal;
 
-    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetVoltageResponse>, Refusal> {
+    async fn run(
+        self, _: dokime_runtime::harmos::Context<'_, Self>,
+    ) -> Result<dokime_runtime::harmos::Response<GetVoltageResponse>, Refusal> {
         let request = self;
-        let answered: Result<GetVoltageResponse, Refusal> = async {
-        Ok(GetVoltageResponse { volts: f64::from(request.stream) })
-        }
-        .await;
+        let answered: Result<GetVoltageResponse, Refusal> = async { Ok(GetVoltageResponse { volts: f64::from(request.stream) }) }.await;
         answered.map(Into::into)
     }
 }
@@ -303,7 +297,10 @@ fn admitted_values_handed() {
     saved.insert("page_limit".to_owned(), Value::from(1_000));
     saved.insert("archive".to_owned(), Value::from("/var/bench"));
 
-    let configuration = Configuration { settings: saved.clone(), ..Configuration::default() };
+    let configuration = Configuration {
+        settings: saved.clone(),
+        ..Configuration::default()
+    };
     let settings = BenchSettings::decode(&saved, &configuration).expect("the saved values decode");
 
     assert_eq!(settings.workspace.workspace_id.as_deref(), Some("bench-workspace"));
@@ -355,7 +352,10 @@ fn saved_values_empty() {
     let mut saved = defaults();
     saved.insert("port".to_owned(), Value::from("/dev/saved"));
     saved.insert("stream".to_owned(), Value::from(3_u32));
-    let mut configuration = Configuration { settings: saved, ..Configuration::default() };
+    let mut configuration = Configuration {
+        settings: saved,
+        ..Configuration::default()
+    };
     configuration.saved.insert("port".to_owned());
     configuration.saved.insert("stream".to_owned());
     let settings = configuration.settings::<BenchSettings>().expect("the saved values decode");

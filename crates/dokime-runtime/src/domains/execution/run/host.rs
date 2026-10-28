@@ -86,14 +86,18 @@ impl Sessions {
         self.open.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn serving<O: harmos::Operation + harmos::operations::Requires<HostContext>>(&self, context: &Context<'_, O>) -> Result<Arc<Session>, Status> {
+    fn serving<O: harmos::Operation + harmos::operations::Requires<HostContext>>(
+        &self, context: &Context<'_, O>,
+    ) -> Result<Arc<Session>, Status> {
         let scope = context
             .call()
             .value::<ExecutionScope>()
             .ok()
             .flatten()
             .ok_or_else(|| Status::invalid_argument("the call is not part of a template run"))?;
-        let session = self.get(&scope.execution).ok_or_else(|| Status::not_found(format!("execution session {} is not registered", scope.execution)))?;
+        let session = self
+            .get(&scope.execution)
+            .ok_or_else(|| Status::not_found(format!("execution session {} is not registered", scope.execution)))?;
         let host = context.resource::<HostContext>();
         if let Some(caller) = host.borrow().caller_scope()
             && caller.owner() != session.source()
@@ -167,10 +171,8 @@ pub(crate) async fn register(operations: &OperationManager, sessions: &Arc<Sessi
     dependencies.insert(Host::<EvidenceBatch>::new(served.clone()))?;
     dependencies.insert(Host::<OperatorQuestion>::new(served.clone()))?;
     dependencies.insert(Host::<LeaseAsk>::new(served))?;
-    let batch = harmos::RegistrationBatch::new(dependencies)
-        .operation::<EvidenceBatch>()
-        .operation::<OperatorQuestion>()
-        .operation::<LeaseAsk>();
+    let batch =
+        harmos::RegistrationBatch::new(dependencies).operation::<EvidenceBatch>().operation::<OperatorQuestion>().operation::<LeaseAsk>();
     operations.register(batch.lane(crate::app::Lanes::Open)).await
 }
 

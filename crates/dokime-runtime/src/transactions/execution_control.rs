@@ -185,7 +185,13 @@ impl ControlExecution {
         if !prepared && execution.started_at.is_none() && execution.finished_at.is_none() {
             execution.status = ExecutionStatus::Cancelled;
             execution.finished_at = Some(self.occurred_at.clone());
-            execution.result = Some(ResultSummary { passed: 0, failed: 0, blocked: 0, skipped: 1, status: ResultStatus::Cancelled });
+            execution.result = Some(ResultSummary {
+                passed: 0,
+                failed: 0,
+                blocked: 0,
+                skipped: 1,
+                status: ResultStatus::Cancelled,
+            });
             for step in &mut execution.steps {
                 if step.status == StepStatus::Pending {
                     step.status = StepStatus::Skipped;

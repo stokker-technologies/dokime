@@ -27,16 +27,16 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use dokime::__harmos as harmos;
 use dokime::execution::ExecutionScope;
+use dokime::operations::hosting::{Host as Hosted, Serve, Served};
 use dokime::transport::{
     DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion,
     RunExecution, SidecarExecutionOutcome, StepAdmission,
 };
-use dokime::operations::hosting::{Host as Hosted, Serve, Served};
-use harmos::{Context, RegistrationExt};
 use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
     PluginLifecyclePhase, PluginManager, PluginScope, PluginTransition, Router,
 };
+use harmos::{Context, RegistrationExt};
 use obc_plugin::ObcPlugin;
 
 /* === Constants === */
@@ -114,7 +114,10 @@ impl Hosting {
             .value::<ExecutionScope>()
             .ok()
             .flatten()
-            .ok_or(harmos::Error::InvalidInput { field: "execution scope", reason: "the call is not part of a template run" })?
+            .ok_or(harmos::Error::InvalidInput {
+                field: "execution scope",
+                reason: "the call is not part of a template run",
+            })?
             .execution)
     }
 
@@ -183,7 +186,11 @@ impl Serve<EvidenceBatch> for Hosting {
                     scope.step_id = Some(start.step_id.clone());
                     scope.origin = dokime::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
                 }
-                admitted.push(StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+                admitted.push(StepAdmission {
+                    attempt_id: start.attempt_id.to_string(),
+                    accepted: true,
+                    message: String::new(),
+                });
             }
             let settled = batch.record_subscriptions_settling;
             if settled {
@@ -203,7 +210,11 @@ impl Serve<OperatorQuestion> for Hosting {
 
 impl Serve<LeaseAsk> for Hosting {
     fn serve<'a>(&'a self, _: LeaseAsk, _: Context<'a, LeaseAsk>) -> Served<'a, LeaseResolution> {
-        Box::pin(std::future::ready(Ok(LeaseResolution { granted: false, message: "the test host leases nothing".into() }.into())))
+        Box::pin(std::future::ready(Ok(LeaseResolution {
+            granted: false,
+            message: "the test host leases nothing".into(),
+        }
+        .into())))
     }
 }
 
@@ -452,10 +463,7 @@ impl Bench {
         let operations = self.runtime.operations.with_context(context);
         tokio::spawn(async move {
             let bytes = operations
-                .call_encoded(
-                    <dokime::execution::Run<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID,
-                    request.encode(),
-                )
+                .call_encoded(<dokime::execution::Run<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID, request.encode())
                 .await
                 .unwrap();
             SidecarExecutionOutcome::decode(bytes.as_slice()).unwrap()

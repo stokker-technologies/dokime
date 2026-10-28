@@ -60,7 +60,10 @@ impl Client {
         header.sha256 = None;
         let template = dokime_domain::model::content::wire::UploadArtifactFrame {
             payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(
-                dokime_domain::model::content::wire::ArtifactChunk { offset: header.size_bytes, data: Vec::new() },
+                dokime_domain::model::content::wire::ArtifactChunk {
+                    offset: header.size_bytes,
+                    data: Vec::new(),
+                },
             )),
         };
         let chunk_bytes = super::plugins::chunk_bytes::<dokime_operations::content::UploadArtifact>(
@@ -138,7 +141,10 @@ async fn feed<F: Future<Output = super::Result<()>>>(
         size_bytes: offset,
         sha256: digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
     };
-    send(dokime_domain::model::content::wire::UploadArtifactFrame { payload: Some(Payload::Complete(completion.clone())) }).await?;
+    send(dokime_domain::model::content::wire::UploadArtifactFrame {
+        payload: Some(Payload::Complete(completion.clone())),
+    })
+    .await?;
     Ok(completion)
 }
 

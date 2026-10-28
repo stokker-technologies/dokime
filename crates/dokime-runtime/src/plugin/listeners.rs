@@ -108,11 +108,12 @@ impl<L: Listener> Carrier for Hearing<L> {
         Ok(Self(PhantomData))
     }
 
-    async fn attempt(
-        &mut self, context: ExecutionContext, request: &mut Delivery, _: &mut (),
-    ) -> Result<harmos::Response<()>, Refusal> {
+    async fn attempt(&mut self, context: ExecutionContext, request: &mut Delivery, _: &mut ()) -> Result<harmos::Response<()>, Refusal> {
         let record = request.record::<L::Record>().map_err(Refusal::of)?;
-        let ctx = ListenerContext { execution: &context, listener: PhantomData };
+        let ctx = ListenerContext {
+            execution: &context,
+            listener: PhantomData,
+        };
         L::hear(&ctx, record).await?;
         Ok(().into())
     }
@@ -120,12 +121,16 @@ impl<L: Listener> Carrier for Hearing<L> {
 
 impl Delivery {
     pub fn of(record: &Record) -> Self {
-        Self { record_json: serde_json::to_string(record).expect("a filed record serializes") }
+        Self {
+            record_json: serde_json::to_string(record).expect("a filed record serializes"),
+        }
     }
 
     pub fn record<R: DeclaredRecord>(&self) -> crate::Result<R> {
-        let record: Record = serde_json::from_str(&self.record_json)
-            .map_err(|error| crate::Error::RecordDecode { record: R::RECORD_TYPE.to_owned(), reason: error.to_string() })?;
+        let record: Record = serde_json::from_str(&self.record_json).map_err(|error| crate::Error::RecordDecode {
+            record: R::RECORD_TYPE.to_owned(),
+            reason: error.to_string(),
+        })?;
         R::from_record(&record)
     }
 }

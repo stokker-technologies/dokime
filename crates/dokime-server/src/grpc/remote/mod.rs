@@ -191,7 +191,10 @@ impl Controller {
         if let Err(change) = result {
             return match self.write_security(previous).await {
                 Ok(()) => Err(change),
-                Err(restoration) => Err(Error::RemoteRollback { change: Box::new(change), restoration: Box::new(restoration) }),
+                Err(restoration) => Err(Error::RemoteRollback {
+                    change: Box::new(change),
+                    restoration: Box::new(restoration),
+                }),
             };
         }
         Ok(())
@@ -297,7 +300,10 @@ impl Controller {
                     state.bound = Some(bound);
                 }
                 Err(restoration) => {
-                    let error = Error::RemoteRollback { change: Box::new(change), restoration: Box::new(restoration) };
+                    let error = Error::RemoteRollback {
+                        change: Box::new(change),
+                        restoration: Box::new(restoration),
+                    };
                     state.error = Some(error.to_string());
                     return Err(error);
                 }
@@ -327,7 +333,13 @@ pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Resul
         path,
         sessions,
         clients,
-        state: Mutex::new(State { document, server: None, bound: None, error: None, closing: false }),
+        state: Mutex::new(State {
+            document,
+            server: None,
+            bound: None,
+            error: None,
+            closing: false,
+        }),
     });
     let weak = Arc::downgrade(&controller);
     tokio::spawn(async move {

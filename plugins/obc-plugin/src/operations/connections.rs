@@ -42,7 +42,9 @@ impl Operation for ListConnections {
     type Error = Refusal;
 
     async fn run(self, ctx: Context<'_, Self>) -> Result<Response<Connections>, Refusal> {
-        Ok(Response::new(Connections { resources: ctx.resource::<Resources>().connected() }))
+        Ok(Response::new(Connections {
+            resources: ctx.resource::<Resources>().connected(),
+        }))
     }
 }
 

@@ -209,7 +209,10 @@ async fn report_reader(storage: &crate::storage::Manager, file: &harmos::storage
 }
 
 fn not_found(code: &str, message: &str) -> Error {
-    Error::Admission(AdmissionFailure::NotFound { code: code.into(), message: message.into() })
+    Error::Admission(AdmissionFailure::NotFound {
+        code: code.into(),
+        message: message.into(),
+    })
 }
 
 /* === Tests === */

@@ -85,7 +85,11 @@ pub(crate) mod observers {
 
         async fn observe(&mut self, ctx: &ObserverContext<'_, Resource, Publishing>) -> Result<(), Error> {
             self.probe.bump(&self.probe.auxiliary_samples);
-            ctx.publish_on::<Auxiliary>(&Row { value: 2, index: (ctx.tick().ordinal() - 1) as i64 }).await?;
+            ctx.publish_on::<Auxiliary>(&Row {
+                value: 2,
+                index: (ctx.tick().ordinal() - 1) as i64,
+            })
+            .await?;
             Ok(())
         }
     }
@@ -328,7 +332,10 @@ impl dokime_runtime::Plugin for Measured {
         if settings.probes.refuse {
             return dokime_runtime::plugin::refusal(Err(Error::Unavailable));
         }
-        Ok(Self { resource: Arc::new(Resource(probe)), observers: None })
+        Ok(Self {
+            resource: Arc::new(Resource(probe)),
+            observers: None,
+        })
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -559,10 +566,7 @@ async fn listener_publishes_asked() {
 
     let mut invocation = runtime
         .operations
-        .submit_encoded(
-            <Noted as dokime_runtime::harmos::operations::OperationDeclaration>::ID,
-            connected("STALL").encode(),
-        )
+        .submit_encoded(<Noted as dokime_runtime::harmos::operations::OperationDeclaration>::ID, connected("STALL").encode())
         .unwrap();
     // A Paused Clock Advances Without Turning Pending Delivery Into A Success
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());

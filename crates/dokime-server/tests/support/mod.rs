@@ -103,7 +103,11 @@ impl TestEnvironment {
         let runtime_owner = dokime::Runtime::with_execution_fixture(runtime_config, "fixture", provider).boxed_local().await.unwrap();
         let runtime = runtime_owner.handle();
 
-        Self { root, _runtime_owner: runtime_owner, runtime }
+        Self {
+            root,
+            _runtime_owner: runtime_owner,
+            runtime,
+        }
     }
 }
 
@@ -141,7 +145,11 @@ pub(crate) async fn planned_cycle(
 ) -> Result<String, Status> {
     let metadata = create.metadata().clone();
     let cycle_id = client.unary::<contracts::execution::CreateCycle>(create).await?.into_inner().cycle_id;
-    let append = wire::SelectionAppend { cycle_id: cycle_id.clone(), plan: Some(plan), context: None };
+    let append = wire::SelectionAppend {
+        cycle_id: cycle_id.clone(),
+        plan: Some(plan),
+        context: None,
+    };
     client.append_selection(Request::from_parts(metadata, Extensions::default(), append)).await?;
     Ok(cycle_id)
 }

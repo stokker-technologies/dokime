@@ -184,11 +184,18 @@ impl Observations {
 
 impl Device {
     fn open(token: &str) -> Arc<Self> {
-        Arc::new(Self { observations: double(token), runs: Mutex::new(0), token: token.to_owned() })
+        Arc::new(Self {
+            observations: double(token),
+            runs: Mutex::new(0),
+            token: token.to_owned(),
+        })
     }
 
     fn describe(self: &Arc<Self>) -> GetDeviceResponse {
-        GetDeviceResponse { identity: Arc::as_ptr(self) as u64, token: self.token.clone() }
+        GetDeviceResponse {
+            identity: Arc::as_ptr(self) as u64,
+            token: self.token.clone(),
+        }
     }
 
     fn start_run(&self) -> StartRunResponse {
@@ -221,12 +228,14 @@ struct GetDevice {}
 impl dokime_runtime::Operation for GetDevice {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetDeviceResponse>, Refusal> {
+    async fn run(
+        self, context: dokime_runtime::harmos::Context<'_, Self>,
+    ) -> Result<dokime_runtime::harmos::Response<GetDeviceResponse>, Refusal> {
         let resource = context.resource::<Device>();
         let answered: Result<GetDeviceResponse, Refusal> = async {
-        let key = dokime_runtime::execution::ExecutionScope::serving::<Self>(context.call()).map(|scope| scope.key().into_inner());
-        resource.observations.keys.lock().unwrap().push(key);
-        Ok(resource.describe())
+            let key = dokime_runtime::execution::ExecutionScope::serving::<Self>(context.call()).map(|scope| scope.key().into_inner());
+            resource.observations.keys.lock().unwrap().push(key);
+            Ok(resource.describe())
         }
         .await;
         answered.map(Into::into)
@@ -238,12 +247,11 @@ struct StartRun {}
 impl dokime_runtime::Operation for StartRun {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<StartRunResponse>, Refusal> {
+    async fn run(
+        self, context: dokime_runtime::harmos::Context<'_, Self>,
+    ) -> Result<dokime_runtime::harmos::Response<StartRunResponse>, Refusal> {
         let resource = context.resource::<Device>();
-        let answered: Result<StartRunResponse, Refusal> = async {
-        Ok(resource.start_run())
-        }
-        .await;
+        let answered: Result<StartRunResponse, Refusal> = async { Ok(resource.start_run()) }.await;
         answered.map(Into::into)
     }
 }
@@ -281,7 +289,11 @@ impl dokime_runtime::Plugin for Owner {
     }
 
     fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))?;
+        table.register(Operations::registration({
+            let mut dependencies = dokime_runtime::harmos::Dependencies::new();
+            dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
+            dependencies
+        }))?;
         dokime_runtime::execution::serve::<Self, OwnerSuites>(table)
     }
 

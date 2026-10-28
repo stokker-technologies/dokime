@@ -60,7 +60,10 @@ impl Policy {
     fn new(settings: &dokime::harmos::config::SchemaSettings) -> Result<Self, Error> {
         let mut requirements = Vec::new();
         <Operations as Catalog<Endpoints>>::ENTRIES.try_for_each(|entry| {
-            requirements.push(Requirement { local_only: entry.local_only, contract: entry.wire.contract_with_settings(settings)? });
+            requirements.push(Requirement {
+                local_only: entry.local_only,
+                contract: entry.wire.contract_with_settings(settings)?,
+            });
             Ok::<_, Error>(())
         })?;
         requirements.sort_unstable_by(|left, right| left.contract.operation().id.cmp(&right.contract.operation().id));
@@ -78,9 +81,8 @@ impl Authorizer for Policy {
         };
         // Canonical Product Providers Are Host Registrations Of The Product Namespace; Harmos Owns
         // Every Host Entry As `host`. A Plugin Reusing A Public Operation ID Cannot Inherit Native Trust.
-        let product = !provider.plugin
-            && provider.owner.as_str() == HOST_OWNER
-            && provider.definition.id.as_str().starts_with(PRODUCT_NAMESPACE);
+        let product =
+            !provider.plugin && provider.owner.as_str() == HOST_OWNER && provider.definition.id.as_str().starts_with(PRODUCT_NAMESPACE);
         if !product {
             if principal.is_local() || provider.plugin {
                 return Ok(Some(Authorization::Full(provider.contract.clone())));

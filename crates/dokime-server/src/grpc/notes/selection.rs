@@ -67,7 +67,11 @@ impl Page {
             "{kind}:{}",
             Sha256::digest(dokime::harmos::Message::encode(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
-        let cursor = Cursor { epoch: snapshot.state().process_epoch().to_string(), stream, position: snapshot.revision() };
+        let cursor = Cursor {
+            epoch: snapshot.state().process_epoch().to_string(),
+            stream,
+            position: snapshot.revision(),
+        };
         let limit = dokime::domain::model::execution::wire_cursor::page_size(limit, &after_id)
             .map_err(crate::grpc::value::canonical::cursor_failure)?;
         if !after_id.is_empty() && given_cursor.is_none() {
@@ -106,7 +110,15 @@ impl Page {
             case_executions
                 .extend(executions.iter().filter(|item| &item.test_case_id == case_id).map(|item| item.test_execution_id.clone()));
         }
-        Ok(Self { owner, context: selection.include_context, limit, after, cursor, scope, case_executions })
+        Ok(Self {
+            owner,
+            context: selection.include_context,
+            limit,
+            after,
+            cursor,
+            scope,
+            case_executions,
+        })
     }
     pub fn matches(&self, actual: &RecordScope) -> bool {
         let Some(selected) = &self.scope else {

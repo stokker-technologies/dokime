@@ -151,7 +151,12 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
     pub(in crate::execution) fn new(
         environment: &'a Environment<'a, C, O, I>, transport: &'a mut dyn ExecutionTransport, stage: S,
     ) -> Self {
-        Self { environment, transport, stage, call_stage: String::new() }
+        Self {
+            environment,
+            transport,
+            stage,
+            call_stage: String::new(),
+        }
     }
 
     pub(in crate::execution) fn calling_stage(mut self, stage: impl Into<String>) -> Self {

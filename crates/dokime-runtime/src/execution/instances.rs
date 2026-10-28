@@ -134,7 +134,10 @@ trait Sweep: Send + Sync {
 
 impl Handles {
     pub(crate) fn new() -> Self {
-        Self { ledger: Arc::new(Mutex::new(Ledger::default())), settlement: Duration::from_secs(30) }
+        Self {
+            ledger: Arc::new(Mutex::new(Ledger::default())),
+            settlement: Duration::from_secs(30),
+        }
     }
 
     pub(crate) fn begin(&self, step: StepIdentity) {
@@ -181,7 +184,12 @@ impl LocalRun {
     {
         let (cancel, cancelled) = watch::channel(false);
         let (ready, readiness) = watch::channel(None);
-        Self { task: tokio::spawn(serve(cancelled, ready)), cancel, cooperative, readiness }
+        Self {
+            task: tokio::spawn(serve(cancelled, ready)),
+            cancel,
+            cooperative,
+            readiness,
+        }
     }
 
     fn request_cancel(&self) {
@@ -230,9 +238,19 @@ impl<O: OperationDeclaration> StepInstance<O> {
 
     fn tracked(handles: &Handles, id: Id, running: Running<O>, request: &[u8]) -> Self {
         let (kind, name) = label::<O>(request);
-        let slot = Arc::new(Slot { settlement: handles.settlement, running: tokio::sync::Mutex::new(Some(running)), kind, name });
+        let slot = Arc::new(Slot {
+            settlement: handles.settlement,
+            running: tokio::sync::Mutex::new(Some(running)),
+            kind,
+            name,
+        });
         handles.track(Arc::clone(&slot) as Arc<dyn Sweep>);
-        Self { id, slot, released: false, readiness: None }
+        Self {
+            id,
+            slot,
+            released: false,
+            readiness: None,
+        }
     }
 
     pub fn id(&self) -> Id {
@@ -265,8 +283,10 @@ impl<O: OperationDeclaration> StepInstance<O> {
             Some(Running::Host(instance)) => instance.join().await,
             Some(Running::Local(run)) => {
                 let bytes = run.join(O::ID).await?;
-                let response = O::Response::decode(bytes.as_slice())
-                    .map_err(|error| CallError::Malformed { method: O::ID, message: error.to_string() })?;
+                let response = O::Response::decode(bytes.as_slice()).map_err(|error| CallError::Malformed {
+                    method: O::ID,
+                    message: error.to_string(),
+                })?;
                 Ok(Response::new(response))
             }
             None => Err(refused(format!("`{}` was cancelled when its step ended", O::ID))),
@@ -290,7 +310,11 @@ impl StepInstance<WatchFile> {
     pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, CallError> {
         match self.readiness.as_ref() {
             Some(Readiness::Host(host)) => {
-                let response = host.call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: self.id.value() }).await?;
+                let response = host
+                    .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed {
+                        instance_id: self.id.value(),
+                    })
+                    .await?;
                 Ok(response.into_owned())
             }
             Some(Readiness::Local(signal)) => {
@@ -377,7 +401,11 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
                     "an instance cancelled at step end did not settle in time"
                 );
             }
-            Some(StepHandleCancelled { step, kind: self.kind.to_owned(), name: self.name.clone() })
+            Some(StepHandleCancelled {
+                step,
+                kind: self.kind.to_owned(),
+                name: self.name.clone(),
+            })
         })
     }
 }
@@ -385,7 +413,10 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
 /* === Public Functions === */
 
 pub(crate) fn refused(message: impl Into<String>) -> CallError {
-    CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) }
+    CallError::Refused {
+        code: STEP_REFUSAL,
+        failure: refusal_failure(message),
+    }
 }
 
 pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
@@ -395,7 +426,12 @@ pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
 /* === Private Functions === */
 
 fn swept() -> Status {
-    Status { phase: Phase::Settled, outcome: Some(Outcome::Cancelled), cancellation_requested: true, attempt: 1 }
+    Status {
+        phase: Phase::Settled,
+        outcome: Some(Outcome::Cancelled),
+        cancellation_requested: true,
+        attempt: 1,
+    }
 }
 
 // What a warning calls the instance: the program a process runs, the

@@ -239,16 +239,21 @@ fn data_expression(expression: dokime::domain::model::plots::wire::DataExpressio
         return Err(Status::resource_exhausted("plot expression exceeds 32 transforms"));
     }
     let source = match expression.source.ok_or_else(|| Status::invalid_argument("data expression source is required"))? {
-        dokime::domain::model::plots::wire::DataExpressionSource::Telemetry(source) => {
-            DataSource::Telemetry { stream: expression_stream(source.stream)?, field: source.field }
-        }
+        dokime::domain::model::plots::wire::DataExpressionSource::Telemetry(source) => DataSource::Telemetry {
+            stream: expression_stream(source.stream)?,
+            field: source.field,
+        },
         dokime::domain::model::plots::wire::DataExpressionSource::Parameter(source) => DataSource::Parameter { name: source.name },
         dokime::domain::model::plots::wire::DataExpressionSource::Dimension(source) => DataSource::Dimension { name: source.name },
         dokime::domain::model::plots::wire::DataExpressionSource::Record(source) => DataSource::Record { record_type: source.record_type },
         dokime::domain::model::plots::wire::DataExpressionSource::Artifact(source) => DataSource::Artifact { artifact: source.artifact },
     };
     let transforms = expression.transforms.into_iter().map(data_transform).collect::<Result<_, _>>()?;
-    Ok(DataExpression { label: expression.label, source, transforms })
+    Ok(DataExpression {
+        label: expression.label,
+        source,
+        transforms,
+    })
 }
 
 fn data_transform(transform: dokime::domain::model::plots::wire::DataTransform) -> Result<DataTransform, Status> {
@@ -260,12 +265,13 @@ fn data_transform(transform: dokime::domain::model::plots::wire::DataTransform) 
             }
             DataTransform::Aggregate(value.aggregate)
         }
-        dokime::domain::model::plots::wire::DataTransformKind::TimeBetween(value) => {
-            DataTransform::TimeBetween { previous_record_type: value.previous_record_type }
-        }
-        dokime::domain::model::plots::wire::DataTransformKind::TelemetryAtOrBefore(value) => {
-            DataTransform::TelemetryAtOrBefore { stream: expression_stream(value.stream)?, field: value.field }
-        }
+        dokime::domain::model::plots::wire::DataTransformKind::TimeBetween(value) => DataTransform::TimeBetween {
+            previous_record_type: value.previous_record_type,
+        },
+        dokime::domain::model::plots::wire::DataTransformKind::TelemetryAtOrBefore(value) => DataTransform::TelemetryAtOrBefore {
+            stream: expression_stream(value.stream)?,
+            field: value.field,
+        },
         dokime::domain::model::plots::wire::DataTransformKind::Detail(value) => DataTransform::Detail { name: value.name },
         dokime::domain::model::plots::wire::DataTransformKind::PerCase(_) => DataTransform::PerCase,
     })

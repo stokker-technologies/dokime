@@ -41,7 +41,15 @@ use dokime::domain::model;
 
 #[tokio::test]
 async fn live_file_rewrites() {
-    let Gated { root: _root, gate, mut owner, service, server, execution, cycle } = Gated::open_bounded(4096).await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service,
+        server,
+        execution,
+        cycle,
+    } = Gated::open_bounded(4096).await;
     let runtime = owner.handle();
     execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
@@ -60,7 +68,11 @@ async fn live_file_rewrites() {
     std::fs::write(&first.absolute_path, &bytes).unwrap();
     std::fs::write(&second.absolute_path, []).unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let list = |limit| contracts::content::ListExecutionFiles { execution_id: id.to_string(), limit, ..Default::default() };
+    let list = |limit| contracts::content::ListExecutionFiles {
+        execution_id: id.to_string(),
+        limit,
+        ..Default::default()
+    };
     assert_eq!(content.unary::<contracts::content::ListExecutionFiles>(list(1)).await.unwrap_err().code(), Code::Unauthenticated);
     let page = content.unary::<contracts::content::ListExecutionFiles>(authenticated(list(1))).await.unwrap().into_inner();
     assert_eq!(page.files.len(), 1);
@@ -446,7 +458,10 @@ async fn producer_generation_follow(runtime: &dokime::RuntimeHandle) {
     let mut producer = storage.produce_file(metadata).await.unwrap();
     producer.write_all(b"prefix-".to_vec()).await.unwrap();
     let original = producer.session().expect("resumable production").clone();
-    let identity = StagedFile { history: original.history.clone(), id: original.id.clone() };
+    let identity = StagedFile {
+        history: original.history.clone(),
+        id: original.id.clone(),
+    };
     let mut follower = storage.follow_production(&identity, 0).await.unwrap();
     let maximum = std::num::NonZeroUsize::new(64).unwrap();
     let prefix = follower.next_batch(maximum).await.unwrap().unwrap();
@@ -484,7 +499,15 @@ async fn producer_generation_follow(runtime: &dokime::RuntimeHandle) {
 
 async fn live_follow_refusal(change: &str) {
     use {model::content::wire::ExecutionFileFollowFramePayload as Frame, model::content::wire::ExecutionFilePhase};
-    let Gated { root: _root, gate, mut owner, service, server, execution, cycle } = Gated::open().await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service,
+        server,
+        execution,
+        cycle,
+    } = Gated::open().await;
     let runtime = owner.handle();
     execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
@@ -628,7 +651,15 @@ async fn execution_file_buffer() {
     // chunks; twice the batch crosses that boundary with margin.
     let size_bytes = 2 * crate::support::budgets::story_settings().response.batch_bytes.get() as u64;
 
-    let Gated { root: _root, gate, mut owner, service: _service, server, execution, cycle } = Gated::open().await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service: _service,
+        server,
+        execution,
+        cycle,
+    } = Gated::open().await;
     let runtime = owner.handle();
     execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;

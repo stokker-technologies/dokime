@@ -78,10 +78,9 @@ async fn client(
     owner: &DesktopSessionControl, connection: &ConnectionSession, scope: SettingsScope,
 ) -> Result<dokime::client::Client, SettingsCommandError> {
     if matches!(scope, SettingsScope::Local) {
-        return owner
-            .local_client()
-            .await
-            .map_err(|error| SettingsCommandError::Persistence { message: format!("{:?}", registry::session_error(error)) });
+        return owner.local_client().await.map_err(|error| SettingsCommandError::Persistence {
+            message: format!("{:?}", registry::session_error(error)),
+        });
     }
     let status = connection.status();
     connection.lease(&status.generation).map(|lease| lease.client()).map_err(|_| SettingsCommandError::Disconnected)

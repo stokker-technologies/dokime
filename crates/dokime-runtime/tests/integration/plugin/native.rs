@@ -18,11 +18,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
+use harmos::RegistrationExt;
 use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
     PluginManager, PluginTransition, Router,
 };
-use harmos::RegistrationExt;
 use harmos::sidecar::{Attach, Notice, Supervised};
 use tonic::Status;
 
@@ -152,11 +152,24 @@ impl<A: Attach> Native<A> {
             .await
             .unwrap();
         let log = HostLog::register(&runtime.operations).await;
-        let mut host = Host { attach, notices: Arc::new(notices), demand_keys, demands: None, operations: runtime.operations.clone() };
+        let mut host = Host {
+            attach,
+            notices: Arc::new(notices),
+            demand_keys,
+            demands: None,
+            operations: runtime.operations.clone(),
+        };
         let mut plugins = PluginManager::new(definitions).unwrap();
         plugins.initialize(&mut host).await.unwrap();
         let demands = host.demands.as_ref().unwrap().clone();
-        Self { runtime, demands, host: log, plugins, lifecycle: host, retired: false }
+        Self {
+            runtime,
+            demands,
+            host: log,
+            plugins,
+            lifecycle: host,
+            retired: false,
+        }
     }
 
     pub(super) async fn retire(&mut self) {
@@ -195,14 +208,16 @@ impl<A: Attach> PluginLifecycle for Host<A> {
     ) -> harmos::Result<()> {
         let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
         let notices = Arc::clone(&self.notices);
-        let resident = Supervised::new(self.attach.clone(), move |service: &harmos::ServiceContext<Fixture>, notice: Notice| {
-            notices(service, notice)
-        })
-        .demand_keys(self.demand_keys.clone())
-        .routed(router);
+        let resident =
+            Supervised::new(self.attach.clone(), move |service: &harmos::ServiceContext<Fixture>, notice: Notice| notices(service, notice))
+                .demand_keys(self.demand_keys.clone())
+                .routed(router);
         self.demands = Some(resident.demands());
         self.operations.register_service(
-            harmos::services::ServiceDefinition { id: definition.id.clone(), policy: harmos::services::POLICY },
+            harmos::services::ServiceDefinition {
+                id: definition.id.clone(),
+                policy: harmos::services::POLICY,
+            },
             {
                 let resident = resident.clone();
                 move |_: Arc<()>| resident.clone()
@@ -344,7 +359,11 @@ impl Serve<EvidenceBatch> for Hosting {
                     .iter()
                     .map(|encoded| {
                         let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-                        StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() }
+                        StepAdmission {
+                            attempt_id: start.attempt_id.to_string(),
+                            accepted: true,
+                            message: String::new(),
+                        }
                     })
                     .collect(),
                 settled: batch.record_subscriptions_settling,
@@ -363,7 +382,13 @@ impl Serve<OperatorQuestion> for Hosting {
 
 impl Serve<LeaseAsk> for Hosting {
     fn serve<'a>(&'a self, _: LeaseAsk, _: harmos::Context<'a, LeaseAsk>) -> Served<'a, LeaseResolution> {
-        Box::pin(async { Ok(LeaseResolution { granted: false, message: "the fixture host measures no streams".into() }.into()) })
+        Box::pin(async {
+            Ok(LeaseResolution {
+                granted: false,
+                message: "the fixture host measures no streams".into(),
+            }
+            .into())
+        })
     }
 }
 
@@ -433,7 +458,14 @@ pub(super) async fn settled<T: dokime_runtime::execution::SidecarTemplate>(
         let batch = workflow.next(token, cursor).await.unwrap();
         for encoded in &batch.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+            workflow.admit(
+                token,
+                &StepAdmission {
+                    attempt_id: start.attempt_id.to_string(),
+                    accepted: true,
+                    message: String::new(),
+                },
+            );
         }
         cursor = batch.cursor;
         if let Some(outcome) = batch.outcome {

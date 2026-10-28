@@ -155,7 +155,10 @@ impl Tail {
 
     async fn finish(mut self, binding: &Binding) -> Result<WatchFileOutcome, String> {
         self.seal(binding).await?;
-        Ok(WatchFileOutcome { artifacts: self.artifacts, gaps: self.gaps })
+        Ok(WatchFileOutcome {
+            artifacts: self.artifacts,
+            gaps: self.gaps,
+        })
     }
 
     async fn seal(&mut self, binding: &Binding) -> Result<(), String> {
@@ -166,7 +169,10 @@ impl Tail {
         publish(binding, &self.matchers, last).await;
         self.spool.flush().map_err(|error| error.to_string())?;
         binding.artifacts.import(self.spool.path(), &self.artifact).map_err(|error| error.to_string())?;
-        self.artifacts.push(WatchedArtifact { artifact: self.artifact.clone(), size_bytes: self.written });
+        self.artifacts.push(WatchedArtifact {
+            artifact: self.artifact.clone(),
+            size_bytes: self.written,
+        });
         self.active = false;
         Ok(())
     }
@@ -337,7 +343,10 @@ fn snapshot(binding: &Binding, path: &Path, artifact: String, maximum_bytes: u64
         return Err(format!("file watch exceeds its {maximum_bytes} byte capture cap"));
     }
     binding.artifacts.import(path, &artifact).map_err(|error| format!("artifact {artifact:?}: {error}"))?;
-    Ok(WatchFileOutcome { artifacts: vec![WatchedArtifact { artifact, size_bytes }], gaps: Vec::new() })
+    Ok(WatchFileOutcome {
+        artifacts: vec![WatchedArtifact { artifact, size_bytes }],
+        gaps: Vec::new(),
+    })
 }
 
 // Rows reach the execution's streams; markers its records.

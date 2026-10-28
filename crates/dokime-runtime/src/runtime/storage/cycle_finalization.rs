@@ -409,7 +409,12 @@ impl super::executions::ExecutionStorage {
             Arc::new(appearance),
             &self.state_manager.state().read(|state| state.identity.node.node_id.clone()).await?.value,
         )?;
-        Ok(PendingCycle { snapshot, executions: Arc::new(executions), report: published, completed: None })
+        Ok(PendingCycle {
+            snapshot,
+            executions: Arc::new(executions),
+            report: published,
+            completed: None,
+        })
     }
 }
 

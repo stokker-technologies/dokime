@@ -32,8 +32,8 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::Message;
 use crate::app::OperationManager;
+use harmos::Message;
 
 // Local Imports
 use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};

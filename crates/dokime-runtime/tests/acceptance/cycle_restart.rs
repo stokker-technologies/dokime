@@ -144,7 +144,11 @@ async fn cycle_restart_child() {
     let providers = BTreeMap::from([("testdb".to_owned(), Arc::new(PublishingExecutor) as Arc<dyn ExecutionFixture>)]);
     let owner = Runtime::with_fixture_backends(config(root), providers, move |mut backends| {
         backends.primary = Arc::new(PublicationBackend::new(backends.primary, fault));
-        backends.state = Arc::new(CrashAdoption { inner: backends.state, root: injected_root, adoption });
+        backends.state = Arc::new(CrashAdoption {
+            inner: backends.state,
+            root: injected_root,
+            adoption,
+        });
         backends
     })
     .await

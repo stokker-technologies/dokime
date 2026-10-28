@@ -28,13 +28,7 @@ use tonic::Status;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::reports::MaterializeReport;
 use crate::report::Scope;
-use crate::{
-    RuntimeHandle,
-    app::Lanes,
-    runtime::Error,
-    runtime::Result,
-    runtime::storage::executions::ExecutionStorage,
-};
+use crate::{RuntimeHandle, app::Lanes, runtime::Error, runtime::Result, runtime::storage::executions::ExecutionStorage};
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::reports::wire::MaterializedReport;

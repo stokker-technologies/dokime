@@ -362,7 +362,10 @@ pub async fn desktop_artifact_deliver(
             move_verified_file(session, generation, verified.path, destination.clone(), overwrite)
                 .await
                 .map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
-            Ok(Some(Delivered { path: destination.to_string_lossy().into_owned(), origin }))
+            Ok(Some(Delivered {
+                path: destination.to_string_lossy().into_owned(),
+                origin,
+            }))
         }
         DeliveryAction::Open => {
             let open = |message: String| DeliveryError::local(DeliveryStage::Open, message);

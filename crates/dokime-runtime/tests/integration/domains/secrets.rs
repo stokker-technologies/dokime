@@ -64,8 +64,16 @@ async fn saved_file_roundtrip() {
     let mut source = Runtime::start(source).await.unwrap();
     let handle = source.handle();
 
-    let metadata = Metadata { identifier: "roundtrip.token".into(), label: "Saved Secret".into(), description: None };
-    let request = wire::Put { metadata, value: Some("saved-value-λ".into()), generation: 0 };
+    let metadata = Metadata {
+        identifier: "roundtrip.token".into(),
+        label: "Saved Secret".into(),
+        description: None,
+    };
+    let request = wire::Put {
+        metadata,
+        value: Some("saved-value-λ".into()),
+        generation: 0,
+    };
     handle.operations().call::<wire::Put>(request).await.unwrap();
     let identifiers = vec!["roundtrip.token".into()];
     let archive = handle.operations().call::<wire::Export>(wire::Export { identifiers, generation: 1 }).await.unwrap();
@@ -96,8 +104,19 @@ async fn saved_file_roundtrip() {
     assert_eq!(preview.entries.len(), 1);
     assert!(!preview.entries[0].exists);
 
-    let choices = vec![Choice { identifier: preview.entries[0].metadata.identifier.clone(), action: Action::Replace }];
-    handle.operations().call::<wire::Import>(wire::Import { data, choices, generation: preview.generation }).await.unwrap();
+    let choices = vec![Choice {
+        identifier: preview.entries[0].metadata.identifier.clone(),
+        action: Action::Replace,
+    }];
+    handle
+        .operations()
+        .call::<wire::Import>(wire::Import {
+            data,
+            choices,
+            generation: preview.generation,
+        })
+        .await
+        .unwrap();
     let restored = handle.operations().call::<wire::Lookup>(wire::Lookup { identifier: "roundtrip.token".into() }).await.unwrap();
     assert_eq!(restored.value.as_deref(), Some("saved-value-λ"));
     destination.shutdown().await.unwrap();

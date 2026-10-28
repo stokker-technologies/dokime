@@ -168,7 +168,10 @@ impl Transaction<RuntimeState> for EditOperatorNote {
         if state.note_edit_sealed(&note.scope) {
             return Err(NOTE_OWNER_SEALED.into());
         }
-        state.validate_operator_note(&OperatorNote { message: self.message.clone(), ..note.clone() })
+        state.validate_operator_note(&OperatorNote {
+            message: self.message.clone(),
+            ..note.clone()
+        })
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {

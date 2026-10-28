@@ -24,8 +24,7 @@ use std::sync::Arc;
 use harmos::{
     Identifier,
     storage::{
-        RecordInput, SchemaKey, StreamInput,
-        Query,
+        Query, RecordInput, SchemaKey, StreamInput,
         query::{QueryArrow, RowSlice, Source, StreamSelection},
     },
 };
@@ -441,7 +440,11 @@ pub(crate) async fn collect_page(
         rows.truncate(rows.len() - excess);
     }
     let (positions, samples) = rows.into_iter().unzip();
-    Ok(TelemetryPage { samples: harmos::storage::ReadBatch::new(samples), positions, limited })
+    Ok(TelemetryPage {
+        samples: harmos::storage::ReadBatch::new(samples),
+        positions,
+        limited,
+    })
 }
 
 /// Visits The Explicit Durable Frontier In Bounded Pages.
@@ -462,7 +465,13 @@ async fn visit_positioned(
     settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
     mut visit: impl FnMut(usize, u64, crate::telemetry::TelemetrySample) -> Result<std::ops::ControlFlow<()>>,
 ) -> Result<()> {
-    let ReadOptions { scan_limit, window, visible, sequence, after } = options;
+    let ReadOptions {
+        scan_limit,
+        window,
+        visible,
+        sequence,
+        after,
+    } = options;
     let codecs = saved_codecs(session, at, None, settings, |id, _| telemetry::selected_schema(id, &selection.streams)).await?;
 
     let mut end = None;
@@ -692,7 +701,11 @@ fn telemetry_query(
             TelemetryTerm::Text(value) => harmos::storage::query::scalar::ScalarValue::Text(query_text(value)?),
             TelemetryTerm::Unsigned(value) => harmos::storage::query::scalar::ScalarValue::Unsigned(value),
         };
-        terms.push(Term { field: query_path(field)?, condition: Condition::Compare { op: Compare::Eq, value }, negate: false });
+        terms.push(Term {
+            field: query_path(field)?,
+            condition: Condition::Compare { op: Compare::Eq, value },
+            negate: false,
+        });
     }
     let mut transforms = query_slots(transforms)?;
     if count != 0 {
@@ -973,7 +986,10 @@ mod admission_tests {
         let codec = telemetry::codec(&contract, &settings).unwrap();
         storage.write_schema(codec.schema().clone(), Arc::clone(codec.graph())).await.unwrap();
         let epoch = dokime_domain::model::identity::SessionId::from_seed("longrun.epoch");
-        let selection = crate::evidence_runtime::TelemetrySelection { streams: vec![contract.stream.clone().into()], ..Default::default() };
+        let selection = crate::evidence_runtime::TelemetrySelection {
+            streams: vec![contract.stream.clone().into()],
+            ..Default::default()
+        };
         let mut work = None;
 
         for day in 0..7_u64 {
@@ -998,7 +1014,10 @@ mod admission_tests {
             assert_eq!(storage.status().pending_bytes, 0);
             let before = local.read_counters();
             let mut rows = Vec::new();
-            let options = ReadOptions { window: Some(("fixture.longrun", 300.0)), ..Default::default() };
+            let options = ReadOptions {
+                window: Some(("fixture.longrun", 300.0)),
+                ..Default::default()
+            };
             visit_saved(&storage, &at, &selection, &settings, options, &local, |sample| {
                 rows.push(sample);
                 Ok(())
@@ -1036,8 +1055,16 @@ mod admission_tests {
         storage.write_schema(codec.schema().clone(), Arc::clone(codec.graph())).await.unwrap();
         let epoch = dokime_domain::model::identity::SessionId::from_seed("follow.epoch");
         let streams = vec![contract.stream.clone().into()];
-        let paged = crate::evidence_runtime::TelemetrySelection { streams: streams.clone(), limit: Some(100), ..Default::default() };
-        let whole = crate::evidence_runtime::TelemetrySelection { streams, limit: Some(2_000), ..Default::default() };
+        let paged = crate::evidence_runtime::TelemetrySelection {
+            streams: streams.clone(),
+            limit: Some(100),
+            ..Default::default()
+        };
+        let whole = crate::evidence_runtime::TelemetrySelection {
+            streams,
+            limit: Some(2_000),
+            ..Default::default()
+        };
         let (mut settled, mut work) = (0, None);
 
         // Each Daily Wake Follows From The Settled Position: Its Scan Covers That Day's Rows, Not The History Before.

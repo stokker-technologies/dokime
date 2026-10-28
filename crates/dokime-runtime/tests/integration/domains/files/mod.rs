@@ -64,7 +64,13 @@ impl Bench {
         let (owner, handle, cycle_id, executor) = blocked_cycle_with(settings).await;
         let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Running).await;
         let execution = cycle.test_executions[0].test_execution_id.to_string();
-        Self { _root: root, owner, handle, executor, execution }
+        Self {
+            _root: root,
+            owner,
+            handle,
+            executor,
+            execution,
+        }
     }
 
     pub(crate) async fn stop(mut self) {
@@ -97,11 +103,17 @@ pub(crate) fn local(root: &Path) -> FileWatchSourcePayload {
 }
 
 pub(crate) fn include(glob: &str) -> FileRule {
-    FileRule { glob: glob.to_owned(), action: FileRuleAction::Include }
+    FileRule {
+        glob: glob.to_owned(),
+        action: FileRuleAction::Include,
+    }
 }
 
 pub(crate) fn exclude(glob: &str) -> FileRule {
-    FileRule { glob: glob.to_owned(), action: FileRuleAction::Exclude }
+    FileRule {
+        glob: glob.to_owned(),
+        action: FileRuleAction::Exclude,
+    }
 }
 
 pub(crate) async fn poll(watch: &mut FileWatch) -> Vec<WatchEvent> {

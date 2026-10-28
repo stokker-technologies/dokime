@@ -20,8 +20,8 @@ mod output;
 pub(crate) mod query;
 mod render;
 mod renderer;
-mod scope;
 pub mod saved;
+mod scope;
 pub mod value;
 
 /* === Re-Exports === */
@@ -29,8 +29,8 @@ pub mod value;
 pub use crate::execution::evidence_rows::EvidenceRows;
 pub use input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument};
 pub use renderer::Renderer;
-pub(crate) use scope::Scope;
 pub(crate) use saved::{CapturedExecutionReportInput, PreparedExecutionReport};
+pub(crate) use scope::Scope;
 
 /* === Imports === */
 

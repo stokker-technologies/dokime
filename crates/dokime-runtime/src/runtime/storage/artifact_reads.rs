@@ -77,7 +77,12 @@ impl ArtifactReader {
     }
 
     fn new(descriptor: ReadBatch<ExecutionOutput>, reader: FileReader) -> Self {
-        Self { descriptor, reader, pending: None, offset: 0 }
+        Self {
+            descriptor,
+            reader,
+            pending: None,
+            offset: 0,
+        }
     }
 
     pub fn record(&self) -> &ArtifactRecord {

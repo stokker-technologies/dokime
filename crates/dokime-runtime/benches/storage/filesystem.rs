@@ -20,8 +20,8 @@ use std::time::{Duration, Instant};
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 use harmos::Identifier;
-use harmos::storage::{FileCapture, FileFollow, FileRead};
 use harmos::storage::{ByteRange, CaptureConsistency, FileMetadata, FileSource, FollowStart};
+use harmos::storage::{FileCapture, FileFollow, FileRead};
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::fixture::Fixture;
@@ -101,7 +101,10 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
                                     assert_eq!(reference.sha256, expected);
                                     let hash = fixture
                                         .storage
-                                        .hash_file(FileRead { source: FileSource::Stored(reference), range: range() })
+                                        .hash_file(FileRead {
+                                            source: FileSource::Stored(reference),
+                                            range: range(),
+                                        })
                                         .await
                                         .unwrap();
                                     assert_eq!(hash.sha256, expected);
@@ -128,7 +131,10 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
                                     let started = Instant::now();
                                     let mut reader = fixture
                                         .storage
-                                        .follow_file(FileFollow { source: input, start: FollowStart::Beginning })
+                                        .follow_file(FileFollow {
+                                            source: input,
+                                            start: FollowStart::Beginning,
+                                        })
                                         .await
                                         .unwrap();
                                     elapsed += started.elapsed();

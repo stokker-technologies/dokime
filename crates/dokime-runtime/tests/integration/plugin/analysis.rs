@@ -25,9 +25,7 @@ use harmos::plugin::Contribution;
 
 // Local Imports
 use dokime_runtime::Value;
-use dokime_runtime::analysis::{
-    Analysis, Axis, Definition, Limits, Operation, Output, Request, Response, ResultData, Samples, Values,
-};
+use dokime_runtime::analysis::{Analysis, Axis, Definition, Limits, Operation, Output, Request, Response, ResultData, Samples, Values};
 
 /* === Constants === */
 
@@ -77,12 +75,21 @@ impl ResultData for Scaled {
             key: "scaled".into(),
             label: "Scaled Signal".into(),
             unit: Some("V".into()),
-            axis: Some(Axis { key: "time".into(), unit: Some("s".into()) }),
+            axis: Some(Axis {
+                key: "time".into(),
+                unit: Some("s".into()),
+            }),
         }]
     }
     fn into_response(self) -> Response {
         Response {
-            outputs: vec![Values { key: "scaled".into(), unit: "V".into(), axis_unit: "s".into(), axis: self.axis, values: self.values }],
+            outputs: vec![Values {
+                key: "scaled".into(),
+                unit: "V".into(),
+                axis_unit: "s".into(),
+                axis: self.axis,
+                values: self.values,
+            }],
         }
     }
 }
@@ -99,7 +106,10 @@ impl Analysis for Scale {
     const LIMITS: Limits = Limits { max_samples: 64, max_output_values: 64 };
 
     fn evaluate(samples: &Samples, parameters: &Parameters) -> Result<Scaled, Self::Error> {
-        Ok(Scaled { axis: samples.axis.clone(), values: samples.values.iter().map(|value| value * parameters.factor).collect() })
+        Ok(Scaled {
+            axis: samples.axis.clone(),
+            values: samples.values.iter().map(|value| value * parameters.factor).collect(),
+        })
     }
 }
 
@@ -120,7 +130,10 @@ impl Analysis for Held {
         STARTED.notify_one();
         release.recv()?;
         FINISHED.fetch_add(1, Ordering::SeqCst);
-        Ok(Scaled { axis: samples.axis.clone(), values: samples.values.clone() })
+        Ok(Scaled {
+            axis: samples.axis.clone(),
+            values: samples.values.clone(),
+        })
     }
 }
 
@@ -138,7 +151,12 @@ impl harmos::Application for Host {
 /* === Private Functions === */
 fn request(parameters: BTreeMap<String, Value>) -> Request {
     Request {
-        samples: Some(Samples { axis: vec![0.0, 0.25, 0.5], values: vec![2.0, -1.0, 3.0], axis_unit: "s".into(), unit: "V".into() }),
+        samples: Some(Samples {
+            axis: vec![0.0, 0.25, 0.5],
+            values: vec![2.0, -1.0, 3.0],
+            axis_unit: "s".into(),
+            unit: "V".into(),
+        }),
         parameters: serde_json::to_vec(&parameters).unwrap(),
     }
 }

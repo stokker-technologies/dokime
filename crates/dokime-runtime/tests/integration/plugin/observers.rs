@@ -236,10 +236,14 @@ struct GetCount {}
 impl dokime_runtime::Operation for GetCount {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetCountResponse>, Refusal> {
+    async fn run(
+        self, context: dokime_runtime::harmos::Context<'_, Self>,
+    ) -> Result<dokime_runtime::harmos::Response<GetCountResponse>, Refusal> {
         let resource = context.resource::<Shared>();
         let answered: Result<GetCountResponse, Refusal> = async {
-        Ok(GetCountResponse { checks: resource.probe.checks.load(Ordering::SeqCst) as u64 })
+            Ok(GetCountResponse {
+                checks: resource.probe.checks.load(Ordering::SeqCst) as u64,
+            })
         }
         .await;
         answered.map(Into::into)
@@ -251,10 +255,15 @@ struct GetProbe {}
 impl dokime_runtime::Operation for GetProbe {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetProbeResponse>, Refusal> {
+    async fn run(
+        self, context: dokime_runtime::harmos::Context<'_, Self>,
+    ) -> Result<dokime_runtime::harmos::Response<GetProbeResponse>, Refusal> {
         let resource = context.resource::<Shared>();
         let answered: Result<GetProbeResponse, Refusal> = async {
-        Ok(GetProbeResponse { token: resource.token.clone(), secrets: resource.secrets })
+            Ok(GetProbeResponse {
+                token: resource.token.clone(),
+                secrets: resource.secrets,
+            })
         }
         .await;
         answered.map(Into::into)
@@ -305,7 +314,11 @@ impl dokime_runtime::Plugin for Owner {
     }
 
     fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Implemented::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))?;
+        table.register(Implemented::registration({
+            let mut dependencies = dokime_runtime::harmos::Dependencies::new();
+            dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
+            dependencies
+        }))?;
         dokime_runtime::execution::serve::<Self, OwnerSuites>(table)?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
@@ -593,8 +606,10 @@ fn answered(token: String) -> impl Fn(GetProbe) -> GetProbeResponse + Send + Syn
 #[tokio::test]
 async fn activation_starts_execution() {
     let probe = Arc::new(Probe::default());
-    let configuration =
-        Configuration { settings: BTreeMap::from([("token".to_owned(), Value::Text(registered(&probe)))]), ..Configuration::default() };
+    let configuration = Configuration {
+        settings: BTreeMap::from([("token".to_owned(), Value::Text(registered(&probe)))]),
+        ..Configuration::default()
+    };
     let native = super::native::Native::initialize(
         super::native::attach::<Owner>(),
         <Owner as Declared>::VERSION,
@@ -631,7 +646,9 @@ async fn template_events_criterion() {
     let probe = Arc::new(Probe::default());
     let checks = Arc::clone(&probe);
     let report = Harness::template("observer.checks.await")
-        .answering::<GetCount, _>(move |_| GetCountResponse { checks: checks.checks.load(Ordering::SeqCst) as u64 })
+        .answering::<GetCount, _>(move |_| GetCountResponse {
+            checks: checks.checks.load(Ordering::SeqCst) as u64,
+        })
         .run::<OwnerSuites>()
         .await
         .unwrap();

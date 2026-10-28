@@ -322,8 +322,14 @@ fn secreted<T>(message: T, token: Option<&'static str>) -> Request<T> {
 fn cases() -> impl Iterator<Item = &'static Case> {
     use dokime::operations::runtime::{GetHealth, GetIdentity};
     static OPERATIONS: &[Case] = &[
-        Case { path: GetHealth::PATH, call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH) },
-        Case { path: GetIdentity::PATH, call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH) },
+        Case {
+            path: GetHealth::PATH,
+            call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH),
+        },
+        Case {
+            path: GetIdentity::PATH,
+            call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH),
+        },
     ];
     CASES.iter().chain(STREAMING_CASES).chain(OPERATIONS)
 }
@@ -337,8 +343,14 @@ where
         use dokime::harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
         let bytes = std::num::NonZeroUsize::new(4096).unwrap();
         let codec = Codec::<dokime::harmos::grpc::Transcoded, O::Response, dokime::harmos::operations::Response<O>>::new(
-            DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
-            EncodeSettings { message_bytes: bytes, buffer_bytes: bytes },
+            DecodeSettings {
+                message_bytes: bytes,
+                retained_bytes: bytes,
+            },
+            EncodeSettings {
+                message_bytes: bytes,
+                buffer_bytes: bytes,
+            },
         )
         .unwrap();
         let mut client = tonic::client::Grpc::new(channel);

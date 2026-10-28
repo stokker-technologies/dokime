@@ -192,7 +192,13 @@ async fn wifi_occupancy_scans() {
 
     let envelopes = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
 
-    let Some(PlotAnalysis::WifiOccupancy { channels, occupied_channels, bands, scans }) = &envelopes[0].payload.analysis else {
+    let Some(PlotAnalysis::WifiOccupancy {
+        channels,
+        occupied_channels,
+        bands,
+        scans,
+    }) = &envelopes[0].payload.analysis
+    else {
         panic!("no wifi occupancy: {:?}", envelopes[0].payload.analysis);
     };
     assert_eq!(channels, &[1, 6, 36, 1005]);
@@ -661,7 +667,12 @@ fn band_window(band: &str, occupied_channels: usize) -> WifiBandWindow {
 }
 
 fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBandScan {
-    WifiBandScan { band: band.to_owned(), occupied_channels: occupied, total_networks: total, peak_count: peak }
+    WifiBandScan {
+        band: band.to_owned(),
+        occupied_channels: occupied,
+        total_networks: total,
+        peak_count: peak,
+    }
 }
 
 fn wifi_request(scope: Option<RecordScope>, max_points: Option<usize>) -> PlotPayloadRequest {
@@ -818,8 +829,12 @@ async fn record_query_absent() {
             scope: Some(scope.clone()),
             y_expressions: vec![DataExpression {
                 label: None,
-                source: DataSource::Record { record_type: "test.execution.completed".into() },
-                transforms: vec![DataTransform::TimeBetween { previous_record_type: "test.execution.prepared".into() }],
+                source: DataSource::Record {
+                    record_type: "test.execution.completed".into(),
+                },
+                transforms: vec![DataTransform::TimeBetween {
+                    previous_record_type: "test.execution.prepared".into(),
+                }],
             }],
             filters: vec![DocumentFilter {
                 expression: dimension("execution.suite"),
@@ -846,8 +861,11 @@ async fn selected_analysis_provenance() {
     assert!(definitions.iter().any(|definition| definition.id == "dokime.analysis.mean"));
     assert_eq!(definitions.iter().any(|definition| definition.id == "dokime.analysis.fft"), cfg!(feature = "fft"));
     let mut request = wifi_request(None, Some(1));
-    request.analysis =
-        Some(dokime_runtime::analysis::Selection { id: "dokime.analysis.mean".into(), version: 1, parameters: Default::default() });
+    request.analysis = Some(dokime_runtime::analysis::Selection {
+        id: "dokime.analysis.mean".into(),
+        version: 1,
+        parameters: Default::default(),
+    });
     let envelopes = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
     let result = envelopes[0].payload.computed.as_ref().unwrap();
     assert_eq!(result.series[0].input_samples, 100);
@@ -967,8 +985,11 @@ async fn selected_analysis_axes() {
     runtime.storage().flush().await.unwrap();
     let mut request = wifi_request(None, Some(1));
     request.window_s = Some(9.0);
-    request.analysis =
-        Some(dokime_runtime::analysis::Selection { id: "dokime.analysis.mean".into(), version: 1, parameters: Default::default() });
+    request.analysis = Some(dokime_runtime::analysis::Selection {
+        id: "dokime.analysis.mean".into(),
+        version: 1,
+        parameters: Default::default(),
+    });
     let envelopes = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
     let payload = &envelopes[0].payload;
     let series = &payload.computed.as_ref().unwrap().series[0];
@@ -991,8 +1012,11 @@ async fn external_analysis_reload() {
     runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let mut request = wifi_request(None, Some(1));
-    request.analysis =
-        Some(dokime_runtime::analysis::Selection { id: "obc.analysis.ripple".into(), version: 1, parameters: Default::default() });
+    request.analysis = Some(dokime_runtime::analysis::Selection {
+        id: "obc.analysis.ripple".into(),
+        version: 1,
+        parameters: Default::default(),
+    });
     for reload in [false, true] {
         if reload {
             owner.reinitialize_plugin("obc-plugin").await.unwrap();

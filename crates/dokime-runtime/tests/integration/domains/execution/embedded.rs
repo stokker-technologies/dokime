@@ -196,8 +196,15 @@ async fn registration_replaces_failed() {
         Metadata::new(Identifier::new("fixture.embedded.host").unwrap(), "Embedded Host", None),
     );
     let events = Arc::new(Mutex::new(Vec::new()));
-    let provider =
-        |label, fail| Arc::new(Probe { label, fail, block_start: false, events: Arc::clone(&events), signals: Signals::default() });
+    let provider = |label, fail| {
+        Arc::new(Probe {
+            label,
+            fail,
+            block_start: false,
+            events: Arc::clone(&events),
+            signals: Signals::default(),
+        })
+    };
     assert!(dokime_runtime::Runtime::start(config.clone().register(provider("startup-failed", true))).await.is_err());
     let mut runtime = dokime_runtime::Runtime::start(config.clone()).await.unwrap();
     runtime.register(provider("first", false)).await.unwrap();
@@ -257,8 +264,13 @@ async fn cancelled_registration_until() {
     let mut runtime = dokime_runtime::Runtime::start(config).await.unwrap();
     let events = Arc::new(Mutex::new(Vec::new()));
     let signals = Signals::default();
-    let provider =
-        Arc::new(Probe { label: "blocked", fail: false, block_start: true, events: Arc::clone(&events), signals: signals.clone() });
+    let provider = Arc::new(Probe {
+        label: "blocked",
+        fail: false,
+        block_start: true,
+        events: Arc::clone(&events),
+        signals: signals.clone(),
+    });
     let handle = runtime.handle();
     let mut registration = Box::pin(runtime.register(provider));
     tokio::select! {
@@ -291,7 +303,13 @@ async fn replacement_settles_generation() {
     let mut runtime = dokime_runtime::Runtime::start(config).await.unwrap();
     let events = Arc::new(Mutex::new(Vec::new()));
     let signals = Signals::default();
-    let blocked = Arc::new(Probe { label: "old", fail: false, block_start: true, events: Arc::clone(&events), signals: signals.clone() });
+    let blocked = Arc::new(Probe {
+        label: "old",
+        fail: false,
+        block_start: true,
+        events: Arc::clone(&events),
+        signals: signals.clone(),
+    });
     let mut registration = Box::pin(runtime.register(blocked));
     tokio::select! {
         result = &mut registration => panic!("initialization must remain pending: {result:?}"),
@@ -328,7 +346,12 @@ struct ShutdownProbe {
 #[async_trait]
 impl EmbeddedProvider for ShutdownProbe {
     fn catalog(&self) -> InstalledPlugin {
-        InstalledPlugin { source: "fixture.shutdown".into(), version: "0.1.0".into(), enabled: true, ..Default::default() }
+        InstalledPlugin {
+            source: "fixture.shutdown".into(),
+            version: "0.1.0".into(),
+            enabled: true,
+            ..Default::default()
+        }
     }
 
     fn streams(&self) -> Vec<StreamDeclaration> {

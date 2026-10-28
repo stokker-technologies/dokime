@@ -38,7 +38,10 @@ use std::num::{NonZeroU64, NonZeroUsize};
 /* === Public Functions === */
 
 pub fn managed_storage_defaults() -> ManagedStorageSettings {
-    let limits = ReadLimits { rows: NonZeroUsize::new(256).unwrap(), bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap() };
+    let limits = ReadLimits {
+        rows: NonZeroUsize::new(256).unwrap(),
+        bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+    };
     ManagedStorageSettings {
         replay: limits,
         capture: limits,

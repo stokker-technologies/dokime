@@ -10,8 +10,6 @@
 /* === Modules === */
 
 pub mod appearance;
-#[cfg(feature = "runtime")]
-pub mod hosting;
 pub mod backend;
 pub mod catalog;
 pub mod content;
@@ -20,6 +18,8 @@ pub mod evidence;
 pub mod execution;
 pub mod files;
 pub mod history;
+#[cfg(feature = "runtime")]
+pub mod hosting;
 pub mod media;
 pub mod notes;
 pub mod observation;
@@ -191,8 +191,12 @@ where
     O: Endpoint,
     O::Response: Described,
 {
-    const ENTRY: Declaration =
-        Declaration { path: O::PATH, local_only: O::LOCAL_ONLY, wire: WireDeclaration::of::<O>(), rust_type: std::any::type_name::<O> };
+    const ENTRY: Declaration = Declaration {
+        path: O::PATH,
+        local_only: O::LOCAL_ONLY,
+        wire: WireDeclaration::of::<O>(),
+        rust_type: std::any::type_name::<O>,
+    };
 }
 
 /* === Public Functions === */
@@ -200,7 +204,11 @@ where
 /* === Private Functions === */
 
 const fn policy(timeout: Duration) -> OperationPolicy {
-    OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never }
+    OperationPolicy {
+        timeout,
+        attempt_timeout: timeout,
+        retries: RetryPolicy::Never,
+    }
 }
 
 /* === Tests === */

@@ -17,8 +17,8 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use harmos::operations::NativeError;
 use harmos::OperationDefinition as Definition;
+use harmos::operations::NativeError;
 
 // Local Imports
 use crate::InstalledPlugin;
@@ -209,16 +209,25 @@ fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
             }
             let refusal = source.downcast_ref::<harmos::sidecar::Refusal>().cloned();
             let refusal = refusal.unwrap_or_else(|| harmos::sidecar::Refusal::of(error));
-            ActionDispatcherError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
+            ActionDispatcherError::Refused {
+                code: refusal.code(),
+                message: refusal.message().to_owned(),
+            }
         }
         harmos::Error::OperationPayload { source, .. } => ActionDispatcherError::Malformed(source.to_string()),
         harmos::Error::OperationUnauthorized { .. } | harmos::Error::OperationLaneCycle { .. } => {
             let refusal = harmos::sidecar::Refusal::new(-32_604, error);
-            ActionDispatcherError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
+            ActionDispatcherError::Refused {
+                code: refusal.code(),
+                message: refusal.message().to_owned(),
+            }
         }
         error => {
             let refusal = harmos::sidecar::Refusal::of(error);
-            ActionDispatcherError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
+            ActionDispatcherError::Refused {
+                code: refusal.code(),
+                message: refusal.message().to_owned(),
+            }
         }
     }
 }
@@ -229,7 +238,10 @@ fn caller_error(error: harmos::plugin::DispatchError) -> ActionDispatcherError {
         harmos::plugin::DispatchError::Deadline => ActionDispatcherError::Deadline,
         error => {
             let refusal = error.into_refusal();
-            ActionDispatcherError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
+            ActionDispatcherError::Refused {
+                code: refusal.code(),
+                message: refusal.message().to_owned(),
+            }
         }
     }
 }

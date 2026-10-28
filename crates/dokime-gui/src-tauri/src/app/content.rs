@@ -84,7 +84,10 @@ pub enum DeliveryFailure {
 
 impl DeliveryError {
     pub(crate) fn local(stage: DeliveryStage, message: impl Into<String>) -> Self {
-        Self { stage, failure: DeliveryFailure::Local(message.into()) }
+        Self {
+            stage,
+            failure: DeliveryFailure::Local(message.into()),
+        }
     }
 }
 
@@ -93,7 +96,10 @@ impl From<dokime::client::DownloadError> for DeliveryError {
         use dokime::client::DownloadError as Download;
         let rpc = |stage: DeliveryStage, error: dokime::client::Error| {
             let error = crate::Error::from(error);
-            Self { stage, failure: DeliveryFailure::Rpc(error) }
+            Self {
+                stage,
+                failure: DeliveryFailure::Rpc(error),
+            }
         };
         match error {
             Download::Request(error) => rpc(DeliveryStage::Request, error),
@@ -165,7 +171,10 @@ pub(crate) async fn fetch_verified(
             Ok(content)
         }
         ArtifactSource::ExecutionFile { execution_id, relative_path } => {
-            let request = v1::DownloadExecutionFile { execution_id: execution_id.clone(), relative_path: relative_path.clone() };
+            let request = v1::DownloadExecutionFile {
+                execution_id: execution_id.clone(),
+                relative_path: relative_path.clone(),
+            };
             let download = client.download_execution_file(request, destination).await?;
             let content = VerifiedContent::from_download(download, |metadata| metadata.content_type);
             Ok(content)
@@ -188,7 +197,10 @@ pub(crate) async fn fetch_verified(
         }
         ArtifactSource::CycleReport { cycle_id } => client
             .download_cycle_report(
-                dokime::operations::reports::DownloadCycleReport { cycle_id: cycle_id.clone(), identifier: CYCLE_REPORT.into() },
+                dokime::operations::reports::DownloadCycleReport {
+                    cycle_id: cycle_id.clone(),
+                    identifier: CYCLE_REPORT.into(),
+                },
                 destination,
             )
             .await

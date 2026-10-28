@@ -114,8 +114,7 @@ pub fn capture_payload(
     }
     let payload = StructArray::from(columns);
     let allowance = NonZeroUsize::new((64usize * 1024).saturating_mul(2)).expect("line captures have a nonzero bound");
-    let mut rows = harmos::storage::arrow::encode_payloads(schema, &payload, allowance)
-        .map_err(|error| error.to_string())?;
+    let mut rows = harmos::storage::arrow::encode_payloads(schema, &payload, allowance).map_err(|error| error.to_string())?;
     rows.pop().ok_or_else(|| "matcher encoded no row".into())
 }
 
@@ -138,7 +137,11 @@ mod tests {
     #[test]
     fn captures_preserve_the_declared_codec_and_unsigned_range() {
         let graph = Schema::from_declaration(Reading::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
-        let row = Reading { counter: u64::MAX, voltage: 1.5, state: None };
+        let row = Reading {
+            counter: u64::MAX,
+            voltage: 1.5,
+            state: None,
+        };
         let values = BTreeMap::from([("counter".to_owned(), Value::Unsigned(u64::MAX)), ("voltage".to_owned(), Value::Number(1.5))]);
         assert_eq!(capture_payload(&graph, &values, &Default::default()).unwrap(), row.encode());
         let mut unknown = values.clone();

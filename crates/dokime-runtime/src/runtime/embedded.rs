@@ -24,9 +24,9 @@ use harmos::sidecar::StreamDeclaration;
 // Local Imports
 use super::{RuntimeHandle, native_telemetry};
 use crate::execution::{EmbeddedPublisher, Runnable, SampleOutput};
-use crate::transport::TransportFuture;
 use crate::schema::graph::Schema;
 use crate::state::ProviderCatalog;
+use crate::transport::TransportFuture;
 use crate::{InstalledPlugin, runtime::Error, runtime::Result};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
@@ -189,7 +189,13 @@ impl Instance {
         &mut self, handle: &RuntimeHandle, router: &harmos::plugin::Router, authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let instance = router.enter(&self.owner).map_err(operation)?;
-        self.running = Some(Running { instance, publisher: None, templates: Vec::new(), provider_started: false, registered: false });
+        self.running = Some(Running {
+            instance,
+            publisher: None,
+            templates: Vec::new(),
+            provider_started: false,
+            registered: false,
+        });
 
         let scope = self
             .running
@@ -254,7 +260,10 @@ impl Instance {
 
 impl Templates {
     pub(crate) fn new(sessions: Arc<crate::domains::execution::run::Sessions>) -> Self {
-        Self { sessions, state: std::sync::Mutex::new(Registry::default()) }
+        Self {
+            sessions,
+            state: std::sync::Mutex::new(Registry::default()),
+        }
     }
 
     pub(crate) fn contains(&self, template: &str) -> bool {
@@ -268,7 +277,11 @@ impl Templates {
             return Err(operation("an embedded template identity is already served"));
         }
         for template in templates {
-            let served = Served { owner: owner.to_owned(), template: Arc::clone(template), publisher: Arc::clone(publisher) };
+            let served = Served {
+                owner: owner.to_owned(),
+                template: Arc::clone(template),
+                publisher: Arc::clone(publisher),
+            };
             registry.templates.insert(template.template_identifier().to_owned(), served);
         }
         Ok(())
@@ -316,7 +329,10 @@ impl crate::execution::EmbeddedRegistry for Templates {
             let _admitted = self.admit(&request.execution_token, &request.template_identifier);
             let host =
                 Arc::new(crate::domains::execution::run::host::Embedded::new(Arc::clone(&self.sessions), request.execution_token.clone()));
-            served.template.run(request, host, Some(SampleOutput::Embedded(served.publisher.clone())), crate::execution::Caller::default()).await
+            served
+                .template
+                .run(request, host, Some(SampleOutput::Embedded(served.publisher.clone())), crate::execution::Caller::default())
+                .await
         })
     }
 
@@ -385,7 +401,8 @@ impl EmbeddedPublisher for Publisher {
 pub(crate) async fn register(operations: &crate::app::OperationManager, templates: &Arc<Templates>) -> harmos::Result<()> {
     use harmos::RegistrationExt;
     let mut dependencies = harmos::Dependencies::new();
-    dependencies.insert(Arc::new(crate::execution::EmbeddedTemplates(Arc::clone(templates) as Arc<dyn crate::execution::EmbeddedRegistry>)))?;
+    dependencies
+        .insert(Arc::new(crate::execution::EmbeddedTemplates(Arc::clone(templates) as Arc<dyn crate::execution::EmbeddedRegistry>)))?;
     let batch =
         harmos::RegistrationBatch::new(dependencies).operation::<crate::execution::Run<()>>().operation::<crate::execution::Signal<()>>();
     operations.register(batch.lane(crate::app::Lanes::Open)).await
@@ -404,7 +421,10 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Regis
         catalog: catalog.settings.clone(),
         discoveries: catalog.settings_discoveries.clone(),
     };
-    let appearance = AppearanceRegistration { customizations: catalog.app_customizations.clone(), themes: catalog.app_themes.clone() };
+    let appearance = AppearanceRegistration {
+        customizations: catalog.app_customizations.clone(),
+        themes: catalog.app_themes.clone(),
+    };
     let values = [
         (SUITES_NAMESPACE, serde_json::to_vec(&catalog.suites)),
         (SETTINGS_NAMESPACE, serde_json::to_vec(&settings)),

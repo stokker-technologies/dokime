@@ -235,14 +235,25 @@ impl Transaction<RuntimeState> for SettleRun {
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         if state.run_requests[&self.request_id].completion_at.is_none() {
-            CompleteRun { request_id: self.request_id.clone(), at: self.at.clone(), unsealed: None }.drafts(state).collect(out);
+            CompleteRun {
+                request_id: self.request_id.clone(),
+                at: self.at.clone(),
+                unsealed: None,
+            }
+            .drafts(state)
+            .collect(out);
         }
     }
     fn apply(&self, state: &mut RuntimeState) {
         if state.run_requests[&self.request_id].completion_at.is_some() {
             return;
         }
-        let records = CompleteRun { request_id: self.request_id.clone(), at: self.at.clone(), unsealed: None }.drafts(state);
+        let records = CompleteRun {
+            request_id: self.request_id.clone(),
+            at: self.at.clone(),
+            unsealed: None,
+        }
+        .drafts(state);
         state.run_requests.get_mut(&self.request_id).expect("checked request").completion_at = Some(self.at.clone());
         records.apply(state);
         // Unstarted Selected Members Settle Before Their Evidence Is Sealed.
@@ -254,7 +265,10 @@ impl Transaction<RuntimeState> for SettleRun {
             }
             execution.status = ExecutionStatus::Cancelled;
             execution.finished_at = Some(self.at.clone());
-            execution.result = Some(ResultSummary { skipped: 1, ..summary(ResultStatus::Cancelled) });
+            execution.result = Some(ResultSummary {
+                skipped: 1,
+                ..summary(ResultStatus::Cancelled)
+            });
             for step in &mut execution.steps {
                 if step.status == StepStatus::Pending {
                     step.status = StepStatus::Skipped;
@@ -370,7 +384,14 @@ mod tests {
         );
         (
             state,
-            CompleteRun { request_id, at, unsealed: Some(Unsealed { cause: "report memory exhausted".into(), execution_ids: Vec::new() }) },
+            CompleteRun {
+                request_id,
+                at,
+                unsealed: Some(Unsealed {
+                    cause: "report memory exhausted".into(),
+                    execution_ids: Vec::new(),
+                }),
+            },
         )
     }
 

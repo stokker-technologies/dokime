@@ -249,7 +249,10 @@ impl RuntimeHandle {
             harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
             config.storage_state,
         ));
-        let backends = harmos::storage::StorageBackends { primary: backend.clone(), state: recovery };
+        let backends = harmos::storage::StorageBackends {
+            primary: backend.clone(),
+            state: recovery,
+        };
         #[cfg(feature = "fault-injection")]
         let backends = match decorate {
             Some(decorate) => decorate(backends),
@@ -273,7 +276,11 @@ impl RuntimeHandle {
                 let rollback = crate::runtime::rollback::Receipt::boot(None, storage, local_state);
                 return Err(match rollback.retry().await {
                     Ok(()) => source,
-                    Err(cleanup) => Error::StartupCleanup { source: Box::new(source), cleanup: Box::new(cleanup), rollback },
+                    Err(cleanup) => Error::StartupCleanup {
+                        source: Box::new(source),
+                        cleanup: Box::new(cleanup),
+                        rollback,
+                    },
                 });
             }
         };

@@ -114,7 +114,12 @@ impl ExecutionView {
         if let Some(seal) = &execution.value.saved {
             check_seal_position(&execution.position, &seal.dependencies_saved)?;
         }
-        Ok(Some(Self { storage: storage.clone(), saved, execution: Some(execution), captured: None }))
+        Ok(Some(Self {
+            storage: storage.clone(),
+            saved,
+            execution: Some(execution),
+            captured: None,
+        }))
     }
 
     pub async fn open_checkpoint(storage: &Manager, checkpoint: &ExecutionCheckpoint) -> Result<Option<Self>> {
@@ -194,7 +199,12 @@ impl ExecutionView {
                 )));
             }
         }
-        let inspection = Self { storage: storage.clone(), saved, execution, captured: Some(captured) };
+        let inspection = Self {
+            storage: storage.clone(),
+            saved,
+            execution,
+            captured: Some(captured),
+        };
         for output in inspection.outputs()? {
             verify_file(inspection.read_file(&output.file, whole()).await?).await?;
         }
@@ -340,7 +350,10 @@ impl ExecutionView {
         }
         Ok(self
             .storage
-            .read_file(harmos::storage::FileRead { source: harmos::storage::FileSource::Stored(file.clone()), range })
+            .read_file(harmos::storage::FileRead {
+                source: harmos::storage::FileSource::Stored(file.clone()),
+                range,
+            })
             .await?)
     }
 }

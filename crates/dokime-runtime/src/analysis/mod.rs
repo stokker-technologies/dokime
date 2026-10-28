@@ -224,7 +224,11 @@ impl<A: Analysis> Operation<A> {
         let samples = request.samples.ok_or_else(|| Error::Input("analysis samples are missing".into()))?;
         samples.check(definition.limits)?;
         let parameters: BTreeMap<String, Value> = serde_json::from_slice(&request.parameters)?;
-        let selection = Selection { id: definition.id.clone(), version: definition.version, parameters };
+        let selection = Selection {
+            id: definition.id.clone(),
+            version: definition.version,
+            parameters,
+        };
         let values = definition.resolve(&selection).map_err(Error::Input)?;
         let parameters = A::Parameters::from_parameters(&values).map_err(Error::Parameters)?;
         let result = A::evaluate(&samples, &parameters).map_err(|error| Error::Evaluation(Box::new(error)))?;
@@ -280,7 +284,10 @@ mod tests {
                 key: "scaled".into(),
                 label: "Scaled Signal".into(),
                 unit: Some("V".into()),
-                axis: Some(Axis { key: "time".into(), unit: Some("s".into()) }),
+                axis: Some(Axis {
+                    key: "time".into(),
+                    unit: Some("s".into()),
+                }),
             }],
             limits: Limits { max_samples: 64, max_output_values: 64 },
         };

@@ -97,7 +97,10 @@ impl Transaction<RuntimeState> for InvalidateExecutions {
                     continue;
                 }
                 execution.status = ExecutionStatus::Invalidated;
-                execution.invalidation = Some(ExecutionInvalidation { previous: self.previous.clone(), current: self.current.clone() });
+                execution.invalidation = Some(ExecutionInvalidation {
+                    previous: self.previous.clone(),
+                    current: self.current.clone(),
+                });
                 execution.finished_at = Some(self.invalidated_at.clone());
                 execution.result = None;
                 for step in &mut execution.steps {

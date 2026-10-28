@@ -70,7 +70,12 @@ impl<C: ObjectCatalog> Store<C> {
         StorageSchema::new(
             self.at(1),
             key(),
-            graph(vec![Field { name: "counter".into(), tag: 1, kind: Kind::U64, cardinality: Cardinality::Required }]),
+            graph(vec![Field {
+                name: "counter".into(),
+                tag: 1,
+                kind: Kind::U64,
+                cardinality: Cardinality::Required,
+            }]),
         )
     }
 
@@ -116,7 +121,13 @@ pub fn storage_settings() -> StorageSettings {
 pub(crate) async fn read_records<C: ObjectCatalog>(
     backend: &Backend<C>, snapshot: &BackendSnapshot, rows: NonZeroUsize,
 ) -> harmos::Result<Vec<StoredRecord>> {
-    let selection = RecordSelection { schema: key(), scope: None, item: None, source_start: None, source_end: None };
+    let selection = RecordSelection {
+        schema: key(),
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
     let mut records = Vec::new();
     let mut after = 0;
     loop {
@@ -142,7 +153,11 @@ pub(crate) fn id(value: &str) -> Identifier {
 }
 
 pub(crate) fn key() -> SchemaKey {
-    SchemaKey { payload_encoding: harmos::storage::PayloadEncoding::PostcardV1, id: id("charger"), version: NonZeroU32::new(1).unwrap() }
+    SchemaKey {
+        payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
+        id: id("charger"),
+        version: NonZeroU32::new(1).unwrap(),
+    }
 }
 
 // A Single-Definition Row Graph For Fixture Schemas

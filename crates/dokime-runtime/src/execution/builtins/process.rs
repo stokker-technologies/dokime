@@ -111,7 +111,11 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
     let status = status.map_err(|error| format!("{} could not be awaited: {error}", request.program))?;
 
     // Record The Exit
-    let exit = ProcessExit { exit_code: status.code(), duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX), cancelled };
+    let exit = ProcessExit {
+        exit_code: status.code(),
+        duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX),
+        cancelled,
+    };
     binding.journal.record(
         ProcessExited {
             program: request.program,

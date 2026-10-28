@@ -126,12 +126,27 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
 
 fn plan(fixture: &Fixture, periods: usize, kind: &str) -> Query {
     let transform = match kind {
-        "project" => Transform::Project(Project { fields: vec![Projection { field: "payload.value".into(), name: "value".into() }] }),
-        "rms" => Transform::Aggregate(Aggregate {
-            groups: vec![Projection { field: "payload.phase".into(), name: "phase".into() }],
-            measures: vec![Measure { field: "payload.value".into(), statistic: harmos::Aggregate::Rms, name: "rms".into() }],
+        "project" => Transform::Project(Project {
+            fields: vec![Projection {
+                field: "payload.value".into(),
+                name: "value".into(),
+            }],
         }),
-        "histogram" => Transform::Histogram(Histogram { field: "payload.value".into(), edges: vec![-12.0, -6.0, 0.0, 6.0, 12.0] }),
+        "rms" => Transform::Aggregate(Aggregate {
+            groups: vec![Projection {
+                field: "payload.phase".into(),
+                name: "phase".into(),
+            }],
+            measures: vec![Measure {
+                field: "payload.value".into(),
+                statistic: harmos::Aggregate::Rms,
+                name: "rms".into(),
+            }],
+        }),
+        "histogram" => Transform::Histogram(Histogram {
+            field: "payload.value".into(),
+            edges: vec![-12.0, -6.0, 0.0, 6.0, 12.0],
+        }),
         "downsample" => Transform::Downsample(Downsample {
             max_rows: 128,
             algorithm: Algorithm::Extrema,
@@ -153,7 +168,10 @@ fn plan(fixture: &Fixture, periods: usize, kind: &str) -> Query {
             after: 0,
         }),
         transforms: vec![transform],
-        slice: RowSlice { offset: if kind == "project" { 3 } else { 0 }, limit: None },
+        slice: RowSlice {
+            offset: if kind == "project" { 3 } else { 0 },
+            limit: None,
+        },
     }
 }
 

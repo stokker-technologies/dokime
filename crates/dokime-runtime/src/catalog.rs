@@ -60,11 +60,8 @@ pub type Publish = for<'a> fn(
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
 #[cfg(feature = "native")]
-pub type Bind = fn(
-    &mut harmos::sidecar::operations::WireTable,
-    &str,
-    &[RecordContract],
-) -> Result<(), harmos::sidecar::operations::ServingError>;
+pub type Bind =
+    fn(&mut harmos::sidecar::operations::WireTable, &str, &[RecordContract]) -> Result<(), harmos::sidecar::operations::ServingError>;
 
 /* === Structs === */
 
@@ -400,7 +397,10 @@ impl Visitor for Listeners {
 
 #[cfg(feature = "native")]
 impl<T: crate::plugin::Listener> Member<T> for Listeners {
-    const ENTRY: Self::Entry = ListenerEntry { operation: T::ID, record: <T::Record as DeclaredRecord>::RECORD_TYPE };
+    const ENTRY: Self::Entry = ListenerEntry {
+        operation: T::ID,
+        record: <T::Record as DeclaredRecord>::RECORD_TYPE,
+    };
 }
 
 /* === Public Functions === */

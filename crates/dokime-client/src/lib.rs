@@ -219,11 +219,19 @@ impl Client {
     }
 
     pub fn with_timeout(&self, timeout: Duration) -> Self {
-        Self { inner: self.inner.clone(), timeout: Some(timeout), frame_limit: self.frame_limit }
+        Self {
+            inner: self.inner.clone(),
+            timeout: Some(timeout),
+            frame_limit: self.frame_limit,
+        }
     }
 
     pub fn with_frame_limit(&self, bytes: NonZeroUsize) -> Self {
-        Self { inner: self.inner.clone(), timeout: self.timeout, frame_limit: self.frame_limit.min(bytes.get()) }
+        Self {
+            inner: self.inner.clone(),
+            timeout: self.timeout,
+            frame_limit: self.frame_limit.min(bytes.get()),
+        }
     }
 
     pub fn request<T>(&self, message: T) -> tonic::Request<T> {

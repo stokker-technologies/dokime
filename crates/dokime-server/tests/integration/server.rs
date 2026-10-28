@@ -106,7 +106,10 @@ async fn independent_pairings_revoke_and_survive_restart() {
     let mut created = Vec::new();
     for label in ["First Client", "Second Client"] {
         let result = native
-            .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: label.into(), endpoint: endpoint.clone() })
+            .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
+                label: label.into(),
+                endpoint: endpoint.clone(),
+            })
             .await
             .unwrap()
             .into_inner();

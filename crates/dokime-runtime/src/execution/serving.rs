@@ -21,9 +21,9 @@ use std::time::Duration;
 
 // Third Party Imports
 use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
-use harmos::{Dependencies, RegistrationBatch};
 use harmos::sidecar::operations::{ServingError, WireTable};
 use harmos::sidecar::{Refusal, Supervisor};
+use harmos::{Dependencies, RegistrationBatch};
 
 // Local Imports
 use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
@@ -179,8 +179,7 @@ impl<T: SidecarTemplate> harmos::Operation for Run<T> {
     async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SidecarExecutionOutcome>, Refusal> {
         let workflow = ctx.resource::<Workflow<T>>();
         let host = Supervisor::clone(&ctx.resource::<Supervisor>());
-        let outcome =
-            workflow.execute(self.0, Arc::new(host.clone()), Some(SampleOutput::Host(host.clone())), Caller::host(host)).await?;
+        let outcome = workflow.execute(self.0, Arc::new(host.clone()), Some(SampleOutput::Host(host.clone())), Caller::host(host)).await?;
         Ok(outcome.into())
     }
 }
@@ -223,11 +222,15 @@ impl harmos::Operation for Signal<()> {
 
 impl ExecutionHost for Supervisor {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
-        Box::pin(async move { self.call::<EvidenceBatch>(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(
+            async move { self.call::<EvidenceBatch>(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) },
+        )
     }
 
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        Box::pin(async move { self.call::<OperatorQuestion>(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(async move {
+            self.call::<OperatorQuestion>(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
+        })
     }
 
     fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {

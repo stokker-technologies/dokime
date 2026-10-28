@@ -60,8 +60,10 @@ impl Client {
         self.require(path)?;
         let report = matches!(path, "/dokime.v1.Reports/DownloadCycleReport" | "/dokime.v1.Reports/DownloadExecutionReport");
         let response_bytes = if report { self.response_limit().min(2_097_152) } else { self.response_limit() };
-        let codec =
-            codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, Response<O::Request>>(response_bytes, self.request_limit())?;
+        let codec = codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, Response<O::Request>>(
+            response_bytes,
+            self.request_limit(),
+        )?;
         let mut client = tonic::client::Grpc::new(self.channel()?)
             .max_decoding_message_size(response_bytes)
             .max_encoding_message_size(self.request_limit());
@@ -170,7 +172,10 @@ where
     let retained_bytes =
         NonZeroUsize::new(usize::try_from(DECODE_RETAINED_BYTES).map_err(|_| Error::IncompatibleApi)?).ok_or(Error::IncompatibleApi)?;
     Codec::new(
-        DecodeSettings { message_bytes: response_bytes, retained_bytes },
+        DecodeSettings {
+            message_bytes: response_bytes,
+            retained_bytes,
+        },
         EncodeSettings {
             message_bytes: request_bytes,
             buffer_bytes: NonZeroUsize::new(

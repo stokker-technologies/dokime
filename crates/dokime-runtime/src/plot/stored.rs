@@ -23,8 +23,7 @@ use crate::{
 use harmos::{
     Aggregate,
     storage::{
-        ReadBatch,
-        Query,
+        Query, ReadBatch,
         query::{
             QueryArrow, Table, TableWriter,
             scalar::ScalarValue,

@@ -52,8 +52,12 @@ fn saved_metadata(root: &Path) -> serde_json::Value {
 }
 
 fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize) -> Vec<u8> {
-    let identity =
-        Identity { name: package.into(), version: version.parse().unwrap(), description: "A fixture.".into(), package: Default::default() };
+    let identity = Identity {
+        name: package.into(),
+        version: version.parse().unwrap(),
+        description: "A fixture.".into(),
+        package: Default::default(),
+    };
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
     let policy = harmos::operations::OperationPolicy {
@@ -87,7 +91,11 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
                     registrations: vec![],
                 }),
             },
-            Source { path: "resources/payload.bin", bytes: &resource, executable: None },
+            Source {
+                path: "resources/payload.bin",
+                bytes: &resource,
+                executable: None,
+            },
         ],
         Limits::default(),
     )

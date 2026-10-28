@@ -20,9 +20,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{Message, StreamSpec};
 use harmos::operations::{CallContext, ContextError, ContextValue, Host, OperationDeclaration, Response};
 use harmos::sidecar::{CallError, Supervisor};
+use harmos::{Message, StreamSpec};
 
 // Local Imports
 use super::builtins::{Binding, served};
@@ -85,14 +85,21 @@ impl Caller {
     }
 
     pub(super) fn step_host(&self, stage: &str, binding: Binding) -> StepHost {
-        StepHost { caller: self.clone(), stage: stage.to_owned(), context: CallContext::default(), binding }
+        StepHost {
+            caller: self.clone(),
+            stage: stage.to_owned(),
+            context: CallContext::default(),
+            binding,
+        }
     }
 
     fn hosted(&self) -> bool {
         matches!(self.0, Road::Host(_))
     }
 
-    pub(super) async fn call_at<O: OperationDeclaration<Request = O> + harmos::Portable>(&self, stage: &str, request: O) -> crate::Result<O::Response> {
+    pub(super) async fn call_at<O: OperationDeclaration<Request = O> + harmos::Portable>(
+        &self, stage: &str, request: O,
+    ) -> crate::Result<O::Response> {
         let operation = O::ID;
         let refused = |reason: String| crate::Error::Call { operation, reason };
         match &self.0 {
@@ -173,11 +180,14 @@ impl Host for StepHost {
                     code: STEP_REFUSAL,
                     failure: refusal_failure("the harness registered no answer for this operation"),
                 })?;
-                let bytes = answer(Message::encode(&request))
-                    .await
-                    .map_err(|message| CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) })?;
-                let response = O::Response::decode(bytes.as_slice())
-                    .map_err(|error| CallError::Malformed { method: O::ID, message: error.to_string() })?;
+                let bytes = answer(Message::encode(&request)).await.map_err(|message| CallError::Refused {
+                    code: STEP_REFUSAL,
+                    failure: refusal_failure(message),
+                })?;
+                let response = O::Response::decode(bytes.as_slice()).map_err(|error| CallError::Malformed {
+                    method: O::ID,
+                    message: error.to_string(),
+                })?;
 
                 Ok(Response::new(response))
             }
@@ -219,7 +229,10 @@ fn routed(host: &Supervisor, stage: &str, operation: &str) -> Result<Supervisor,
 }
 
 fn refusal(error: ContextError) -> CallError {
-    CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(error.to_string()) }
+    CallError::Refused {
+        code: STEP_REFUSAL,
+        failure: refusal_failure(error.to_string()),
+    }
 }
 
 /* === Tests === */

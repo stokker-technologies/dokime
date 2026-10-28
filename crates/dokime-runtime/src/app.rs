@@ -69,7 +69,11 @@ pub enum Lanes {
 
 impl Resources {
     pub fn new(schema_settings: harmos::config::SchemaSettings) -> Self {
-        Self { analysis: crate::report::analysis::Resources::new(), renderer: crate::report::Renderer, schema_settings }
+        Self {
+            analysis: crate::report::analysis::Resources::new(),
+            renderer: crate::report::Renderer,
+            schema_settings,
+        }
     }
 }
 

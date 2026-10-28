@@ -96,7 +96,9 @@ async fn failed_initial_admission_never_reports_armed() {
 
     let single = WatchFile {
         execution_id: Some(bench.execution.clone()),
-        source: Some(FileWatchSource { payload: Some(local(&tree.path().join("one.log"))) }),
+        source: Some(FileWatchSource {
+            payload: Some(local(&tree.path().join("one.log"))),
+        }),
         output: "failed".into(),
         artifact: None,
         policy: FileWatchPolicy::Mirror,
@@ -111,7 +113,10 @@ async fn failed_initial_admission_never_reports_armed() {
     let instance = bench.handle.operations().submit::<WatchFile>(single).unwrap();
     let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: instance.id().value() };
     assert!(instance.join().await.is_err());
-    assert!(bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready).await.is_err(), "failed hosted setup cannot report readiness success");
+    assert!(
+        bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready).await.is_err(),
+        "failed hosted setup cannot report readiness success"
+    );
     bench.stop().await;
 }
 
@@ -239,7 +244,17 @@ async fn latest_empty_baseline_is_fixed_unless_wait_was_requested() {
     let mut empty = bench.handle.open_file_watch(&request, None).await.unwrap();
     let armed = poll(&mut empty).await;
     assert!(matches!(armed.as_slice(), [WatchEvent::Armed { baseline }] if baseline.is_empty()));
-    let mut waiting = bench.handle.open_file_watch(&FileWatch { wait_for_source_seconds: Some(30), ..request }, None).await.unwrap();
+    let mut waiting = bench
+        .handle
+        .open_file_watch(
+            &FileWatch {
+                wait_for_source_seconds: Some(30),
+                ..request
+            },
+            None,
+        )
+        .await
+        .unwrap();
     assert!(poll(&mut waiting).await.is_empty());
     write(&tree.path().join("appeared.log"), b"baseline\n");
     let armed = poll(&mut waiting).await;
@@ -371,7 +386,10 @@ async fn missing_source_waits_only_when_requested_and_can_seal_before_arming() {
     let absent = tree.path().join("absent");
     let base = request(&bench.execution, local(&absent), vec![include("*.log")], FileWatchPolicy::Stream);
     assert!(bench.handle.open_file_watch(&base, None).await.is_err());
-    let request = FileWatch { wait_for_source_seconds: Some(30), ..base };
+    let request = FileWatch {
+        wait_for_source_seconds: Some(30),
+        ..base
+    };
     let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
     assert!(poll(&mut watch).await.is_empty());
     assert!(seal(&mut watch).await.is_empty());
@@ -417,7 +435,9 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
     let tree = tempdir().unwrap();
     let request = WatchFile {
         execution_id: Some(bench.execution.clone()),
-        source: Some(FileWatchSource { payload: Some(local(&tree.path().join("missing/device.log"))) }),
+        source: Some(FileWatchSource {
+            payload: Some(local(&tree.path().join("missing/device.log"))),
+        }),
         output: OUTPUT.to_owned(),
         artifact: None,
         policy: FileWatchPolicy::Stream,
@@ -433,7 +453,11 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
     let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() };
     watch.cancel();
     assert!(watch.join().await.is_err());
-    let result = tokio::time::timeout(std::time::Duration::from_secs(120), bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready)).await;
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready),
+    )
+    .await;
     assert!(result.expect("readiness settles after cancellation").is_err());
     bench.stop().await;
 }
@@ -616,7 +640,10 @@ async fn watch_refusals() {
         FileWatch { execution_id: None, ..base() },
         FileWatch { rules: vec![exclude("*.log")], ..base() },
         FileWatch { output: "../escape".to_owned(), ..base() },
-        FileWatch { policy: FileWatchPolicy::Unspecified, ..base() },
+        FileWatch {
+            policy: FileWatchPolicy::Unspecified,
+            ..base()
+        },
         FileWatch { poll_interval_ms: Some(1), ..base() },
         FileWatch { maximum_files: Some(257), ..base() },
         FileWatch { source: None, ..base() },
@@ -756,8 +783,14 @@ async fn watch_file_matchers() {
             pattern: r"elapsed=(?P<elapsed_s>[\d.]+) locked=(?P<target_locked>\w+)".to_owned(),
             stream: "tracking".to_owned(),
             fields: vec![
-                LineField { name: "elapsed_s".to_owned(), kind: LineFieldKind::Number },
-                LineField { name: "target_locked".to_owned(), kind: LineFieldKind::Boolean },
+                LineField {
+                    name: "elapsed_s".to_owned(),
+                    kind: LineFieldKind::Number,
+                },
+                LineField {
+                    name: "target_locked".to_owned(),
+                    kind: LineFieldKind::Boolean,
+                },
             ],
         }],
         markers: vec![LineMarker::new(r"WARN (?P<warning_code>\w+)", "tracking.fixture_warning")],
@@ -768,12 +801,20 @@ async fn watch_file_matchers() {
     bench
         .handle
         .operations()
-        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() })
+        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed {
+            instance_id: watch.id().value(),
+        })
         .await
         .unwrap();
     append(&log, APPENDED);
     let outcome = watch.join().await.unwrap().into_owned();
-    assert_eq!(outcome.artifacts, vec![WatchedArtifact { artifact: format!("{OUTPUT}/device.log"), size_bytes: APPENDED.len() as u64 }]);
+    assert_eq!(
+        outcome.artifacts,
+        vec![WatchedArtifact {
+            artifact: format!("{OUTPUT}/device.log"),
+            size_bytes: APPENDED.len() as u64
+        }]
+    );
     assert!(outcome.gaps.is_empty());
 
     // Rows Reach The Declared Stream In The Execution's Scope
@@ -782,7 +823,10 @@ async fn watch_file_matchers() {
         .handle
         .collect_telemetry(&TelemetrySelection {
             streams: vec![identifier("tracking").into()],
-            scope: ScopeSelection { test_execution_id: Some(execution.clone()), ..Default::default() },
+            scope: ScopeSelection {
+                test_execution_id: Some(execution.clone()),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .await
@@ -795,7 +839,10 @@ async fn watch_file_matchers() {
     // The Marker Is Recorded
     let markers = bench
         .handle
-        .selected_records(RecordSelection { record_types: vec![identifier("tracking.fixture_warning")], ..Default::default() })
+        .selected_records(RecordSelection {
+            record_types: vec![identifier("tracking.fixture_warning")],
+            ..Default::default()
+        })
         .await
         .unwrap();
     assert_eq!(markers.len(), 1);

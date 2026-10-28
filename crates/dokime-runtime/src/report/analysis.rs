@@ -57,11 +57,17 @@ pub(crate) struct Resources {
 
 impl Resources {
     pub(crate) fn new() -> Self {
-        Self { dispatchers: Arc::new(RwLock::new(BTreeMap::new())), unavailable: Arc::new(RwLock::new(BTreeSet::new())) }
+        Self {
+            dispatchers: Arc::new(RwLock::new(BTreeMap::new())),
+            unavailable: Arc::new(RwLock::new(BTreeSet::new())),
+        }
     }
 
     pub(crate) fn from_runtime(runtime: &RuntimeHandle) -> Self {
-        Self { dispatchers: runtime.action_dispatchers.clone(), unavailable: runtime.unavailable_plugins.clone() }
+        Self {
+            dispatchers: runtime.action_dispatchers.clone(),
+            unavailable: runtime.unavailable_plugins.clone(),
+        }
     }
     pub(crate) fn available(&self, source: &str) -> bool {
         !self.unavailable.read().expect("plugin availability lock poisoned").contains(source)
