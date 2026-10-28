@@ -231,8 +231,11 @@ impl RuntimeHandle {
                 }
             }
         }
+        // Delivery Is Queued Before Admission Opens, So A Leaseholder Sees Rows In Ordinal Order.
+        let delivering = self.telemetry_delivery.clone().lock_owned().await;
         drop(order);
         self.forward_leased_rows(delivery, &accepted, &identities).await;
+        drop(delivering);
         let receipt = receipt.try_map(|mut receipt| {
             receipt.accepted = accepted_count;
             receipt.dropped = dropped_count;

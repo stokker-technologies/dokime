@@ -96,6 +96,8 @@ pub struct RuntimeHandle {
     pub(crate) evidence_admission: Arc<tokio::sync::Mutex<()>>,
     pub(crate) evidence_exports: crate::domains::exports::evidence::Manager,
     pub(crate) telemetry_admission: Arc<tokio::sync::Mutex<()>>,
+    // Leaseholder Delivery Follows Admission Order Without Holding Admission Across Plugin Calls.
+    pub(crate) telemetry_delivery: Arc<tokio::sync::Mutex<()>>,
     pub(crate) telemetry_cursors: Arc<Mutex<crate::domains::telemetry::TelemetryCursors>>,
     pub(crate) host_telemetry_source: Arc<RwLock<Option<Arc<crate::telemetry_runtime::HostTelemetrySource>>>>,
     pub(crate) providers: Arc<ProviderExecutorRegistry>,
@@ -411,6 +413,7 @@ impl RuntimeHandle {
             evidence_admission: Default::default(),
             evidence_exports: crate::domains::exports::evidence::Manager::new(config.application_root.join("cache/exports")),
             telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),
+            telemetry_delivery: Arc::new(tokio::sync::Mutex::new(())),
             telemetry_cursors: Arc::new(Mutex::new(crate::domains::telemetry::TelemetryCursors::default())),
             stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::new()),
             host_telemetry_source: Arc::new(RwLock::new(None)),
