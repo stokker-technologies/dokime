@@ -18,7 +18,12 @@ mod interruption;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, io::Read, path::Path};
+use std::{
+    collections::BTreeMap,
+    io::Read,
+    path::Path,
+    sync::{LazyLock, Mutex},
+};
 
 // Third Party Imports
 use rusqlite::OptionalExtension;
@@ -36,6 +41,11 @@ use dokime::domain::model::{
 
 /* === Constants === */
 
+const PROFILE_IDENTIFIER: &str = "lab";
+
+// The Identity The Examples' Pairing Files Expect From The Host Under Test
+static BACKEND_IDENTIFIER: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -52,6 +62,7 @@ use dokime::domain::model::{
 
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
+    *BACKEND_IDENTIFIER.lock().unwrap() = client.backend().backend_id.clone();
     let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
     let workflows = extensions.iter().flat_map(|extension| ["device", "test", "prompt"].map(|workflow| (*extension, workflow)));
     for (extension, workflow) in workflows {
@@ -102,11 +113,12 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     std::fs::create_dir_all(directory).unwrap();
     let source = std::fs::read_to_string(&script).unwrap();
     let output = directory.to_str().unwrap();
+    let pairing = directory.join("lab.dokime-pair");
+    let profiles = directory.join("profiles.json");
+    import_profile(&binary, endpoint, &pairing, &profiles);
     let mut values = vec![
-        ("ENDPOINT", endpoint.to_owned()),
-        ("CA_CERTIFICATE", String::new()),
-        ("KEY_FILE", String::new()),
-        ("ENV_FILE", String::new()),
+        ("BACKEND_IDENTIFIER", PROFILE_IDENTIFIER.to_owned()),
+        ("PAIRING_FILE", pairing.to_str().unwrap().to_owned()),
         ("OUTPUT_DIRECTORY", output.to_owned()),
     ];
     values.extend(parameters.iter().map(|(name, value)| (*name, (*value).to_owned())));
@@ -129,7 +141,31 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     for name in ["DOKIME_KEY", "DOKIME_KEY_FILE", "DOKIME_ENV_FILE", "DOKIME_CA_CERTIFICATE", "DOKIME_BACKEND"] {
         command.env_remove(name);
     }
+    command.env("DOKIME_PROFILES_FILE", &profiles);
     command
+}
+
+fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path) {
+    // The Host Under Test Is An Unsecured Lab Listener: No CA Or Access Key.
+    let backend = BACKEND_IDENTIFIER.lock().unwrap().clone();
+    let document = serde_json::json!({
+        "version": 1,
+        "endpoint": endpoint,
+        "backend_identifier": backend,
+        "label": "Lab",
+        "ca_certificate_pem": null,
+        "access_key": null,
+    });
+    std::fs::write(pairing, serde_json::to_vec_pretty(&document).unwrap()).unwrap();
+    let _ = std::fs::remove_file(profiles);
+    let output = std::process::Command::new(binary)
+        .args(["backend", "add", "--pairing"])
+        .arg(pairing)
+        .args(["--identifier", PROFILE_IDENTIFIER])
+        .env("DOKIME_PROFILES_FILE", profiles)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "profile import failed: {}", String::from_utf8_lossy(&output.stderr));
 }
 
 fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String {
