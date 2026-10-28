@@ -80,7 +80,7 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     let staging = args.output.as_deref().map(|path| prepare_output(path, args.overwrite));
     let mut staged = staging.transpose()?;
     let client = args.connection.connect().await?;
-    let interrupt = tokio::signal::ctrl_c();
+    let interrupt = crate::commands::interrupt::requested();
     tokio::pin!(interrupt);
     let dispatch = dispatch(&client, &args, &input, items, &mut staged);
     let result = tokio::select! {

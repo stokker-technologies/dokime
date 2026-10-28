@@ -16,6 +16,7 @@ mod evidence;
 mod execution;
 mod gui;
 mod id_file;
+mod interrupt;
 mod operation;
 mod plan;
 mod plugin;

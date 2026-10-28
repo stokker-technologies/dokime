@@ -2468,6 +2468,7 @@ dependencies = [
  "tonic",
  "tracing",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

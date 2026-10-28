@@ -87,7 +87,7 @@ pub(crate) async fn run(
         }
         None => tokio::select! {
             result = download => result,
-            signal = tokio::signal::ctrl_c() => match signal {
+            signal = super::interrupt::requested() => match signal {
                 Ok(()) => Err(crate::Error::Input("Evidence download cancelled. Retry the export to download from the beginning; executions are unaffected.".into())),
                 Err(error) => Err(error.into()),
             },

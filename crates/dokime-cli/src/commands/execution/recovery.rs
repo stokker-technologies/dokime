@@ -208,7 +208,7 @@ pub(crate) fn observe<'a, T: 'a>(
 }
 
 pub(crate) async fn interrupted(identity: &str, subject: &str, recovery: bool) -> std::io::Result<()> {
-    let interrupt = tokio::signal::ctrl_c();
+    let interrupt = crate::commands::interrupt::requested();
     tokio::pin!(interrupt);
     let mut announced = false;
     poll_fn(|context| {
