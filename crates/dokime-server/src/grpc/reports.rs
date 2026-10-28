@@ -240,7 +240,7 @@ mod tests {
         use dokime::domain::model::reports::wire::ReportHtmlFramePayload;
         use dokime::harmos::operations::{StreamSettings, stream};
         use std::num::NonZeroUsize;
-        let (mut output, input) = stream(StreamSettings {
+        let (output, input) = stream(StreamSettings {
             items: NonZeroUsize::new(4).unwrap(),
             bytes: NonZeroUsize::new(4 * 1_048_576).unwrap(),
         })
@@ -258,7 +258,7 @@ mod tests {
             chunk_bytes: 1_048_576,
             message_limit: 1_048_576,
         };
-        let producer = async move { download.run(&mut output).await };
+        let producer = async move { download.run(&output).await };
         let consumer = async move {
             let mut offset = 0;
             let mut complete = false;

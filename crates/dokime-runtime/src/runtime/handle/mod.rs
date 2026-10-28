@@ -347,6 +347,13 @@ impl RuntimeHandle {
                 crate::app::Lanes::Open,
             ))
             .await?;
+        harmos_runtime
+            .operations
+            .register(harmos::RegistrationExt::lane(
+                harmos::builtin::catalog_registration(Some(Arc::new(storage.clone())))?,
+                crate::app::Lanes::Open,
+            ))
+            .await?;
         let provider_invocations = Arc::new(crate::runtime::operations::provider::ProviderInvocations::default());
         crate::runtime::operations::provider::register(&harmos_runtime.operations, provider_invocations.clone()).await?;
         let execution_sessions = Arc::new(crate::domains::execution::run::Sessions::default());

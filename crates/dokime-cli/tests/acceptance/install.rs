@@ -89,6 +89,7 @@ enum Lanes {
 /* === Implementations === */
 
 impl dokime::harmos::Application for Fixture {
+    type Lanes = Lanes;
     type State = ();
     type Transaction = dokime::harmos::state::Never;
     type Record = ();
