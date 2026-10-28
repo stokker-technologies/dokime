@@ -47,10 +47,10 @@ pub(in crate::report) struct Report<'a> {
     pub read: &'a ReadMember<'a>,
 }
 
-// Render Every Section While Its Typed Member Is Borrowed; Retain Only Encoded Rows On Disk.
+// Render Every Section While Its Typed Member Is Borrowed; Retain Only Encoded Rows,
+// Spilled To Disk Only Above The Connection's Page Cache.
 pub(in crate::report) struct MemberRows {
     connection: rusqlite::Connection,
-    _directory: tempfile::TempDir,
 }
 
 struct Rows<'a, 'r>(&'a Report<'r>, Section);
@@ -207,8 +207,8 @@ impl Report<'_> {
 
 impl MemberRows {
     pub(in crate::report) fn new() -> Result<Self> {
-        let directory = tempfile::tempdir()?;
-        let connection = rusqlite::Connection::open(directory.path().join("report.sqlite")).map_err(rows_error)?;
+        // A Private Temporary Database Creates Its Backing File Only When It Spills.
+        let connection = rusqlite::Connection::open("").map_err(rows_error)?;
         connection
             .execute_batch(
                 "PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; PRAGMA temp_store=FILE;
@@ -217,7 +217,7 @@ impl MemberRows {
              PRIMARY KEY(section,member,ordinal)) WITHOUT ROWID; BEGIN;",
             )
             .map_err(rows_error)?;
-        Ok(Self { connection, _directory: directory })
+        Ok(Self { connection })
     }
 
     pub(in crate::report) fn capture(

@@ -42,7 +42,6 @@ pub(crate) struct Input {
 
 struct Owner {
     connection: Connection,
-    _directory: tempfile::TempDir,
     reverse_records: bool,
 }
 
@@ -59,8 +58,9 @@ pub(super) struct Read<'a> {
 
 impl Input {
     pub(crate) fn new() -> Result<Self> {
-        let directory = tempfile::tempdir().map_err(failure)?;
-        let connection = Connection::open(directory.path().join("projection.sqlite")).map_err(failure)?;
+        // A Private Temporary Database Stays In The Page Cache Until It Exceeds
+        // `cache_size`; SQLite Creates Its Backing File Only When It Spills.
+        let connection = Connection::open("").map_err(failure)?;
         connection
             .execute_batch(
                 "PRAGMA journal_mode=OFF;
@@ -89,11 +89,7 @@ impl Input {
              BEGIN;",
             )
             .map_err(failure)?;
-        let owner = Owner {
-            connection,
-            _directory: directory,
-            reverse_records: false,
-        };
+        let owner = Owner { connection, reverse_records: false };
         let owner = Arc::new(Mutex::new(owner));
         Ok(Self { owner })
     }
