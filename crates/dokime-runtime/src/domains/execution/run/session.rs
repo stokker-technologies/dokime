@@ -124,6 +124,7 @@ impl Session {
             };
         }
         let begins = batch.step_begins.clone();
+        let batch_settling = batch.record_subscriptions_settling;
         // Once one page was refused the case is over: nothing later is
         // admitted as evidence, every step it asks to begin is refused, and
         // the run is released to wind down.
@@ -152,7 +153,9 @@ impl Session {
                             message: message.clone(),
                         })
                         .collect(),
-                    settled: false,
+                    // Nothing more reaches a refused case, so its inputs are closed: a settling page is
+                    // answered settled and the run concludes now rather than waiting out the stop budget.
+                    settled: batch_settling || pages.settled,
                 }
             }
         }

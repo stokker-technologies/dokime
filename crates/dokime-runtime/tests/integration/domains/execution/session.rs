@@ -61,6 +61,7 @@ enum Settlement {
     Complete,
     Deferred,
     Refused,
+    RefusedPage,
     Ignored,
     IgnoredSignal,
     Failure,
@@ -125,6 +126,30 @@ impl Runnable for Probe {
                 termination: TerminationReason::Cancelled,
                 detail: None,
             };
+            if self.mode == Settlement::RefusedPage {
+                // Like A Sidecar Run, The Settling Page Waits For Its Input Receipt Before Concluding.
+                let receipt = host
+                    .push(EvidenceBatch {
+                        cursor: 2,
+                        step_attempts: vec!["not a step attempt".into()],
+                        record_subscriptions_settling: true,
+                        ..Default::default()
+                    })
+                    .await
+                    .map_err(Refusal::of)?;
+                if !receipt.settled {
+                    std::future::pending::<()>().await;
+                }
+                host.push(EvidenceBatch {
+                    cursor: 3,
+                    cleanup_settled: true,
+                    outcome: Some(SidecarExecutionOutcome::default()),
+                    ..Default::default()
+                })
+                .await
+                .map_err(Refusal::of)?;
+                return Ok(SidecarExecutionOutcome::default());
+            }
             let refused = self.mode == Settlement::Refused;
             host.push(EvidenceBatch {
                 cursor: 2,
@@ -386,6 +411,31 @@ async fn ignored_stop(mode: Settlement) {
             .contains(&format!("the run did not answer its stop within {} seconds", dokime_domain::STOP_SETTLEMENT_SECONDS))
     );
     probe.released.send_replace(true);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Refused Settling Page Still Closes The Run's Inputs, So It Winds Down Instead Of Waiting Out The Stop Budget.
+#[tokio::test]
+async fn refused_settlement_winds_down() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::RefusedPage));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let cycle_id = start_cases(&handle, metadata("session.refused", "Refused Settlement"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Stopped).await;
+    let execution = &cycle.test_executions[0];
+    let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
+    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
+    let log = std::str::from_utf8(&log.bytes).unwrap().to_owned();
+    assert!(log.contains("invalid step attempt"), "{log}");
+    assert!(!log.contains("did not answer its stop"), "the run settled itself rather than the host settling it: {log}");
     drop(handle);
     owner.shutdown().await.unwrap();
 }
