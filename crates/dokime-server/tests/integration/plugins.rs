@@ -30,7 +30,7 @@ use model::plugins::wire::InstallPluginFrameFrame as Frame;
 
 /* === Constants === */
 
-const DYNAMIC_OWNER: &str = "grpc-dynamic-fixture";
+const DYNAMIC_OWNER: &str = "grpc_dynamic_fixture";
 const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
     timeout: Duration::from_secs(120),
     attempt_timeout: Duration::from_secs(120),
