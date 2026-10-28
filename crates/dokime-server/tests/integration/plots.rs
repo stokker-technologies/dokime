@@ -346,7 +346,7 @@ async fn quiet_plot_watch_outlives_the_idle_deadline() {
     let idle = std::time::Duration::from_millis(client.settings().request_timeout_ms);
     let heartbeat = dokime_server::grpc::WATCH_HEARTBEAT;
     let beats = usize::try_from(idle.as_millis() / heartbeat.as_millis()).unwrap();
-    let watch = client.plots_watch(contracts::plots::Watch { requests: vec![request(10_000)] }).await.unwrap();
+    let watch = client.stream(contracts::plots::Watch { requests: vec![request(10_000)] }).await.unwrap();
     let opened = loop {
         let frame = watch.message().await.unwrap().expect("the plot watch opens");
         if frame.kind != model::plots::wire::PlotStreamKind::Unspecified {

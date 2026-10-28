@@ -315,7 +315,7 @@ async fn quiet_log_watch_outlives_the_idle_deadline() {
     let heartbeat = dokime_server::grpc::WATCH_HEARTBEAT;
     let beats = usize::try_from(idle.as_millis() / heartbeat.as_millis()).unwrap();
     let stream = client
-        .backend_watch_logs(contracts::backend::WatchLogs {
+        .stream(contracts::backend::WatchLogs {
             min_level: model::backend::wire::LogLevel::Error,
             replay_lines: 500,
         })
