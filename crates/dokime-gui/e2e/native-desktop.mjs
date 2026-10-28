@@ -341,6 +341,8 @@ async function promptHoverLabels() {
     await frameDrawn();
     const label = frame.querySelector("[role=tooltip]")?.textContent;
     if (label) labels.add(label);
+    if ([...labels].some((label) => label.includes("Prompt asked:")) && [...labels].some((label) => label.includes("Prompt answered:")))
+      break;
   }
   return [...labels];
 }
@@ -2978,6 +2980,11 @@ async function remoteAccessJourney() {
   const listenAddress = `127.0.0.1:${reservation.address().port}`;
   await new Promise((done) => reservation.close(done));
   await commitField("Listener Address", listenAddress);
+  const certificateInput = await input("Certificate Names");
+  await session.type(certificateInput, "localhost:");
+  await until("invalid certificate name rejected", () =>
+    session.execute("return arguments[0].getAttribute('aria-invalid') === 'true';", [certificateInput]),
+  );
   await commitField("Certificate Names", "127.0.0.1, localhost");
   await regenerate();
   await toggle("Listener TLS", true);
@@ -4488,6 +4495,7 @@ for index in range(desktop.get_child_count()):
       $ErrorActionPreference = 'Stop'
       Add-Type -AssemblyName UIAutomationClient
       Add-Type -AssemblyName UIAutomationTypes
+      Add-Type -AssemblyName System.Windows.Forms
       $root = [System.Windows.Automation.AutomationElement]::RootElement
       $providers = Add-Type -AssemblyName UIAutomationClientsideProviders -PassThru
       [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
@@ -4500,6 +4508,10 @@ for index in range(desktop.get_child_count()):
           $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $filenameId)
           $fieldType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
           $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldId, $fieldType)
+          if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
+            $fieldName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'File name:')
+            $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldCondition, $fieldName)
+          }
           $field = $window.FindFirst($scope, $fieldCondition)
           if ($field) {
             $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -4542,6 +4554,10 @@ for index in range(desktop.get_child_count()):
           $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $filenameId)
           $fieldType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
           $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldId, $fieldType)
+          if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
+            $fieldName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'File name:')
+            $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldCondition, $fieldName)
+          }
           $field = $window.FindFirst($scope, $fieldCondition)
           $buttonId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
           $buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
@@ -4563,7 +4579,12 @@ for index in range(desktop.get_child_count()):
             if (![String]::Equals($entered, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
               throw 'The Native Picker Filename Differs From The Requested File Before Selection'
             }
-            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
+              $field.SetFocus()
+              [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+            } else {
+              $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            }
             Write-PickerState 'after-invoke' $window $pidCondition
             Write-Output ('selected:' + $selectedWindow)
             exit 0
