@@ -78,7 +78,11 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     for extension in extensions {
         Box::pin(conflicts(endpoint, &root.join(format!("{extension} conflicts")), extension)).await;
     }
-    Box::pin(interruption::scripts(client, endpoint, &root.join("interruptions"))).await;
+}
+
+pub async fn interruptions(client: &Client, endpoint: &str, root: &Path) {
+    *BACKEND_IDENTIFIER.lock().unwrap() = client.backend().backend_id.clone();
+    Box::pin(interruption::scripts(client, endpoint, root)).await;
 }
 
 /* === Private Functions === */

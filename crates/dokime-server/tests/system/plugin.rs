@@ -58,15 +58,416 @@ const HOST_STREAMS: &[&str] =
 
 /* === Structs === */
 
+// The Shared Walkthrough Fixture: A Development Host Over A Private Copy Of The Built Bundle, With
+// Its Runtime Watch Open. Every Scene Starts From `Session::ready` (the development session from
+// `Session::launch`) and leaves the fixture ready, so scenes run alone or in walkthrough order.
+struct Session {
+    root: tempfile::TempDir,
+    bytes: Vec<u8>,
+    bundle: PathBuf,
+    home: PathBuf,
+    host: Host,
+    client: Client,
+    changes: Changes,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl Session {
+    // A Development Host Launched Over Its Bundle Copy, Before The First Reload.
+    async fn launch() -> Self {
+        let root = tempfile::tempdir().unwrap();
+        let bytes = std::fs::read(support::artifacts::obc_plugin_bundle()).unwrap();
+        let bundle = root.path().join("bundle/obc-plugin.dokime");
+        std::fs::create_dir_all(bundle.parent().unwrap()).unwrap();
+        std::fs::write(&bundle, &bytes).unwrap();
+        let home = root.path().join("host");
+        let host = Host::launch_in(&home, Some(&bundle)).await;
+        let client = host.connect().await;
+        let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+        Self {
+            root,
+            bytes,
+            bundle,
+            home,
+            host,
+            client,
+            changes,
+        }
+    }
+
+    // The Launched Host After Its First Reload, Serving The Bundle's Suites.
+    async fn ready() -> Self {
+        let mut session = Self::launch().await;
+        session.reload().await;
+        session
+    }
+
+    // A New Host Over The Same Home And Bundle, Reloaded, With A Fresh Watch.
+    async fn relaunch(root: tempfile::TempDir, bytes: Vec<u8>, bundle: PathBuf, home: PathBuf) -> Self {
+        let host = Host::launch_in(&home, Some(&bundle)).await;
+        let client = host.connect().await;
+        let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+        let mut session = Self {
+            root,
+            bytes,
+            bundle,
+            home,
+            host,
+            client,
+            changes,
+        };
+        session.reload().await;
+        session
+    }
+
+    async fn reload(&mut self) {
+        let reloaded = self.host.command(serde_json::json!({"command": "reload", "path": self.bundle})).await;
+        assert_eq!(reloaded["event"], "reloaded", "{reloaded}");
+    }
+
+    async fn stop(self) {
+        drop(self.changes);
+        drop(self.client);
+        self.host.stop(false).await;
+        drop(self.root);
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+// The Development Session: The Selected Bundle Serves From The First Reload, Without An
+// Installation; Reloading Unchanged Bytes Keeps The Suites; A Reload Refuses Bytes That Are Not A
+// Distribution And Keeps The Suites. It Ends Ready, As `Session::ready` Leaves The Fixture.
+async fn scene_development_session(session: &mut Session) {
+    let client = session.client.clone();
+    assert!(!serves_startup(&client).await, "a development host activates its bundle on the first reload");
+    let reload = serde_json::json!({"command": "reload", "path": session.bundle});
+    assert_eq!(session.host.command(reload.clone()).await["event"], "reloaded");
+    assert!(serves_startup(&client).await);
+    status_ready(&client).await;
+    assert!(installations(&client).await.is_empty());
+
+    // Reloading Unchanged Bytes Keeps The Suites
+    assert_eq!(session.host.command(reload.clone()).await["event"], "reloaded");
+    assert!(serves_startup(&client).await);
+
+    // A Reload Refuses Bytes That Are Not A Distribution
+    std::fs::write(&session.bundle, b"not a distribution").unwrap();
+    assert_eq!(session.host.command(reload.clone()).await["event"], "reload_failed");
+    assert!(serves_startup(&client).await, "a refused reload keeps the suites");
+    std::fs::write(&session.bundle, &session.bytes).unwrap();
+    assert_eq!(session.host.command(reload).await["event"], "reloaded");
+}
+
+// A Suite Runs Through Its Prompt, Evidence And Sealed Report.
+async fn scene_startup(session: &mut Session) {
+    let client = session.client.clone();
+    let changes = &mut session.changes;
+    let mut catalog = client.clone();
+    let startup = suite(&mut catalog, STARTUP_SUITE).await;
+    let template = startup
+        .templates
+        .iter()
+        .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == STARTUP_TEMPLATE))
+        .unwrap_or_else(|| panic!("startup template is registered: {:?}", startup.templates));
+    let mut planning = client.clone();
+    let plan = selection(
+        STARTUP_SUITE,
+        &template.template_id,
+        [
+            ("duration_s", number(STARTUP_SAMPLE_COUNT as f64 * 0.1)),
+            ("frequency_hz", number(1.0)),
+            ("sample_interval_s", number(0.1)),
+            ("realtime", boolean(true)),
+        ],
+    );
+    let mut execution = client.clone();
+    let cycle_id = create_cycle(&mut planning, &mut execution, plan, "native.charger.startup", 1).await;
+    run_cycle(&mut execution, &cycle_id).await;
+
+    let mut prompts = client.clone();
+    let pending = wait_prompt(changes, &mut prompts, &cycle_id).await;
+    assert_eq!(pending.definition.as_ref().expect("prompt definition").prompt_type, "obc.charger.startup.check");
+    let prompt_scope = pending.scope.expect("prompt scope");
+    let execution_id = prompt_scope.execution_id.clone().expect("execution scope");
+
+    let mut content = client.clone();
+
+    // The Viewer's Live Path: Follow The Same Log Mid-Run From Offset Zero
+    let follow = content
+        .content_follow_execution_file(contracts::content::FollowExecutionFile {
+            execution_id: execution_id.clone(),
+            relative_path: STARTUP_STREAM_LOG.into(),
+            identity: None,
+            offset: 0,
+            max_bytes: 64 * 1024,
+        })
+        .await
+        .unwrap();
+    let Some(model::content::wire::ExecutionFileFollowFramePayload::Metadata(metadata)) =
+        follow.message().await.unwrap().and_then(|frame| frame.payload)
+    else {
+        panic!("a live follow begins with its metadata frame");
+    };
+    assert_eq!(metadata.phase, model::content::wire::ExecutionFilePhase::Producing);
+    assert_eq!(metadata.offset, 0);
+    let identity = metadata.identity.expect("a live follow names its retained identity");
+    assert_eq!(identity.relative_path, STARTUP_STREAM_LOG);
+    let followed = {
+        let mut followed = Vec::new();
+        loop {
+            match follow.message().await.unwrap().and_then(|frame| frame.payload) {
+                Some(model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
+                    assert_eq!(chunk.offset, followed.len() as u64);
+                    assert!(!chunk.data.is_empty() && chunk.data.len() <= 64 * 1024);
+                    followed.extend_from_slice(&chunk.data);
+                }
+                _ => panic!("a producing follow delivers only contiguous chunks"),
+            }
+            let text = String::from_utf8_lossy(&followed).into_owned();
+            if text.contains("record=prompt_requested") {
+                break text;
+            }
+        }
+    };
+    assert!(followed.contains("record=started"));
+    drop(follow);
+
+    // The Followed Prefix Is Also What A Plain Read Serves While Still Streaming
+    let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+    assert_eq!(file.state, model::content::wire::ExecutionFileState::Streaming);
+    let window = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+    let running_log = String::from_utf8_lossy(&window.data).into_owned();
+    assert!(running_log.contains("record=started"));
+    assert!(running_log.contains("record=prompt_requested"));
+
+    prompts
+        .prompts_respond(contracts::prompts::Respond {
+            prompt_id: pending.prompt_id,
+            action: "submit".into(),
+            values: Some(value_object([("operator_note", text("native-test-confirmed")), ("accepted", boolean(true))])),
+            accepted: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
+    if !passed(&cycle) {
+        let diagnosis = diagnosis::execution(&client, &execution_id, STARTUP_STREAM_LOG).await;
+        assert!(passed(&cycle), "{diagnosis}");
+    }
+    let telemetry = client.clone();
+    let telemetry = telemetry
+        .telemetry_list_samples(contracts::telemetry::ListSamples {
+            streams: vec![STARTUP_SAMPLES.into()],
+            scope: Some(scope(&cycle_id, &execution_id)),
+            limit: 100,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(telemetry.complete);
+    assert_eq!(telemetry.samples.len() as u64, STARTUP_SAMPLE_COUNT);
+    assert_eq!(telemetry.samples.iter().map(|sample| sample.stream.as_str()).collect::<HashSet<_>>(), HashSet::from([STARTUP_SAMPLES]));
+
+    let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+    assert_eq!(file.kind, model::content::wire::ExecutionFileKind::Text);
+    assert_eq!(file.state, model::content::wire::ExecutionFileState::Finalized);
+    let final_log = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+    let final_text = String::from_utf8_lossy(&final_log.data);
+    assert!(final_text.contains("record=prompt_answered action=continue accepted=true"));
+    assert!(final_text.contains("Charger resources released"));
+
+    // The Explicitly Sealed Cycle Serves Its Report
+    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
+    execution.cycle(id).seal().await.unwrap();
+    on_change(changes, "the startup cycle to seal", async || {
+        execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap().sealed.then_some(())
+    })
+    .await;
+    let report = client
+        .reports_download_cycle_report(contracts::reports::DownloadCycleReport {
+            cycle_id: cycle_id.clone(),
+            identifier: String::new(),
+        })
+        .await
+        .unwrap();
+    let mut metadata = None;
+    let mut html = Vec::new();
+    let mut complete = false;
+    while let Some(frame) = report.message().await.unwrap() {
+        match frame.payload.expect("report payload") {
+            model::reports::wire::ReportHtmlFramePayload::Report(header) => {
+                assert!(metadata.replace(*header).is_none(), "one metadata frame");
+            }
+            model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => {
+                assert_eq!(chunk.offset, html.len() as u64);
+                html.extend_from_slice(&chunk.data);
+            }
+            model::reports::wire::ReportHtmlFramePayload::Complete(done) => {
+                assert_eq!(done.size_bytes, html.len() as u64);
+                complete = true;
+            }
+        }
+    }
+    assert!(complete, "the report stream completes");
+    assert_eq!(metadata.expect("report metadata").test_cycle_id, cycle_id);
+    assert!(!html.is_empty());
+}
+
+// The Actual Remote Scripts Control The Built Plugin And Export Saved Evidence.
+async fn scene_remote_scripts(session: &mut Session) {
+    let root = session.root.path().join("remote scripts");
+    Box::pin(super::remote::scripts(&session.client, session.host.endpoint(), &root)).await;
+}
+
+// The Actual Remote Scripts Are Interrupted Through Their Native Terminals Without Harming Other Clients.
+async fn scene_interruptions(session: &mut Session) {
+    let root = session.root.path().join("remote scripts/interruptions");
+    Box::pin(super::remote::interruptions(&session.client, session.host.endpoint(), &root)).await;
+}
+
+// The Host Stops Cleanly With Its Watch Still Open.
+async fn scene_clean_stop(session: Session) {
+    let Session { root, host, changes, client, .. } = session;
+    host.stop(false).await;
+    drop(changes);
+    drop(client);
+    drop(root);
+}
+
+// A Cycle Report Opens On Every Request From The Measuring Member's Settlement, Through The
+// Prompting Member's Admission, To Its Pending Question, And Both Reports Open While That
+// Question Waits Without Answering It.
+async fn scene_open_report_while_cycle_runs(session: &mut Session) {
+    const BOUND: Duration = Duration::from_secs(120);
+    let client = session.client.clone();
+    let changes = &mut session.changes;
+
+    // One Cycle: A Measuring Member, Then A Prompting One Queued Behind It
+    let (mut catalog, mut planning, mut execution) = (client.clone(), client.clone(), client.clone());
+    let mut plans = Vec::new();
+    for (suite_id, template_id) in [(PROTECTION_SUITE, PROTECTION_TEMPLATE), (STARTUP_SUITE, STARTUP_TEMPLATE)] {
+        let template = suite(&mut catalog, suite_id)
+            .await
+            .templates
+            .into_iter()
+            .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == template_id))
+            .unwrap_or_else(|| panic!("{template_id} is registered"));
+        plans.push(selection(suite_id, &template.template_id, []));
+    }
+    let prompting = plans.pop().unwrap();
+    let cycle_id = create_cycle(&mut planning, &mut execution, plans.pop().unwrap(), "native.charger.open-report", 1).await;
+    let registered = execution
+        .planning_register_selection(contracts::planning::RegisterSelection {
+            plan: Some(prompting),
+            idempotency_key: uuid::Uuid::now_v7().to_string(),
+        })
+        .await
+        .unwrap();
+    let executions = registered
+        .cases
+        .into_iter()
+        .map(|case| contracts::execution::ExecutionBinding {
+            execution_id: uuid::Uuid::now_v7().to_string(),
+            case_id: case.case_id,
+        })
+        .collect();
+    execution.execution_append_executions(contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions }).await.unwrap();
+    let members = execution
+        .execution_list_executions(contracts::execution::ListExecutions {
+            cycle_id: cycle_id.clone(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .executions;
+    for member in &members {
+        let reply = execution
+            .execution_start_execution(contracts::execution::StartExecution {
+                execution_id: member.execution_id.clone(),
+                mode: model::execution::wire::ExecutionMode::Automatic,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))), "{reply:?}");
+    }
+
+    // Back-To-Back Requests Cover The Measuring Member's Seal, The Next Admission And The Question
+    on_change(changes, "the measuring member to pass", async || {
+        let page = execution
+            .execution_list_executions(contracts::execution::ListExecutions {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let measuring = page.executions.iter().find(|member| member.execution_id == members[0].execution_id)?;
+        (measuring.status == model::execution::wire::ExecutionStatus::Passed).then_some(())
+    })
+    .await;
+    let prompts = client.clone();
+    let mut opened = 0;
+    let pending = loop {
+        let html = tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id))
+            .await
+            .unwrap_or_else(|_| panic!("cycle report {opened} did not open within {BOUND:?} while the cycle ran"));
+        assert!(!html.is_empty());
+        opened += 1;
+        let page = prompts
+            .prompts_list_pending(contracts::prompts::ListPending {
+                cycle_id: Some(cycle_id.clone()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        if let Some(pending) = page.prompts.into_iter().next() {
+            break pending;
+        }
+    };
+
+    // Both Reports Open While The Question Waits, And It Still Waits
+    let execution_id = pending.scope.as_ref().and_then(|scope| scope.execution_id.clone()).expect("execution scope");
+    let cycle_html =
+        tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id)).await.expect("the cycle report opens while the prompt waits");
+    assert!(!cycle_html.is_empty());
+    let execution_report = async {
+        let request = contracts::reports::DownloadExecutionReport { execution_id: execution_id.clone() };
+        report_bytes(client.reports_download_execution_report(request).await.unwrap()).await
+    };
+    let execution_html = tokio::time::timeout(BOUND, execution_report).await.expect("the execution report opens while the prompt waits");
+    assert!(!execution_html.is_empty());
+    let still = prompts
+        .prompts_list_pending(contracts::prompts::ListPending {
+            cycle_id: Some(cycle_id.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(still.prompts.iter().any(|prompt| prompt.prompt_id == pending.prompt_id), "opening a report leaves the prompt pending");
+
+    // Answering The Question Completes The Cycle
+    prompts
+        .prompts_respond(contracts::prompts::Respond {
+            prompt_id: pending.prompt_id,
+            action: "submit".into(),
+            values: Some(value_object([("operator_note", text("open-report")), ("accepted", boolean(true))])),
+            accepted: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
+    assert!(passed(&cycle));
+}
 
 type Changes = ResponseStream<model::observation::wire::RuntimeStateFrame>;
 
@@ -326,7 +727,7 @@ fn installed_copy(root: &Path, bytes: &[u8]) -> Option<PathBuf> {
     None
 }
 
-async fn steady_sweep(client: &Client, changes: &mut Changes) {
+async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     let mut catalog = client.clone();
     let steady = suite(&mut catalog, STEADY_SUITE).await;
     let template = steady
@@ -717,7 +1118,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     assert!(summary["sample_count"].as_u64().is_some_and(|count| count >= STEADY_SAMPLE_COUNT));
 }
 
-async fn steady_reports(client: &Client, changes: &mut Changes) {
+async fn scene_reports(client: &Client, changes: &mut Changes) {
     let mut catalog = client.clone();
     let steady = suite(&mut catalog, STEADY_SUITE).await;
     let template = steady
@@ -807,400 +1208,141 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
 
 /* === Tests === */
 
-// Open Report While The Cycle Runs, Over The Built Plugin: a cycle report opens
-// on every request from the measuring member's settlement, through the
-// prompting member's admission, to its pending question, and both reports open
-// while that question waits without answering it.
+// The Plugin-And-Host Walkthrough Over The Built Bundle Is One Story Of Independently Runnable
+// Scenes On One Shared Fixture. Each Scene Is A Test That Reruns Alone (`-- plugin::<scene>`);
+// `walkthrough` Replays Every Scene In Order On One Host.
+
+#[tokio::test]
+async fn development_session() {
+    let mut session = Session::launch().await;
+    scene_development_session(&mut session).await;
+    session.stop().await;
+}
+
+#[tokio::test]
+async fn startup() {
+    let mut session = Session::ready().await;
+    scene_startup(&mut session).await;
+    session.stop().await;
+}
+
+// A Steady Sweep Leaves Its Execution Evidence.
+#[tokio::test]
+async fn steady_sweep() {
+    let mut session = Session::ready().await;
+    scene_steady_sweep(&session.client.clone(), &mut session.changes).await;
+    session.stop().await;
+}
+
+// A Nine-Case Sweep Seals Every Execution Report Before Its Cycle Report.
+#[tokio::test]
+async fn reports() {
+    let mut session = Session::ready().await;
+    scene_reports(&session.client.clone(), &mut session.changes).await;
+    session.stop().await;
+}
+
+#[tokio::test]
+async fn remote_scripts() {
+    let mut session = Session::ready().await;
+    scene_remote_scripts(&mut session).await;
+    session.stop().await;
+}
+
+#[tokio::test]
+async fn interruptions() {
+    let mut session = Session::ready().await;
+    scene_interruptions(&mut session).await;
+    session.stop().await;
+}
+
+#[tokio::test]
+async fn clean_stop() {
+    scene_clean_stop(Session::ready().await).await;
+}
+
 #[tokio::test]
 async fn open_report_while_cycle_runs() {
-    const BOUND: Duration = Duration::from_secs(120);
-    let root = tempfile::tempdir().unwrap();
-    let bundle = support::artifacts::obc_plugin_bundle();
-    let mut host = Host::launch_in(&root.path().join("host"), Some(&bundle)).await;
-    let client = host.connect().await;
-    assert_eq!(host.command(serde_json::json!({"command": "reload", "path": bundle})).await["event"], "reloaded");
-    let mut changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+    let mut session = Session::ready().await;
+    scene_open_report_while_cycle_runs(&mut session).await;
+    session.stop().await;
+}
 
-    // One Cycle: A Measuring Member, Then A Prompting One Queued Behind It
-    let (mut catalog, mut planning, mut execution) = (client.clone(), client.clone(), client.clone());
-    let mut plans = Vec::new();
-    for (suite_id, template_id) in [(PROTECTION_SUITE, PROTECTION_TEMPLATE), (STARTUP_SUITE, STARTUP_TEMPLATE)] {
-        let template = suite(&mut catalog, suite_id)
-            .await
-            .templates
-            .into_iter()
-            .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == template_id))
-            .unwrap_or_else(|| panic!("{template_id} is registered"));
-        plans.push(selection(suite_id, &template.template_id, []));
-    }
-    let prompting = plans.pop().unwrap();
-    let cycle_id = create_cycle(&mut planning, &mut execution, plans.pop().unwrap(), "native.charger.open-report", 1).await;
-    let registered = execution
-        .planning_register_selection(contracts::planning::RegisterSelection {
-            plan: Some(prompting),
-            idempotency_key: uuid::Uuid::now_v7().to_string(),
-        })
-        .await
-        .unwrap();
-    let executions = registered
-        .cases
-        .into_iter()
-        .map(|case| contracts::execution::ExecutionBinding {
-            execution_id: uuid::Uuid::now_v7().to_string(),
-            case_id: case.case_id,
-        })
-        .collect();
-    execution.execution_append_executions(contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions }).await.unwrap();
-    let members = execution
-        .execution_list_executions(contracts::execution::ListExecutions {
-            cycle_id: cycle_id.clone(),
-            ..Default::default()
+// The Plugin Store Installs, Removes And Skips A Broken Bundle Across Restarts.
+#[tokio::test]
+async fn store() {
+    let root = tempfile::tempdir().unwrap();
+    let bytes = std::fs::read(support::artifacts::obc_plugin_bundle()).unwrap();
+
+    // An Installed Plugin Activates Only After A Restart
+    let store = root.path().join("store");
+    let host = Host::launch_in(&store, None).await;
+    let client = host.connect().await;
+    assert!(!serves_startup(&client).await);
+    let installation = install(&client, &bytes).await;
+    assert!(!installation.active && installation.restart_required);
+    assert!(!serves_startup(&client).await);
+    host.stop(false).await;
+    let host = Host::launch_in(&store, None).await;
+    let client = host.connect().await;
+    let listed = installations(&client).await;
+    assert_eq!(listed.len(), 1);
+    assert!(listed[0].active && !listed[0].restart_required);
+    assert!(serves_startup(&client).await);
+    status_ready(&client).await;
+
+    // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
+    let removed = client
+        .plugins_remove(contracts::plugins::Remove {
+            install_id: installation.install_id.clone(),
         })
         .await
         .unwrap()
-        .executions;
-    for member in &members {
-        let reply = execution
-            .execution_start_execution(contracts::execution::StartExecution {
-                execution_id: member.execution_id.clone(),
-                mode: model::execution::wire::ExecutionMode::Automatic,
-            })
-            .await
-            .unwrap();
-        assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))), "{reply:?}");
-    }
+        .installation
+        .expect("a installed installation stays pending removal");
+    assert_eq!(removed.state, model::plugins::wire::PluginInstallationState::RemovalPending);
+    assert!(removed.active && removed.restart_required);
+    assert!(serves_startup(&client).await);
+    host.stop(false).await;
+    let host = Host::launch_in(&store, None).await;
+    let client = host.connect().await;
+    assert!(installations(&client).await.is_empty());
+    assert!(!serves_startup(&client).await);
 
-    // Back-To-Back Requests Cover The Measuring Member's Seal, The Next Admission And The Question
-    on_change(&mut changes, "the measuring member to pass", async || {
-        let page = execution
-            .execution_list_executions(contracts::execution::ListExecutions {
-                cycle_id: cycle_id.clone(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        let measuring = page.executions.iter().find(|member| member.execution_id == members[0].execution_id)?;
-        (measuring.status == model::execution::wire::ExecutionStatus::Passed).then_some(())
-    })
-    .await;
-    let prompts = client.clone();
-    let mut opened = 0;
-    let pending = loop {
-        let html = tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id))
-            .await
-            .unwrap_or_else(|_| panic!("cycle report {opened} did not open within {BOUND:?} while the cycle ran"));
-        assert!(!html.is_empty());
-        opened += 1;
-        let page = prompts
-            .prompts_list_pending(contracts::prompts::ListPending {
-                cycle_id: Some(cycle_id.clone()),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        if let Some(pending) = page.prompts.into_iter().next() {
-            break pending;
-        }
-    };
-
-    // Both Reports Open While The Question Waits, And It Still Waits
-    let execution_id = pending.scope.as_ref().and_then(|scope| scope.execution_id.clone()).expect("execution scope");
-    let cycle_html =
-        tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id)).await.expect("the cycle report opens while the prompt waits");
-    assert!(!cycle_html.is_empty());
-    let execution_report = async {
-        let request = contracts::reports::DownloadExecutionReport { execution_id: execution_id.clone() };
-        report_bytes(client.reports_download_execution_report(request).await.unwrap()).await
-    };
-    let execution_html = tokio::time::timeout(BOUND, execution_report).await.expect("the execution report opens while the prompt waits");
-    assert!(!execution_html.is_empty());
-    let still = prompts
-        .prompts_list_pending(contracts::prompts::ListPending {
-            cycle_id: Some(cycle_id.clone()),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    assert!(still.prompts.iter().any(|prompt| prompt.prompt_id == pending.prompt_id), "opening a report leaves the prompt pending");
-
-    // Answering The Question Completes The Cycle
-    prompts
-        .prompts_respond(contracts::prompts::Respond {
-            prompt_id: pending.prompt_id,
-            action: "submit".into(),
-            values: Some(value_object([("operator_note", text("open-report")), ("accepted", boolean(true))])),
-            accepted: true,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
-    assert!(passed(&cycle));
-    drop(changes);
+    // Scene: A Corrupted Installed Bundle Is Skipped And Boot Succeeds
+    install(&client, &bytes).await;
+    host.stop(false).await;
+    let installed = installed_copy(&store, &bytes).expect("the store keeps the installed bytes");
+    std::fs::write(&installed, b"corrupted after installation").unwrap();
+    let host = Host::launch_in(&store, None).await;
+    let client = host.connect().await;
+    let listed = installations(&client).await;
+    assert_eq!(listed.len(), 1);
+    assert!(
+        matches!(
+            listed[0].last_boot.as_ref().and_then(|boot| boot.result.as_ref()),
+            Some(model::plugins::wire::PluginLastBootResult::Error(_))
+        ),
+        "the broken installation reports its failed boot: {:?}",
+        listed[0].last_boot
+    );
+    assert!(!serves_startup(&client).await);
     host.stop(false).await;
 }
 
-// The Plugin-And-Host Walkthrough Over The Built Bundle, One Scene At A Time:
-// a development session serves its selected bundle from the first reload, reloads keep or refuse
-// bytes, a startup suite runs through its prompt, evidence and sealed report, a
-// steady sweep leaves its execution evidence, the host stops, and the plugin store installs, removes and skips a broken bundle
-// across restarts.
+// Every Scene In Walkthrough Order On One Host; The Lane Runs The Scenes Individually.
 #[tokio::test]
-async fn plugin_host_walkthrough() {
-    let root = tempfile::tempdir().unwrap();
-    let bytes = std::fs::read(support::artifacts::obc_plugin_bundle()).unwrap();
-    let bundle = root.path().join("bundle/obc-plugin.dokime");
-    std::fs::create_dir_all(bundle.parent().unwrap()).unwrap();
-    std::fs::write(&bundle, &bytes).unwrap();
-
-    // Each Scene Group Runs As Its Own Boxed Future: A Debug Poll Frame Keeps Every Await Temporary
-    // Of Its Function On The Stack, So One Unsplit Walkthrough Outgrew The Test Thread's Stack.
-    let (host, client, mut changes, report) = Box::pin(async {
-        // Scene: A Development Session Serves Its Selected Bundle From The First Reload, Without An Installation
-        let mut host = Host::launch_in(&root.path().join("configured"), Some(&bundle)).await;
-        let client = host.connect().await;
-        assert!(!serves_startup(&client).await, "a development host activates its bundle on the first reload");
-        let reload = serde_json::json!({"command": "reload", "path": bundle});
-        assert_eq!(host.command(reload.clone()).await["event"], "reloaded");
-        assert!(serves_startup(&client).await);
-        status_ready(&client).await;
-        assert!(installations(&client).await.is_empty());
-
-        // Scene: Reloading Unchanged Bytes Keeps The Suites
-        assert_eq!(host.command(reload.clone()).await["event"], "reloaded");
-        assert!(serves_startup(&client).await);
-
-        // Scene: A Reload Refuses Bytes That Are Not A Distribution
-        std::fs::write(&bundle, b"not a distribution").unwrap();
-        assert_eq!(host.command(reload.clone()).await["event"], "reload_failed");
-        assert!(serves_startup(&client).await, "a refused reload keeps the suites");
-        std::fs::write(&bundle, &bytes).unwrap();
-        assert_eq!(host.command(reload).await["event"], "reloaded");
-
-        // Scene: A Suite Runs Through Its Prompt, Evidence And Sealed Report
-        let mut changes = client.observation_watch_runtime(Default::default()).await.unwrap();
-        let mut catalog = client.clone();
-        let startup = suite(&mut catalog, STARTUP_SUITE).await;
-        let template = startup
-            .templates
-            .iter()
-            .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == STARTUP_TEMPLATE))
-            .unwrap_or_else(|| panic!("startup template is registered: {:?}", startup.templates));
-        let mut planning = client.clone();
-        let plan = selection(
-            STARTUP_SUITE,
-            &template.template_id,
-            [
-                ("duration_s", number(STARTUP_SAMPLE_COUNT as f64 * 0.1)),
-                ("frequency_hz", number(1.0)),
-                ("sample_interval_s", number(0.1)),
-                ("realtime", boolean(true)),
-            ],
-        );
-        let mut execution = client.clone();
-        let cycle_id = create_cycle(&mut planning, &mut execution, plan, "native.charger.startup", 1).await;
-        run_cycle(&mut execution, &cycle_id).await;
-
-        let mut prompts = client.clone();
-        let pending = wait_prompt(&mut changes, &mut prompts, &cycle_id).await;
-        assert_eq!(pending.definition.as_ref().expect("prompt definition").prompt_type, "obc.charger.startup.check");
-        let prompt_scope = pending.scope.expect("prompt scope");
-        let execution_id = prompt_scope.execution_id.clone().expect("execution scope");
-
-        let mut content = client.clone();
-
-        // The Viewer's Live Path: Follow The Same Log Mid-Run From Offset Zero
-        let follow = content
-            .content_follow_execution_file(contracts::content::FollowExecutionFile {
-                execution_id: execution_id.clone(),
-                relative_path: STARTUP_STREAM_LOG.into(),
-                identity: None,
-                offset: 0,
-                max_bytes: 64 * 1024,
-            })
-            .await
-            .unwrap();
-        let Some(model::content::wire::ExecutionFileFollowFramePayload::Metadata(metadata)) =
-            follow.message().await.unwrap().and_then(|frame| frame.payload)
-        else {
-            panic!("a live follow begins with its metadata frame");
-        };
-        assert_eq!(metadata.phase, model::content::wire::ExecutionFilePhase::Producing);
-        assert_eq!(metadata.offset, 0);
-        let identity = metadata.identity.expect("a live follow names its retained identity");
-        assert_eq!(identity.relative_path, STARTUP_STREAM_LOG);
-        let followed = {
-            let mut followed = Vec::new();
-            loop {
-                match follow.message().await.unwrap().and_then(|frame| frame.payload) {
-                    Some(model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
-                        assert_eq!(chunk.offset, followed.len() as u64);
-                        assert!(!chunk.data.is_empty() && chunk.data.len() <= 64 * 1024);
-                        followed.extend_from_slice(&chunk.data);
-                    }
-                    _ => panic!("a producing follow delivers only contiguous chunks"),
-                }
-                let text = String::from_utf8_lossy(&followed).into_owned();
-                if text.contains("record=prompt_requested") {
-                    break text;
-                }
-            }
-        };
-        assert!(followed.contains("record=started"));
-        drop(follow);
-
-        // The Followed Prefix Is Also What A Plain Read Serves While Still Streaming
-        let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-        assert_eq!(file.state, model::content::wire::ExecutionFileState::Streaming);
-        let window = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-        let running_log = String::from_utf8_lossy(&window.data).into_owned();
-        assert!(running_log.contains("record=started"));
-        assert!(running_log.contains("record=prompt_requested"));
-
-        prompts
-            .prompts_respond(contracts::prompts::Respond {
-                prompt_id: pending.prompt_id,
-                action: "submit".into(),
-                values: Some(value_object([("operator_note", text("native-test-confirmed")), ("accepted", boolean(true))])),
-                accepted: true,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-
-        let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
-        if !passed(&cycle) {
-            let diagnosis = diagnosis::execution(&client, &execution_id, STARTUP_STREAM_LOG).await;
-            assert!(passed(&cycle), "{diagnosis}");
-        }
-        let telemetry = client.clone();
-        let telemetry = telemetry
-            .telemetry_list_samples(contracts::telemetry::ListSamples {
-                streams: vec![STARTUP_SAMPLES.into()],
-                scope: Some(scope(&cycle_id, &execution_id)),
-                limit: 100,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        assert!(telemetry.complete);
-        assert_eq!(telemetry.samples.len() as u64, STARTUP_SAMPLE_COUNT);
-        assert_eq!(telemetry.samples.iter().map(|sample| sample.stream.as_str()).collect::<HashSet<_>>(), HashSet::from([STARTUP_SAMPLES]));
-
-        let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-        assert_eq!(file.kind, model::content::wire::ExecutionFileKind::Text);
-        assert_eq!(file.state, model::content::wire::ExecutionFileState::Finalized);
-        let final_log = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-        let final_text = String::from_utf8_lossy(&final_log.data);
-        assert!(final_text.contains("record=prompt_answered action=continue accepted=true"));
-        assert!(final_text.contains("Charger resources released"));
-
-        // The Explicitly Sealed Cycle Serves Its Report
-        let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
-        execution.cycle(id).seal().await.unwrap();
-        on_change(&mut changes, "the startup cycle to seal", async || {
-            execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap().sealed.then_some(())
-        })
-        .await;
-        let report = client
-            .reports_download_cycle_report(contracts::reports::DownloadCycleReport {
-                cycle_id: cycle_id.clone(),
-                identifier: String::new(),
-            })
-            .await
-            .unwrap();
-        let mut metadata = None;
-        let mut html = Vec::new();
-        let mut complete = false;
-        while let Some(frame) = report.message().await.unwrap() {
-            match frame.payload.expect("report payload") {
-                model::reports::wire::ReportHtmlFramePayload::Report(header) => {
-                    assert!(metadata.replace(*header).is_none(), "one metadata frame");
-                }
-                model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => {
-                    assert_eq!(chunk.offset, html.len() as u64);
-                    html.extend_from_slice(&chunk.data);
-                }
-                model::reports::wire::ReportHtmlFramePayload::Complete(done) => {
-                    assert_eq!(done.size_bytes, html.len() as u64);
-                    complete = true;
-                }
-            }
-        }
-        assert!(complete, "the report stream completes");
-        assert_eq!(metadata.expect("report metadata").test_cycle_id, cycle_id);
-        assert!(!html.is_empty());
-        (host, client, changes, report)
-    })
-    .await;
-
-    Box::pin(steady_sweep(&client, &mut changes)).await;
-    Box::pin(steady_reports(&client, &mut changes)).await;
-
-    // Scene: The Actual Remote Scripts Control The Built Plugin And Export Saved Evidence
-    Box::pin(super::remote::scripts(&client, host.endpoint(), &root.path().join("remote scripts"))).await;
-
-    // Scene: The Host Stops Cleanly With Its Watch Still Open
-    drop(report);
-    host.stop(false).await;
-    drop(changes);
-    drop(client);
-
-    Box::pin(async {
-        // Scene: A Installed Plugin Activates Only After A Restart
-        let store = root.path().join("store");
-        let host = Host::launch_in(&store, None).await;
-        let client = host.connect().await;
-        assert!(!serves_startup(&client).await);
-        let installation = install(&client, &bytes).await;
-        assert!(!installation.active && installation.restart_required);
-        assert!(!serves_startup(&client).await);
-        host.stop(false).await;
-        let host = Host::launch_in(&store, None).await;
-        let client = host.connect().await;
-        let listed = installations(&client).await;
-        assert_eq!(listed.len(), 1);
-        assert!(listed[0].active && !listed[0].restart_required);
-        assert!(serves_startup(&client).await);
-        status_ready(&client).await;
-
-        // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
-        let removed = client
-            .plugins_remove(contracts::plugins::Remove {
-                install_id: installation.install_id.clone(),
-            })
-            .await
-            .unwrap()
-            .installation
-            .expect("a installed installation stays pending removal");
-        assert_eq!(removed.state, model::plugins::wire::PluginInstallationState::RemovalPending);
-        assert!(removed.active && removed.restart_required);
-        assert!(serves_startup(&client).await);
-        host.stop(false).await;
-        let host = Host::launch_in(&store, None).await;
-        let client = host.connect().await;
-        assert!(installations(&client).await.is_empty());
-        assert!(!serves_startup(&client).await);
-
-        // Scene: A Corrupted Installed Bundle Is Skipped And Boot Succeeds
-        install(&client, &bytes).await;
-        host.stop(false).await;
-        let installed = installed_copy(&store, &bytes).expect("the store keeps the installed bytes");
-        std::fs::write(&installed, b"corrupted after installation").unwrap();
-        let host = Host::launch_in(&store, None).await;
-        let client = host.connect().await;
-        let listed = installations(&client).await;
-        assert_eq!(listed.len(), 1);
-        assert!(
-            matches!(
-                listed[0].last_boot.as_ref().and_then(|boot| boot.result.as_ref()),
-                Some(model::plugins::wire::PluginLastBootResult::Error(_))
-            ),
-            "the broken installation reports its failed boot: {:?}",
-            listed[0].last_boot
-        );
-        assert!(!serves_startup(&client).await);
-        host.stop(false).await;
-    })
-    .await;
+#[ignore = "replays the scenes the lane already runs; select it with --run-ignored"]
+async fn walkthrough() {
+    // Each Scene Is Boxed: A Debug Poll Frame Keeps A Stack Temporary For Every Future It Awaits,
+    // So Replaying Every Scene In One Function Would Outgrow The Test Thread's Stack.
+    let mut session = Session::launch().await;
+    Box::pin(scene_development_session(&mut session)).await;
+    Box::pin(scene_startup(&mut session)).await;
+    Box::pin(scene_steady_sweep(&session.client.clone(), &mut session.changes)).await;
+    Box::pin(scene_reports(&session.client.clone(), &mut session.changes)).await;
+    Box::pin(scene_open_report_while_cycle_runs(&mut session)).await;
+    Box::pin(scene_remote_scripts(&mut session)).await;
+    Box::pin(scene_interruptions(&mut session)).await;
+    Box::pin(scene_clean_stop(session)).await;
 }

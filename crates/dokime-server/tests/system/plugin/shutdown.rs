@@ -22,10 +22,9 @@ use std::time::Duration;
 
 // Local Imports
 use super::{
-    PROTECTION_SUITE, PROTECTION_TEMPLATE, STARTUP_SUITE, STARTUP_TEMPLATE, create_cycle, cycle_report, on_change, report_bytes, run_cycle,
-    selection, suite, wait_prompt,
+    PROTECTION_SUITE, PROTECTION_TEMPLATE, STARTUP_SUITE, STARTUP_TEMPLATE, Session, create_cycle, cycle_report, on_change, report_bytes,
+    run_cycle, selection, suite, wait_prompt,
 };
-use crate::support::{self, host::Host};
 use dokime::client::contracts;
 
 /* === Constants === */
@@ -80,14 +79,15 @@ fn running(_pid: u32) -> bool {
 
 #[tokio::test]
 async fn stop_while_prompt_waits() {
-    let root = tempfile::tempdir().unwrap();
-    let home = root.path().join("host");
-    let bundle = support::artifacts::obc_plugin_bundle();
-    let mut host = Host::launch_in(&home, Some(&bundle)).await;
-    let client = host.connect().await;
-    let reloaded = host.command(serde_json::json!({"command": "reload", "path": bundle})).await;
-    assert_eq!(reloaded["event"], "reloaded", "{reloaded}");
-    let mut changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+    let Session {
+        root,
+        bytes,
+        bundle,
+        home,
+        host,
+        client,
+        mut changes,
+    } = Session::ready().await;
 
     // The Start-Up Case Runs To Its Operator Question, Which Nobody Answers
     let (mut catalog, mut planning, mut execution, mut prompts) = (client.clone(), client.clone(), client.clone(), client.clone());
@@ -118,9 +118,8 @@ async fn stop_while_prompt_waits() {
     }
 
     // The Next Start Seals What The Stop Deferred: The Execution Stopped, Not Interrupted, With Its Report
-    let mut host = Host::launch_in(&home, Some(&bundle)).await;
-    assert_eq!(host.command(serde_json::json!({"command": "reload", "path": bundle})).await["event"], "reloaded");
-    let client = host.connect().await;
+    let session = Session::relaunch(root, bytes, bundle, home).await;
+    let client = session.client.clone();
     let report = client.reports_download_execution_report(contracts::reports::DownloadExecutionReport { execution_id }).await.unwrap();
     let html = String::from_utf8(report_bytes(report).await).unwrap();
     assert!(html.contains("\"stopped\"") && !html.contains("\"interrupted\""), "the report records an operator stop");
@@ -133,19 +132,20 @@ async fn stop_while_prompt_waits() {
         .unwrap();
     assert!(pending.prompts.is_empty(), "the stop settled the unanswered question: {:?}", pending.prompts);
     drop(client);
-    host.stop(false).await;
+    session.stop().await;
 }
 
 #[tokio::test]
 async fn idle_stop_leaves_sealing_to_next_start() {
-    let root = tempfile::tempdir().unwrap();
-    let home = root.path().join("host");
-    let bundle = support::artifacts::obc_plugin_bundle();
-    let mut host = Host::launch_in(&home, Some(&bundle)).await;
-    let client = host.connect().await;
-    let reloaded = host.command(serde_json::json!({"command": "reload", "path": bundle})).await;
-    assert_eq!(reloaded["event"], "reloaded", "{reloaded}");
-    let mut changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+    let Session {
+        root,
+        bytes,
+        bundle,
+        home,
+        host,
+        client,
+        mut changes,
+    } = Session::ready().await;
 
     // A Case Runs To Completion And Its Cycle Stays Active
     let (mut catalog, mut planning, mut execution) = (client.clone(), client.clone(), client.clone());
@@ -174,11 +174,7 @@ async fn idle_stop_leaves_sealing_to_next_start() {
     assert!(status.success(), "the host exited with {status}:\n{diagnostics}");
 
     // The Next Start Seals The Cycle And Serves Its Report
-    let mut host = Host::launch_in(&home, Some(&bundle)).await;
-    let reloaded = host.command(serde_json::json!({"command": "reload", "path": bundle})).await;
-    assert_eq!(reloaded["event"], "reloaded", "{reloaded}");
-    let client = host.connect().await;
-    assert!(!cycle_report(&client, &cycle_id).await.is_empty());
-    drop(client);
-    host.stop(false).await;
+    let session = Session::relaunch(root, bytes, bundle, home).await;
+    assert!(!cycle_report(&session.client, &cycle_id).await.is_empty());
+    session.stop().await;
 }
