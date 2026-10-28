@@ -881,6 +881,7 @@ mod admission_tests {
 
     struct TestApp;
     impl Application for TestApp {
+        type Lanes = crate::app::Lanes;
         type State = ();
         type Transaction = harmos::state::Never;
         type Record = harmos::state::Never;

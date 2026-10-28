@@ -460,8 +460,7 @@ impl Resident<Dokime> for Producer {
             let mut owner = self.session.borrow().await;
             owner.settle(&self.runtime, &self.producer_key).await?;
         }
-        let result = self.sampling.produce(context, &self.runtime, &self.producer_key, &self.session).await;
-        result
+        self.sampling.produce(context, &self.runtime, &self.producer_key, &self.session).await
     }
 
     async fn cleanup(&mut self) -> std::result::Result<(), Self::Error> {

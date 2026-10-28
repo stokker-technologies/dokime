@@ -48,12 +48,12 @@ async fn frozen_catalog_multiply() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
-    // The analysis claims `obc-plugin.ripple` first, so the status probe naming
+    // The analysis claims `obc.analysis.ripple` first, so the status probe naming
     // it is the second claim.
     for (namespace, pointer, method, reason) in [
-        ("dokime.settings", "/status_entrypoint/name", "obc-plugin.missing", "undeclared"),
+        ("dokime.settings", "/status_entrypoint/name", "obc.bench.missing", "undeclared"),
         ("dokime.settings", "/status_entrypoint/name", "harmos.initialize", "reserved"),
-        ("dokime.settings", "/status_entrypoint/name", "obc-plugin.ripple", "more than once"),
+        ("dokime.settings", "/status_entrypoint/name", "obc.analysis.ripple", "more than once"),
     ] {
         let mut executable = file.executable.clone().unwrap();
         let registration = executable.registrations.iter_mut().find(|entry| entry.namespace == namespace).unwrap();

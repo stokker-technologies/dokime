@@ -992,16 +992,16 @@ async fn external_analysis_reload() {
     runtime.storage().flush().await.unwrap();
     let mut request = wifi_request(None, Some(1));
     request.analysis =
-        Some(dokime_runtime::analysis::Selection { id: "obc-plugin.ripple".into(), version: 1, parameters: Default::default() });
+        Some(dokime_runtime::analysis::Selection { id: "obc.analysis.ripple".into(), version: 1, parameters: Default::default() });
     for reload in [false, true] {
         if reload {
             owner.reinitialize_plugin("obc-plugin").await.unwrap();
         }
         let definitions = runtime.analysis_definitions().await.unwrap();
-        assert_eq!(definitions.iter().filter(|definition| definition.id == "obc-plugin.ripple").count(), 1);
+        assert_eq!(definitions.iter().filter(|definition| definition.id == "obc.analysis.ripple").count(), 1);
         let envelopes = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
         let computed = envelopes[0].payload.computed.as_ref().unwrap();
-        assert_eq!(computed.selection.id, "obc-plugin.ripple");
+        assert_eq!(computed.selection.id, "obc.analysis.ripple");
         assert_eq!(computed.series[0].input_samples, 100);
         assert_eq!(computed.series[0].output.outputs[0].values, [99.0]);
         assert_eq!(computed.series[0].output.outputs[0].unit, "count");

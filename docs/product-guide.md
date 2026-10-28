@@ -213,7 +213,7 @@ contract discovery and shared Harmos codec:
 ```rust
 let client = Client::connect(Target::new(endpoint, None)?, Some(token), None).await?;
 let stream = client
-    .call_operation("obc-plugin.get_status", Some("obc-plugin"), b"{}", Vec::new())
+    .call_operation("obc.bench.get_status", Some("obc-plugin"), b"{}", Vec::new())
     .await?;
 while let Some(event) = stream.message().await? {
     println!("{event:?}");
