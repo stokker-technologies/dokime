@@ -11,32 +11,15 @@
 
 /* === Modules === */
 
-mod appearance;
-mod append;
-mod authoring;
-mod authorization;
-mod catalog;
-mod content;
-mod diagnostics;
-mod documents;
-mod evidence;
-mod file_watch;
-mod history;
-mod media;
-mod notes;
-mod planning;
-mod plots;
-mod plugin_admission;
-mod plugins;
-mod prompts;
-mod query;
-mod records;
-mod server;
-mod settings;
-mod telemetry;
-mod trace;
-mod traceability;
-mod workflow;
+mod authoring_catalog;
+mod execution_artifacts;
+mod execution_run;
+mod execution_seal_report;
+mod plugin_lifecycle;
+mod server_diagnostics;
+mod server_pairing_remote;
+mod settings_backends;
+mod telemetry_watch_plot;
 
 #[path = "../support/mod.rs"]
 mod support;
