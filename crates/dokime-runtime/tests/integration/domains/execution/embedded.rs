@@ -238,14 +238,14 @@ async fn registration_replaces_failed() {
     // Embedded templates run through the host-level pair, which names the template in the request.
     let route = run_route();
     let payload = run_request("replaced").encode();
-    assert_eq!(refusal(runtime.handle().operations().call_encoded(&route, payload.clone()).await), harmos::FAILED);
+    assert_eq!(refusal(runtime.handle().operations().call_encoded(&route, payload.clone()).await), harmos::domain::FAILED);
     assert_eq!(signals.runs.load(Ordering::SeqCst), 1, "the served template received the run");
 
     runtime.register(provider("second", false)).await.unwrap();
     assert_ne!(runtime.handle().watch_state().latest().state().plugin_owners["fixture.embedded"], owner);
     assert!(runtime.register(provider("failed", true)).await.is_err());
     assert!(!runtime.handle().watch_state().latest().state().installed_plugins.contains_key("fixture.embedded"));
-    assert_eq!(refusal(runtime.handle().operations().call_encoded(&route, payload).await), harmos::UNKNOWN);
+    assert_eq!(refusal(runtime.handle().operations().call_encoded(&route, payload).await), harmos::domain::UNKNOWN);
     assert_eq!(signals.runs.load(Ordering::SeqCst), 1, "a failed replacement serves no template");
 
     runtime.register(provider("recovered", false)).await.unwrap();
@@ -307,7 +307,10 @@ async fn cancelled_registration_until() {
 
     assert!(!handle.streams().definitions().iter().any(|definition| definition.id() == "fixture.embedded.staged"));
 
-    assert_eq!(refusal(runtime.handle().operations().call_encoded(&run_route(), run_request("cancelled").encode()).await), harmos::UNKNOWN);
+    assert_eq!(
+        refusal(runtime.handle().operations().call_encoded(&run_route(), run_request("cancelled").encode()).await),
+        harmos::domain::UNKNOWN
+    );
     assert_eq!(signals.runs.load(Ordering::SeqCst), 0, "a cancelled registration serves no template");
 
     runtime.shutdown().await.unwrap();
