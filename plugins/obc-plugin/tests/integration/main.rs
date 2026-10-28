@@ -43,7 +43,7 @@ use obc_plugin::{ObcChecks, Pulse};
 /* === Structs === */
 
 #[dokime::stream(
-    id = "obc_plugin.system",
+    id = "obc.system",
     window = 4096,
     label = "Testbench Health",
     description = "The host-side stream the pulse leases, declared by the plugin's system observer.\nThe observer's module is private to the crate, so the row the run leases is mirrored here under the same stream id and the same fields; the harness matches a measured stream by that id."

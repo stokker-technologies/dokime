@@ -19,7 +19,7 @@ phase shifts, and latched faults; each execution owns its device.
 The process listener remembers connected bench resources across executions.
 Templates ask the plugin's operations for readiness and connections, without
 naming or borrowing the plugin. The settings card reads `get_status` live, and
-the `obc_plugin.analysis.ripple` analysis gives any plotted trace its peak-to-peak ripple. Execution observers publish scoped measurements;
+the `obc.analysis.ripple` analysis gives any plotted trace its peak-to-peak ripple. Execution observers publish scoped measurements;
 the process system observer publishes monitoring data. Explicit subscriptions
 capture host observations for an execution.
 
@@ -55,7 +55,7 @@ devices. Manual operations are not recorded in execution evidence.
 - `tests/acceptance/`: the built executable's inventory and live dispatch.
 
 All charger streams and records use the `obc.charger` namespace. `obc.pulse`
-is the OBC Checks pulse, and `obc_plugin.system` is process monitoring.
+is the OBC Checks pulse, and `obc.system` is process monitoring.
 `images_directory` optionally supplies a startup reference image. Operator and
 host identity are captured as traceability, not configured as template inputs.
 

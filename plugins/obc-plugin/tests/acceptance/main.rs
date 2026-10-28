@@ -256,7 +256,7 @@ impl PluginLifecycle for Host {
                 if publication.stream() != "obc.pulse" {
                     return;
                 }
-                assert_eq!(publication.owner(), "obc_plugin");
+                assert_eq!(publication.owner(), "obc");
                 assert_eq!(publication.schema(), 1);
                 assert_eq!(publication.missed(), 0);
                 let token = publication.context().unwrap();
@@ -575,7 +575,7 @@ async fn inventory_matches_dispatch() {
 
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.
-    let system = runtime.streams.publication("obc_plugin.system", 1).unwrap();
+    let system = runtime.streams.publication("obc.system", 1).unwrap();
     // The watch holds demand and yields each published tick.
     let mut demand = system.watch();
     let mut rows = Vec::new();

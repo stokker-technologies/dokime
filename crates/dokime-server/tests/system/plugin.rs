@@ -299,7 +299,7 @@ async fn serves_startup(client: &Client) -> bool {
 
 async fn status_ready(client: &Client) {
     let frame = client.settings_get_settings(Default::default()).await.unwrap();
-    let card = frame.cards.iter().find(|card| card.plugin_id == "obc_plugin").expect("the OBC settings card is registered");
+    let card = frame.cards.iter().find(|card| card.plugin_id == "obc").expect("the OBC settings card is registered");
     assert_eq!(card.state, model::settings::wire::SettingsCardState::Ready, "the native status operation serves the installed plugin");
 }
 

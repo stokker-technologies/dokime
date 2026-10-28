@@ -100,7 +100,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for ObcPlugin {
 }
 
 #[dokime::plugin(
-    id = "obc_plugin",
+    id = "obc",
     provides = operations::Operations,
     requires(),
     contributions(
