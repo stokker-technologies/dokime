@@ -27,6 +27,8 @@ use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
+const FOLLOW_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -92,7 +94,24 @@ impl Operation for Follow {
             tracing::debug!(execution_id = %execution, offset = request.offset, "execution file follow admitted");
             let metadata = follower.metadata_frame().map_err(failure)?;
             send(output, metadata, self.resources.maximum).await?;
-            while let Some(frame) = follower.next_frame(maximum).await.map_err(failure)? {
+            loop {
+                let next = {
+                    let mut pending = std::pin::pin!(follower.next_frame(maximum));
+                    loop {
+                        match tokio::time::timeout(FOLLOW_HEARTBEAT, &mut pending).await {
+                            Ok(result) => break result.map_err(failure)?,
+                            Err(_) => {
+                                let keepalive = dokime::domain::model::content::wire::ExecutionFileFollowFrame {
+                                    payload: Some(dokime::domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(
+                                        dokime::domain::model::content::wire::ArtifactChunk { offset: 0, data: Vec::new() },
+                                    )),
+                                };
+                                send(output, Response::from(keepalive), self.resources.maximum).await?;
+                            }
+                        }
+                    }
+                };
+                let Some(frame) = next else { break };
                 let terminal =
                     matches!(&frame.payload, Some(dokime::domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(_)));
                 send(output, frame, self.resources.maximum).await?;

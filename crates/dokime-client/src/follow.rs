@@ -151,9 +151,11 @@ impl Client {
                     return Err(Error::Invalid("follow continued after its terminal frame"));
                 }
                 match frame.payload {
+                    // An Empty Chunk Is The Server's Quiet-Period Heartbeat.
+                    Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) if chunk.data.is_empty() => {}
                     Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
                         let limit = usize::try_from(request.max_bytes).map_err(|_| Error::Invalid("follow buffer exceeds native size"))?;
-                        if chunk.offset != position || chunk.data.is_empty() || chunk.data.len() > limit {
+                        if chunk.offset != position || chunk.data.len() > limit {
                             return Err(Error::Invalid("follow chunks are not contiguous or exceed their bound"));
                         }
                         let next = position.checked_add(chunk.data.len() as u64).ok_or(Error::Invalid("follow length overflow"))?;

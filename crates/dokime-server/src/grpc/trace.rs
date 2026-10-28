@@ -30,6 +30,7 @@ use dokime::domain::operations::backend as wire;
 
 /* === Constants === */
 
+const WATCH_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10);
 const SERVER_DEFAULT_TRACE_BYTES: u64 = 262_144;
 const SERVER_DEFAULT_TRACE_EVENTS: u64 = 256;
 const SERVER_MAXIMUM_TRACE_EVENTS: u64 = 1_024;
@@ -128,7 +129,13 @@ impl Watch {
                 tokio::task::yield_now().await;
                 continue;
             }
-            changes.changed().await.map_err(|_| Status::unavailable("trace journal closed"))?;
+            match tokio::time::timeout(WATCH_HEARTBEAT, changes.changed()).await {
+                Ok(changed) => changed.map_err(|_| Status::unavailable("trace journal closed"))?,
+                Err(_) => {
+                    let keepalive = TraceBatch { epoch: epoch.clone(), events: Vec::new(), dropped, next_sequence: after };
+                    output.send_owned(keepalive.into()).await.map_err(failure)?;
+                }
+            }
         }
     }
 }
