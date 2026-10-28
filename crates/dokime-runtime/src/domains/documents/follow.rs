@@ -56,6 +56,7 @@ pub struct ExecutionFileFollower {
 struct NativeCapture {
     poll_interval: Duration,
     source: LiveOutput,
+    storage: Arc<crate::runtime::storage::executions::ExecutionStorage>,
 }
 
 // The Served Position Of A Followed File: Its Phase, Known Length And Resume Offset.
@@ -228,6 +229,7 @@ impl RuntimeHandle {
                 return Ok(());
             }
             let preparation = runtime.execution_storage.prepare_tail_stop(&name)?;
+            let storage = Arc::clone(&runtime.execution_storage);
             runtime
                 .operations
                 .register_service(
@@ -235,7 +237,11 @@ impl RuntimeHandle {
                         id: name.clone(),
                         policy: harmos::services::POLICY,
                     },
-                    move |_: Arc<()>| NativeCapture { poll_interval, source: source.clone() },
+                    move |_: Arc<()>| NativeCapture {
+                        poll_interval,
+                        source: source.clone(),
+                        storage: Arc::clone(&storage),
+                    },
                 )
                 .map_err(Error::from)?;
             let lease = match runtime.operations.submit_resident(&name).await {
@@ -255,26 +261,43 @@ impl RuntimeHandle {
 }
 
 impl Resident<crate::app::Dokime> for NativeCapture {
-    type Error = Error;
-    async fn run(&mut self, mut context: ServiceContext<crate::app::Dokime>) -> std::result::Result<(), Error> {
-        context.ready();
-        loop {
-            let stable = self.source.synchronize().await?;
-            if context.is_stopping() {
-                return Ok(());
-            }
-            if !stable || self.source.caught_up().await? {
-                context.rest(self.poll_interval).await;
+    type Error = harmos::Error;
+    async fn run(&mut self, mut context: ServiceContext<crate::app::Dokime>) -> std::result::Result<(), harmos::Error> {
+        let result: Result<()> = async {
+            context.ready();
+            loop {
+                let stable = self.source.synchronize().await?;
+                if context.is_stopping() {
+                    return Ok(());
+                }
+                if !stable || self.source.caught_up().await? {
+                    context.rest(self.poll_interval).await;
+                }
             }
         }
+        .await;
+        result.map_err(|error| self.failure(error))
     }
-    async fn cleanup(&mut self) -> Result<()> {
-        while !self.source.caught_up().await? {
-            if !self.source.synchronize().await? {
-                tokio::time::sleep(self.poll_interval).await;
+    async fn cleanup(&mut self) -> std::result::Result<(), harmos::Error> {
+        let result: Result<()> = async {
+            while !self.source.caught_up().await? {
+                if !self.source.synchronize().await? {
+                    tokio::time::sleep(self.poll_interval).await;
+                }
             }
+            Ok(())
         }
-        Ok(())
+        .await;
+        result.map_err(|error| self.failure(error))
+    }
+}
+
+impl NativeCapture {
+    fn failure(&self, error: Error) -> harmos::Error {
+        // Unregistering A Failed Resident Must Not Discard Its Shutdown Diagnostic.
+        let source = Arc::new(error);
+        self.storage.capture_failure.lock().expect("capture failure lock poisoned").get_or_insert_with(|| Arc::clone(&source));
+        harmos::Error::TaskFailed { domain: "execution file capture", source }
     }
 }
 

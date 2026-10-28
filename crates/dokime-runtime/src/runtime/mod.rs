@@ -256,6 +256,7 @@ impl Runtime {
 
     async fn shutdown_inner(&mut self) -> Result<RuntimeOverviewSnapshot> {
         if self.shutdown.complete {
+            self.handle.execution_storage.capture_failure_result()?;
             self.handle.provider_completion_result()?;
             if let Some(source) = &self.shutdown.task_failure {
                 return Err(crate::runtime::Error::Harmos(harmos::Error::TaskFailed {
@@ -407,6 +408,7 @@ impl Runtime {
         self.handle.local_storage.close().await?;
 
         self.shutdown.complete = true;
+        self.handle.execution_storage.capture_failure_result()?;
         self.handle.provider_completion_result()?;
         if let Some(source) = &self.shutdown.task_failure {
             return Err(crate::runtime::Error::Harmos(harmos::Error::TaskFailed {
