@@ -17,7 +17,7 @@
 use std::{
     collections::BTreeMap,
     io::{BufWriter, Read, Seek, SeekFrom, Write},
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 
 // Third Party Imports
@@ -55,6 +55,12 @@ use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
+static REPORT_PREFIX_DIGEST: LazyLock<Sha256> = LazyLock::new(|| {
+    let mut digest = Sha256::new();
+    digest.update(super::output::REPORT_PARTS.0.as_bytes());
+    digest
+});
 
 /* === Macros === */
 
@@ -512,7 +518,13 @@ impl Write for ReportWriter {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let length = self.length.checked_add(bytes.len() as u64).ok_or_else(|| std::io::Error::other("report length overflows"))?;
         self.output.write_all(bytes)?;
-        self.digest.update(bytes);
+        // Every Standalone Report Begins With The Same Embedded Application.
+        // Reuse Its Hash State Only For That Exact Prefix At Offset Zero.
+        if self.length == 0 && bytes == super::output::REPORT_PARTS.0.as_bytes() {
+            self.digest = (*REPORT_PREFIX_DIGEST).clone();
+        } else {
+            self.digest.update(bytes);
+        }
         self.length = length;
         Ok(bytes.len())
     }

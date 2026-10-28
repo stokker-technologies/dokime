@@ -28,7 +28,7 @@ use serde::Serialize;
 
 const REPORT_DATA_MARKER: &str = r#"<script id="hub-report-data" type="application/json">"#;
 const REPORT_DATA_END: &str = "</script>";
-static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
+pub(super) static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
 
 /* === Macros === */
 
