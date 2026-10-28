@@ -16,9 +16,9 @@ import { useMemo } from "react";
 
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@/components/data-table/data-table-model";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +30,7 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
   column.accessor("title", {
     cell: ({ row }) => <EntryTitle entry={row.original} />,
     header: "Execution / Cycle",
-    meta: { label: "Execution / Cycle", primary: true },
+    meta: { label: "Execution / Cycle", primary: true, width: "w-64" },
   }),
   column.accessor("failed_count", {
     cell: ({ row }) => <ResultPills failed={row.original.failed_count} passed={row.original.passed_count} />,
