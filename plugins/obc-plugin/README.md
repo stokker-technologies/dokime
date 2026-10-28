@@ -55,7 +55,7 @@ devices. Manual operations are not recorded in execution evidence.
 - `tests/acceptance/`: the built executable's inventory and live dispatch.
 
 All charger streams and records use the `obc.charger` namespace. `obc.pulse`
-is the OBC Checks pulse, and `obc-plugin.system` is process monitoring.
+is the OBC Checks pulse, and `obc_plugin.system` is process monitoring.
 `images_directory` optionally supplies a startup reference image. Operator and
 host identity are captured as traceability, not configured as template inputs.
 

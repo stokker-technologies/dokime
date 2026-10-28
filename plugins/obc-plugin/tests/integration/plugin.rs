@@ -64,7 +64,7 @@ fn executable_declares_routes() {
     let declared =
         dokime::__harmos::sidecar::Executable::at(executable()).expect("the obc-plugin executable declares itself").declaration().clone();
 
-    assert_eq!(declared.id, "obc-plugin");
+    assert_eq!(declared.id, "obc_plugin");
     assert_eq!(declared.version.to_string(), "0.1.0");
     let operations =
         declared.operations.iter().map(|operation| operation.id.as_str().to_owned()).collect::<std::collections::BTreeSet<_>>();
@@ -100,7 +100,6 @@ fn executable_declares_routes() {
     assert_eq!(
         streams,
         [
-            "obc-plugin.system",
             "obc.charger.protection.samples",
             "obc.charger.recovery.samples",
             "obc.charger.startup.log",
@@ -108,9 +107,10 @@ fn executable_declares_routes() {
             "obc.charger.steady.events",
             "obc.charger.steady.samples",
             "obc.pulse",
+            "obc_plugin.system",
         ]
     );
-    assert_eq!("obc-plugin", declared.id);
+    assert_eq!("obc_plugin", declared.id);
 }
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.

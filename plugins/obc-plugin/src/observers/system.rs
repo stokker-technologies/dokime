@@ -32,7 +32,7 @@ use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 /* === Structs === */
 
 #[dokime::stream(
-    id = "obc-plugin.system",
+    id = "obc_plugin.system",
     window = 4096,
     label = "Testbench Health",
     description = "Process and system CPU and memory observed by the OBC plugin."

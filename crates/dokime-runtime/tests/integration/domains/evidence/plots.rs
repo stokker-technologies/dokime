@@ -945,7 +945,7 @@ async fn external_analysis_reload() {
     });
     for reload in [false, true] {
         if reload {
-            owner.reinitialize_plugin("obc-plugin").await.unwrap();
+            owner.reinitialize_plugin("obc_plugin").await.unwrap();
         }
         let definitions = runtime.analysis_definitions().await.unwrap();
         assert_eq!(definitions.iter().filter(|definition| definition.id == "obc.analysis.ripple").count(), 1);

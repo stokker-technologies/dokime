@@ -4218,7 +4218,7 @@ async function pluginInstallJourney() {
       () =>
         session.execute(`
       const row = [...document.querySelectorAll('[aria-label="Installed Plugins"] tbody tr')]
-        .find(row => row.innerText.includes('obc-plugin'));
+        .find(row => row.innerText.includes('obc_plugin'));
       return Boolean(row && [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
     `),
       120000,
