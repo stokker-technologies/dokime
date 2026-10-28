@@ -1834,12 +1834,9 @@ async function libraryJourney(session) {
   );
   assert.ok(await session.exists("button", "Open Cycle"), "With an active cycle the page bar action must become Open Cycle");
 
-  await session.clickNamed("button", PROTECTION_SUITE);
-  await until("expanded suite", async () => hasText(await session.text(), "Configure"), 120000);
-  assert.ok(hasText(await session.text(), "Template"), "An expanded suite must state its template count");
-
-  /* The row itself opens the dialog; Configure is the same outcome named. */
-  await session.clickNamed("button", "Configure");
+  /* The Library lists every template beside its suite; a template's row opens its dialog. */
+  assert.ok(hasText(await session.text(), PROTECTION_TEMPLATE), "The Library must list the suite's templates");
+  await session.clickNamed("button", PROTECTION_TEMPLATE);
   await until("template dialog", () => session.find("css selector", "[role=dialog]"), 120000);
   const step1 = await session.text();
   assert.ok(hasText(step1, "Parameters"), "Step 1 must be Parameters");
@@ -3584,9 +3581,7 @@ async function touchJourney(session, cycleId) {
 
   await session.goto("/library");
   await until("touch library", async () => hasText(await session.text(), PROTECTION_SUITE), 120000);
-  await session.clickNamed("button", PROTECTION_SUITE);
-  await until("touch template", async () => hasText(await session.text(), "Configure"), 120000);
-  await session.clickNamed("button", "Configure");
+  await session.clickNamed("button", PROTECTION_TEMPLATE);
   const share = await until("touch dialog", () =>
     session.execute(`
       const panel = document.querySelector('[data-slot=sheet-content], [role=dialog]');
