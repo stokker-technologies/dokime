@@ -3914,9 +3914,9 @@ dependencies = [
 
 [[package]]
 name = "harmos"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64127a82d749cd13b552cea6d44115a2f1f048dac2dc4b0a9af1aa3fce2cda56"
+checksum = "fc410a556100acc70a052b1b9f22602b49e0fb1db95241150914640dd46cabcb"
 dependencies = [
  "harmos-domain",
  "harmos-operations",
@@ -3926,9 +3926,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-domain"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30fdaeede4ec21e39d9873d2c60ccc65a7708c61527e04a60eaa38e8f4d83b3d"
+checksum = "06d4630dd72d3da0b9269f9753bf365586c54669c5c2d2a042b9152dc1307b76"
 dependencies = [
  "harmos-macros",
  "memchr",
@@ -3943,9 +3943,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-macros"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47a6cb39e04d72506de755a4c8878bf2119365b8d003361a467d41af0e23f335"
+checksum = "745fc576f10fbf06bcc01550a1d347c2f34a79820a7fee5f6e1ecb89288b27ff"
 dependencies = [
  "heck 0.5.0",
  "proc-macro-crate 3.5.0",
@@ -3957,9 +3957,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-operations"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aafc9ca8127464e776c8ef1b18c3bc1373da65a7af0bd8140d3b9e5ae4cff5e"
+checksum = "cf8a893bc92c470ebe6138c7606c111b0bdc96e50ae4cf303d9786629520921a"
 dependencies = [
  "harmos-domain",
  "harmos-sdk",
@@ -3973,9 +3973,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-packaging"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bff44f13a8b24513aa35388adf6e6b7af45d691f73276691101be6d6ef2f51a"
+checksum = "d95833464a8527394ccace348a453e7087b4e3b34a72da5552f7bcdd5dec9da8"
 dependencies = [
  "harmos-domain",
  "heck 0.5.0",
@@ -3994,9 +3994,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-runtime"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a465f39941c1b7a4556bec1f08f28bb063f7d073c135e6070e160be3e7630cdb"
+checksum = "ea840ad88d3160d86b8d337b8118e2f5e230c8b34f8f279f8e1733dd4cce03ca"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4031,9 +4031,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-sdk"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8514f0c57fc11d8e16678a36d121b2654321b3ec471f4174e670be7a78cbb0f1"
+checksum = "893a998c0a636db0b860f5b09a6e47bc931bc5e4ced5bf2665b765f94a5ff39f"
 dependencies = [
  "harmos-domain",
  "postcard",
@@ -4047,9 +4047,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-sidecar"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eecaf02bf97cf7fc0edd1b508c7f99489dd972e2f8728fc1f5cbab3b97eb193f"
+checksum = "56599562cc5ca10a48a426dc5cd88a2fb204bc7055dbc2a311162bfa984e8f15"
 dependencies = [
  "futures-util",
  "getrandom 0.4.3",
@@ -4069,9 +4069,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-storage"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79421f089b7c23ac92f6a4f805296eb2cf41c17b5a683dbfd92e911ddf776ab0"
+checksum = "5d2ff5cdc5dac4e9d9f336433de4709feaec90437056680d73c5c2463a896e65"
 dependencies = [
  "arrow-array",
  "arrow-buffer",

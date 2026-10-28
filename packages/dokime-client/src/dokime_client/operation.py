@@ -27,6 +27,10 @@ from google.protobuf.message import Message
 
 # === Constants === #
 
+# Supplied From The Domain Identity Alphabet During Export.
+OWNER_INITIAL = "abcdefghijklmnopqrstuvwxyz"
+OWNER_EXTRA = "0123456789_"
+
 # === Types === #
 
 Mode = Literal["unary", "client_stream", "server_stream", "bidi"]
@@ -105,6 +109,13 @@ class Invoker(Protocol):
 
 
 # === Public Functions === #
+
+
+def owner_segment(value: str) -> bool:
+    return (
+        bool(value) and value[0] in OWNER_INITIAL and all(character in OWNER_INITIAL or character in OWNER_EXTRA for character in value[1:])
+    )
+
 
 # === Private Functions === #
 
