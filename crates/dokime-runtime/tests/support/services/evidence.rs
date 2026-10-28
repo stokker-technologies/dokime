@@ -454,8 +454,13 @@ pub fn tracking_resource_opened_record() -> ProviderRecordOutcome {
 }
 
 pub fn samples(stream: &str, count: usize, scope: Option<RecordScope>) -> TelemetryBatch {
+    samples_from(stream, 0, count, scope)
+}
+
+// `count` Samples Continuing A Stream At Sample `first`, Each A Second After The Last.
+pub fn samples_from(stream: &str, first: usize, count: usize, scope: Option<RecordScope>) -> TelemetryBatch {
     let stream = super::identifier(stream);
-    let samples = (0..count)
+    let samples = (first..first + count)
         .map(|index| {
             let mut sample = TelemetrySample::new(
                 dokime_runtime::model::identity::new_id(),

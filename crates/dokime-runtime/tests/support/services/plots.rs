@@ -97,8 +97,10 @@ pub async fn sample_plot(samples: usize, display_points: usize) {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
-    for _ in 0..samples / SAMPLE_BATCH {
-        runtime.publish_telemetry_batch(super::evidence::samples("host.wifi.channel_occupancy", SAMPLE_BATCH, None)).await.unwrap();
+    // Each Batch Continues The Stream In Time, As A Live Source Publishes It.
+    for first in (0..samples).step_by(SAMPLE_BATCH) {
+        let batch = super::evidence::samples_from("host.wifi.channel_occupancy", first, SAMPLE_BATCH, None);
+        runtime.publish_telemetry_batch(batch).await.unwrap();
         runtime.storage().flush().await.unwrap();
     }
     let mut request = wifi_request(None, Some(display_points));
