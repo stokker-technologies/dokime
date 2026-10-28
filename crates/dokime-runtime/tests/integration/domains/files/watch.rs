@@ -795,15 +795,17 @@ async fn watch_file_matchers() {
         }],
         markers: vec![LineMarker::new(r"WARN (?P<warning_code>\w+)", "tracking.fixture_warning")],
     };
-    let watch = bench.handle.operations().submit::<WatchFile>(request).unwrap();
+    // The Caller Names The Watch With One Ticket In Its Call Context And Its Readiness Request.
+    let ticket = 1;
+    let mut context = harmos::operations::CallContext::default();
+    context.insert_portable(dokime_runtime::domains::files::WatchTicket { ticket }).unwrap();
+    let watch = bench.handle.operations().with_context(context).submit::<WatchFile>(request).unwrap();
 
     // Lines Written After The Start Are Captured And Matched
     bench
         .handle
         .operations()
-        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed {
-            instance_id: watch.id().value(),
-        })
+        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
     append(&log, APPENDED);
