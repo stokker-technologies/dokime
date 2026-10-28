@@ -149,8 +149,9 @@ export function DataTable<TData extends RowData>({
   const emptyMessage = data.length > 0 && (activeFilters.length || table.state.globalFilter) ? "No rows match these filters." : emptyText;
 
   function activate(event: MouseEvent<HTMLTableRowElement>, row: TData) {
+    if (!event.currentTarget.contains(event.target as Node)) return;
     const control = (event.target as Element).closest(INNER_CONTROL);
-    if (control && event.currentTarget.contains(control)) return;
+    if (control) return;
     onRowClick?.(row);
   }
 
