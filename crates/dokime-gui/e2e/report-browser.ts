@@ -16,7 +16,7 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { type ChildProcess, spawn } from "node:child_process";
-import { once } from "node:events";
+import { on, once } from "node:events";
 import { realpath } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
@@ -132,10 +132,30 @@ export class ReportBrowser {
   }
 
   async closeTabs(): Promise<void> {
-    for (const id of this.tabs) {
-      const response = await fetch(`${this.debug}/json/close/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(120000) });
-      assert.ok(response.ok, `owned report tab ${id} closed`);
-      this.tabs.delete(id);
+    if (this.tabs.size) {
+      const signal = AbortSignal.timeout(120000);
+      const version = await fetch(`${this.debug}/json/version`, { signal }).then((response) => response.json());
+      const socket = new WebSocket(version.webSocketDebuggerUrl);
+      try {
+        await once(socket, "open", { signal });
+        // Observe Target Destruction Before Requesting Closure.
+        const messages = on(socket, "message", { signal });
+        socket.send(JSON.stringify({ id: 1, method: "Target.setDiscoverTargets", params: { discover: true } }));
+        for await (const [event] of messages) {
+          const message = JSON.parse(event.data);
+          if (message.id === 1) {
+            assert.ok(!message.error, "owned report target discovery enabled");
+            for (const id of this.tabs) {
+              const response = await fetch(`${this.debug}/json/close/${encodeURIComponent(id)}`, { signal });
+              assert.ok(response.ok, `owned report tab ${id} closed`);
+            }
+          }
+          if (message.method === "Target.targetDestroyed") this.tabs.delete(message.params.targetId);
+          if (!this.tabs.size) break;
+        }
+      } finally {
+        socket.close();
+      }
     }
     const targets = (await fetch(`${this.debug}/json/list`, { signal: AbortSignal.timeout(120000) }).then((r) => r.json())) as Target[];
     assert.ok(!targets.some((target) => target.type === "page" && target.url.startsWith("file:")), "no owned report tab survives cleanup");
