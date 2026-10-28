@@ -4497,7 +4497,6 @@ for index in range(desktop.get_child_count()):
       $ErrorActionPreference = 'Stop'
       Add-Type -AssemblyName UIAutomationClient
       Add-Type -AssemblyName UIAutomationTypes
-      Add-Type -AssemblyName System.Windows.Forms
       $root = [System.Windows.Automation.AutomationElement]::RootElement
       $providers = Add-Type -AssemblyName UIAutomationClientsideProviders -PassThru
       [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
@@ -4581,12 +4580,7 @@ for index in range(desktop.get_child_count()):
             if (![String]::Equals($entered, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
               throw 'The Native Picker Filename Differs From The Requested File Before Selection'
             }
-            if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
-              $field.SetFocus()
-              [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-            } else {
-              $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-            }
+            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             Write-PickerState 'after-invoke' $window $pidCondition
             Write-Output ('selected:' + $selectedWindow)
             exit 0
