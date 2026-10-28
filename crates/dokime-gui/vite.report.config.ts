@@ -26,7 +26,6 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
     __DOKIME_UI_MODE__: JSON.stringify("report"),
-    __DOKIME_TRANSPORT__: JSON.stringify("ipc"),
   },
   plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {

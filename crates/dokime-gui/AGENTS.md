@@ -47,8 +47,7 @@ live operator shell and the self-contained report renderer.
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
   typed status out, one Tauri channel per stream, fenced by the connection
   generation. The bridge never decodes or dispatches per operation; keep it so.
-  `grpc-web.ts` serves only a browser build (`DOKIME_TRANSPORT=grpc-web`). The
-  WebView holds no endpoint or credential; they never belong in status, logs,
+  The WebView holds no endpoint or credential; they never belong in status, logs,
   profiles, persisted browser storage or report output.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
   artifact and recording bytes. Do not add ordinary calls to it.

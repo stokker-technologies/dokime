@@ -20,7 +20,6 @@ export default defineConfig({
   // The default live build's constants (see `vite.config.ts`), so a story can import any module
   // the shipped surface imports.
   define: {
-    __DOKIME_TRANSPORT__: JSON.stringify("ipc"),
     __DOKIME_UI_MODE__: JSON.stringify("live"),
   },
   resolve: {

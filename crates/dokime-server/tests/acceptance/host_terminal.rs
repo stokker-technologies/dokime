@@ -61,35 +61,6 @@ async fn stdin_close_stops() {
     serve_until_stopped(false).await;
 }
 
-fn browser_origins_validated() {
-    let root = tempfile::tempdir().unwrap();
-    let application = root.path().join("application");
-    for (web, origins) in [
-        (false, vec!["tauri://localhost".to_owned()]),
-        (true, vec!["*".to_owned()]),
-        (true, vec!["null".to_owned()]),
-        (true, vec!["https://frontend.example/path".to_owned()]),
-        (true, vec!["https://user@frontend.example".to_owned()]),
-        (true, vec!["tauri://localhost".to_owned(), "tauri://localhost".to_owned()]),
-        (true, (0..33).map(|index| format!("https://frontend{index}.example")).collect()),
-    ] {
-        let mut command = command();
-        command.args(["--color", "never", "--application-root"]);
-        command.arg(&application);
-        if web {
-            command.arg("--grpc-web");
-        }
-        for origin in origins {
-            command.arg("--allowed-origin").arg(origin);
-        }
-        let output = command.output().unwrap();
-        assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
-        assert!(!application.exists());
-        assert!(String::from_utf8_lossy(&output.stderr).contains("origin"));
-    }
-}
-
 fn reports_version_identity() {
     let output = command().args(["--color", "always", "version", "--json"]).output().unwrap();
     assert!(output.status.success());
@@ -277,7 +248,6 @@ async fn sigint_stops_host() {
 #[tokio::test]
 async fn host_terminal() {
     stdin_close_stops().await;
-    browser_origins_validated();
     reports_version_identity();
     stderr_color_policy();
     control_requires_stdin();

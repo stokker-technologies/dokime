@@ -1,16 +1,14 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
-/* The seam the generated client calls through. The desktop binds it to the
-   shell's IPC bridge, so the WebView never opens a network connection; a
-   browser build selects gRPC-Web at build time instead. */
+/* The seam the generated client calls through. It binds to the shell's IPC
+   bridge, so the WebView never opens a network connection. */
 
 /* === External Imports === */
 import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 import { settleUnlessStopping } from "../desktop/stopping";
-import * as grpcWeb from "./grpc-web";
-import * as ipc from "./ipc";
+import * as transport from "./ipc";
 
 /* === Types === */
 export interface SessionIdentity {
@@ -33,9 +31,6 @@ export interface NativeClientStream<I extends DescMessage, O extends DescMessage
   /** Cancel the backend operation and release the native stream. */
   cancel(): Promise<void>;
 }
-
-/* === Constants === */
-const transport = __DOKIME_TRANSPORT__ === "grpc-web" ? grpcWeb : ipc;
 
 /* === Public Functions === */
 export function unary<I extends DescMessage, O extends DescMessage>(
