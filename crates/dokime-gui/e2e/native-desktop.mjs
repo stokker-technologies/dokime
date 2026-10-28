@@ -2985,7 +2985,9 @@ async function remoteAccessJourney() {
   await until("invalid certificate name rejected", () =>
     session.execute("return arguments[0].getAttribute('aria-invalid') === 'true';", [certificateInput]),
   );
-  await commitField("Certificate Names", "127.0.0.1, localhost");
+  await session.type(certificateInput, "127.0.0.1, localhost");
+  await session.key("Tab");
+  await settled();
   await regenerate();
   await toggle("Listener TLS", true);
   await toggle("Listener Authentication", true);
