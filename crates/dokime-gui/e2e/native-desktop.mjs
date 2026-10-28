@@ -2934,6 +2934,13 @@ async function remoteAccessJourney() {
     await session.clickNamed("button", "Restart Listener");
     await settled();
   };
+  /* Certificate controls are advanced settings; each settings page states the view it needs. */
+  const showAdvanced = async () => {
+    await openMenu(session, "Page Actions");
+    await toggle("Show advanced", true);
+    await session.key("Escape");
+    await until("settings actions closed", () => session.execute("return document.querySelectorAll('[role=menu]').length === 0;"));
+  };
   const regenerate = async () => {
     await settled();
     await session.clickNamed("button", "Regenerate Certificate");
@@ -2979,10 +2986,7 @@ async function remoteAccessJourney() {
   // Enable A Stable TLS Endpoint Before Exporting Client Pairings.
   await session.goto("/settings/remote");
   await until("remote settings", async () => hasText(await session.text(), "Listener Enabled"));
-  await openMenu(session, "Page Actions");
-  await toggle("Show advanced", true);
-  await session.key("Escape");
-  await until("settings actions closed", () => session.execute("return document.querySelectorAll('[role=menu]').length === 0;"));
+  await showAdvanced();
   const reservation = net.createServer();
   reservation.listen(0, "127.0.0.1");
   await once(reservation, "listening");
@@ -3095,6 +3099,7 @@ async function remoteAccessJourney() {
   await until("revocation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
   // Regenerating The Certificate Requires A New Pairing Trust Anchor.
   await session.goto("/settings/remote");
+  await showAdvanced();
   await regenerate();
   await connect("desktop-second", false);
   await createPairing("desktop-regenerated", address);
@@ -4586,7 +4591,19 @@ for index in range(desktop.get_child_count()):
             $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
             # Invoke Only A Filename That Survived The Dialog's Own Initialization Since An Earlier Observation.
             if (!$env:DOKIME_PICKER_ENTERED -or ![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
-              $value.SetValue($env:DOKIME_PICKER_FILE)
+              if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
+                # The Save Dialog Resolves Only What Is Typed Into Its Filename Box, So The Path Arrives As Keyboard Characters.
+                Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2);'
+                $edit = [System.IntPtr]$field.Current.NativeWindowHandle
+                if ($edit -eq [System.IntPtr]::Zero) { throw 'The Native Save Filename Box Has No Window Handle' }
+                [void][DokimePicker.Input]::SendMessage($edit, 0x00B1, [System.IntPtr]0, [System.IntPtr](-1))
+                [void][DokimePicker.Input]::SendMessage($edit, 0x0303, [System.IntPtr]::Zero, [System.IntPtr]::Zero)
+                foreach ($character in $env:DOKIME_PICKER_FILE.ToCharArray()) {
+                  [void][DokimePicker.Input]::SendMessage($edit, 0x0102, [System.IntPtr][int]$character, [System.IntPtr]1)
+                }
+              } else {
+                $value.SetValue($env:DOKIME_PICKER_FILE)
+              }
               [Console]::Error.WriteLine(('picker entered={0}' -f $value.Current.Value))
               Write-PickerState 'entered' $window $pidCondition
               if (![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
