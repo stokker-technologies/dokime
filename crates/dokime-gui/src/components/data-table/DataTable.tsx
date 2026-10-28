@@ -71,7 +71,7 @@ export function DataTable<TData extends RowData>({
   const resolvedColumns = useMemo(() => {
     const filtered = columns.map((column) => {
       const id = column.id ?? ("accessorKey" in column ? String(column.accessorKey) : "");
-      const width = /^(status|state|outcome)$/.test(id)
+      const inferredWidth = /^(status|state|outcome)$/.test(id)
         ? "w-36"
         : /^(updated|created|connected|lastSeen|started|finished)(At|AtIso)?$/.test(id)
           ? "w-44"
@@ -79,7 +79,8 @@ export function DataTable<TData extends RowData>({
             ? "w-24"
             : id === "actions"
               ? "w-36"
-              : column.meta?.width;
+              : undefined;
+      const width = column.meta?.width ?? inferredWidth;
       column = { ...column, meta: { ...column.meta, width } };
       const filter = column.meta?.filter;
       if (filter === "facet") return { ...column, filterFn: facetFilter };

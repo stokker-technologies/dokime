@@ -109,7 +109,7 @@ export function seriesLegendColumns(unit?: string | null): SeriesLegendColumn[] 
  * page lines its columns up; the x cursor holds a full date and clock.
  */
 export function seriesLegendColumnWidth(id: SeriesLegendColumn["id"]): string {
-  return id === "xCursor" ? "w-52" : "w-24";
+  return id === "xCursor" ? "w-52" : "w-32";
 }
 
 /**

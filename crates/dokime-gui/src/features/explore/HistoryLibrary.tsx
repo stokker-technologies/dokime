@@ -62,7 +62,7 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
     cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updated_at)}</span>,
     header: "Updated",
     id: "updated",
-    meta: { align: "end", label: "Updated", width: "w-28" },
+    meta: { align: "end", label: "Updated", width: "w-44" },
   }),
 ]);
 

@@ -255,7 +255,7 @@ function cycleColumns(onOpen: (id: string) => void, onUnarchive: ((cycleId: stri
       ),
       header: "Updated",
       id: "updated",
-      meta: { align: "end", label: "Updated", width: "w-28" },
+      meta: { align: "end", label: "Updated", width: "w-44" },
     }),
     column.display({
       id: "actions",

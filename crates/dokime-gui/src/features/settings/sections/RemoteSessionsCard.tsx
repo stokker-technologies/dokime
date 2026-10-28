@@ -57,7 +57,7 @@ const COLUMNS: DataTableColumns<RemoteSessionRow> = column.columns([
     header: "Duration",
     meta: { label: "Duration", width: "w-32" },
   }),
-  column.accessor("calls", { header: "Calls", meta: { align: "end", label: "Calls", width: "w-20" } }),
+  column.accessor("calls", { header: "Calls", meta: { align: "end", label: "Calls", width: "w-32" } }),
   column.accessor("outcome", {
     cell: ({ row }) => (
       <span className="flex min-w-0 items-center gap-2" title={row.original.rejection}>

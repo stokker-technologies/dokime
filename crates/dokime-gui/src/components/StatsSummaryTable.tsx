@@ -60,19 +60,19 @@ const column = dataTableColumns<DescribedRow>();
 const COLUMNS: DataTableColumns<DescribedRow> = [
   column.accessor("label", {
     header: "Metric",
-    meta: { label: "Metric", truncate: true },
+    meta: { label: "Metric", truncate: true, width: "w-44" },
   }),
   ...STATISTICS.map(([key, title]) =>
     column.accessor((row) => row.stats[key], {
       cell: ({ row }) => formatStatValue(row.original.stats[key], row.original.unit),
       header: title,
       id: key,
-      meta: { align: "end", label: title, truncate: true, width: "w-24" },
+      meta: { align: "end", label: title, truncate: true, width: "w-32" },
     }),
   ),
   column.accessor("count", {
     header: "Count",
-    meta: { align: "end", label: "Count", width: "w-20" },
+    meta: { align: "end", label: "Count", width: "w-32" },
   }),
 ];
 
@@ -105,7 +105,7 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
         cell: ({ row }) => <TraceCell row={row.original} />,
         header: heading,
         id,
-        meta: { label: header, primary: true },
+        meta: { label: header, primary: true, width: "w-44" },
       });
     }
     const read = (row: SeriesLegendRow) => (id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id]);

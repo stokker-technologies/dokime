@@ -597,7 +597,7 @@ test("Series Legend", () => {
   const widths = (unit: string | null) => seriesLegendColumns(unit).map((column) => seriesLegendColumnWidth(column.id));
   assert.deepEqual(widths("dBm"), widths(null));
   assert.deepEqual(widths("M\u03a9"), widths("V"));
-  assert.deepEqual(widths(null).slice(1), ["w-52", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24"]);
+  assert.deepEqual(widths(null).slice(1), ["w-52", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32"]);
 
   // Rows Follow Trace Order And Read Each Trace's Own Backend Summary
   const rows = seriesLegendRows({ hidden: new Set(), summaries: SUMMARIES, traces: TRACES });
