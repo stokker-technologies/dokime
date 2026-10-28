@@ -14,11 +14,12 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{future::Future, net::Ipv4Addr, sync::Arc};
+use std::{future::Future, net::Ipv4Addr, sync::Arc, time::Duration};
 // Third Party Imports
 use tokio::sync::Notify;
 // Local Imports
 use super::fixture::{Gate, Listener, Service, UploadInput, server_health};
+use crate::wire::WireMessage;
 use dokime::client::contracts::{backend, catalog};
 use dokime::client::{Client, Error, Target};
 use dokime::domain::model;
@@ -41,6 +42,27 @@ use dokime::domain::model;
 
 /* === Private Functions === */
 
+async fn install_with_deadline(client: Client, mode: &str) -> String {
+    let frame = model::plugins::wire::InstallPluginFrame::default();
+    if mode == "prepared" {
+        let upload = client.plugins_install_open().unwrap();
+        upload.send(frame).await.unwrap();
+        return upload.finish().await.unwrap().install_id;
+    }
+    if mode == "typed" {
+        return client.plugins_install(tokio_stream::iter([frame])).await.unwrap().install_id;
+    }
+
+    // Canonical Empty Request And Input Item Envelopes, As Sent By The WebView.
+    let input = tokio_stream::iter([vec![0x0a, 0], vec![0x12, 0]]);
+    let deadline = Duration::from_secs(10);
+    let mut reply = client.stream_raw("/dokime.v1.Plugins/Install", input, deadline).await.unwrap();
+    let bytes = reply.message().await.unwrap().unwrap();
+    let (installed, _) = model::plugins::wire::PluginInstallation::from_wire(&bytes).unwrap();
+    assert!(reply.message().await.unwrap().is_none());
+    installed.install_id.clone()
+}
+
 async fn assert_pending<F: Future + Unpin>(future: &mut F) {
     tokio::task::yield_now().await;
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
@@ -48,6 +70,56 @@ async fn assert_pending<F: Future + Unpin>(future: &mut F) {
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn uploads_use_stream_deadlines() {
+    for mode in ["raw", "typed", "prepared"] {
+        let mut service = Service::new("stream-deadline");
+        service.methods.push("/dokime.v1.Plugins/Install".into());
+        let gate = Arc::new(Gate::new());
+        service.upload_gate = Some(gate.clone());
+        let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
+        let target = Target::local(&server.endpoint).unwrap();
+        let client = Client::connect(target, None, None).await.unwrap();
+
+        let uploading = client.with_timeout(Duration::from_millis(10));
+        let mut task = tokio::spawn(async move { install_with_deadline(uploading, mode).await });
+        tokio::select! {
+            _ = gate.entered.notified() => {},
+            result = &mut task => panic!("{mode} upload ended before the gated response: {result:?}"),
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        gate.release.add_permits(1);
+        assert_eq!(task.await.unwrap(), "1", "{mode} upload honors its stream deadline");
+
+        client.close_and_wait().await;
+        server_health(&server.endpoint).await;
+    }
+}
+
+#[tokio::test]
+async fn raw_stream_deadline_expires() {
+    let mut service = Service::new("stream-deadline");
+    service.methods.push("/dokime.v1.Plugins/Install".into());
+    let gate = Arc::new(Gate::new());
+    service.upload_gate = Some(gate.clone());
+    let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
+    let target = Target::local(&server.endpoint).unwrap();
+    let client = Client::connect(target, None, None).await.unwrap();
+
+    let input = tokio_stream::iter([vec![0x0a, 0], vec![0x12, 0]]);
+    let pending = client.stream_raw("/dokime.v1.Plugins/Install", input, Duration::from_secs(2));
+    tokio::pin!(pending);
+    tokio::select! {
+        _ = gate.entered.notified() => {},
+        result = &mut pending => panic!("upload ended before the gated response: {result:?}"),
+    }
+    assert!(matches!(pending.await, Err(Error::Rpc(status)) if status.code() == tonic::Code::DeadlineExceeded));
+
+    gate.release.add_permits(1);
+    client.close_and_wait().await;
+    server_health(&server.endpoint).await;
+}
 
 #[tokio::test]
 async fn client_close_cancels() {

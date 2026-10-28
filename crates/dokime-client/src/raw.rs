@@ -106,11 +106,12 @@ impl Client {
         let input = Input::new(input, self.inner.cancellation.child_token());
         let mut request = self.request(input);
         request.set_timeout(deadline);
-        self.execute(async move {
-            grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-            grpc.streaming(request, path, RawCodec).await.map(tonic::Response::into_inner)
-        })
-        .await
+        self.with_timeout(deadline)
+            .execute(async move {
+                grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                grpc.streaming(request, path, RawCodec).await.map(tonic::Response::into_inner)
+            })
+            .await
     }
 
     pub fn max_request_bytes(&self) -> usize {

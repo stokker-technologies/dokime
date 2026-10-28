@@ -68,6 +68,11 @@ impl Client {
         }
         let limit = NonZeroUsize::new(self.request_limit().min(self.response_limit())).ok_or(super::Error::IncompatibleApi)?;
         let operation = Operation::new(&provider.contract, limit).map_err(super::Error::Rpc)?;
+        let client = if operation.client_streaming() || operation.server_streaming() {
+            self.with_timeout(provider.contract.operation().policy.timeout)
+        } else {
+            self.clone()
+        };
         if !operation.client_streaming() && !inputs.is_empty() {
             return Err(Error::InputStream(identifier.into()));
         }
@@ -87,18 +92,20 @@ impl Client {
         if operation.server_streaming() {
             let incoming = if operation.client_streaming() {
                 let frames = Input::new(stream::iter(payloads), cancellation);
-                self.execute(async {
-                    grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                    grpc.streaming(self.request(frames), path, codec).await.map(tonic::Response::into_inner)
-                })
-                .await?
+                client
+                    .execute(async {
+                        grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                        grpc.streaming(client.request(frames), path, codec).await.map(tonic::Response::into_inner)
+                    })
+                    .await?
             } else {
                 let opening = payloads.pop().expect("the validated opening exists");
-                self.execute(async {
-                    grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                    grpc.server_streaming(self.request(opening), path, codec).await.map(tonic::Response::into_inner)
-                })
-                .await?
+                client
+                    .execute(async {
+                        grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                        grpc.server_streaming(client.request(opening), path, codec).await.map(tonic::Response::into_inner)
+                    })
+                    .await?
             };
             // The Completion Is Published Only After Its Successful Final Status.
             let frames = stream::unfold(Some((incoming, cancel)), |state| async move {
@@ -118,18 +125,20 @@ impl Client {
         } else {
             let completion = if operation.client_streaming() {
                 let frames = Input::new(stream::iter(payloads), cancellation);
-                self.execute(async {
-                    grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                    grpc.client_streaming(self.request(frames), path, codec).await.map(tonic::Response::into_inner)
-                })
-                .await?
+                client
+                    .execute(async {
+                        grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                        grpc.client_streaming(client.request(frames), path, codec).await.map(tonic::Response::into_inner)
+                    })
+                    .await?
             } else {
                 let opening = payloads.pop().expect("the validated opening exists");
-                self.execute(async {
-                    grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                    grpc.unary(self.request(opening), path, codec).await.map(tonic::Response::into_inner)
-                })
-                .await?
+                client
+                    .execute(async {
+                        grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                        grpc.unary(client.request(opening), path, codec).await.map(tonic::Response::into_inner)
+                    })
+                    .await?
             };
             if !matches!(&completion, Event::Completion(_)) {
                 return Err(Error::Catalog);
