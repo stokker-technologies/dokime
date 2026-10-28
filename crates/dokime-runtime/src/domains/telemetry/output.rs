@@ -75,6 +75,7 @@ pub(crate) async fn project_saved(
         let execution = scope.test_execution_id.as_ref().map(ToString::to_string);
         let stream = Some(contract.stream.to_string());
         let first_page = local.telemetry_page(at.clone(), 0, execution.clone(), stream.clone()).await?;
+        let first_page = decode_page(first_page, &codecs)?;
         if first_page.is_empty() {
             continue;
         }
@@ -101,13 +102,8 @@ pub(crate) async fn project_saved(
             let mut page = first_page.as_slice();
             let mut next_page;
             loop {
-                for row in page {
-                    after = row.record.position.sequence;
-                    let codec = codecs
-                        .iter()
-                        .find(|codec| codec.schema() == &row.record.schema)
-                        .ok_or_else(|| crate::runtime::Error::Operation("saved telemetry codec is missing".into()))?;
-                    let sample = codec.decode_stored(row)?.sample;
+                for (position, sample) in page {
+                    after = *position;
                     if !dokime_domain::model::execution::scope_visible_in(sample.scope.as_ref(), scope) {
                         continue;
                     }
@@ -131,7 +127,8 @@ pub(crate) async fn project_saved(
                 if end == Some(after) {
                     break;
                 }
-                next_page = local.telemetry_page(at.clone(), after, execution.clone(), stream.clone()).await?;
+                let rows = local.telemetry_page(at.clone(), after, execution.clone(), stream.clone()).await?;
+                next_page = decode_page(rows, &codecs)?;
                 if next_page.is_empty() {
                     end = Some(after);
                     break;
@@ -188,6 +185,21 @@ pub(crate) async fn project_saved(
 }
 
 /* === Private Functions === */
+
+fn decode_page(
+    rows: Vec<harmos::storage::StoredRow>, codecs: &[crate::storage::telemetry::TypedCodec],
+) -> crate::runtime::Result<Vec<(u64, crate::telemetry::TelemetrySample)>> {
+    rows.into_iter()
+        .map(|row| {
+            let codec = codecs
+                .iter()
+                .find(|codec| codec.schema() == &row.record.schema)
+                .ok_or_else(|| crate::runtime::Error::Operation("saved telemetry codec is missing".into()))?;
+            let entry = codec.decode_stored(&row)?;
+            Ok((row.record.position.sequence, entry.sample))
+        })
+        .collect()
+}
 
 fn output(stream: &Identifier, field: &str, stat: &str, value: f64) -> AggregateOutput {
     let key = valid_identifier(&format!("telemetry.{}.values.{field}.{stat}", stream.as_str()));
