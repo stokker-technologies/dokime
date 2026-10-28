@@ -41,10 +41,10 @@ use dokime::RuntimeHandle;
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    preferences::register(runtime, maximum)?;
-    sources::register(runtime, maximum)?;
-    plugins::register(runtime, maximum)
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    preferences::register(runtime, maximum).await?;
+    sources::register(runtime, maximum).await?;
+    plugins::register(runtime, maximum).await
 }
 
 /* === Private Functions === */

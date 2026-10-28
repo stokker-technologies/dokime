@@ -30,7 +30,7 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos::operation(resources = [crate::hosting::Host<GetAvailability>], response = BackendAvailability, id = "dokime.backend.get_availability",
+#[harmos::operation(resources = [crate::hosting::Host<GetAvailability>], operations = [harmos::builtins::host::Catalog], response = BackendAvailability, id = "dokime.backend.get_availability",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "GetAvailability"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

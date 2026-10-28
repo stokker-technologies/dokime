@@ -142,13 +142,13 @@ impl Resources {
             Ok(native) => native,
             Err(error) => {
                 let response = self.produce(|| Ok(plot_error_frame(current, error.to_string(), frame.epoch, frame.selection)))?;
-                output.send_owned(response).await.map_err(failure)?;
+                output.send_owned(response).await.map_err(crate::grpc::chunked::output_failure)?;
                 return Ok(false);
             }
         };
         for value in native {
             let response = self.frame(requests, current, value, frame)?;
-            output.send_owned(response).await.map_err(failure)?;
+            output.send_owned(response).await.map_err(crate::grpc::chunked::output_failure)?;
         }
         Ok(true)
     }
@@ -161,7 +161,7 @@ impl Resources {
             let selection = selection_for_plot(original, selections, &plot_key(current))
                 .ok_or_else(|| Status::internal("plot selection is missing"))?;
             let response = self.produce(|| Ok(plot_pending_frame(current, epoch, selection)))?;
-            output.send_owned(response).await.map_err(failure)?;
+            output.send_owned(response).await.map_err(crate::grpc::chunked::output_failure)?;
         }
         Ok(())
     }

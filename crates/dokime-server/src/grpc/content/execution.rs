@@ -81,7 +81,7 @@ impl Serve<wire::DownloadExecutionFile> for Resources {
                 let maximum =
                     NonZeroUsize::new(bytes).ok_or_else(|| Status::resource_exhausted("message limit cannot contain execution chunk"))?;
                 let metadata = frames::metadata(source.metadata(), message_limit).map_err(|error| stream_failure(error.into()))?;
-                ctx.streams().send_owned(metadata).await.map_err(|error| stream_failure(error.into()))?;
+                ctx.streams().send_owned(metadata).await.map_err(crate::grpc::chunked::output_failure)?;
                 let mut digest = Sha256::new();
                 let mut hashed = 0u64;
                 loop {
@@ -94,14 +94,14 @@ impl Serve<wire::DownloadExecutionFile> for Resources {
                     digest.update(&content.bytes);
                     hashed = content.offset + content.bytes.len() as u64;
                     let frame = frames::chunk(content, message_limit).map_err(|error| stream_failure(error.into()))?;
-                    ctx.streams().send_owned(frame).await.map_err(|error| stream_failure(error.into()))?;
+                    ctx.streams().send_owned(frame).await.map_err(crate::grpc::chunked::output_failure)?;
                 }
                 if hashed != source.metadata().size_bytes {
                     return Err(Status::data_loss("execution output ended before declared prefix"));
                 }
                 let complete =
                     frames::complete(source.metadata().size_bytes, &digest, message_limit).map_err(|error| stream_failure(error.into()))?;
-                ctx.streams().send_owned(complete).await.map_err(|error| stream_failure(error.into()))?;
+                ctx.streams().send_owned(complete).await.map_err(crate::grpc::chunked::output_failure)?;
                 Ok(().into())
             })
             .await

@@ -108,7 +108,7 @@ impl Resources {
             let advanced = batch.next_sequence > after;
             after = batch.next_sequence;
             if initial || advanced || missed > 0 {
-                output.send_owned(batch.into()).await.map_err(failure)?;
+                output.send_owned(batch.into()).await.map_err(crate::grpc::chunked::output_failure)?;
                 initial = false;
             }
             if !request.follow && after >= through {
@@ -213,15 +213,6 @@ fn event_wire(sequence: u64, event: &Event) -> Result<TraceEvent, Status> {
         execution_id: event.execution.clone(),
         fields,
     })
-}
-
-fn failure(source: dokime::harmos::Error) -> Status {
-    let status = if matches!(source, dokime::harmos::Error::ResourceExhausted { .. }) {
-        Status::resource_exhausted("trace delivery admission failed")
-    } else {
-        Status::internal("trace delivery failed")
-    };
-    crate::grpc::error::detailed(status, &source.into())
 }
 
 /* === Tests === */

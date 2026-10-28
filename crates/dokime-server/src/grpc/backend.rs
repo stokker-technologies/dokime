@@ -55,7 +55,7 @@ impl Collector<'_> {
     async fn health(&self) -> Result<dokime::domain::model::backend::wire::BackendHealth, Status> {
         use dokime::domain::model::runtime::wire::Readiness;
         use dokime::operations::runtime::GetHealth;
-        let instance = self.runtime.operations().submit(GetHealth {}).map_err(|_| Status::unavailable("runtime health is unavailable"))?;
+        let instance = self.runtime.operations().submit::<GetHealth>(GetHealth {}).map_err(|_| Status::unavailable("runtime health is unavailable"))?;
         let health = dokime::harmos::grpc::response(instance).await.map_err(|_| Status::unavailable("runtime health is unavailable"))?;
         Ok(dokime::domain::model::backend::wire::BackendHealth {
             backend_id: health.backend_id.clone(),

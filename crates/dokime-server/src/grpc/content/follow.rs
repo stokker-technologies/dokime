@@ -118,10 +118,7 @@ async fn send(
         return Err(Status::resource_exhausted("follow frame exceeds listener message limit"));
     }
     let sent = output.send_owned(frame).await;
-    sent.map_err(|error| {
-        let source = error.into();
-        failure(source)
-    })
+    sent.map_err(crate::grpc::chunked::output_failure)
 }
 
 fn failure(error: Error) -> Status {

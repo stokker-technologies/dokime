@@ -86,7 +86,7 @@ impl Serve<contract::CaptureCurrentDocument> for Resources {
                 .await
                 .map_err(|_| Status::internal("document worker failed"))??;
                 for frame in frames {
-                    ctx.streams().send_owned(frame.into()).await.map_err(failure)?;
+                    ctx.streams().send_owned(frame.into()).await.map_err(crate::grpc::chunked::output_failure)?;
                 }
                 Ok(().into())
             })
@@ -142,15 +142,6 @@ fn scope(scope: Option<dokime::domain::model::documents::wire::DocumentScope>) -
     let cycle = TestCycleId::from_uuid(scope.cycle_id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
     let execution = TestExecutionId::from_uuid(scope.execution_id).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     Ok((cycle, execution))
-}
-
-fn failure(error: dokime::harmos::Error) -> Status {
-    let status = if matches!(error, dokime::harmos::Error::ResourceExhausted { .. }) {
-        Status::resource_exhausted("document admission failed")
-    } else {
-        Status::internal("document admission failed")
-    };
-    super::error::detailed(status, &error.into())
 }
 
 /* === Tests === */

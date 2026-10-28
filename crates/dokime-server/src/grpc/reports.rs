@@ -240,7 +240,7 @@ mod tests {
         use dokime::domain::model::reports::wire::ReportHtmlFramePayload;
         use dokime::harmos::operations::{StreamSettings, stream};
         use std::num::NonZeroUsize;
-        let (mut output, mut input) = stream(StreamSettings {
+        let (mut output, input) = stream(StreamSettings {
             items: NonZeroUsize::new(4).unwrap(),
             bytes: NonZeroUsize::new(4 * 1_048_576).unwrap(),
         })

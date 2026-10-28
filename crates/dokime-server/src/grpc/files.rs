@@ -110,7 +110,7 @@ impl Serve<contract::FileWatch> for Resources {
                     )),
                 };
                 guard.watch = None;
-                ctx.streams().send_owned((completed).into()).await.map_err(stream_failure)?;
+                ctx.streams().send_owned((completed).into()).await.map_err(crate::grpc::chunked::output_failure)?;
                 Ok(().into())
             })
             .await
@@ -154,7 +154,7 @@ async fn send_events(
 ) -> Result<(), Status> {
     for event in events.drain(..) {
         let frame = frame(event)?;
-        output.send_owned((frame).into()).await.map_err(stream_failure)?;
+        output.send_owned((frame).into()).await.map_err(crate::grpc::chunked::output_failure)?;
     }
     Ok(())
 }
@@ -199,14 +199,6 @@ fn failure(error: Error) -> Status {
         Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message.clone()),
         Error::Admission(AdmissionFailure::NotFound { message, .. }) => Status::not_found(message.clone()),
         _ => content_failure(error),
-    }
-}
-
-fn stream_failure(error: dokime::harmos::Error) -> Status {
-    match error {
-        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
-        error => Status::internal(error.to_string()),
     }
 }
 

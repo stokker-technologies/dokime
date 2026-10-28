@@ -132,7 +132,7 @@ impl Serve<wire::WatchRuntime> for Resources {
                             .into(),
                         )
                         .await
-                        .map_err(stream_failure)?;
+                        .map_err(crate::grpc::chunked::output_failure)?;
                     match watch.next_change().await {
                         None => return Ok(().into()),
                         Some(RuntimeChange::State(next)) => {
@@ -168,7 +168,7 @@ impl Serve<wire::WatchExecutionProgress> for Resources {
                         output
                             .send_owned((progress_frame(snapshot.revision(), resynchronized, current)).into())
                             .await
-                            .map_err(stream_failure)?;
+                            .map_err(crate::grpc::chunked::output_failure)?;
                         previous = current.cloned();
                     }
                     let Some(next) = watch.next().await else {
@@ -272,14 +272,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) 
 }
 
 /* === Private Functions === */
-
-fn stream_failure(error: dokime::harmos::Error) -> Status {
-    match error {
-        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
-        error => Status::internal(error.to_string()),
-    }
-}
 
 fn operation_frames(operations: &OperationSnapshot) -> Result<Vec<dokime::domain::model::observation::wire::OperationProgress>, Status> {
     operations

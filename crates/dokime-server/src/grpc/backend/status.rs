@@ -71,7 +71,7 @@ impl Serve<wire::GetHealth> for Resources {
         &'a self, _: wire::GetHealth, _: Context<'a, wire::GetHealth>,
     ) -> Served<'a, dokime::domain::model::backend::wire::BackendHealth> {
         Box::pin(async move {
-            let instance = self.runtime.operations().submit(native::GetHealth {}).map_err(health_failure)?;
+            let instance = self.runtime.operations().submit::<native::GetHealth>(native::GetHealth {}).map_err(health_failure)?;
             let health = dokime::harmos::grpc::response(instance).await.map_err(health_failure)?;
             produce(self.maximum, || dokime::domain::model::backend::wire::BackendHealth {
                 backend_id: health.backend_id.clone(),
@@ -205,7 +205,7 @@ impl Serve<wire::CollectDiagnostics> for Resources {
 /* === Public Functions === */
 
 pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let instance = runtime.operations().submit(native::GetIdentity {})?;
+    let instance = runtime.operations().submit::<native::GetIdentity>(native::GetIdentity {})?;
     let identity = dokime::harmos::grpc::response(instance).await?;
     let identity = produce(maximum, || {
         dokime::domain::model::backend::wire::BackendIdentity {

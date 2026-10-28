@@ -123,7 +123,7 @@ impl Serve<contract::AudioRecording> for Resources {
                             .into(),
                         )
                         .await
-                        .map_err(stream_failure)?;
+                        .map_err(crate::grpc::chunked::output_failure)?;
                     tokio::select! {
                         sealed = recording.settled() => break sealed,
                         () = tokio::time::sleep(Duration::from_millis(SERVER_MEDIA_PROGRESS_MS).min(limit - elapsed)) => {}
@@ -142,7 +142,7 @@ impl Serve<contract::AudioRecording> for Resources {
                         .into(),
                     )
                     .await
-                    .map_err(stream_failure)?;
+                    .map_err(crate::grpc::chunked::output_failure)?;
                 Ok::<_, Status>(().into())
             })
             .await
@@ -239,14 +239,6 @@ fn failure(error: Error) -> Status {
         }
         Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message.clone()),
         _ => content_failure(error),
-    }
-}
-
-fn stream_failure(error: dokime::harmos::Error) -> Status {
-    match error {
-        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
-        error => Status::internal(error.to_string()),
     }
 }
 

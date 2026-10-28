@@ -305,7 +305,7 @@ impl Serve<v1::WatchRecords> for Resources {
                         }
                     }
                     let page = reader.page().await?;
-                    ctx.streams().send_owned(Response::from_owner(page.owner())).await.map_err(memory_error)?;
+                    ctx.streams().send_owned(Response::from_owner(page.owner())).await.map_err(crate::grpc::chunked::output_failure)?;
                     initial = false;
                 }
             })
