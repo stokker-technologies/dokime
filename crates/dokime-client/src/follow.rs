@@ -130,7 +130,7 @@ impl Client {
         {
             return Err(Error::Invalid("follow request differs from its local committed receipt"));
         }
-        let stream = self.content_follow_execution_file(request.clone()).await?;
+        let stream = self.stream(request.clone()).await?;
         let read = async {
             let frame = stream.message().await?.ok_or(Error::Invalid("follow has no metadata"))?;
             let Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Metadata(metadata)) = frame.payload else {

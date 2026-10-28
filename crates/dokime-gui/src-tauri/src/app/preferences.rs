@@ -56,16 +56,16 @@ pub async fn desktop_settings_read(
     owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope,
 ) -> Result<SettingsSnapshot, SettingsCommandError> {
     let client = client(&owner, &connection, scope).await?;
-    client.settings_read_application_settings(ReadApplicationSettings {}).await.map_err(command_error)
+    client.call(ReadApplicationSettings {}).await.map_err(command_error)
 }
 
 pub async fn desktop_settings_update(
     owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope, update: UpdateSettings,
 ) -> Result<SettingsSnapshot, SettingsCommandError> {
     let client = client(&owner, &connection, scope).await?;
-    let current = client.settings_read_application_settings(ReadApplicationSettings {}).await.map_err(command_error)?;
+    let current = client.call(ReadApplicationSettings {}).await.map_err(command_error)?;
     update.settings.validate_scope(&current.settings, scope).map_err(|message| SettingsCommandError::Validation { message })?;
-    let saved = client.settings_update_application_settings(UpdateApplicationSettings { update }).await.map_err(command_error)?;
+    let saved = client.call(UpdateApplicationSettings { update }).await.map_err(command_error)?;
     if matches!(scope, SettingsScope::Local) {
         connection.set_preferences(saved.settings.client);
     }
