@@ -4482,10 +4482,11 @@ for index in range(desktop.get_child_count()):
       [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
       $scope = [System.Windows.Automation.TreeScope]::Descendants
       $condition = [System.Windows.Automation.Condition]::TrueCondition
+      $filenameId = if ($env:DOKIME_PICKER_OPERATION -eq 'Save') { '1001' } else { '1148' }
       function Write-PickerState($phase, $window, $pidCondition) {
         $state = [ordered]@{phase=$phase; field=$null; button=$null; windows=@()}
         try {
-          $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1148')
+          $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $filenameId)
           $fieldType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
           $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldId, $fieldType)
           $field = $window.FindFirst($scope, $fieldCondition)
@@ -4527,7 +4528,7 @@ for index in range(desktop.get_child_count()):
             }
             continue
           }
-          $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1148')
+          $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $filenameId)
           $fieldType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
           $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldId, $fieldType)
           $field = $window.FindFirst($scope, $fieldCondition)
@@ -4537,8 +4538,8 @@ for index in range(desktop.get_child_count()):
           $button = $window.FindFirst($scope, $buttonCondition)
           if (!$field -or !$button) {
             foreach ($candidate in $window.FindAll($scope, [System.Windows.Automation.Condition]::TrueCondition)) {
-              if ($candidate.Current.AutomationId -in @('1148', '1')) {
-                [Console]::Error.WriteLine(('picker control id={0} type={1} class={2}' -f $candidate.Current.AutomationId, $candidate.Current.ControlType.ProgrammaticName, $candidate.Current.ClassName))
+              if ($candidate.Current.AutomationId -in @($filenameId, '1')) {
+                [Console]::Error.WriteLine(('picker control id={0} type={1} class={2} name={3}' -f $candidate.Current.AutomationId, $candidate.Current.ControlType.ProgrammaticName, $candidate.Current.ClassName, $candidate.Current.Name))
               }
             }
           }
@@ -4565,6 +4566,7 @@ for index in range(desktop.get_child_count()):
       ...process.env,
       DOKIME_PICKER_SHELL: resolve(shellBinary),
       DOKIME_PICKER_FILE: resolve(file),
+      DOKIME_PICKER_OPERATION: operation,
       DOKIME_PICKER_WINDOW: picker.window === null ? "" : String(picker.window),
     },
     timeout: 120000,
