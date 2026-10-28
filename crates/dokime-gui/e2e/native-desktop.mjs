@@ -4837,6 +4837,23 @@ try {
       },
     ],
     ["backend shutdown", stopBackend],
+    [
+      "desktop logs",
+      async () => {
+        if (!work) return;
+        for (const [name, root] of [
+          ["desktop", work],
+          ["independent-desktop", join(work, "independent-desktop")],
+        ]) {
+          const directory = join(root, "shell", "data", "com.stokker.dokime", "logs");
+          if (!existsSync(directory)) continue;
+          for (const file of await readdir(directory)) {
+            if (!/^dokime-gui\..*\.log$/.test(file)) continue;
+            await writeFile(join(evidence, `${name}-${file}`), redact(await readFile(join(directory, file), "utf8")));
+          }
+        }
+      },
+    ],
   ]) {
     try {
       await cleanup();

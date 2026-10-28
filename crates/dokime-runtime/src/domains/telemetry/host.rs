@@ -195,10 +195,8 @@ impl SamplerSession for HostSamplerSession {
         Box::pin(async move {
             loop {
                 self.reap();
-                if self.tasks.iter().any(|pending| pending.expired) {
-                    let error = std::io::Error::new(std::io::ErrorKind::TimedOut, "host collection remains owned after its timeout");
-                    return Err(Box::new(error) as SettlementError);
-                }
+                // A Missed Sample Deadline Does Not Finish Its Blocking Collector.
+                // Join The Owned Work Before Reporting Settlement To Shutdown.
                 if self.tasks.is_empty() {
                     break;
                 }
@@ -314,3 +312,57 @@ fn collection_timeout(stream: &str) -> Duration {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct BlockingCollector {
+        entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+
+    impl HostTelemetryCollector for BlockingCollector {
+        fn interval(&self, _: &str) -> Duration {
+            Duration::from_secs(1)
+        }
+
+        fn collect(&self, _: &str) -> std::result::Result<Option<TelemetryBatch>, String> {
+            self.entered.lock().unwrap().take().unwrap().send(()).unwrap();
+            self.release.lock().unwrap().recv().unwrap();
+            Ok(None)
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn expired_collection_joins_before_shutdown_settles() {
+        let (entered, started) = tokio::sync::oneshot::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let collector = BlockingCollector {
+            entered: std::sync::Mutex::new(Some(entered)),
+            release: std::sync::Mutex::new(released),
+        };
+        let sampler = HostSampler { collector: Arc::new(collector) };
+        let mut session = sampler.open().unwrap();
+        session.tick(crate::model::time::now_utc(), &["host.system".into()]);
+        started.await.unwrap();
+
+        tokio::time::advance(collection_timeout("host.system")).await;
+        std::future::poll_fn(|context| session.poll_ready(context)).await;
+        assert!(session.collected().is_err(), "the sample deadline still reports failure");
+
+        session.abandon();
+        {
+            let settled = session.settle();
+            tokio::pin!(settled);
+            tokio::select! {
+                biased;
+                result = &mut settled => panic!("collection is still physically running: {result:?}"),
+                () = tokio::task::yield_now() => {}
+            }
+            release.send(()).unwrap();
+            settled.await.unwrap();
+        }
+        assert!(session.collected().unwrap().is_empty());
+    }
+}

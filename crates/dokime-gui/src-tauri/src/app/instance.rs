@@ -201,12 +201,18 @@ impl Drop for InstanceControl {
 fn allow_focus(stream: &Stream) -> io::Result<()> {
     use interprocess::local_socket::traits::StreamCommon;
     use windows::Win32::UI::WindowsAndMessaging::AllowSetForegroundWindow;
-    let process = stream
-        .peer_creds()?
-        .pid()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::PermissionDenied, "desktop peer has no process identity"))?;
+    let peer = stream.peer_creds()?;
+    let process = peer.pid().ok_or_else(|| io::Error::new(io::ErrorKind::PermissionDenied, "desktop peer has no process identity"))?;
     // The New Foreground Process Grants Its Existing Desktop Permission To Focus.
-    unsafe { AllowSetForegroundWindow(process) }.map_err(io::Error::other)
+    let granted = unsafe { AllowSetForegroundWindow(process) };
+    let Err(error) = granted else { return Ok(()) };
+    // Background Launches May Lack A Foreground Grant; The Existing Window
+    // Still Owns Activation And Must Receive The Focus Request.
+    if error.code() != windows::Win32::Foundation::E_ACCESSDENIED {
+        return Err(io::Error::other(error));
+    }
+    tracing::debug!(%error, "desktop launch has no foreground permission to transfer");
+    Ok(())
 }
 
 #[cfg(windows)]
