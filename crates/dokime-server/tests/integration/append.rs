@@ -208,20 +208,33 @@ async fn append_cases_preserve_ordinals() {
 
 #[tokio::test]
 async fn explicit_append_retries() {
-    explicit_append_scenario(None).await;
+    explicit_append_scenario(None, None).await;
 }
 
 #[tokio::test]
 async fn explicit_append_small_write_budget() {
-    explicit_append_scenario(std::num::NonZeroUsize::new(256 * 1024)).await;
+    explicit_append_scenario(std::num::NonZeroUsize::new(256 * 1024), None).await;
 }
 
-async fn explicit_append_scenario(budget: Option<std::num::NonZeroUsize>) {
+#[tokio::test]
+async fn explicit_append_small_write_budget_four_workers() {
+    explicit_append_scenario(std::num::NonZeroUsize::new(256 * 1024), std::num::NonZeroUsize::new(4)).await;
+}
+
+#[tokio::test]
+async fn explicit_append_small_write_budget_single_worker() {
+    explicit_append_scenario(std::num::NonZeroUsize::new(256 * 1024), std::num::NonZeroUsize::new(1)).await;
+}
+
+async fn explicit_append_scenario(budget: Option<std::num::NonZeroUsize>, workers: Option<std::num::NonZeroUsize>) {
     let root = tempfile::tempdir().unwrap();
     let metadata = Metadata::new(Identifier::new("grpc.fixture").unwrap(), "gRPC fixture", None);
     let mut config = support::budgets::runtime_config(root.path(), metadata);
     if let Some(budget) = budget {
         config.storage.request.max_pending_write_bytes = budget;
+    }
+    if let Some(workers) = workers {
+        config.storage.request.max_active_file_operations = workers;
     }
     let mut owner = Runtime::start(config).await.unwrap();
     let suite = support::fixture_suite(&["passed"]);
