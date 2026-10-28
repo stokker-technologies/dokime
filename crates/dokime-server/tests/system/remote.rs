@@ -21,7 +21,7 @@ mod interruption;
 use std::{
     collections::BTreeMap,
     io::Read,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{LazyLock, Mutex},
 };
 
@@ -239,13 +239,27 @@ fn launcher(extension: &str, script: &Path) -> Command {
             command
         }
         "ps1" => {
-            let mut command = Command::new("pwsh");
+            let mut command = Command::new(powershell_host());
             command.args(["-NoProfile", "-File"]).arg(script);
             command
         }
         "bat" => Command::new(script),
         _ => unreachable!(),
     }
+}
+
+// A Tool Shim Is Not Ctrl+C-Transparent: It Exits On The Interrupt While Its Script Keeps Running,
+// And A Terminal Whose Direct Child Exits Closes. Scripts Therefore Start The PowerShell Host Itself.
+fn powershell_host() -> &'static Path {
+    static HOST: LazyLock<PathBuf> = LazyLock::new(|| {
+        let output = std::process::Command::new("pwsh")
+            .args(["-NoProfile", "-NonInteractive", "-Command", "[Environment]::ProcessPath"])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "pwsh must report its host path: {}", String::from_utf8_lossy(&output.stderr));
+        PathBuf::from(String::from_utf8(output.stdout).unwrap().trim())
+    });
+    &HOST
 }
 
 async fn device(client: &Client, extension: &str, stdout: &str, directory: &Path) {
