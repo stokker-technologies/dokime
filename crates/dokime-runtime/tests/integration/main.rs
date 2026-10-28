@@ -15,13 +15,16 @@
 /* === Modules === */
 
 mod domains;
-mod engine;
+mod engine_artifacts;
 mod execution;
 mod plugin;
-mod plugins;
+mod plugin_store_leases;
 mod report;
 mod runtime;
+mod runtime_queries;
+mod settings_backends;
 mod state;
+mod storage_recovery;
 
 #[path = "../support/engine/mod.rs"]
 pub mod engine_support;
