@@ -72,6 +72,15 @@ pub(super) async fn replay_sample_inputs(
         })
         .await?;
     let contracts = context.runtime.state_read().telemetry_contracts();
+    let codecs = crate::runtime::storage::telemetry::saved_codecs(storage, &at, None, context.runtime.schema_settings(), |id, version| {
+        contracts.iter().any(|contract| {
+            !contract.foreign
+                && contract.schema_version == version
+                && id.strip_prefix("dokime.telemetry.") == Some(contract.stream.as_str())
+        })
+    })
+    .await
+    .map_err(failed)?;
     for contract in contracts.iter().filter(|contract| !contract.foreign) {
         let mut position = match acknowledged.samples.iter().find(|receipt| receipt.stream == contract.stream.as_str()) {
             Some(receipt) => context
@@ -82,7 +91,7 @@ pub(super) async fn replay_sample_inputs(
                 .map_err(failed)?,
             None => 0,
         };
-        replay_stream(context, target, execution, &at, contract, &mut position).await?;
+        replay_stream(context, target, execution, &at, contract, &mut position, &codecs).await?;
     }
     Ok(())
 }
@@ -91,7 +100,7 @@ pub(super) async fn replay_sample_inputs(
 
 async fn replay_stream(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, at: &harmos::storage::StorageCursor,
-    contract: &crate::telemetry::TelemetryContract, replayed: &mut u64,
+    contract: &crate::telemetry::TelemetryContract, replayed: &mut u64, codecs: &[crate::storage::telemetry::TypedCodec],
 ) -> Result<(), ProviderExecutionFailure> {
     let session = context.runtime.storage().clone();
     let key_bytes = "dokime.telemetry.".len().checked_add(contract.stream.as_str().len()).ok_or_else(overflow)?;
@@ -104,17 +113,13 @@ async fn replay_stream(
         version: NonZeroU32::new(contract.schema_version).ok_or_else(|| failed("telemetry schema version is zero"))?,
         payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
     };
-    let codecs =
-        crate::runtime::storage::telemetry::saved_codecs(&session, at, Some(&schema), context.runtime.schema_settings(), |_, _| true)
-            .await
-            .map_err(failed)?;
-    if codecs.is_empty() {
+    let mut selected = codecs.iter().filter(|codec| codec.schema() == &schema);
+    let Some(codec) = selected.next() else {
         return Ok(());
-    }
-    if codecs.len() != 1 {
+    };
+    if selected.next().is_some() {
         return Err(failed("saved replay schema is absent or ambiguous"));
     }
-    let codec = &codecs[0];
     let mut reader = session
         .query(Query {
             at: at.clone(),
@@ -198,6 +203,8 @@ async fn replay_stream(
             let last = &entries[end - 1].1.sample;
             let receipt = acknowledged.samples.iter().find(|receipt| receipt.stream == contract.stream.as_str());
             if !receipt.is_some_and(|receipt| receipt.sample_id == last.sample_id.as_str()) {
+                tracing::warn!(stream = %contract.stream, expected = %last.sample_id,
+                    received = ?receipt.map(|receipt| receipt.sample_id.as_str()), "replayed sample receipt differs");
                 return Err(failed("sample signal did not acknowledge its final row"));
             }
             *replayed = context
