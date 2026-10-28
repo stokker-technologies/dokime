@@ -530,11 +530,11 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     });
     // A Stuck Script Fails With Its Terminal Text Instead Of Hanging The Lane.
     let (finished, exited) = std::sync::mpsc::channel::<()>();
-    let mut stuck = process.child.clone_killer();
+    let root = process.child.process_id();
     let watchdog = std::thread::spawn(move || {
         let expired = exited.recv_timeout(SCRIPT_DEADLINE).is_err();
-        if expired {
-            let _ = stuck.kill();
+        if expired && let Some(root) = root {
+            kill_tree(root);
         }
         expired
     });
@@ -544,9 +544,29 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     let expired = watchdog.join().unwrap();
     drop(pair.master);
 
-    let (text, triggered) = read.join().unwrap().unwrap();
-    assert!(!expired, "the remote script did not exit within {SCRIPT_DEADLINE:?}:\n{text}");
+    // Surviving Descendants Keep The Terminal Open, So The Reader Join Is Bounded.
+    let (delivered, result) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = delivered.send(read.join());
+    });
+    let joined = result.recv_timeout(std::time::Duration::from_secs(30));
+    let (text, triggered) = match joined {
+        Ok(joined) => joined.unwrap().unwrap(),
+        Err(_) => panic!("the remote script exceeded {SCRIPT_DEADLINE:?} and its terminal stayed open after the process tree was killed"),
+    };
+    assert!(!expired, "the remote script exceeded {SCRIPT_DEADLINE:?} and its process tree was killed:
+{text}");
     Outcome { success: status.success(), triggered, text }
+}
+
+// Kill The Script And Every Descendant, Such As Waiting CLI Processes.
+fn kill_tree(root: u32) {
+    let root = root.to_string();
+    #[cfg(windows)]
+    let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &root]).output();
+    // The pseudo terminal makes the script a session and group leader.
+    #[cfg(not(windows))]
+    let _ = Command::new("kill").args(["-KILL", "--", &format!("-{root}")]).output();
 }
 
 fn read_terminal(
