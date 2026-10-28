@@ -7,11 +7,14 @@
  * ***
  */
 
+// Stories Over The Built OBC Plugin Bundle, Which Only The Acceptance Lane Receives.
+
 /* === Modules === */
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,11 +39,49 @@ use dokime_runtime::plugins::PluginStore;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn fixture_bytes() -> Vec<u8> {
     std::fs::read(crate::service_support::bundles::obc_plugin_bundle()).unwrap()
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn external_analysis_reload() {
+    let root = tempfile::tempdir().unwrap();
+    let bundle = crate::service_support::bundles::obc_plugin_bundle();
+    let config = crate::service_support::config(root.path()).with_plugins([dokime_runtime::plugins::PluginBundle::new(bundle)]);
+    let mut owner = dokime_runtime::Runtime::start(config).await.unwrap();
+    let runtime = owner.handle();
+    crate::service_support::plots::register_plot_suite(&runtime).await;
+    runtime.publish_telemetry_batch(crate::service_support::evidence::samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();
+    runtime.storage().flush().await.unwrap();
+    let mut request = crate::service_support::plots::wifi_request(None, Some(1));
+    request.analysis = Some(dokime_runtime::analysis::Selection {
+        id: "obc.analysis.ripple".into(),
+        version: 1,
+        parameters: Default::default(),
+    });
+    for reload in [false, true] {
+        if reload {
+            owner.reinitialize_plugin("obc_plugin").await.unwrap();
+        }
+        let definitions = runtime.analysis_definitions().await.unwrap();
+        assert_eq!(definitions.iter().filter(|definition| definition.id == "obc.analysis.ripple").count(), 1);
+        let envelopes = runtime
+            .query_plot_payloads(vec![request.clone()], dokime_runtime::runtime::query::RuntimePlotQueryMode::Snapshot)
+            .await
+            .unwrap();
+        let computed = envelopes[0].payload.computed.as_ref().unwrap();
+        assert_eq!(computed.selection.id, "obc.analysis.ripple");
+        assert_eq!(computed.series[0].input_samples, 100);
+        assert_eq!(computed.series[0].output.outputs[0].values, [99.0]);
+        assert_eq!(computed.series[0].output.outputs[0].unit, "count");
+    }
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 // Frozen Catalog Rejects Undeclared, Reserved And Duplicate Operations.
 
 #[tokio::test]

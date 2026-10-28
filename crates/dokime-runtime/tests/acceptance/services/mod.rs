@@ -10,6 +10,7 @@
 // Story Futures Nest Runtime Boot Deeply Enough To Need The Library's Limit.
 
 /* === Modules === */
+mod bundled;
 pub(crate) mod durability;
 pub(crate) mod execution;
 
