@@ -33,7 +33,6 @@ const SERVER_CALLS_PER_CONNECTION: u64 = 32;
 const SERVER_CONNECTIONS: u64 = 64;
 const SERVER_DECODE_RETAINED_BYTES: u64 = 4_194_304;
 const SERVER_ENCODE_BUFFER_BYTES: u64 = 8_192;
-const SERVER_INPUT_STREAM_BYTES: u64 = 1_048_576;
 const SERVER_MAXIMUM_MESSAGE_BYTES: u64 = 16_777_216;
 const SERVER_MESSAGE_BYTES: u64 = 1_048_576;
 const SERVER_OPENING_TIMEOUT_MS: u64 = 5_000;
@@ -158,7 +157,9 @@ impl Config {
         let bytes = NonZeroUsize::new(self.max_message_bytes).ok_or(Error::Configuration("message limit must be positive"))?;
         let stream = dokime::harmos::operations::StreamSettings {
             items: NonZeroUsize::new(SERVER_STREAM_ITEMS as usize).unwrap(),
-            bytes: NonZeroUsize::new(SERVER_INPUT_STREAM_BYTES as usize).unwrap(),
+            // One Decoded Input Item Is A Whole Message Plus Its Native Envelope, So The
+            // Single-Item Budget Holds Twice The Message Limit Rather Than Exactly One.
+            bytes: bytes.saturating_mul(NonZeroUsize::new(2).unwrap()),
         };
         let output = dokime::harmos::operations::StreamSettings {
             items: stream.items,
