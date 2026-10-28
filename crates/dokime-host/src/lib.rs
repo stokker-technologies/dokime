@@ -32,7 +32,7 @@ pub use error::{Error, Result};
 pub use fixture::{FixtureHostTelemetrySource, HOST_FIXTURE_SOURCE};
 pub use host::{Host, HostSnapshot};
 pub use sample::HostStreamSample;
-pub use telemetry::HostTelemetryCollector;
+pub use telemetry::{HostTelemetryCollector, collection_timeout};
 pub use telemetry_domain::{HOST_PLUGIN_SOURCE, configure_contracts, host_telemetry_collector, installed_plugin};
 
 /* === Imports === */

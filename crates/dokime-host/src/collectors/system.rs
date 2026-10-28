@@ -149,13 +149,20 @@ impl SystemCollector {
 /* === Private Functions === */
 
 fn git_config_value(key: &str) -> Option<String> {
-    let output = Command::new("git").args(["config", "--get", key]).output().ok()?;
+    let mut command = Command::new("git");
+    command.args(["config", "--get", key]);
+    let output = super::run_command_bounded(command, system_probe_timeout()).ok()?;
     if !output.status.success() {
         return None;
     }
     let value = String::from_utf8(output.stdout).ok()?;
     let value = value.trim();
     (!value.is_empty()).then(|| value.to_owned())
+}
+
+// A System Probe Is Bounded By The Collection It Serves.
+fn system_probe_timeout() -> std::time::Duration {
+    crate::collection_timeout(HostTelemetryStream::System.as_str())
 }
 
 fn first_battery(manager: Option<&BatteryManager>) -> Option<Battery> {
@@ -195,7 +202,9 @@ fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>
 fn power_profile_context() -> PowerProfileContext {
     #[cfg(windows)]
     {
-        let Ok(output) = Command::new("powercfg").arg("/getactivescheme").output() else {
+        let mut command = Command::new("powercfg");
+        command.arg("/getactivescheme");
+        let Ok(output) = super::run_command_bounded(command, system_probe_timeout()) else {
             return PowerProfileContext::default();
         };
         if !output.status.success() {

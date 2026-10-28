@@ -80,6 +80,18 @@ pub fn collector(config: HostTelemetryConfig) -> Arc<dyn HostTelemetryCollector>
     Arc::new(HostTelemetryCollectorImpl::new(config))
 }
 
+// How Long One Collection Of A Stream May Run; Its Probes And Its Sampler Share This Policy.
+pub fn collection_timeout(stream: &str) -> std::time::Duration {
+    let milliseconds = match stream {
+        "host.wifi" => 10000,
+        "host.wifi.latency" => 4000,
+        "host.wifi.channel_occupancy" => 12000,
+        "host.bluetooth" => 6000,
+        _ => 2000,
+    };
+    std::time::Duration::from_millis(milliseconds)
+}
+
 /* === Private Functions === */
 
 pub(crate) fn interval_ms(stream: HostTelemetryStream) -> u64 {

@@ -340,14 +340,7 @@ fn host_producer_key() -> String {
 }
 
 fn collection_timeout(stream: &str) -> Duration {
-    let milliseconds = match stream {
-        "host.wifi" => 10000,
-        "host.wifi.latency" => 4000,
-        "host.wifi.channel_occupancy" => 12000,
-        "host.bluetooth" => 6000,
-        _ => 2000,
-    };
-    Duration::from_millis(milliseconds)
+    dokime_host::collection_timeout(stream)
 }
 
 /* === Tests === */
