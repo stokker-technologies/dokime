@@ -65,8 +65,9 @@ async fn sealed(handle: &dokime::RuntimeHandle, id: &str) {
 async fn blocking_run_drains_and_preserves_work_after_callback_error() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let wire = WireClient::connect(server.local_endpoint()).await.unwrap();
     let client =
         dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
@@ -152,8 +153,9 @@ async fn blocking_run_drains_and_preserves_work_after_callback_error() {
 async fn queued_run_outlives_the_idle_deadline() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let wire = WireClient::connect(server.local_endpoint()).await.unwrap();
     let client =
         dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
@@ -220,9 +222,10 @@ async fn queued_run_outlives_the_idle_deadline() {
 async fn start_identity_survives() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
     let handle = owner.handle();
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let wire = WireClient::connect(server.local_endpoint()).await.unwrap();
     let (first_cycle, first) = planned(&wire, &owner).await;
     let (_, second) = planned(&wire, &owner).await;
@@ -329,8 +332,9 @@ async fn start_identity_survives() {
     owner.shutdown().await.unwrap();
 
     // Restarted Recovery Reads Saved Admission And Evidence Without A Provider.
-    let mut rebooted = runtime(root.path()).await;
-    let server = Server::start(rebooted.handle(), keyed()).await.unwrap();
+    let prepared_rebooted = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut rebooted = runtime(root.path(), &prepared_rebooted).await;
+    let server = prepared_rebooted.ready().await.unwrap().listen().await.unwrap();
     let wire = WireClient::connect(server.local_endpoint()).await.unwrap();
     let recovered = accepted(wire.unary::<contracts::execution::StartExecution>(authenticated(request)).await.unwrap().into_inner());
     assert_eq!(recovered.command_id, original.command_id);

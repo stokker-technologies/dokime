@@ -75,10 +75,11 @@ async fn client(server: &Server) -> WireClient {
 #[tokio::test]
 async fn append_cases_preserve_ordinals() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let suite = support::fixture_suite(&["passed", "passed"]);
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let execution = client(&server).await;
 
     // A cycle starts empty and Ready; creating it needs no plan.
@@ -236,11 +237,12 @@ async fn explicit_append_scenario(budget: Option<std::num::NonZeroUsize>, worker
     if let Some(workers) = workers {
         config.storage.request.max_active_file_operations = workers;
     }
-    let mut owner = Runtime::start(config).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = Runtime::start(prepared_owner.configuration(config)).await.unwrap();
     let suite = support::fixture_suite(&["passed"]);
     let handle = owner.handle();
     support::register_fixture_execution(&handle, suite.clone()).await;
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let wire = client(&server).await;
 
     // Materialization Registers Immutable Cases And Never Creates Attempts.

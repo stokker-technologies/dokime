@@ -34,8 +34,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::Dependencies;
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
@@ -55,7 +54,7 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
 
 /* === Type Aliases === */
 
-type Observing = ObserverAttachment<Resources, Publisher<ObcPlugin>>;
+type Observing = ObserverAttachment<Publisher<ObcPlugin>>;
 
 /* === Structs === */
 
@@ -101,7 +100,6 @@ impl dokime::harmos::builtins::lifecycle::Policy for ObcPlugin {
 
 #[dokime::plugin(
     id = "obc",
-    provides = operations::Operations,
     requires(),
     contributions(
         dokime::Suites<suites::Suites>,
@@ -118,48 +116,39 @@ impl dokime::harmos::builtins::lifecycle::Policy for ObcPlugin {
     )
 , description = "Supervised plugin hosting Dokime's charger testbench workflows.")]
 impl dokime::Plugin for ObcPlugin {
+    const CATALOGS: &'static [dokime::harmos::Catalog] = &[operations::Operations::CATALOG];
+
+    fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
+        self.observers.as_ref().map(|observers| observers.clone() as Arc<dyn Attachment<Supervisor>>)
+    }
+}
+
+impl dokime::harmos::Lifecycle for ObcPlugin {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = Resources;
 
-    fn prepare(config: Configuration) -> Result<Self, Refusal> {
+    async fn prepare(config: Configuration, setup: &mut dokime::harmos::Setup<Self>) -> Result<Self, Refusal> {
         let settings = dokime::plugin::refusal(config.settings::<BenchSettings>())?;
-        Ok(Self {
+        let plugin = Self {
             runtime: None,
             resources: Arc::new(Resources {
                 app: OnceLock::new(),
                 connections: Mutex::default(),
                 settings,
             }),
-            observers: None,
-        })
+            observers: Some(ObserverAttachment::from_catalog::<observers::Observers>(<Self as Declared>::STREAMS)?),
+        };
+        setup.resource::<Resources>(plugin.resources.clone());
+        dokime::execution::prepare::<Self, suites::Suites>(setup)?;
+        Ok(plugin)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         let runtime = dokime::plugin::refusal(app::launch(Testbench::default()).await)?;
         let _ = self.resources.app.set(obc_runtime::Client::new(runtime.handle()));
         self.runtime = Some(runtime);
-        self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<Resources> {
-        Arc::clone(&self.resources)
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        // Operations reach the bench through the resources they declare.
-        let mut dependencies = Dependencies::new();
-        dependencies.insert(self.resources()).expect("each dependency is inserted once");
-        table.register(operations::Operations::registration(dependencies.clone()))?;
-        table.register(listeners::Listeners::registration(dependencies))?;
-        dokime::execution::serve::<Self, suites::Suites>(table)?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
-    }
-
-    fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
-        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -174,11 +163,10 @@ impl dokime::Plugin for ObcPlugin {
 
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.observers.take();
-        if let Some(runtime) = self.runtime.take()
-            && let Err(error) = runtime.stop().await
-        {
-            tracing::error!(%error, "the charger bench runtime failed to shut down");
+        if let Some(runtime) = &self.runtime {
+            dokime::plugin::refusal(runtime.shutdown().await)?;
         }
+        self.runtime.take();
         Ok(())
     }
 }

@@ -21,11 +21,11 @@ use crate::grpc::transcode::Transcode;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::operations::history;
 use dokime::operations::hosting::{Host, Serve, Served};
 
@@ -38,11 +38,16 @@ use dokime::operations::hosting::{Host, Serve, Served};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(history::GetCheckpointDocument),
+}
 
 /* === Traits === */
 
@@ -54,7 +59,11 @@ impl Serve<history::GetCheckpointDocument> for Resources {
     ) -> Served<'a, dokime::domain::model::history::wire::CheckpointDocument> {
         Box::pin(async move {
             let checkpoint = super::wire::checkpoint(request.checkpoint.take())?;
-            let document = self.runtime.execution_checkpoint_document(checkpoint).await.map_err(super::wire::checkpoint_failure)?;
+            let document = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .execution_checkpoint_document(checkpoint)
+                .await
+                .map_err(super::wire::checkpoint_failure)?;
             let response = document
                 .try_map(|document| -> dokime::runtime::Result<_> {
                     let response = dokime::domain::model::history::wire::CheckpointDocument {
@@ -75,12 +84,14 @@ impl Serve<history::GetCheckpointDocument> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<history::GetCheckpointDocument>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<history::GetCheckpointDocument>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<history::GetCheckpointDocument>>(Host::<history::GetCheckpointDocument>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

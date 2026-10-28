@@ -29,7 +29,7 @@
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct LaunchError(#[from] dokime::harmos::runtime::Incompatible);
+pub struct LaunchError(#[from] dokime::harmos::StartupError);
 
 /* === Enums === */
 

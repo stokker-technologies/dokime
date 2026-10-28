@@ -14,13 +14,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
-use crate::app::HarmosRuntime;
-use crate::runtime::state::RuntimeState;
 
 /* === Constants === */
 
@@ -38,17 +35,15 @@ use crate::runtime::state::RuntimeState;
 
 /* === Public Functions === */
 
-pub(crate) async fn build(
-    fresh: RuntimeState, records: Arc<super::record_capture::Source>, storage: &crate::storage::Manager, resources: crate::app::Resources,
-    managed_storage: harmos::config::ManagedStorageSettings,
-) -> std::result::Result<HarmosRuntime, harmos::runtime::Incompatible> {
-    let session_id = fresh.session_id.clone();
-    let record_namespace = fresh.process_epoch().clone();
+pub(crate) fn configure(setup: &mut harmos::Setup<crate::app::Dokime>, parts: &crate::runtime::handle::BootParts) {
+    let session_id = parts.config.session_id.clone();
+    let record_namespace = parts.record_namespace.clone();
+    let records = parts.record_source.clone();
+    let storage = &parts.storage;
+    let managed_storage = parts.config.managed_storage.clone();
     let projection = super::record_capture::Projection(records.clone());
-    crate::app::builder(fresh, resources)
-        .managed_storage(managed_storage)
-        .store_records(projection)
-        .reconcile(move |state_manager, _storage| async move {
+    setup.settings().storage(storage).managed_storage(managed_storage).store_records(projection).reconcile(
+        move |state_manager, _storage| async move {
             // Validate Replayed Ownership Without Copying The Runtime Graph
             state_manager
                 .state()
@@ -69,9 +64,8 @@ pub(crate) async fn build(
                 .await
                 .map_err(reconciliation_error)?;
             Ok(())
-        })
-        .runtime_with_storage(storage)
-        .await
+        },
+    );
 }
 
 /* === Private Functions === */

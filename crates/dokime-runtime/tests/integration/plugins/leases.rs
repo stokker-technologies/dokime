@@ -51,7 +51,15 @@ struct CountingCollector {
     reads: Reads,
 }
 
+struct Recorders(std::collections::BTreeMap<&'static str, Arc<RecordingSidecar>>);
+
 /* === Enums === */
+#[harmos::catalog]
+enum Deliveries {
+    Gateway(GatewayDelivery),
+    Bench(BenchDelivery),
+    Probe(ProbeDelivery),
+}
 
 /* === Traits === */
 
@@ -110,7 +118,7 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
 /* === Private Functions === */
 macro_rules! delivery_fixture {
     ($operation:ident, $id:literal) => {
-        #[harmos::operation(id = $id, response = SignalReply, policy = DELIVERY_POLICY, visibility = Host, resources = [RecordingSidecar])]
+        #[harmos::operation(id = $id, response = SignalReply, policy = DELIVERY_POLICY, visibility = Host, resources = [Recorders])]
         #[derive(Clone, PartialEq)]
         struct $operation {
             signal: ExecutionSignal,
@@ -119,7 +127,14 @@ macro_rules! delivery_fixture {
             type Error = std::convert::Infallible;
 
             async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Self::Error> {
-                ctx.resource::<RecordingSidecar>().calls.lock().unwrap().push(($id.into(), self.signal.encode()));
+                ctx.resource::<Recorders>()
+                    .0
+                    .get($id)
+                    .expect("prepared signal receiver")
+                    .calls
+                    .lock()
+                    .unwrap()
+                    .push(($id.into(), self.signal.encode()));
                 Ok(harmos::Response::new(SignalReply::default()))
             }
         }
@@ -129,32 +144,43 @@ delivery_fixture!(GatewayDelivery, "fixture.template.t2.signal");
 delivery_fixture!(BenchDelivery, "fixture.template.t0.signal");
 delivery_fixture!(ProbeDelivery, "fixture.template.t1.signal");
 
-async fn register_sidecars(handle: &dokime_runtime::RuntimeHandle, sidecars: &[(&str, &Arc<RecordingSidecar>)]) {
-    use harmos::RegistrationExt;
-    for (source, sidecar) in sidecars {
-        let mut dependencies = harmos::Dependencies::new();
-        dependencies.insert(Arc::clone(sidecar)).unwrap();
-        let batch = harmos::RegistrationBatch::new(dependencies);
-        let batch = match *source {
-            "gateway" => batch.operation::<GatewayDelivery>(),
-            "bench" => batch.operation::<BenchDelivery>(),
-            "probe" => batch.operation::<ProbeDelivery>(),
-            _ => panic!("unknown fixture owner"),
-        };
-        handle.operations().register(batch.lane(dokime_runtime::app::Lanes::Open)).await.unwrap();
+fn sidecars(sidecars: &[(&str, &Arc<RecordingSidecar>)]) -> dokime_runtime::app::Composition {
+    let recorders = Arc::new(Recorders(
+        sidecars
+            .iter()
+            .map(|(owner, resource)| {
+                let operation = match *owner {
+                    "gateway" => "fixture.template.t2.signal",
+                    "bench" => "fixture.template.t0.signal",
+                    "probe" => "fixture.template.t1.signal",
+                    _ => panic!("unknown fixture owner"),
+                };
+                (operation, (*resource).clone())
+            })
+            .collect(),
+    ));
+    dokime_runtime::app::Composition {
+        prepare: Arc::new(move |setup, _, _| {
+            setup.resource::<Recorders>(recorders.clone());
+            setup.operations::<Deliveries>(dokime_runtime::app::Lanes::Open);
+            Ok(())
+        }),
+        ..Default::default()
     }
 }
-
-/* === Functions === */
 
 async fn runtime(root: &std::path::Path) -> (Runtime, Reads) {
     // The host is an installed plugin like any other, and its six streams
     // are leasable because it declared their contracts — cadence included.
-    runtime_with(root, [dokime_host::installed_plugin()]).await
+    runtime_with(root, [dokime_host::installed_plugin()], None).await
 }
 
-async fn runtime_with(root: &std::path::Path, artifacts: impl IntoIterator<Item = InstalledPlugin>) -> (Runtime, Reads) {
-    let (runtime, _) = started(config(root).with_installed_plugins(artifacts)).await;
+async fn runtime_with(
+    root: &std::path::Path, artifacts: impl IntoIterator<Item = InstalledPlugin>, composition: Option<dokime_runtime::app::Composition>,
+) -> (Runtime, Reads) {
+    let mut config = config(root).with_installed_plugins(artifacts);
+    config.composition.extend(composition);
+    let (runtime, _) = started(config).await;
     let reads = Reads::new(tokio::sync::watch::Sender::new(0));
     runtime.handle().bind_host_telemetry_source(Arc::new(CountingCollector { reads: Arc::clone(&reads) }));
 
@@ -262,7 +288,7 @@ fn scope_of(execution: &TestExecutionId) -> SamplingScope {
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_group_holds() {
     let root = tempdir().expect("a temporary root");
-    let (mut runtime, _) = runtime_with(root.path(), [gateway_artifact()]).await;
+    let (mut runtime, _) = runtime_with(root.path(), [gateway_artifact()], None).await;
     let handle = runtime.handle();
     let execution = admitted_execution(&handle, 0).await;
     let scope = dokime_runtime::RecordScope::default().with_test_execution(execution.clone());
@@ -287,13 +313,16 @@ async fn failed_group_holds() {
 #[tokio::test(flavor = "multi_thread")]
 async fn two_executions_rows() {
     let root = tempdir().expect("a temporary root");
-    let (mut runtime, _) = runtime_with(root.path(), [gateway_artifact(), bench_artifact(), probe_artifact()]).await;
-    let handle = runtime.handle();
-
     let owner = Arc::new(RecordingSidecar::default());
     let first_reader = Arc::new(RecordingSidecar::default());
     let second_reader = Arc::new(RecordingSidecar::default());
-    register_sidecars(&handle, &[("gateway", &owner), ("bench", &first_reader), ("probe", &second_reader)]).await;
+    let (mut runtime, _) = runtime_with(
+        root.path(),
+        [gateway_artifact(), bench_artifact(), probe_artifact()],
+        Some(sidecars(&[("gateway", &owner), ("bench", &first_reader), ("probe", &second_reader)])),
+    )
+    .await;
+    let handle = runtime.handle();
 
     let first = admitted_execution(&handle, 0).await;
     let second = admitted_execution(&handle, 1).await;
@@ -394,12 +423,11 @@ async fn wait_for_reads(reads: &Reads, count: usize) {
 #[tokio::test(flavor = "multi_thread")]
 async fn foreign_stream_refuses() {
     let root = tempdir().expect("a temporary root");
-    let (mut runtime, _) = runtime_with(root.path(), [gateway_artifact(), bench_artifact()]).await;
-    let handle = runtime.handle();
-
     let owner = Arc::new(RecordingSidecar::default());
     let reader = Arc::new(RecordingSidecar::default());
-    register_sidecars(&handle, &[("gateway", &owner), ("bench", &reader)]).await;
+    let (mut runtime, _) =
+        runtime_with(root.path(), [gateway_artifact(), bench_artifact()], Some(sidecars(&[("gateway", &owner), ("bench", &reader)]))).await;
+    let handle = runtime.handle();
 
     let execution = admitted_execution(&handle, 0).await;
     let leases = handle

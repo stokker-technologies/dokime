@@ -81,7 +81,7 @@ pub(crate) enum ValueFormatKind {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for ValueFormat {
+impl harmos::MemorySize for ValueFormat {
     fn memory_size(&self) -> usize {
         let heap = match self {
             Self::AbsoluteTime { pattern } => pattern.capacity(),

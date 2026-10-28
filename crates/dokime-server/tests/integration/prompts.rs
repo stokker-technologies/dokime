@@ -56,13 +56,14 @@ async fn execution_prompt_identity() {
     let gate = Arc::new(Gate::default());
     let definition = dokime::domains::prompts::ConfirmationPrompt::new("fixture.confirm", "Start Capture").definition();
     let config = prompt_config(root.path(), definition.clone());
-    let mut owner = Runtime::with_execution_fixture(config, "fixture", gate.clone()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = Runtime::with_execution_fixture(prepared_owner.configuration(config), "fixture", gate.clone()).await.unwrap();
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].metadata.identifier = Identifier::new("fixture.suite.probe").unwrap();
     suite.test_case_templates[0].prompt_definitions.push(definition);
     support::register_fixture_execution(&handle, suite.clone()).await;
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
     let target = dokime::client::Target::local(endpoint.clone()).unwrap();
     let client = dokime::client::Client::connect(target, None, None).await.unwrap();
@@ -269,7 +270,8 @@ async fn prompt_answers_identity() {
         predicate: BooleanExpression::selector("counter").eq(i64::MAX),
         message: "Keep the exact counter".into(),
     }];
-    let mut owner = prompt_runtime(root.path(), definition).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = prompt_runtime(root.path(), definition, &prepared_owner).await;
     let handle = owner.handle();
     let ids = [dokime::model::identity::new_id::<PromptId>(), dokime::model::identity::new_id::<PromptId>()];
     for id in &ids {
@@ -283,7 +285,7 @@ async fn prompt_answers_identity() {
             .await
             .unwrap();
     }
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client.unary::<contracts::prompts::ListDefinitions>(contracts::prompts::ListDefinitions::default()).await.unwrap_err().code(),
@@ -415,7 +417,8 @@ async fn prompt_condition_commit() {
             match_fields: BTreeMap::from([("resource_id".into(), Value::Text("fixture-device".into()))]),
         },
     });
-    let mut owner = prompt_runtime(root.path(), definition).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = prompt_runtime(root.path(), definition, &prepared_owner).await;
     let handle = owner.handle();
     let id = dokime::model::identity::new_id::<PromptId>();
     handle
@@ -427,7 +430,7 @@ async fn prompt_condition_commit() {
         })
         .await
         .unwrap();
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let view = client
         .unary::<contracts::prompts::GetPrompt>(authenticated(contracts::prompts::GetPrompt { prompt_id: id.to_string() }))
@@ -479,7 +482,8 @@ async fn prompt_level_watched() {
     let root = tempfile::tempdir().unwrap();
     let definition =
         FormPrompt::<BTreeMap<String, bool>>::new("fixture.level", "Check the bench").level(RecordSeverity::Warning).definition();
-    let mut owner = prompt_runtime(root.path(), definition).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = prompt_runtime(root.path(), definition, &prepared_owner).await;
     let handle = owner.handle();
     let id = dokime::model::identity::new_id::<PromptId>();
     handle
@@ -491,7 +495,7 @@ async fn prompt_level_watched() {
         })
         .await
         .unwrap();
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     // === Read The Prompt And Its Request Record === //
@@ -536,7 +540,8 @@ async fn settled_prompt_refused() {
     let root = tempfile::tempdir().unwrap();
     let mut definition = FormPrompt::<BTreeMap<String, bool>>::new("fixture.settle", "Inspect Charging State").definition();
     definition.actions.retain(|action| action.id != "cancel");
-    let mut owner = prompt_runtime(root.path(), definition).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = prompt_runtime(root.path(), definition, &prepared_owner).await;
     let handle = owner.handle();
     let cycle = handle
         .create_cycle(
@@ -558,7 +563,7 @@ async fn settled_prompt_refused() {
         })
         .await
         .unwrap();
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let pending = |cycle: &TestCycleId| contracts::prompts::ListPending {
         cycle_id: Some(cycle.to_string()),
@@ -594,8 +599,10 @@ async fn settled_prompt_refused() {
     owner.shutdown().await.unwrap();
 }
 
-async fn prompt_runtime(root: &std::path::Path, definition: dokime::domains::prompts::PromptDefinition) -> Runtime {
-    Runtime::start(prompt_config(root, definition)).await.unwrap()
+async fn prompt_runtime(
+    root: &std::path::Path, definition: dokime::domains::prompts::PromptDefinition, server: &dokime_server::grpc::PreparedService,
+) -> Runtime {
+    Runtime::start(server.configuration(prompt_config(root, definition))).await.unwrap()
 }
 
 fn prompt_config(root: &std::path::Path, definition: dokime::domains::prompts::PromptDefinition) -> dokime::RuntimeConfig {

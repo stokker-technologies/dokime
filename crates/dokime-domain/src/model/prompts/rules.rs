@@ -49,11 +49,11 @@ pub struct Rule {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for Rule {
+impl harmos::MemorySize for Rule {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.predicate), std::mem::size_of_val(&self.predicate)),
-            (harmos_domain::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.predicate), std::mem::size_of_val(&self.predicate)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

@@ -11,7 +11,7 @@
 
 /* === Re-Exports === */
 
-pub use harmos_domain::Value;
+pub use harmos::Value;
 
 /* === Imports === */
 

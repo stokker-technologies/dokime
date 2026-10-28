@@ -18,7 +18,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::RegistrationExt;
 use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
     PluginManager, PluginTransition, Router,
@@ -112,7 +111,53 @@ impl harmos::Application for Fixture {
     type Transaction = harmos::state::Never;
     type Record = ();
     type Streams = ();
-    type Resources = ();
+}
+
+#[derive(Default, serde::Deserialize)]
+pub(super) struct FixtureConfig {
+    #[serde(skip)]
+    log: Option<Arc<HostLog>>,
+}
+
+#[harmos::catalog]
+enum HostOperations {
+    Records(RecordPublication),
+    Evidence(EvidenceBatch),
+    Questions(OperatorQuestion),
+    Lease(LeaseAsk),
+    Watch(WatchFile),
+    Armed(AwaitFileWatchArmed),
+    Publish(harmos::builtins::streams::Publish),
+}
+
+impl harmos::Lifecycle for Fixture {
+    type Config = FixtureConfig;
+    type Error = harmos::Error;
+    type Context = harmos::Startup<Self>;
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> harmos::Result<Self> {
+        setup.settings().operation_settings(harmos::operations::Settings {
+            preparation_bytes: Some(NonZeroUsize::new(PREPARATION_BYTES).unwrap()),
+            ..Default::default()
+        });
+        let hosting = Arc::new(Hosting(config.log.expect("fixture host log")));
+        setup.resource::<Hosted<RecordPublication>>(Hosted::<RecordPublication>::new(hosting.clone()));
+        setup.resource::<Hosted<EvidenceBatch>>(Hosted::<EvidenceBatch>::new(hosting.clone()));
+        setup.resource::<Hosted<OperatorQuestion>>(Hosted::<OperatorQuestion>::new(hosting.clone()));
+        setup.resource::<Hosted<LeaseAsk>>(Hosted::<LeaseAsk>::new(hosting.clone()));
+        setup.resource::<Hosted<WatchFile>>(Hosted::<WatchFile>::new(hosting.clone()));
+        setup.resource::<Hosted<AwaitFileWatchArmed>>(Hosted::<AwaitFileWatchArmed>::new(hosting.clone()));
+        setup.operations::<HostOperations>(Lanes::Open);
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> harmos::Result<()> {
+        Ok(())
+    }
 }
 
 impl<A: Attach> Native<A> {
@@ -143,16 +188,8 @@ impl<A: Attach> Native<A> {
             [],
         )
         .unwrap();
-        let runtime = harmos::Runtime::<Fixture>::builder((), ())
-            .operation_settings(harmos::operations::Settings {
-                preparation_bytes: Some(NonZeroUsize::new(PREPARATION_BYTES).unwrap()),
-                ..Default::default()
-            })
-            .register(Lanes::catalog())
-            .runtime()
-            .await
-            .unwrap();
-        let log = HostLog::register(&runtime.operations).await;
+        let log = Arc::new(HostLog::default());
+        let runtime = harmos::Runtime::<Fixture>::launch((), FixtureConfig { log: Some(log.clone()) }).await.unwrap();
         let mut host = Host {
             attach,
             notices: Arc::new(notices),
@@ -182,7 +219,7 @@ impl<A: Attach> Native<A> {
 
     pub(super) async fn shutdown(mut self) {
         self.retire().await;
-        self.runtime.stop().await.unwrap();
+        self.runtime.shutdown().await.unwrap();
     }
 }
 
@@ -221,7 +258,7 @@ impl<A: Attach> PluginLifecycle for Host<A> {
             },
             {
                 let resident = resident.clone();
-                move |_: Arc<()>| resident.clone()
+                move |_: Arc<harmos::ExecutionContext>| resident.clone()
             },
         )?;
         backend.services = Some(self.operations.clone());
@@ -289,28 +326,6 @@ impl<A: Attach> PluginLifecycle for Host<A> {
 impl HostLog {
     // Registers the host operations a suite plugin calls and Harmos's own
     // `streams.publish` built-in, which reaches the calling sidecar natively.
-    async fn register(operations: &Operations) -> Arc<Self> {
-        let log = Arc::new(Self::default());
-        let hosting = Arc::new(Hosting(Arc::clone(&log)));
-        let mut dependencies = harmos::Dependencies::new();
-        dependencies.insert(Hosted::<RecordPublication>::new(hosting.clone())).unwrap();
-        dependencies.insert(Hosted::<EvidenceBatch>::new(hosting.clone())).unwrap();
-        dependencies.insert(Hosted::<OperatorQuestion>::new(hosting.clone())).unwrap();
-        dependencies.insert(Hosted::<LeaseAsk>::new(hosting.clone())).unwrap();
-        dependencies.insert(Hosted::<WatchFile>::new(hosting.clone())).unwrap();
-        dependencies.insert(Hosted::<AwaitFileWatchArmed>::new(hosting)).unwrap();
-        let batch = harmos::RegistrationBatch::new(dependencies)
-            .operation::<RecordPublication>()
-            .operation::<EvidenceBatch>()
-            .operation::<OperatorQuestion>()
-            .operation::<LeaseAsk>()
-            .operation::<WatchFile>()
-            .operation::<AwaitFileWatchArmed>()
-            .operation::<harmos::builtins::streams::Publish>();
-        operations.register(batch.lane(Lanes::Open)).await.unwrap();
-        log
-    }
-
     pub(super) fn records(&self) -> Vec<(String, RecordPublishRequest)> {
         self.records.lock().unwrap().clone()
     }

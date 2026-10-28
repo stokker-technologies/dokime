@@ -26,7 +26,7 @@ mod wire;
 
 /* === Re-Exports === */
 
-pub(super) use inspection::register;
+pub(super) use inspection::prepare;
 pub(crate) use wire::traceability;
 
 /* === Imports === */

@@ -17,14 +17,14 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::operations::StreamOutput;
-use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 use tracing::Instrument;
 
 // Local Imports
 use crate::trace::{Event, Journal, Page, Scope, WATCH_SPAN};
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::backend::wire::{LogFrameFieldsEntry, TraceBatch, TraceEvent};
 use dokime::domain::model::identity::wire::Timestamp;
 use dokime::operations::backend as wire;
@@ -45,12 +45,17 @@ const SERVER_MINIMUM_TRACE_BYTES: u64 = 32_768;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
     journal: Arc<Journal>,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::WatchTrace),
+}
 
 /* === Traits === */
 
@@ -75,7 +80,7 @@ impl Resources {
     async fn follow(
         &self, request: &wire::WatchTrace, output: &StreamOutput<dokime::domain::model::backend::wire::TraceBatch>,
     ) -> Result<(), Status> {
-        let epoch = self.runtime.process_epoch().to_string();
+        let epoch = dokime::app::live_runtime(&self.runtime).await?.process_epoch().to_string();
         if request.epoch.as_deref().is_some_and(|expected| expected != epoch) || (request.after_sequence != 0 && request.epoch.is_none()) {
             return Err(Status::out_of_range("trace cursor belongs to another backend epoch; restart replay"));
         }
@@ -137,16 +142,18 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize, journal: Arc<Journal>) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize, journal: Arc<Journal>,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         maximum,
         journal,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::WatchTrace>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::WatchTrace>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::WatchTrace>>(Host::<wire::WatchTrace>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -19,13 +19,13 @@
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
 use super::content::{artifact_scope, content_failure, metadata};
 use crate::grpc::transcode::Transcode;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::artifacts::ArtifactRecord;
 use dokime::domain::model::content::wire::ArtifactMetadata;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
@@ -55,7 +55,7 @@ const NO_VIDEO_ENCODER: &str = "no video encoder available in this build";
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
@@ -67,6 +67,15 @@ struct Unsealed(Option<Recording>);
 
 /* === Enums === */
 
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(contract::Screenshot),
+    Operation1(contract::Photo),
+    Operation2(contract::AudioRecording),
+    Operation3(contract::ScreenRecording),
+    Operation4(contract::CameraRecording),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -75,7 +84,8 @@ impl Serve<contract::Screenshot> for Resources {
     fn serve<'a>(&'a self, request: contract::Screenshot, _: Context<'a, contract::Screenshot>) -> Served<'a, ArtifactMetadata> {
         Box::pin(async move {
             let scope = capture_scope(request.scope.as_ref())?;
-            let record = self.runtime.capture_screenshot(scope, request.display).await.map_err(failure)?;
+            let record =
+                dokime::app::live_runtime(&self.runtime).await?.capture_screenshot(scope, request.display).await.map_err(failure)?;
             self.respond(&record)
         })
     }
@@ -85,7 +95,7 @@ impl Serve<contract::Photo> for Resources {
     fn serve<'a>(&'a self, request: contract::Photo, _: Context<'a, contract::Photo>) -> Served<'a, ArtifactMetadata> {
         Box::pin(async move {
             let scope = capture_scope(request.scope.as_ref())?;
-            let record = self.runtime.capture_photo(scope, request.camera).await.map_err(failure)?;
+            let record = dokime::app::live_runtime(&self.runtime).await?.capture_photo(scope, request.camera).await.map_err(failure)?;
             self.respond(&record)
         })
     }
@@ -100,7 +110,8 @@ impl Serve<contract::AudioRecording> for Resources {
             crate::grpc::access::during(revoked, async {
                 let limit = recording_limit(request.maximum_seconds)?;
                 let scope = capture_scope(request.scope.as_ref())?;
-                let started = self.runtime.start_audio_recording(scope, request.input).await.map_err(failure)?;
+                let started =
+                    dokime::app::live_runtime(&self.runtime).await?.start_audio_recording(scope, request.input).await.map_err(failure)?;
                 let mut unsealed = Unsealed(None);
                 let recording = unsealed.0.insert(started);
 
@@ -195,22 +206,19 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let unsupported = Arc::new(Unsupported);
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<contract::Screenshot>::new(served.clone()))?;
-    dependencies.insert(Host::<contract::Photo>::new(served.clone()))?;
-    dependencies.insert(Host::<contract::AudioRecording>::new(served))?;
-    dependencies.insert(Host::<contract::ScreenRecording>::new(unsupported.clone()))?;
-    dependencies.insert(Host::<contract::CameraRecording>::new(unsupported))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<contract::Screenshot>()
-        .operation::<contract::Photo>()
-        .operation::<contract::AudioRecording>()
-        .operation::<contract::ScreenRecording>()
-        .operation::<contract::CameraRecording>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<contract::Screenshot>>(Host::<contract::Screenshot>::new(served.clone()));
+    setup.resource::<Host<contract::Photo>>(Host::<contract::Photo>::new(served.clone()));
+    setup.resource::<Host<contract::AudioRecording>>(Host::<contract::AudioRecording>::new(served));
+    setup.resource::<Host<contract::ScreenRecording>>(Host::<contract::ScreenRecording>::new(unsupported.clone()));
+    setup.resource::<Host<contract::CameraRecording>>(Host::<contract::CameraRecording>::new(unsupported));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

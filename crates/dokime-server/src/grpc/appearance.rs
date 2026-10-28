@@ -20,13 +20,13 @@ mod convert;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use prost::Message;
 use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::operations::appearance as wire;
 use dokime::operations::content;
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -43,11 +43,17 @@ const SERVER_APPEARANCE_SOURCE_BYTES: u64 = 4_194_304;
 /* === Structs === */
 
 struct Resources {
-    pub runtime: RuntimeHandle,
+    pub runtime: LiveRuntime,
     pub max_message_bytes: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::GetAppearance),
+    Operation1(content::DownloadAppearanceAsset),
+}
 
 /* === Traits === */
 
@@ -58,8 +64,11 @@ impl Serve<wire::GetAppearance> for Resources {
         &'a self, _: wire::GetAppearance, _: Context<'a, wire::GetAppearance>,
     ) -> Served<'a, dokime::domain::model::appearance::wire::AppearanceSnapshot> {
         Box::pin(async move {
-            let session = self.runtime.storage().clone();
-            let captured = self.runtime.capture_appearance(source_budget(self.max_message_bytes)).map_err(assets::native_failure)?;
+            let session = dokime::app::live_runtime(&self.runtime).await?.storage().clone();
+            let captured = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .capture_appearance(source_budget(self.max_message_bytes))
+                .map_err(assets::native_failure)?;
 
             let mut logos = dokime::harmos::storage::ReadBatch::new(())
                 .try_map(|_| {
@@ -112,7 +121,7 @@ impl Serve<content::DownloadAppearanceAsset> for Resources {
         Box::pin(async move {
             let revoked = crate::grpc::access::revocation(ctx.call());
             crate::grpc::access::during(revoked, async {
-                assets::download(&self.runtime, request, self.max_message_bytes, ctx.streams()).await?;
+                assets::download(&dokime::app::live_runtime(&self.runtime).await?, request, self.max_message_bytes, ctx.streams()).await?;
                 Ok(().into())
             })
             .await
@@ -122,18 +131,18 @@ impl Serve<content::DownloadAppearanceAsset> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
+) -> Result<(), super::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::GetAppearance>::new(served.clone()))?;
-    dependencies.insert(Host::<content::DownloadAppearanceAsset>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::GetAppearance>()
-        .operation::<content::DownloadAppearanceAsset>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::GetAppearance>>(Host::<wire::GetAppearance>::new(served.clone()));
+    setup.resource::<Host<content::DownloadAppearanceAsset>>(Host::<content::DownloadAppearanceAsset>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

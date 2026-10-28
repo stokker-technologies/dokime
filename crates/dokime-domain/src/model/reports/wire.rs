@@ -35,13 +35,13 @@ use crate::model::identity::wire::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MaterializedReport {
-    pub report: harmos_domain::model::storage::FileReference,
+    pub report: harmos::model::storage::FileReference,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportMetadata {
     pub test_cycle_id: String,
@@ -58,20 +58,20 @@ pub struct ReportMetadata {
 }
 
 // Accept the download only after completion and a successful final status.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportHtmlFrame {
     pub payload: Option<ReportHtmlFramePayload>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportHtmlChunk {
     pub offset: u64,
     pub data: Vec<u8>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportHtmlCompletion {
     pub size_bytes: u64,
@@ -83,7 +83,7 @@ pub struct ReportHtmlCompletion {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReportSubject {
     Execution(String),
@@ -91,7 +91,7 @@ pub enum ReportSubject {
 }
 
 // Where the delivered report came from.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReportOrigin {
     // The report finalization sealed, read back unchanged.
@@ -100,7 +100,7 @@ pub enum ReportOrigin {
     Current,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReportHtmlFramePayload {
     Report(Box<ReportMetadata>),

@@ -17,15 +17,15 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::domain::Portable;
 use dokime::harmos::operations::{InvocationError, Response};
-use dokime::harmos::{Context, RegistrationExt};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::wire::Timestamp;
 use dokime::operations::backend as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -46,13 +46,21 @@ const SERVER_DISCOVERY_WORK_BYTES: u64 = 16_777_216;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
-    identity: Response<dokime::domain::model::backend::wire::BackendIdentity>,
     logs: Arc<crate::grpc::logs::Tail>,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::GetIdentity),
+    Operation1(wire::GetHealth),
+    Operation2(wire::GetAvailability),
+    Operation3(wire::WatchLogs),
+    Operation4(wire::CollectDiagnostics),
+}
 
 /* === Traits === */
 
@@ -62,7 +70,7 @@ impl Serve<wire::GetIdentity> for Resources {
     fn serve<'a>(
         &'a self, _: wire::GetIdentity, _: Context<'a, wire::GetIdentity>,
     ) -> Served<'a, dokime::domain::model::backend::wire::BackendIdentity> {
-        Box::pin(async move { Ok(self.identity.clone()) })
+        Box::pin(async move { self.identity().await })
     }
 }
 
@@ -71,7 +79,11 @@ impl Serve<wire::GetHealth> for Resources {
         &'a self, _: wire::GetHealth, _: Context<'a, wire::GetHealth>,
     ) -> Served<'a, dokime::domain::model::backend::wire::BackendHealth> {
         Box::pin(async move {
-            let instance = self.runtime.operations().submit::<native::GetHealth>(native::GetHealth {}).map_err(health_failure)?;
+            let instance = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .operations()
+                .submit::<native::GetHealth>(native::GetHealth {})
+                .map_err(health_failure)?;
             let health = dokime::harmos::grpc::response(instance).await.map_err(health_failure)?;
             produce(self.maximum, || dokime::domain::model::backend::wire::BackendHealth {
                 backend_id: health.backend_id.clone(),
@@ -146,9 +158,10 @@ impl Serve<wire::GetAvailability> for Resources {
             if methods.windows(2).any(|pair| pair[0] == pair[1]) {
                 return Err(Status::data_loss("shared discovery repeats a gRPC binding"));
             }
+            let identity = self.identity().await?;
             let output = dokime::domain::model::backend::wire::BackendAvailability {
-                backend_id: self.identity.backend_id.clone(),
-                epoch: self.identity.epoch.clone(),
+                backend_id: identity.backend_id.clone(),
+                epoch: identity.epoch.clone(),
                 methods,
                 limits: Some(dokime::domain::model::backend::wire::BackendLimits {
                     max_request_bytes: maximum as u64,
@@ -157,7 +170,10 @@ impl Serve<wire::GetAvailability> for Resources {
                     max_evidence_bytes: Some(DOCUMENT_EVIDENCE_EXPORT_BYTES),
                     max_page_items: Some(u32::try_from(PAGINATION_MAXIMUM_PAGE_ITEMS).expect("validated page size")),
                     max_stream_buffer_items: Some(1),
-                    max_chunk_bytes: Some(super::super::content::transfer_chunk_bytes(&self.runtime, maximum)? as u32),
+                    max_chunk_bytes: Some(super::super::content::transfer_chunk_bytes(
+                        &dokime::app::live_runtime(&self.runtime).await?,
+                        maximum,
+                    )? as u32),
                 }),
             };
             if output.wire_len()? > maximum {
@@ -194,7 +210,14 @@ impl Serve<wire::CollectDiagnostics> for Resources {
         Box::pin(async move {
             let revoked = crate::grpc::access::revocation(ctx.call());
             crate::grpc::access::during(revoked, async {
-                super::archive::deliver(&self.runtime, &self.identity, self.maximum, request.max_log_tail_bytes, ctx.streams()).await?;
+                super::archive::deliver(
+                    &dokime::app::live_runtime(&self.runtime).await?,
+                    &*self.identity().await?,
+                    self.maximum,
+                    request.max_log_tail_bytes,
+                    ctx.streams(),
+                )
+                .await?;
                 Ok(().into())
             })
             .await
@@ -204,49 +227,20 @@ impl Serve<wire::CollectDiagnostics> for Resources {
 
 /* === Public Functions === */
 
-pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let instance = runtime.operations().submit::<native::GetIdentity>(native::GetIdentity {})?;
-    let identity = dokime::harmos::grpc::response(instance).await?;
-    let identity = produce(maximum, || {
-        dokime::domain::model::backend::wire::BackendIdentity {
-            backend_id: identity.backend_id.clone(),
-            epoch: identity.epoch.clone(),
-            api: Some(dokime::domain::model::backend::wire::ApiIdentity {
-                package: dokime::domain::model::backend::wire::API_PACKAGE.into(),
-                version: dokime::domain::model::backend::wire::API_VERSION.into(),
-                descriptor_sha256: Sha256::digest(super::super::FILE_DESCRIPTOR_SET).to_vec(),
-            }),
-            product_version: identity.product_version.clone(),
-            source_revision: None,
-            sdk_revision: None,
-            // Listener Start Time Is Not The Original Runtime's Boot Time.
-            started_at: None,
-            display_name: identity.display_name.clone(),
-            target: env!("DOKIME_BACKEND_TARGET").to_owned(),
-        }
-    })
-    .map_err(crate::grpc::Error::OperationService)?;
-    let poll_interval = runtime.storage().settings().filesystem.poll_interval;
-    let logs = crate::grpc::logs::Tail::new(super::hub_log_path(&runtime.application_root()), poll_interval, maximum);
-    let resources = Arc::new(Resources {
-        runtime: runtime.clone(),
-        maximum,
-        identity,
-        logs,
-    });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::GetIdentity>::new(resources.clone()))?;
-    dependencies.insert(Host::<wire::GetHealth>::new(resources.clone()))?;
-    dependencies.insert(Host::<wire::GetAvailability>::new(resources.clone()))?;
-    dependencies.insert(Host::<wire::WatchLogs>::new(resources.clone()))?;
-    dependencies.insert(Host::<wire::CollectDiagnostics>::new(resources))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::GetIdentity>()
-        .operation::<wire::GetHealth>()
-        .operation::<wire::GetAvailability>()
-        .operation::<wire::WatchLogs>()
-        .operation::<wire::CollectDiagnostics>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+pub(in crate::grpc) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize, config: &dokime::RuntimeConfig,
+) -> Result<(), crate::grpc::Error> {
+    let poll_interval = config.storage.filesystem.poll_interval;
+    let logs = crate::grpc::logs::Tail::new(super::hub_log_path(&config.application_root), poll_interval, maximum);
+    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum, logs });
+
+    setup.resource::<Host<wire::GetIdentity>>(Host::<wire::GetIdentity>::new(resources.clone()));
+    setup.resource::<Host<wire::GetHealth>>(Host::<wire::GetHealth>::new(resources.clone()));
+    setup.resource::<Host<wire::GetAvailability>>(Host::<wire::GetAvailability>::new(resources.clone()));
+    setup.resource::<Host<wire::WatchLogs>>(Host::<wire::WatchLogs>::new(resources.clone()));
+    setup.resource::<Host<wire::CollectDiagnostics>>(Host::<wire::CollectDiagnostics>::new(resources));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 
@@ -286,3 +280,34 @@ fn discovery_failure(source: InvocationError) -> Status {
 }
 
 /* === Tests === */
+
+impl Resources {
+    async fn identity(&self) -> Result<Response<dokime::domain::model::backend::wire::BackendIdentity>, Status> {
+        let instance = dokime::app::live_runtime(&self.runtime)
+            .await?
+            .operations()
+            .submit::<native::GetIdentity>(native::GetIdentity {})
+            .map_err(health_failure)?;
+        let identity = dokime::harmos::grpc::response(instance).await.map_err(health_failure)?;
+        let identity = produce(self.maximum, || {
+            dokime::domain::model::backend::wire::BackendIdentity {
+                backend_id: identity.backend_id.clone(),
+                epoch: identity.epoch.clone(),
+                api: Some(dokime::domain::model::backend::wire::ApiIdentity {
+                    package: dokime::domain::model::backend::wire::API_PACKAGE.into(),
+                    version: dokime::domain::model::backend::wire::API_VERSION.into(),
+                    descriptor_sha256: Sha256::digest(super::super::FILE_DESCRIPTOR_SET).to_vec(),
+                }),
+                product_version: identity.product_version.clone(),
+                source_revision: None,
+                sdk_revision: None,
+                // Listener Start Time Is Not The Original Runtime's Boot Time.
+                started_at: None,
+                display_name: identity.display_name.clone(),
+                target: env!("DOKIME_BACKEND_TARGET").to_owned(),
+            }
+        })?;
+
+        Ok(identity)
+    }
+}

@@ -28,7 +28,7 @@ default = ["native", "derive"]
 native = [
   "runtime",
   "harmos/grpc",
-  "harmos/plugin-sidecar",
+  "harmos/sidecar",
   "dep:file-id",
   "dep:futures-util",
   "dep:globset",
@@ -64,7 +64,7 @@ host = [
   "dep:walkdir",
   "dep:zip",
   "dep:zeroize",
-  "harmos/plugin-sidecar",
+  "harmos/sidecar",
 ]
 fault-injection = ["host"]
 fft = ["host", "harmos/signal-fft"]
@@ -162,7 +162,8 @@ nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 tracing-subscriber = { workspace = true }
 
 # Utilities
-harmos = { workspace = true, features = ["plugin-sidecar"] }
+harmos-sdk = { workspace = true }
+harmos = { workspace = true, features = ["sidecar"] }
 
 # Serialization
 serde_json = { workspace = true, features = ["float_roundtrip"] }

@@ -111,12 +111,12 @@ pub struct TraceabilityEntry {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for TraceabilitySection {
+impl harmos::MemorySize for TraceabilitySection {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.identifier), std::mem::size_of_val(&self.identifier)),
-            (harmos_domain::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
-            (harmos_domain::MemorySize::memory_size(&self.rows), std::mem::size_of_val(&self.rows)),
+            (harmos::MemorySize::memory_size(&self.identifier), std::mem::size_of_val(&self.identifier)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.rows), std::mem::size_of_val(&self.rows)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -124,14 +124,14 @@ impl harmos_domain::MemorySize for TraceabilitySection {
     }
 }
 
-impl harmos_domain::MemorySize for TraceabilityRow {
+impl harmos::MemorySize for TraceabilityRow {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.identifier), std::mem::size_of_val(&self.identifier)),
-            (harmos_domain::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
-            (harmos_domain::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
-            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
-            (harmos_domain::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.identifier), std::mem::size_of_val(&self.identifier)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -199,14 +199,14 @@ impl TraceabilityRow {
     }
 }
 
-impl harmos_domain::MemorySize for TraceabilitySnapshot {
+impl harmos::MemorySize for TraceabilitySnapshot {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.traceability_id), std::mem::size_of_val(&self.traceability_id)),
-            (harmos_domain::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
-            (harmos_domain::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.entries), std::mem::size_of_val(&self.entries)),
+            (harmos::MemorySize::memory_size(&self.traceability_id), std::mem::size_of_val(&self.traceability_id)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.entries), std::mem::size_of_val(&self.entries)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -214,13 +214,13 @@ impl harmos_domain::MemorySize for TraceabilitySnapshot {
     }
 }
 
-impl harmos_domain::MemorySize for TraceabilityEntry {
+impl harmos::MemorySize for TraceabilityEntry {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
-            (harmos_domain::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
-            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

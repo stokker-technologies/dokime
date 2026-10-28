@@ -46,15 +46,16 @@ use dokime::domain::model;
 async fn media_capture_artifacts() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local().with_max_message_bytes(1024 * 1024)).unwrap();
     let mut owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.media", "Media")),
+        prepared_owner.configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.media", "Media"))),
         "fixture",
         gate.clone(),
     )
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), Config::local().with_max_message_bytes(1024 * 1024)).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = connect(&server).await;
     let scope = running_execution(&owner, &client, &gate).await;
 

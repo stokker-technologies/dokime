@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<SetStorageSourceEnabled>], response = StorageSources, id = "dokime.settings.set_storage_source_enabled",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "SetStorageSourceEnabled"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SetStorageSourceEnabled {

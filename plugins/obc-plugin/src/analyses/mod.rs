@@ -32,7 +32,7 @@ use dokime::analysis::Operation;
 
 /* === Enums === */
 
-#[dokime::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 pub enum Analyses {
     Ripple(Operation<ripple::Ripple>),
 }

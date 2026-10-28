@@ -221,7 +221,10 @@ impl Hold {
         dokime::info!(ctx, "opening the heater on {port}");
         let heater = Heater::open(port);
 
-        let shared = SoakResources { heater: tokio::sync::Mutex::new(heater.await?), holding: AtomicBool::new(false) };
+        let shared = SoakResources {
+            heater: tokio::sync::Mutex::new(heater.await?),
+            holding: AtomicBool::new(false),
+        };
         Ok((template, shared))
     }
 
@@ -332,7 +335,12 @@ impl Hold {
         // One verb publishes both kinds of evidence, and the declaration decides
         // which this is: `HoldReached` is a record, `SoakRow` is a measurement,
         // and neither call site repeats where it goes.
-        ctx.publish(HoldReached { samples: wanted, celsius, unit: self.unit.clone() }).await;
+        ctx.publish(HoldReached {
+            samples: wanted,
+            celsius,
+            unit: self.unit.clone(),
+        })
+        .await;
 
         Ok(())
     }

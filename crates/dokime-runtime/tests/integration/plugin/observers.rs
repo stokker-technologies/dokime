@@ -20,7 +20,7 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime_runtime::harmos::operations::{Host as _, ServingError, WireTable};
+use dokime_runtime::harmos::operations::Host as _;
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
@@ -100,7 +100,7 @@ struct Shared {
 
 struct Owner {
     shared: Arc<Shared>,
-    observers: Option<Arc<ObserverAttachment<Shared, Publishing>>>,
+    observers: Option<Arc<ObserverAttachment<Publishing>>>,
 }
 
 #[dokime_runtime::stream(id = "observer_fixture.status", label = "Observer Status", window = 64)]
@@ -163,7 +163,7 @@ enum ObserveRecords {
     Observed(Observed),
 }
 
-#[dokime_runtime::catalog]
+#[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
 enum Implemented {
     GetCount(GetCount),
     GetProbe(GetProbe),
@@ -277,7 +277,6 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Owner {
 
 #[dokime_runtime::plugin(
     id = "observer_fixture",
-    provides = Implemented,
     requires(),
     contributions(
         dokime_runtime::Suites<OwnerSuites>,
@@ -287,44 +286,36 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Owner {
     observers = OwnerObservers,
     restart = "never", description = "Observer Lifecycle Fixture.")]
 impl dokime_runtime::Plugin for Owner {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[Implemented::CATALOG];
+    fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
+    }
+}
+
+impl dokime_runtime::harmos::Lifecycle for Owner {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = Shared;
-
-    fn prepare(config: Configuration) -> Result<Self, Refusal> {
-        let settings = dokime_runtime::plugin::refusal(config.settings::<OwnerSettings>())?;
-        Ok(Self {
-            shared: Arc::new(Shared {
-                probe: probe(&settings.probes.token),
-                token: settings.probes.token,
-                secrets: config.secrets_configured::<OwnerSettings>(),
-            }),
-            observers: None,
-        })
+    async fn prepare(config: Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let mut owner = {
+            let settings = dokime_runtime::plugin::refusal(config.settings::<OwnerSettings>())?;
+            Self {
+                shared: Arc::new(Shared {
+                    probe: probe(&settings.probes.token),
+                    token: settings.probes.token,
+                    secrets: config.secrets_configured::<OwnerSettings>(),
+                }),
+                observers: None,
+            }
+        };
+        setup.resource::<Shared>(owner.resources());
+        owner.observers = Some(ObserverAttachment::from_catalog::<OwnerObservers>(<Self as Declared>::STREAMS)?);
+        dokime_runtime::execution::prepare::<Self, OwnerSuites>(setup)?;
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<OwnerObservers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<Shared> {
-        Arc::clone(&self.shared)
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Implemented::registration({
-            let mut dependencies = dokime_runtime::harmos::Dependencies::new();
-            dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
-            dependencies
-        }))?;
-        dokime_runtime::execution::serve::<Self, OwnerSuites>(table)?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
-    }
-
-    fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
-        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -344,22 +335,29 @@ impl dokime_runtime::Plugin for Owner {
     }
 }
 
+impl Owner {
+    fn resources(&self) -> Arc<Shared> {
+        Arc::clone(&self.shared)
+    }
+}
+
 #[dokime_runtime::observer(interval_ms = 5)]
 impl StatelessWatch {
-    async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>) -> Result<(), WatchError> {
-        let _ = (ctx.resources(), ctx.tick());
+    async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Publishing>) -> Result<(), WatchError> {
+        let _ = (ctx.resource::<Shared>().expect("prepared observer resource"), ctx.tick());
         Ok(())
     }
 }
 
 #[dokime_runtime::observer(interval_ms = 5, streams(ObservationRow))]
 impl Watch {
-    async fn initialize(shared: &Shared) -> Result<Self, WatchError> {
+    async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, WatchError> {
+        let shared = context.resource::<Shared>().expect("plugin prepares its observer resources");
         shared.probe.starts.fetch_add(1, Ordering::SeqCst);
         Ok(Self(Arc::clone(&shared.probe)))
     }
 
-    async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>) -> Result<(), WatchError> {
+    async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Publishing>) -> Result<(), WatchError> {
         let host = ctx.host().supervisor();
         let secrets = host.call::<GetProbe>(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
         self.0.secrets.store(secrets, Ordering::Release);
@@ -384,31 +382,28 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for MissingSecrets {
 
 #[dokime_runtime::plugin(
     id = "missing_observer_secrets",
-    provides = (),
     requires(),
     contributions(dokime_runtime::Settings<MissingSecretSettings>),
     restart = "never", description = "A plugin whose card requires a secret nobody bound.")]
 impl dokime_runtime::Plugin for MissingSecrets {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
+}
+
+impl dokime_runtime::harmos::Lifecycle for MissingSecrets {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = ();
-
-    fn prepare(config: Configuration) -> Result<Self, Refusal> {
-        let settings = dokime_runtime::plugin::refusal(config.settings::<MissingSecretSettings>())?;
-        let _ = settings.secrets.token;
-        Ok(Self)
+    async fn prepare(config: Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let owner = {
+            let settings = dokime_runtime::plugin::refusal(config.settings::<MissingSecretSettings>())?;
+            let _ = settings.secrets.token;
+            Self
+        };
+        setup.resource::<()>(owner.resources());
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    fn resources(&self) -> Arc<()> {
-        Arc::new(())
-    }
-
-    fn bind_operations(&self, _: &mut WireTable) -> Result<(), ServingError> {
         Ok(())
     }
 
@@ -418,6 +413,12 @@ impl dokime_runtime::Plugin for MissingSecrets {
 
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         Ok(())
+    }
+}
+
+impl MissingSecrets {
+    fn resources(&self) -> Arc<()> {
+        Arc::new(())
     }
 }
 
@@ -624,7 +625,14 @@ async fn activation_starts_execution() {
     assert_eq!(owner, "observer_fixture");
     assert_eq!(filed.record_type.as_str(), "observer.observed");
 
-    let Err(refused) = <MissingSecrets as dokime_runtime::Plugin>::prepare(Configuration::declared::<MissingSecretSettings>()) else {
+    let Err(refused) = <MissingSecrets as dokime_runtime::harmos::Lifecycle>::prepare(
+        Configuration::declared::<MissingSecretSettings>(),
+        &mut dokime_runtime::harmos::Setup::<MissingSecrets>::new(
+            harmos_sdk::__private::WireTable::new(<MissingSecrets as dokime_runtime::harmos::plugin::Declared>::ID).unwrap(),
+        ),
+    )
+    .await
+    else {
         panic!("the required secret is absent");
     };
     assert!(refused.to_string().contains("token"), "{refused}");

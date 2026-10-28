@@ -40,7 +40,7 @@ use crate::model::values::ValueType;
 /* === Structs === */
 
 // One ordered include or exclude rule over paths relative to the source root.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileRule {
     // A glob over forward-slash relative paths; `*` stays within one segment, `**` crosses segments.
@@ -51,7 +51,7 @@ pub struct FileRule {
 }
 
 // A directory on the backend host.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalWatchSource {
     // An absolute directory path on the backend host.
@@ -60,7 +60,7 @@ pub struct LocalWatchSource {
 }
 
 // A directory on an FTP server, listed and retrieved by polling.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FtpWatchSource {
     // `ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.
@@ -72,14 +72,14 @@ pub struct FtpWatchSource {
     pub secret_id: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchSource {
     pub payload: Option<FileWatchSourcePayload>,
 }
 
 // One captured named group read as a column of the matcher's stream.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LineField {
     // The column, and the named capture group that fills it.
@@ -91,10 +91,10 @@ pub struct LineField {
 
 // A regular expression over captured lines whose named groups publish one row
 // to a stream the calling template declares.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LineMatcher {
-    pub storage_schema: harmos_domain::schema::graph::Schema,
+    pub storage_schema: harmos::schema::graph::Schema,
     pub pattern: String,
     pub stream: String,
     pub fields: Vec<LineField>,
@@ -102,14 +102,14 @@ pub struct LineMatcher {
 
 // A regular expression over captured lines that records one record of a type
 // the calling template declares, its named groups as text details.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LineMarker {
     pub pattern: String,
     pub record_type: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchedArtifact {
     pub artifact: String,
@@ -117,14 +117,14 @@ pub struct WatchedArtifact {
 }
 
 // What a watch that settled on its own sealed, and where its output skips.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchFileOutcome {
     pub artifacts: Vec<WatchedArtifact>,
     pub gaps: Vec<FileWatchGap>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchProgress {
     // The path relative to the source root.
@@ -139,7 +139,7 @@ pub struct FileWatchProgress {
 }
 
 // Source bytes the output does not contain, or a change in what it mirrors.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchGap {
     pub path: String,
@@ -151,20 +151,20 @@ pub struct FileWatchGap {
     pub reason: FileWatchGapReason,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchSealed {
     pub path: String,
     pub artifact: Option<ArtifactMetadata>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchCompleted {
     pub artifacts: Vec<ArtifactMetadata>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchArmed {
     pub baseline: Vec<String>,
@@ -173,7 +173,7 @@ pub struct FileWatchArmed {
 // Progress, gap and seal frames while watching, then one Completed frame when
 // the bound elapses, the execution seals the watch or a start snapshot is taken.
 // A cancelled watch still seals what it captured, without a final frame.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchFrame {
     pub payload: Option<FileWatchFramePayload>,
@@ -181,7 +181,7 @@ pub struct FileWatchFrame {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileRuleAction {
     Unspecified,
@@ -189,7 +189,7 @@ pub enum FileRuleAction {
     Exclude,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LineFieldKind {
     Unspecified,
@@ -199,7 +199,7 @@ pub enum LineFieldKind {
     Boolean,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum FileWatchSourcePayload {
     Local(LocalWatchSource),
@@ -212,7 +212,7 @@ pub enum FileWatchSourcePayload {
 // (rotated) file seals its artifact with a gap and starts a new one.
 // Mirror keeps each output equal to its source, refetched when its size or
 // modification time changes. A snapshot copies each file once.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileWatchPolicy {
     Unspecified,
@@ -222,7 +222,7 @@ pub enum FileWatchPolicy {
     SnapshotAtStop,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileWatchSelection {
     All,
@@ -230,7 +230,7 @@ pub enum FileWatchSelection {
     New,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileWatchPhase {
     Unspecified,
@@ -240,7 +240,7 @@ pub enum FileWatchPhase {
     Synced,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileWatchGapReason {
     Unspecified,
@@ -254,7 +254,7 @@ pub enum FileWatchGapReason {
     ResumeUnsupported,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum FileWatchFramePayload {
     Progress(FileWatchProgress),
@@ -273,12 +273,12 @@ impl LineMatcher {
     // named group of the same name.
     pub fn publishing<S: TelemetryStream>(pattern: impl Into<String>) -> Self
     where
-        S::Row: harmos_domain::Message + harmos_domain::schema::Described,
+        S::Row: harmos::Message + harmos::schema::Described,
     {
         Self {
-            storage_schema: harmos_domain::schema::graph::Schema::from_declaration(
-                <S::Row as harmos_domain::schema::Described>::DEFINITION,
-                &harmos_domain::config::SchemaSettings::default(),
+            storage_schema: harmos::schema::graph::Schema::from_declaration(
+                <S::Row as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
             )
             .expect("a matcher row declares a valid finite schema"),
             pattern: pattern.into(),

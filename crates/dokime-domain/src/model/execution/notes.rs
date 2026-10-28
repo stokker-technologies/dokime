@@ -72,14 +72,14 @@ pub enum NoteOwner {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for OperatorNote {
+impl harmos::MemorySize for OperatorNote {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.note_id), std::mem::size_of_val(&self.note_id)),
-            (harmos_domain::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
-            (harmos_domain::MemorySize::memory_size(&self.author), std::mem::size_of_val(&self.author)),
-            (harmos_domain::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
-            (harmos_domain::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos::MemorySize::memory_size(&self.note_id), std::mem::size_of_val(&self.note_id)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.author), std::mem::size_of_val(&self.author)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

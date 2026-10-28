@@ -59,7 +59,9 @@ impl Fixture {
         let artifacts = Arc::new(artifact::Provider::default());
         let mut config = RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("rpc.fixture").unwrap(), "RPC fixture", None));
         config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();
-        let runtime = Runtime::with_execution_fixture(config, "fixture", artifacts.clone()).await.unwrap();
+        let server_config = Config::local().with_max_message_bytes(1024 * 1024);
+        let prepared_runtime = dokime_server::grpc::Service::prepare(server_config).unwrap();
+        let runtime = Runtime::with_execution_fixture(prepared_runtime.configuration(config), "fixture", artifacts.clone()).await.unwrap();
         let calibration = model::records::product::ProductCalibrationDetails::new(
             "rpc-device",
             model::records::product::ProductCalibrationKind::Field,
@@ -69,8 +71,8 @@ impl Fixture {
 
         // Native Server And Session
         // Keep The 1.2 MB Artifact In Multiple Frames While Admitting 256 KiB Upload Chunks.
-        let config = Config::local().with_max_message_bytes(1024 * 1024);
-        let server = Server::start(runtime.handle(), config).await.unwrap();
+
+        let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
         let session = ConnectionSession::default();
         session
             .connect(ConnectRequest {
@@ -105,8 +107,9 @@ impl Published {
     pub async fn start(root: &Path) -> Self {
         let mut config = dokime::config::Config::local(root);
         config.seed_plugins = false;
-        let runtime = dokime::app::launch(config).await.unwrap();
-        let server = Server::start(runtime.handle(), Config::local()).await.unwrap();
+        let prepared_runtime = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+        let runtime = dokime::app::launch_with(config, vec![prepared_runtime.composition()]).await.unwrap();
+        let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
         Self { runtime, server }
     }
 

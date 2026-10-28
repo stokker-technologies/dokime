@@ -53,7 +53,9 @@ struct CountRow {
 #[tokio::test]
 async fn schemas_exact_pages() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let config = keyed();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let mut registration = support::fixture_registration(support::fixture_suite(&["passed"]));
     registration.record_contracts = vec![
@@ -82,8 +84,8 @@ async fn schemas_exact_pages() {
     telemetry.columns[1].display_unit = Some("ticks".into());
     registration.telemetry_contracts = vec![telemetry];
     handle.set_suites("provider:fixture", dokime::definition::SuiteSet::new([registration.clone()])).await.unwrap();
-    let config = keyed();
-    let server = Server::start(handle.clone(), config).await.unwrap();
+
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client.unary::<contracts::catalog::ListRecordSchemas>(contracts::catalog::ListRecordSchemas::default()).await.unwrap_err().code(),
@@ -230,7 +232,9 @@ async fn schemas_exact_pages() {
 #[tokio::test]
 async fn catalog_suite_extensions() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let config = keyed();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].parameters[0].value_type = ValueType::Number;
@@ -244,8 +248,8 @@ async fn catalog_suite_extensions() {
     ]);
     let registration = support::fixture_registration(suite);
     handle.set_suites("provider:fixture", dokime::definition::SuiteSet::new([registration])).await.unwrap();
-    let config = keyed();
-    let server = Server::start(handle, config).await.unwrap();
+
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let listed = client

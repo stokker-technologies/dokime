@@ -471,9 +471,9 @@ impl ExecutionFixture for Gate {
 
 /* === Public Functions === */
 
-pub async fn runtime(root: &std::path::Path) -> Runtime {
+pub async fn runtime(root: &std::path::Path, server: &dokime_server::grpc::PreparedService) -> Runtime {
     let config = super::budgets::runtime_config(root, Metadata::new(Identifier::new("grpc.fixture").unwrap(), "gRPC fixture", None));
-    Runtime::start(config).boxed_local().await.unwrap()
+    Runtime::start(server.configuration(config)).boxed_local().await.unwrap()
 }
 
 pub fn keyed() -> Config {
@@ -550,13 +550,15 @@ pub fn selection_plan(owner: &Runtime) -> model::planning::wire::SelectionPlan {
     }
 }
 
-pub async fn fixture(root: &std::path::Path, gate: Arc<Gate>) -> Runtime {
-    fixture_with_provider(root, gate).await
+pub async fn fixture(root: &std::path::Path, gate: Arc<Gate>, server: &dokime_server::grpc::PreparedService) -> Runtime {
+    fixture_with_provider(root, gate, server).await
 }
 
-pub async fn fixture_with_provider(root: &std::path::Path, provider: Arc<dyn ExecutionFixture>) -> Runtime {
+pub async fn fixture_with_provider(
+    root: &std::path::Path, provider: Arc<dyn ExecutionFixture>, server: &dokime_server::grpc::PreparedService,
+) -> Runtime {
     let owner = Runtime::with_execution_fixture(
-        super::budgets::runtime_config(root, super::metadata("grpc.fixture", "Fixture")),
+        server.configuration(super::budgets::runtime_config(root, super::metadata("grpc.fixture", "Fixture"))),
         "fixture",
         provider,
     )

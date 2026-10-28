@@ -48,7 +48,8 @@ const PAGED_CASES: u64 = 2 * PAGE_LIMIT as u64 + 1;
 async fn large_cycles_order() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime::definition::ParameterExpansion::Cartesian;
@@ -59,7 +60,7 @@ async fn large_cycles_order() {
         step: 1,
     };
     support::register_fixture_execution(&owner.handle(), suite).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
     let summary =
@@ -185,8 +186,9 @@ async fn large_cycles_order() {
 async fn queued_cycle_seals_every_member() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let blocker = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
     client.start_first(run(&blocker)).await.unwrap();

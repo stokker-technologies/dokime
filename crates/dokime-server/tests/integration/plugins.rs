@@ -17,7 +17,6 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::RegistrationExt;
 use dokime::harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
     PluginManager, PluginTransition, Router,
@@ -100,7 +99,6 @@ struct DynamicResources {
 
 struct DynamicHost {
     operations: dokime::harmos::operations::OperationManager<dokime::app::Lanes>,
-    calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 /* === Enums === */
@@ -222,15 +220,11 @@ impl PluginLifecycle for DynamicHost {
         let endpoint = router.enter(&definition.id).expect("the admitted plugin can enter its original router");
         let scope = endpoint.scope().expect("the manager issued an original plugin scope");
         resources.registration = Some(self.operations.stage_plugin(scope, |bindings| {
-            let mut dependencies = dokime::harmos::Dependencies::new();
-            dependencies.insert(self.calls.clone()).expect("one call counter");
-            let batch = dokime::harmos::RegistrationBatch::new(dependencies);
-            let batch = if matches!(&definition.artifact, PluginArtifact::Embedded { revision } if revision == "replacement") {
-                batch.operation::<DynamicReplacement>()
+            if matches!(&definition.artifact, PluginArtifact::Embedded { revision } if revision == "replacement") {
+                bindings.operations::<Replacement>(dokime::app::Lanes::Open)
             } else {
-                batch.operation::<DynamicUnary>().operation::<DynamicDownload>().operation::<DynamicUpload>().operation::<DynamicDuplex>()
-            };
-            bindings.register(batch.lane(dokime::app::Lanes::Open))
+                bindings.operations::<Dynamic>(dokime::app::Lanes::Open)
+            }
         })?);
         resources.endpoint = Some(endpoint);
         Ok(())
@@ -341,7 +335,9 @@ fn bundle_description(description: &str) -> Vec<u8> {
     .to_vec()
 }
 
-async fn fixture(root: &std::path::Path) -> Runtime {
+async fn fixture(
+    root: &std::path::Path, server: &dokime_server::grpc::PreparedService, calls: Option<Arc<std::sync::atomic::AtomicUsize>>,
+) -> Runtime {
     let mut config =
         crate::support::budgets::runtime_config(root, Metadata::new(Identifier::new("plugins.fixture").unwrap(), "Plugins", None));
     config.installed_plugins.push(dokime::InstalledPlugin {
@@ -350,6 +346,17 @@ async fn fixture(root: &std::path::Path) -> Runtime {
         enabled: true,
         ..Default::default()
     });
+    server.configure(&mut config);
+    if let Some(calls) = calls {
+        config.composition.push(dokime::app::Composition {
+            prepare: Arc::new(move |setup, _, _| {
+                setup.resource::<std::sync::atomic::AtomicUsize>(calls.clone());
+                setup.operations::<HostUnary>(dokime::app::Lanes::Open);
+                Ok(())
+            }),
+            ..Default::default()
+        });
+    }
     Runtime::start(config).await.unwrap()
 }
 
@@ -374,8 +381,9 @@ fn frames(bytes: &[u8]) -> Vec<model::plugins::wire::InstallPluginFrame> {
 #[tokio::test]
 async fn plugin_install_identity() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), &prepared_owner, None).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client.unary::<contracts::plugins::ListInstallations>(contracts::plugins::ListInstallations::default()).await.unwrap_err().code(),
@@ -428,18 +436,15 @@ async fn full_control_plugin_operations() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path()).await;
-    let runtime = owner.handle();
     let calls = Arc::new(AtomicUsize::new(0));
-    let server = Server::start(runtime.clone(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), &prepared_owner, Some(calls.clone())).await;
+    let runtime = owner.handle();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let allowed = Client::connect(Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
     assert!(!allowed.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
 
     // A Host Provider Outside The Product Namespace Is Not A Plugin And Stays Refused Remotely.
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(calls.clone()).unwrap();
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<DynamicUnary>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await.unwrap();
     assert!(!allowed.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
     let direct = WireClient::connect(server.local_endpoint()).await.unwrap();
     let refused = direct.unary::<DynamicUnary>(authenticated(DynamicUnary { value: 10 })).await.unwrap_err();
@@ -448,10 +453,7 @@ async fn full_control_plugin_operations() {
     runtime.operations().unregister(&dokime::harmos::QualifiedId::qualify("host", DynamicUnary::ID).unwrap()).await.unwrap();
 
     // Activate A Real Plugin After Connecting; Discovery Uses Its Live Scope.
-    let mut host = DynamicHost {
-        operations: runtime.operations().clone(),
-        calls: calls.clone(),
-    };
+    let mut host = DynamicHost { operations: runtime.operations().clone() };
     let mut plugins = PluginManager::new(dynamic_definition(false)).unwrap();
     plugins.initialize(&mut host).await.unwrap();
     let catalog = allowed.operations().await.unwrap();
@@ -556,8 +558,9 @@ async fn full_control_plugin_operations() {
 #[tokio::test]
 async fn invalid_uploads_mutate() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), &prepared_owner, None).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut bad = frames(&bundle());
     if let Some(Frame::Chunk(chunk)) = &mut bad[1].frame {
@@ -616,8 +619,9 @@ async fn invalid_uploads_mutate() {
 #[tokio::test]
 async fn listener_shutdown_admission() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path()).await;
-    let service = dokime_server::grpc::Service::new(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), &prepared_owner, None).await;
+    let service = prepared_owner.ready().await.unwrap();
     let server = service.listen().await.unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let (sender, upload) = open_upload(&mut client).await;
@@ -685,14 +689,15 @@ async fn open_upload(
 #[tokio::test]
 async fn result_budget_atomicity() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed().with_max_message_bytes(256)).unwrap();
+    let mut owner = fixture(root.path(), &prepared_owner, None).await;
     let store = owner.handle().plugin_store();
     let first = store.install(&bundle(), &[], &std::collections::BTreeSet::new()).await.unwrap().installation.install_id;
     let original = std::fs::read(store.path(first)).unwrap();
     let settings = owner.handle().settings().clone();
     let before = settings.read(Clone::clone).await.unwrap();
     // Identity And Upload Frames Fit; The Installation Result Must Still Be Refused Atomically.
-    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(256)).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let error = client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bundle())))).await.unwrap_err();
     assert_eq!(error.code(), Code::ResourceExhausted);
@@ -706,8 +711,9 @@ async fn result_budget_atomicity() {
 #[tokio::test]
 async fn bounded_installed_metadata() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path()).await;
-    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(4096)).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed().with_max_message_bytes(4096)).unwrap();
+    let mut owner = fixture(root.path(), &prepared_owner, None).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let bytes = bundle_description(&"d".repeat(8192));
     let installed =
@@ -737,3 +743,19 @@ async fn bounded_installed_metadata() {
 }
 
 /* === Tests === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum Dynamic {
+    Unary(DynamicUnary),
+    Download(DynamicDownload),
+    Upload(DynamicUpload),
+    Duplex(DynamicDuplex),
+}
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum Replacement {
+    Unary(DynamicReplacement),
+}
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum HostUnary {
+    Unary(DynamicUnary),
+}

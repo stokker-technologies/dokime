@@ -41,9 +41,11 @@ use dokime::domain::model;
 /* === Private Functions === */
 
 async fn client(root: &std::path::Path) -> (impl Sized, WireClient) {
-    let owner = runtime(root).await;
     let config = keyed();
-    let server = Server::start(owner.handle(), config).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+    let owner = runtime(root, &prepared_owner).await;
+
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     ((owner, server), client)

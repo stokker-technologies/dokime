@@ -17,13 +17,13 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tonic::Status;
 
 // Local Imports
 use super::super::content;
 use super::wire;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::ArtifactId;
 use dokime::operations::history;
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -37,11 +37,16 @@ use dokime::operations::hosting::{Host, Serve, Served};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(history::DownloadCheckpointArtifact),
+}
 
 /* === Traits === */
 
@@ -59,9 +64,18 @@ impl Serve<history::DownloadCheckpointArtifact> for Resources {
                 let checkpoint = wire::checkpoint(request.checkpoint.take())?;
                 let artifact_id =
                     ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
-                let reader = self.runtime.checkpoint_artifact(checkpoint, &artifact_id).await.map_err(wire::checkpoint_failure)?;
-                content::artifacts::deliver(reader, self.maximum, content::download_chunk_bytes(&self.runtime, self.maximum)?, output)
-                    .await?;
+                let reader = dokime::app::live_runtime(&self.runtime)
+                    .await?
+                    .checkpoint_artifact(checkpoint, &artifact_id)
+                    .await
+                    .map_err(wire::checkpoint_failure)?;
+                content::artifacts::deliver(
+                    reader,
+                    self.maximum,
+                    content::download_chunk_bytes(&dokime::app::live_runtime(&self.runtime).await?, self.maximum)?,
+                    output,
+                )
+                .await?;
                 Ok(().into())
             })
             .await
@@ -71,12 +85,14 @@ impl Serve<history::DownloadCheckpointArtifact> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<history::DownloadCheckpointArtifact>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<history::DownloadCheckpointArtifact>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<history::DownloadCheckpointArtifact>>(Host::<history::DownloadCheckpointArtifact>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

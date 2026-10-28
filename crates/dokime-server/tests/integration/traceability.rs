@@ -76,7 +76,8 @@ fn host_batch(scope: Option<RecordScope>, host_name: &str) -> TelemetryBatch {
 #[tokio::test]
 async fn get_traceability_cursor() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].parameters.extend([
@@ -93,7 +94,7 @@ async fn get_traceability_cursor() {
     )
     .await;
 
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let first = client
@@ -262,7 +263,7 @@ async fn get_traceability_cursor() {
 #[tokio::test]
 async fn traceability_bounds_clone() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let mut owner = runtime(root.path(), &dokime_server::grpc::Service::prepare(Config::local()).unwrap()).await;
     let handle = owner.handle();
     let suite = support::fixture_suite(&["passed"]);
     let mut registration = support::fixture_registration(suite);

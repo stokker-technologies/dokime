@@ -65,9 +65,10 @@ fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::
 
 #[tokio::test]
 async fn trace_watch_replays() {
-    let environment = support::TestEnvironment::with_installed_plugins(Vec::new()).await;
     let journal = Journal::new(dokime_server::trace::Limits::default());
-    let server = Server::start(environment.runtime.clone(), Config::default().with_trace_journal(journal.clone())).await.unwrap();
+    let prepared_environment = dokime_server::grpc::Service::prepare(Config::default().with_trace_journal(journal.clone())).unwrap();
+    let environment = support::TestEnvironment::with_installed_plugins(Vec::new(), &prepared_environment).await;
+    let server = prepared_environment.ready().await.unwrap().listen().await.unwrap();
     let client = connect(&server).await;
     let execution = uuid::Uuid::now_v7().to_string();
     emit(journal.clone(), &execution, 3);
@@ -116,9 +117,10 @@ async fn trace_watch_replays() {
 
 #[tokio::test]
 async fn trace_watch_follows() {
-    let environment = support::TestEnvironment::with_installed_plugins(Vec::new()).await;
     let journal = Journal::new(dokime_server::trace::Limits::default());
-    let server = Server::start(environment.runtime.clone(), Config::default().with_trace_journal(journal.clone())).await.unwrap();
+    let prepared_environment = dokime_server::grpc::Service::prepare(Config::default().with_trace_journal(journal.clone())).unwrap();
+    let _environment = support::TestEnvironment::with_installed_plugins(Vec::new(), &prepared_environment).await;
+    let server = prepared_environment.ready().await.unwrap().listen().await.unwrap();
     let client = connect(&server).await;
     let execution = uuid::Uuid::now_v7().to_string();
     emit(journal.clone(), &execution, 1);

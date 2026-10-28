@@ -308,7 +308,7 @@ async fn report_save_receipt() {
     assert_eq!(unchanged.value, sealed_execution);
     assert_eq!(unchanged.position, receipt.position);
     drop(unchanged);
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
 }
 
 #[tokio::test]

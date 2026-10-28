@@ -66,8 +66,9 @@ async fn checkpoint_for(
 async fn deletion_validates_unsupported() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::reporting(|cycle| support::fixture_provider_outcome(cycle, false)));
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
     let mut owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.history", "History")),
+        prepared_owner.configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.history", "History"))),
         "fixture",
         gate.clone(),
     )
@@ -86,7 +87,7 @@ async fn deletion_validates_unsupported() {
     handle.start_execution(execution_id, model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     gate.started.notified().await;
 
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let mut history = WireClient::connect(server.local_endpoint()).await.unwrap();
     let live = history
         .unary::<contracts::history::BrowseExecutions>(auth(BrowseExecutions { limit: 100, ..Default::default() }, TOKEN))
@@ -173,9 +174,10 @@ async fn empty_cycles_retain_history() {
 
     // Read An Empty Catalog
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = connect(&server).await;
     let all = CycleFilter {
         archive: Some(ArchiveScope::All),
@@ -284,9 +286,10 @@ async fn empty_cycles_retain_history() {
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = connect(&server).await;
     let saved = client.unary::<BrowseCycles>(BrowseCycles { limit: 100, ..request.clone() }).await.unwrap().into_inner();
     assert!(ids.iter().all(|id| saved.entries.iter().any(|entry| &entry.cycle_id == id)));

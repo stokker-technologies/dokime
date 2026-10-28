@@ -50,6 +50,9 @@ dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-fe
 dokime-server = { version = "0.1.0", path = "crates/dokime-server" }
 
 # Git
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "3078082d" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "3078082d" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "3078082d" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -64,10 +67,6 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-harmos = "=0.1.12"
-harmos-domain = "=0.1.12"
-harmos-packaging = "=0.1.12"
-harmos-sdk = "=0.1.12"
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }

@@ -25,4 +25,6 @@ Declare product contracts once in `dokime-domain`; implement handlers in `dokime
 
 Dokime admits native plugins: supervised processes over piped stdio. Embed a product runtime through its entry library by default; use a separately hosted runtime sidecar on the same machine only when process isolation is required. Requirements select operations by contract and shared visibility; ambiguous providers are refused.
 
+Applications launch through `harmos::Runtime::<A>::launch(origin, config)`. `Lifecycle::prepare(config, &mut Setup<Self>)` declares catalogs, lanes and resources before launch; `initialize` activates prepared resources against the live runtime. Mutable resources register as `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Server owners prepare their composition before launching Dokime and acquire the activated service afterward; listeners do not register handlers.
+
 Storage stays at development v1. Use a fresh storage root for incompatible schemas; never silently delete or reset existing data.

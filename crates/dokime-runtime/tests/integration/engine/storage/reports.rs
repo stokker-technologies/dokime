@@ -49,7 +49,32 @@ impl Application for Reader {
     type Transaction = Never;
     type Record = Never;
     type Streams = ();
-    type Resources = ();
+}
+
+#[derive(Default, serde::Deserialize)]
+struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<dokime_runtime::storage::Manager>,
+}
+
+impl harmos::Lifecycle for Reader {
+    type Config = StorageConfig;
+    type Error = harmos::Error;
+    type Context = harmos::Startup<Self>;
+
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> harmos::Result<Self> {
+        setup.settings().storage(config.storage.as_ref().expect("storage fixture is configured"));
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> harmos::Result<()> {
+        Ok(())
+    }
 }
 
 /* === Public Functions === */
@@ -68,7 +93,7 @@ async fn report_publication_reopens() {
         dokime_runtime::config::storage_state_defaults(),
     ));
     let storage = Manager::new(StorageBackends { primary, state: recovery }, super::sqlite::storage::storage_settings()).unwrap();
-    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+    let runtime = Runtime::<Reader>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
     let owner = TestCycleId::from_seed("report-owner");
     let other = TestCycleId::from_seed("another-owner");
     let evidence = storage.cursor_saved();
@@ -118,7 +143,7 @@ async fn report_publication_reopens() {
     assert_eq!(publication.finish().await.unwrap(), receipt);
     assert_eq!(storage.status().accepted, receipt);
     drop(publication);
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
 
     let primary = Arc::new(Backend::primary(root.path().to_path_buf()).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
@@ -127,7 +152,7 @@ async fn report_publication_reopens() {
         dokime_runtime::config::storage_state_defaults(),
     ));
     let storage = Manager::new(StorageBackends { primary, state: recovery }, super::sqlite::storage::storage_settings()).unwrap();
-    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+    let runtime = Runtime::<Reader>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
     let published = |owner, report_id| {
         let storage = storage.clone();
         async move {
@@ -160,5 +185,5 @@ async fn report_publication_reopens() {
         assert_eq!(publication.cycle().unwrap().restore().unwrap(), cycle);
     }
     assert!(published(reports::Owner::Cycle(&other), None).await.iter().all(|batch| batch.is_empty()));
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
 }

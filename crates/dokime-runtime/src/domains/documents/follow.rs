@@ -237,7 +237,7 @@ impl RuntimeHandle {
                         id: name.clone(),
                         policy: harmos::services::POLICY,
                     },
-                    move |_: Arc<()>| NativeCapture {
+                    move |_: Arc<harmos::ExecutionContext>| NativeCapture {
                         poll_interval,
                         source: source.clone(),
                         storage: Arc::clone(&storage),

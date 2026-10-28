@@ -27,7 +27,6 @@ use crate::{Testbench, Transactions, error::LaunchError};
 /* === Type Aliases === */
 
 pub type Origin = dokime::harmos::state::Origin<Testbench>;
-pub type Builder = dokime::harmos::Builder<ChargerBench>;
 pub type Runtime = dokime::harmos::Runtime<ChargerBench>;
 pub type Handle = dokime::harmos::runtime::Handle<ChargerBench>;
 pub type State = dokime::harmos::state::ManagedState<ChargerBench>;
@@ -56,19 +55,33 @@ impl dokime::harmos::Application for ChargerBench {
     type Transaction = Transactions;
     type Record = ();
     type Streams = ();
-    type Resources = ();
+}
+
+impl dokime::harmos::Lifecycle for ChargerBench {
+    type Config = ();
+    type Error = std::io::Error;
+    type Context = dokime::harmos::Startup<Self>;
+    async fn prepare(_: (), setup: &mut dokime::harmos::Setup<Self>) -> Result<Self, Self::Error> {
+        setup.settings().register(Transactions::catalog());
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 /* === Public Functions === */
 
-pub fn builder(origin: impl Into<Origin>, resources: ()) -> Builder {
-    Runtime::builder(origin, resources).register(Transactions::catalog())
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 #[tracing::instrument(level = "debug", skip_all)]
 pub async fn launch(origin: impl Into<Origin>) -> Result<Runtime, LaunchError> {
-    Ok(builder(origin, ()).runtime().await?)
+    Ok(Runtime::launch(origin, ()).await?)
 }
 
 /* === Private Functions === */

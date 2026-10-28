@@ -45,7 +45,8 @@ use dokime::{CriterionId, StepId};
 async fn step_pages_selections() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].phases = (0..103)
         .map(|index| ExecutionPhaseDefinition {
@@ -62,7 +63,7 @@ async fn step_pages_selections() {
         })
         .collect();
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
     client.start_first(authenticated(run(&id))).await.unwrap();

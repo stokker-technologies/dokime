@@ -23,7 +23,7 @@ use crate::support;
 use crate::support::wire::*;
 use dokime::client::contracts;
 use dokime::domain::model;
-use dokime_server::grpc::{Config, Server};
+use dokime_server::grpc::Config;
 
 /* === Constants === */
 
@@ -64,8 +64,9 @@ async fn crashed_run_replay() {
     if let Some(root) = std::env::var_os(CRASH_ROOT) {
         let root = std::path::PathBuf::from(root);
         let gate = Arc::new(Gate::default());
-        let owner = fixture(&root, gate.clone()).await;
-        let server = Server::start(owner.handle(), config()).await.unwrap();
+        let prepared_owner = dokime_server::grpc::Service::prepare(config()).unwrap();
+        let owner = fixture(&root, gate.clone(), &prepared_owner).await;
+        let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
         let client = WireClient::connect(server.local_endpoint()).await.unwrap();
         let cycle = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
         let executions = client
@@ -125,8 +126,9 @@ async fn crashed_run_replay() {
     .unwrap();
     child.0.kill().unwrap();
     child.0.wait().unwrap();
-    let mut owner = runtime(root.path()).await;
-    let server = Server::start(owner.handle(), config()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let command = model::identity::CommandId::from_uuid(request_id.clone()).unwrap();
     let receipt = owner.handle().run_request(&command).await.unwrap().unwrap();

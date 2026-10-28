@@ -34,7 +34,7 @@ pub(crate) mod dokime {
 use std::sync::Arc;
 
 // Third Party Imports
-use sdk::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use sdk::harmos::operations::{OperationPolicy, RetryPolicy};
 use sdk::harmos::plugin::{Attachment, Declared};
 use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
@@ -50,7 +50,7 @@ const POLICY: OperationPolicy = OperationPolicy {
 /* === Macros === */
 
 /* === Type Aliases === */
-type Observing = ObserverAttachment<Resources, Publisher<Renamed>>;
+type Observing = ObserverAttachment<Publisher<Renamed>>;
 
 /* === Structs === */
 struct Renamed {
@@ -114,7 +114,7 @@ struct GetSpareEcho {
 }
 
 /* === Enums === */
-#[sdk::catalog]
+#[sdk::harmos::catalog(harmos_path = sdk::harmos)]
 enum Implemented {
     GetEcho(GetEcho),
     GetStatus(GetStatus),
@@ -181,7 +181,7 @@ impl sdk::Operation for GetSpareEcho {
 
 #[sdk::observer(interval_ms = 10, streams(ObservationStream), activation = "demand")]
 impl Observations {
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Resources, Publisher<Renamed>>) -> Result<(), PublishError> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<Renamed>>) -> Result<(), PublishError> {
         let text = self::dokime::reply(self::dokime::Payload { text: "one".to_owned() });
 
         ctx.publish_on::<ObservationStream>(&Row { value: text.text.len() as i64 }).await
@@ -195,7 +195,6 @@ impl sdk::harmos::builtins::lifecycle::Policy for Renamed {
 
 #[sdk::plugin(
     id = "renamed",
-    provides = Operations,
     requires(),
     contributions(
         sdk::Records<Records, ()>,
@@ -206,40 +205,33 @@ impl sdk::harmos::builtins::lifecycle::Policy for Renamed {
     restart = "never",
 )]
 impl sdk::Plugin for Renamed {
+    const CATALOGS: &'static [sdk::harmos::Catalog] = &[Implemented::CATALOG];
+    fn attachment(&self) -> Option<Arc<dyn Attachment<sdk::Supervisor>>> {
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<sdk::Supervisor>>)
+    }
+}
+
+impl sdk::harmos::Lifecycle for Renamed {
     type Config = sdk::plugin::Configuration;
     type Error = sdk::Refusal;
     type Context = sdk::Supervisor;
-    type Resources = Resources;
+    async fn prepare(config: sdk::plugin::Configuration, setup: &mut sdk::harmos::Setup<Self>) -> Result<Self, sdk::Refusal> {
+        let mut owner = {
+            let settings = sdk::plugin::refusal(config.settings::<RenamedSettings>())?;
+            let _ = settings.chamber.port;
 
-    fn prepare(config: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
-        let settings = sdk::plugin::refusal(config.settings::<RenamedSettings>())?;
-        let _ = settings.chamber.port;
-
-        Ok(Self {
-            resources: Arc::new(Resources),
-            observers: None,
-        })
+            Self {
+                resources: Arc::new(Resources),
+                observers: None,
+            }
+        };
+        setup.resource::<Resources>(owner.resources());
+        owner.observers = Some(ObserverAttachment::from_catalog::<Observers>(<Self as Declared>::STREAMS)?);
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<Observers>(self.resources(), <Self as Declared>::STREAMS)?);
-
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<Resources> {
-        Arc::clone(&self.resources)
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        let mut dependencies = sdk::harmos::Dependencies::new();
-        dependencies.insert(self.resources()).map_err(|_| ServingError::Catalog)?;
-        table.register(Implemented::registration(dependencies))?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
-    }
-
-    fn attachment(&self) -> Option<Arc<dyn Attachment<sdk::Supervisor>>> {
-        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<sdk::Supervisor>>)
     }
 
     async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
@@ -250,6 +242,12 @@ impl sdk::Plugin for Renamed {
         self.observers.take();
 
         Ok(())
+    }
+}
+
+impl Renamed {
+    fn resources(&self) -> Arc<Resources> {
+        Arc::clone(&self.resources)
     }
 }
 

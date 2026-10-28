@@ -20,7 +20,6 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime_runtime::harmos::operations::{ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
 // Local Imports
 use dokime_runtime::execution::{Caller, CleanupContext, InitializationContext, Run, StepContext, Workflow};
@@ -133,7 +132,7 @@ enum Error {
     Sdk(#[from] dokime_runtime::Error),
 }
 
-#[dokime_runtime::catalog]
+#[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
 enum Operations {
     GetDevice(GetDevice),
     StartRun(StartRun),
@@ -263,38 +262,31 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Owner {
 
 #[dokime_runtime::plugin(
     id = "resource_owner",
-    provides = Operations,
     requires(),
     contributions(dokime_runtime::Suites<OwnerSuites>, dokime_runtime::Settings<OwnerSettings>),
     restart = "never", description = "Typed resource lifecycle.")]
 impl dokime_runtime::Plugin for Owner {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[Operations::CATALOG];
+}
+
+impl dokime_runtime::harmos::Lifecycle for Owner {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = Device;
-
-    fn prepare(config: Configuration) -> Result<Self, Refusal> {
-        let settings = dokime_runtime::plugin::refusal(config.settings::<OwnerSettings>())?;
-        let device = Device::open(&settings.double.token);
-        device.observations.record("plugin initialized");
-        Ok(Self { device })
+    async fn prepare(config: Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let owner = {
+            let settings = dokime_runtime::plugin::refusal(config.settings::<OwnerSettings>())?;
+            let device = Device::open(&settings.double.token);
+            device.observations.record("plugin initialized");
+            Self { device }
+        };
+        setup.resource::<Device>(owner.resources());
+        dokime_runtime::execution::prepare::<Self, OwnerSuites>(setup)?;
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<Device> {
-        Arc::clone(&self.device)
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Operations::registration({
-            let mut dependencies = dokime_runtime::harmos::Dependencies::new();
-            dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
-            dependencies
-        }))?;
-        dokime_runtime::execution::serve::<Self, OwnerSuites>(table)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -304,6 +296,12 @@ impl dokime_runtime::Plugin for Owner {
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.device.observations.record("plugin finalized");
         Ok(())
+    }
+}
+
+impl Owner {
+    fn resources(&self) -> Arc<Device> {
+        Arc::clone(&self.device)
     }
 }
 
@@ -385,30 +383,23 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for CatalogOnly {
 
 #[dokime_runtime::plugin(
     id = "catalog_only",
-    provides = (),
     requires(),
     contributions(dokime_runtime::Suites<OwnerSuites>),
     restart = "never", description = "Static resource catalog.")]
 impl dokime_runtime::Plugin for CatalogOnly {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
+}
+
+impl dokime_runtime::harmos::Lifecycle for CatalogOnly {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = ();
-
-    fn prepare(_: Configuration) -> Result<Self, Refusal> {
+    async fn prepare(_: Configuration, _: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
         panic!("catalog export must not prepare a plugin")
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         panic!("catalog export must not initialize a plugin")
-    }
-
-    fn resources(&self) -> Arc<()> {
-        Arc::new(())
-    }
-
-    fn bind_operations(&self, _: &mut WireTable) -> Result<(), ServingError> {
-        Ok(())
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {

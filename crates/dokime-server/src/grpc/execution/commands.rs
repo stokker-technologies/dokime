@@ -17,12 +17,13 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tonic::Status;
 
 // Local Imports
 use super::loan;
 use crate::grpc::value::canonical;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::StepId;
@@ -30,7 +31,7 @@ use dokime::domain::model::identity::TestExecutionId;
 use dokime::domains::execution::requests::{Receipt, StepCommand, StepCommandPhase, StepCommandReceipt};
 use dokime::operations::execution as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
-use dokime::{RuntimeHandle, runtime::Error};
+use dokime::runtime::Error;
 
 /* === Constants === */
 
@@ -41,6 +42,12 @@ use dokime::{RuntimeHandle, runtime::Error};
 /* === Structs === */
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::SubmitExecutionCommand),
+    Operation1(wire::GetExecutionCommand),
+}
 
 /* === Traits === */
 
@@ -64,18 +71,18 @@ impl Serve<wire::GetExecutionCommand> for super::Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(super::Resources {
         runtime: runtime.clone(),
         max_message_bytes,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::SubmitExecutionCommand>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetExecutionCommand>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::SubmitExecutionCommand>()
-        .operation::<wire::GetExecutionCommand>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::SubmitExecutionCommand>>(Host::<wire::SubmitExecutionCommand>::new(served.clone()));
+    setup.resource::<Host<wire::GetExecutionCommand>>(Host::<wire::GetExecutionCommand>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 
@@ -84,7 +91,7 @@ pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) 
 async fn submit(
     resources: &super::Resources, request: &wire::SubmitExecutionCommand,
 ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
-    let runtime = &resources.runtime;
+    let runtime = &dokime::app::live_runtime(&resources.runtime).await?;
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
     let execution_id =
@@ -103,7 +110,7 @@ async fn submit(
 async fn get(
     resources: &super::Resources, request: &wire::GetExecutionCommand,
 ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
-    let runtime = &resources.runtime;
+    let runtime = &dokime::app::live_runtime(&resources.runtime).await?;
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
     let receipt = receipt(runtime, &request_id).await?;
@@ -111,7 +118,7 @@ async fn get(
     charged_project(resources, &request_id, command)
 }
 
-async fn receipt(runtime: &RuntimeHandle, request_id: &CommandId) -> Result<Receipt, Status> {
+async fn receipt(runtime: &dokime::RuntimeHandle, request_id: &CommandId) -> Result<Receipt, Status> {
     let receipt = runtime
         .run_request(request_id)
         .await

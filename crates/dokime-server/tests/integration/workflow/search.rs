@@ -79,9 +79,10 @@ async fn walk(
 #[tokio::test]
 async fn cycle_search_once() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture(root.path(), Arc::new(Gate::default()), &prepared_owner).await;
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     for (identifier, label, description) in [
         ("grpc.burn-c", "Burn In Gamma", None),
@@ -223,9 +224,10 @@ async fn cycle_search_once() {
 #[tokio::test]
 async fn listed_cases_page() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture(root.path(), Arc::new(Gate::default()), &prepared_owner).await;
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
     let page = client

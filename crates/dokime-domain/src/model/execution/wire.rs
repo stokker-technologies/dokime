@@ -44,7 +44,7 @@ use crate::model::values::wire::Value;
 
 // Correlation Is A Caller Label, Never Authenticated Identity. StartExecution
 // Resolves Durable Attempt Identity; SealCycle Is Intrinsically Idempotent.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MutationContext {
@@ -52,7 +52,7 @@ pub struct MutationContext {
 }
 
 // Creates An Empty Active Cycle. Explicit Attempts Join Through AppendExecutions.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateCycleReply {
     pub cycle_id: String,
@@ -60,7 +60,7 @@ pub struct CreateCycleReply {
 }
 
 // Ordered Identities From This Append, Independent Of Concurrent Appends.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppendCasesReply {
     pub observed_cursor: Option<Cursor>,
@@ -74,7 +74,7 @@ pub struct AppendCasesReply {
 // disjunctive within themselves and conjunctive with the other fields, and an
 // empty repeated field is no constraint. The timestamp range is inclusive and
 // compares `created_at`.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CycleFilter {
     pub text: String,
@@ -87,14 +87,14 @@ pub struct CycleFilter {
     pub archive: Option<ArchiveScope>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CycleOrder {
     pub key: CycleOrderKey,
     pub descending: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListCyclesReply {
     pub cycles: Vec<CycleSummary>,
@@ -102,13 +102,13 @@ pub struct ListCyclesReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArchiveReply {
     pub archived: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenameReply {
     // The label as stored, trimmed.
@@ -118,7 +118,7 @@ pub struct RenameReply {
 
 // Completion references the actual callback attempt; Finish completes only
 // after cleanup and evaluation. Interrupted commands are never replayed.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionCommandReceipt {
     pub request_id: String,
@@ -134,13 +134,13 @@ pub struct ExecutionCommandReceipt {
 }
 
 // Observation position, not an exact command commit/checkpoint receipt.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ControlReply {
     pub observed_cursor: Option<Cursor>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RunReply {
     pub outcome: Option<RunReplyOutcome>,
@@ -148,7 +148,7 @@ pub struct RunReply {
 
 // Admission Or Resolution Of The Original Execution Start. A Resolved Job ID
 // After Restart Does Not Imply A Live Job. Inspect Execution State For Completion.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Admission {
     pub command_id: String,
@@ -161,7 +161,7 @@ pub struct Admission {
 // type.googleapis.com/dokime.v1.Rejection. An error may follow
 // a committed control transition (e.g. checkpoint failure); it does not promise
 // rollback or make a retry safe.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Rejection {
     pub code: String,
@@ -169,7 +169,7 @@ pub struct Rejection {
     pub issues: Vec<ValidationIssue>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValidationIssue {
     pub path: String,
@@ -177,7 +177,7 @@ pub struct ValidationIssue {
     pub expected: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CycleSummary {
     pub cycle_id: String,
@@ -209,7 +209,7 @@ pub struct CycleSummary {
     pub queued_count: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListCasesReply {
     pub cases: Vec<CaseSummary>,
@@ -217,7 +217,7 @@ pub struct ListCasesReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListExecutionsReply {
     pub executions: Vec<ExecutionSummary>,
@@ -238,7 +238,7 @@ pub struct ListExecutionsReply {
 // so its rows carry CASE_STATUS_UNSPECIFIED and a zero attempt count; the
 // checkpoint's own execution and `HistoricalCycleContext.execution_order` are
 // where that cycle's attempts live.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaseSummary {
     pub case_id: String,
@@ -258,14 +258,14 @@ pub struct CaseSummary {
 // text, deduplicated; it is diagnostic copy, not a stable code vocabulary.
 // Eligibility is observed, never a promise: admission is re-checked on the
 // mutation itself and a concurrent change can still reject it.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaseActions {
     pub delete: bool,
     pub unavailable_reasons: Vec<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionSummary {
     pub execution_id: String,
@@ -279,7 +279,7 @@ pub struct ExecutionSummary {
     pub sealed: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaseDetail {
     pub summary: Option<CaseSummary>,
@@ -289,7 +289,7 @@ pub struct CaseDetail {
     pub observed_cursor: Option<Cursor>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionDetail {
     pub summary: Option<ExecutionSummary>,
@@ -312,7 +312,7 @@ pub struct ExecutionDetail {
 
 // Snapshot Eligibility Reuses Mutation Checks. An Unstarted Attempt Can Stop
 // Without An Owning Request; Interactive Commands Require Its Started Identity.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionControls {
     pub request_id: Option<String>,
@@ -324,7 +324,7 @@ pub struct ExecutionControls {
     pub mode: ExecutionMode,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionPluginIdentity {
     pub source: String,
@@ -332,14 +332,14 @@ pub struct ExecutionPluginIdentity {
     pub implementation: Option<ExecutionPluginIdentityImplementation>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionInvalidation {
     pub previous: Option<ExecutionPluginIdentity>,
     pub current: Option<ExecutionPluginIdentity>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ResultSummary {
     pub status: ResultStatus,
@@ -352,28 +352,28 @@ pub struct ResultSummary {
 // A continuation belongs to exactly one parameter selection at one runtime
 // revision. Names use ascending UTF-8 order. A changed revision requires a fresh
 // first page; changing selection is rejected even if its after-name exists.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlannedCaseParameters {
     pub cycle_id: String,
     pub case_id: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterCursor {
     pub observed: Option<Cursor>,
     pub selection: Option<ParameterCursorSelection>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaseParameter {
     pub name: String,
     pub value: Option<Value>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListCaseParametersReply {
     pub parameters: Vec<CaseParameter>,
@@ -381,7 +381,7 @@ pub struct ListCaseParametersReply {
     pub cursor: Option<ParameterCursor>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListMaterializedParametersReply {
     pub parameters: Vec<MaterializedParameter>,
@@ -389,7 +389,7 @@ pub struct ListMaterializedParametersReply {
     pub cursor: Option<ParameterCursor>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MaterializedParameter {
     pub name: String,
@@ -406,7 +406,7 @@ pub struct MaterializedParameter {
 // Any state change aborts continuation; restart with no cursor. Limits: default
 // 50, maximum 500. A value exceeding the documented Value budget is an explicit
 // ResourceExhausted error, never truncated evidence.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StepPageCursor {
     pub revision: Option<Cursor>,
@@ -416,7 +416,7 @@ pub struct StepPageCursor {
     pub next_ordinal: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListExecutionStepsReply {
     pub steps: Vec<ExecutionStep>,
@@ -424,7 +424,7 @@ pub struct ListExecutionStepsReply {
     pub observed_cursor: Option<Cursor>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionStep {
     pub step_id: String,
@@ -453,7 +453,7 @@ pub struct ExecutionStep {
     pub criteria: Vec<StepCriterion>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StepMeasurement {
     pub metadata: Option<Metadata>,
@@ -462,7 +462,7 @@ pub struct StepMeasurement {
     pub ordinal: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StepCriterion {
     pub criterion_id: String,
@@ -478,7 +478,7 @@ pub struct StepCriterion {
 // The requested order key. Ordering is always total: the key, then the cycle ID
 // ascending, so equal keys never permute between pages. An unspecified key is
 // UPDATED_AT. LABEL compares the case-folded label.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CycleOrderKey {
     Unspecified,
@@ -487,14 +487,14 @@ pub enum CycleOrderKey {
     Label,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionMode {
     Automatic,
     Interactive,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionCommandAction {
     Unspecified,
@@ -503,7 +503,7 @@ pub enum ExecutionCommandAction {
     Finish,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionCommandPhase {
     Unspecified,
@@ -516,7 +516,7 @@ pub enum ExecutionCommandPhase {
     Interrupted,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CycleStatus {
     Unspecified,
@@ -531,7 +531,7 @@ pub enum CycleStatus {
 }
 
 // Which rows a list admits by their archive mark.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArchiveScope {
     Unarchived,
@@ -541,7 +541,7 @@ pub enum ArchiveScope {
 
 // A case's state, derived from its latest attempt. This is a projection of the
 // live attempt vector, not a stored field, so it changes with the attempts.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CaseStatus {
     Unspecified,
@@ -557,7 +557,7 @@ pub enum CaseStatus {
     Interrupted,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionStatus {
     Unspecified,
@@ -572,7 +572,7 @@ pub enum ExecutionStatus {
     Skipped,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResultStatus {
     Unspecified,
@@ -585,7 +585,7 @@ pub enum ResultStatus {
 
 // Input parameters are frozen at admission. Outputs are separate evidence and
 // overlay inputs by key for presentation; they never rewrite the input snapshot.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionParameterSet {
     Unspecified,
@@ -593,7 +593,7 @@ pub enum ExecutionParameterSet {
     Outputs,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParameterSource {
     Unspecified,
@@ -608,7 +608,7 @@ pub enum ParameterSource {
     Output,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepPageKind {
     Unspecified,
@@ -616,7 +616,7 @@ pub enum StepPageKind {
     Measurements,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepStatus {
     Unspecified,
@@ -630,7 +630,7 @@ pub enum StepStatus {
 
 // Indeterminate means no conclusive verdict is available, including unreported
 // or unevaluated criteria. This status alone does not prove evaluation ran.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CriterionStatus {
     Unspecified,
@@ -641,21 +641,21 @@ pub enum CriterionStatus {
     Skipped,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum RunReplyOutcome {
     Accepted(Admission),
     Rejected(Rejection),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExecutionPluginIdentityImplementation {
     ContentDigest(String),
     Generation(String),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ParameterCursorSelection {
     ExecutionInputsId(String),

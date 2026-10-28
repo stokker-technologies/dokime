@@ -64,7 +64,8 @@ fn continuation(
 #[tokio::test]
 async fn telemetry_pages_window() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
@@ -83,7 +84,7 @@ async fn telemetry_pages_window() {
         .collect();
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
 
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let stream = dokime::domains::telemetry::telemetry_stream_id(None, &id);
     let base = contracts::telemetry::ListSamples {

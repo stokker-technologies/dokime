@@ -242,7 +242,7 @@ extern crate self as dokime_runtime;
 
 /* === Constants === */
 
-pub const MACRO_CONTRACT: u32 = 27;
+pub const MACRO_CONTRACT: u32 = 28;
 
 /* === Macros === */
 

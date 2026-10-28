@@ -59,8 +59,9 @@ async fn start_bounded(root: &std::path::Path, maximum: usize) -> (Runtime, Serv
 }
 
 async fn start_config(config: RuntimeConfig, maximum: usize) -> (Runtime, Server, WireClient) {
-    let owner = Runtime::start(config).await.unwrap();
-    let server = Server::start(owner.handle(), Config::default().with_max_message_bytes(maximum)).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default().with_max_message_bytes(maximum)).unwrap();
+    let owner = Runtime::start(prepared_owner.configuration(config)).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     (owner, server, client)
 }

@@ -108,12 +108,14 @@ impl Gated {
     async fn bounded(max_message_bytes: Option<usize>) -> Self {
         let root = tempfile::tempdir().unwrap();
         let gate = Arc::new(Gate::default());
-        let owner = fixture(root.path(), gate.clone()).await;
         let mut config = keyed();
         if let Some(bytes) = max_message_bytes {
             config = config.with_max_message_bytes(bytes);
         }
-        let service = dokime_server::grpc::Service::new(owner.handle(), config).await.unwrap();
+        let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+        let owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+
+        let service = prepared_owner.ready().await.unwrap();
         let server = service.listen().await.unwrap();
         let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
         let cycle = support::planned_cycle(&execution, authenticated(create()), selection_plan(&owner)).await.unwrap();
@@ -137,8 +139,9 @@ impl Gated {
 async fn registered_create_definitions() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let connection = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let catalog = WireClient::new(connection.clone());
     let execution = WireClient::new(connection.clone());
@@ -285,8 +288,9 @@ async fn registered_create_definitions() {
 async fn stopping_running_unwind() {
     let root = tempfile::tempdir().unwrap();
     let blocker = Arc::new(BlockingStop::default());
-    let mut owner = fixture_with_provider(root.path(), blocker.clone()).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture_with_provider(root.path(), blocker.clone(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&execution, authenticated(create()), selection_plan(&owner)).await.unwrap();
     let reply = execution.start_first(authenticated(run(&cycle_id))).await.unwrap().into_inner();
@@ -352,8 +356,9 @@ async fn stopping_running_unwind() {
 #[tokio::test]
 async fn runtime_shell_cursor() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture(root.path(), Arc::new(Gate::default()), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let connection = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(connection.clone());
     let observation = WireClient::new(connection);
@@ -438,9 +443,10 @@ async fn runtime_shell_cursor() {
 #[tokio::test]
 async fn checkpoint_telemetry_queries() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture_with_provider(root.path(), Arc::new(Progress)).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture_with_provider(root.path(), Arc::new(Progress), &prepared_owner).await;
     support::register_fixture_progress_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let connection = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(connection.clone());
     let history = WireClient::new(connection);
@@ -507,8 +513,9 @@ async fn checkpoint_telemetry_queries() {
 async fn historical_checkpoint_content() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), Config::default().with_max_message_bytes(4 * 1024 * 1024)).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default().with_max_message_bytes(4 * 1024 * 1024)).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let connection = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(connection.clone());
     let history = WireClient::new(connection.clone());
@@ -715,10 +722,14 @@ async fn historical_checkpoint_content() {
     owner.shutdown().await.unwrap();
 
     // Restart Loads Captured Definitions And Sealed Bytes Without Installed Plugins.
-    let mut rebooted =
-        Runtime::start(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.fixture", "Fixture"))).await.unwrap();
+    let prepared_rebooted = dokime_server::grpc::Service::prepare(Config::default().with_max_message_bytes(4 * 1024 * 1024)).unwrap();
+    let mut rebooted = Runtime::start(
+        prepared_rebooted.configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.fixture", "Fixture"))),
+    )
+    .await
+    .unwrap();
     assert!(rebooted.handle().watch_state().latest().state().cycles.is_empty());
-    let rebooted_server = Server::start(rebooted.handle(), Config::default().with_max_message_bytes(4 * 1024 * 1024)).await.unwrap();
+    let rebooted_server = prepared_rebooted.ready().await.unwrap().listen().await.unwrap();
     let rebooted_history = WireClient::connect(rebooted_server.local_endpoint()).await.unwrap();
     let restored = rebooted_history
         .unary::<contracts::history::GetCheckpointDocument>(authenticated(contracts::history::GetCheckpointDocument {
@@ -759,8 +770,9 @@ async fn historical_checkpoint_content() {
 #[tokio::test]
 async fn invalid_admission_values() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture(root.path(), Arc::new(Gate::default()), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut blank = create();
     blank.metadata.as_mut().unwrap().label = "  ".into();
@@ -852,8 +864,9 @@ async fn invalid_admission_values() {
 async fn stalled_stream_execution() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
-    let service = dokime_server::grpc::Service::new(owner.handle(), Config::default()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+    let service = prepared_owner.ready().await.unwrap();
     let server = service.listen().await.unwrap();
     let address = server.address();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
@@ -903,14 +916,15 @@ async fn stalled_stream_execution() {
 #[tokio::test]
 async fn run_cycle_targets() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture_with_provider(root.path(), Arc::new(Progress)).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = fixture_with_provider(root.path(), Arc::new(Progress), &prepared_owner).await;
     support::register_fixture_execution_pair(
         &owner.handle(),
         support::fixture_suite(&["passed"]),
         support::fixture_diagnostics_suite(&["passed"]),
     )
     .await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let connection = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(connection);
     let mut definition = create();

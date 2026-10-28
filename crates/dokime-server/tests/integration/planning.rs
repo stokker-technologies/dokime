@@ -106,7 +106,8 @@ fn error_code(status: &tonic::Status) -> String {
 #[tokio::test]
 async fn ordered_selections_provider() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let mut first = support::fixture_suite(&["passed"]);
     first.tags = vec!["suite-tag".into()];
     let parameter = &mut first.test_case_templates[0].parameters[0];
@@ -142,7 +143,7 @@ async fn ordered_selections_provider() {
         )
         .await
         .unwrap();
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut selected = selection(&first);
     selected.parameters.push(model::planning::wire::RegisteredSelectionParametersEntry {
@@ -231,7 +232,8 @@ async fn ordered_selections_provider() {
 #[tokio::test]
 async fn planning_refuses_inputs() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let mut first = support::fixture_suite(&["passed"]);
     first.test_case_templates[0].files.push(FileDefinition {
         metadata: support::metadata("fixture.file", "Required"),
@@ -246,7 +248,7 @@ async fn planning_refuses_inputs() {
     let mut other = support::fixture_registration(second.clone());
     other.workflow = Some("another_workflow".into());
     owner.handle().set_suites("provider:fixture", SuiteSet::new([support::fixture_registration(first.clone()), other])).await.unwrap();
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mixed = plan(vec![selection(&first), selection(&second)]);
     let failure = planning
@@ -319,9 +321,10 @@ async fn planning_refuses_inputs() {
     server.shutdown().await.unwrap();
     // Authentication Is A Construction Setting Of The Runtime Service.
     owner.shutdown().await.unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     owner.handle().set_suites("provider:fixture", SuiteSet::new([support::fixture_registration(first.clone())])).await.unwrap();
-    let remote = Server::start(owner.handle(), keyed()).await.unwrap();
+    let remote = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let planning = WireClient::connect(remote.local_endpoint()).await.unwrap();
     planning
         .unary::<contracts::planning::PreviewSelection>(authenticated(contracts::planning::PreviewSelection {
@@ -348,7 +351,8 @@ async fn planning_refuses_inputs() {
 #[tokio::test]
 async fn template_conflicts_disambiguate() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let first = support::fixture_suite(&["passed"]);
     let mut second = support::fixture_suite(&["passed"]);
     second.metadata = support::metadata("fixture.second", "Second");
@@ -361,7 +365,7 @@ async fn template_conflicts_disambiguate() {
         )
         .await
         .unwrap();
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let failure = planning
         .unary::<contracts::planning::PreviewSelection>(contracts::planning::PreviewSelection {
@@ -392,11 +396,12 @@ async fn template_conflicts_disambiguate() {
 #[tokio::test]
 async fn effective_native_materialization() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].parameters[0].expansion = dokime::definition::ParameterExpansion::Cartesian;
     suite.test_case_templates[0].parameters[0].value_type = dokime::ValueType::Integer;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let target = empty_cycle(&execution).await;
@@ -458,7 +463,8 @@ async fn effective_native_materialization() {
 #[tokio::test]
 async fn payload_budget_allocation() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let template = &mut suite.test_case_templates[0];
     template.parameters[0].expansion = dokime::definition::ParameterExpansion::Cartesian;
@@ -474,7 +480,7 @@ async fn payload_budget_allocation() {
         });
     }
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let target = empty_cycle(&execution).await;
@@ -545,10 +551,11 @@ async fn payload_budget_allocation() {
 #[tokio::test]
 async fn materialization_rejects_nonfinite_parameters_before_registration() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let handle = owner.handle();
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     for value_type in [
         dokime::ValueType::Number,
@@ -611,10 +618,11 @@ async fn materialization_rejects_nonfinite_parameters_before_registration() {
 #[tokio::test]
 async fn registered_cases_selection() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let suite = support::fixture_suite(&["passed"]);
     owner.handle().set_suites("provider:fixture", SuiteSet::new([support::fixture_registration(suite.clone())])).await.unwrap();
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let request = contracts::planning::RegisterSelection {
         plan: Some(plan(vec![selection(&suite)])),

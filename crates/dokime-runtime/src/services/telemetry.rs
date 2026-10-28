@@ -523,7 +523,7 @@ impl Sampling {
                             id: service_name.clone(),
                             policy: harmos::services::POLICY,
                         },
-                        move |_: Arc<()>| Producer {
+                        move |_: Arc<harmos::ExecutionContext>| Producer {
                             producer_key: key.clone(),
                             sampling: sampling.clone(),
                             runtime: owner.clone(),

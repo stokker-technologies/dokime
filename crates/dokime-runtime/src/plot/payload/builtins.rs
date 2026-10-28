@@ -270,16 +270,17 @@ pub(crate) fn evaluate_report(operation: &str, request: crate::analysis::Request
     }
 }
 
-pub(crate) async fn register(operations: &crate::app::OperationManager) -> harmos::Result<()> {
-    use harmos::RegistrationExt;
-    let batch = harmos::RegistrationBatch::new(harmos::Dependencies::new())
-        .operation::<Operation<Mean>>()
-        .operation::<Operation<Lttb>>()
-        .operation::<Operation<Extrema>>();
-    #[cfg(feature = "fft")]
-    let batch = batch.operation::<Operation<Fft>>();
-    operations.register(batch.lane(crate::app::Lanes::Open)).await
+pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>) {
+    setup.operations::<Operations>(crate::app::Lanes::Open);
+    prepare_fourier(setup);
 }
+
+#[cfg(feature = "fft")]
+fn prepare_fourier(setup: &mut harmos::Setup<crate::app::Dokime>) {
+    setup.operations::<FourierOperations>(crate::app::Lanes::Open);
+}
+#[cfg(not(feature = "fft"))]
+fn prepare_fourier(_: &mut harmos::Setup<crate::app::Dokime>) {}
 
 /* === Private Functions === */
 

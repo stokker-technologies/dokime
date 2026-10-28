@@ -22,7 +22,8 @@ version = { workspace = true }
 # === Features === #
 
 [features]
-default = []
+default = ["runtime"]
+runtime = []
 fault-injection = ["dokime/fault-injection"]
 # Host screenshot, camera and audio capture, enabled by the release server build;
 # see dokime-runtime for the system packages it links.

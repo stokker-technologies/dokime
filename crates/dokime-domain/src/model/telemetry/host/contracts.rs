@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos_domain::Message;
+use harmos::Message;
 
 // Local Imports
 use crate::model::identity::Identifier;
@@ -52,7 +52,7 @@ macro_rules! host_contracts {
         )*
     ) => {
         $(
-            #[harmos_domain::message]
+            #[harmos::message]
             #[derive(Clone, PartialEq)]
             struct $stream { $( $field: $ty, )* }
         )*
@@ -152,13 +152,13 @@ crate::host_streams!(host_contracts);
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct HostTimestamp {
     pub value: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct HostTextList {
     pub values: Vec<String>,

@@ -20,7 +20,7 @@ use sysinfo::{Pid, System as Machine};
 
 // Local Imports
 // Third-Party Imports
-use crate::{ObcPlugin, Resources};
+use crate::ObcPlugin;
 use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 
 /* === Constants === */
@@ -67,7 +67,7 @@ impl Default for System {
 
 #[dokime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
 impl System {
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Resources, Publisher<ObcPlugin>>) -> Result<(), PublishError> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<ObcPlugin>>) -> Result<(), PublishError> {
         self.machine.refresh_all();
         let system_cpu_percent = f64::from(self.machine.global_cpu_usage());
         let system_memory_used_bytes = integer(self.machine.used_memory());

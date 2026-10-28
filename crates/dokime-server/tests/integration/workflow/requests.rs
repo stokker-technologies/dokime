@@ -61,8 +61,9 @@ async fn receipt(handle: &dokime::RuntimeHandle, id: &str) -> impl std::ops::Der
 async fn command_receipts_survive_restart() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
     let execution_id = client
@@ -149,8 +150,9 @@ async fn command_receipts_survive_restart() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 
-    let mut rebooted = runtime(root.path()).await;
-    let server = Server::start(rebooted.handle(), keyed()).await.unwrap();
+    let prepared_rebooted = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut rebooted = runtime(root.path(), &prepared_rebooted).await;
+    let server = prepared_rebooted.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(client.unary::<contracts::execution::GetExecutionCommand>(authenticated(lookup)).await.unwrap().into_inner(), terminal);
     assert_eq!(client.unary::<contracts::execution::SubmitExecutionCommand>(authenticated(command)).await.unwrap().into_inner(), terminal);
@@ -162,8 +164,9 @@ async fn command_receipts_survive_restart() {
 async fn execution_admissions_restart() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
     let request = start(&owner, &cycle_id);
@@ -225,7 +228,8 @@ async fn execution_admissions_restart() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 
-    let mut rebooted = runtime(root.path()).await;
+    let prepared_rebooted = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut rebooted = runtime(root.path(), &prepared_rebooted).await;
     let handle = rebooted.handle();
     assert!(handle.watch_state().latest().state().cycles.is_empty(), "shutdown seals every old cycle");
     let other_id = dokime::domain::model::identity::TestCycleId::from_uuid(other_cycle).unwrap();
@@ -250,7 +254,7 @@ async fn execution_admissions_restart() {
     assert!(stored_execution.started_at.is_none());
     assert!(stored_execution.finished_at.is_some());
     assert!(stored_execution.saved.is_some());
-    let next = Server::start(rebooted.handle(), keyed()).await.unwrap();
+    let next = prepared_rebooted.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(next.local_endpoint()).await.unwrap();
     let repeated = receipt(&handle, &admission.command_id).await;
     assert_eq!(&*repeated, &*completed);
@@ -280,9 +284,10 @@ async fn execution_admissions_restart() {
 async fn pairing_revocation_preserves_execution_receipts() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate.clone()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = fixture(root.path(), gate.clone(), &prepared_owner).await;
     let handle = owner.handle();
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let native = WireClient::connect(server.local_endpoint()).await.unwrap();
     let settings = model::remote::RemoteListenerSettings {
         enabled: true,
@@ -373,8 +378,9 @@ async fn pairing_revocation_preserves_execution_receipts() {
 async fn invalid_execution_admission() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
-    let mut owner = fixture(root.path(), gate).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), gate, &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     for execution_id in ["".into(), " ".into(), "bad\nidentifier".into(), "x".repeat(257)] {
         let error = client

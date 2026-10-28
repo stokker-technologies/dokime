@@ -164,21 +164,21 @@ pub enum TemplateIdentifierRefusal {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for TestCaseTemplate {
+impl harmos::MemorySize for TestCaseTemplate {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.test_case_template_id), std::mem::size_of_val(&self.test_case_template_id)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.tags), std::mem::size_of_val(&self.tags)),
-            (harmos_domain::MemorySize::memory_size(&self.parameter_groups), std::mem::size_of_val(&self.parameter_groups)),
-            (harmos_domain::MemorySize::memory_size(&self.parameters), std::mem::size_of_val(&self.parameters)),
-            (harmos_domain::MemorySize::memory_size(&self.files), std::mem::size_of_val(&self.files)),
-            (harmos_domain::MemorySize::memory_size(&self.document), std::mem::size_of_val(&self.document)),
-            (harmos_domain::MemorySize::memory_size(&self.phases), std::mem::size_of_val(&self.phases)),
-            (harmos_domain::MemorySize::memory_size(&self.criteria), std::mem::size_of_val(&self.criteria)),
-            (harmos_domain::MemorySize::memory_size(&self.prompt_definitions), std::mem::size_of_val(&self.prompt_definitions)),
-            (harmos_domain::MemorySize::memory_size(&self.subscriptions), std::mem::size_of_val(&self.subscriptions)),
-            (harmos_domain::MemorySize::memory_size(&self.attributes), std::mem::size_of_val(&self.attributes)),
+            (harmos::MemorySize::memory_size(&self.test_case_template_id), std::mem::size_of_val(&self.test_case_template_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.tags), std::mem::size_of_val(&self.tags)),
+            (harmos::MemorySize::memory_size(&self.parameter_groups), std::mem::size_of_val(&self.parameter_groups)),
+            (harmos::MemorySize::memory_size(&self.parameters), std::mem::size_of_val(&self.parameters)),
+            (harmos::MemorySize::memory_size(&self.files), std::mem::size_of_val(&self.files)),
+            (harmos::MemorySize::memory_size(&self.document), std::mem::size_of_val(&self.document)),
+            (harmos::MemorySize::memory_size(&self.phases), std::mem::size_of_val(&self.phases)),
+            (harmos::MemorySize::memory_size(&self.criteria), std::mem::size_of_val(&self.criteria)),
+            (harmos::MemorySize::memory_size(&self.prompt_definitions), std::mem::size_of_val(&self.prompt_definitions)),
+            (harmos::MemorySize::memory_size(&self.subscriptions), std::mem::size_of_val(&self.subscriptions)),
+            (harmos::MemorySize::memory_size(&self.attributes), std::mem::size_of_val(&self.attributes)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -186,13 +186,13 @@ impl harmos_domain::MemorySize for TestCaseTemplate {
     }
 }
 
-impl harmos_domain::MemorySize for FileDefinition {
+impl harmos::MemorySize for FileDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
-            (harmos_domain::MemorySize::memory_size(&self.media_types), std::mem::size_of_val(&self.media_types)),
-            (harmos_domain::MemorySize::memory_size(&self.attributes), std::mem::size_of_val(&self.attributes)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
+            (harmos::MemorySize::memory_size(&self.media_types), std::mem::size_of_val(&self.media_types)),
+            (harmos::MemorySize::memory_size(&self.attributes), std::mem::size_of_val(&self.attributes)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -200,11 +200,11 @@ impl harmos_domain::MemorySize for FileDefinition {
     }
 }
 
-impl harmos_domain::MemorySize for ExecutionPhaseDefinition {
+impl harmos::MemorySize for ExecutionPhaseDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -212,12 +212,12 @@ impl harmos_domain::MemorySize for ExecutionPhaseDefinition {
     }
 }
 
-impl harmos_domain::MemorySize for CriterionDefinition {
+impl harmos::MemorySize for CriterionDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.criterion_id), std::mem::size_of_val(&self.criterion_id)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.expected), std::mem::size_of_val(&self.expected)),
+            (harmos::MemorySize::memory_size(&self.criterion_id), std::mem::size_of_val(&self.criterion_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.expected), std::mem::size_of_val(&self.expected)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -225,12 +225,12 @@ impl harmos_domain::MemorySize for CriterionDefinition {
     }
 }
 
-impl harmos_domain::MemorySize for Subscription {
+impl harmos::MemorySize for Subscription {
     fn memory_size(&self) -> usize {
         let identifier = match self {
             Self::Stream(identifier) | Self::Record(identifier) => identifier,
         };
-        let owned = harmos_domain::MemorySize::memory_size(identifier);
+        let owned = harmos::MemorySize::memory_size(identifier);
         if owned == usize::MAX {
             return usize::MAX;
         }
@@ -238,7 +238,7 @@ impl harmos_domain::MemorySize for Subscription {
     }
 }
 
-impl harmos_domain::MemorySize for TestCase {
+impl harmos::MemorySize for TestCase {
     fn memory_size(&self) -> usize {
         let fields = [
             (self.suite_id.memory_size(), std::mem::size_of_val(&self.suite_id)),

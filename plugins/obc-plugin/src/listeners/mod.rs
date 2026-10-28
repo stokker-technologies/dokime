@@ -33,7 +33,7 @@ pub(crate) use connection::Observed;
 
 /* === Enums === */
 
-#[dokime::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 pub enum Listeners {
     Observed(Observed),
 }

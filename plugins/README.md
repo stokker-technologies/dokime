@@ -4,17 +4,21 @@
 `runtime/` crate owns the simulated testbench. The demo is installed explicitly
 and uses the same native delivery conventions as other plugins.
 
-A plugin is a Harmos plugin: `impl dokime::Plugin` carries its configuration,
-error, resources and lifecycle (`prepare`, `initialize`, `bind_operations`,
-`shutdown`, `cleanup`), and its resources are shared behind one `Arc` with every
-operation, listener and observer. `#[dokime::plugin]` sits on that `impl`
-block and carries the identity, the operations it provides and requires, the
-restart policy and the contributions it adds to the host — suites, records and
-listeners, evidence streams and settings — each owned by a named
-`#[dokime::catalog]` enum. Device behaviour is `#[dokime::operation]`s listed in
-`provides = operations::Operations`; each request struct is its operation,
-declares the `resources = [...]` it reads and implements `Operation::run`, and
-`bind_operations` registers the catalog with one dependency snapshot.
+A plugin declares its identity, requirements and contributions on
+`#[dokime::plugin] impl dokime::Plugin`; `const CATALOGS` lists its executable
+`#[dokime::harmos::catalog]` operation catalogs. Contribution catalogs use
+`#[dokime::catalog]`. Each request struct declares its id, policy and
+`resources = [...]`, and implements `Operation::run`.
+
+A separate `impl dokime::harmos::Lifecycle` owns configuration, errors and the
+`prepare` → `initialize` → serve → `stop` → `cleanup` lifecycle. Preparation
+registers every shared resource with `setup.resource(...)` and prepares suite
+resources with `dokime::execution::prepare::<Self, Suites>(setup)`.
+Initialization activates resources that need a running runtime. Operations,
+listeners and observers read prepared resources from their execution contexts;
+mutable resources register as `Arc<tokio::sync::Mutex<T>>` or
+`Arc<tokio::sync::RwLock<T>>`. Observer attachments are prepared from their catalog
+and the plugin's declared streams.
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.

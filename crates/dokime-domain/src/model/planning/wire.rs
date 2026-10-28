@@ -37,7 +37,7 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RegisteredSelectionParametersEntry {
@@ -45,7 +45,7 @@ pub struct RegisteredSelectionParametersEntry {
     pub value: Option<SelectionValues>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RegisteredSelectionFilesEntry {
@@ -57,7 +57,7 @@ pub struct RegisteredSelectionFilesEntry {
 // Every selection in one plan must share a provider source AND workflow; a
 // cycle spans several workflows by appending a further plan. Overlapping and
 // repeated selections remain separate cases, with deterministic IDs and order.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RegisteredSelection {
@@ -69,7 +69,7 @@ pub struct RegisteredSelection {
 
 // Ordinary parameter values form Cartesian dimensions. A parameter declared
 // multiple=true receives the values as one array, following native planning.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SelectionValues {
@@ -79,7 +79,7 @@ pub struct SelectionValues {
 // Omission uses the registered default; clear explicitly removes a file slot.
 // Values are opaque plugin-defined strings, not uploads or client file paths
 // that the backend promises to resolve. No filesystem authority is granted.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SelectedFile {
@@ -92,7 +92,7 @@ pub struct SelectedFile {
 // ID order and duplicates are preserved; repeated IDs create separate executions.
 // Expanded cases are labelled "<Template Label> #<n>", numbered per template.
 // A nonempty cycle_id continues that cycle's numbering; empty starts at #1.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SelectionPlan {
@@ -102,14 +102,14 @@ pub struct SelectionPlan {
     pub cycle_id: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PreviewSelectionReply {
     pub cases: Vec<PlannedCase>,
     pub observed_cursor: Option<Cursor>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlannedCase {
     pub case_id: String,
@@ -125,7 +125,7 @@ pub struct PlannedCase {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum SelectedFileKind {
     Value(String),

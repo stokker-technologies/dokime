@@ -93,7 +93,10 @@ impl Session {
         config.explicit_plugins = if args.dev_control { Vec::new() } else { args.plugins.clone() };
         let expected = expected_plugins(&args.plugins, SERVER_PLUGIN_BUNDLE_BYTES, &config.schema)?;
         on_phase("storage");
-        let runtime = dokime::app::launch(config).await.map_err(|error| Error::launch(error, config_root.clone()))?;
+        let prepared_server = crate::grpc::Service::prepare(server_config)?;
+        let runtime = dokime::app::launch_with(config, vec![prepared_server.composition()])
+            .await
+            .map_err(|error| Error::launch(error, config_root.clone()))?;
         let mut session = Self {
             executor: tokio::runtime::Handle::current(),
             resources: Some(Resources { runtime: Some(runtime), server: None }),
@@ -115,8 +118,7 @@ impl Session {
             };
         }
         on_phase("requests");
-        let runtime = session.resources.as_ref().unwrap().runtime.as_ref().expect("session owns runtime");
-        match crate::grpc::Server::start(runtime.handle(), server_config).await {
+        match prepared_server.ready().await?.listen().await {
             Ok(server) => {
                 session.resources.as_mut().unwrap().server = Some(server);
                 Ok(session)

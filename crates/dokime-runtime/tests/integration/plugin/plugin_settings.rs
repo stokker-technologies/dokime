@@ -19,7 +19,7 @@ use std::sync::Arc;
 // Local Imports
 use dokime_runtime::Value;
 use dokime_runtime::domains::OptionProviderOption;
-use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime_runtime::plugin::settings::{Discovered, PluginSettings, SettingsSection};
 use dokime_runtime::plugin::{Configuration, Secret};
 use dokime_runtime::prelude::{OptionsResponse, Refusal, StatusResponse, Supervisor};
@@ -102,7 +102,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Bench {
     const SHUTDOWN_POLICY: OperationPolicy = POLICY;
 }
 
-#[dokime_runtime::catalog]
+#[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
 enum Operations {
     GetStatus(GetStatus),
     ListEnvironments(ListEnvironments),
@@ -113,38 +113,31 @@ enum Operations {
 
 #[dokime_runtime::plugin(
     id = "bench",
-    provides = Operations,
     requires(),
     contributions(dokime_runtime::Settings<BenchSettings>),
     restart = "never",
 )]
 impl dokime_runtime::Plugin for Bench {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[Operations::CATALOG];
+}
+
+impl dokime_runtime::harmos::Lifecycle for Bench {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = ();
+    async fn prepare(config: Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let owner = {
+            let settings = dokime_runtime::plugin::refusal(config.settings::<BenchSettings>())?;
+            assert_eq!(settings.workspace.page_limit, 500);
 
-    fn prepare(config: Configuration) -> Result<Self, Refusal> {
-        let settings = dokime_runtime::plugin::refusal(config.settings::<BenchSettings>())?;
-        assert_eq!(settings.workspace.page_limit, 500);
-
-        Ok(Self)
+            Self
+        };
+        setup.resource::<()>(owner.resources());
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<()> {
-        Arc::new(())
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Operations::registration({
-            let mut dependencies = dokime_runtime::harmos::Dependencies::new();
-            dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
-            dependencies
-        }))
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -153,6 +146,12 @@ impl dokime_runtime::Plugin for Bench {
 
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         Ok(())
+    }
+}
+
+impl Bench {
+    fn resources(&self) -> Arc<()> {
+        Arc::new(())
     }
 }
 #[dokime_runtime::operation(id = "bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
@@ -335,12 +334,19 @@ fn settings_links_ids() {
     );
 }
 
-#[test]
-fn saved_values_empty() {
+#[tokio::test]
+async fn saved_values_empty() {
     // Nobody saved a port, so the field is absent: discovery is the host's to
     // run and a discovered value is a suggestion, never a setting the plugin
     // opens with.
-    let opened = <Bench as dokime_runtime::Plugin>::prepare(Configuration::declared::<BenchSettings>()).map(|_| ());
+    let opened = <Bench as dokime_runtime::harmos::Lifecycle>::prepare(
+        Configuration::declared::<BenchSettings>(),
+        &mut dokime_runtime::harmos::Setup::<Bench>::new(
+            harmos_sdk::__private::WireTable::new(<Bench as dokime_runtime::harmos::plugin::Declared>::ID).unwrap(),
+        ),
+    )
+    .await
+    .map(|_| ());
     assert!(opened.is_ok(), "the bench opens on its declared defaults");
     let declared = Configuration::declared::<BenchSettings>().settings::<BenchSettings>().expect("the declared defaults decode");
     assert_eq!(declared.workspace.port, None);

@@ -47,13 +47,13 @@ pub struct DurationMillis(pub u64);
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for Timestamp {
+impl harmos::MemorySize for Timestamp {
     fn memory_size(&self) -> usize {
-        harmos_domain::MemorySize::memory_size(&self.0)
+        harmos::MemorySize::memory_size(&self.0)
     }
 }
 
-impl harmos_domain::MemorySize for DurationMillis {
+impl harmos::MemorySize for DurationMillis {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
     }

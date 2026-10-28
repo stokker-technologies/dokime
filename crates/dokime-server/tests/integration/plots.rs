@@ -44,12 +44,13 @@ const STORED: u64 = 300;
 #[tokio::test]
 async fn sample_watch_fixed_frontier_and_resume() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
     publish(&handle, &id, 0, 2).await;
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let selection = contracts::telemetry::ListSamples {
         streams: vec![id.to_string()],
@@ -123,13 +124,14 @@ async fn plot_points_admission() {
 #[tokio::test]
 async fn late_samples_keep_time_order() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
     publish(&handle, &id, 10, 10).await;
     publish(&handle, &id, 0, 10).await;
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let reply = client
         .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(100)] })
@@ -159,7 +161,8 @@ async fn sealed_window_all() {
     let root = tempfile::tempdir().unwrap();
     let config = || crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.plots", "Plots"));
     let gate = std::sync::Arc::new(Gate::default());
-    let mut owner = Runtime::with_execution_fixture(config(), "fixture", gate.clone()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = Runtime::with_execution_fixture(prepared_owner.configuration(config()), "fixture", gate.clone()).await.unwrap();
     let handle = owner.handle();
     let suite = support::fixture_suite(&["passed"]);
     support::register_fixture_progress_execution(&handle, suite.clone()).await;
@@ -191,7 +194,7 @@ async fn sealed_window_all() {
             .to_vec()
     };
 
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut watch =
         client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: requests() }).await.unwrap().into_inner();
@@ -238,9 +241,13 @@ async fn sealed_window_all() {
     drop(handle);
     owner.shutdown().await.unwrap();
 
-    let mut owner = Runtime::with_execution_fixture(config(), "fixture", std::sync::Arc::new(Gate::default())).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner =
+        Runtime::with_execution_fixture(prepared_owner.configuration(config()), "fixture", std::sync::Arc::new(Gate::default()))
+            .await
+            .unwrap();
     let handle = owner.handle();
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut watch =
         client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: requests() }).await.unwrap().into_inner();
@@ -259,12 +266,13 @@ async fn sealed_window_all() {
 #[tokio::test]
 async fn saved_frontier_refreshes_affected_plots() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     support::register_fixture_progress_and_idle_execution(&handle, support::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
     publish(&handle, &id, 0, 10).await;
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let progress = ["fixture.progress.a", "fixture.progress.b", "fixture.progress.c"];
     let idle = "fixture.idle.plot";
@@ -335,12 +343,13 @@ async fn saved_frontier_refreshes_affected_plots() {
 #[tokio::test]
 async fn quiet_plot_watch_outlives_the_idle_deadline() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     support::register_fixture_progress_and_idle_execution(&handle, support::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
     publish(&handle, &id, 0, 10).await;
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let target = dokime::client::Target::local(server.local_endpoint()).unwrap();
     let client = dokime::client::Client::connect(target, None, None).await.unwrap();
     let idle = std::time::Duration::from_millis(client.settings().request_timeout_ms);

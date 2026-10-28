@@ -15,7 +15,6 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use dokime_runtime::harmos::operations::{ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
 // Local Imports
 use dokime_runtime::{Refusal, Supervisor};
@@ -60,18 +59,21 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for DirectStreams {
 
 #[dokime_runtime::plugin(
     id = "sdk_streams",
-    provides = (),
     requires(dokime_runtime::harmos::builtins::streams::Publish),
     contributions(dokime_runtime::Evidence<Streams>),
     restart = "never", description = "Publishes through Harmos streams.")]
 impl dokime_runtime::Plugin for DirectStreams {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
+}
+
+impl dokime_runtime::harmos::Lifecycle for DirectStreams {
     type Config = dokime_runtime::plugin::Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = ();
-
-    fn prepare(_: dokime_runtime::plugin::Configuration) -> Result<Self, Refusal> {
-        Ok(Self { host: None })
+    async fn prepare(_: dokime_runtime::plugin::Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let owner = { Self { host: None } };
+        setup.resource::<()>(owner.resources());
+        Ok(owner)
     }
 
     async fn initialize(&mut self, host: &Supervisor) -> Result<(), Refusal> {
@@ -79,14 +81,6 @@ impl dokime_runtime::Plugin for DirectStreams {
         dokime_runtime::plugin::refusal(publisher.publish_on::<Inlet>(&DirectReading { value: 7 }).await)?;
         dokime_runtime::plugin::refusal(publisher.publish_on::<Outlet>(&DirectReading { value: 8 }).await)?;
         self.host = Some(host.clone());
-        Ok(())
-    }
-
-    fn resources(&self) -> Arc<()> {
-        Arc::new(())
-    }
-
-    fn bind_operations(&self, _: &mut WireTable) -> Result<(), ServingError> {
         Ok(())
     }
 
@@ -101,6 +95,12 @@ impl dokime_runtime::Plugin for DirectStreams {
             "a retired plugin publishes nothing"
         );
         Ok(())
+    }
+}
+
+impl DirectStreams {
+    fn resources(&self) -> Arc<()> {
+        Arc::new(())
     }
 }
 

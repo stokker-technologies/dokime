@@ -111,7 +111,6 @@ impl harmos::Application for Model {
     type Transaction = Transactions;
     type Record = Records;
     type Streams = ();
-    type Resources = ();
 }
 
 impl harmos::state::Transaction<State> for Advance {
@@ -150,6 +149,51 @@ impl RecordProjection for Projection {
                 .await?;
             Ok(())
         })
+    }
+}
+
+#[derive(Default, serde::Deserialize)]
+struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<StorageManager>,
+    mode: Option<String>,
+}
+
+impl harmos::Lifecycle for Model {
+    type Config = StorageConfig;
+    type Error = harmos::Error;
+    type Context = harmos::Startup<Self>;
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> harmos::Result<Self> {
+        setup
+            .settings()
+            .storage(config.storage.as_ref().expect("storage fixture"))
+            .register(Transactions::catalog())
+            .register(Records::catalog());
+        if let Some(mode) = config.mode {
+            if matches!(mode.as_str(), "journal" | "captured_record" | "transaction") {
+                setup.settings().managed_storage(harmos::config::ManagedStorageSettings {
+                    replay: limits(1, 64 * 1_024),
+                    capture: limits(1, 64 * 1_024),
+                    snapshots: None,
+                    journal_tail: 1,
+                });
+            } else {
+                setup.settings().tail(1);
+            }
+            if matches!(mode.as_str(), "captured_record" | "transaction") {
+                setup.settings().store_records(Projection);
+            }
+        }
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> harmos::Result<()> {
+        Ok(())
     }
 }
 
@@ -198,21 +242,15 @@ fn main() {
 async fn measure(mode: &str, count: usize, repetition: Option<usize>) -> Duration {
     let directory = tempfile::tempdir().unwrap();
     let storage: StorageManager = StorageManager::new(fixture::backends(directory.path()).await, fixture::settings()).unwrap();
-    let mut builder = Runtime::<Model>::builder(State::default(), ()).register(Transactions::catalog()).register(Records::catalog());
-    if matches!(mode, "journal" | "captured_record" | "transaction") {
-        builder = builder.managed_storage(harmos::config::ManagedStorageSettings {
-            replay: limits(1, 64 * 1_024),
-            capture: limits(1, 64 * 1_024),
-            snapshots: None,
-            journal_tail: 1,
-        });
-    } else {
-        builder = builder.tail(1);
-    }
-    if matches!(mode, "captured_record" | "transaction") {
-        builder = builder.store_records(Projection);
-    }
-    let runtime = builder.runtime_with_storage(&storage).await.unwrap();
+    let runtime = Runtime::<Model>::launch(
+        State::default(),
+        StorageConfig {
+            storage: Some(storage.clone()),
+            mode: Some(mode.to_owned()),
+        },
+    )
+    .await
+    .unwrap();
     let schema = schema();
     storage
         .write_schema(
@@ -313,7 +351,7 @@ async fn measure(mode: &str, count: usize, repetition: Option<usize>) -> Duratio
     assert_eq!(storage.status().recovery_saved.sequence, if mode.starts_with("direct") { 0 } else { count as u64 });
     verify_recovery(&storage).await;
     storage.close().await.unwrap();
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
     drop(runtime);
     drop(storage);
     directory.close().unwrap();

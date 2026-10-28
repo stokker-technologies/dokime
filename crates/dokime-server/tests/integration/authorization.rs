@@ -407,10 +407,12 @@ async fn key_boundary_matrix() {
 
 async fn assert_remote_key_boundary(authenticated: bool) {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
     let token = authenticated.then_some(TOKEN);
     let config = Config::remote("127.0.0.1:0".parse().unwrap(), None, token).unwrap();
-    let server = Server::start(owner.handle(), config).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let channel = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let methods: std::collections::BTreeMap<_, _> = dokime_server::grpc::methods().collect();
 
@@ -448,11 +450,13 @@ async fn remote_refuses_local() {
     let certificate = generated.cert.pem().into_bytes();
     let key = generated.signing_key.serialize_pem().into_bytes();
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
     let address = "127.0.0.1:0".parse().unwrap();
     let identity = TlsIdentity::from_pem(certificate.clone(), key);
     let config = Config::remote(address, Some(identity), Some(TOKEN)).unwrap();
-    let server = Server::start(owner.handle(), config).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let uri = server.local_endpoint();
     let endpoint = Endpoint::from_shared(uri).unwrap();
     let trust = Certificate::from_pem(&certificate);

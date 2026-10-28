@@ -85,7 +85,7 @@ mod bare_attributes {
 
     struct Bench;
 
-    #[catalog]
+    #[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
     enum Operations {
         GetReading(GetReading),
         GetStatus(GetStatus),
@@ -124,37 +124,28 @@ mod bare_attributes {
 
     #[plugin(
         id = "prelude_bench",
-        provides = Operations,
         requires(),
         contributions(dokime_runtime::Settings<BenchSettings>),
         restart = "never", description = "Bare attributes.")]
-    impl Plugin for Bench {
+    impl dokime_runtime::Plugin for Bench {
+        const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[Operations::CATALOG];
+    }
+
+    impl dokime_runtime::harmos::Lifecycle for Bench {
         type Config = Configuration;
         type Error = Refusal;
         type Context = Supervisor;
-        type Resources = ();
-
-        fn prepare(config: Configuration) -> Result<Self, Refusal> {
-            dokime_runtime::plugin::refusal(config.settings::<BenchSettings>())?;
-            Ok(Self)
+        async fn prepare(config: Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
+            let owner = {
+                dokime_runtime::plugin::refusal(config.settings::<BenchSettings>())?;
+                Self
+            };
+            setup.resource::<()>(owner.resources());
+            Ok(owner)
         }
 
         async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
             Ok(())
-        }
-
-        fn resources(&self) -> std::sync::Arc<()> {
-            std::sync::Arc::new(())
-        }
-
-        fn bind_operations(
-            &self, table: &mut dokime_runtime::harmos::operations::WireTable,
-        ) -> Result<(), dokime_runtime::harmos::operations::ServingError> {
-            table.register(Operations::registration({
-                let mut dependencies = dokime_runtime::harmos::Dependencies::new();
-                dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
-                dependencies
-            }))
         }
 
         async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -163,6 +154,12 @@ mod bare_attributes {
 
         async fn cleanup(&mut self) -> Result<(), Refusal> {
             Ok(())
+        }
+    }
+
+    impl Bench {
+        fn resources(&self) -> std::sync::Arc<()> {
+            std::sync::Arc::new(())
         }
     }
 }

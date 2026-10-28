@@ -67,7 +67,8 @@ fn selection(cycle: &TestCycleId, context: bool) -> Option<model::notes::wire::A
 #[tokio::test]
 async fn scoped_annotation_workflow() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let first = cycle(&handle).await;
     let second = cycle(&handle).await;
@@ -93,7 +94,7 @@ async fn scoped_annotation_workflow() {
         .add_health_item(RecordScope::default().with_cycle(second.clone()), HealthSeverity::Error, "unrelated warning".into(), None)
         .await
         .unwrap();
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let notes = WireClient::new(stream.clone());
     let health = WireClient::new(stream);
@@ -242,13 +243,17 @@ async fn scoped_annotation_workflow() {
 async fn sealed_refuses_notes() {
     let root = tempfile::tempdir().unwrap();
     let gate = std::sync::Arc::new(Gate::reporting(|cycle| support::fixture_provider_outcome(cycle, false)));
-    let mut owner =
-        Runtime::with_execution_fixture(RuntimeConfig::new(root.path(), support::metadata("grpc.notes", "Notes")), "fixture", gate.clone())
-            .await
-            .unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = Runtime::with_execution_fixture(
+        prepared_owner.configuration(RuntimeConfig::new(root.path(), support::metadata("grpc.notes", "Notes"))),
+        "fixture",
+        gate.clone(),
+    )
+    .await
+    .unwrap();
     let handle = owner.handle();
     let id = cycle(&handle).await;
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let notes = WireClient::connect(server.local_endpoint()).await.unwrap();
     let create = contracts::notes::CreateNote {
         epoch: handle.process_epoch().to_string(),

@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<DeleteCase>], response = ControlReply, id = "dokime.execution.delete_case",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "DeleteCase"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeleteCase {

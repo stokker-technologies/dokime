@@ -32,11 +32,11 @@ use dokime::transport::{
     DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion,
     RunExecution, SidecarExecutionOutcome, StepAdmission,
 };
+use harmos::Context;
 use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
     PluginLifecyclePhase, PluginManager, PluginScope, PluginTransition, Router,
 };
-use harmos::{Context, RegistrationExt};
 use obc_plugin::ObcPlugin;
 
 /* === Constants === */
@@ -104,7 +104,6 @@ impl dokime::__harmos::Application for Fixture {
     type Transaction = dokime::__harmos::state::Never;
     type Record = ();
     type Streams = ();
-    type Resources = ();
 }
 
 impl Hosting {
@@ -323,7 +322,7 @@ impl PluginLifecycle for Host {
             .expected_registrations(&definition.contributions.registrations);
         self.operations.register_service(harmos::services::ServiceDefinition { id: definition.id.clone(), policy }, {
             let resident = resident.clone();
-            move |_: Arc<()>| resident.clone()
+            move |_: Arc<harmos::ExecutionContext>| resident.clone()
         })?;
         backend.registered = true;
         backend.lease = Some(self.operations.submit_resident(&definition.id).await?);
@@ -409,26 +408,18 @@ impl Bench {
             requires: Vec::new(),
         };
         let definitions = PluginDefinitions::new([definition], []).unwrap();
-        let runtime = harmos::Runtime::<Fixture>::builder((), ())
-            .register(Lanes::catalog())
-            .operation_settings(harmos::operations::Settings {
-                preparation_bytes: Some(NonZeroUsize::new(4 * 1024 * 1024).unwrap()),
-                ..Default::default()
-            })
-            .runtime()
-            .await
-            .unwrap();
+        let hosting = Arc::new(Hosting {
+            captures: Arc::default(),
+            pages: Mutex::default(),
+            operations: OnceLock::new(),
+        });
+        let runtime = harmos::Runtime::<Fixture>::launch((), FixtureConfig { hosting: Some(hosting.clone()) }).await.unwrap();
         let mut host = Host {
             resident: None,
-            hosting: Arc::new(Hosting {
-                captures: Arc::default(),
-                pages: Mutex::default(),
-                operations: OnceLock::new(),
-            }),
+            hosting,
             operations: runtime.operations.clone(),
         };
         let _ = host.hosting.operations.set(host.operations.clone());
-        serve_host(&host.operations, &host.hosting).await.unwrap();
         let mut plugins = PluginManager::new(definitions).unwrap();
         plugins.initialize(&mut host).await.unwrap();
         let mut ready = host.resident.as_ref().unwrap().ready();
@@ -475,7 +466,57 @@ impl Bench {
 
     async fn shutdown(mut self) {
         self.plugins.shutdown(&mut self.host).await.unwrap();
-        self.runtime.stop().await.unwrap();
+        self.runtime.shutdown().await.unwrap();
+    }
+}
+
+#[derive(Default, serde::Deserialize)]
+struct FixtureConfig {
+    #[serde(skip)]
+    hosting: Option<Arc<Hosting>>,
+}
+
+#[harmos::catalog(harmos_path = dokime::harmos)]
+enum HostOperations {
+    Operation0(dokime::operations::files::AwaitFileWatchArmed),
+    Operation1(dokime::operations::files::WatchFile),
+    Operation2(dokime::records::RecordPublication),
+    Operation3(EvidenceBatch),
+    Operation4(OperatorQuestion),
+    Operation5(LeaseAsk),
+    Publish(harmos::builtins::streams::Publish),
+}
+
+impl harmos::Lifecycle for Fixture {
+    type Config = FixtureConfig;
+    type Error = harmos::Error;
+    type Context = harmos::Startup<Self>;
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> harmos::Result<Self> {
+        setup.settings().operation_settings(harmos::operations::Settings {
+            preparation_bytes: Some(NonZeroUsize::new(4 * 1024 * 1024).unwrap()),
+            ..Default::default()
+        });
+        let hosting = config.hosting.expect("fixture hosting resources");
+        setup.resource::<Hosted<dokime::operations::files::AwaitFileWatchArmed>>(
+            Hosted::<dokime::operations::files::AwaitFileWatchArmed>::new(hosting.clone()),
+        );
+        setup
+            .resource::<Hosted<dokime::operations::files::WatchFile>>(Hosted::<dokime::operations::files::WatchFile>::new(hosting.clone()));
+        setup.resource::<Hosted<dokime::records::RecordPublication>>(Hosted::<dokime::records::RecordPublication>::new(hosting.clone()));
+        setup.resource::<Hosted<EvidenceBatch>>(Hosted::<EvidenceBatch>::new(hosting.clone()));
+        setup.resource::<Hosted<OperatorQuestion>>(Hosted::<OperatorQuestion>::new(hosting.clone()));
+        setup.resource::<Hosted<LeaseAsk>>(Hosted::<LeaseAsk>::new(hosting.clone()));
+        setup.operations::<HostOperations>(Lanes::Open);
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> harmos::Result<()> {
+        Ok(())
     }
 }
 
@@ -484,29 +525,6 @@ impl Bench {
 /* === Private Functions === */
 
 // The host operations a suite plugin requires, served by this fixture host.
-async fn serve_host(operations: &harmos::operations::OperationManager<Lanes>, hosting: &Arc<Hosting>) -> harmos::Result<()> {
-    use dokime::operations::files::{AwaitFileWatchArmed, WatchFile};
-    use dokime::records::RecordPublication;
-    let mut dependencies = harmos::Dependencies::new();
-    dependencies.insert(Hosted::<EvidenceBatch>::new(hosting.clone()))?;
-    dependencies.insert(Hosted::<OperatorQuestion>::new(hosting.clone()))?;
-    dependencies.insert(Hosted::<LeaseAsk>::new(hosting.clone()))?;
-    dependencies.insert(Hosted::<RecordPublication>::new(hosting.clone()))?;
-    dependencies.insert(Hosted::<WatchFile>::new(hosting.clone()))?;
-    dependencies.insert(Hosted::<AwaitFileWatchArmed>::new(hosting.clone()))?;
-    let batch = harmos::RegistrationBatch::new(dependencies)
-        .operation::<EvidenceBatch>()
-        .operation::<OperatorQuestion>()
-        .operation::<LeaseAsk>()
-        .operation::<RecordPublication>()
-        .operation::<WatchFile>()
-        .operation::<AwaitFileWatchArmed>();
-    operations.register(batch.lane(Lanes::Open)).await?;
-    // The `streams.publish` built-in reaches the calling sidecar's own native endpoint.
-    let publications = harmos::RegistrationBatch::new(harmos::Dependencies::new()).operation::<harmos::builtins::streams::Publish>();
-    operations.register(publications.lane(Lanes::Open)).await
-}
-
 // A refusal the operation's status error carries as an invalid argument.
 fn refusal<S: From<std::io::Error>>(reason: impl Into<String>) -> S {
     std::io::Error::new(std::io::ErrorKind::InvalidInput, reason.into()).into()
@@ -690,7 +708,7 @@ async fn samples_keep_context() {
         assert!(indices.len() >= 3);
         assert_eq!(indices, &(0..indices.len() as i64).collect::<Vec<_>>());
     }
-    bench.runtime.stop().await.unwrap();
+    bench.runtime.shutdown().await.unwrap();
 }
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.

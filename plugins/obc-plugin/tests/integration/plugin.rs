@@ -45,17 +45,18 @@ use obc_plugin::ObcPlugin;
 
 #[tokio::test]
 async fn resources_share_allocation() {
-    use dokime::__harmos::Plugin;
-
-    let mut plugin = <ObcPlugin as Plugin>::prepare(Default::default()).unwrap();
-    let first = Plugin::resources(&plugin);
-    let second = Plugin::resources(&plugin);
+    use dokime::harmos::Lifecycle;
+    let mut setup = dokime::harmos::Setup::<ObcPlugin>::new(harmos_sdk::__private::WireTable::new("obc").unwrap());
+    let mut plugin = <ObcPlugin as Lifecycle>::prepare(Default::default(), &mut setup).await.unwrap();
+    let first = setup.settings().context().resource::<obc_plugin::Resources>().unwrap();
+    let second = setup.settings().context().resource::<obc_plugin::Resources>().unwrap();
     assert!(std::sync::Arc::ptr_eq(&first, &second));
 
     let weak = std::sync::Arc::downgrade(&first);
     drop((first, second));
     plugin.cleanup().await.unwrap();
     drop(plugin);
+    drop(setup);
     assert!(weak.upgrade().is_none());
 }
 

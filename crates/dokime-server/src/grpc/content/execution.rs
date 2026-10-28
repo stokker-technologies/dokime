@@ -20,15 +20,16 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
 use crate::grpc::error::detailed;
+use dokime::app::LiveRuntime;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
-use dokime::{RuntimeHandle, runtime::Error};
+use dokime::runtime::Error;
 
 /* === Constants === */
 
@@ -39,11 +40,16 @@ use dokime::{RuntimeHandle, runtime::Error};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::DownloadExecutionFile),
+}
 
 /* === Traits === */
 
@@ -54,7 +60,7 @@ impl Serve<wire::DownloadExecutionFile> for Resources {
         Box::pin(async move {
             let revoked = crate::grpc::access::revocation(ctx.call());
             crate::grpc::access::during(revoked, async {
-                let runtime = &self.runtime;
+                let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let message_limit = self.maximum;
                 let (id, _) = super::files::execution(runtime, &request.execution_id)?;
                 if request.relative_path.is_empty() {
@@ -111,12 +117,14 @@ impl Serve<wire::DownloadExecutionFile> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::DownloadExecutionFile>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::DownloadExecutionFile>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::DownloadExecutionFile>>(Host::<wire::DownloadExecutionFile>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

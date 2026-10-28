@@ -49,7 +49,8 @@ const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 /* === Private Functions === */
 
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
-    let environment = support::TestEnvironment::with_installed_plugins(vec![secret_module()]).await;
+    let prepared_environment = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let environment = support::TestEnvironment::with_installed_plugins(vec![secret_module()], &prepared_environment).await;
     let artifact_id = Identifier::new("fixture_diagnostics").unwrap();
     environment
         .runtime
@@ -64,7 +65,7 @@ async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
         )
         .await
         .expect("a discovered value for a declared field is recordable");
-    let server = Server::start(environment.runtime.clone(), Config::default()).await.unwrap();
+    let server = prepared_environment.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     (environment, server, client)
 }

@@ -40,7 +40,7 @@ const PRODUCT_NAMESPACE: &str = "dokime.";
 
 /* === Structs === */
 
-struct Policy {
+pub(super) struct Policy {
     requirements: Vec<Requirement>,
     schema_settings: dokime::harmos::config::SchemaSettings,
 }
@@ -108,12 +108,20 @@ impl Authorizer for Policy {
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &dokime::RuntimeHandle) -> Result<Arc<Listeners>, Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, settings: &dokime::harmos::config::SchemaSettings,
+) -> Result<(Arc<Listeners>, Arc<Policy>), Error> {
     let listeners = Arc::new(Listeners::new());
-    let authorizer = Arc::new(Policy::new(runtime.schema_settings())?);
+    let authorizer = Arc::new(Policy::new(settings)?);
+    setup.resource::<Listeners>(listeners.clone());
+    setup.resource::<Policy>(authorizer.clone());
+    Ok((listeners, authorizer))
+}
+
+pub(super) fn activate(runtime: &dokime::RuntimeHandle, listeners: Arc<Listeners>, authorizer: Arc<Policy>) -> Result<(), Error> {
     runtime.operations().register_authorizer(authorizer)?;
-    runtime.grpc().register_middleware(Arc::new(dokime::harmos::grpc::authentication::Authenticate::new(listeners.clone())))?;
-    Ok(listeners)
+    runtime.grpc().register_middleware(Arc::new(dokime::harmos::grpc::authentication::Authenticate::new(listeners)))?;
+    Ok(())
 }
 
 /* === Private Functions === */

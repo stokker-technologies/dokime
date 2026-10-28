@@ -39,7 +39,7 @@ thiserror = { workspace = true }
 tracing-error = { workspace = true, optional = true }
 
 # Utilities
-harmos-domain = { workspace = true }
+harmos = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 

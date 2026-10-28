@@ -54,7 +54,7 @@ struct Parameters {
 }
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+#[harmos::catalog]
 enum Analyses {
     Scale(Operation<Scale>),
     Held(Operation<Held>),
@@ -143,7 +143,29 @@ impl harmos::Application for Host {
     type Transaction = harmos::state::Never;
     type Record = ();
     type Streams = ();
-    type Resources = ();
+}
+
+impl harmos::Lifecycle for Host {
+    type Config = ();
+    type Error = harmos::Error;
+    type Context = harmos::Startup<Self>;
+    async fn prepare(_: (), setup: &mut harmos::Setup<Self>) -> harmos::Result<Self> {
+        setup.settings().operation_settings(harmos::operations::Settings {
+            preparation_bytes: Some(NonZeroUsize::new(4096).unwrap()),
+            ..Default::default()
+        });
+        setup.operations::<Analyses>(Lanes::Open);
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> harmos::Result<()> {
+        Ok(())
+    }
 }
 
 /* === Public Functions === */
@@ -162,24 +184,7 @@ fn request(parameters: BTreeMap<String, Value>) -> Request {
 }
 
 async fn serve() -> harmos::Runtime<Host> {
-    let runtime = harmos::Runtime::<Host>::builder((), ())
-        .operation_settings(harmos::operations::Settings {
-            preparation_bytes: Some(NonZeroUsize::new(4096).unwrap()),
-            ..Default::default()
-        })
-        .register(Lanes::catalog())
-        .runtime()
-        .await
-        .unwrap();
-    runtime
-        .operations
-        .register(harmos::RegistrationExt::lane(
-            harmos::RegistrationBatch::new(harmos::Dependencies::new()).operation::<Operation<Scale>>().operation::<Operation<Held>>(),
-            Lanes::Open,
-        ))
-        .await
-        .unwrap();
-    runtime
+    harmos::Runtime::<Host>::launch((), ()).await.unwrap()
 }
 
 async fn call<A: Analysis>(operations: &harmos::operations::OperationManager<Lanes>, request: Request) -> harmos::Result<Response> {
@@ -211,7 +216,7 @@ async fn analysis_original_lifecycle() {
     assert_eq!(response.outputs[0].values, [4.0, -2.0, 6.0]);
     let invalid = call::<Scale>(&runtime.operations, request(BTreeMap::from([("factor".into(), Value::Number(11.0))]))).await;
     assert!(invalid.is_err(), "typed parameter bounds must survive the native carrier");
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
 }
 
 #[tokio::test]
@@ -224,7 +229,7 @@ async fn cancelled_analysis_shutdown() {
     STARTED.notified().await;
     pending.abort();
     assert!(pending.await.unwrap_err().is_cancelled());
-    let shutdown = runtime.stop();
+    let shutdown = runtime.shutdown();
     tokio::pin!(shutdown);
     assert!(
         std::future::poll_fn(|cx| std::task::Poll::Ready(std::future::Future::poll(shutdown.as_mut(), cx).is_pending())).await,

@@ -67,11 +67,13 @@ pub enum BenchError {
 impl Sensor {
     pub fn open(port: impl Into<String>, ambient_c: f64) -> Self {
         let port = port.into();
-        let chamber = Arc::clone(
-            registry()
-                .entry(port.clone())
-                .or_insert_with(|| Arc::new(Mutex::new(Chamber { celsius: ambient_c, target_c: ambient_c, powered: false }))),
-        );
+        let chamber = Arc::clone(registry().entry(port.clone()).or_insert_with(|| {
+            Arc::new(Mutex::new(Chamber {
+                celsius: ambient_c,
+                target_c: ambient_c,
+                powered: false,
+            }))
+        }));
 
         Self { port, chamber }
     }
@@ -106,7 +108,10 @@ impl Heater {
     }
 
     pub async fn identity(&self) -> Result<Identity, BenchError> {
-        Ok(Identity { serial: format!("SIM-{}", self.port.trim_start_matches('/').replace('/', "-")), firmware: "sim-1.0".to_owned() })
+        Ok(Identity {
+            serial: format!("SIM-{}", self.port.trim_start_matches('/').replace('/', "-")),
+            firmware: "sim-1.0".to_owned(),
+        })
     }
 
     pub async fn set_target(&self, celsius: f64) -> Result<(), BenchError> {

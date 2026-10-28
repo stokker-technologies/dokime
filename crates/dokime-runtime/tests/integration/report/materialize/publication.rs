@@ -173,7 +173,7 @@ async fn dependency_publication_retry() {
         }
         assert_eq!(fault.releases(), 0, "preparing dependencies never seals the lifecycle");
         drop((seal, report));
-        owner.stop().await.unwrap();
+        owner.shutdown().await.unwrap();
     }
 
     // Native Report Writers Outlive Public Mutation Windows Without Changing Their Files.
@@ -244,7 +244,7 @@ async fn dependency_publication_retry() {
         assert!(!crate::service_support::reports::bytes(&manager, file).await.is_empty());
     }
     drop((seal, report, ambiguous, recovered));
-    owner.stop().await.unwrap();
+    owner.shutdown().await.unwrap();
 }
 
 #[tokio::test]

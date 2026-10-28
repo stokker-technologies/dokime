@@ -23,11 +23,10 @@ use std::sync::{
 
 // Third Party Imports
 use clap::Parser;
-use dokime::harmos::RegistrationExt;
 use tokio::sync::Notify;
 
 // Local Imports
-use super::{Config, Server, runtime};
+use super::Config;
 
 /* === Constants === */
 
@@ -103,15 +102,10 @@ impl dokime::harmos::Operation for Mutate {
 async fn response_publication_faults() {
     for overwrite in [false, true] {
         let root = tempfile::tempdir().unwrap();
-        let mut owner = runtime(root.path()).await;
-        let handle = owner.handle();
-        let resources = Gate::default();
-        let gate = Arc::new(resources);
-        let mut dependencies = dokime::harmos::Dependencies::new();
-        dependencies.insert(gate.clone()).unwrap();
-        let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<Mutate>();
-        handle.operations().register(batch.lane(dokime::app::Lanes::Open)).await.unwrap();
-        let server = Server::start(handle, Config::local()).await.unwrap();
+        let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+        let gate = Arc::new(Gate::default());
+        let mut owner = fixture(root.path(), &prepared_owner, gate.clone()).await;
+        let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
         let endpoint = server.local_endpoint();
 
         let directory = root.path().join("response");
@@ -168,15 +162,10 @@ async fn response_publication_faults() {
 #[tokio::test]
 async fn response_unavailable_after_effect() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
-    let handle = owner.handle();
-    let resources = Gate::default();
-    let gate = Arc::new(resources);
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(gate.clone()).unwrap();
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<Mutate>();
-    handle.operations().register(batch.lane(dokime::app::Lanes::Open)).await.unwrap();
-    let server = Server::start(handle, Config::local()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let gate = Arc::new(Gate::default());
+    let mut owner = fixture(root.path(), &prepared_owner, gate.clone()).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
 
     let directory = root.path().join("response");
@@ -215,4 +204,23 @@ async fn response_unavailable_after_effect() {
 
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
+}
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum Operations {
+    Mutate(Mutate),
+}
+
+async fn fixture(root: &std::path::Path, server: &dokime_server::grpc::PreparedService, gate: Arc<Gate>) -> dokime::Runtime {
+    let mut config = crate::support::budgets::runtime_config(root, crate::support::metadata("grpc.fixture", "gRPC fixture"));
+    server.configure(&mut config);
+    config.composition.push(dokime::app::Composition {
+        prepare: Arc::new(move |setup, _, _| {
+            setup.resource::<Gate>(gate.clone());
+            setup.operations::<Operations>(dokime::app::Lanes::Open);
+            Ok(())
+        }),
+        ..Default::default()
+    });
+    dokime::Runtime::start(config).await.unwrap()
 }

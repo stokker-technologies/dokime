@@ -51,7 +51,7 @@ pub struct TelemetryContract {
     pub template_id: Option<TemplateId>,
     pub owner: Option<SuiteId>,
     pub columns: Vec<TelemetryColumn>,
-    pub storage_schema: Option<harmos_domain::schema::graph::Schema>,
+    pub storage_schema: Option<harmos::schema::graph::Schema>,
     pub default_x: Option<String>,
     pub interval: Option<crate::model::time::DurationMillis>,
     pub allow_extra_fields: bool,
@@ -92,16 +92,16 @@ pub enum TelemetryRole {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for TelemetryContract {
+impl harmos::MemorySize for TelemetryContract {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.storage_schema), std::mem::size_of_val(&self.storage_schema)),
-            (harmos_domain::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.template_id), std::mem::size_of_val(&self.template_id)),
-            (harmos_domain::MemorySize::memory_size(&self.owner), std::mem::size_of_val(&self.owner)),
-            (harmos_domain::MemorySize::memory_size(&self.columns), std::mem::size_of_val(&self.columns)),
-            (harmos_domain::MemorySize::memory_size(&self.default_x), std::mem::size_of_val(&self.default_x)),
+            (harmos::MemorySize::memory_size(&self.storage_schema), std::mem::size_of_val(&self.storage_schema)),
+            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.template_id), std::mem::size_of_val(&self.template_id)),
+            (harmos::MemorySize::memory_size(&self.owner), std::mem::size_of_val(&self.owner)),
+            (harmos::MemorySize::memory_size(&self.columns), std::mem::size_of_val(&self.columns)),
+            (harmos::MemorySize::memory_size(&self.default_x), std::mem::size_of_val(&self.default_x)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -109,14 +109,14 @@ impl harmos_domain::MemorySize for TelemetryContract {
     }
 }
 
-impl harmos_domain::MemorySize for TelemetryColumn {
+impl harmos::MemorySize for TelemetryColumn {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
-            (harmos_domain::MemorySize::memory_size(&self.display_unit), std::mem::size_of_val(&self.display_unit)),
-            (harmos_domain::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
-            (harmos_domain::MemorySize::memory_size(&self.format), std::mem::size_of_val(&self.format)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.display_unit), std::mem::size_of_val(&self.display_unit)),
+            (harmos::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
+            (harmos::MemorySize::memory_size(&self.format), std::mem::size_of_val(&self.format)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -164,15 +164,14 @@ impl TelemetryContract {
         .normalized()
     }
 
-    pub fn with_storage_schema(mut self, schema: harmos_domain::schema::graph::Schema) -> Self {
+    pub fn with_storage_schema(mut self, schema: harmos::schema::graph::Schema) -> Self {
         self.storage_schema = Some(schema);
         self
     }
 
-    pub fn typed<T: harmos_domain::Message + harmos_domain::schema::Described>(self) -> Self {
-        let graph =
-            harmos_domain::schema::graph::Schema::from_declaration(T::DEFINITION, &harmos_domain::config::SchemaSettings::default())
-                .expect("a declared telemetry row has a valid finite schema");
+    pub fn typed<T: harmos::Message + harmos::schema::Described>(self) -> Self {
+        let graph = harmos::schema::graph::Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default())
+            .expect("a declared telemetry row has a valid finite schema");
         self.with_storage_schema(graph)
     }
 

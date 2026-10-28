@@ -19,7 +19,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_domain::Aggregate;
+use harmos::Aggregate;
 
 // Local Imports
 use dokime_domain::model;

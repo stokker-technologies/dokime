@@ -53,7 +53,8 @@ struct BenchRow {
 #[tokio::test]
 async fn current_document_rows() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
     let mut measurements = DocumentSection::new("Measurements");
@@ -77,7 +78,7 @@ async fn current_document_rows() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let selected = model::documents::wire::DocumentScope {
         cycle_id: cycle.to_string(),
@@ -188,8 +189,9 @@ async fn summary_complete_telemetry() {
     };
     let root = tempfile::tempdir().unwrap();
     let gate = std::sync::Arc::new(Gate::default());
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
     let mut owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.summary", "Summary")),
+        prepared_owner.configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.summary", "Summary"))),
         "fixture",
         gate.clone(),
     )
@@ -240,7 +242,7 @@ async fn summary_complete_telemetry() {
     samples.push(unrelated.with_storage_payload(dokime::harmos::Message::encode(&support::ProgressRow { progress: 999.0 })));
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), stream, samples)).await.unwrap();
     let durable = handle.storage().flush().await.unwrap();
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
@@ -287,7 +289,8 @@ async fn duration_x_axis() {
     use dokime::{Identifier, MeasurementUnit, Metadata, ValueType};
 
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
     let mut voltage = Plot::xy_line("Voltage");
@@ -335,7 +338,7 @@ async fn duration_x_axis() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {

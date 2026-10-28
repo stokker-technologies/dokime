@@ -32,7 +32,7 @@ use super::*;
 
 // Replays a bounded tail of the hub log, then follows it. Read access.
 #[harmos::operation(resources = [crate::hosting::Host<WatchLogs>], response = (), output = LogFrame, id = "dokime.backend.watch_logs",
-        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
+        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "WatchLogs"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchLogs {

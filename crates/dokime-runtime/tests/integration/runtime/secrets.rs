@@ -19,7 +19,6 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::RegistrationExt;
 use harmos::operations::{InvocationError, Visibility};
 use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginEndpoint, PluginLifecycle,
@@ -100,8 +99,7 @@ impl PluginLifecycle for Owners {
         })?;
         let scope = endpoint.scope().cloned().expect("a managed owner has an activation scope");
         staged.endpoint = Some(endpoint);
-        let batch = harmos::RegistrationBatch::new(harmos::Dependencies::new()).operation::<ReadSecret>();
-        staged.registration = Some(self.0.stage_plugin(&scope, |bindings| bindings.register(batch.lane(Lanes::Open)))?);
+        staged.registration = Some(self.0.stage_plugin(&scope, |bindings| bindings.operations::<SecretOperations>(Lanes::Open))?);
         Ok(())
     }
 
@@ -204,4 +202,9 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
     plugins.shutdown(&mut lifecycle).await.unwrap();
     drop(handle);
     runtime.shutdown().await.unwrap();
+}
+
+#[harmos::catalog]
+enum SecretOperations {
+    Read(ReadSecret),
 }

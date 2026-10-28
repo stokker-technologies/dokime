@@ -82,7 +82,7 @@ struct Subject {
 }
 
 /* === Enums === */
-#[harmos::catalog]
+#[dokime_runtime::catalog]
 enum Objects {
     Subject(Subject),
 }
@@ -96,7 +96,6 @@ impl Application for App {
     type Transaction = Never;
     type Record = ();
     type Streams = ();
-    type Resources = ();
 }
 
 impl Identified for Subject {
@@ -111,6 +110,32 @@ impl StoredObject for Subject {
 
     fn key(&self) -> &str {
         &self.id
+    }
+}
+
+#[derive(Default, serde::Deserialize)]
+struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<harmos::storage::StorageManager<Objects>>,
+}
+
+impl harmos::Lifecycle for App {
+    type Config = StorageConfig;
+    type Error = harmos::Error;
+    type Context = harmos::Startup<Self>;
+
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> harmos::Result<Self> {
+        setup.settings().storage(config.storage.as_ref().expect("storage fixture is configured"));
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> harmos::Result<()> {
+        Ok(())
     }
 }
 
@@ -280,7 +305,7 @@ async fn nominal() {
         super::sqlite::storage::storage_settings(),
     )
     .unwrap();
-    let runtime = Runtime::<App>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+    let runtime = Runtime::<App>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
     assert_eq!(backend.cursor_saved().await.unwrap(), durable);
     let view = backend.open_snapshot(&durable).await.unwrap();
     let selection = StreamSelection {
@@ -505,7 +530,7 @@ async fn nominal() {
     let pinned = backend.read_objects(&view, &revisions, page(0, rows(8))).await.unwrap();
     assert_eq!(pinned, [subject, stopped.clone()], "a pinned snapshot keeps history");
     backend.release_snapshot(&view).await.unwrap();
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
 
     // The Lifecycle Release Survives Restart And Reclaims Unpinned Revisions
     let backend = std::sync::Arc::new(Backend::<Objects>::primary(root.path().to_owned()).await.unwrap());

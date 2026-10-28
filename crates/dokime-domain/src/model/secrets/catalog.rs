@@ -36,7 +36,7 @@ pub const DESCRIPTION_BYTES: u64 = 2_048;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Metadata {
@@ -59,14 +59,14 @@ pub struct Catalog {
     pub entries: BTreeMap<String, Slot>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Summary {
     pub metadata: Metadata,
     pub known_uses: Vec<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub host_id: String,
@@ -76,7 +76,7 @@ pub struct Snapshot {
     pub cleanup_pending: bool,
 }
 
-#[harmos_domain::message(skip_debug)]
+#[harmos::message(skip_debug)]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Value {
     pub value: Option<String>,

@@ -166,6 +166,9 @@ pub trait DeclaredSuite {
     const TEMPLATE_IDENTIFIERS: &'static [crate::catalog::Node<&'static str>];
 
     #[cfg(feature = "native")]
+    const CATALOGS: &'static [harmos::Catalog];
+
+    #[cfg(feature = "native")]
     const OPERATIONS: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>];
 
     #[cfg(feature = "native")]
@@ -174,8 +177,8 @@ pub trait DeclaredSuite {
     fn definition() -> TestSuiteDefinition;
 
     #[cfg(feature = "native")]
-    fn bind<P: harmos::plugin::Declared>(
-        table: &mut harmos::sidecar::operations::WireTable, workflow: &str, records: &[RecordContract],
+    fn bind<P: harmos::Plugin + harmos::plugin::Declared>(
+        setup: &mut harmos::Setup<P>, workflow: &str, records: &[RecordContract],
     ) -> Result<(), harmos::sidecar::operations::ServingError>;
 
     #[cfg(feature = "native")]

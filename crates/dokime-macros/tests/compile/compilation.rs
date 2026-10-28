@@ -232,7 +232,7 @@ extern crate sdk;
 use std::sync::Arc;
 
 use sdk::harmos::plugin::{Attachment, Declared};
-use sdk::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use sdk::harmos::operations::{OperationPolicy, RetryPolicy};
 use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
 const POLICY: OperationPolicy = OperationPolicy {
@@ -258,7 +258,7 @@ enum Observers { First(First), Second(Second) }
 #[sdk::catalog]
 enum Operations {}
 
-type Observing = ObserverAttachment<(), Publisher<Shared>>;
+type Observing = ObserverAttachment<Publisher<Shared>>;
 
 struct Shared { observers: Option<Arc<Observing>> }
 
@@ -270,53 +270,53 @@ impl sdk::harmos::builtins::lifecycle::Policy for Shared {
 
 #[sdk::plugin(
     id = "shared",
-    provides = Operations,
     requires(),
     PLUGIN_ARGUMENTS
     observers = Observers,
     restart = "never",
 )]
 impl sdk::Plugin for Shared {
-    type Config = sdk::plugin::Configuration;
-    type Error = sdk::Refusal;
-    type Context = sdk::Supervisor;
-    type Resources = ();
-
-    fn prepare(_: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
-        Ok(Self { observers: None })
-    }
-
-    async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<Observers>(
-            self.resources(),
-            <Self as Declared>::STREAMS,
-        )?);
-        Ok(())
-    }
-
-    fn resources(&self) -> Arc<()> {
-        Arc::new(())
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        self.observers
-            .as_ref()
-            .ok_or(ServingError::Catalog)?
-            .bind(table)
-    }
-
-    fn attachment(&self) -> Option<Arc<dyn Attachment<sdk::Supervisor>>> {
+    const CATALOGS: &'static [sdk::harmos::Catalog] = &[];
+fn attachment(&self) -> Option<Arc<dyn Attachment<sdk::Supervisor>>> {
         self.observers
             .as_ref()
             .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<sdk::Supervisor>>)
     }
+}
 
-    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+impl sdk::harmos::Lifecycle for Shared {
+    type Config = sdk::plugin::Configuration;
+    type Error = sdk::Refusal;
+    type Context = sdk::Supervisor;
+async fn prepare(_: sdk::plugin::Configuration, setup: &mut sdk::harmos::Setup<Self>) -> Result<Self, sdk::Refusal> {
+        let mut owner = {
+
+        Self { observers: None }
+
+        };
+        setup.resource::<()>(owner.resources());
+        owner.observers = Some(ObserverAttachment::from_catalog::<Observers>(
+            <Self as Declared>::STREAMS,
+        )?);
+        Ok(owner)
+    }
+
+async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 
-    async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
+async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
+    }
+
+async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
+        Ok(())
+    }
+}
+
+impl Shared {
+fn resources(&self) -> Arc<()> {
+        Arc::new(())
     }
 }
 
@@ -324,7 +324,7 @@ impl sdk::Plugin for Shared {
 struct First;
 #[sdk::observer(interval_ms = 10, streams(Sample), activation = "demand")]
 impl First {
-    async fn observe(&mut self, _: &ObserverContext<'_, (), Publisher<Shared>>) -> Result<(), PublishError> {
+    async fn observe(&mut self, _: &ObserverContext<'_, Publisher<Shared>>) -> Result<(), PublishError> {
         Ok(())
     }
 }
@@ -333,7 +333,7 @@ impl First {
 struct Second;
 #[sdk::observer(interval_ms = PEER_INTERVAL, streams(PEER_STREAM), activation = "demand")]
 impl Second {
-    async fn observe(&mut self, _: &ObserverContext<'_, (), Publisher<Shared>>) -> Result<(), PublishError> {
+    async fn observe(&mut self, _: &ObserverContext<'_, Publisher<Shared>>) -> Result<(), PublishError> {
         Ok(())
     }
 }

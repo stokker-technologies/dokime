@@ -14,13 +14,14 @@ pub(crate) mod catalog_lifecycle {
     use super::*;
     use dokime_runtime::catalog::{SuiteRunners, Suites};
     use dokime_runtime::definition::DeclaredSuite;
-    use dokime_runtime::harmos::operations::{ServingError, WireTable};
+    use dokime_runtime::harmos::operations::ServingError;
     use std::sync::Mutex;
 
     static RECORDS: Mutex<Vec<&str>> = Mutex::new(Vec::new());
     struct CountedSuite;
 
     impl DeclaredSuite for CountedSuite {
+        const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
         const ID: &'static str = "counted";
         const TEMPLATE_IDENTIFIERS: &'static [dokime_runtime::catalog::Node<&'static str>] = &[];
         const OPERATIONS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::harmos::operations::WireDeclaration>] = &[];
@@ -31,8 +32,8 @@ pub(crate) mod catalog_lifecycle {
             SpikeChecks::definition()
         }
 
-        fn bind<P: dokime_runtime::harmos::plugin::Declared>(
-            _: &mut WireTable, _: &str, _: &[dokime_runtime::records::RecordContract],
+        fn bind<P: dokime_runtime::harmos::Plugin + dokime_runtime::harmos::plugin::Declared>(
+            _: &mut dokime_runtime::harmos::Setup<P>, _: &str, _: &[dokime_runtime::records::RecordContract],
         ) -> Result<(), ServingError> {
             Ok(())
         }

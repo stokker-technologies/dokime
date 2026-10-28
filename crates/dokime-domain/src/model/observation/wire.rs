@@ -38,7 +38,7 @@ use crate::model::identity::wire::*;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeStateFrame {
     pub cursor: Option<Cursor>,
@@ -55,7 +55,7 @@ pub struct RuntimeStateFrame {
 }
 
 // One slow backend operation, such as rendering a report or sealing a cycle.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct OperationProgress {
     pub operation_id: String,
@@ -76,7 +76,7 @@ pub struct OperationProgress {
     pub failure: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionProgress {
     pub test_execution_id: String,
@@ -88,7 +88,7 @@ pub struct ExecutionProgress {
     pub remaining_ms: Option<u64>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionProgressFrame {
     pub revision: u64,
@@ -97,7 +97,7 @@ pub struct ExecutionProgressFrame {
     pub cleared: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeShellSnapshot {
     pub session_id: String,
@@ -111,7 +111,7 @@ pub struct RuntimeShellSnapshot {
     pub next_after_cycle_id: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceCounts {
     pub records: u64,
@@ -123,7 +123,7 @@ pub struct EvidenceCounts {
     pub notes: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TraceabilityPage {
     // The request scope is echoed so a consumer cannot accidentally apply a
@@ -146,7 +146,7 @@ pub struct TraceabilityPage {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationStatus {
     Unspecified,

@@ -69,10 +69,11 @@ async fn appearance_asset_bound() {
     let path = root.path().join("logo.svg");
     let bytes = vec![b'a'; 150_000];
     std::fs::write(&path, &bytes).unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     owner.handle().set_brand(Some(brand(&path)));
     let expected = owner.handle().appearance_frame().await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let appearance = WireClient::connect(server.local_endpoint()).await.unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
@@ -203,10 +204,11 @@ async fn appearance_refuses_transfer() {
     let path = root.path().join("logo.svg");
     let file = std::fs::File::create(&path).unwrap();
     file.set_len(8 * 1024 * 1024 + 1).unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let mut selected = brand(&path);
     owner.handle().set_brand(Some(selected.clone()));
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     failure(
         client.unary::<contracts::appearance::GetAppearance>(contracts::appearance::GetAppearance {}).await.unwrap_err(),

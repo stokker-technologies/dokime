@@ -47,8 +47,9 @@ use dokime::domain::model;
 #[tokio::test]
 async fn unsecured_pairing_creates_no_revocable_client() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let native = connect(&server).await;
     let settings = model::remote::RemoteListenerSettings {
         enabled: true,
@@ -87,8 +88,9 @@ async fn unsecured_pairing_creates_no_revocable_client() {
 #[tokio::test]
 async fn independent_pairings_revoke_and_survive_restart() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let native = connect(&server).await;
     let settings = model::remote::RemoteListenerSettings {
         enabled: true,
@@ -167,8 +169,9 @@ async fn independent_pairings_revoke_and_survive_restart() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 
-    let mut owner = runtime(root.path()).await;
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let native = connect(&server).await;
     let status = native.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
     let remote = WireClient::connect(format!("http://{}", status.listening_address.unwrap())).await.unwrap();
@@ -189,8 +192,9 @@ async fn independent_pairings_revoke_and_survive_restart() {
 #[tokio::test]
 async fn remote_sessions_recorded() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let native = connect(&server).await;
     let settings = model::remote::RemoteListenerSettings {
         enabled: true,
@@ -244,8 +248,9 @@ async fn remote_sessions_recorded() {
     owner.shutdown().await.unwrap();
 
     // The Log Survives The Host Restart With Its Sessions Closed.
-    let mut owner = runtime(root.path()).await;
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let native = connect(&server).await;
     let restored = native
         .unary::<contracts::remote::ListSessions>(contracts::remote::ListSessions { cursor: None, limit: 1 })
@@ -262,7 +267,8 @@ async fn remote_sessions_recorded() {
 #[tokio::test]
 async fn listener_policy_isolation() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let cycle = handle
         .create_cycle(
@@ -274,7 +280,7 @@ async fn listener_policy_isolation() {
         )
         .await
         .unwrap();
-    let service = dokime_server::grpc::Service::new(handle.clone(), Config::local()).await.unwrap();
+    let service = prepared_owner.ready().await.unwrap();
     let local = service.listen().await.unwrap();
     let local_client = connect(&local).await;
     let generated = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
@@ -368,7 +374,8 @@ async fn remote_cycle_seal() {
     use dokime::domain::model::execution::result::CyclePhase;
 
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let definition = dokime::transactions::CycleDefinition {
         metadata: support::metadata("remote.seal", "Remote Campaign"),
@@ -376,7 +383,7 @@ async fn remote_cycle_seal() {
     };
     let cycle = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     let other = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
     let target = dokime::client::Target::local(endpoint.clone()).unwrap();
     let client = dokime::client::Client::connect(target, None, None).await.unwrap();
@@ -404,14 +411,15 @@ async fn remote_cycle_seal() {
 #[tokio::test]
 async fn operation_response_files() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let definition = dokime::transactions::CycleDefinition {
         metadata: support::metadata("remote.operations", "Original"),
         continue_automatically: false,
     };
     let cycle = handle.create_cycle(definition, Default::default()).await.unwrap();
-    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
     let destination = root.path().join("response.json");
     let output = destination.to_str().unwrap();
@@ -468,11 +476,12 @@ async fn operation_response_files() {
 async fn discovery_shares_independently() {
     use dokime::harmos::operations::OperationDeclaration;
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let node_id = handle.identity().node.node_id.to_string();
     let epoch = handle.process_epoch().to_string();
-    let service = dokime_server::grpc::Service::new(handle.clone(), Config::default()).await.unwrap();
+    let service = prepared_owner.ready().await.unwrap();
     let server = service.listen().await.unwrap();
     let address = server.address();
     let client = connect(&server).await;
@@ -561,7 +570,7 @@ async fn discovery_shares_independently() {
     );
     second.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
-    let mut rebooted = runtime(root.path()).await;
+    let mut rebooted = runtime(root.path(), &dokime_server::grpc::Service::prepare(Config::local()).unwrap()).await;
     assert_eq!(rebooted.handle().identity().node.node_id.to_string(), node_id);
     assert_ne!(rebooted.handle().process_epoch().to_string(), epoch);
     rebooted.shutdown().await.unwrap();
@@ -570,9 +579,11 @@ async fn discovery_shares_independently() {
 #[tokio::test]
 async fn malformed_secrets_wire() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
     let config = keyed();
-    let server = Server::start(owner.handle(), config).await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = connect(&server).await;
     let mut invalid = Request::new(contracts::backend::GetIdentity {});
     invalid.metadata_mut().insert("authorization", "Bearer a-different-long-token-01234567890123456789".parse().unwrap());
@@ -597,12 +608,14 @@ async fn malformed_secrets_wire() {
 #[tokio::test]
 async fn remote_requires_binding() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared).await;
+    let service = prepared.ready().await.unwrap();
     let remote = "0.0.0.0:0".parse().unwrap();
-    assert!(Server::start(owner.handle(), Config::local().with_bind_addr(remote)).await.is_err());
+    assert!(service.listen_with(Config::local().with_bind_addr(remote)).await.is_err());
     assert!(Config::remote(remote, None, Some("short")).is_err());
     let invalid = Config::remote(remote, Some(TlsIdentity::from_pem(vec![], vec![])), Some(TOKEN)).unwrap();
-    assert!(Server::start(owner.handle(), invalid).await.is_err());
+    assert!(service.listen_with(invalid).await.is_err());
     assert!(!owner.handle().is_shutting_down());
     owner.shutdown().await.unwrap();
 }
@@ -614,11 +627,13 @@ async fn tls_listener_clients() {
     let certificate = generated.cert.pem().into_bytes();
     let key = generated.signing_key.serialize_pem().into_bytes();
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
     let config = Config::remote("0.0.0.0:0".parse().unwrap(), Some(TlsIdentity::from_pem(certificate.clone(), key)), Some(TOKEN)).unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
+
     assert!(!format!("{config:?}").contains(TOKEN));
     assert!(!format!("{config:?}").contains("PRIVATE KEY"));
-    let service = dokime_server::grpc::Service::new(owner.handle(), config).await.unwrap();
+    let service = prepared_owner.ready().await.unwrap();
     let server = service.listen().await.unwrap();
     let endpoint = Endpoint::from_shared(server.local_endpoint()).unwrap();
     assert!(endpoint.clone().connect().await.is_err(), "untrusted certificate must be rejected");

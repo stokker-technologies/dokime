@@ -32,7 +32,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<WatchSamples>], response = (), output = TelemetrySamplesReply, id = "dokime.telemetry.watch_samples",
-        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
+        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Telemetry", method = "WatchSamples"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchSamples {

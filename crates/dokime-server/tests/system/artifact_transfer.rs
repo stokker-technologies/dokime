@@ -33,7 +33,6 @@ use dokime::domain::model;
 use dokime::domain::model::execution::result::CycleView;
 use dokime::domains::ExecutionProviderTarget;
 use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture, RecordScope, Runtime};
-use dokime_server::grpc::Server;
 
 /* === Constants === */
 
@@ -102,9 +101,13 @@ fn failed(cycle: &model::execution::wire::CycleSummary) -> bool {
 async fn artifact_transfer() {
     let root = tempfile::tempdir().unwrap();
     let config = crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.bundle", "Content"));
-    let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact)).boxed_local().await.unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = Runtime::with_execution_fixture(prepared_owner.configuration(config), "fixture", Arc::new(LargeArtifact))
+        .boxed_local()
+        .await
+        .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let create = contracts::execution::CreateCycle {

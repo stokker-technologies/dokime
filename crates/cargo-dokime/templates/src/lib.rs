@@ -30,8 +30,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::Dependencies;
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
@@ -52,7 +51,7 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
 
 /* === Type Aliases === */
 
-type Observing = ObserverAttachment<Bench, Publisher<Plugin>>;
+type Observing = ObserverAttachment<Publisher<Plugin>>;
 
 /* === Structs === */
 
@@ -93,7 +92,6 @@ impl dokime::harmos::builtins::lifecycle::Policy for Plugin {
 
 #[dokime::plugin(
     id = "{{crate}}",
-    provides = domain::operations::Operations,
     requires(),
     contributions(
         dokime::Suites<suites::Suites>,
@@ -104,55 +102,46 @@ impl dokime::harmos::builtins::lifecycle::Policy for Plugin {
     observers = observers::Observers,
     restart = "never", description = "A thermal bench: one plugin, one suite, one template that holds a chamber at temperature and decides whether it stayed there.\nThe identity, the operations it serves and calls, and the contributions it makes to the host are literal data on the attribute: they are what the host reads *before* the plugin runs, out of a binary it never executes. A template calls `ReadChamber` through the host; the plugin serves it privately, so its own runs may call it without naming it in `requires(...)`, which lists only what other plugins or the host provide.")]
 impl dokime::Plugin for Plugin {
+    const CATALOGS: &'static [dokime::harmos::Catalog] = &[domain::operations::Operations::CATALOG, listeners::Listeners::CATALOG];
+    fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
+    }
+}
+
+impl dokime::harmos::Lifecycle for Plugin {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = Bench;
-
-    fn prepare(config: Configuration) -> std::result::Result<Self, Refusal> {
-        let settings = dokime::plugin::refusal(config.settings::<domain::model::settings::BenchSettings>())?;
-        // The port is discovered, so it is absent until an operator saves what
-        // the card offered them: a plugin has to open before discovery can run,
-        // which is exactly why a discovered field is an `Option<T>`.
-        let port = match settings.chamber.sensor_port {
-            Some(saved) => saved.display().to_string(),
-            None => DEFAULT_PORT.to_owned(),
+    async fn prepare(config: Configuration, setup: &mut dokime::harmos::Setup<Self>) -> std::result::Result<Self, Refusal> {
+        let mut owner = {
+            let settings = dokime::plugin::refusal(config.settings::<domain::model::settings::BenchSettings>())?;
+            // The port is discovered, so it is absent until an operator saves what
+            // the card offered them: a plugin has to open before discovery can run,
+            // which is exactly why a discovered field is an `Option<T>`.
+            let port = match settings.chamber.sensor_port {
+                Some(saved) => saved.display().to_string(),
+                None => DEFAULT_PORT.to_owned(),
+            };
+            tracing::info!("opening the bench sensor on {port}");
+            Self {
+                bench: Arc::new(Bench {
+                    sensor: bench::Sensor::open(port, AMBIENT_C),
+                    units: Mutex::default(),
+                    // An unbound optional secret decodes as `None`, which is how "not
+                    // configured" is told apart from "configured and empty".
+                    upload_configured: settings.chamber.cloud_token.is_some(),
+                }),
+                observers: None,
+            }
         };
-        tracing::info!("opening the bench sensor on {port}");
-        Ok(Self {
-            bench: Arc::new(Bench {
-                sensor: bench::Sensor::open(port, AMBIENT_C),
-                units: Mutex::default(),
-                // An unbound optional secret decodes as `None`, which is how "not
-                // configured" is told apart from "configured and empty".
-                upload_configured: settings.chamber.cloud_token.is_some(),
-            }),
-            observers: None,
-        })
+        setup.resource::<Bench>(owner.resources());
+        owner.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(<Self as Declared>::STREAMS)?);
+        dokime::execution::prepare::<Self, suites::Suites>(setup)?;
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<Bench> {
-        Arc::clone(&self.bench)
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> std::result::Result<(), ServingError> {
-        // Each operation declares the resources it reads; this snapshot supplies them.
-        let mut dependencies = Dependencies::new();
-        dependencies.insert(self.resources()).expect("each dependency is inserted once");
-        table.register(domain::operations::Operations::registration(dependencies.clone()))?;
-        table.register(listeners::Listeners::registration(dependencies))?;
-        dokime::execution::serve::<Self, suites::Suites>(table)?;
-        // Observers run under the built-in observe control the host submits.
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
-    }
-
-    fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
-        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
@@ -164,6 +153,12 @@ impl dokime::Plugin for Plugin {
         self.observers.take();
         self.bench.sensor.close();
         Ok(())
+    }
+}
+
+impl Plugin {
+    fn resources(&self) -> Arc<Bench> {
+        Arc::clone(&self.bench)
     }
 }
 

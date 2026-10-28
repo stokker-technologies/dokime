@@ -49,7 +49,7 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 /* === Enums === */
 
 // The bench operations this plugin declares; each request is its operation.
-#[dokime::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 pub enum Operations {
     ReadDevice(ReadDevice),
     SetPower(SetPower),

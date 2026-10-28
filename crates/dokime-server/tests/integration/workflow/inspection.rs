@@ -314,7 +314,8 @@ async fn inspection_separates_outputs() {
 #[tokio::test]
 async fn planned_params_limit() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = fixture(root.path(), Arc::new(Gate::default()), &prepared_owner).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let prototype = suite.test_case_templates[0].parameters[0].clone();
     suite.test_case_templates[0].parameters = (0..257)
@@ -328,7 +329,7 @@ async fn planned_params_limit() {
         })
         .collect();
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     // Native registered suites can exceed the transport's creation schema
     // bound. Inspection must still expose every existing planned parameter.

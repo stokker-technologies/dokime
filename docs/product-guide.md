@@ -545,7 +545,11 @@ uncertain, inspect the backend before creating another container.
 
 ### Qualify An On-Board Charger
 
-Harmos supplies the runtime and plugin boundary. Dokime adds the testing domain:
+Harmos supplies the runtime and plugin boundary. Applications use
+`Runtime::<A>::launch(origin, config)` with the shared `Lifecycle`: `prepare`
+registers catalogs, lanes and resources through `Setup`, and `initialize`
+activates resources that need the live runtime. Server composition is prepared
+before Dokime launches; listening uses the initialized service. Dokime adds the testing domain:
 procedures, parameter expansion, operator interaction, acceptance criteria, and
 self-contained reports.
 

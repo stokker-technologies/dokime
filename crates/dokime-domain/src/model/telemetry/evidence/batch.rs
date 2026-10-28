@@ -46,12 +46,12 @@ pub struct TelemetryBatch {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for TelemetryBatch {
+impl harmos::MemorySize for TelemetryBatch {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.batch_id), std::mem::size_of_val(&self.batch_id)),
-            (harmos_domain::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
-            (harmos_domain::MemorySize::memory_size(&self.samples), std::mem::size_of_val(&self.samples)),
+            (harmos::MemorySize::memory_size(&self.batch_id), std::mem::size_of_val(&self.batch_id)),
+            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos::MemorySize::memory_size(&self.samples), std::mem::size_of_val(&self.samples)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

@@ -23,7 +23,6 @@ use dokime_runtime::InstalledPlugin;
 use dokime_runtime::definition::SuiteSet;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy};
-use dokime_runtime::harmos::operations::{ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::{Refusal, Supervisor};
@@ -159,32 +158,30 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Declaring {
 
 #[dokime_runtime::plugin(
     id = "fixture_declaring",
-    provides = (),
     requires(),
     contributions(dokime_runtime::Suites<Suites>),
     restart = "never",
     description = "Registers what its templates declare and repeats none of it."
 )]
 impl dokime_runtime::Plugin for Declaring {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
+}
+
+impl dokime_runtime::harmos::Lifecycle for Declaring {
     type Config = dokime_runtime::plugin::Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = ();
-
-    fn prepare(_config: dokime_runtime::plugin::Configuration) -> Result<Self, Refusal> {
-        Ok(Self)
+    async fn prepare(
+        _config: dokime_runtime::plugin::Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>,
+    ) -> Result<Self, Refusal> {
+        let owner = { Self };
+        setup.resource::<()>(owner.resources());
+        dokime_runtime::execution::prepare::<Self, Suites>(setup)?;
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<()> {
-        Arc::new(())
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        dokime_runtime::execution::serve::<Self, Suites>(table)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -193,6 +190,12 @@ impl dokime_runtime::Plugin for Declaring {
 
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         Ok(())
+    }
+}
+
+impl Declaring {
+    fn resources(&self) -> Arc<()> {
+        Arc::new(())
     }
 }
 

@@ -33,7 +33,7 @@ pub use unit_connected::UnitConnected;
 
 /* === Enums === */
 
-#[dokime::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 pub enum Listeners {
     UnitConnected(UnitConnected),
 }

@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<DeleteExecution>], response = DeleteExecutionResponse, id = "dokime.history.delete_execution",
-        policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
+        policy = MUTATION, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "DeleteExecution"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeleteExecution {

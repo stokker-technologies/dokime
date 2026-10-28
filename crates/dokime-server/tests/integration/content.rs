@@ -122,8 +122,9 @@ async fn large_frame_transfer() {
 async fn artifact_transfer(message_bytes: usize) {
     let root = tempfile::tempdir().unwrap();
     let artifacts = Arc::new(Artifacts::default());
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed().with_max_message_bytes(message_bytes)).unwrap();
     let mut owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content", "Content")),
+        prepared_owner.configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content", "Content"))),
         "fixture",
         artifacts.clone(),
     )
@@ -131,7 +132,7 @@ async fn artifact_transfer(message_bytes: usize) {
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let service = dokime_server::grpc::Service::new(owner.handle(), keyed().with_max_message_bytes(message_bytes)).await.unwrap();
+    let service = prepared_owner.ready().await.unwrap();
     let server = service.listen().await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().initial_stream_window_size(4096).connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
@@ -463,8 +464,10 @@ async fn artifact_transfer(message_bytes: usize) {
 async fn artifact_upload_owned() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
+    let prepared_upload = dokime_server::grpc::Service::prepare(keyed().with_max_message_bytes(1024 * 1024)).unwrap();
     let mut owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.upload", "Content")),
+        prepared_upload
+            .configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.upload", "Content"))),
         "fixture",
         gate.clone(),
     )
@@ -472,16 +475,7 @@ async fn artifact_upload_owned() {
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(
-        owner.handle(),
-        keyed()
-            // The native client needs the full availability inventory, which is charged
-            // about 14 KiB for 109 gRPC paths and cannot fit a 4 KiB budget (see
-            // `artifact_transfer_budget`).
-            .with_max_message_bytes(1024 * 1024),
-    )
-    .await
-    .unwrap();
+    let server = prepared_upload.ready().await.unwrap().listen().await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
@@ -743,8 +737,10 @@ async fn completion_harness()
 -> (tempfile::TempDir, Runtime, Server, WireClient, WireClient, Arc<UploadGate>, String, model::content::wire::ArtifactScope) {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed().with_max_message_bytes(4096)).unwrap();
     let owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.completion", "Content")),
+        prepared_owner
+            .configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.completion", "Content"))),
         "fixture",
         gate.clone(),
     )
@@ -752,7 +748,7 @@ async fn completion_harness()
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(4096)).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(

@@ -71,13 +71,15 @@ impl ActionDispatcher for FixtureActionDispatcher {
 /* === Private Functions === */
 
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
+    let prepared_environment = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
     let environment = support::TestEnvironment::with_installed_plugins_and_action_dispatcher(
         vec![fixture_module()],
         Identifier::new("fixture_settings").unwrap(),
         Arc::new(FixtureActionDispatcher),
+        &prepared_environment,
     )
     .await;
-    let server = Server::start(environment.runtime.clone(), Config::local()).await.unwrap();
+    let server = prepared_environment.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     (environment, server, client)
 }

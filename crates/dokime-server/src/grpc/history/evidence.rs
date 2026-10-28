@@ -19,7 +19,7 @@ use crate::grpc::transcode::Transcode;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
@@ -28,12 +28,10 @@ use crate::grpc::{
     catalog, content,
     value::{self, canonical},
 };
+use dokime::app::LiveRuntime;
 use dokime::operations::history as contract;
 use dokime::operations::hosting::{Host, Serve, Served};
-use dokime::{
-    RuntimeHandle,
-    runtime::query::execution_history::{ExecutionCheckpoint, ExecutionCheckpointEvidence},
-};
+use dokime::runtime::query::execution_history::{ExecutionCheckpoint, ExecutionCheckpointEvidence};
 
 /* === Constants === */
 
@@ -44,11 +42,16 @@ use dokime::{
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(contract::GetCheckpointEvidence),
+}
 
 /* === Traits === */
 
@@ -63,7 +66,7 @@ impl Serve<contract::GetCheckpointEvidence> for Resources {
             let sections = sections(std::mem::take(&mut request.sections))?;
             let maximum = self.maximum;
             let only_outputs = !sections.record_schemas && !sections.telemetry_tables;
-            let runtime = &self.runtime;
+            let runtime = &dokime::app::live_runtime(&self.runtime).await?;
             let response = if only_outputs {
                 let outputs = runtime.execution_checkpoint_outputs(&checkpoint).await.map_err(wire::checkpoint_failure)?;
                 outputs
@@ -90,12 +93,14 @@ impl Serve<contract::GetCheckpointEvidence> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<contract::GetCheckpointEvidence>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<contract::GetCheckpointEvidence>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<contract::GetCheckpointEvidence>>(Host::<contract::GetCheckpointEvidence>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

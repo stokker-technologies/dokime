@@ -49,8 +49,10 @@ struct Page {
 
 /* === Public Functions === */
 
-pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> Result<execution_model::ListExecutionStepsReply, Status> {
-    let snapshot = service.runtime.watch_state().latest();
+pub(super) async fn list(
+    service: &Resources, request: &wire::ListExecutionSteps,
+) -> Result<execution_model::ListExecutionStepsReply, Status> {
+    let snapshot = dokime::app::live_runtime(&service.runtime).await?.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let page = page(&snapshot, &request.execution_id, request.limit, request.cursor.as_ref(), execution.steps.len())?;
     let mut budget = value::Budget::new()?;

@@ -34,7 +34,7 @@ pub mod status;
 
 /* === Enums === */
 
-#[dokime::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 pub enum Operations {
     #[nested]
     Bench(crate::domain::operations::Operations),

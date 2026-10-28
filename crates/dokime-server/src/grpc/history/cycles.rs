@@ -17,14 +17,14 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
 use super::wire;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{canonical, projection};
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::history::wire::{CycleBrowsePage, SavedCycleSummary};
 use dokime::operations::history::BrowseCycles;
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -39,11 +39,16 @@ use dokime::runtime::query::cycle_history::{CycleBrowsePage as NativePage, Cycle
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(BrowseCycles),
+}
 
 /* === Traits === */
 
@@ -64,7 +69,7 @@ impl Serve<BrowseCycles> for Resources {
             };
 
             // Project Only The Selected Headers
-            let page = self.runtime.browse_cycles(query).await.map_err(wire::query_failure)?;
+            let page = dokime::app::live_runtime(&self.runtime).await?.browse_cycles(query).await.map_err(wire::query_failure)?;
             project(page, self.maximum).map_err(|source| wire::query_failure(source.into()))
         })
     }
@@ -72,12 +77,14 @@ impl Serve<BrowseCycles> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<BrowseCycles>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<BrowseCycles>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<BrowseCycles>>(Host::<BrowseCycles>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

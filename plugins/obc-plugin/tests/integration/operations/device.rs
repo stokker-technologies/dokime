@@ -60,7 +60,7 @@ async fn manual_power_shared() {
 
     writer.set_power(false).await.unwrap();
     assert_eq!(reader.device().await.unwrap().power, Power::Off);
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
 }
 
 #[tokio::test]
@@ -76,7 +76,7 @@ async fn stopped_mutations_refused() {
     assert!(matches!(client.set_power(true).await, Err(dokime::harmos::Error::Rejected(Error::Stopped))));
     assert!(matches!(client.set_power(false).await, Err(dokime::harmos::Error::Rejected(Error::Stopped))));
     assert_eq!(client.device().await.unwrap(), stopped);
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
 }
 
 #[tokio::test]
@@ -97,5 +97,5 @@ async fn latched_fault_preserved() {
     assert_eq!(client.device().await.unwrap(), device);
     runtime.state.commit(Stop).await.unwrap();
     assert_eq!(client.device().await.unwrap().power, Power::Faulted);
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
 }
