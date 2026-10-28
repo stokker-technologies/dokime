@@ -2793,11 +2793,12 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
     () =>
       session.execute(
         `
-    const identity = [...document.querySelectorAll('main p')].find((node) => node.textContent.trim() === arguments[0]);
-    const entry = identity?.closest('section');
+    const identity = [...document.querySelectorAll('table[aria-label="History Executions"] [data-execution-id]')]
+      .find((node) => node.dataset.executionId === arguments[0]);
+    const entry = identity?.closest('tr');
     if (!entry || !/\\b(passed|failed)\\b/i.test(entry.innerText)) return null;
     return [...entry.querySelectorAll('button')]
-      .find((button) => button.innerText.trim() === 'Inspect checkpoint' && !button.disabled) ?? null;
+      .find((button) => button.innerText.trim() === 'Inspect' && !button.disabled) ?? null;
   `,
         [executionId],
       ),
@@ -2823,7 +2824,7 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
   await session.clickNamed("button", "Context");
   await until("captured context", async () => hasText(await session.text(), "Notes At Capture"));
 
-  await session.clickNamed("button", "History Library");
+  await session.clickNamed("button", "Back");
   await until("back to history", async () => (await session.location()).pathname === "/history", 120000);
 }
 

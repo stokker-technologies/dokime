@@ -13,10 +13,10 @@ import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
 import { mapStepStatus } from "@/lib/api/native-planning";
 import { openNativeReport } from "@/lib/api/native-reports";
@@ -147,6 +147,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
               id: "title",
               header: "Execution",
               meta: { filter: "text" },
+              cell: ({ getValue, row }) => <span data-execution-id={row.original.metadata.execution_id}>{getValue()}</span>,
             }),
             dataTableColumns<ExecutionBrowseEntry>().accessor(
               (execution) => (execution.availability === "interrupted" ? "Interrupted" : execution.metadata.status),
