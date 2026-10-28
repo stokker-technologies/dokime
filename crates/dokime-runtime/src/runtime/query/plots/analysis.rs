@@ -270,8 +270,9 @@ impl Prepared {
 impl Environment<'_> {
     async fn invoke(&self, target: &Target, operation: &str, request: Request) -> crate::runtime::Result<crate::analysis::Response> {
         match (self, target) {
+            // The runtime serves its built-in analyses as the host.
             (Self::Live(runtime), Target::Builtin) => {
-                let bytes = runtime.operations.call_encoded(operation, request.encode()).await?;
+                let bytes = runtime.operations.call_encoded(&format!("host.{operation}"), request.encode()).await?;
                 crate::analysis::Response::decode(&bytes).map_err(|error| invalid(error.to_string()))
             }
             (Self::Live(runtime), Target::Plugin { source, dispatcher }) => {
