@@ -72,6 +72,9 @@ use serde::{Serialize, de::DeserializeOwned, ser::SerializeSeq};
 /* === Constants === */
 
 const MAX_ROW_BYTES: u64 = 16 * 1024 * 1024;
+// One Read Fills Many Rows: Iteration Costs One Seek And Read Per Window, Not Per Row Or Byte.
+#[cfg(feature = "native")]
+const READ_WINDOW_BYTES: u64 = 1024 * 1024;
 
 /* === Macros === */
 
@@ -104,6 +107,10 @@ pub struct Rows<'a, T> {
     owner: &'a EvidenceRows<T>,
     offset: u64,
     remaining: usize,
+    #[cfg(feature = "native")]
+    window: Vec<u8>,
+    #[cfg(feature = "native")]
+    window_start: u64,
 }
 
 /* === Enums === */
@@ -174,6 +181,10 @@ impl<T> EvidenceRows<T> {
             owner: self,
             offset: 0,
             remaining: self.len(),
+            #[cfg(feature = "native")]
+            window: Vec::new(),
+            #[cfg(feature = "native")]
+            window_start: 0,
         }
     }
 }
@@ -258,17 +269,46 @@ impl<T: Serialize + DeserializeOwned> Rows<'_, T> {
             return None;
         }
         #[cfg(feature = "native")]
-        let row = {
-            let mut owner = self.owner.spool.lock().unwrap();
-            let spool = owner.as_mut().expect("nonempty evidence has a spool");
-            spool.read(&mut self.offset).map_err(|error| error.to_string())
-        };
+        let row = self.read_windowed().map_err(|error| error.to_string());
         #[cfg(not(feature = "native"))]
         let row = serde_json::to_value(&self.owner.rows[self.owner.len() - self.remaining])
             .and_then(serde_json::from_value)
             .map_err(|error| error.to_string());
         self.remaining -= 1;
         Some(row)
+    }
+}
+
+#[cfg(feature = "native")]
+impl<T: Serialize + DeserializeOwned> Rows<'_, T> {
+    fn read_windowed(&mut self) -> std::io::Result<T> {
+        let header = self.windowed(self.offset, 8)?;
+        let length = u64::from_le_bytes(header.try_into().map_err(std::io::Error::other)?);
+        if length > MAX_ROW_BYTES {
+            return Err(std::io::Error::other("invalid captured evidence row length"));
+        }
+        let start = self.offset.checked_add(8).ok_or_else(|| std::io::Error::other("evidence offset overflow"))?;
+        let row = serde_json::from_slice(self.windowed(start, length)?).map_err(std::io::Error::other)?;
+        self.offset = start.checked_add(length).ok_or_else(|| std::io::Error::other("evidence offset overflow"))?;
+        Ok(row)
+    }
+
+    // The Retained Window Answers When It Covers The Range; Otherwise One Locked Read Refills It.
+    fn windowed(&mut self, offset: u64, length: u64) -> std::io::Result<&[u8]> {
+        let end = offset.checked_add(length).ok_or_else(|| std::io::Error::other("evidence offset overflow"))?;
+        let window_end = self.window_start + self.window.len() as u64;
+        if offset < self.window_start || end > window_end {
+            let mut owner = self.owner.spool.lock().unwrap();
+            let spool = owner.as_mut().expect("nonempty evidence has a spool");
+            self.window = spool.read_window(offset, length.max(READ_WINDOW_BYTES))?;
+            self.window_start = offset;
+            if (self.window.len() as u64) < length {
+                return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "captured evidence row is truncated"));
+            }
+        }
+        let start = usize::try_from(offset - self.window_start).map_err(std::io::Error::other)?;
+        let length = usize::try_from(length).map_err(std::io::Error::other)?;
+        Ok(&self.window[start..start + length])
     }
 }
 
@@ -308,10 +348,12 @@ impl Spool {
             .and_then(|offset| offset.checked_add(bytes.len() as u64))
             .ok_or_else(|| std::io::Error::other("captured evidence spool offset overflow"))?;
         let count = self.count.checked_add(1).ok_or_else(|| std::io::Error::other("captured evidence row count overflow"))?;
+        let mut framed = Vec::with_capacity(8 + bytes.len());
+        framed.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+        framed.extend_from_slice(&bytes);
         let file = self.data.as_file_mut();
         file.seek(SeekFrom::Start(self.bytes))?;
-        file.write_all(&(bytes.len() as u64).to_le_bytes())?;
-        file.write_all(&bytes)?;
+        file.write_all(&framed)?;
 
         self.bytes = next;
         self.count = count;
@@ -368,6 +410,16 @@ impl Spool {
         Ok(true)
     }
 
+    // Up To `length` Bytes From `offset`, Bounded By What Was Written.
+    fn read_window(&mut self, offset: u64, length: u64) -> std::io::Result<Vec<u8>> {
+        let available = self.bytes.saturating_sub(offset).min(length);
+        let mut window = vec![0; usize::try_from(available).map_err(std::io::Error::other)?];
+        let file = self.data.as_file_mut();
+        file.seek(SeekFrom::Start(offset))?;
+        file.read_exact(&mut window)?;
+        Ok(window)
+    }
+
     fn read<T: DeserializeOwned>(&mut self, offset: &mut u64) -> std::io::Result<T> {
         let file = self.data.as_file_mut();
         file.seek(SeekFrom::Start(*offset))?;
@@ -377,7 +429,9 @@ impl Spool {
         if length > MAX_ROW_BYTES {
             return Err(std::io::Error::other("invalid captured evidence row length"));
         }
-        let row = serde_json::from_reader(file.take(length)).map_err(std::io::Error::other)?;
+        let mut payload = vec![0; usize::try_from(length).map_err(std::io::Error::other)?];
+        file.read_exact(&mut payload)?;
+        let row = serde_json::from_slice(&payload).map_err(std::io::Error::other)?;
         *offset = offset.checked_add(8 + length).ok_or_else(|| std::io::Error::other("evidence offset overflow"))?;
         Ok(row)
     }
