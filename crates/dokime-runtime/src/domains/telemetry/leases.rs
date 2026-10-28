@@ -44,6 +44,8 @@ pub(crate) const HOST_PRODUCER_KEY: &str = "host";
 
 pub(crate) struct StreamLeases {
     state: Mutex<LeaseState>,
+    // One FIFO Per Leaseholder Run: Admission Queues Rows Without Awaiting Any Plugin Call.
+    deliveries: Mutex<BTreeMap<String, tokio::sync::mpsc::UnboundedSender<Delivery>>>,
 }
 
 #[derive(Default)]
@@ -109,6 +111,12 @@ struct Holder {
 
 pub(crate) struct LeasedRows {
     holders: BTreeMap<Identifier, Vec<Holder>>,
+}
+
+struct Delivery {
+    requester: String,
+    request: DeliverSamplesRequest,
+    delivered: tokio::sync::oneshot::Sender<()>,
 }
 
 /* === Enums === */
@@ -284,6 +292,7 @@ impl StreamLeases {
         let closed_windows = 4096;
         Self {
             state: Mutex::new(LeaseState { closed_windows, ..LeaseState::default() }),
+            deliveries: Mutex::default(),
         }
     }
 
@@ -512,17 +521,19 @@ impl RuntimeHandle {
     }
 
     // Encode Measurement Fields Once; Append Each Leaseholder's Captured Scope To Its Wire Row.
-    pub(crate) async fn forward_leased_rows(
+    // Rows Are Only Queued Here; Each Returned Receipt Settles Once Its Run Took Its Rows.
+    pub(crate) async fn queue_leased_rows(
         &self, delivery: harmos::storage::ReadBatch<LeasedRows>, samples: &[super::streams::PreparedSample],
         identities: &[super::streams::admission::SampleIdentity<'_>],
-    ) {
+    ) -> Vec<tokio::sync::oneshot::Receiver<()>> {
+        let mut queued = Vec::new();
         if delivery.holders.values().all(Vec::is_empty) {
-            return;
+            return queued;
         }
         let mut frames = Vec::new();
         if frames.try_reserve_exact(samples.len()).is_err() {
             tracing::warn!(rows = samples.len(), "leased rows could not reserve their delivery frames");
-            return;
+            return queued;
         }
         frames.resize(samples.len(), None::<String>);
         for (stream, holders) in &delivery.holders {
@@ -577,13 +588,14 @@ impl RuntimeHandle {
                     })
                 })();
                 match request {
-                    Ok(request) => self.deliver_to_leaseholder(holder, request).await,
+                    Ok(request) => queued.extend(self.queue_for_leaseholder(holder, request)),
                     Err(error) => {
                         tracing::warn!(stream = stream.as_str(), detail = %error, "a leased row could not be encoded for its leaseholder")
                     }
                 }
             }
         }
+        queued
     }
 
     pub(crate) async fn forward_lease_gap(&self, stream: &Identifier, reason: &str) {
@@ -659,33 +671,79 @@ impl RuntimeHandle {
     }
 
     async fn deliver_to_leaseholder(&self, holder: &Holder, request: DeliverSamplesRequest) {
+        if let Some(delivered) = self.queue_for_leaseholder(holder, request) {
+            let _ = delivered.await;
+        }
+    }
+
+    // Queues Behind Every Earlier Delivery To The Same Run Without Awaiting Its Plugin, So A
+    // Caller Holding Admission Order Never Waits On A Leaseholder That Itself Waits On Admission.
+    fn queue_for_leaseholder(&self, holder: &Holder, request: DeliverSamplesRequest) -> Option<tokio::sync::oneshot::Receiver<()>> {
         // A hold that names no run has nobody to be evidence for. A dashboard
         // viewing a stream is exactly that hold, and delivering it would be
         // worse than useless: the sidecar decides which of its executions a
         // scope covers, and a scope naming nothing covers all of them — every
         // live run in that process would take a viewer's rows as its own.
-        let Some(execution) = holder.scope.test_execution_id.clone() else {
-            return;
+        let execution = holder.scope.test_execution_id.clone()?;
+        let (delivered, receipt) = tokio::sync::oneshot::channel();
+        let delivery = Delivery { requester: holder.requester.clone(), request, delivered };
+
+        // A Live Queue Takes It In Order; Otherwise This Delivery Starts The Run's Queue.
+        let leases = self.stream_leases();
+        let mut queues = leases.deliveries.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let delivery = match queues.get(execution.as_str()) {
+            Some(queue) => match queue.send(delivery) {
+                Ok(()) => return Some(receipt),
+                Err(closed) => closed.0,
+            },
+            None => delivery,
         };
-        let Some(template) =
-            self.state_read().executions.get(&execution).map(|execution| execution.snapshot.case().metadata.identifier.to_string())
-        else {
+        let (queue, pending) = tokio::sync::mpsc::unbounded_channel();
+        let _ = queue.send(delivery);
+        queues.insert(execution.to_string(), queue);
+        drop(queues);
+        let runtime = self.clone();
+        tokio::spawn(async move { runtime.drain_leaseholder(execution, pending).await });
+        Some(receipt)
+    }
+
+    // Signals One Run's Queued Deliveries In Order; Retires Its Queue Under The Table Lock Once Empty.
+    async fn drain_leaseholder(
+        &self, execution: dokime_domain::model::identity::TestExecutionId, mut pending: tokio::sync::mpsc::UnboundedReceiver<Delivery>,
+    ) {
+        while let Some(delivery) = self.next_delivery(execution.as_str(), &mut pending) {
+            self.signal_leaseholder(&execution, &delivery.requester, delivery.request).await;
+            let _ = delivery.delivered.send(());
+        }
+    }
+
+    fn next_delivery(&self, execution: &str, pending: &mut tokio::sync::mpsc::UnboundedReceiver<Delivery>) -> Option<Delivery> {
+        if let Ok(delivery) = pending.try_recv() {
+            return Some(delivery);
+        }
+        // Senders Queue Under This Lock, So An Empty Check Here Cannot Strand A Delivery.
+        let leases = self.stream_leases();
+        let mut queues = leases.deliveries.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let delivery = pending.try_recv().ok();
+        if delivery.is_none() {
+            queues.remove(execution);
+        }
+        delivery
+    }
+
+    async fn signal_leaseholder(&self, execution: &dokime_domain::model::identity::TestExecutionId, requester: &str, request: DeliverSamplesRequest) {
+        let template = self.state_read().executions.get(execution).map(|execution| execution.snapshot.case().metadata.identifier.to_string());
+        let Some(template) = template else {
             return;
         };
         let target = crate::domains::execution::run::Target::of(self.operations.clone(), &template);
-        if let Err(error) = target
-            .signal(crate::transport::ExecutionSignal {
-                execution_token: execution.to_string(),
-                samples: Some(request),
-                ..crate::transport::ExecutionSignal::default()
-            })
-            .await
-        {
-            tracing::debug!(
-                requester = holder.requester,
-                detail = %error.message,
-                "a leaseholder's run did not take its stream's rows"
-            );
+        let signal = crate::transport::ExecutionSignal {
+            execution_token: execution.to_string(),
+            samples: Some(request),
+            ..crate::transport::ExecutionSignal::default()
+        };
+        if let Err(error) = target.signal(signal).await {
+            tracing::debug!(requester, detail = %error.message, "a leaseholder's run did not take its stream's rows");
         }
     }
 
