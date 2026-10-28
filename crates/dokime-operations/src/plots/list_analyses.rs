@@ -30,6 +30,7 @@ use super::*;
 
 /* === Structs === */
 
+// Analysis IDs Are Open; Each Contribution Declares Its Parameters And Outputs.
 #[harmos::operation(resources = [crate::hosting::Host<ListAnalyses>], response = ListAnalysesReply, id = "dokime.plots.list_analyses",
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plots", method = "ListAnalyses"))]

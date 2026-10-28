@@ -37,12 +37,8 @@ const DESKTOP_MP4_PROBE_BYTES: u64 = 4_194_304;
 
 // === Private Functions: MP4 (ISO BMFF) box walking === //
 
-//
-
 // A byte-for-byte port of the box reader/writer pair in
-
 // `fix-recording-duration.ts`; offsets are the ISO/IEC 14496-12 layouts for
-
 // `mvhd`/`tkhd`/`mdhd` version 0 (32-bit) and version 1 (64-bit) fields.
 
 struct Mp4Box {

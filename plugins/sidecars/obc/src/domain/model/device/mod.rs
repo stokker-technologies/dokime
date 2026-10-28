@@ -7,8 +7,6 @@
  * ***
  */
 
-// Manual device observation
-
 /* === Modules === */
 
 /* === Re-Exports === */

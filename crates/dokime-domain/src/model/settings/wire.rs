@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -169,9 +167,6 @@ pub struct PluginRuntimeSettings {
     pub values: Option<Value>,
     pub secret_bindings: Option<PluginRuntimeSecretBindings>,
 
-    // Values a plugin's discovery routes computed, by setting id, for the fields
-    // nobody saved. A value here is shown on the card with a `Discovered` marker
-    // and is used by no run: saving it is what turns it into an edited value.
     #[row(
         description = "Values a plugin's discovery routes computed, by setting id, for the fields nobody saved. A value here is shown on the card with a `Discovered` marker and is used by no run: saving it is what turns it into an edited value."
     )]
@@ -240,7 +235,6 @@ pub struct MultipleChoiceSetting {
     pub default: String,
     pub choices: Vec<SettingChoice>,
 
-    // The id of the plugin route that fills this dropdown at run time.
     #[row(description = "The id of the plugin route that fills this dropdown at run time.")]
     pub provider: Option<String>,
 }

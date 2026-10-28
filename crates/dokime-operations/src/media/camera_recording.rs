@@ -38,7 +38,6 @@ pub struct CameraRecording {
     pub scope: Option<ArtifactScope>,
     pub camera: Option<u32>,
 
-    // Absent records video only.
     #[row(description = "Absent records video only.")]
     pub audio: Option<RecordingAudio>,
 

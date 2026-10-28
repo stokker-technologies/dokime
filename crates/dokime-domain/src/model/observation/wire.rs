@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -46,8 +44,6 @@ pub struct RuntimeStateFrame {
     pub shutting_down: bool,
     pub cycle_count: u64,
 
-    // The slow work the backend is doing now, and work that ended moments ago.
-    // A frame that changes only these repeats the previous cursor.
     #[row(
         description = "The slow work the backend is doing now, and work that ended moments ago. A frame that changes only these repeats the previous cursor."
     )]
@@ -62,11 +58,9 @@ pub struct OperationProgress {
     pub label: String,
     pub phase: String,
 
-    // Every phase entered, oldest first and the current one last; at most 16.
     #[row(description = "Every phase entered, oldest first and the current one last; at most 16.")]
     pub phases: Vec<String>,
 
-    // Absent while the operation cannot tell how far it has come.
     #[row(description = "Absent while the operation cannot tell how far it has come.")]
     pub fraction: Option<f64>,
 
@@ -126,8 +120,6 @@ pub struct EvidenceCounts {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TraceabilityPage {
-    // The request scope is echoed so a consumer cannot accidentally apply a
-    // response to another selected execution.
     #[row(description = "The request scope is echoed so a consumer cannot accidentally apply a response to another selected execution.")]
     pub scope: Option<EvidenceScope>,
 
@@ -136,8 +128,6 @@ pub struct TraceabilityPage {
     pub next_after_traceability_id: String,
     pub complete: bool,
 
-    // The source cut used for the host overlay. This binds continuations even
-    // though host telemetry is stored outside the journal cursor.
     #[row(
         description = "The source cut used for the host overlay. This binds continuations even though host telemetry is stored outside the journal cursor."
     )]

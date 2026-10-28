@@ -72,25 +72,21 @@ impl Endpoint for Screenshot {
 
 impl Endpoint for Photo {
     const PATH: &'static str = "/dokime.v1.Media/Photo";
-    // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for AudioRecording {
     const PATH: &'static str = "/dokime.v1.Media/AudioRecording";
-    // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for ScreenRecording {
     const PATH: &'static str = "/dokime.v1.Media/ScreenRecording";
-    // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for CameraRecording {
     const PATH: &'static str = "/dokime.v1.Media/CameraRecording";
-    // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }
 

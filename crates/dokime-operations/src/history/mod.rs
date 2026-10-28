@@ -96,18 +96,6 @@ use dokime_domain::model::telemetry::wire::*;
 
 /* === Enums === */
 
-// Permanently delete one sealed historical execution. The caller supplies a
-
-// stable request identifier so a retry can identify the accepted deletion.
-
-// `filter` and `order` must be repeated unchanged on every continuation, and
-
-// `after_execution_id` must still be a member of the filtered result. A
-
-// changed selection, a changed order, or a continuation ID the filter excludes
-
-// is rejected rather than silently restarted.
-
 #[harmos::catalog]
 pub enum Operations {
     BrowseCycles(BrowseCycles),

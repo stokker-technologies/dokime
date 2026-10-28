@@ -7,8 +7,6 @@
  * ***
  */
 
-// History document projections onto the wire.
-
 /* === Modules === */
 
 pub(in crate::grpc) mod canonical;

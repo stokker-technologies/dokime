@@ -860,7 +860,7 @@ mod tests {
         state.install_plugin(plugin("fixture_first", "First")).unwrap();
         let installed = state.clone();
 
-        // A Conflicting Record Refuses Inside The Rebuild And Leaves Every Catalog Field
+        // A Conflicting Record Refuses Inside The Rebuild And Leaves Every Catalog Field Unchanged.
         assert!(state.install_plugin(plugin("fixture_second", "Second")).is_err());
         assert_eq!(state, installed);
 

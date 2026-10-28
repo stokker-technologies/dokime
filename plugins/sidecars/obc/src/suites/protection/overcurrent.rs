@@ -49,8 +49,6 @@ pub struct Overcurrent {
     published: u64,
 }
 
-// Records
-
 #[dokime::record(
     id = "obc.charger.protection.initialized",
     label = "Charger initialized",

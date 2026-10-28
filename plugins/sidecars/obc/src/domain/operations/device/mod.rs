@@ -7,8 +7,6 @@
  * ***
  */
 
-// Manual device operation declarations
-
 /* === Modules === */
 
 /* === Re-Exports === */

@@ -165,7 +165,6 @@ impl PluginStore {
         let install_id = Uuid::now_v7();
         let sha256 = digest(bytes);
 
-        // Prepare The Verified Bundle
         harmos::filesystem::publication::create_dir_all(&self.root).map_err(std::io::Error::from)?;
         let mut temporary = tempfile::NamedTempFile::new_in(&self.root)?;
         temporary.write_all(bytes)?;
@@ -181,7 +180,6 @@ impl PluginStore {
         let host_sources = host_sources.clone();
         self.settings
             .edit(move |document| {
-                // Reserve Owners Under The Settings Lock
                 let mut occupied = host_sources.clone();
                 for configured in configured {
                     if configured.identity.name == metadata.identity.name {
@@ -222,9 +220,7 @@ impl PluginStore {
                 let result = entry(plugin.installation(install_id), Some(metadata), None);
                 validate(&result)?;
 
-                // Publish Before Referencing The Bundle
-                // A failed settings publication leaves an unreferenced new file for
-                // the boot sweep. Existing installed bytes are never overwritten.
+                // A failed settings publication leaves an unreferenced new file for the boot sweep; installed bytes are never overwritten.
                 harmos::filesystem::publication::install(temporary.path(), &store.path(install_id)).map_err(std::io::Error::from)?;
                 for other_id in replaced {
                     let other = document.plugins.get_mut(&other_id).expect("listed above");

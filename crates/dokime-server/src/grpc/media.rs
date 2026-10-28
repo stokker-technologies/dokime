@@ -59,7 +59,6 @@ struct Resources {
     maximum: usize,
 }
 
-// Video Capture Is Declared But Refused: No Encoder Is Linked Yet.
 struct Unsupported;
 
 // A Cancelled Or Failed Stream Still Seals What Was Recorded.
@@ -141,7 +140,6 @@ impl Serve<contract::AudioRecording> for Resources {
                     }
                 };
 
-                // Announce The Sealed Artifact
                 unsealed.0 = None;
                 let record = sealed.map_err(failure)?;
                 let completed = metadata(&record)?;

@@ -43,7 +43,6 @@ const PLOT_POINTS: usize = 400;
 
 /* === Private Functions === */
 // snapshot query with all window uses all samples before downsampling.
-
 #[tokio::test]
 async fn snapshot_query_samples() {
     let root = tempdir().unwrap();
@@ -97,8 +96,8 @@ async fn batch_replacement_requests() {
 }
 
 // a time series plot summarizes each series over the exact rows of its window,
-// whatever the display budget, for the whole window, a trailing window, a
-// Zoomed Ranges And Complete Replacement Frames.
+// whatever the display budget: the whole window, a trailing window, a zoomed
+// range and complete replacement frames.
 #[tokio::test]
 async fn series_window_summaries() {
     let root = tempdir().unwrap();
@@ -628,7 +627,6 @@ fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBand
 /* === Tests === */
 
 // distribution query bins its x column and does not limit evidence to the display budget.
-
 #[tokio::test]
 async fn window_context_uses_latest_source_time_then_persisted_position() {
     let root = tempdir().unwrap();
@@ -722,7 +720,6 @@ async fn distribution_query_budget() {
 }
 
 // record only query filters on execution dimensions without a telemetry stream.
-
 #[tokio::test]
 async fn record_query_absent() {
     use dokime_runtime::document::{DocumentFilter, FilterOperator};

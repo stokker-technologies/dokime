@@ -30,6 +30,8 @@ use super::*;
 
 /* === Structs === */
 
+// Pages are ordered by registered suite ID. A changed cursor requires restarting
+// pagination; pages are not pinned across runtime changes.
 #[harmos::operation(resources = [crate::hosting::Host<ListSuites>], response = ListSuitesReply, id = "dokime.catalog.list_suites",
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Catalog", method = "ListSuites"))]

@@ -7,8 +7,6 @@
  * ***
  */
 
-// RevokePairedClient
-
 /* === Modules === */
 
 /* === Re-Exports === */
