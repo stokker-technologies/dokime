@@ -1761,9 +1761,8 @@ async function activeCycleJourney(session, otherTitle) {
   assert.match((await element()) ?? "", /Active · Idle/, "The element states the cycle's own state");
 
   /* The template dialog names the active cycle with Change, and the case joins it. */
-  await session.clickNamed("button", STARTUP_SUITE);
   await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 120000);
-  await session.clickCss('[data-testid="suite-template-obc.charger.startup.sequence"] button');
+  await session.clickNamed("button", STARTUP_TEMPLATE);
   const inline = () =>
     session.execute("return document.querySelector('[role=dialog] [data-testid=template-active-cycle]')?.innerText ?? null;");
   const named = (expected) => until(`the dialog naming ${expected}`, async () => hasText((await inline()) ?? "", expected), 120000);
@@ -1932,9 +1931,8 @@ async function libraryJourney(session) {
 
   /* A second template joins the same cycle, so the run has a prompt in it. */
   await settle(session);
-  await session.clickNamed("button", STARTUP_SUITE);
   await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 120000);
-  await session.clickCss('[data-testid="suite-template-obc.charger.startup.sequence"] button');
+  await session.clickNamed("button", STARTUP_TEMPLATE);
   await until("second dialog", () => session.find("css selector", "[role=dialog]"), 120000);
   /* One case at its registered values has nothing to review: Next adds it at
      once and closes the dialog, without a summary step. */
