@@ -106,9 +106,11 @@ impl CycleReport {
         let nonce = uuid::Uuid::now_v7();
         let manager = manager.clone();
         tokio::task::spawn_blocking(move || {
-            let source = HtmlReport::from_cycle(snapshot, members, &operation, &report_defaults)?;
+            let source = tracing::info_span!("report.render.cycle.members", members = members.len())
+                .in_scope(|| HtmlReport::from_cycle(snapshot, members, &operation, &report_defaults))?;
             let owner = source.header().cycle.test_cycle_id.as_str();
-            let file = super::saved::ReportFile::render(&source, owner, nonce, ".cycle-report")?;
+            let file = tracing::info_span!("report.render.cycle.html")
+                .in_scope(|| super::saved::ReportFile::render(&source, owner, nonce, ".cycle-report"))?;
             Ok(Self { manager, file })
         })
         .await?

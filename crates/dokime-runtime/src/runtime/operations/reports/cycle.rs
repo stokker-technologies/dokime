@@ -259,8 +259,10 @@ async fn sealed_member(
         return Err(invalid("sealed member evidence exceeds cycle report boundary"));
     }
     if let Some(member) = resources.execution_storage.sealed_cycle_member(seal).await {
+        tracing::debug!(execution_id = %seal.source.execution.execution_id, "cycle report reuses the sealed member's spooled input");
         return Ok(CycleMember::Captured(member));
     }
+    tracing::debug!(execution_id = %seal.source.execution.execution_id, "cycle report re-materializes a sealed member");
     let storage = &resources.execution_storage.storage;
     CycleMember::capture(crate::report::materialize::sealed_member(ctx, storage, seal, progress).await?)
 }
