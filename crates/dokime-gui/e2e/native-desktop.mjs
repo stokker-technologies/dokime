@@ -3046,7 +3046,8 @@ async function remoteAccessJourney() {
   await session.click(revoke);
   await until(
     "first client removed",
-    async () => !(await session.find("xpath", "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]")),
+    async () =>
+      (await session.findAll("xpath", "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]")).length === 0,
   );
   await connect("desktop-first", false);
   await connect("desktop-second", true);
@@ -3100,12 +3101,22 @@ async function remoteAccessJourney() {
   await writeFile(join(evidence, "invokes-remote-access.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
   for (let index = 0; index < 21; index += 1) await connect("desktop-regenerated", true);
   await session.goto("/settings/remote");
+  const pageSize = await until("remote session table page size", () =>
+    session.find("xpath", "//table[@aria-label='Recent Remote Sessions']/parent::div/parent::div//select[@aria-label='Rows Per Page']"),
+  );
+  await session.execute(
+    `const select = arguments[0];
+     if (![...select.options].some(option => option.value === '25')) throw new Error('The remote session table must offer twenty-five rows');
+     select.value = '25';
+     select.dispatchEvent(new Event('change', {bubbles: true}));`,
+    [pageSize],
+  );
   const sessionRows = () =>
     session.execute(`
     const table = document.querySelector('table[aria-label="Recent Remote Sessions"]');
     if (!table) return [];
     table.scrollIntoView({block: 'center'});
-    return [...table.querySelectorAll('tbody tr[data-window-row]')].map(row => row.cells[0].innerText);
+    return [...table.querySelectorAll('tbody tr')].filter(row => row.cells.length > 1).map(row => row.cells[0].innerText);
   `);
   const firstPage = await until("twenty remote sessions", async () => {
     const rows = await sessionRows();
@@ -3377,7 +3388,7 @@ async function settingsJourney(session, notes) {
     "diagnostics",
     async () => {
       const text = await session.text();
-      return hasText(text, "Storage Root") ? text : null;
+      return hasText(text, "Data Directory") ? text : null;
     },
     120000,
   );
