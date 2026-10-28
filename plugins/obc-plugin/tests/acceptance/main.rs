@@ -164,7 +164,7 @@ impl Hosting {
             };
             operations
                 .call_encoded(
-                    <dokime::execution::Signal<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID,
+                    &owned(<dokime::execution::Signal<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID),
                     signal.encode(),
                 )
                 .await?;
@@ -463,7 +463,10 @@ impl Bench {
         let operations = self.runtime.operations.with_context(context);
         tokio::spawn(async move {
             let bytes = operations
-                .call_encoded(<dokime::execution::Run<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID, request.encode())
+                .call_encoded(
+                    &owned(<dokime::execution::Run<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID),
+                    request.encode(),
+                )
                 .await
                 .unwrap();
             SidecarExecutionOutcome::decode(bytes.as_slice()).unwrap()
@@ -513,6 +516,11 @@ fn refused(error: harmos::Error) -> std::io::Error {
     refusal(error.to_string())
 }
 
+// The Runtime Serves Every Sidecar Operation Under The Plugin That Owns It.
+fn owned(operation: &str) -> String {
+    format!("{}.{operation}", obc_plugin::SOURCE)
+}
+
 async fn dispatch(operations: &harmos::operations::OperationManager<Lanes>, method: &str, request: Vec<u8>) {
     let response = operations.call_encoded(method, request).await;
     match response {
@@ -545,8 +553,8 @@ async fn inventory_matches_dispatch() {
     {
         let run = format!("{template}.run");
         let signal = format!("{template}.signal");
-        dispatch(&runtime.operations, &run, RunExecution::default().encode()).await;
-        dispatch(&runtime.operations, &signal, ExecutionSignal::default().encode()).await;
+        dispatch(&runtime.operations, &owned(&run), RunExecution::default().encode()).await;
+        dispatch(&runtime.operations, &owned(&signal), ExecutionSignal::default().encode()).await;
         served.push((run, <dokime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
         served.push((signal, <dokime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
@@ -559,10 +567,10 @@ async fn inventory_matches_dispatch() {
         (<ReadDevice as OperationDeclaration>::ID, <ReadDevice as OperationDeclaration>::POLICY.timeout),
     ] {
         // These Bench Operations Have Empty Native Requests.
-        runtime.operations.call_encoded(operation, Vec::new()).await.unwrap();
+        runtime.operations.call_encoded(&owned(operation), Vec::new()).await.unwrap();
         served.push((operation.to_owned(), timeout.as_millis() as u64));
     }
-    runtime.operations.call_encoded(<SetPower as OperationDeclaration>::ID, SetPower { enabled: false }.encode()).await.unwrap();
+    runtime.operations.call_encoded(&owned(<SetPower as OperationDeclaration>::ID), SetPower { enabled: false }.encode()).await.unwrap();
     served.push((<SetPower as OperationDeclaration>::ID.to_owned(), <SetPower as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
 
     // Demand drives the real host probe; two rows cover its retained reader
@@ -598,15 +606,15 @@ async fn inventory_matches_dispatch() {
     drop(demand);
     // The listener is reached with a record; an empty one is refused, which is
     // dispatch all the same.
-    dispatch(&runtime.operations, "obc.bench.connection", Vec::new()).await;
+    dispatch(&runtime.operations, &owned("obc.bench.connection"), Vec::new()).await;
     served.push(("obc.bench.connection".to_owned(), 30_000));
     // The built-in observe control is served but never declared; it refuses
     // an observer the sidecar does not serve.
     let observe = <harmos::operations::observers::Control as harmos::operations::OperationDeclaration>::ID;
-    dispatch(&runtime.operations, observe, harmos::operations::observers::ControlRequest::default().encode()).await;
+    dispatch(&runtime.operations, &owned(observe), harmos::operations::observers::ControlRequest::default().encode()).await;
     // The ripple analysis is reached too; an empty request is refused all the same.
     let ripple = <obc_plugin::analyses::ripple::Ripple as dokime::analysis::Analysis>::ID;
-    dispatch(&runtime.operations, ripple, Vec::new()).await;
+    dispatch(&runtime.operations, &owned(ripple), Vec::new()).await;
     served.push((ripple.to_owned(), <obc_plugin::analyses::ripple::Ripple as dokime::analysis::Analysis>::TIMEOUT.as_millis() as u64));
     served.sort();
     let mut inspected = declared
