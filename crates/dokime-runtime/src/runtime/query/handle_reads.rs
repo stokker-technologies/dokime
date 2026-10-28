@@ -135,6 +135,10 @@ impl RuntimeHandle {
         self.config().storage_root.clone()
     }
 
+    pub fn storage_read_counters(&self) -> crate::storage::sqlite::ReadCounters {
+        self.local_storage.read_counters()
+    }
+
     pub fn application_root(&self) -> std::path::PathBuf {
         self.config().application_root.clone()
     }

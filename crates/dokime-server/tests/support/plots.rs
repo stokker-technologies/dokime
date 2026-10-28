@@ -24,7 +24,6 @@ use tonic::Code;
 use super::wire::{WireClient, WireStream, runtime};
 use dokime::client::contracts;
 use dokime::domain::model;
-use dokime::storage::sqlite::counters;
 use dokime_server::grpc::{Config, Server};
 use {dokime::Identifier, dokime::Timestamp, dokime::Value, dokime::telemetry::TelemetryBatch, dokime::telemetry::TelemetrySample};
 
@@ -74,9 +73,9 @@ pub async fn admission(size: Admission) {
     let server = Server::start(handle.clone(), config).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
-    let before = counters().data_scan_rows;
+    let before = handle.storage_read_counters().data_scan_rows;
     let served = first_frame(&client, size.window).await;
-    let window_scan = counters().data_scan_rows - before;
+    let window_scan = handle.storage_read_counters().data_scan_rows - before;
     assert_eq!(
         served.kind,
         model::plots::wire::PlotStreamKind::Snapshot,
@@ -87,10 +86,10 @@ pub async fn admission(size: Admission) {
     let points = served_points(&served);
     assert!((1..=size.window as usize).contains(&points), "the window keeps its budget: {points}");
 
-    let before = counters().data_scan_rows;
+    let before = handle.storage_read_counters().data_scan_rows;
     let mut watch = open_watch(&client, size.oversized).await;
     let reduced = data_frame(&mut watch).await;
-    let reduced_scan = counters().data_scan_rows - before;
+    let reduced_scan = handle.storage_read_counters().data_scan_rows - before;
     assert_eq!(
         reduced.kind,
         model::plots::wire::PlotStreamKind::Snapshot,
