@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 // Third Party Imports
@@ -40,6 +41,7 @@ const TEMPLATE: &str = "fixture.template.t0";
 #[derive(Clone, Default)]
 struct Signals {
     entered: Arc<tokio::sync::Notify>,
+    runs: Arc<AtomicUsize>,
 }
 
 #[dokime_runtime::stream(id = "fixture.embedded.staged", window = 8, label = "Staged Reading")]
@@ -47,7 +49,8 @@ struct StagedReading {
     value: f64,
 }
 
-struct Idle;
+// Counts the runs the host routes to it, then refuses them.
+struct Idle(Arc<AtomicUsize>);
 
 struct Probe {
     label: &'static str,
@@ -71,6 +74,7 @@ impl Runnable for Idle {
         &self, _: dokime_runtime::transport::RunExecution, _: Arc<dyn dokime_runtime::execution::ExecutionHost>,
         _: Option<dokime_runtime::execution::SampleOutput>, _: dokime_runtime::execution::Caller,
     ) -> TransportFuture<'_, Result<dokime_runtime::transport::SidecarExecutionOutcome, dokime_runtime::Refusal>> {
+        self.0.fetch_add(1, Ordering::SeqCst);
         Box::pin(async { Err(dokime_runtime::Refusal::of("the probe runs nothing")) })
     }
 
@@ -138,7 +142,7 @@ impl EmbeddedProvider for Probe {
             self.signals.entered.notify_one();
             std::future::pending::<()>().await;
         }
-        Ok(vec![Arc::new(Idle) as Arc<dyn Runnable>])
+        Ok(vec![Arc::new(Idle(Arc::clone(&self.signals.runs))) as Arc<dyn Runnable>])
     }
     async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
         self.events.lock().unwrap().push(format!("stop:{}", self.label));
@@ -149,6 +153,26 @@ impl EmbeddedProvider for Probe {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn run_route() -> String {
+    format!("host.{}", <dokime_runtime::execution::Run<()> as harmos::OperationDeclaration>::ID)
+}
+
+// The refusal code a failed host-level template run answers.
+fn refusal(answer: harmos::Result<Vec<u8>>) -> i64 {
+    let Err(harmos::Error::OperationFailed { source, .. }) = answer else {
+        panic!("the template run must fail: {answer:?}");
+    };
+    source.downcast_ref::<dokime_runtime::Refusal>().expect("the template run answers a refusal").code()
+}
+
+fn run_request(token: &str) -> dokime_runtime::transport::RunExecution {
+    dokime_runtime::transport::RunExecution {
+        execution_token: token.into(),
+        template_identifier: TEMPLATE.into(),
+        ..Default::default()
+    }
+}
 
 /* === Tests === */
 #[tokio::test]
@@ -196,13 +220,14 @@ async fn registration_replaces_failed() {
         Metadata::new(Identifier::new("fixture.embedded.host").unwrap(), "Embedded Host", None),
     );
     let events = Arc::new(Mutex::new(Vec::new()));
+    let signals = Signals::default();
     let provider = |label, fail| {
         Arc::new(Probe {
             label,
             fail,
             block_start: false,
             events: Arc::clone(&events),
-            signals: Signals::default(),
+            signals: signals.clone(),
         })
     };
     assert!(dokime_runtime::Runtime::start(config.clone().register(provider("startup-failed", true))).await.is_err());
@@ -210,18 +235,18 @@ async fn registration_replaces_failed() {
     runtime.register(provider("first", false)).await.unwrap();
     assert!(runtime.handle().streams().definitions().iter().any(|definition| definition.id() == "fixture.embedded.staged"));
     let owner = runtime.handle().watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
-    let route = format!("{TEMPLATE}.signal");
-    let payload = ExecutionSignal::default().encode();
-    assert!(
-        matches!(runtime.handle().operations().call_encoded(&route, payload.clone()).await, Err(harmos::Error::OperationFailed { .. })),
-        "the served template received the signal"
-    );
+    // Embedded templates run through the host-level pair, which names the template in the request.
+    let route = run_route();
+    let payload = run_request("replaced").encode();
+    assert_eq!(refusal(runtime.handle().operations().call_encoded(&route, payload.clone()).await), harmos::FAILED);
+    assert_eq!(signals.runs.load(Ordering::SeqCst), 1, "the served template received the run");
 
     runtime.register(provider("second", false)).await.unwrap();
     assert_ne!(runtime.handle().watch_state().latest().state().plugin_owners["fixture.embedded"], owner);
     assert!(runtime.register(provider("failed", true)).await.is_err());
     assert!(!runtime.handle().watch_state().latest().state().installed_plugins.contains_key("fixture.embedded"));
-    assert!(matches!(runtime.handle().operations().call_encoded(&route, payload).await, Err(harmos::Error::NotRegistered { .. })));
+    assert_eq!(refusal(runtime.handle().operations().call_encoded(&route, payload).await), harmos::UNKNOWN);
+    assert_eq!(signals.runs.load(Ordering::SeqCst), 1, "a failed replacement serves no template");
 
     runtime.register(provider("recovered", false)).await.unwrap();
     runtime.shutdown().await.unwrap();
@@ -282,8 +307,8 @@ async fn cancelled_registration_until() {
 
     assert!(!handle.streams().definitions().iter().any(|definition| definition.id() == "fixture.embedded.staged"));
 
-    let route = format!("{TEMPLATE}.signal");
-    assert!(matches!(runtime.handle().operations().call_encoded(&route, Vec::new()).await, Err(harmos::Error::NotRegistered { .. })));
+    assert_eq!(refusal(runtime.handle().operations().call_encoded(&run_route(), run_request("cancelled").encode()).await), harmos::UNKNOWN);
+    assert_eq!(signals.runs.load(Ordering::SeqCst), 0, "a cancelled registration serves no template");
 
     runtime.shutdown().await.unwrap();
     assert_eq!(*events.lock().unwrap(), ["start:blocked", "stop:blocked"]);

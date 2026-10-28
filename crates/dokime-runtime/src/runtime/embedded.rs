@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 
 // Third Party Imports
@@ -32,6 +32,9 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
+// Finished embedded runs whose token still routes a late signal, such as failure cleanup.
+const FINISHED_ROUTES: usize = 1024;
 
 /* === Macros === */
 
@@ -77,6 +80,7 @@ pub(crate) struct Templates {
 struct Registry {
     templates: BTreeMap<String, Served>,
     executions: BTreeMap<String, String>,
+    finished: VecDeque<String>,
 }
 
 #[derive(Clone)]
@@ -86,7 +90,9 @@ struct Served {
     publisher: Arc<Publisher>,
 }
 
-// Removes a finished run's token route, including on cancellation.
+// Retires a finished run's token route, including on cancellation. The route
+// outlives the run so the host's failure cleanup can still cancel the template
+// that ran it; only the most recent finished routes are kept.
 struct Admitted<'a> {
     templates: &'a Templates,
     token: String,
@@ -289,17 +295,25 @@ impl Templates {
 
     fn remove(&self, owner: &str) {
         let mut registry = self.lock();
-        let Registry { templates, executions } = &mut *registry;
+        let Registry { templates, executions, finished } = &mut *registry;
         templates.retain(|_, served| served.owner != owner);
         executions.retain(|_, template| templates.contains_key(template));
+        finished.retain(|token| executions.contains_key(token));
     }
 
+    // A template no started provider serves answers the not-registered code, distinct from a served template's refusal.
     fn template(&self, template: &str) -> std::result::Result<Served, harmos::sidecar::Refusal> {
-        self.lock().templates.get(template).cloned().ok_or_else(|| harmos::sidecar::Refusal::of("the embedded template is not served"))
+        self.lock()
+            .templates
+            .get(template)
+            .cloned()
+            .ok_or_else(|| harmos::sidecar::Refusal::new(harmos::domain::UNKNOWN, "the embedded template is not served"))
     }
 
     fn admit(&self, token: &str, template: &str) -> Admitted<'_> {
-        self.lock().executions.insert(token.to_owned(), template.to_owned());
+        let mut registry = self.lock();
+        registry.finished.retain(|finished| finished != token);
+        registry.executions.insert(token.to_owned(), template.to_owned());
         Admitted { templates: self, token: token.to_owned() }
     }
 
@@ -316,7 +330,16 @@ impl Templates {
 
 impl Drop for Admitted<'_> {
     fn drop(&mut self) {
-        self.templates.lock().executions.remove(&self.token);
+        let mut registry = self.templates.lock();
+        if !registry.executions.contains_key(&self.token) {
+            return;
+        }
+        registry.finished.push_back(self.token.clone());
+        while registry.finished.len() > FINISHED_ROUTES {
+            if let Some(token) = registry.finished.pop_front() {
+                registry.executions.remove(&token);
+            }
+        }
     }
 }
 
