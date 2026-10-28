@@ -20,8 +20,8 @@ use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::catalog::{Catalog, Projection};
-use dokime::harmos::operations::CallContext;
 use dokime::harmos::operations::authorization::{Authorization, Authorizer, Provider};
+use dokime::harmos::operations::{CallContext, OperationDeclaration};
 
 // Local Imports
 use super::Error;
@@ -79,10 +79,12 @@ impl Authorizer for Policy {
         let Some(principal) = context.get::<Principal>() else {
             return Ok(None);
         };
-        // Canonical Product Providers Are Host Registrations Of The Product Namespace; Harmos Owns
+        // Canonical Product Providers Include The Published Host Catalog; Harmos Owns
         // Every Host Entry As `host`. A Plugin Reusing A Public Operation ID Cannot Inherit Native Trust.
-        let product =
-            !provider.plugin && provider.owner.as_str() == HOST_OWNER && provider.definition.id.as_str().starts_with(PRODUCT_NAMESPACE);
+        let operation = provider.definition.id.as_str();
+        let product = !provider.plugin
+            && provider.owner.as_str() == HOST_OWNER
+            && (operation.starts_with(PRODUCT_NAMESPACE) || operation == dokime::harmos::builtins::host::Catalog::ID);
         if !product {
             if principal.is_local() || provider.plugin {
                 return Ok(Some(Authorization::Full(provider.contract.clone())));
