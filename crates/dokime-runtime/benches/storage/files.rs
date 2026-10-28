@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 use harmos::Identifier;
-use harmos::storage::operations::ReadFile;
+use harmos::storage::FileRead;
 use harmos::storage::{ByteRange, FileMetadata, FileReference, FileSource, StorageManager};
 use sha2::{Digest, Sha256};
 
@@ -138,7 +138,7 @@ async fn verify(
 ) -> Duration {
     assert_eq!(reference.length, length as u64);
     assert_eq!(reference.sha256, expected);
-    let request = ReadFile { source: FileSource::Stored(reference), range: ByteRange { offset: 0, limit: None } };
+    let request = FileRead { source: FileSource::Stored(reference), range: ByteRange { offset: 0, limit: None } };
     let started = Instant::now();
     let mut reader = storage.read_file(request).await.unwrap();
     let mut elapsed = started.elapsed();
@@ -169,7 +169,7 @@ async fn verify_concurrent(
     }
     let requests = references
         .into_iter()
-        .map(|reference| ReadFile { source: FileSource::Stored(reference), range: ByteRange { offset: 0, limit: None } })
+        .map(|reference| FileRead { source: FileSource::Stored(reference), range: ByteRange { offset: 0, limit: None } })
         .collect::<Vec<_>>();
     let count = requests.len();
     let mut received = vec![0usize; count];

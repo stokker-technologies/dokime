@@ -197,7 +197,7 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
 async fn materialization(runtime: &RuntimeHandle, request: &MaterializeReport) -> Duration {
     let materialize = MaterializeReport { subject: request.subject.clone(), at: request.at.clone() };
     let started = Instant::now();
-    let report = runtime.operations().call(materialize).await.unwrap();
+    let report = runtime.operations().call::<MaterializeReport>(materialize).await.unwrap();
     let elapsed = started.elapsed();
     assert!(report.report.length > 0);
     let bytes = dokime_runtime::storage::read_file_bytes(runtime.storage(), &report.report).await.unwrap();

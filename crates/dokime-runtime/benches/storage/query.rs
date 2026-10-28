@@ -18,7 +18,7 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 // Third Party Imports
 use arrow_array::{Float64Array, UInt64Array};
 use criterion::{BenchmarkId, Criterion, Throughput};
-use harmos::storage::operations::Query;
+use harmos::storage::Query;
 use harmos::storage::query::transform::{
     Transform,
     aggregate::{Aggregate, Measure},

@@ -173,7 +173,7 @@ fn batch(rows: usize) -> TelemetryBatch {
                     timestamp: timestamp.as_str().to_owned(),
                     value: Some(value),
                 }
-                .encode_to_vec(),
+                .encode(),
             );
             sample
         })
