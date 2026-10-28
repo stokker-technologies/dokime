@@ -16,7 +16,8 @@
       "!src/lib/rpc/generated",
       "!src/generated/organization",
       "!src-tauri",
-      "!!**/.stkr/templates"
+      "!!**/.stkr/templates",
+      "!!**/.stkr/templates/**"
     ]
   },
   "formatter": {
