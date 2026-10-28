@@ -19,7 +19,7 @@ phase shifts, and latched faults; each execution owns its device.
 The process listener remembers connected bench resources across executions.
 Templates ask the plugin's operations for readiness and connections, without
 naming or borrowing the plugin. The settings card reads `get_status` live, and
-the `obc.analysis.ripple` analysis gives any plotted trace its peak-to-peak ripple. Execution observers publish scoped measurements;
+the `obc_plugin.analysis.ripple` analysis gives any plotted trace its peak-to-peak ripple. Execution observers publish scoped measurements;
 the process system observer publishes monitoring data. Explicit subscriptions
 capture host observations for an execution.
 
