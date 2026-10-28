@@ -290,6 +290,7 @@ impl Serve<contract::Watch> for Resources {
                 let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
                 let mut last_flush = Instant::now() - throttle;
                 let mut next_flush = (!dirty.is_empty()).then(|| Instant::now() + retry_delay);
+                let mut heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                 loop {
                     if requests.is_empty() {
                         return Ok(().into());
@@ -313,6 +314,10 @@ impl Serve<contract::Watch> for Resources {
                             }
                             observed = at.clone();
                             let served = requests.iter().filter(|request| dirty.contains(&plot_key(request))).cloned().collect::<Vec<_>>();
+                            // Delivered Frames Keep The Watch Alive Until The Next Heartbeat.
+                            if !served.is_empty() {
+                                heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
+                            }
                             let mut refused = false;
                             for current in served {
                                 let key = plot_key(&current);
@@ -345,6 +350,11 @@ impl Serve<contract::Watch> for Resources {
                             dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
                                 .map(|(key, _)| key.clone()));
                             observed = advanced;
+                        }
+                        () = tokio::time::sleep_until(heartbeat) => {
+                            // A Quiet Watch Repeats Each Plot's Pending Notice, Which Leaves A Delivered Plot Unchanged.
+                            self.send_pending(output, &requests, &selections, &original, &epoch).await?;
+                            heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                         }
                     }
                     if next_flush.is_none() && !dirty.is_empty() {
@@ -473,7 +483,7 @@ fn with_keepalive<S: Stream + Unpin>(ready: S, every: Duration) -> impl Stream<I
     })
 }
 
-// A plot that is subscribed and still reading: an unspecified frame naming the plot, with nothing else.
+// A plot that is subscribed and still reading, or a quiet watch's heartbeat: an unspecified frame naming the plot, with nothing else.
 fn plot_pending_frame(
     request: &dokime::runtime::query::PlotPayloadRequest, epoch: &str, selection: &str,
 ) -> dokime::domain::model::plots::wire::PlotStreamFrame {

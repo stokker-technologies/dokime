@@ -248,7 +248,8 @@ pub struct LogFrameFieldsEntry {
 }
 
 // One observed hub-log record. Secret-looking field names carry a redaction
-// marker instead of their value.
+// marker instead of their value. A frame with an unspecified level carries no
+// record: it is a quiet watch's keepalive.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LogFrame {

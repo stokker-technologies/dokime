@@ -138,8 +138,9 @@ export type NativePlotPayloadEnvelope = PlotPayloadEnvelope;
 
 /**
  * The watch's word that a plot is subscribed and still reading its first
- * frame: sent at once when the watch opens and as a keepalive until the frame
- * arrives. It carries no data and no revision.
+ * frame: sent at once when the watch opens and as a keepalive while the watch
+ * is quiet, even after the plot's data arrived. It carries no data and no
+ * revision.
  */
 export type NativePlotPendingMessage = {
   kind: "pending";

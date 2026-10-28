@@ -136,10 +136,17 @@ impl Tail {
         };
         let replay_lines = usize::try_from(replay_lines).expect("validated replay line count");
         let mut subscription = self.subscribe(watch.min_level, replay_lines).await?;
-        while let Some(frame) = subscription.next(watch.min_level, self.message_limit).await? {
+        loop {
+            // A Quiet Or Filtered Log Answers With A Keepalive Instead Of Going Silent; Waiting Is Cancel-Safe.
+            let frame = match tokio::time::timeout(super::WATCH_HEARTBEAT, subscription.next(watch.min_level, self.message_limit)).await {
+                Ok(next) => match next? {
+                    Some(frame) => frame,
+                    None => return Ok(()),
+                },
+                Err(_) => subscription.keepalive(),
+            };
             output.send_owned(frame).await.map_err(memory_failure)?;
         }
-        Ok(())
     }
 
     // Catches The Shared Reader Up To The File's Current End, Then Snapshots Replay And Joins The Live Fan-Out Atomically.
@@ -323,6 +330,19 @@ impl Ring {
 }
 
 impl Subscription {
+    // A Keepalive Has No Time, An Unspecified Level And No Text; It Repeats The Cumulative Drop Count.
+    fn keepalive(&self) -> Response<LogFrame> {
+        LogFrame {
+            time: None,
+            level: LogLevel::Unspecified,
+            target: String::new(),
+            message: String::new(),
+            fields: Vec::new(),
+            dropped: self.dropped,
+        }
+        .into()
+    }
+
     async fn next(&mut self, min_level: LogLevel, message_limit: usize) -> Result<Option<Response<LogFrame>>, Status> {
         loop {
             let record = match self.replay.pop_front() {
