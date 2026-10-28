@@ -3088,7 +3088,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3916,9 +3916,9 @@ dependencies = [
 
 [[package]]
 name = "harmos"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc410a556100acc70a052b1b9f22602b49e0fb1db95241150914640dd46cabcb"
+checksum = "6b465b5fe71e81cf328da70fb3f746cd93e1f06503ed4423edc6a3e57a211793"
 dependencies = [
  "harmos-domain",
  "harmos-operations",
@@ -3928,9 +3928,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-domain"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06d4630dd72d3da0b9269f9753bf365586c54669c5c2d2a042b9152dc1307b76"
+checksum = "de4e4b31a8f53706b61f3b235590a0a76a4301dc4f16cccbe714ae8c5dede1a5"
 dependencies = [
  "harmos-macros",
  "memchr",
@@ -3945,9 +3945,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-macros"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "745fc576f10fbf06bcc01550a1d347c2f34a79820a7fee5f6e1ecb89288b27ff"
+checksum = "1bd9479bf9b4de42eb1c6d81e5d82e245caab308c8bb188b7f5bf89d3784e096"
 dependencies = [
  "heck 0.5.0",
  "proc-macro-crate 3.5.0",
@@ -3959,9 +3959,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-operations"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf8a893bc92c470ebe6138c7606c111b0bdc96e50ae4cf303d9786629520921a"
+checksum = "817f78ec3b7ae9f7c99f3baf9270927d1ee0659a6e72bc00558b70085982eff0"
 dependencies = [
  "harmos-domain",
  "harmos-sdk",
@@ -3975,9 +3975,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-packaging"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d95833464a8527394ccace348a453e7087b4e3b34a72da5552f7bcdd5dec9da8"
+checksum = "d5a0a0e290b2cc12a249ae98258de8b4527e5f329e1cc104a8c1b3f202921d56"
 dependencies = [
  "harmos-domain",
  "heck 0.5.0",
@@ -3996,9 +3996,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-runtime"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea840ad88d3160d86b8d337b8118e2f5e230c8b34f8f279f8e1733dd4cce03ca"
+checksum = "64fc16c8662067f69d532f59d8fc8fd163d39b8f3f15858de0a9fe595a27db13"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4033,9 +4033,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-sdk"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "893a998c0a636db0b860f5b09a6e47bc931bc5e4ced5bf2665b765f94a5ff39f"
+checksum = "02b893475ae763ac3dd81e1526ff9670c3420992da52cd11363d06d6788dc3f1"
 dependencies = [
  "harmos-domain",
  "postcard",
@@ -4049,9 +4049,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-sidecar"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56599562cc5ca10a48a426dc5cd88a2fb204bc7055dbc2a311162bfa984e8f15"
+checksum = "9d87193cad857194b36f5c04fff5d513e5d0b913a80250c804bb9f6b63212491"
 dependencies = [
  "futures-util",
  "getrandom 0.4.3",
@@ -4071,9 +4071,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-storage"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d2ff5cdc5dac4e9d9f336433de4709feaec90437056680d73c5c2463a896e65"
+checksum = "2fa57adb31dc785153f0a0954f4e6ad05fc59d4a79f2e48dbaea1397ebc94faa"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4693,7 +4693,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f"
 dependencies = [
  "io-lifetimes 3.0.1",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6064,7 +6064,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -6591,7 +6591,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]
@@ -6864,7 +6864,7 @@ dependencies = [
  "aes-gcm",
  "aes-kw",
  "argon2",
- "base64 0.22.1",
+ "base64 0.21.7",
  "bitfields",
  "block-padding 0.3.3",
  "blowfish",
@@ -7394,7 +7394,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b570b25f7617e43d59005d0990ccb79e950a423952cea19671b7a876da390adf"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -8116,7 +8116,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -8183,7 +8183,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -8844,7 +8844,7 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "287f59010008f0d7cf5e3b03196d666c1acc46c8d3e9cf34c28a1a7157601e72"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -9708,7 +9708,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -10994,7 +10994,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
