@@ -9,21 +9,12 @@
 
 // Deliver Saved Evidence Through The Shared Transfer Pipeline
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::operations::Response;
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::{
     chunked::{self, Frames},
     error::detailed_error,
@@ -37,14 +28,6 @@ use dokime::operations::content::DownloadEvidence;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{RuntimeHandle, domains::exports::evidence::Error};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
@@ -53,12 +36,6 @@ struct Resources {
 struct ExportFrames {
     metadata: Response<EvidenceExportFrame>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<DownloadEvidence> for Resources {
     fn serve<'a>(&'a self, request: DownloadEvidence, ctx: Context<'a, DownloadEvidence>) -> Served<'a, ()> {
@@ -124,8 +101,6 @@ impl Frames for ExportFrames {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -148,7 +123,3 @@ pub(in crate::grpc) fn failure(error: &Error) -> Status {
     };
     detailed_error(status, error)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

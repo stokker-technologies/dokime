@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::{
     DefinitionId, Identified, MemorySize,
     storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, ObjectVersionToken, StorageCursor, StoredObject},
 };
 
-// Local Imports
 use super::{annotations, artifacts, case, cycle, metadata, templates};
 use crate::definition::ParameterSource;
 use crate::storage::{Error, Manager, Result, records::ScopeRow};
@@ -30,10 +21,6 @@ use dokime_domain::model::execution::TerminationReason;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::result::{CriterionStatus, StepStatus};
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
 
 macro_rules! native_map {
     ($name:ident, $entry:ident, $value:ty) => {
@@ -73,10 +60,6 @@ macro_rules! native_map {
 native_map!(Parameters, ParameterEntry, Parameter);
 
 native_map!(Documents, DocumentEntry, templates::documents::Document);
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct PublicationCheck<'a> {
     pub source: &'a Revision,
@@ -290,12 +273,6 @@ struct TraceabilityRow {
     unit: Option<String>,
     source: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Execution {
     pub fn is_sealed(&self) -> bool {
@@ -1946,8 +1923,6 @@ impl Execution {
     }
 }
 
-/* === Public Functions === */
-
 pub async fn read(
     storage: &crate::storage::Manager, id: &TestExecutionId, version: ObjectVersion,
 ) -> Result<Option<harmos::storage::ReadBatch<ObjectRevision<TestExecution>>>> {
@@ -1972,8 +1947,6 @@ pub async fn flush_seal(storage: &Manager, execution: &TestExecution, receipt: &
     }
     Ok(storage.flush_until(&receipt.position).await?)
 }
-
-/* === Private Functions === */
 
 fn parameter_source(value: &crate::definition::ParameterSource) -> &'static str {
     match value {
@@ -2159,5 +2132,3 @@ fn validate_attempts(source: &TestExecution) -> Result<()> {
     }
     Ok(())
 }
-
-/* === Tests === */

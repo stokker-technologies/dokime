@@ -7,34 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn orchestrator_frames_exposed() {
@@ -266,5 +239,3 @@ fn telemetry_sample(stream: &Identifier, value: i64) -> TelemetrySample {
     sample.values.insert("value".to_owned(), Value::from(value));
     crate::service_support::contracts::typed_fixture_sample(sample)
 }
-
-/* === Tests === */

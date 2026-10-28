@@ -9,42 +9,13 @@
 
 #![cfg(feature = "storage")]
 
-/* === Modules === */
 pub(crate) mod catalog;
 pub(crate) mod contract;
 pub(crate) mod production;
 pub(crate) use crate::engine_support::local_storage as storage;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_runtime::storage::sqlite::*;
 use rusqlite::Connection;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-/* === Tests === */
 
 #[tokio::test]
 async fn refuses_previous_data() {

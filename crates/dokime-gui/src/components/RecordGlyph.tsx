@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === External Imports === */
-
 import {
   Activity,
   AlertTriangle,
@@ -37,13 +35,9 @@ import {
   Zap,
 } from "lucide-react";
 
-/* === Local Imports === */
-
 import { recordToneShellClass } from "@/lib/record-display";
 import type { RecordDisplay } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/* === Constants === */
 
 const RECORD_ICONS: Record<RecordDisplay["icon"], LucideIcon> = {
   activity: Activity,
@@ -71,8 +65,6 @@ const RECORD_ICONS: Record<RecordDisplay["icon"], LucideIcon> = {
   wrench: Wrench,
   zap: Zap,
 };
-
-/* === Public Functions === */
 
 export function RecordGlyph({ className, display }: { className?: string; display: RecordDisplay }) {
   const Icon = RECORD_ICONS[display.icon] ?? Clock3;

@@ -7,33 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::model::telemetry::TelemetryColumn;
 use crate::model::values::FieldError;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
 
 pub trait TelemetryRow: Sized {
     fn columns() -> Vec<TelemetryColumn>;
@@ -42,11 +20,3 @@ pub trait TelemetryRow: Sized {
 
     fn from_row(values: &BTreeMap<String, Value>) -> Result<Self, FieldError>;
 }
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

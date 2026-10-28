@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Returns a bounded cycle page at one exact runtime revision.
 #[harmos::operation(resources = [crate::hosting::Host<GetRuntimeShell>], response = RuntimeShellSnapshot, id = "dokime.observation.get_runtime_shell",
@@ -43,20 +25,6 @@ pub struct GetRuntimeShell {
     pub after_cycle_id: String,
     pub cursor: Option<Cursor>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

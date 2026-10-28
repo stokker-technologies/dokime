@@ -15,13 +15,9 @@
  * the `ui/table` primitives, so document tables share its cell padding.
  */
 
-/* === External Imports === */
-
 import { type RowData, useTable } from "@tanstack/react-table";
+import { MoreHorizontal } from "lucide-react";
 import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
-
-/* === Local Imports === */
-
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { type ActiveFilter, DataTableToolbar } from "@/components/data-table/DataTableToolbar";
 import {
@@ -32,15 +28,12 @@ import {
   facetFilter,
   filterSummary,
 } from "@/components/data-table/data-table-model";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-
-/* === Constants === */
 
 /** The outer cells carry the table inset so their text lines up with the page. */
 const EDGE_CELL = "first:pl-[var(--table-inset)] last:pr-[var(--table-inset)]";
@@ -50,8 +43,6 @@ const DEFAULT_COLUMN = { sortUndefined: "last" } as const;
 
 /** Clicks on a row's own controls belong to those controls, not to the row. */
 const INNER_CONTROL = "a, button, input, label, select, textarea, [role=checkbox], [role=switch]";
-
-/* === Components === */
 
 export function DataTable<TData extends RowData>({
   actions,

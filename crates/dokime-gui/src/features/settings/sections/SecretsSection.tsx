@@ -11,22 +11,16 @@
  * Masked Shared Secret Management On The Connected Backend.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
-// Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/features/settings/SettingsCard";
@@ -34,20 +28,12 @@ import { SettingsRow } from "@/features/settings/SettingsRow";
 import { SecretTransfer } from "@/features/settings/sections/SecretTransfer";
 import { putSecret, readSecrets, removeSecret, type SecretCatalog, type SecretEntry } from "@/lib/api/native-secrets";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const SECRETS_DESCRIPTION_BYTES = 2_048;
 const SECRETS_LABEL_BYTES = 256;
 const SECRETS_IDENTIFIER_BYTES = 128;
 const SECRETS_SECRET_BYTES = 65_536;
 
-/* === Types === */
-
 type Editor = ({ kind: "new" } | { kind: "edit"; entry: SecretEntry }) & { generation: bigint };
-
-/* === Components === */
 
 export function SecretsSection() {
   const session = useNativeSessionOptional();
@@ -309,9 +295,3 @@ function SecretEditor({
     </Dialog>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

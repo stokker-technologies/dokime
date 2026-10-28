@@ -12,23 +12,10 @@
  * each capture is stored as an execution artifact the media gallery shows.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { RecordScope } from "@/lib/types";
 import { uploadScope } from "./native-content";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type NativeAudioRecording = {
   /** Cancel the stream; the backend seals what it recorded so far. */
@@ -36,10 +23,6 @@ export type NativeAudioRecording = {
   /** Settles when the stream ends, with the sealed name when the backend announced it. */
   done: Promise<string | null>;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /** Capture the primary display as `screenshots/<timestamp>.png`; returns the artifact name. */
 export async function captureNativeScreenshot(session: SessionIdentity, scope: RecordScope): Promise<string> {
@@ -86,7 +69,3 @@ export async function startNativeAudioRecording(
     done,
   };
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { DocumentReferenceLine, DocumentViewPlot, PlotPayload, TelemetryStream, ValueFormat } from "@/lib/types";
 import { isRecord } from "@/lib/utils";
 import { elapsedColumnUnit } from "@/plots/axis";
 import { plotColor } from "@/plots/colors";
 import { histogramAxes } from "@/plots/histogram-axes";
 import type { PlotCardSpec } from "@/plots/types";
-
-/* === Public Functions === */
 
 /** The card spec of the plot at `position` within the card titled `title`. */
 export function documentPlotSpec({
@@ -178,8 +174,6 @@ export function documentPlotGroupDescription(title: string): string {
 }
 
 export { plotColor };
-
-/* === Private Functions === */
 
 /** An RFC3339 payload timestamp as epoch seconds, or `null` when absent or unparseable. */
 function epochSecondsOf(timestamp: string | null | undefined): number | null {

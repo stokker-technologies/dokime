@@ -4,15 +4,12 @@
    shell's IPC bridge, so the WebView never opens a network connection; a
    browser build selects gRPC-Web at build time instead. */
 
-/* === External Imports === */
 import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/protobuf";
 
-/* === Local Imports === */
 import { settleUnlessStopping } from "../desktop/stopping";
 import * as grpcWeb from "./grpc-web";
 import * as ipc from "./ipc";
 
-/* === Types === */
 export interface SessionIdentity {
   /** Decimal connection generation returned by desktop_session_select/status. */
   generation: string;
@@ -34,10 +31,8 @@ export interface NativeClientStream<I extends DescMessage, O extends DescMessage
   cancel(): Promise<void>;
 }
 
-/* === Constants === */
 const transport = __DOKIME_TRANSPORT__ === "grpc-web" ? grpcWeb : ipc;
 
-/* === Public Functions === */
 export function unary<I extends DescMessage, O extends DescMessage>(
   path: string,
   input: I,
@@ -81,8 +76,6 @@ export function openClientStream<I extends DescMessage, O extends DescMessage>(
     settleUnlessStopping<NativeClientStream<I, O>>,
   );
 }
-
-/* === Private Functions === */
 
 /** A subscription whose reads stop quietly once the desktop's stop owns their failure. */
 function stoppableStream<T>(stream: NativeStream<T>): NativeStream<T> {

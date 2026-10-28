@@ -11,28 +11,16 @@
  * Shared Secret Catalog Operations For The Connected Host.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import { saveNativeDocument } from "@/lib/api/native-delivery";
 import { commands } from "@/lib/desktop/commands";
-// Local Imports
+
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const SECRETS_DOCUMENT_BYTES = 524_288;
 
 const MAX_ARCHIVE_BYTES = 4 * Math.ceil(SECRETS_DOCUMENT_BYTES / 3);
-
-/* === Types === */
 
 type Snapshot = Wire<Awaited<ReturnType<typeof rpc.secretsList>>>;
 type Entry = Snapshot["entries"][number];
@@ -43,10 +31,6 @@ type WirePreview = Wire<Awaited<ReturnType<typeof rpc.secretsPreview>>>;
 export type SecretPreview = Omit<WirePreview, "entries"> & {
   entries: (Omit<WirePreview["entries"][number], "metadata"> & { metadata: SecretMetadata })[];
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export async function readSecrets(session: SessionIdentity): Promise<SecretCatalog> {
   return catalog(await rpc.secretsList(session, {}));
@@ -97,8 +81,6 @@ export async function importSecrets(session: SessionIdentity, data: Uint8Array, 
   return catalog(await rpc.secretsImport(session, { data, choices, generation: preview.generation }));
 }
 
-/* === Private Functions === */
-
 function catalog(snapshot: Snapshot): SecretCatalog {
   const entries = snapshot.entries.map((entry) => {
     if (!entry.metadata) throw new Error("Backend omitted secret metadata");
@@ -106,5 +88,3 @@ function catalog(snapshot: Snapshot): SecretCatalog {
   });
   return { ...snapshot, entries };
 }
-
-/* === Entry Point === */

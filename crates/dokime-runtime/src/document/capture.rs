@@ -7,32 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::document::{
     DocumentDefinition, DocumentFilter, DocumentSelection, DocumentWarning, PlotDescriptor, TelemetrySummaryGroupPayload,
 };
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Capture {
@@ -66,8 +49,6 @@ pub struct RepeatInstance {
     pub filter: DocumentFilter,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum CardBindingResult {
@@ -76,18 +57,8 @@ pub enum CardBindingResult {
     Plot { descriptor: Box<PlotDescriptor> },
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl SectionBinding {
     pub fn valid_result(&self) -> bool {
         self.unavailable.as_deref().is_none_or(super::payload::valid_unavailable_reason)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

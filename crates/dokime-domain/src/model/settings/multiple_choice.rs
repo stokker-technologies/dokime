@@ -7,30 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::SettingsError;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Choice {
@@ -49,12 +32,6 @@ pub struct MultipleChoice {
     #[serde(default)]
     pub provider: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl MultipleChoice {
     pub fn validate(&self) -> crate::Result<()> {
@@ -85,9 +62,3 @@ impl MultipleChoice {
         if admitted { Ok(()) } else { Err(SettingsError::invalid(&self.id, "value is not a declared choice").into()) }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

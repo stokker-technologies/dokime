@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, path::PathBuf};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// Local Imports
 use super::ApplicationPaths;
 use crate::{
     plugins::PluginSettings,
@@ -30,14 +21,6 @@ use dokime_domain::model::{
     identity::{DokimeNodeIdentity, NodeId},
     secrets::catalog::Catalog,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Settings {
@@ -52,12 +35,6 @@ pub struct ApplicationMetadata {
     pub plugins: BTreeMap<Uuid, PluginSettings>,
     pub secrets: Catalog,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::fmt::Debug for Settings {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -110,9 +87,3 @@ impl ApplicationMetadata {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -6,44 +6,20 @@
  *
  * ***
  */
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::{Duration, Instant};
 
-// Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 use harmos::Identifier;
 use harmos::storage::FileRead;
 use harmos::storage::{ByteRange, FileMetadata, FileReference, FileSource, StorageManager};
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::{fixture::Fixture, waveforms};
-
-/* === Constants === */
 
 const FILE_BYTES: usize = 30 * 1024 * 1024;
 const CHUNK_BYTES: usize = 1024 * 1024;
 const PRODUCERS: usize = 4;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
     let mut group = criterion.benchmark_group("storage/files");
@@ -108,7 +84,6 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
     }
     group.finish();
 }
-/* === Private Functions === */
 
 async fn publish(storage: &StorageManager, id: usize, length: usize) -> FileReference {
     let metadata = FileMetadata {
@@ -210,4 +185,3 @@ async fn verify_concurrent(
     }
     elapsed
 }
-/* === Tests === */

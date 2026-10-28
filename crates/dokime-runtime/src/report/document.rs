@@ -7,34 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::report::input::CycleReportInput;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn document_warnings(input: &CycleReportInput) -> impl Iterator<Item = (&str, &str)> {
     input
@@ -44,7 +17,3 @@ pub(crate) fn document_warnings(input: &CycleReportInput) -> impl Iterator<Item 
         .flat_map(|document| document.warnings.iter())
         .map(|warning| (warning.code.as_str(), warning.message.as_str()))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

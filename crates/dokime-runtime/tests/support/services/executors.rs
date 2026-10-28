@@ -7,15 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-// Third Party Imports
-
-// Local Imports
 use super::evidence::{
     activate_fixture_execution, custom_outcome, custom_record, host_system_batch, provider_execution_scope, python_outcome,
     runnable_executions, tracking_batch, tracking_derived_record, tracking_transition_batch,
@@ -24,13 +15,6 @@ use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 use dokime_runtime::transport::ProviderExecutionFailure;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 pub struct FakePythonExecutor {
     status: String,
     case_parameter_status: bool,
@@ -71,11 +55,6 @@ pub struct DocumentAddingExecutor;
 
 pub struct TrackingTransitionExecutor;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl FakePythonExecutor {
     pub fn fixed(status: &str) -> Self {
         Self {
@@ -238,8 +217,6 @@ impl ExecutionFixture for MemberStopExecutor {
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
-            // === Hold The First Execution Until It Alone Is Stopped === //
-
             let first = runnable_executions(cycle).next().expect("cycle has a runnable execution").clone();
             activate_fixture_execution(&context, &first).await;
             self.entered.signal();
@@ -249,8 +226,6 @@ impl ExecutionFixture for MemberStopExecutor {
                     return Err(ProviderExecutionFailure::new("cancel", "fixture cancelled"));
                 }
             }
-
-            // === Run The Siblings To Completion === //
 
             for execution in runnable_executions(cycle).skip(1) {
                 assert!(
@@ -358,9 +333,3 @@ impl ExecutionFixture for TrackingTransitionExecutor {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SquareTerminal } from "lucide-react";
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
@@ -45,12 +41,10 @@ import {
   operationsCountLabel,
   summarizeOperations,
 } from "@/shell/status-bar-operations";
-import { RunIndicator } from "./RunIndicator";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
+import { RunIndicator } from "./RunIndicator";
 import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
-
-/* === Constants === */
 
 const statusItemClassName =
   "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -61,8 +55,6 @@ const CONNECTION_LABEL = {
   reconnecting: "Reconnecting",
   unknown: "Unknown",
 } as const;
-
-/* === Types === */
 
 export type StatusBarProps =
   | { live?: true }
@@ -77,8 +69,6 @@ type AttentionEntry = {
   detail: string;
   open: () => void;
 };
-
-/* === Components === */
 
 /** Live Execution Focus Followed By Backend And Operator Attention. */
 export function StatusBar(props: StatusBarProps) {
@@ -345,8 +335,6 @@ function StatusReadout({ title, tone, value }: { title?: string; tone: "neutral"
     </span>
   );
 }
-
-/* === Private Functions === */
 
 function toneClassName(tone: "neutral" | "good" | "warn" | "bad"): string | null {
   switch (tone) {

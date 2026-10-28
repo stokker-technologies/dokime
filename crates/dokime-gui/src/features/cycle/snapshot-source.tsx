@@ -12,12 +12,8 @@
  * application query adapters can also use it when displaying captured data.
  */
 
-/* === External Imports === */
-
 import type { UseQueryResult } from "@tanstack/react-query";
 import { createContext, type ReactNode, useContext } from "react";
-
-/* === Local Imports === */
 
 import type {
   ArtifactRecord,
@@ -31,8 +27,6 @@ import type {
   TestExecution,
   TraceabilitySnapshot,
 } from "@/lib/types";
-
-/* === Types === */
 
 /** The captured plot payloads a frozen document is drawn from. */
 export type FrozenPlotPayloads = {
@@ -63,11 +57,7 @@ export type CycleSnapshotSource = {
   /** What the report left out or cut to fit its budget, and why. */
 };
 
-/* === Constants === */
-
 const CycleSnapshotContext = createContext<CycleSnapshotSource | null>(null);
-
-/* === Components === */
 
 /**
  * Puts one frozen cycle in reach of the workspace's hooks. Present exactly
@@ -76,8 +66,6 @@ const CycleSnapshotContext = createContext<CycleSnapshotSource | null>(null);
 export function CycleSnapshotProvider({ children, source }: { children: ReactNode; source: CycleSnapshotSource }) {
   return <CycleSnapshotContext.Provider value={source}>{children}</CycleSnapshotContext.Provider>;
 }
-
-/* === Hooks === */
 
 /** The frozen cycle, or null in the live application. */
 export function useCycleSnapshotSource(): CycleSnapshotSource | null {
@@ -89,8 +77,6 @@ export function useFrozenPlotPayloads(executionId: string | null): FrozenPlotPay
   const snapshot = useContext(CycleSnapshotContext);
   return snapshot ? snapshot.plotPayloads(executionId) : null;
 }
-
-/* === Public Functions === */
 
 /**
  * A settled query result carrying a value that was never fetched.

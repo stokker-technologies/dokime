@@ -9,15 +9,11 @@
 
 // TODO: Describe this module's responsibility.
 
-/* === Modules === */
-
 pub mod fields;
 pub mod format;
 pub mod unit;
 pub mod value;
 pub mod wire;
-
-/* === Re-Exports === */
 
 pub use fields::*;
 pub use format::ElapsedUnit;
@@ -32,31 +28,3 @@ pub use value::datetime_seconds;
 pub use value::numeric_cmp;
 pub use value::numeric_value;
 pub use value::value_matches_type;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

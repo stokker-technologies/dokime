@@ -7,35 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use harmos::storage::{ScanPage, SchemaKey, StorageBackend, StorageCursor, StoredRecord, query::RecordSelection};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn for_each_record(backend: &impl StorageBackend, at: &StorageCursor, schema: SchemaKey, mut read: impl FnMut(&StoredRecord)) {
     let selection = RecordSelection {
@@ -71,7 +45,3 @@ pub async fn for_each_record(backend: &impl StorageBackend, at: &StorageCursor, 
     }
     backend.release_snapshot(&snapshot).await.unwrap();
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

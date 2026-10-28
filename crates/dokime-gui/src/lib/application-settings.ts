@@ -11,15 +11,11 @@
  * Local Appearance And Backend Report Preferences From Their Native Scopes.
  */
 
-/* === Imports === */
-
-import { useMutation } from "@tanstack/react-query";
-import { useMemo } from "react";
 import type { ApplicationSettings } from "@generated/application-settings";
 import defaults from "@generated/application-settings.json";
+import { useMutation } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { preferencesError, usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
-
-/* === Types === */
 
 export type ThemeMode = ApplicationSettings["appearance"]["theme_mode"];
 export type Density = ApplicationSettings["appearance"]["density"];
@@ -33,14 +29,10 @@ export type ReportDefaults = {
   plotDownsample: Exclude<ApplicationSettings["report"]["plot_downsample"], "unspecified">;
 };
 
-/* === Constants === */
-
 export const BUILT_IN_REPORT_DEFAULTS: ReportDefaults = {
   plotPoints: defaults.report.plot_points,
   plotDownsample: defaults.report.plot_downsample as ReportDefaults["plotDownsample"],
 };
-
-/* === Public Functions === */
 
 export function useApplicationSettings() {
   const local = usePreferences("local");
@@ -89,7 +81,3 @@ export function useReportDefaults(): ReportDefaults {
 }
 
 export const applicationSettingsError = preferencesError;
-
-/* === Private Functions === */
-
-/* === Entry Point === */

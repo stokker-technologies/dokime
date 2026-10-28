@@ -15,13 +15,7 @@
  * where it came from, and its settings button goes to that page.
  */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-
-/* === Public Functions === */
 
 export function programKey(program: RuntimeInstalledPluginRecord): string {
   const owner = program.owner;

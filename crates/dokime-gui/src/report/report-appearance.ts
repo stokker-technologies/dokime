@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { RuntimeAppearanceFrame } from "@/lib/appearance";
 import { type Brand, brandFromLogos, defaultBrand } from "@/lib/brand";
 import { applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "@/lib/theme";
@@ -19,13 +17,9 @@ import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme
    keeps the frozen report under the theme contract instead of reverting
    to default organization. */
 
-/* === Constants === */
-
 /* The family the payload named, kept so a mode change can re-materialize its
    variables for the other scheme. */
 let reportThemeFamily: ReturnType<typeof resolveThemeFamily> = null;
-
-/* === Public Functions === */
 
 /**
  * Apply the report payload's appearance frame: theme variables for the
@@ -50,8 +44,6 @@ export function applyReportAppearance(appearance: unknown): Brand {
 
   return brandFromFrame(frame);
 }
-
-/* === Private Functions === */
 
 /**
  * Render the report in the viewer's color scheme at the moment of the call;

@@ -7,30 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::storage::{Error, Result, records::ScopeRow, values};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TelemetrySampleId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -47,12 +28,6 @@ pub struct Sample {
     pub(super) summary: Vec<values::Cell>,
     pub(super) metadata: Vec<values::Cell>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Sample {
     pub fn from_sample(sample: &TelemetrySample) -> Result<Self> {
@@ -110,8 +85,6 @@ impl Sample {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn copy_text(source: &str) -> Result<String> {
     let mut text = String::new();
     text.try_reserve_exact(source.len()).map_err(|_| error("telemetry text allocation failed"))?;
@@ -119,10 +92,6 @@ pub(super) fn copy_text(source: &str) -> Result<String> {
     Ok(text)
 }
 
-/* === Private Functions === */
-
 fn error(reason: &'static str) -> Error {
     Error::Invalid(reason)
 }
-
-/* === Tests === */

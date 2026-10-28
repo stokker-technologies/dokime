@@ -9,13 +9,6 @@
 
 // One Desktop And Focus Channel Per Application Root
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 #[cfg(unix)]
 use std::path::PathBuf;
 use std::{
@@ -25,7 +18,6 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use interprocess::local_socket::{
     ListenerOptions, Name,
     tokio::{Listener, Stream, prelude::*},
@@ -34,17 +26,7 @@ use sha2::{Digest, Sha256};
 use tauri::Manager;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-// Local Imports
-
-/* === Constants === */
-
 const FOCUS_BUDGET: Duration = Duration::from_secs(10);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct Instance {
     listener: Listener,
@@ -55,12 +37,6 @@ pub(crate) struct InstanceControl {
     task: tauri::async_runtime::JoinHandle<()>,
     _lease: File,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Instance {
     pub(crate) async fn acquire(root: &Path) -> io::Result<Option<Self>> {
@@ -193,10 +169,6 @@ impl Drop for InstanceControl {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 #[cfg(windows)]
 fn allow_focus(stream: &Stream) -> io::Result<()> {
     use interprocess::local_socket::traits::StreamCommon;
@@ -274,5 +246,3 @@ fn socket_path(root: &Path) -> PathBuf {
     let digest = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     std::env::temp_dir().join(format!("dokime-desktop-{digest}.sock"))
 }
-
-/* === Tests === */

@@ -7,17 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::service_support::reports::{parse, payload_text, render, render_annotated};
 use dokime_domain::model;
@@ -38,23 +29,6 @@ use {
 };
 use {dokime_domain::model::traceability::TraceabilityEntry, dokime_domain::model::traceability::TraceabilitySnapshot};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn fixture_input(cycle_label: &str) -> CycleReportInput {
     let test_cycle_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestCycleId>();
     let case_id = dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>();
@@ -577,8 +551,6 @@ fn document_section_node(section_identifier: &str, section_label: &str, cards: &
             .collect(),
     })
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn rendered_html_data() {

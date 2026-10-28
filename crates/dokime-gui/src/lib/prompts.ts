@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { NativeIntegerValue, NativeNumberValue, parseNativeInteger } from "@/lib/api/native-values";
 import { numericValue } from "@/lib/utils";
 
 import type { JsonObject, PromptField, PromptRequest } from "./types";
-
-/* === Types === */
 
 export type PromptValue = string | boolean | string[];
 export type PromptValues = Record<string, PromptValue>;
@@ -29,8 +25,6 @@ export type PromptDecision = {
 
 /** The actions that withdraw rather than answer. */
 const WITHDRAWING_ACTIONS: ReadonlySet<string> = new Set(["cancel", "abort"]);
-
-/* === Public Functions === */
 
 export function promptFieldDefault(field: PromptField): PromptValue {
   if (field.multiple) {

@@ -11,13 +11,6 @@
  * Pure Document Evidence Selection And Shared Surface Projection.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { localArtifactHref } from "@/lib/artifact-tree";
 import { orderedDocumentSections } from "@/lib/document-layout";
@@ -39,11 +32,6 @@ import { mergeParameterContexts, plotContextTelemetrySnapshot, uniqueArtifacts }
 import type { PlotWindowOption } from "./PlotWindowSlider";
 import type { FrozenPlotPayloads } from "./snapshot-source";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 export type DocumentViewOptions = {
   document: DocumentViewPayload | null;
   /** The live runtime, or `null` while a recorded cycle is on screen. */
@@ -84,9 +72,6 @@ export type DocumentEvidence = {
 
 export type DocumentSurface = ReturnType<typeof documentSurface>;
 
-/* === Classes === */
-
-/* === Public Functions === */
 export function documentView(options: DocumentViewOptions, evidence: DocumentEvidence) {
   const { document, liveSnapshot, noteElapsedStart, execution, scope, parameters } = options;
   const sections = orderedDocumentSections(document);
@@ -163,7 +148,3 @@ export function documentSurface(options: DocumentSurfaceOptions, view: ReturnTyp
   };
   return { options, shared, view };
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

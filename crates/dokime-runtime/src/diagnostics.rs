@@ -9,42 +9,15 @@
 
 // Plugin Diagnostic Runtime Hooks With Shared Portable Values
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use dokime_domain::model::diagnostics::*;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{any::Any, cell::RefCell, sync::Once};
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
 static HOOK: Once = Once::new();
-
-/* === Macros === */
 
 thread_local! {
     static PANIC: RefCell<Option<Diagnostic>> = const { RefCell::new(None) };
 }
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn install_panic_hook() {
     HOOK.call_once(|| {
@@ -76,8 +49,6 @@ pub fn panicked(carried: &(dyn Any + Send)) -> Diagnostic {
     PANIC.with(|panicked| panicked.take()).unwrap_or_else(|| Diagnostic::of(format!("plugin panicked: {}", payload(carried))))
 }
 
-/* === Private Functions === */
-
 fn payload(carried: &(dyn Any + Send)) -> String {
     carried
         .downcast_ref::<&str>()
@@ -85,5 +56,3 @@ fn payload(carried: &(dyn Any + Send)) -> String {
         .or_else(|| carried.downcast_ref::<String>().cloned())
         .unwrap_or_else(|| "a panic with no message".to_owned())
 }
-
-/* === Tests === */

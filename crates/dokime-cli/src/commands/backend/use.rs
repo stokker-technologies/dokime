@@ -9,26 +9,6 @@
 
 // Saved Backend Profile Use
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
@@ -38,14 +18,6 @@ pub(crate) struct Args {
     identifier: String,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(super) fn run(args: Args) -> crate::Result<()> {
     args.config.store()?.update(|document| {
         dokime::client::profiles::get(document, &args.identifier)?;
@@ -54,7 +26,3 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
     })?;
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

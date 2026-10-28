@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
-
-// Local Imports
 use crate::{report::saved::CapturedExecutionReportInput, runtime::Error, runtime::Result};
 use dokime_domain::model::definition::parameters::ParameterDefinition;
 use dokime_domain::model::execution::RecordScope;
@@ -33,14 +23,6 @@ use dokime_domain::model::identity::TemplateId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(crate) struct Case {
@@ -103,17 +85,11 @@ pub(crate) struct Index {
     templates: BTreeSet<TemplateId>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum AnnotationKind {
     Note,
     Health,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Annotation {}
 
@@ -259,9 +235,3 @@ impl Index {
         });
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

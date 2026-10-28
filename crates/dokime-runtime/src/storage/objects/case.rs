@@ -7,34 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{
     DefinitionId, Identified,
     storage::{ObjectRetention, ObjectVersion, StoredObject},
 };
 
-// Local Imports
 use super::metadata;
 use crate::definition::TestCase;
 use crate::storage::{Error, Result, values};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TemplateId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -57,12 +39,6 @@ pub struct Case {
     generation_index: u64,
     label_number: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Identified for Case {
     fn definition() -> (DefinitionId, u32) {
@@ -162,8 +138,6 @@ impl Case {
     }
 }
 
-/* === Public Functions === */
-
 pub async fn read(storage: &crate::storage::Manager, id: &CaseId) -> Result<Option<harmos::storage::ReadBatch<TestCase>>> {
     let Some(stored) = storage.read_object::<Case>(id.as_str(), ObjectVersion::Latest).await? else {
         return Ok(None);
@@ -174,7 +148,3 @@ pub async fn read(storage: &crate::storage::Manager, id: &CaseId) -> Result<Opti
     }
     Ok(Some(stored.try_map(|stored| stored.value.try_into())?))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

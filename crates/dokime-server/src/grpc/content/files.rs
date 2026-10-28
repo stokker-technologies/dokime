@@ -7,45 +7,22 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(in crate::grpc) use super::super::enums::canonical::{execution_file_kind as kind, execution_file_state as state};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ReadExecutionFile> for Resources {
     fn serve<'a>(
@@ -76,8 +53,6 @@ impl Serve<wire::ReadExecutionFile> for Resources {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
@@ -112,7 +87,3 @@ pub(super) fn read_failure(error: dokime::runtime::Error) -> Status {
     };
     super::super::error::detailed(status, &error)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

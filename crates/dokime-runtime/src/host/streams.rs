@@ -7,26 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::telemetry::{FieldError, FieldValue, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow, TelemetryStream, field};
 use dokime_domain::model::telemetry::HostTelemetryStream;
 use dokime_domain::model::telemetry::host_telemetry_contract;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
 
 macro_rules! host_rows {
     (
@@ -124,8 +110,6 @@ macro_rules! host_rows {
             }
         )*
 
-        /* === Tests === */
-
 
     };
 }
@@ -133,22 +117,6 @@ macro_rules! host_rows {
 // Expansions
 
 dokime_domain::host_streams!(host_rows);
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

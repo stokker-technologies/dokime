@@ -9,8 +9,6 @@
 
 // TODO: Describe this module's responsibility.
 
-/* === Modules === */
-
 pub mod analysis;
 pub mod appearance;
 pub mod artifacts;
@@ -49,33 +47,3 @@ pub mod time;
 pub mod traceability;
 pub mod validation;
 pub mod values;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

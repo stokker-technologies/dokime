@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use crate::analysis::{
     Analysis, Axis, Definition, Definitions, Error, Limits, MAX_SAMPLES, Operation, Output, Response, ResultData, Samples, Values,
 };
 use crate::catalog::Catalog;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Mean;
 
@@ -70,8 +52,6 @@ struct Fourier {
     include_dc: bool,
 }
 
-/* === Enums === */
-
 #[harmos::catalog]
 enum Operations {
     Mean(Operation<Mean>),
@@ -84,10 +64,6 @@ enum Operations {
 enum FourierOperations {
     Fft(Operation<Fft>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ResultData for Scalar {
     fn outputs() -> Vec<Output> {
@@ -248,8 +224,6 @@ impl Analysis for Fft {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn definitions() -> Result<Vec<Definition>, Error> {
     let entries = <Operations as Catalog<Definitions>>::ENTRIES;
     #[cfg(feature = "fft")]
@@ -281,8 +255,6 @@ pub(crate) async fn register(operations: &crate::app::OperationManager) -> harmo
     operations.register(batch.lane(crate::app::Lanes::Open)).await
 }
 
-/* === Private Functions === */
-
 fn selected(samples: &Samples, indexes: Vec<usize>) -> Curve {
     Curve(Values {
         key: "signal".into(),
@@ -292,5 +264,3 @@ fn selected(samples: &Samples, indexes: Vec<usize>) -> Curve {
         values: indexes.iter().map(|&index| samples.values[index]).collect(),
     })
 }
-
-/* === Tests === */

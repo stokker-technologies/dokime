@@ -8,31 +8,14 @@
 
 """Verify Execution Recovery And Independent Observation"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import ExecutionSubmissionUncertain
 
 from .backend import EXECUTION_ID, collect, prepare
 from .capture_backend import serve
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_execution_recovery() -> None:
@@ -108,8 +91,3 @@ def test_independent_observers() -> None:
             assert backend.run_calls == 1
 
     asyncio.run(scenario())
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { XIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import * as React from "react";
 
-/* === Local Imports === */
-
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-/* === Components === */
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;

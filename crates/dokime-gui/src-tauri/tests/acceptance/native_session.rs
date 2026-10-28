@@ -7,42 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{fs, path::Path};
 
-// Third Party Imports
-
-// Local Imports
 use crate::support::server::attach;
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::native_session::backend::{self, Backend};
 use dokime_gui::native_session::storage::StorageRoot;
 use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError, StorageResetReason};
 use dokime_server::host::{Args, NetworkArgs};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn arguments(root: &Path) -> Args {
     Args {
@@ -76,8 +48,6 @@ fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, Des
         _ => None,
     }
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn shutdown_releases_store() {

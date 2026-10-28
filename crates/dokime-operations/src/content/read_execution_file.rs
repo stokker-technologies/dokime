@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<ReadExecutionFile>], response = ExecutionFileWindow, id = "dokime.content.read_execution_file",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
@@ -40,20 +22,6 @@ pub struct ReadExecutionFile {
     pub offset: u64,
     pub max_bytes: u32,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

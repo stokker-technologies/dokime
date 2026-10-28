@@ -7,19 +7,13 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { occurrenceKeys } from "@/lib/utils";
-
-/* === Types === */
 
 type MarkdownTextProps = {
   text: string;
   compact?: boolean;
   title?: string;
 };
-
-/* === Components === */
 
 export function MarkdownText({ text, compact = false, title }: MarkdownTextProps) {
   if (compact) {
@@ -42,8 +36,6 @@ export function MarkdownText({ text, compact = false, title }: MarkdownTextProps
     </div>
   );
 }
-
-/* === Private Functions === */
 
 type MarkdownBlock = { kind: "paragraph"; text: string } | { kind: "list"; items: string[] };
 function markdownBlocks(text: string): MarkdownBlock[] {

@@ -7,36 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 // the default document shows every section in one composed order.
 
 #[tokio::test]
@@ -637,8 +610,6 @@ fn suite_with_authored_document() -> TestSuite {
     suite.test_case_templates[0].document = Some(document);
     suite
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn saved_report_evidence() {

@@ -25,9 +25,6 @@
 // `tauri/custom-protocol`), backend and OBC bundle under the target directory.
 // Results print as JSON and land in `<target>/stream-throughput.json`.
 
-/* === Imports === */
-
-// Standard Library Imports
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises";
@@ -37,10 +34,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-// Third Party Imports
 import { build } from "vite";
-
-/* === Constants === */
 
 const gui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workspace = resolve(gui, "../..");
@@ -61,8 +55,6 @@ const { values: options } = parseArgs({
     window: { type: "string", default: "2" },
   },
 });
-
-/* === Private Functions === */
 
 async function unusedPort() {
   const socket = net.createServer();
@@ -350,8 +342,6 @@ function summarize(frames, seconds) {
     },
   };
 }
-
-/* === Entry Point === */
 
 const work = await mkdtemp(join(targetRoot, "stream-throughput-"));
 let backend;

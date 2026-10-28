@@ -7,15 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
 mod payload;
 mod record_samples;
 mod record_timing;
 #[cfg(feature = "host")]
 pub(crate) mod stored;
-
-/* === Re-Exports === */
 
 pub(crate) use payload::builtins;
 #[cfg(feature = "storage")]
@@ -36,31 +32,3 @@ pub(crate) use record_timing::RECORD_CONTEXT_STREAM;
 
 #[cfg(feature = "storage")]
 pub(crate) use payload::{finish_plot_frame, finish_retained_plot_payload, project_retained_plot_payload};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

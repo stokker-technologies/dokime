@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<ListPending>], response = ListPendingPromptsReply, id = "dokime.prompts.list_pending",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
@@ -41,20 +23,6 @@ pub struct ListPending {
     pub cycle_id: Option<String>,
     pub execution_id: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

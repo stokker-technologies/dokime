@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod artifacts;
 mod commands;
 pub(crate) mod host;
@@ -18,20 +16,13 @@ mod replay;
 mod session;
 mod supervision;
 
-/* === Re-Exports === */
-
 pub(crate) use host::Sessions;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
-// Third Party Imports
 use crate::app::OperationManager;
 use harmos::Message;
 
-// Local Imports
 use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 use crate::definition::{CriterionDefinition, TestCase};
 use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding};
@@ -58,14 +49,6 @@ use logs::{DropReason, StreamLog, report_dropped};
 use replay::replay_sample_inputs;
 use session::Session;
 use supervision::{COMMAND_POLL, Concern, Subject, Supervision, Wake};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct TemplateRunExecutor;
@@ -133,12 +116,6 @@ struct ProgressCleanup {
     registry: Arc<crate::domains::execution::progress::ProgressRegistry>,
     execution: dokime_domain::model::identity::TestExecutionId,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionFixture for TemplateRunExecutor {
     fn run_cycle<'a>(
@@ -342,8 +319,6 @@ impl PhaseTracker {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in: Option<&str>) -> Vec<ProviderPhaseOutcome> {
     let Some(stage) = failed_in else {
         return phases;
@@ -358,8 +333,6 @@ pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in
     });
     phases
 }
-
-/* === Private Functions === */
 
 async fn execute_case(
     context: &ExecutionFixtureContext, cycle: &CycleView, case: &TestCase, execution: &TestExecution, workflow: &str, source: &str,
@@ -1094,5 +1067,3 @@ async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &Te
         failure("stop_settlement", message)
     })
 }
-
-/* === Tests === */

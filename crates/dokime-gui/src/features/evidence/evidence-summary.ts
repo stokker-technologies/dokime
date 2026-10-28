@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { ArtifactRecord, HealthItem, HubRecord, OperatorNote } from "@/lib/types";
-
-/* === Types === */
 
 export type EvidenceSummary = {
   artifacts: number;
@@ -26,8 +22,6 @@ type EvidenceSummaryInput = {
   health: HealthItem[];
   notes: OperatorNote[];
 };
-
-/* === Public Functions === */
 
 export function buildEvidenceSummary({ artifacts, records, health, notes }: EvidenceSummaryInput): EvidenceSummary {
   return {

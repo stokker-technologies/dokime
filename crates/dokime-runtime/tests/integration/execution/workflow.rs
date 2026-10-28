@@ -7,21 +7,14 @@
  * ***
  */
 
-/* === Modules === */
 pub(crate) mod callbacks;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
-// Third Party Imports
 
-// Local Imports
 use dokime_domain::model;
 use dokime_runtime::PromptId;
 use dokime_runtime::Value;
@@ -38,7 +31,6 @@ use dokime_runtime::transport::SidecarCriterionStatus;
 use dokime_runtime::transport::*;
 use {dokime_domain::model::traceability::TraceabilityRow, dokime_domain::model::traceability::TraceabilitySection};
 
-/* === Constants === */
 const WORKFLOW: &str = "probe.checks";
 const TEMPLATE: &str = "probe.checks.pulse";
 const STREAM: &str = "probe.pulse";
@@ -59,12 +51,8 @@ static EXECUTION_RELEASED: AtomicBool = AtomicBool::new(false);
 // Set when an observer samples after cleanup began; checked once the run settles.
 static LATE_SAMPLE: AtomicBool = AtomicBool::new(false);
 
-/* === Macros === */
-
-/* === Type Aliases === */
 type PublishedRow = (String, String, BTreeMap<String, Value>);
 
-/* === Structs === */
 struct Probe;
 
 struct ProbeResources {
@@ -89,16 +77,12 @@ struct ExecutionResource {
 
 struct InitializationResource;
 
-/* === Streams === */
-
 #[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 struct PulseRow {
     index: i64,
     value: f64,
 }
-
-/* === Records === */
 
 struct UnitConnected {
     serial: String,
@@ -107,7 +91,6 @@ struct UnitConnected {
 #[dokime_runtime::prompt(id = "probe.confirm", label = "Confirm")]
 struct Confirm;
 
-/* === Enums === */
 #[derive(Debug)]
 enum ProbeError {
     Declined(String),
@@ -115,9 +98,6 @@ enum ProbeError {
     Sdk(dokime_runtime::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
     fn publish(
         &self, execution: &str, stream: &dokime_runtime::Identifier, values: BTreeMap<String, Value>, storage_payload: Vec<u8>,
@@ -631,9 +611,6 @@ impl Probe {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn streamed_evidence() -> Vec<u8> {
     (0..dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES + 321).map(|index| (index % 251) as u8).collect()
 }
@@ -1838,8 +1815,6 @@ fn signal_refuses_deliveries() {
     });
     assert!(samples.is_err_and(|refusal| refusal.to_string().contains("sample scope JSON")));
 }
-
-/* === Tests === */
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn artifact_backpressure() {

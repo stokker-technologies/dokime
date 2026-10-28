@@ -7,19 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::AddOperatorNote;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::RuntimeHandle;
 use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
 use dokime_domain::model::execution::notes::NOTE_EDIT_NOT_AUTHOR;
@@ -32,14 +21,6 @@ use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct CreateNote {
@@ -64,8 +45,6 @@ pub struct NoteCreation {
     pub admission: NoteAdmission,
     pub publication: NotePublication,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NotePublication {
@@ -103,10 +82,6 @@ pub enum NoteError {
     #[error("{0}")]
     Unavailable(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn create_current_note(&self, request: CreateNote) -> Result<NoteCreation, NoteError> {
@@ -301,9 +276,3 @@ impl RuntimeHandle {
         if targets.is_empty() { NotePublication::Confirmed } else { NotePublication::Unconfirmed { targets } }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

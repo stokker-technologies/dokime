@@ -7,16 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Map, Value, conditions, expressions};
 use crate::prompts::{
     FieldValidation, PromptAction, PromptActionEmphasis, PromptArchetype, PromptDefinition, PromptField, PromptFieldKind,
@@ -26,13 +16,6 @@ use crate::records::RecordSeverity;
 use crate::storage::objects::metadata;
 use crate::storage::{Error, Result};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -132,11 +115,6 @@ pub(super) struct Validation {
     max_items: Option<u64>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Prompt {
     pub fn encoding_memory(value: &PromptDefinition) -> Result<usize> {
         let condition = value.condition.as_ref().map(conditions::Condition::encoding_memory).transpose()?.unwrap_or(0);
@@ -516,9 +494,6 @@ impl TryFrom<Validation> for FieldValidation {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn encoded_length(value: usize) -> Result<u64> {
     u64::try_from(value).map_err(|_| Error::Invalid("prompt validation length overflows"))
 }
@@ -602,8 +577,6 @@ fn emphasis(value: &str) -> Result<PromptActionEmphasis> {
         _ => Err(Error::Invalid("invalid prompt action emphasis")),
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

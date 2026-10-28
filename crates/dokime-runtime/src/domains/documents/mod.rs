@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod acquire;
 mod construction;
 mod current;
@@ -18,21 +16,12 @@ mod phase;
 pub(crate) mod saved;
 mod stream;
 
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::documents::AddExecutionDocumentParts;
 
 pub use current::{CurrentDocumentCapture, PreparedCurrentDocument};
 pub use follow::ExecutionFileFollower;
 pub use stream::ExecutionFileStream;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::definition::TestCaseTemplate;
 use crate::document::{
@@ -51,15 +40,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::records::evidence::RecordEntry;
 
-/* === Constants === */
-
 pub(crate) const DEFAULT_DOCUMENT_ID: &str = "default";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct RuntimeDocumentData {
     pub(crate) records: crate::storage::projection::Pages<RecordEntry>,
@@ -78,12 +59,6 @@ struct PreparedDocument {
     selection: DocumentSelection,
     data: RuntimeDocumentInput,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeDocumentData {
     pub(crate) fn into_owner(self) -> Result<harmos::storage::ReadBatch<RuntimeDocumentInput>> {
@@ -104,8 +79,6 @@ impl RuntimeDocumentInput {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn resolve_cycle_document(
     state: &crate::RuntimeState, cycle: &TestCycle, document_id: &DocumentId, selection: DocumentSelection, data: RuntimeDocumentData,
@@ -205,8 +178,6 @@ pub(crate) fn selected_execution_template(execution: &TestExecution) -> Option<&
     execution.snapshot.template()
 }
 
-/* === Private Functions === */
-
 fn execution_document_label(execution: &TestExecution) -> String {
     selected_execution_template(execution)
         .map(|template| template.metadata.label.clone())
@@ -297,5 +268,3 @@ fn selected_execution<'a>(
         .flatten()
         .ok_or_else(|| Error::Operation(format!("cycle execution {test_execution_id} not found")))
 }
-
-/* === Tests === */

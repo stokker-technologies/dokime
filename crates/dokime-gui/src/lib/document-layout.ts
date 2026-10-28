@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { CSSProperties } from "react";
 
-/* === Local Imports === */
-
 import type { DocumentCardLayout, DocumentViewCard, DocumentViewNode, DocumentViewPayload, DocumentViewSection } from "@/lib/types";
-
-/* === Types === */
 
 export type DocumentCardKind = DocumentViewCard["kind"];
 export type DocumentCardLayoutAttributes = {
@@ -25,8 +19,6 @@ export type DocumentCardLayoutAttributes = {
   "data-col-span-lg": number;
   "data-col-span-xl": number;
 };
-
-/* === Constants === */
 
 export const DOCUMENT_CARD_HIERARCHY: readonly DocumentCardKind[] = [
   "result",
@@ -45,8 +37,6 @@ export const DOCUMENT_CARD_HIERARCHY: readonly DocumentCardKind[] = [
 ];
 
 const DOCUMENT_CARD_ORDER = new Map(DOCUMENT_CARD_HIERARCHY.map((kind, index) => [kind, index]));
-
-/* === Public Functions === */
 
 export function orderedDocumentSections(document: DocumentViewPayload | null | undefined): DocumentViewSection[] {
   return normalizedDocumentSections(document).map((section) => ({

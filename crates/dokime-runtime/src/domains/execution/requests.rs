@@ -7,43 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::runtime::storage::requests::{AttemptClaim, Receipt, RunReceipt, StepReceipt};
 pub use crate::transactions::provider::request::{RunPhase, RunSummary};
 pub use dokime_domain::model::execution::request::StepCommand;
 pub use dokime_domain::model::execution::request::StepCommandPhase;
 pub use dokime_domain::model::execution::request::StepCommandReceipt;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct CommandWake<'a> {
     runtime: &'a crate::RuntimeHandle,
     execution: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for CommandWake<'_> {
     fn drop(&mut self) {
@@ -97,15 +72,9 @@ impl crate::RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn command_refused(message: impl Into<String>) -> crate::runtime::Error {
     crate::runtime::Error::Admission(AdmissionFailure::Conflict {
         code: "execution_command_refused".into(),
         message: message.into(),
     })
 }
-
-/* === Tests === */

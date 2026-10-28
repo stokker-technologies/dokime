@@ -9,20 +9,13 @@
 
 // Build And Read Complete Saved Evidence Archives
 
-/* === Modules === */
-
 mod archive;
 mod database;
 mod error;
 mod snapshot;
 
-/* === Re-Exports === */
-
 pub use error::{Error, Result};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     io::{self, Write},
     num::NonZeroUsize,
@@ -30,7 +23,6 @@ use std::{
     sync::Arc,
 };
 
-// Third Party Imports
 use harmos::storage::{ByteRange, FileRead, FileReadBatch, FileReader, FileSource, ReadBatch};
 use serde::Serialize;
 use tempfile::TempDir;
@@ -40,7 +32,6 @@ use tokio::{
 };
 use tokio_util::{sync::CancellationToken, task::task_tracker::TaskTrackerToken};
 
-// Local Imports
 use crate::runtime::RuntimeHandle;
 use dokime_domain::model::{
     content::wire::ArtifactChunk,
@@ -50,17 +41,9 @@ use dokime_domain::model::{
     time::Timestamp,
 };
 
-/* === Constants === */
-
 const MAX_INVENTORY_ENTRIES: u64 = 65_536;
 const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
 const MAX_EXPORT_BYTES: u64 = 8 * 1024 * 1024 * 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(crate) struct Manager {
@@ -112,12 +95,6 @@ struct ExecutionInventory {
 struct InventoryBudget {
     remaining: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl InventoryBudget {
     fn reserve(&mut self, value: &impl Serialize) -> Result<()> {
@@ -230,10 +207,6 @@ impl Bundle {
         Ok(Some(chunk))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn read_source(mut reader: FileReader, source: Arc<Source>) -> (FileReader, Result<Option<FileReadBatch>>) {
     let _source = source;
@@ -350,5 +323,3 @@ async fn build(
         pending: None,
     })
 }
-
-/* === Tests === */

@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::prelude::*;
 use async_trait::async_trait;
 use dokime_domain::model;
@@ -31,20 +20,8 @@ use {
     dokime_runtime::records::RecordSeverity, model::records::publication::RecordPublishRequest,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Publisher;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 #[async_trait]
 impl EmbeddedProvider for Publisher {
     fn catalog(&self) -> InstalledPlugin {
@@ -77,12 +54,6 @@ impl EmbeddedProvider for Publisher {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn native_publications_order() {

@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use serde::Deserialize;
 use url::Url;
 
-// Local Imports
 use crate::app::organization::policy::{Mode, Source, UpdatePolicy, https_url};
-
-/* === Constants === */
 
 pub(super) const DESKTOP_UPDATE_MANIFEST_BYTES: u64 = 1_048_576;
 const DESKTOP_UPDATE_REDIRECTS: u64 = 10;
 const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Deserialize)]
 struct GithubRelease {
@@ -62,14 +45,6 @@ struct GitlabAsset {
     url: String,
     direct_asset_url: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn client(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     // Reqwest Removes Authorization On Origin Changes, Including Scheme And Port.
@@ -144,8 +119,6 @@ pub(super) async fn resolve(policy: &UpdatePolicy, asset: &str) -> Result<Url, S
     }
 }
 
-/* === Private Functions === */
-
 fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str) -> Result<Url, String> {
     let mut matching = assets.filter(|(name, _)| name == wanted);
     let (_, location) = matching.next().ok_or_else(|| format!("The release has no {wanted} asset"))?;
@@ -154,8 +127,6 @@ fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str) -> 
     }
     https_url(&location)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

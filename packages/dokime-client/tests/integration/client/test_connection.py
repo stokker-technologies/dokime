@@ -8,18 +8,13 @@
 
 """Negotiate, Bound And Close Backend Connections"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import json
 from pathlib import Path
 from typing import Any
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import (
     BackendChanged,
     ClientClosed,
@@ -30,21 +25,9 @@ from dokime_client.client import (
 
 from .backend import SUITE_ID, collect, serve
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 # Rust Connection Stories Read The Same Negotiation Fixture.
 NEGOTIATION = json.loads((Path(__file__).resolve().parent / "fixtures/negotiation.json").read_text())
 READINESS = ("Unspecified", "Starting", "Ready", "Degraded", "Stopping")
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_connect_deadline_expires() -> None:
@@ -215,8 +198,3 @@ def test_pairing_checks_identity_before_calls_and_after_reconnect(tmp_path: Path
                 await mismatched.close()
 
     asyncio.run(scenario())
-
-
-# === Private Functions === #
-
-# === Entry Point === #

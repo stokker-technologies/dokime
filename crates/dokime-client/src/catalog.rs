@@ -7,34 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Client, Error, ResponseStream, Result};
 use dokime_operations::Endpoint;
 use dokime_operations::catalog;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     pub fn suites(&self) -> Result<ResponseStream<dokime_domain::model::catalog::wire::SuiteDefinition>> {
@@ -142,8 +117,6 @@ impl Client {
     }
 }
 
-/* === Public Functions === */
-
 // The suite a readable template id names, when the id is well formed.
 pub fn template_suite(identifier: &str) -> Option<&str> {
     let (suite, _) = identifier.rsplit_once('.')?;
@@ -167,8 +140,6 @@ pub(crate) fn registered_template<'a>(
         .map_err(|_| invalid("template has an invalid identity"))?;
     Ok(selected)
 }
-
-/* === Private Functions === */
 
 fn validate_listed_identity(
     identity: &dokime_domain::model::catalog::wire::SuiteIdentity, suite: &dokime_domain::model::catalog::wire::SuiteDefinition,
@@ -220,5 +191,3 @@ fn validate_page(epoch: &str, request: &catalog::ListSuites, page: &dokime_domai
 fn invalid(message: &'static str) -> Error {
     Error::Rpc(tonic::Status::data_loss(message))
 }
-
-/* === Tests === */

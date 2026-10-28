@@ -7,36 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use tonic::transport::{Certificate, ClientTlsConfig, Endpoint};
 use url::{Host, Url};
 
-// Local Imports
 use super::{Error, Result};
 use dokime_domain::model::settings::application::ClientPreferences;
-
-/* === Constants === */
 
 const CA_BYTES: usize = 1_048_576;
 const CONNECTION_WINDOW_BYTES: u64 = 16_777_216;
 const KEEPALIVE_INTERVAL_MS: u64 = 10_000;
 const KEEPALIVE_TIMEOUT_MS: u64 = 5_000;
 const STREAM_WINDOW_BYTES: u64 = 4_194_304;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Target {
@@ -45,12 +28,6 @@ pub struct Target {
     ca: Option<String>,
     settings: ClientPreferences,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Target {
     pub fn new(endpoint: impl Into<String>, ca_certificate_pem: Option<String>) -> Result<Self> {
@@ -144,15 +121,9 @@ impl Target {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid_target(message: &'static str) -> Error {
     Error::InvalidTarget { message }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

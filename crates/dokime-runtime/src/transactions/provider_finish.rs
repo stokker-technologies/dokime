@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::TestCase;
 use crate::domains::{ExecutionProviderTarget, InstalledPluginErrorRecord, InstalledPluginPhase};
 use crate::records::BuiltinRecordType;
@@ -59,14 +50,6 @@ use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[harmos::transaction(id = "dokime.execution.provider.finish", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinishProvider {
@@ -89,12 +72,6 @@ struct FinishPlan {
     prompts: Drafts,
     settled: SettledPrompts,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for FinishProvider {
     type Error = String;
@@ -225,8 +202,6 @@ impl FinishPlan {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn apply_finish_provider(state: &mut RuntimeState, finish: &FinishProvider) {
     prepare_finish_provider(state, finish).apply(state, finish);
 }
@@ -287,8 +262,6 @@ pub(super) fn lifecycle_for(summary: Option<&ResultSummary>) -> CycleStatus {
         _ => CycleStatus::Ready,
     }
 }
-
-/* === Private Functions === */
 
 fn prepare_finish_provider(state: &RuntimeState, finish: &FinishProvider) -> FinishPlan {
     let mut plan = match &finish.outcome {
@@ -985,5 +958,3 @@ fn summary(status: ResultStatus) -> ResultSummary {
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).unwrap_or_else(|_| Identifier::new("provider.invalid_identifier").expect("fallback identifier is valid"))
 }
-
-/* === Tests === */

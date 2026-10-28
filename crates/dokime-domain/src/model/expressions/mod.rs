@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod data;
 pub mod dataset;
 pub mod expression;
 pub mod handles;
-
-/* === Re-Exports === */
 
 pub use data::DataExpression;
 pub use data::DataExpressionError;
@@ -41,31 +37,3 @@ pub use handles::RecordField;
 pub use handles::RecordMarker;
 pub use handles::detail;
 pub use handles::marker;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

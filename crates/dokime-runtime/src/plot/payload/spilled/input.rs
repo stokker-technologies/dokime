@@ -9,31 +9,14 @@
 
 // Indexed Disk Ownership For Complex Plot Inputs
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
 use rusqlite::{Connection, params};
 
-// Local Imports
 use crate::runtime::{Error, Result};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::{EvidenceOrigin, RecordScope};
 use dokime_domain::model::records::evidence::RecordEntry;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(crate) struct Input {
@@ -49,12 +32,6 @@ pub(super) struct Read<'a> {
     pub connection: &'a Connection,
     reverse_records: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Input {
     pub(crate) fn new() -> Result<Self> {
@@ -260,10 +237,6 @@ impl Read<'_> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 pub(super) fn failure(error: impl std::fmt::Display) -> Error {
     Error::Operation(format!("plot spill: {error}"))
 }
@@ -282,5 +255,3 @@ fn time(value: &str) -> Option<[u8; 16]> {
     let nanos = crate::plot::parse_timestamp(value)?.unix_timestamp_nanos();
     Some(((nanos as u128) ^ (1u128 << 127)).to_be_bytes())
 }
-
-/* === Tests === */

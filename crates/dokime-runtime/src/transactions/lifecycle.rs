@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::state::RuntimeState;
 use crate::state::shared::Map;
 use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
@@ -34,14 +24,6 @@ use dokime_domain::model::identity::DokimeNodeIdentity;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.runtime.started", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -129,12 +111,6 @@ pub struct StageQueuedStop {
     pub request_id: dokime_domain::model::identity::CommandId,
     pub at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for BeginCycleSeal {
     type Error = String;
@@ -495,8 +471,6 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
     }
 }
 
-/* === Public Functions === */
-
 // A step attempt that ended without a completion receipt keeps this redacted detail.
 #[track_caller]
 pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Diagnostic {
@@ -509,8 +483,6 @@ pub(crate) fn closed_lifecycle(
 ) -> CycleStatus {
     closed_outcome(closed_members_ran(cycle, executions), cycle.result.as_ref())
 }
-
-/* === Private Functions === */
 
 fn closed_members_ran(
     cycle: &dokime_domain::model::execution::result::TestCycle, executions: &Map<TestExecutionId, TestExecution>,
@@ -568,8 +540,6 @@ fn interrupt_step(step: &mut StepRecord, at: &Timestamp) {
         step.finished_at = Some(at.clone());
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

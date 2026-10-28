@@ -16,16 +16,10 @@
  * so a node test can load it directly.
  */
 
-/* === Local Imports === */
-
 import type { DocumentViewPlot, TelemetryColumnSpec, ValueFormat } from "@/lib/types";
-
-/* === Constants === */
 
 /** The y axis title of every histogram: the host counts the binned value. */
 export const HISTOGRAM_COUNT_LABEL = "Count";
-
-/* === Types === */
 
 export type HistogramValueAxis = {
   label: string;
@@ -41,8 +35,6 @@ export type HistogramAxes = {
 export type HistogramDeclaration = Pick<DocumentViewPlot, "title" | "x" | "unit" | "histogram" | "x_format">;
 
 export type HistogramColumn = Pick<TelemetryColumnSpec, "label" | "unit" | "format">;
-
-/* === Public Functions === */
 
 /** The histogram's axes: the declared value on x, the host's count on y. */
 export function histogramAxes(plot: HistogramDeclaration, column?: HistogramColumn | null): HistogramAxes {

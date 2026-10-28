@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::{intern, resolve};
 use crate::definition::TestSuite;
 use crate::definition::{SuiteRegistry, SuiteSet, SuiteSnapshot, TestCase};
@@ -31,18 +22,10 @@ use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::plugins::InstalledPlugin;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub(super) type Plugins = BTreeMap<String, InstalledPlugin>;
 pub(super) type Records = BTreeMap<Identifier, RecordContract>;
 pub(super) type History = BTreeMap<Identifier, BTreeMap<u32, RecordContract>>;
 pub(super) type Telemetry = BTreeMap<Identifier, TelemetryContract>;
-
-/* === Structs === */
 
 // Plugin catalogs reach state more than once: an installed plugin lists its
 // suites and contracts, the suite registry copies each suite with its
@@ -113,12 +96,6 @@ pub(super) struct DecodedRegistry {
     registrations: BTreeMap<CommandId, Vec<CaseId>>,
     case_revisions: BTreeMap<CaseId, String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> Pool<'a> {
     pub(super) fn plugins(&mut self, plugins: &'a Plugins) -> BTreeMap<&'a String, Plugin> {
@@ -295,9 +272,3 @@ impl DecodedPool {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

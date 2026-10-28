@@ -7,36 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn cycle_exposes_rows() {
@@ -283,8 +255,6 @@ async fn stop_holds_unwind() {
 
 #[tokio::test]
 async fn stop_spares_sibling() {
-    // === Start A Two-Case Cycle === //
-
     let root = tempdir().unwrap();
     let executor = Arc::new(MemberStopExecutor::default());
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
@@ -305,8 +275,6 @@ async fn stop_spares_sibling() {
         .expect("first execution is running")
         .test_execution_id
         .clone();
-
-    // === Stop One Execution === //
 
     let stop = runtime.stop_execution(stopped_id.clone(), CommandContext::default()).await;
     let during = cycle_snapshot(&runtime, &test_cycle_id).await;
@@ -424,5 +392,3 @@ async fn group_continues_after_failure() {
     assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Passed);
     assert!(cycle.test_executions[1].started_at.is_some());
 }
-
-/* === Tests === */

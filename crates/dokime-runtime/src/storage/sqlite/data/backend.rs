@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::result::Result;
 use std::{
     collections::BTreeMap,
@@ -26,7 +19,6 @@ use std::{
     },
 };
 
-// Third Party Imports
 use harmos::{
     BackendFailure,
     storage::query::{FileSelection, ObjectSelection, ObjectVersions, RecordSelection, SchemaSelection, StreamSelection},
@@ -34,17 +26,8 @@ use harmos::{
 };
 use tokio::sync::{Mutex, Notify};
 
-// Local Imports
 use super::super::{Error, State};
 use super::{Entry, Scan, entry::key};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Backend<C: ObjectCatalog> {
     catalog: std::marker::PhantomData<fn() -> C>,
@@ -73,12 +56,6 @@ struct OpenedFile {
     reference: FileReference,
     handle: Arc<std::sync::Mutex<std::fs::File>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for ActiveRead {
     fn drop(&mut self) {
@@ -600,10 +577,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(reason: &'static str) -> harmos::storage::Error {
     harmos::storage::Error::InvalidInput { field: "SQLite storage", reason }
 }
@@ -624,5 +597,3 @@ fn failure(operation: &'static str, error: Error) -> harmos::storage::Error {
         }
     }
 }
-
-/* === Tests === */

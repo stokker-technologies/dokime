@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Types === */
-
 export * from "./types/content";
 export * from "./types/cycle-summary";
 export * from "./types/document";

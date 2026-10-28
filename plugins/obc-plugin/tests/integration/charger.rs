@@ -7,40 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::execution::Workflow;
 use dokime::transport::{RunExecution, StepAdmission};
 use obc_plugin::{SOURCE, suites::steady};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 // Observer callbacks run on independent runtime threads, so the story keeps
 // the real clock: a paused one would spin the drain poll while they run.

@@ -9,19 +9,13 @@
 
 /* Breakpoint Navigation With Viewer-Owned Desktop Geometry. */
 
-/* === External Imports === */
-
 import { useCallback, useSyncExternalStore } from "react";
-
-/* === Local Imports === */
 
 import { useFocusMode } from "@/shell/focus-mode";
 import { useShellDensity } from "@/shell/use-shell-density";
 import { useUiStore } from "@/stores/ui-store";
 
-import { navigationMode, sidebarWidth, type NavigationMode } from "./navigation-model";
-
-/* === Public Functions === */
+import { type NavigationMode, navigationMode, sidebarWidth } from "./navigation-model";
 
 export function useNavigationMode() {
   return useSyncExternalStore(observeViewport, readViewport, () => "desktop" as const);
@@ -45,7 +39,6 @@ export function useSidebarState(): SidebarState {
   };
 }
 
-/* === Types === */
 export type SidebarState = {
   collapsed: boolean;
   toggle: () => void;
@@ -53,7 +46,6 @@ export type SidebarState = {
   mode: NavigationMode;
 };
 
-/* === Private Functions === */
 function readViewport(): NavigationMode {
   return navigationMode(typeof window === "undefined" ? 1024 : window.innerWidth);
 }

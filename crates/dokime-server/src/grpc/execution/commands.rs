@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use super::loan;
 use crate::grpc::value::canonical;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
@@ -31,20 +22,6 @@ use dokime::domains::execution::requests::{Receipt, StepCommand, StepCommandPhas
 use dokime::operations::execution as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{RuntimeHandle, runtime::Error};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::SubmitExecutionCommand> for super::Resources {
     fn serve<'a>(
@@ -62,8 +39,6 @@ impl Serve<wire::GetExecutionCommand> for super::Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(super::Resources {
         runtime: runtime.clone(),
@@ -78,8 +53,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) 
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn submit(
     resources: &super::Resources, request: &wire::SubmitExecutionCommand,
@@ -175,5 +148,3 @@ fn project(
         detail: receipt.detail.clone(),
     })
 }
-
-/* === Tests === */

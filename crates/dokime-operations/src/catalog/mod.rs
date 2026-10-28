@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 mod get_record_schema;
 mod get_suite;
 mod get_telemetry_schema;
 mod list_record_schemas;
 mod list_suites;
 mod list_telemetry_schemas;
-
-/* === Re-Exports === */
 
 pub use get_record_schema::GetRecordSchema;
 pub use get_suite::GetSuite;
@@ -25,13 +21,6 @@ pub use list_record_schemas::ListRecordSchemas;
 pub use list_suites::ListSuites;
 pub use list_telemetry_schemas::ListTelemetrySchemas;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Endpoint;
 use super::ORDINARY;
 
@@ -42,16 +31,6 @@ use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::model::catalog::wire::*;
 #[allow(unused_imports)]
 use dokime_domain::model::identity::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 // Pages are ordered by registered suite ID. A changed cursor requires restarting
 
@@ -72,10 +51,6 @@ pub enum Operations {
     ListTelemetrySchemas(ListTelemetrySchemas),
     GetTelemetrySchema(GetTelemetrySchema),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Endpoint for ListSuites {
     const PATH: &'static str = "/dokime.v1.Catalog/ListSuites";
@@ -100,9 +75,3 @@ impl Endpoint for ListTelemetrySchemas {
 impl Endpoint for GetTelemetrySchema {
     const PATH: &'static str = "/dokime.v1.Catalog/GetTelemetrySchema";
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

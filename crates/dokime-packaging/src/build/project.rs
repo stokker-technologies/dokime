@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
-
-// Local Imports
 use super::{Options, metadata, select_package};
 use crate::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Project {
     options: Options,
@@ -42,12 +24,6 @@ pub struct Project {
     watch_paths: Vec<PathBuf>,
     target_directory: PathBuf,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Project {
     pub async fn resolve(options: Options) -> Result<Self, Error> {
@@ -119,9 +95,3 @@ impl Project {
         super::build_resolved(self.options, self.metadata).await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

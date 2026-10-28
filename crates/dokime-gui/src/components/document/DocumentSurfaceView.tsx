@@ -7,19 +7,11 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-/* === External Imports === */
-
 import type { ReactNode } from "react";
 
-/* === Local Imports === */
-
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
+import { DataTable } from "@/components/data-table/DataTable";
+import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { DocumentMetricFlow, metricFlowStorageKey } from "@/components/document/DocumentOverviewCards";
 import { FrozenOperatorNotes } from "@/components/document/OperatorNotesView";
@@ -29,8 +21,6 @@ import { StepRecordList } from "@/components/document/StepRecordsCard";
 import { MediaGalleryView } from "@/components/MediaGalleryView";
 import type { MediaGalleryArtifact } from "@/components/media-gallery-model";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
-import { DataTable } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { formatValue } from "@/lib/dashboard";
 import { isStatedGroup } from "@/lib/traceability";
@@ -49,8 +39,6 @@ import type {
 } from "@/lib/types";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
-
-/* === Types === */
 
 type DocumentSurfaceSharedProps = {
   captureControls?: ReactNode;
@@ -93,10 +81,6 @@ type ReportDocumentSurfaceProps = DocumentSurfaceSharedProps & {
 };
 
 export type DocumentCardContentProps = LiveDocumentSurfaceProps | ReportDocumentSurfaceProps;
-
-/* === Constants === */
-
-/* === Public Functions === */
 
 export function DocumentCardContentView(props: DocumentCardContentProps) {
   const reportMode = isReportDocumentSurface(props);
@@ -318,8 +302,6 @@ export function RecordListContent({ live = true, records }: { live?: boolean; re
   return <RecordTimeline live={live} records={records} />;
 }
 
-/* === Private Functions === */
-
 /**
  * The records the plots mark, prompts among them. Spread rather than named,
  * so this view passes them whether or not the grid it is built against
@@ -366,11 +348,3 @@ function reportPlotStates(documentPlots: DocumentViewPlot[], reportPlots: Record
 function isReportDocumentSurface(props: DocumentCardContentProps): props is ReportDocumentSurfaceProps {
   return props.renderMode === "report";
 }
-
-/* === Re-Exports === */
-
-/* === Components === */
-
-/* === Hooks === */
-
-/* === Private Functions === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod archive;
 pub mod cycle;
 pub mod documents;
@@ -30,8 +28,6 @@ pub mod provider_finish;
 pub(crate) mod records;
 mod suite_sets;
 pub mod traceability;
-
-/* === Re-Exports === */
 
 pub use archive::{ArchiveSubject, SetArchived};
 pub use cycle::{ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy};
@@ -59,24 +55,7 @@ pub use provider_finish::FinishProvider;
 pub use suite_sets::{RemoveSuiteSet, SetSuiteSet};
 pub use traceability::{BeginStepAttempt, RecordExecutionTraceability, RecordStepAttempt, SetCapturePhase, UpdateExecutionPhase};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[harmos::transactions(state = crate::state::RuntimeState, error = String)]
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -135,13 +114,3 @@ pub enum Transactions {
     CompleteRun(CompleteRun),
     SettleRun(SettleRun),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

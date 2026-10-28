@@ -7,44 +7,26 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
 };
 
-/* === Macros === */
 
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Uppercase;
 
 #[sdk::operation(id = "uppercase.frobnicate", description = "Invalid.", policy = POLICY, response = ())]
 #[derive(PartialEq)]
 struct Frobnicate {}
 
-/* === Enums === */
 #[sdk::catalog]
 enum UppercaseOperations {
     Frobnicate(Frobnicate),
 }
 
-/* === Traits === */
 
-/* === Implementations === */
 impl sdk::Operation for Frobnicate {
     type Error = sdk::Refusal;
 
@@ -92,9 +74,5 @@ impl sdk::Plugin for Uppercase {
     }
 }
 
-/* === Public Functions === */
 
-/* === Private Functions === */
 fn main() {}
-
-/* === Tests === */

@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-// Local Imports
 use crate::storage::{Error, Result, records::ScopeRow};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::health::HealthItem;
@@ -29,14 +19,6 @@ use dokime_domain::model::identity::NoteId;
 
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::state::records::set::TestRecordSet;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -70,12 +52,6 @@ pub struct Note {
     message: String,
     created_at: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TryFrom<&TestRecordSet> for Set {
     type Error = Error;
@@ -295,10 +271,6 @@ impl TryFrom<Note> for OperatorNote {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn severity(value: &HealthSeverity) -> &'static str {
     match value {
         HealthSeverity::Info => "info",
@@ -306,8 +278,6 @@ fn severity(value: &HealthSeverity) -> &'static str {
         HealthSeverity::Error => "error",
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

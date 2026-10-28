@@ -7,35 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tauri::AppHandle;
 
-// Local Imports
 use crate::native_session::backend::Backend;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
     let root = super::settings::application_root(&app.config().identifier).map_err(|error| error.to_string())?;
@@ -60,7 +34,3 @@ pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
     };
     Ok(Backend::new(args).with_log(super::logging::active_log()))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

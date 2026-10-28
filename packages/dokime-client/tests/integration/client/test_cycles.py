@@ -8,15 +8,10 @@
 
 """Plan, Admit And Recover Test Cycles"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import (
     BackendChanged,
     Execution,
@@ -36,18 +31,6 @@ from .backend import (
     prepare,
     serve,
 )
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_materialized_attempts() -> None:
@@ -282,8 +265,3 @@ def test_restart_boundaries() -> None:
                 await run.checkpoint()
 
     asyncio.run(scenario())
-
-
-# === Private Functions === #
-
-# === Entry Point === #

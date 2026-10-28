@@ -7,35 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::CreateCycle as Create;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{CommandContext, RuntimeHandle, runtime::Error, transactions::CycleDefinition};
 use dokime_domain::model::identity::TestCycleId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn create_cycle(&self, definition: CycleDefinition, context: CommandContext) -> Result<TestCycleId, Error> {
@@ -54,9 +29,3 @@ impl RuntimeHandle {
         Ok(test_cycle_id)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

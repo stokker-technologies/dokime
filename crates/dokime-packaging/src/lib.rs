@@ -7,41 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod build;
 pub mod bundle;
 mod error;
 pub mod installer;
 pub mod process;
 
-/* === Re-Exports === */
-
 pub use error::Error;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 /// Export Domain Defaults Alongside The Generated Operation Bindings.
 pub fn export_application_settings(directory: &std::path::Path) -> Result<(), Error> {
@@ -55,8 +27,6 @@ pub fn export_application_settings(directory: &std::path::Path) -> Result<(), Er
     std::fs::write(directory.join("application-settings.ts"), typescript_models(&models)?)?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 // Parse The Domain Owners So Native JSON Bindings Cannot Drift Into Handwritten Mirrors.
 fn preference_models() -> Result<serde_json::Value, Error> {
@@ -205,5 +175,3 @@ fn typescript_type(value: &serde_json::Value) -> Result<String, Error> {
     }
     Err(Error::Invalid("invalid preference model type".into()))
 }
-
-/* === Tests === */

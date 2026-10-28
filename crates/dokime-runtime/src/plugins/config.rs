@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, path::PathBuf};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginBundle {
@@ -41,8 +23,6 @@ pub struct PluginBundle {
     pub provenance: PluginProvenance,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PluginProvenance {
@@ -54,10 +34,6 @@ pub enum PluginProvenance {
         sha256: String,
     },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PluginBundle {
     pub fn new(path: impl Into<PathBuf>) -> Self {
@@ -78,12 +54,6 @@ impl PluginBundle {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn empty_object() -> serde_json::Value {
     serde_json::Value::Object(Default::default())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

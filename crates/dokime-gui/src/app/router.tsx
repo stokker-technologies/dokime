@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { createRouter } from "@tanstack/react-router";
 
-/* === Local Imports === */
-
 import { routeTree } from "@/routeTree.gen";
-
-/* === Constants === */
 
 export const router = createRouter({
   routeTree,

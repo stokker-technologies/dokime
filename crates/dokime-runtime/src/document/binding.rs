@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::borrow::Cow;
 
-// Third Party Imports
 use harmos::Aggregate;
 
-// Local Imports
 use super::context::{Context, Entry};
 use super::frame::Plan;
 use super::input::{Artifacts, RecordView, Records};
@@ -28,14 +19,6 @@ use crate::artifacts::{ArtifactRecord, ArtifactStatus};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct Evidence<'a> {
@@ -46,8 +29,6 @@ pub(super) struct Evidence<'a> {
     pub selection: Option<&'a super::DocumentSelection>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 pub(super) enum Row<'a> {
     Artifact { artifact: &'a ArtifactRecord, context: Option<Entry<'a>> },
@@ -55,10 +36,6 @@ pub(super) enum Row<'a> {
     Sample { sample: &'a TelemetrySample, context: Option<Entry<'a>> },
     Context(Entry<'a>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> Evidence<'a> {
     pub(super) fn upper_rows(self) -> usize {
@@ -170,8 +147,6 @@ impl Row<'_> {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn selected_sources(definition: &DocumentDefinition, context: Context<'_>) -> (Vec<String>, Vec<String>, bool) {
     let records = std::cell::RefCell::new(Vec::new());
@@ -396,8 +371,6 @@ pub(super) fn evaluate(expression: &DataExpression, evidence: Evidence<'_>, sele
     plan.evaluate(expression, evidence, &cases, selected)
 }
 
-/* === Private Functions === */
-
 fn plan(expression: &DataExpression, rows: usize) -> Result<Plan<'_>> {
     let cases = expression.transforms.contains(&DataTransform::PerCase).then_some(rows.max(1));
     Plan::compile(expression, cases)
@@ -570,5 +543,3 @@ fn artifact_text_field<'a>(artifact: &'a ArtifactRecord, name: &str) -> Option<&
         _ => None,
     }
 }
-
-/* === Tests === */

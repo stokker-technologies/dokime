@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::execution::scope_visible_in;
 use crate::model::identity::Identifier;
@@ -28,14 +19,6 @@ use crate::model::records::evidence::Record;
 use crate::model::records::resources::{ResourceLifecycle, ResourceRecord};
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ResourceRegistry {
@@ -51,12 +34,6 @@ struct ResourceInstance {
     label: String,
     sequence: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ResourceRegistry {
     pub fn clear(&mut self) {
@@ -251,10 +228,6 @@ impl ResourceRegistry {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn resource_lifecycle(record_type: &Identifier) -> Option<ResourceLifecycle> {
     match record_type.as_str() {
         "resource.registered" | "resource.attached" | "resource.opening" => Some(ResourceLifecycle::Registered),
@@ -353,5 +326,3 @@ fn title_label(value: &str) -> String {
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).unwrap_or_else(|error| panic!("invalid resource identifier {value}: {error}"))
 }
-
-/* === Tests === */

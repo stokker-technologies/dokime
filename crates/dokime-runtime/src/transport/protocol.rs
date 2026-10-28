@@ -7,32 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::operations::execution::transport::{
     ArtifactChunk, EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, MAX_ARTIFACT_CHUNK_BYTES, OperatorAnswer, OperatorQuestion,
     SidecarCriterionOutcome, SidecarExecutionOutcome, StepAdmission,
 };
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 
 pub const RUN_BOUND: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 pub const SIGNAL_BOUND: Duration = Duration::from_secs(30);
 pub const MAX_EVIDENCE_PAGE_BYTES: usize = 2 * MAX_ARTIFACT_CHUNK_BYTES + 256 * 1024;
 pub const MAX_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-
-/* === Macros === */
 
 // A template-selected declaration delegates its portable encoding to the inner
 // request, so every template shares one wire shape under its own identity.
@@ -90,10 +75,6 @@ macro_rules! templated {
 }
 
 pub(crate) use templated;
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message(skip_debug)]
 #[derive(Clone, PartialEq)]
@@ -197,8 +178,6 @@ pub struct CommandExecutionReply {
     pub message: String,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum SidecarCriterionStatus {
@@ -207,10 +186,6 @@ pub enum SidecarCriterionStatus {
     Failed = 2,
     Indeterminate = 3,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::fmt::Debug for RunExecution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -224,9 +199,3 @@ impl std::fmt::Debug for RunExecution {
             .finish_non_exhaustive()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

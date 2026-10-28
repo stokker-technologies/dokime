@@ -3,11 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  * ***
  */
-/* === External Imports === */
+
 import { useTheme } from "next-themes";
 import { createContext, type ReactNode, useContext } from "react";
 
-/* === Types === */
 export type ApplicationTheme = {
   saving?: boolean;
   theme?: string;
@@ -24,7 +23,6 @@ export function useApplicationTheme(): ApplicationTheme {
   return native ?? browser;
 }
 
-/* === Components === */
 export function ApplicationThemeProvider({ children, value }: { children: ReactNode; value: ApplicationTheme }) {
   return <NativeTheme.Provider value={value}>{children}</NativeTheme.Provider>;
 }

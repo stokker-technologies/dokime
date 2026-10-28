@@ -9,31 +9,20 @@
 
 // Tail One Log File For Every Subscriber: One Reader Parses Appended Bytes Once And Fans Records Out.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-// Third Party Imports
 use dokime::harmos::operations::{Response, StreamOutput};
 use serde_json::Value;
 use tokio::io::{AsyncReadExt as _, AsyncSeekExt as _};
 use tokio::sync::broadcast;
 use tonic::Status;
 
-// Local Imports
 use super::redaction;
 use dokime::domain::model::backend::wire::{LogFrame, LogFrameFieldsEntry, LogLevel};
 use dokime::domain::model::identity::wire::Timestamp;
-
-/* === Constants === */
 
 const SERVER_DEFAULT_REPLAY_LINES: u64 = 500;
 const SERVER_LOG_LINE_BYTES: u64 = 262_144;
@@ -43,12 +32,6 @@ const SERVER_MAXIMUM_REPLAY_LINES: u64 = 5_000;
 
 // One Replay Ring Per Wire Level, Indexed By The Level's Discriminant.
 const LEVELS: usize = LogLevel::Error as usize + 1;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 /// One Log File's Shared Tail: A Single Reader, Bounded Replay Rings And A Bounded Live Fan-Out.
 pub(super) struct Tail {
@@ -101,12 +84,6 @@ struct Subscription {
     live: broadcast::Receiver<u64>,
     dropped: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Tail {
     pub(super) fn new(path: PathBuf, poll_interval: Duration, message_limit: usize) -> Arc<Self> {
@@ -378,10 +355,6 @@ impl Subscription {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn frame_wire(line: &[u8]) -> Option<LogFrame> {
     let line = std::str::from_utf8(line).ok()?.trim();
     if line.is_empty() {
@@ -453,8 +426,6 @@ fn memory_failure(source: dokime::harmos::operations::StreamError) -> Status {
     };
     crate::grpc::error::detailed_error(status, &source)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

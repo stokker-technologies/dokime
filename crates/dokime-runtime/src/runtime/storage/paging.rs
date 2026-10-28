@@ -7,41 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(super) use dokime_domain::model::execution::saved::PageCursor as Cursor;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{runtime::Error, runtime::Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Positioned<T> {
     pub(super) position: u64,
     pub(super) captured: T,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn page_limit(limit: Option<usize>) -> Result<usize> {
     let default = 100;
@@ -55,6 +28,3 @@ pub(super) fn page_limit(limit: Option<usize>) -> Result<usize> {
     }
     Ok(limit)
 }
-/* === Private Functions === */
-
-/* === Tests === */

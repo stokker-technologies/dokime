@@ -7,38 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::document::{DocumentSelection, PlotDefinition, PlotDescriptor, PlotInput, PlotType};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn plot_input_for_definition(
     plot: &PlotDefinition, telemetry: &[TelemetrySample], marker_count: usize, selection: &DocumentSelection,
@@ -102,8 +75,6 @@ pub fn plot_descriptor_for_definition(input: PlotInput, metadata: Metadata) -> P
 pub(crate) fn stream_matches_alias(actual: &str, declared: &str) -> bool {
     actual == declared || actual.strip_suffix(declared).is_some_and(|prefix| prefix.ends_with('.'))
 }
-
-/* === Private Functions === */
 
 fn sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
     if plot.stream.as_ref().is_some_and(|stream| !stream_matches_alias(sample.stream.as_str(), stream)) {
@@ -183,5 +154,3 @@ fn resolved_plot_stream(stream: &str, available_streams: &[Identifier]) -> Strin
         .map(|candidate| candidate.as_str().to_owned())
         .unwrap_or_else(|| stream.to_owned())
 }
-
-/* === Tests === */

@@ -7,43 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model;
 use dokime_host::{Host, HostTelemetryStream, host_telemetry_contracts};
 use dokime_runtime::telemetry::validate_telemetry_sample;
 use model::telemetry::{TelemetryBatch, TelemetrySample, ValidationMode};
 use model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 pub enum Field {
     Integer(&'static str),
     Number(&'static str),
     Array(&'static str),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBatch {
     Host::new(dokime_host::HostTelemetryConfig::default())
         .collect_stream(stream)
@@ -92,7 +67,3 @@ pub fn assert_field(sample: &TelemetrySample, field: &Field) {
         }
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,30 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
 use harmos_packaging::bundle::{Bundle, Limits};
 
-// Local Imports
 use crate::terminal::Terminal;
 use crate::{Error, Result};
 use dokime::domain::model::plugins::wire;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 #[command(about = "Install A Plugin Bundle On A Backend For Next-Boot Activation.")]
@@ -40,14 +23,6 @@ pub(crate) struct Args {
     #[command(flatten)]
     connection: crate::connection::Args,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -68,7 +43,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     Terminal::default().success(format!("Installed plugin {}; restart the host to activate it.", installed.install_id));
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -1,10 +1,6 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
-/* === External Imports === */
-
 import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/protobuf";
-
-/* === Local Imports === */
 
 import {
   type Row2 as ArtifactMetadata,
@@ -17,8 +13,6 @@ import { normalizeRpcError } from "./errors";
 import { invokeOwned, requestBytes, responseBytes } from "./ipc";
 import type { SessionIdentity } from "./transport";
 
-/* === Public Types === */
-
 export interface NativeArtifactUpload {
   /** Send one bounded raw slice in order. */
   write(slice: Uint8Array): Promise<void>;
@@ -27,8 +21,6 @@ export interface NativeArtifactUpload {
   /** Cancel the upload and release the native sink. */
   cancel(): Promise<void>;
 }
-
-/* === Public Functions === */
 
 /**
  * Open a native artifact upload sink.
@@ -176,8 +168,6 @@ export async function openNativeRecording(
   };
   return { write, cancel };
 }
-
-/* === Private Functions === */
 
 function fail(error: RpcError): never {
   throw normalizeRpcError(error);

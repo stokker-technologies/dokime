@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<ListRecordSchemas>], response = ListRecordSchemasReply, id = "dokime.catalog.list_record_schemas",
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
@@ -39,20 +21,6 @@ pub struct ListRecordSchemas {
     pub after_record_type: String,
     pub cursor: Option<Cursor>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

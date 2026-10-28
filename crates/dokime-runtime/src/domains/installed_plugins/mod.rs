@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod appearance;
 mod bundled;
 pub(crate) mod contributions;
 mod handle;
 pub(crate) mod management;
 pub(crate) mod module_preferences;
-
-/* === Re-Exports === */
 
 pub(crate) use crate::config::organization as brand;
 
@@ -30,31 +26,3 @@ pub use dokime_domain::model::plugins::InstalledPluginPhase;
 pub use management::{
     PluginRuntimeSecretBindings, PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings,
 };
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

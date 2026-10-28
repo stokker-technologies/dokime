@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::ArtifactId;
 use crate::model::identity::Identifier;
@@ -32,14 +23,6 @@ use crate::model::records::evidence::Record;
 use crate::model::records::product::ProductRecordDraft;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -74,18 +57,12 @@ pub struct PublishReceipt {
     pub message: Option<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PublishStatus {
     Accepted,
     Dropped,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordPublishRequest {
     pub fn new(record_type: Identifier, severity: RecordSeverity) -> Self {
@@ -163,9 +140,3 @@ impl PublishReceipt {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

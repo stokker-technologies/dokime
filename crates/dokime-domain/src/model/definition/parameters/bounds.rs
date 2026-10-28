@@ -7,39 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::limits::ParameterLimitError;
 use super::{MAX_COLLECTION_ITEMS, MAX_DEPTH, MAX_NODES, MAX_SPACE_ITEMS, MAX_TEXT_BYTES};
 use crate::model::definition::ParameterExpr;
 use crate::model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct Budget {
     nodes: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Budget {
     pub fn new() -> crate::Result<Self> {
@@ -88,8 +63,6 @@ impl Budget {
     }
 }
 
-/* === Public Functions === */
-
 pub fn expression(expr: &ParameterExpr, budget: &mut Budget, depth: usize) -> crate::Result<()> {
     walk(expr, budget, depth, true)
 }
@@ -132,8 +105,6 @@ pub fn definition(definition: &crate::model::definition::ParameterDefinition, bu
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn walk(expr: &ParameterExpr, budget: &mut Budget, depth: usize, expansion: bool) -> crate::Result<()> {
     budget.node(depth)?;
@@ -237,5 +208,3 @@ fn metadata(metadata: &crate::model::identity::Metadata) -> crate::Result<()> {
     }
     Ok(())
 }
-
-/* === Tests === */

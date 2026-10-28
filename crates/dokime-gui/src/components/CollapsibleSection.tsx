@@ -7,19 +7,13 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { ChevronDown } from "lucide-react";
 import { type ReactNode, useState } from "react";
-
-/* === Local Imports === */
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { documentCardLayoutStyle } from "@/lib/document-layout";
 import type { DocumentCardLayout } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type CollapsibleSectionProps = {
   actions?: ReactNode;
@@ -33,8 +27,6 @@ type CollapsibleSectionProps = {
   summary?: ReactNode;
   title: string;
 };
-
-/* === Components === */
 
 export function CollapsibleSection({
   actions,

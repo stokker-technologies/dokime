@@ -10,38 +10,18 @@
 // Ordered include and exclude globs: the last rule that matches a path
 // decides, and a path no rule matches is excluded.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use globset::{GlobBuilder, GlobMatcher};
 
-// Local Imports
 use dokime_domain::model::files::wire::FileRule;
 use dokime_domain::model::files::wire::FileRuleAction;
 
-/* === Constants === */
-
 pub const MAX_RULES: usize = 64;
 pub const MAX_GLOB_BYTES: usize = 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct FileMatcher {
     rules: Vec<(GlobMatcher, bool)>,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum InvalidRule {
@@ -57,10 +37,6 @@ pub enum InvalidRule {
     #[error("rule {index} glob is invalid: {reason}")]
     Glob { index: usize, reason: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl FileMatcher {
     pub fn compile(rules: &[FileRule]) -> Result<Self, InvalidRule> {
@@ -92,12 +68,6 @@ impl FileMatcher {
         self.rules.iter().rev().find(|(glob, _)| glob.is_match(relative)).is_some_and(|(_, include)| *include)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

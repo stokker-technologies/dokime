@@ -9,27 +9,9 @@
 
 // Materialize And Register Canonical Template Cases
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<MaterializeTemplate>], response = PreviewSelectionReply, id = "dokime.planning.materialize_template",
     policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
@@ -39,20 +21,6 @@ use super::*;
 pub struct MaterializeTemplate {
     pub selection: Option<RegisteredSelection>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

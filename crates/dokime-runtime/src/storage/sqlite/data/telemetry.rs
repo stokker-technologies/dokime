@@ -9,24 +9,10 @@
 
 // Indexed Eligible Telemetry Anchors At A Durable Frontier.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use super::{Entry, State, blob, check_digest, entry, position, saved};
 use crate::storage::{Error, telemetry::TypedCodec};
 use harmos::storage::{SchemaKey, StorageCursor, StoredRow};
 use rusqlite::{Connection, OptionalExtension, params, types::Value};
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_sample_receipts (
@@ -56,18 +42,6 @@ CREATE INDEX IF NOT EXISTS storage_telemetry_cycle_time ON storage_telemetry_ind
 CREATE INDEX IF NOT EXISTS storage_telemetry_case_time ON storage_telemetry_index(
     schema_key, json_extract(scope, '$.test_case_id'), source_time DESC, position DESC);
 ";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl State {
     pub(crate) async fn acknowledge_sample(
@@ -225,8 +199,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn index(connection: &Connection, row: &StoredRow) -> Result<(), Error> {
     if !row.record.schema.id.as_str().starts_with("dokime.telemetry.") {
         return Ok(());
@@ -247,8 +219,6 @@ pub(super) fn index(connection: &Connection, row: &StoredRow) -> Result<(), Erro
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn acknowledged_position(connection: &Connection, execution: &str, stream: &str, sample_id: &str, through: u64) -> Result<u64, Error> {
     let checkpoint: Option<String> = connection
@@ -340,8 +310,6 @@ fn anchor_query(
     sql.push_str(" LIMIT 1");
     Ok((sql, arguments))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -7,28 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
-// Third Party Imports
-// Third-Party Imports
 use harmos::sidecar::{Frame, Refusal};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-// Local Imports
 use crate::prompts::PromptResponse;
 use crate::transport::{ArtifactChunk, EvidenceBatch, RunExecution, SidecarExecutionOutcome};
 use dokime_domain::model::identity::PromptId;
-
-/* === Constants === */
 
 // Replay Frames Retained Per Execution; Only Host-Confirmed Frames Are Evicted By Progress.
 const RETAINED_FRAMES: usize = 1024;
@@ -38,14 +26,8 @@ const RETAINED_STREAM_GAPS: usize = 64;
 
 const RECENT_STREAM_SAMPLES: usize = 64;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub(crate) type Executions = Arc<Mutex<BTreeMap<String, ExecutionState>>>;
 pub(crate) type Tasks = Arc<Mutex<Vec<JoinHandle<()>>>>;
-
-/* === Structs === */
 
 pub(crate) struct ExecutionState {
     pub(crate) local_inputs: bool,
@@ -143,8 +125,6 @@ struct RecentSample {
     confirmed: bool,
 }
 
-/* === Enums === */
-
 pub(crate) enum PromptOutcome {
     Answered(Box<PromptResponse>),
     Cancelled,
@@ -156,10 +136,6 @@ pub(crate) enum LeaseOutcome {
     Refused(String),
     Cancelled,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionState {
     pub(crate) fn announce_local_samples(&mut self) -> bool {
@@ -1053,8 +1029,6 @@ impl BufferedFrame {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn lock(executions: &Executions) -> MutexGuard<'_, BTreeMap<String, ExecutionState>> {
     executions.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -1094,8 +1068,6 @@ pub(crate) async fn settled<T>(
         }
     }
 }
-
-/* === Private Functions === */
 
 // Host Admission Adds Receipt Time And Full Ownership To Locally Produced Rows.
 // Canonical Payload Bytes Are Internal And May Be Absent After Wire Decoding.
@@ -1164,8 +1136,6 @@ fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
     page.encoded_size() <= crate::transport::protocol::MAX_EVIDENCE_PAGE_BYTES
         && Frame::request_fits::<crate::transport::EvidenceBatch>(page)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

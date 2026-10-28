@@ -7,40 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::fs;
 
-// Third Party Imports
 use dokime_runtime::brand::theme::{self, Error};
 use tempfile::tempdir;
 
-// Local Imports
-
-/* === Constants === */
 const TYPOGRAPHY: &str = ":root { --brand-font-sans: sample; --brand-font-heading: sample; --brand-font-mono: sample; --brand-text-xs: sample; --brand-text-xl: sample; --brand-text-2xl: sample; --brand-text-3xl: sample; --brand-text-4xl: sample; --brand-text-5xl: sample; --brand-text-6xl: sample; --brand-text-7xl: sample; }";
 const PALETTE: &str = "--background: #123456; --foreground: #123456; --card: #123456; --card-foreground: #123456; --popover: #123456; --popover-foreground: #123456; --primary: #123456; --primary-foreground: #123456; --secondary: #123456; --secondary-foreground: #123456; --muted: #123456; --muted-foreground: #123456; --accent: #123456; --accent-foreground: #123456; --destructive: #123456; --success: #123456; --success-foreground: #123456; --warning: #123456; --warning-foreground: #123456; --info: #123456; --info-foreground: #123456; --border: #123456; --input: #123456; --ring: #123456; --chart-1: #abcdef; --chart-2: #abcdef; --chart-3: #abcdef; --chart-4: #abcdef; --chart-5: #abcdef; --chart-6: #abcdef; --chart-7: #abcdef; --chart-8: #abcdef;";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn load_typography(dir: &std::path::Path, css: &str) -> Result<String, Error> {
     fs::create_dir_all(dir.join("theme")).unwrap();
     fs::write(dir.join("theme/typography.css"), format!("{}\n{css}", TYPOGRAPHY)).unwrap();
@@ -50,8 +24,6 @@ fn load_typography(dir: &std::path::Path, css: &str) -> Result<String, Error> {
 
     theme::load(dir).map(|theme| theme.typography_css)
 }
-
-/* === Tests === */
 
 #[test]
 fn local_woff2_uris() {

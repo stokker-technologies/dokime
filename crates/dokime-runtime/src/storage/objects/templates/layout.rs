@@ -7,28 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::documents;
 use crate::storage::{Error, Result, objects::metadata};
 
-/* === Constants === */
 const MAX_DEPTH: usize = 64;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Layout {
@@ -54,11 +39,6 @@ struct Section {
     repeat: Option<documents::Repeat>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Layout {
     pub(super) fn encoding_memory(value: &crate::document::DocumentLayout) -> Result<usize> {
         let mut count = 0;
@@ -137,9 +117,6 @@ impl<'de> Deserialize<'de> for Layout {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn encoding_node(value: &crate::document::DocumentNode, depth: usize, count: &mut usize) -> Result<usize> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("document layout exceeds depth limit"));
@@ -254,8 +231,6 @@ fn consume_node(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result<cr
         _ => Err(Error::Invalid("document node fields or arity differ")),
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

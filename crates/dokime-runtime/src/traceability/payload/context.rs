@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::fmt::{self, Write};
 
-// Third Party Imports
-
-// Local Imports
 use super::super::projection;
 use super::{EntryValue, Groups, Scope, ScopeSeed, entry};
 use crate::runtime::Result;
 use dokime_domain::model::{time::Timestamp, values::Value};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct HostSeed<'a> {
     scope: Scope<'a>,
@@ -40,8 +22,6 @@ struct HostSeed<'a> {
 struct DurationText(f64);
 
 struct SharedWith<'a>(LeaseRow<'a>);
-
-/* === Enums === */
 
 #[derive(Clone, Copy)]
 pub(super) enum LeaseSource<'a> {
@@ -54,10 +34,6 @@ enum LeaseRow<'a> {
     Fact(&'a crate::telemetry_runtime::LeaseFact),
     Ledger(crate::telemetry_runtime::leases::LeaseFactRef<'a>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl fmt::Display for HostSeed<'_> {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -157,8 +133,6 @@ impl fmt::Display for SharedWith<'_> {
     }
 }
 
-/* === Public Functions === */
-
 pub(in crate::traceability) fn host_override_bytes(key: &str, value: &Value) -> Result<Option<usize>> {
     with_host_value(key, value, |value| match value {
         EntryValue::Text(value) => Ok(Some(super::text_size(value)?.bytes)),
@@ -244,8 +218,6 @@ pub(super) fn visit_leases(facts: LeaseSource<'_>, scope: Scope<'_>, at: Option<
     })
 }
 
-/* === Private Functions === */
-
 fn with_host_value<T>(key: &str, value: &Value, read: impl for<'a> FnOnce(EntryValue<'a>) -> Result<T>) -> Result<T> {
     match (key, value) {
         ("memory_total_bytes" | "memory_used_bytes", Value::Integer(bytes)) => {
@@ -256,5 +228,3 @@ fn with_host_value<T>(key: &str, value: &Value, read: impl for<'a> FnOnce(EntryV
         _ => read(EntryValue::Borrowed(value)),
     }
 }
-
-/* === Tests === */

@@ -8,31 +8,14 @@
 
 """List And Resolve Suites By Readable Identity"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import ProtocolError, RpcError
 
 from .backend import SUITE_ID, TEMPLATE, TEMPLATE_ID, serve
 from .canonical import _message
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_readable_catalog() -> None:
@@ -100,11 +83,5 @@ def test_suite_page_refused(page: str, continuation: str | None) -> None:
     asyncio.run(scenario())
 
 
-# === Private Functions === #
-
-
 def _suite(suite_id: str):
     return _message("Catalog", "ListSuites", direction="response", path="suites", suite_id=suite_id)
-
-
-# === Entry Point === #

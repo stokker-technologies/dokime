@@ -7,31 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// Local Imports
 use super::PluginMetadata;
 use crate::settings::SettingValues;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginEntry {
@@ -82,8 +65,6 @@ pub struct ProgramValues {
     pub saved: BTreeSet<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginState {
@@ -98,10 +79,6 @@ pub enum PluginLastBoot {
     Loaded { at: Timestamp },
     Failed { error: String, at: Timestamp },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PluginSettings {
     pub(crate) fn validate(&self) -> Result<(), String> {
@@ -121,9 +98,3 @@ impl PluginSettings {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

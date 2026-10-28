@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Types === */
-
 export type RunCommandState =
   | { kind: "start"; runtimeReady: boolean }
   | { kind: "running"; canRestart: boolean; paused: boolean; runtimeReady: boolean }
@@ -24,8 +22,6 @@ type RunCommandInput = {
   showRunningStop: boolean;
   showStopping: boolean;
 };
-
-/* === Public Functions === */
 
 export function buildRunCommandState({
   selectedRuntimeReady,

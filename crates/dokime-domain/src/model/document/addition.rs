@@ -7,34 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::definition::DocumentCard;
 use super::definition::DocumentDefinition;
 use super::definition::DocumentNode;
 use super::definition::DocumentSection;
 use crate::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
@@ -42,10 +22,6 @@ pub enum DocumentAddition {
     Section(Box<DocumentSection>),
     Card { section: Identifier, card: Box<DocumentCard> },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DocumentAddition {
     pub fn section(section: DocumentSection) -> Self {
@@ -127,10 +103,6 @@ impl DocumentDefinition {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn nodes_carry_section(nodes: &[DocumentNode], section_id: &Identifier) -> bool {
     nodes.iter().any(|node| match node {
         DocumentNode::Section(section) => &section.node_id == section_id || nodes_carry_section(&section.children, section_id),
@@ -153,5 +125,3 @@ fn nodes_section_card_count(nodes: &[DocumentNode], section_id: &Identifier) -> 
 
     None
 }
-
-/* === Tests === */

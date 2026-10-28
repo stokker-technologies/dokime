@@ -9,8 +9,6 @@
 
 // Exact Spilled Plot Projection
 
-/* === Modules === */
-
 mod analysis;
 mod correlation;
 mod input;
@@ -19,38 +17,13 @@ mod series;
 mod spectrum;
 mod wifi;
 
-/* === Re-Exports === */
-
 pub(crate) use input::Input;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{PlotAnalysis, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotWindow, analyses, cartesian};
 use crate::{document::PlotType, runtime::Result};
 use harmos::storage::ReadBatch;
 use input::Read;
 use series::Series;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn project(
     input: &Input, request: &PlotPayloadRequest, generated_at: &str, context: &PlotPayloadContext,
@@ -95,8 +68,6 @@ pub(crate) fn project(
         Ok(ReadBatch::new(payload))
     })
 }
-
-/* === Private Functions === */
 
 fn append(
     read: &Read<'_>, payload: &mut PlotPayload, mut series: Series, request: &PlotPayloadRequest, context: &PlotPayloadContext,
@@ -198,8 +169,6 @@ fn wifi_context(read: &Read<'_>, request: &PlotPayloadRequest) -> Result<std::co
     let telemetry: Vec<_> = wifi.into_iter().collect();
     Ok(super::plot_context(request, &samples, &telemetry))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

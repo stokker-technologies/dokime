@@ -31,21 +31,17 @@
  * the report rather than written to a URL it does not own.
  */
 
-/* === External Imports === */
-
 import { useMemo } from "react";
 import { CycleSidebarCasesView } from "./CycleSidebarCasesView";
 import { useCycleCommands, useCycleDetailQuery, useCyclePendingPromptsQuery, useRerunCase } from "./cycle-queries";
-/* === Local Imports === */
+
 import type { CycleSelection } from "./cycle-workspace-model";
 
-/* === Types === */
 export type CycleSidebarCasesProps = {
   cycleId: string;
   selection: CycleSelection;
 } & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
 
-/* === Components === */
 export function CycleSidebarCases(props: CycleSidebarCasesProps) {
   const detailQuery = useCycleDetailQuery(props.cycleId);
   const commands = useCycleCommands(props.cycleId);

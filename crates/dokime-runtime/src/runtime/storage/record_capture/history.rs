@@ -7,31 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{ops::Deref, sync::Arc};
 
-// Third Party Imports
 use harmos::storage::{RecordRead, RecordReader, query::RecordSelection};
 
-// Local Imports
 use super::{Source, error};
 use crate::runtime::Result;
 use crate::storage::records::RecordRow;
 use dokime_domain::model::records::evidence::RecordEntry;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct History {
     source: Arc<Source>,
@@ -58,16 +41,10 @@ struct CapturedRow {
     record: RecordEntry,
 }
 
-/* === Enums === */
-
 pub(super) enum Start {
     Physical(u64),
     Logical(u64),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Source {
     pub(crate) async fn saved_filtered_records(
@@ -252,9 +229,3 @@ impl Deref for CapturedRecord {
         &self.page[self.index].record
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

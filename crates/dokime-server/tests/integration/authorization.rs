@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
-// Third Party Imports
+
 use tonic::{Code, Status, transport::Channel};
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
-
-/* === Constants === */
 
 const NATIVE_ONLY_METHODS: [&str; 6] = [
     "/dokime.v1.Media/Screenshot",
@@ -61,8 +52,6 @@ const STREAMING_CASES: &[Case] = &[
         },
     },
 ];
-
-/* === Macros === */
 
 macro_rules! matrix {
     (@request) => {
@@ -291,26 +280,12 @@ matrix! {
     "/dokime.v1.Telemetry/WatchSamples", download, contracts::telemetry::WatchSamples;
 }
 
-/* === Type Aliases === */
-
 type Refusal = Pin<Box<dyn Future<Output = Option<Status>> + Send>>;
-
-/* === Structs === */
 
 struct Case {
     path: &'static str,
     call: fn(Channel, Option<&'static str>) -> Refusal,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn secreted<T>(message: T, token: Option<&'static str>) -> Request<T> {
     match token {
@@ -479,5 +454,3 @@ async fn remote_refuses_local() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

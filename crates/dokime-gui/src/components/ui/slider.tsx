@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Slider as SliderPrimitive } from "radix-ui";
 import * as React from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Components === */
 
 function Slider({ className, defaultValue, value, min = 0, max = 100, ...props }: React.ComponentProps<typeof SliderPrimitive.Root>) {
   const ariaLabel = props["aria-label"];

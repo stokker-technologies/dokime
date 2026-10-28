@@ -9,15 +9,6 @@
 
 // Saved Plot Queries With Bounded Exact Reductions.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{
     Aggregate,
     storage::{
@@ -36,20 +27,11 @@ use harmos::{
     },
 };
 
-// Local Imports
 use super::{DownsampleTechnique, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotSeriesSummary, PlotWindow};
 use crate::{
     runtime::{Error, Result},
     storage::{Manager, telemetry::TypedCodec},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct Selection<'a> {
     pub query: Query,
@@ -62,14 +44,6 @@ struct NativeTable {
     ordered: bool,
     summaries: std::collections::BTreeMap<String, (usize, PlotSeriesSummary)>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn supports(request: &PlotPayloadRequest) -> bool {
     request.analysis.is_none()
@@ -309,8 +283,6 @@ pub(crate) fn path(field: &str) -> FieldPath {
         fields: field.split('.').map(str::to_owned).collect(),
     }
 }
-
-/* === Private Functions === */
 
 fn value(field: &str) -> FieldPath {
     FieldPath {
@@ -818,8 +790,6 @@ fn ordered_pair(left: &(ScalarValue, ScalarValue), right: &(ScalarValue, ScalarV
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

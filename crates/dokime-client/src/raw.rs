@@ -7,32 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use tonic::Streaming as RawStreaming;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use prost::bytes::{Buf, BufMut};
 use tokio_stream::Stream;
 use tonic::codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder};
 
-// Local Imports
 use super::{Client, Error, Result, stream::Input};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Debug, Default)]
 struct RawCodec;
@@ -42,12 +25,6 @@ struct RawEncoder;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct RawDecoder;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Codec for RawCodec {
     type Encode = Vec<u8>;
@@ -133,9 +110,3 @@ impl Client {
         Ok((grpc, path))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

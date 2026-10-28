@@ -7,28 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::definition::ParameterDefinition;
 use crate::model::definition::ParameterExpr;
 use crate::model::definition::parameter_name;
 use crate::model::definition::resolve_parameter_spaces;
 use crate::model::values::Value;
-
-/* === Constants === */
 
 pub const MAX_OUTPUTS: u64 = 32;
 pub const MAX_PARAMETERS: u64 = 64;
@@ -36,12 +25,6 @@ pub const MAX_UNIT_BYTES: u64 = 128;
 
 pub const MAX_SAMPLES: u32 = 262_144;
 pub const MAX_PARAMETER_BYTES: usize = 65_536;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Definition {
@@ -82,12 +65,6 @@ pub struct Selection {
     #[serde(default)]
     pub parameters: BTreeMap<String, Value>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for Selection {
     fn memory_size(&self) -> usize {
@@ -193,12 +170,6 @@ impl Limits {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

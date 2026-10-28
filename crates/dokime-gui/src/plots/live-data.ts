@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
-
-/* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { type NativePlotStream, openNativePlotStream, type PlotPayloadRequestInput } from "@/lib/api/native-plots";
@@ -22,8 +18,6 @@ import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlo
 import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
-/* === Constants === */
-
 const GUI_HIDDEN_PLOT_FLUSH_MS = 1_000;
 const GUI_RECONNECT_INITIAL_MS = 1_000;
 const GUI_RECONNECT_MAX_MS = 10_000;
@@ -31,10 +25,6 @@ const GUI_RECONNECT_MAX_MS = 10_000;
 const HIDDEN_PLOT_STREAM_FLUSH_MS = GUI_HIDDEN_PLOT_FLUSH_MS;
 const RECONNECT_INITIAL_MS = GUI_RECONNECT_INITIAL_MS;
 const RECONNECT_MAX_MS = GUI_RECONNECT_MAX_MS;
-
-/* === Types === */
-
-/* === Public Functions === */
 
 export function useLivePlotPayloads({
   enabled,
@@ -377,8 +367,6 @@ export function displayPointBudget(displayPoints: number | null | undefined): nu
   }
   return Math.min(Math.max(0, Math.trunc(displayPoints)), NATIVE_PLOT_MAX_POINTS);
 }
-
-/* === Private Functions === */
 
 function applyMessageById(current: LivePlotStateMap, message: PlotPayloadStreamMessage): LivePlotStateMap {
   const previous = current[message.plot_id] ?? emptyLivePlotState();

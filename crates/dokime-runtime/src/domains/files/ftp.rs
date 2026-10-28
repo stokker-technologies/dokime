@@ -14,16 +14,8 @@
 // REST. An interrupted command drops the connection, and the next pass
 // reconnects.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::VecDeque, future::Future, sync::Arc, time::Duration};
 
-// Third Party Imports
 use suppaftp::{
     FtpError,
     list::{File as Listed, ListParser},
@@ -33,24 +25,15 @@ use suppaftp::{
 };
 use tokio::io::AsyncReadExt;
 
-// Local Imports
 use super::source::{Entry, Listing, ReadFailure};
 use super::{UNSUPPORTED, UNTRUSTED, capped, invalid, unreachable_source};
 use crate::files::FileMatcher;
 use crate::{runtime::Error, runtime::Result};
 
-/* === Constants === */
-
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const TRANSFER_TIMEOUT: Duration = Duration::from_secs(300);
 const SCAN_ENTRIES: usize = 100_000;
 const DEFAULT_PORT: u16 = 21;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(in crate::domains::files) struct FtpSource {
     endpoint: Endpoint,
@@ -69,17 +52,11 @@ struct Endpoint {
     root: String,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ListingCommand {
     Mlsd,
     List,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl FtpSource {
     pub(super) async fn open(url: &str, password: Option<String>, trusted: bool) -> Result<Self> {
@@ -303,10 +280,6 @@ impl Endpoint {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn split_host_port(value: &str) -> Result<(String, u16)> {
     // A Bracketed IPv6 Literal Keeps Its Colons
     let (host, port) = if let Some(rest) = value.strip_prefix('[') {
@@ -347,5 +320,3 @@ async fn bounded<T>(timeout: Duration, command: impl Future<Output = suppaftp::F
         Err(_) => Err(unreachable_source("the FTP command timed out")),
     }
 }
-
-/* === Tests === */

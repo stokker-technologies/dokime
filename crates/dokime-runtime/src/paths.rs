@@ -7,39 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{env, path::PathBuf};
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
 pub const DEFAULT_APPLICATION_ID: &str = "com.stokker.dokime";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApplicationPaths {
     pub root: PathBuf,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ApplicationPaths {
     pub fn resolve(application_id: &str) -> std::io::Result<Self> {
@@ -85,9 +60,3 @@ impl ApplicationPaths {
         Ok(Self::new(base.join(application_id)))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

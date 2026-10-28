@@ -7,26 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-/* === Re-Exports === */
-/* === Imports === */
-// Standard Library Imports
-// Third Party Imports
 use tracing_subscriber::prelude::*;
-// Local Imports
+
 use dokime_server::trace::{Capture, Journal, Limits, Scope, WATCH_SPAN, scrubbed};
-
-/* === Constants === */
-/* === Macros === */
-/* === Type Aliases === */
-/* === Structs === */
-/* === Enums === */
-/* === Traits === */
-/* === Implementations === */
-/* === Public Functions === */
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[test]
 fn capture_scrubs_secrets() {

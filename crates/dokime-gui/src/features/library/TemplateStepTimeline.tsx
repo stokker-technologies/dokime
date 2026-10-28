@@ -13,18 +13,12 @@
  * picker, so the query lives here instead: one template, one aggregate, and
  * the formatted durations handed down as text. */
 
-/* === External Imports === */
-
 import { useMemo } from "react";
-
-/* === Local Imports === */
 
 import { suiteDiagramSteps } from "@/components/suite-picker/model";
 import { StepDiagram } from "@/components/suite-picker/StepDiagram";
 import { stepDurationLabels, useTemplateStepStatistics } from "@/features/library/step-statistics";
 import type { SuiteTemplateEntry } from "@/lib/types";
-
-/* === Components === */
 
 export function TemplateStepTimeline({ template }: { template: SuiteTemplateEntry }) {
   /* The lake keys steps by the template's own identity, not by the identifier

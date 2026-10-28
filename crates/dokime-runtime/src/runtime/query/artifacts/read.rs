@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{ops::Deref, sync::Arc};
 
-// Third Party Imports
 use serde::{Serialize, Serializer};
 
-// Local Imports
 use super::{RuntimeExecutionFileFrame, RuntimeExecutionFileRecord};
 use crate::{
     execution_runtime::outputs::ExecutionFileEntry,
@@ -27,8 +18,6 @@ use crate::{
 };
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
 
 static EMPTY: RuntimeExecutionFileFrame = RuntimeExecutionFileFrame {
     files: Vec::new(),
@@ -38,22 +27,10 @@ static EMPTY: RuntimeExecutionFileFrame = RuntimeExecutionFileFrame {
     error: None,
 };
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug)]
 pub struct RuntimeExecutionFileRead {
     value: Option<Arc<RuntimeExecutionFileFrame>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeExecutionFileRead {
     pub(crate) fn unselected() -> Self {
@@ -85,8 +62,6 @@ impl Serialize for RuntimeExecutionFileRead {
         self.deref().serialize(serializer)
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn execution_file_frame(
     execution: &TestExecutionId, files: &[ExecutionFileEntry], window: &RuntimeWindow, resolution: &RuntimeResolution,
@@ -127,8 +102,6 @@ pub(crate) fn execution_file_frame(
     }
 }
 
-/* === Private Functions === */
-
 fn windowed<'a>(files: &'a [ExecutionFileEntry], window: &'a RuntimeWindow) -> impl Iterator<Item = &'a ExecutionFileEntry> {
     files
         .iter()
@@ -161,5 +134,3 @@ fn selected<'a>(
         })
         .map(|(_, file)| file)
 }
-
-/* === Tests === */

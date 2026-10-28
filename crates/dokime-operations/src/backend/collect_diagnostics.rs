@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Stream One Support Archive Without Secret Material.
 #[harmos::operation(resources = [crate::hosting::Host<CollectDiagnostics>], response = (), output = DiagnosticsBundleFrame, id = "dokime.backend.collect_diagnostics",
@@ -44,20 +26,6 @@ pub struct CollectDiagnostics {
     )]
     pub max_log_tail_bytes: Option<u64>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

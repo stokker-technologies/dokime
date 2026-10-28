@@ -11,8 +11,6 @@
    (up to 2 GiB) artifact/execution-file/cycle-bundle content that no longer
    fits the base64 JSON IPC hop those documents use. */
 
-/* === Local Imports === */
-
 import { commands } from "@/lib/desktop/commands";
 import type { ArtifactSource, Delivered, DeliveryAction, DesktopSaveDocument, DesktopSaveKind } from "@/lib/desktop/delivery";
 import { isTauriDesktop } from "@/lib/desktop-open";
@@ -21,8 +19,6 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 import { NativeApiUnsupportedError } from "./native-values";
 
 const GUI_DOCUMENT_BYTES = 33_554_432;
-
-/* === Limits and public types === */
 
 /** Documents assembled in the WebView remain bounded before crossing IPC. */
 export const NATIVE_DOCUMENT_BYTES = GUI_DOCUMENT_BYTES;
@@ -141,8 +137,6 @@ export async function releaseNativeMedia(generation: string): Promise<void> {
   if (!isTauriDesktop()) return;
   await commands.desktopMediaRelease(generation).catch(() => undefined);
 }
-
-/* === Private Functions === */
 
 function prepareNativeDocument(session: SessionIdentity, request: NativeDeliveryRequest): DesktopSaveDocument {
   const filename = request.filename.trim();

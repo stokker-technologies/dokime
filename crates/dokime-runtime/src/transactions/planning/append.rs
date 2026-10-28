@@ -9,32 +9,15 @@
 
 // Atomically Bind Explicit Executions To Registered Cases
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::state::RuntimeState;
 use dokime_domain::model::identity::{CaseId, TestCycleId, TestExecutionId};
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.executions.append", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -45,12 +28,6 @@ pub struct AppendExecutions {
     pub occurred_at: Timestamp,
     pub settings: BTreeMap<String, BTreeMap<String, Value>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for AppendExecutions {
     type Error = String;
@@ -65,10 +42,6 @@ impl Transaction<RuntimeState> for AppendExecutions {
         state.replace_cycle(cycle).expect("appended executions have validated ownership");
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn prepare(state: &RuntimeState, append: &AppendExecutions) -> Result<super::CycleView, String> {
     if append.executions.is_empty() || append.executions.len() as u64 > append.max_executions {
@@ -125,5 +98,3 @@ fn check_retry(cycle: &super::CycleView, append: &AppendExecutions) -> Result<()
     }
     Ok(())
 }
-
-/* === Tests === */

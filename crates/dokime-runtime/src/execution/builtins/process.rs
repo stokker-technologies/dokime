@@ -12,22 +12,13 @@
 // environment, each output line reaches the execution log unless redirected
 // into a produced artifact, and its exit is recorded as `process.exited`.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-// Third Party Imports
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::watch;
 
-// Local Imports
 use super::Binding;
 use crate::execution::log::Level;
 use crate::host::ProcessExited;
@@ -36,24 +27,8 @@ use dokime_domain::model::process::wire::DEFAULT_GRACE_MS;
 use dokime_domain::model::process::wire::ProcessExit;
 use dokime_operations::process::RunProcess;
 
-/* === Constants === */
-
 // How long the output readers may outlast the child, for a grandchild that
 // holds a pipe open.
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch::Receiver<bool>) -> Result<ProcessExit, String> {
     if request.program.is_empty() {
@@ -128,8 +103,6 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
     Ok(exit)
 }
 
-/* === Private Functions === */
-
 // Pumps one output into the execution log line by line, or into a produced
 // artifact byte for byte.
 fn route(
@@ -198,5 +171,3 @@ async fn terminate(child: &mut Child, grace: Duration) -> std::io::Result<std::p
     child.start_kill()?;
     child.wait().await
 }
-
-/* === Tests === */

@@ -7,13 +7,11 @@
  * ***
  */
 
-/* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from "@/lib/api/native-content";
 import { type ArtifactTreeProps, ArtifactTreeView } from "./ArtifactTreeView";
 import { TextArtifactViewer } from "./TextArtifactViewer";
 
-/* === Components === */
 export function ArtifactTree(props: ArtifactTreeProps) {
   const session = useNativeSessionOptional();
   return (

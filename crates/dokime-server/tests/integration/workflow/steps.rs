@@ -7,39 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::definition::{CriterionDefinition, ExecutionPhaseDefinition};
 use dokime::domain::model;
 use dokime::{CriterionId, StepId};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn step_pages_selections() {
@@ -155,5 +126,3 @@ async fn step_pages_selections() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

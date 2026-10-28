@@ -7,25 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use harmos_domain::operations::OperationPolicy;
 use harmos_domain::operations::RetryPolicy;
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use dokime_domain::model::runtime::wire::*;
-
-/* === Constants === */
 
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
@@ -34,12 +23,6 @@ const POLICY: OperationPolicy = OperationPolicy {
 };
 pub const PACKAGE: &str = "dokime.v1";
 pub const SERVICE: &str = "Runtime";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<GetHealth>], response = Health, id = "dokime.runtime.health",
     description = "Read the current runtime identity and admission readiness",
@@ -54,12 +37,6 @@ pub struct GetHealth {}
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GetIdentity {}
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl GetHealth {
     pub const PATH: &str = "/dokime.v1.Runtime/GetHealth";
@@ -76,14 +53,6 @@ impl super::Endpoint for GetHealth {
 impl super::Endpoint for GetIdentity {
     const PATH: &'static str = GetIdentity::PATH;
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod hosted {

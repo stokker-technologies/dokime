@@ -7,15 +7,10 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test } from "vitest";
 
-// Local Imports
 import {
   currentCursor,
   firstPage,
@@ -25,16 +20,6 @@ import {
   type RemoteSession,
   sessionRow,
 } from "@/features/settings/sections/remote-sessions";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Tests === */
 
 test("a rejected session row carries its outcome, reason and closed duration", () => {
   const session = {

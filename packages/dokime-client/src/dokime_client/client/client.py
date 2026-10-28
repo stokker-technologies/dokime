@@ -8,9 +8,6 @@
 
 """Remote discovery and execution submission."""
 
-# === Imports === #
-
-# Standard Library Imports
 import json
 from collections.abc import AsyncIterator, Mapping
 from importlib.resources import files
@@ -18,10 +15,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
-# Third Party Imports
 from google.protobuf.message import Message
 
-# Local Imports
 from ..operation import Operation, ResponseStream
 from . import _wire
 from ._transport import DiscoveredOperation, Transport, _cursor
@@ -32,17 +27,7 @@ from .models import Backend, Suite
 from .models import Template as TemplateSummary
 from .planning import Template
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 PAGE_ITEMS = 100
-
-# === Types === #
-
-# === Classes === #
 
 
 class DokimeClient:
@@ -296,11 +281,6 @@ class DokimeClient:
         return Execution._bind(execution_id, self._transport, backend)
 
 
-# === Public Functions === #
-
-# === Private Functions === #
-
-
 def _client_preferences() -> Message:
     resource = files("dokime_client").joinpath("application-settings.json")
     defaults = json.loads(resource.read_text(encoding="utf-8"))
@@ -335,6 +315,3 @@ def _suite(item: Message) -> Suite:
             for t in item.templates
         ),
     )
-
-
-# === Entry Point === #

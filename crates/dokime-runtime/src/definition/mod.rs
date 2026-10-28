@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod authoring;
 pub mod conditions;
 
@@ -17,8 +15,6 @@ pub mod cycle;
 
 #[cfg(feature = "host")]
 pub mod registry;
-
-/* === Re-Exports === */
 
 pub use authoring::{
     AuthoredMetadata, Criterion, DeclaredSuite, DeclaredTemplate, Parameter, ParameterDefault, RustTemplate, Step, StepBinding,
@@ -71,31 +67,3 @@ pub use dokime_domain::model::definition::template_identifier;
 
 #[cfg(feature = "host")]
 pub use registry::SuiteRegistry;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

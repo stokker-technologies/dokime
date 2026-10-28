@@ -7,36 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use super::executions::ExecutionStorage;
 use crate::storage::objects::cycle::Cycle;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::TestCycleId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionStorage {
     pub(crate) async fn save_cycle(self: &Arc<Self>, id: TestCycleId) -> Result<()> {
@@ -134,10 +110,6 @@ impl ExecutionStorage {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn save_members(
     storage: &crate::storage::Manager, mut members: &[&dokime_domain::model::execution::result::TestExecution],
 ) -> Result<()> {
@@ -209,5 +181,3 @@ fn native_cycle_view(mut source: dokime_domain::model::execution::result::CycleV
     }
     Ok(Cycle::from_view(&source, &ids)?)
 }
-
-/* === Tests === */

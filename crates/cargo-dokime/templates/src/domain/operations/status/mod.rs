@@ -7,26 +7,9 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::prelude::StatusResponse;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Each request is its operation: the struct is what a caller sends, and the
 // attribute is everything the host reads about it before the plugin runs.
@@ -39,15 +22,3 @@ use dokime::prelude::StatusResponse;
 )]
 #[derive(Clone, PartialEq)]
 pub struct GetStatus {}
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

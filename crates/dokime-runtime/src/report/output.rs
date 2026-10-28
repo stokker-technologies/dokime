@@ -7,34 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     io::{self, Write},
     sync::LazyLock,
 };
 
-// Third Party Imports
 use serde::Serialize;
-
-// Local Imports
-
-/* === Constants === */
 
 const REPORT_DATA_MARKER: &str = r#"<script id="hub-report-data" type="application/json">"#;
 const REPORT_DATA_END: &str = "</script>";
 pub(super) static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct ScriptFormatter;
 
@@ -42,12 +24,6 @@ pub(super) struct Object<'a> {
     writer: &'a mut dyn Write,
     first: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl serde_json::ser::Formatter for ScriptFormatter {
     fn write_string_fragment<W: ?Sized + Write>(&mut self, writer: &mut W, fragment: &str) -> io::Result<()> {
@@ -94,8 +70,6 @@ impl<'a> Object<'a> {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn write_html(writer: &mut dyn Write, payload: &impl Serialize, template: &str) -> io::Result<()> {
     write_html_with(writer, template, |writer| write_json(writer, payload))
 }
@@ -115,8 +89,6 @@ pub(super) fn write_html_with(
     writer.write_all(suffix.as_bytes())
 }
 
-/* === Private Functions === */
-
 fn split_template(template: &str) -> (&str, &str) {
     template.find(REPORT_DATA_MARKER)
         .and_then(|marker_start| {
@@ -129,5 +101,3 @@ fn split_template(template: &str) -> (&str, &str) {
             "</script></body></html>",
         ))
 }
-
-/* === Tests === */

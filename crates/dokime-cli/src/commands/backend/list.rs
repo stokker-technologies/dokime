@@ -9,26 +9,6 @@
 
 // Saved Backend Profile List
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
@@ -37,14 +17,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Emit The Saved Profile Configuration As JSON.")]
     json: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
     let document = args.config.store()?.load()?;
@@ -58,7 +30,3 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

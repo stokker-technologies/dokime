@@ -7,39 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Error, ImplItem, ItemImpl};
 
-// Local Imports
 use crate::arguments::Arguments;
 
-/* === Constants === */
-
 const ARGUMENTS: &[&str] = &["id", "record", "description", "resources"];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn listener(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
@@ -50,8 +24,6 @@ pub(crate) fn listener(attribute: TokenStream, item: TokenStream) -> TokenStream
         }
     }
 }
-
-/* === Private Functions === */
 
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -126,5 +98,3 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         }
     })
 }
-
-/* === Tests === */

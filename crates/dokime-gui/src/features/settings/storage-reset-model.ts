@@ -17,11 +17,7 @@
  * only, so a node test can load it directly.
  */
 
-/* === Local Imports === */
-
 import type { BackendOwnership } from "@/lib/desktop/session";
-
-/* === Types === */
 
 export type StorageResetContext = {
   /** Whether the frontend is served by the development server. */
@@ -33,11 +29,7 @@ export type StorageResetContext = {
   directory: string | null | undefined;
 };
 
-/* === Public Constants === */
-
 export const STORAGE_RESET_CONFIRMATION = "RESET";
-
-/* === Public Functions === */
 
 /** Whether the Development card offers the reset at all. */
 export function storageResetAvailable(context: StorageResetContext): boolean {

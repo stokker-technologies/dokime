@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::{ObjectRead, ObjectRevision, query::ObjectVersions};
 
-// Local Imports
 use super::execution::check_seal_position;
 use crate::runtime::Result;
 use crate::storage::objects::execution::Execution;
 use dokime_domain::model::execution::result::TestExecution;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn executions(
     session: &crate::storage::Manager, at: harmos::storage::StorageCursor,
@@ -68,7 +42,3 @@ pub(crate) async fn executions(
     }
     Ok(selected)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

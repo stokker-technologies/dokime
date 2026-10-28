@@ -7,28 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{fmt, sync::Arc};
 
-// Third Party Imports
 use tokio::sync::Mutex;
 
-// Local Imports
 use super::Runtime;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Receipt {
@@ -41,16 +24,10 @@ struct Boot {
     local: crate::storage::sqlite::State,
 }
 
-/* === Enums === */
-
 enum Owner {
     Runtime(Box<Runtime>),
     Boot(Box<Boot>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Receipt {
     pub(super) fn new(runtime: Runtime) -> Self {
@@ -95,9 +72,3 @@ impl fmt::Debug for Receipt {
         formatter.debug_struct("Receipt").finish_non_exhaustive()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,44 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::{collections::BTreeMap, time::Duration};
-// Third Party Imports
+
 use dokime_runtime::definition::ParameterSource;
 use dokime_runtime::{Identifier, Metadata, RecordScope, Value};
 use tempfile::tempdir;
-// Local Imports
+
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::execution::authoring::{RuntimeResource, SidecarStepContext, StepContextError};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn identifier(value: impl Into<String>) -> Identifier {
     Identifier::new(value).unwrap()
 }
 
-/* === Tests === */
 // resource store publishes lifecycle records and keeps handle runtime only.
 
 #[tokio::test(flavor = "multi_thread")]

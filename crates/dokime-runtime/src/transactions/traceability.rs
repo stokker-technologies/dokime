@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::BuiltinRecordType;
 use crate::transactions::records::draft::BuiltinDraft;
 use crate::{runtime::Error, state::RuntimeState};
@@ -36,14 +27,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilitySection;
 use dokime_domain::model::traceability::derived_traceability_group_named;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.traceability.phase.update", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -84,12 +67,6 @@ pub struct RecordExecutionTraceability {
     pub sections: Vec<TraceabilitySection>,
     pub occurred_at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for RecordExecutionTraceability {
     type Error = String;
@@ -188,8 +165,6 @@ impl UpdateExecutionPhase {
     }
 }
 
-/* === Public Functions === */
-
 pub fn update_execution_phase(state: &mut RuntimeState, update: UpdateExecutionPhase) -> Result<(), Error> {
     let execution_id = check_execution_phase(state, &update)?;
     let step_id = phase_step_id(&update);
@@ -233,8 +208,6 @@ pub fn update_execution_phase(state: &mut RuntimeState, update: UpdateExecutionP
     cycle.touch_at(update.occurred_at);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn check_execution_phase(state: &RuntimeState, update: &UpdateExecutionPhase) -> Result<TestExecutionId, Error> {
     let cycle_id = update.scope.test_cycle_id.as_ref().ok_or_else(|| not_found("execution phase scope missing cycle"))?;
@@ -455,5 +428,3 @@ fn conflict(message: impl Into<String>) -> Error {
 fn validation(message: impl Into<String>) -> Error {
     Error::validation("invalid_traceability_section", message, vec![])
 }
-
-/* === Tests === */

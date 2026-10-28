@@ -19,16 +19,8 @@
 // Secrets never enter the journal: a secret-looking field name keeps only a
 // redaction marker, and bearer secrets are cut out of every text.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use time::OffsetDateTime;
 use tracing::field::{Field, Visit};
 use tracing::span::{Attributes, Id, Record};
@@ -36,11 +28,8 @@ use tracing::{Event as TracingEvent, Subscriber};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
 
-// Local Imports
 use super::journal::{Event, Journal};
 use crate::grpc::redaction;
-
-/* === Constants === */
 
 const SERVER_TRACE_FIELDS: u64 = 32;
 const SERVER_TRACE_MESSAGE_BYTES: u64 = 8_192;
@@ -50,12 +39,6 @@ const SERVER_TRACE_VALUE_BYTES: u64 = 1_024;
 pub const WATCH_SPAN: &str = "dokime.trace.watch";
 const TRUNCATED: &str = "…";
 const BEARER: &str = "bearer ";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Capture {
     limits: FieldLimits,
@@ -88,8 +71,6 @@ struct FieldLimits {
 
 struct BoundedText(String, usize);
 
-/* === Enums === */
-
 enum Role {
     Message,
     Line,
@@ -99,10 +80,6 @@ enum Role {
     Execution,
     Other,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::fmt::Write for BoundedText {
     fn write_str(&mut self, text: &str) -> std::fmt::Result {
@@ -295,8 +272,6 @@ impl Role {
     }
 }
 
-/* === Public Functions === */
-
 pub fn scrubbed(text: &str) -> String {
     let folded = text.to_ascii_lowercase();
     let mut result = String::with_capacity(text.len());
@@ -317,8 +292,6 @@ pub fn scrubbed(text: &str) -> String {
     result.push_str(&text[copied..]);
     redaction::text(&secret_assignments(&result))
 }
-
-/* === Private Functions === */
 
 fn secret_assignments(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
@@ -370,5 +343,3 @@ fn truncated(text: &str, limit: usize) -> String {
     }
     format!("{}{TRUNCATED}", &text[..end])
 }
-
-/* === Tests === */

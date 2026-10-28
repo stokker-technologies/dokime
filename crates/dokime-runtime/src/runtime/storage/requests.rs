@@ -7,25 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 mod native;
-
-/* === Re-Exports === */
 
 pub use dokime_domain::model::execution::request::AttemptClaim;
 pub use dokime_domain::model::execution::request::RunReceipt;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::storage::StorageCursor;
 use tokio::sync::Mutex;
 
-// Local Imports
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::request::RunPhase;
 use dokime_domain::model::execution::request::RunSummary;
@@ -34,18 +25,10 @@ use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
 const RECOVERY_INTERRUPTION: &str =
     "Previous runtime ended before request completion. Device actions are not replayed; claimed acquisition may be interrupted.";
 const INITIAL_INTERRUPTION: &str = "Initial receipt publication was interrupted; no provider work was submitted.";
 const TERMINAL_INTERRUPTION: &str = "Run settled before command completion was recorded.";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Receipt {
@@ -81,12 +64,6 @@ pub(crate) struct RequestStorage {
     now: fn() -> Timestamp,
     active: Mutex<ActiveRequests>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::ops::Deref for Receipt {
     type Target = RunReceipt;
@@ -375,10 +352,6 @@ impl RequestStorage {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn revise(receipt: &Receipt, change: impl FnOnce(&mut RunReceipt) -> Result<()>) -> Result<Receipt> {
     let seed = harmos::storage::ReadBatch::new(());
     let value = seed.try_map(|_| -> Result<_> {
@@ -403,5 +376,3 @@ fn receipt_error(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) ->
 fn error(value: impl std::fmt::Display) -> Error {
     Error::Operation(format!("execution request receipt: {value}"))
 }
-
-/* === Tests === */

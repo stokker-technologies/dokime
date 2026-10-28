@@ -7,34 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::domains::{RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeThemeFamily};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, path::PathBuf};
 
-// Third Party Imports
-
-// Local Imports
 use crate::RuntimeHandle;
 use crate::domains::{AppCustomizationContribution, AppLogoAsset, AppThemeContribution, ThemeActivationPolicy, ThemeModePolicy};
 use crate::installed_plugins::brand::{BRAND_ARTIFACT_ID, ResolvedBrand};
 use dokime_domain::model::identity::Identifier;
 
-/* === Constants === */
-
 const DEFAULT_APP_NAME: &str = "Dokime";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeInstalledPluginAsset {
@@ -50,12 +32,6 @@ pub struct CapturedAppearance {
 #[derive(Debug, thiserror::Error)]
 #[error("appearance exceeds its source budget")]
 pub struct AppearanceLimitExceeded;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub fn set_brand(&self, brand: Option<ResolvedBrand>) {
@@ -82,8 +58,6 @@ impl RuntimeHandle {
             .map_err(|_| harmos::storage::Error::ResourceExhausted { resource: "appearance source" })
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn construction_memory(state: &crate::RuntimeState, brand: Option<&ResolvedBrand>) -> usize {
     let mut bytes = std::mem::size_of::<CapturedAppearance>();
@@ -168,8 +142,6 @@ pub(crate) fn capture_appearance_state(
     preflight_appearance(state, brand, max_bytes)?;
     Ok(captured_appearance_source(state, brand))
 }
-
-/* === Private Functions === */
 
 fn captured_appearance_source(state: &crate::RuntimeState, brand: Option<&ResolvedBrand>) -> CapturedAppearance {
     let frame = captured_appearance(state, brand);
@@ -380,5 +352,3 @@ fn theme_heap(plugin_id: &str, theme: &AppThemeContribution) -> usize {
     }
     bytes
 }
-
-/* === Tests === */

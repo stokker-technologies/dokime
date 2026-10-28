@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 
-// Local Imports
 use super::*;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::identity::wire as common;
@@ -27,23 +18,9 @@ use dokime::operations::execution as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::command::{CommandReceipt, CommandStatus};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::StartExecution> for Resources {
     fn serve<'a>(
@@ -67,8 +44,6 @@ impl Serve<wire::StartExecution> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone() });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -77,8 +52,6 @@ pub(super) async fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc:
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn receipt(receipt: CommandReceipt, epoch: String) -> Result<dokime::domain::model::execution::wire::RunReply, Status> {
     let outcome = match receipt.status {
@@ -110,5 +83,3 @@ fn receipt(receipt: CommandReceipt, epoch: String) -> Result<dokime::domain::mod
     };
     Ok(dokime::domain::model::execution::wire::RunReply { outcome: Some(outcome) })
 }
-
-/* === Tests === */

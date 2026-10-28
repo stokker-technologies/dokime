@@ -7,16 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::service_support::plots::{plot_query_suite, register_plot_suite, wifi_request};
 use dokime_runtime::runtime::query::{
@@ -24,24 +14,8 @@ use dokime_runtime::runtime::query::{
     WifiBandWindow, WifiChannelCount,
 };
 
-/* === Constants === */
 const PLOT_POINTS: usize = 400;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 // snapshot query with all window uses all samples before downsampling.
 
 #[tokio::test]
@@ -628,8 +602,6 @@ fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBand
         peak_count: peak,
     }
 }
-
-/* === Tests === */
 
 // distribution query bins its x column and does not limit evidence to the display budget.
 

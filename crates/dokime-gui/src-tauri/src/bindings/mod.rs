@@ -7,22 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
 macro_rules! call_handler {
     (sync, $handler:path, $($arg:ident),*) => { $handler($($arg),*) };
     (async, $handler:path, $($arg:ident),*) => { $handler($($arg),*).await };
@@ -255,19 +239,3 @@ native_commands! {
         (generation: String, candidate: String, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<String, String>
         => crate::app::updates::plugins::desktop_plugin_release_install;
 }
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

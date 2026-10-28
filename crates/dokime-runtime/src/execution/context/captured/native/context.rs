@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::appearance::Appearance;
 use crate::execution::context::{ExecutionContext, ExecutionCycleContext};
 use crate::storage::objects::{case::Case, cycle::Cycle, presentation as native};
@@ -32,14 +22,6 @@ use dokime_domain::model::identity::TraceabilityId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilityEntry;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -83,12 +65,6 @@ struct Entry {
     source: Option<String>,
     unit: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TryFrom<&ExecutionContext> for Context {
     type Error = Error;
@@ -217,10 +193,6 @@ impl TryFrom<Entry> for TraceabilityEntry {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
@@ -245,5 +217,3 @@ where
     }
     Ok(values)
 }
-
-/* === Tests === */

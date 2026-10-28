@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Types === */
-
 export type MediaArtifactKind = "image" | "video" | "audio";
 
 export type MediaArtifactCandidate = {
@@ -17,15 +15,11 @@ export type MediaArtifactCandidate = {
   media_type?: string | null;
 };
 
-/* === Constants === */
-
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".svg"]);
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".mov", ".avi", ".mkv", ".m4v"]);
 
 const AUDIO_EXTENSIONS = new Set([".wav", ".mp3", ".ogg", ".oga", ".opus", ".flac", ".m4a", ".aac"]);
-
-/* === Public Functions === */
 
 export function mediaArtifactKind(artifactOrPath: MediaArtifactCandidate | string, mediaType?: string | null): MediaArtifactKind | null {
   const path = typeof artifactOrPath === "string" ? artifactOrPath : artifactOrPath.path || artifactOrPath.label || "";
@@ -59,8 +53,6 @@ export function mediaArtifactKind(artifactOrPath: MediaArtifactCandidate | strin
 export function isMediaArtifact(artifactOrPath: MediaArtifactCandidate | string, mediaType?: string | null): boolean {
   return mediaArtifactKind(artifactOrPath, mediaType) !== null;
 }
-
-/* === Private Functions === */
 
 function artifactExtension(path: string): string {
   const clean = path.split(/[?#]/u)[0] ?? "";

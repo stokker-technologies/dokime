@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, VecDeque},
     io::{Read, Seek, SeekFrom, Write},
@@ -21,11 +14,9 @@ use std::{
     sync::Arc,
 };
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 
-// Local Imports
 use super::{ExecutionFixtureContext, failure};
 use crate::artifacts::ArtifactUploadInput;
 use crate::records::RecordSeverity;
@@ -33,14 +24,6 @@ use crate::transport::{ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYT
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct ArtifactBridge {
     state: Arc<Mutex<Transfers>>,
@@ -94,8 +77,6 @@ struct ChunkFingerprint {
     replace: bool,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TransferState {
     Open,
@@ -103,8 +84,6 @@ enum TransferState {
     Stored,
     Aborted,
 }
-
-/* === Traits === */
 
 trait SpillStorage {
     type File: Read + Write + Seek;
@@ -114,8 +93,6 @@ trait SpillStorage {
     fn truncate(file: &mut Self::File) -> std::io::Result<()>;
     fn release(&mut self);
 }
-
-/* === Implementations === */
 
 impl ArtifactBridge {
     pub(super) fn new(spill_root: PathBuf) -> Self {
@@ -533,10 +510,6 @@ impl<S: SpillStorage> Transfer<S> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn validate_chunk(chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
     if chunk.transfer_id.trim().is_empty() {
         return Err(artifact_failure("artifact transfer identity is empty"));
@@ -579,5 +552,3 @@ fn fingerprint(chunk: &ArtifactChunk) -> ChunkFingerprint {
 fn artifact_failure(message: impl Into<String>) -> ProviderExecutionFailure {
     failure("sidecar_artifact", message)
 }
-
-/* === Tests === */

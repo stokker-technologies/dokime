@@ -6,22 +6,14 @@
  *
  * ***
  */
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::borrow::Cow;
 use std::ops::Range;
 
-// Third Party Imports
 use harmos::signal::{Aggregates, Series};
 use harmos::storage::ReadBatch;
 use serde_json::Value as JsonValue;
 
-// Local Imports
 use super::projection::{memory, series_entry, text, vector};
 use super::{PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotPoint, PlotSeries, groups};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
@@ -31,14 +23,6 @@ use crate::runtime::{Error, Result};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy)]
 struct Expression<'a> {
@@ -77,8 +61,6 @@ struct Plan<'a> {
     aggregate: bool,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 enum Source<'a> {
     Timing { previous: &'a str },
@@ -90,10 +72,6 @@ enum X<'a> {
     Timestamp(&'a str),
     Number(f64),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Expression<'_> {
     fn label(&self) -> [&str; 3] {
@@ -107,8 +85,6 @@ impl Expression<'_> {
         request.unit.as_deref().or_else(|| matches!(self.source, Source::Timing { .. }).then_some("s"))
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn project(
     telemetry: &[TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
@@ -151,8 +127,6 @@ pub(super) fn project(
     })?;
     Ok(Some(output))
 }
-
-/* === Private Functions === */
 
 #[allow(clippy::too_many_arguments)]
 fn plan<'a>(
@@ -406,5 +380,3 @@ fn telemetry_expression(expression: &DataExpression) -> Option<Expression<'_>> {
         })
     })
 }
-
-/* === Tests === */

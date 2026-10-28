@@ -9,30 +9,12 @@
 
 """Run Compile Contracts From The Prepared Archive"""
 
-# === Imports === #
-
-# Standard Library Imports
 import os
 import subprocess
 import sys
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import configuration
 from dokime_tools.test import archive
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def build(profile: str) -> None:
@@ -60,10 +42,6 @@ def build(profile: str) -> None:
         check=True,
     )
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     raise SystemExit(configuration.invoke(build))

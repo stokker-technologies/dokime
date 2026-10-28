@@ -7,37 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::super::files;
 use crate::grpc::value::projection;
 use dokime::ExecutionFileContent;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn metadata(
     content: &ExecutionFileContent, maximum: usize,
@@ -102,8 +76,6 @@ pub(super) fn complete(
     Ok(dokime::harmos::operations::Response::from_owner(frame.owner()))
 }
 
-/* === Private Functions === */
-
 fn checked(
     frame: dokime::domain::model::content::wire::ExecutionFileDownloadFrame, maximum: usize,
 ) -> dokime::harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
@@ -119,5 +91,3 @@ fn exhausted() -> dokime::harmos::Error {
         resource: "canonical execution download frame",
     }
 }
-
-/* === Tests === */

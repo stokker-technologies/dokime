@@ -8,9 +8,6 @@
 
 """Prepare Native CI Platform Prerequisites"""
 
-# === Imports === #
-
-# Standard Library Imports
 from __future__ import annotations
 
 import argparse
@@ -30,15 +27,6 @@ import zipfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
-
-# Third Party Imports
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 # Debian Build And Installer Prerequisites
 GUI_MARKER_PACKAGE = "libwebkit2gtk-4.1-dev"
@@ -102,12 +90,6 @@ SEVEN_ZIP_URL = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-x64
 SEVEN_ZIP_SHA256 = "fd99e86f57d8f429ef5ed045bf98315af962e2309b0f1ba87a147a44c71647d0"
 HARMOS_PACKAGES = ("harmos", "harmos-domain", "harmos-packaging", "harmos-sdk")
 CRATES_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -533,9 +515,6 @@ def prepare_windows_desktop(root: Path) -> Path:
     return driver
 
 
-# === Private Functions === #
-
-
 def _checkout_harmos_config(root: Path) -> Path | None:
     candidate = root / ".cargo/config.toml"
     if not candidate.is_file():
@@ -731,8 +710,6 @@ def _run(command: Sequence[str]) -> None:
 def _step(message: str) -> None:
     print(f"[ci:bootstrap] {message}", flush=True)
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     sys.exit(main())

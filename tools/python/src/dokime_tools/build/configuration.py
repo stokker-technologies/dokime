@@ -9,9 +9,6 @@
 
 """Shared Build Configuration And Task Invocation"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import subprocess
 import sys
@@ -20,25 +17,11 @@ from collections.abc import Callable
 from pathlib import Path
 from time import perf_counter
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import frontend, paths
 from dokime_tools.test import policy
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 ROOT = frontend.ROOT
 PROFILES = policy.PROFILES
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def features(profile: str, *, desktop: bool = True, extended: bool = False) -> list[str]:
@@ -76,8 +59,3 @@ def invoke(operation: Callable[[str], object]) -> int:
     finally:
         print(f"[build] {operation.__doc__} Finished in {perf_counter() - started:.2f}s", flush=True)
     return 0
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -9,10 +9,6 @@
 
 /* Native planning adapters and the summary-shaped plan projection. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { Row19 as GeneratedValue } from "@generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
 import type { Row2 as GeneratedCaseDetail } from "@generated/dokime/v1/ExecutionMessages/GetCase/messages_pb";
 import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
@@ -78,8 +74,6 @@ type CaseStatus = Wire<GeneratedCaseStatus>;
 type ExecutionStatus = Wire<GeneratedExecutionStatus>;
 type StepStatus = Wire<GeneratedStepStatus>;
 type CriterionStatus = Wire<GeneratedCriterionStatus>;
-
-/* === Planning and execution === */
 
 export async function previewNativeTestCycle(
   session: SessionIdentity,
@@ -162,8 +156,6 @@ export async function fetchNativeTestCyclePlan(session: SessionIdentity, cycleId
   if (!summary) return null;
   return assembleNativeCyclePlan(session, summary);
 }
-
-/* === Private cycle assembly === */
 
 /**
  * The cycle's plan, read from the two RPCs that own it.

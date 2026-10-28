@@ -7,29 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
 mod presentation;
 mod storage;
-
-/* === Re-Exports === */
 
 pub use presentation::SettingsCardRefreshPolicy;
 pub use storage::StorageSource;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     time::Duration,
 };
 
-// Third Party Imports
 use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::RuntimeHandle;
 use crate::domains::{DispatchContext, StatusResponse};
 use dokime_domain::model::appearance::HostCardBlock;
@@ -39,17 +30,9 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 use presentation::{SettingsCardContribution, SettingsSectionContribution};
 
-/* === Constants === */
-
 const LIVE_STATUS_TIMEOUT_MS: u64 = 2_000;
 
 pub const IDENTITY_SETTINGS_SECTION_ID: &str = "identity";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeSettingsFrame {
@@ -98,8 +81,6 @@ struct SettingsSource {
     live_status: Option<Result<StatusResponse, String>>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RuntimeSettingsSectionOwner {
@@ -117,10 +98,6 @@ pub enum RuntimeSettingsCardState {
     Error,
     PermissionDenied,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn settings_frame(&self) -> RuntimeSettingsFrame {
@@ -178,10 +155,6 @@ impl RuntimeHandle {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn presentation(module: &crate::InstalledPlugin) -> (Vec<SettingsSectionContribution>, Vec<SettingsCardContribution>) {
     let section_id = Identifier::new(&module.source).expect("valid installed source");
@@ -359,5 +332,3 @@ fn identity_settings_section() -> (Identifier, RuntimeSettingsSection) {
         },
     )
 }
-
-/* === Tests === */

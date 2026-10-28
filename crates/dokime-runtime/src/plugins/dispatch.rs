@@ -7,34 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use harmos::OperationDefinition as Definition;
 use harmos::operations::NativeError;
 
-// Local Imports
 use crate::InstalledPlugin;
 use crate::app::OperationManager;
 use crate::domains::{
     ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderOption, OptionProviderSource, OptionsResponse,
     StatusResponse,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Default)]
 pub(crate) struct Bindings {
@@ -49,12 +32,6 @@ pub(crate) struct Dispatcher {
     owner: String,
     calls: OperationManager,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Bindings {
     pub(crate) fn inspect(plugin: &InstalledPlugin, operations: &[Definition]) -> Result<Self, String> {
@@ -173,8 +150,6 @@ impl ActionDispatcher for Dispatcher {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn validate_analyses(
     artifact: &InstalledPlugin, contracts: &[harmos::operations::Contract], settings: &harmos::config::SchemaSettings,
 ) -> Result<(), String> {
@@ -203,8 +178,6 @@ pub(crate) fn validate_analyses(
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
     match error {
@@ -255,5 +228,3 @@ fn caller_error(error: harmos::plugin::DispatchError) -> ActionDispatcherError {
         }
     }
 }
-
-/* === Tests === */

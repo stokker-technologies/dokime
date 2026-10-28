@@ -7,33 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{RuntimeHandle, runtime::Error};
 use dokime_domain::model::identity::TestCycleId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn append_executions(
@@ -84,9 +59,3 @@ impl RuntimeHandle {
         .map_err(|error| Error::Operation(error.to_string()))?
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,26 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
 mod list_analyses;
 mod query_snapshots;
 mod watch;
-
-/* === Re-Exports === */
 
 pub use dokime_domain::model::document::DownsampleTechnique;
 pub use list_analyses::ListAnalyses;
 pub use query_snapshots::QuerySnapshots;
 pub use watch::Watch;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
@@ -40,16 +29,6 @@ use dokime_domain::model::definition::wire::*;
 #[allow(unused_imports)]
 use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::plots::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 // The native bridge and server reject a request with more than 32 plots. The
 
@@ -74,10 +53,6 @@ pub enum Operations {
     Watch(Watch),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Endpoint for ListAnalyses {
     const PATH: &'static str = "/dokime.v1.Plots/ListAnalyses";
 }
@@ -89,9 +64,3 @@ impl Endpoint for QuerySnapshots {
 impl Endpoint for Watch {
     const PATH: &'static str = "/dokime.v1.Plots/Watch";
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

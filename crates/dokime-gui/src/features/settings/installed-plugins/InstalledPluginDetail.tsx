@@ -9,10 +9,6 @@
 
 /* Installed-plugin detail. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import { InstalledPluginRuntimeBadge, InstalledPluginStatusBadge } from "@/features/settings/installed-plugins/InstalledPluginBadges";
 import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugins/InstalledPluginSettingsForm";
 import type {
@@ -23,8 +19,6 @@ import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useBrand } from "@/lib/brand";
 
-/* === Types === */
-
 type InstalledPluginDetailProps = {
   detail: InstalledPluginDetailModel;
   /** Resolves when the write landed; each settings row states its own outcome. */
@@ -32,8 +26,6 @@ type InstalledPluginDetailProps = {
   onSaveSecret: (pluginId: string, secretId: string, secret: string) => void;
   savingSecret: boolean;
 };
-
-/* === Components === */
 
 export function InstalledPluginDetail({ detail, onSaveSettings, onSaveSecret, savingSecret }: InstalledPluginDetailProps) {
   const brand = useBrand();

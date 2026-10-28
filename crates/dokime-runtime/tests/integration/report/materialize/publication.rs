@@ -9,42 +9,15 @@
 
 // Report Dependency Retry Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Mutex, atomic::AtomicBool};
 
-// Third Party Imports
 use harmos::storage::{StorageBackend, StorageBackends};
 
-// Local Imports
 use crate::service_support::prelude::*;
 use crate::service_support::publication::{AdmissionClock, AdmissionWorker, AppendBoundary, PublicationBackend, PublicationFault};
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_runtime::report::saved::CapturedExecutionReportInput;
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn dependency_publication_retry() {
@@ -309,5 +282,3 @@ async fn admitted_create_window() {
     manager.close().await.unwrap();
     assert!(result.is_ok(), "an admitted create lost its outcome after only two seconds: {}", result.err().unwrap());
 }
-
-/* === Tests === */

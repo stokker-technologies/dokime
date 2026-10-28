@@ -9,26 +9,7 @@
 
 // Hand Confirmed Identities To Scripts Without Capturing Standard Output
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, Default, clap::Args)]
 #[group(id = "identity_file")]
@@ -42,12 +23,6 @@ pub(crate) struct Args {
 
 // An Identity File Opened Before Any Mutation, Written Once Confirmed.
 pub(crate) struct IdFile(File);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Args {
     pub(crate) fn open(&self) -> crate::Result<Option<IdFile>> {
@@ -72,12 +47,6 @@ impl IdFile {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -7,30 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::process::ExitCode;
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, Error>;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -82,10 +61,6 @@ pub enum Error {
     OperationOutput { source: Box<Error> },
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<dokime_client::profiles::Error> for Error {
     fn from(error: dokime_client::profiles::Error) -> Self {
         match error {
@@ -134,9 +109,3 @@ impl Error {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -9,26 +9,20 @@
 
 /* Connection Selection And Local Startup Recovery. */
 
-/* === External Imports === */
-
-import { Check } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
+import { Check } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-
-/* === Local Imports === */
 
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
-import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { BackendsTable } from "@/features/settings/BackendsTable";
+import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
 import { useNativeSessionController } from "./context";
 import { connectionError, startupDiagnostics } from "./errors";
-
-/* === Constants === */
 
 /** The startup phases `dokime server --dev-control` reports, in the order it reports
  * them. The wire carries only the phase it is in, so the order lives here. */
@@ -37,8 +31,6 @@ const STARTUP_PHASES = ["storage", "plugins", "requests"] as const;
 /** The steps a local storage reset reports. The shell reports the first three
  * itself; every backend startup phase after them belongs to "Starting". */
 const RESET_PHASES = ["stopping", "deleting", "starting"] as const;
-
-/* === Components === */
 
 export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunch | null; launchError?: unknown }) {
   const owner = useNativeSessionController();
@@ -203,8 +195,6 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   );
 }
 
-/* === Private Components === */
-
 /** The startup phases the backend reports, as a quiet vertical step list. */
 function StartupSteps({ current }: { current: string | null }) {
   const phases: string[] = [...STARTUP_PHASES];
@@ -257,8 +247,6 @@ function Step({ active, detail = null, done, label }: { active: boolean; detail?
     </li>
   );
 }
-
-/* === Private Functions === */
 
 /** Human label for a `dokime server --dev-control` startup phase name. The wire value
  * is free-form — an unrecognized name (a newer CLI, an older GUI) still shows

@@ -14,22 +14,13 @@
 // host's, a cancelled watch seals what it captured and settles as cancelled,
 // without an outcome; only a bounded watch answers with one.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// Third Party Imports
 use tokio::sync::watch;
 use tokio::time::Instant;
 
-// Local Imports
 use super::Binding;
 use crate::files::{LineBuffer, LineMatch, LineMatchers};
 use crate::records::RecordSeverity;
@@ -43,15 +34,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_operations::files::WatchFile;
 
-/* === Constants === */
-
 const CANCELLED: &str = "the file watch was cancelled; it sealed what it captured";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Tail {
     path: PathBuf,
@@ -72,12 +55,6 @@ struct Tail {
     captured: u64,
     read_bytes: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Tail {
     // Captures what the file gained since the last pass.
@@ -182,8 +159,6 @@ impl Tail {
         self.gaps.push(FileWatchGap { path, offset: self.written, reason });
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn run(
     binding: Binding, request: WatchFile, mut cancel: watch::Receiver<bool>, ready: super::Ready,
@@ -313,8 +288,6 @@ pub(super) async fn run(
     Ok(outcome)
 }
 
-/* === Private Functions === */
-
 fn artifact_name(path: &Path, output: &str, artifact: Option<&str>) -> Result<String, String> {
     if let Some(artifact) = artifact {
         return Ok(artifact.to_owned());
@@ -379,5 +352,3 @@ async fn publish(binding: &Binding, matchers: &LineMatchers, lines: impl IntoIte
         }
     }
 }
-
-/* === Tests === */

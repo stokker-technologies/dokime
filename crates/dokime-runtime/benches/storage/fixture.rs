@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use dokime_runtime::storage::sqlite::Backend;
 use harmos::Runtime;
 use harmos::storage::*;
 use std::sync::{Arc, OnceLock};
 
-// Local Imports
 use super::{Model, State};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Fixture {
     pub settings: StorageSettings,
@@ -38,11 +20,6 @@ pub struct Fixture {
     pub storage: StorageManager,
     pub runtime: Runtime<Model>,
 }
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Fixture {
     pub async fn new() -> Self {
@@ -72,7 +49,6 @@ impl Fixture {
         self._directory.close().unwrap();
     }
 }
-/* === Public Functions === */
 
 pub fn settings() -> StorageSettings {
     static SETTINGS: OnceLock<StorageSettings> = OnceLock::new();
@@ -94,7 +70,3 @@ pub async fn backends(root: &std::path::Path) -> StorageBackends {
     );
     StorageBackends { primary, state: Arc::new(state) }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

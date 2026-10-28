@@ -7,20 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 mod reader;
-
-/* === Re-Exports === */
 
 pub use reader::TelemetryReader;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::{
     Identifier,
     storage::{
@@ -29,22 +21,13 @@ use harmos::{
     },
 };
 
-// Local Imports
 use crate::storage::{
     Manager,
     telemetry::{self, TelemetryEntry},
 };
 use crate::{runtime::Error, runtime::Result};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub(super) type PositionedTelemetry = super::paging::Positioned<TelemetryEntry>;
-
-/* === Structs === */
 
 #[derive(Default)]
 pub(crate) struct ReadOptions<'a> {
@@ -98,18 +81,12 @@ pub(crate) struct CommittedTelemetry {
     pub failure: Option<Error>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Default)]
 pub(crate) enum Sequence {
     #[default]
     StreamOrdinal,
     StoragePosition,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Sequence {
     fn sample(self, mut entry: TelemetryEntry, position: u64) -> crate::telemetry::TelemetrySample {
@@ -331,8 +308,6 @@ impl super::executions::ExecutionStorage {
         })
     }
 }
-
-/* === Public Functions === */
 
 /// Reads Only The Explicit Durable Frontier; Accepted Queue Rows Are Never Visible.
 pub(crate) async fn saved_codecs(
@@ -811,8 +786,6 @@ fn query_path(field: &str) -> Result<harmos::storage::query::transform::FieldPat
     Ok(harmos::storage::query::transform::FieldPath { fields })
 }
 
-/* === Private Functions === */
-
 // Retains Each Admission Once; Scope References Borrow Its Payload And Values.
 // The Current Durable Envelope Still Materializes Each Scope At The Storage Boundary.
 pub(crate) fn stage_rows(
@@ -883,8 +856,6 @@ async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: O
 pub(super) fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod admission_tests {

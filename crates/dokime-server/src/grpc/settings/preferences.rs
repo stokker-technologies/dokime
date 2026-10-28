@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::domain::model::settings::wire::SettingsSnapshot;
@@ -28,24 +19,10 @@ use dokime::harmos::{Context, RegistrationExt, Response};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ReadApplicationSettings> for Resources {
     fn serve<'a>(
@@ -86,8 +63,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -99,7 +74,3 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

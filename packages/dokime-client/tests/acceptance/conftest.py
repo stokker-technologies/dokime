@@ -8,30 +8,12 @@
 
 """Locate Built Product Artifacts From The Workspace Root"""
 
-# === Imports === #
-
-# Standard Library Imports
 import os
 from collections.abc import Callable
 from pathlib import Path
 
-# Third Party Imports
 import pytest
-
-# Local Imports
 from dokime_tools.build import paths
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -66,8 +48,3 @@ def host(artifact: Callable[[str], Path]) -> Path:
     """The Built dokime Executable Hosting The Server"""
     suffix = ".exe" if os.name == "nt" else ""
     return artifact(f"bin/dokime{suffix}")
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -9,31 +9,9 @@
 
 // Compose Execution Prompt Commands
 
-/* === Modules === */
-
 mod answer;
 mod next;
 mod show;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
@@ -47,12 +25,6 @@ pub(crate) enum Command {
     Answer(answer::Args),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
         Command::Next(args) => next::run(args, settings).await,
@@ -60,7 +32,3 @@ pub(crate) async fn run(command: Command, settings: &dokime::domain::model::sett
         Command::Answer(args) => answer::run(args, settings).await,
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

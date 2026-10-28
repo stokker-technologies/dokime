@@ -11,33 +11,20 @@
  * Connection Context Values And Hooks, Independent Of The Desktop Owner.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { createContext, useContext } from "react";
 
-// Local Imports
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 import type { ConnectedSession, NativeSession } from "./session";
 
-/* === Re-Exports === */
-
-/* === Constants === */
 export const Controller = createContext<NativeSession | null>(null);
 export const Connection = createContext<ConnectedSession | null>(null);
 export const Appearance = createContext<NativeAppearanceState | null>(null);
 
-/* === Types === */
 type NativeAppearanceState = {
   resource: AppearanceResource | null;
   refresh(): void;
 };
 
-/* === Classes === */
-
-/* === Public Functions === */
 export function useNativeSessionController() {
   const value = useContext(Controller);
   if (!value) throw new Error("Native session provider is required");
@@ -59,7 +46,3 @@ export function useNativeAppearance() {
 export function useRefreshNativeAppearance() {
   return useContext(Appearance)?.refresh ?? (() => undefined);
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

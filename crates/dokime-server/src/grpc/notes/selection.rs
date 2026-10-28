@@ -7,33 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use dokime::domain::model::execution::RecordScope;
 use dokime::domain::model::execution::notes::NoteOwner;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::runtime::query::RuntimeStateSnapshot;
 
-/* === Constants === */
-
 const NOTE_SCAN_ITEMS: u64 = 10_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Page {
     pub owner: Option<NoteOwner>,
@@ -44,12 +26,6 @@ pub(super) struct Page {
     scope: Option<RecordScope>,
     case_executions: std::collections::BTreeSet<dokime::domain::model::identity::TestExecutionId>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Page {
     pub fn new(
@@ -164,9 +140,3 @@ impl Page {
         selected.test_execution_id.is_none() || self.context
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

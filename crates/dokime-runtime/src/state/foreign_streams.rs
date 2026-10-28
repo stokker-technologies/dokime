@@ -7,35 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::RuntimeStateInstallError;
 use crate::telemetry::TelemetryContract;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn declares_foreign_view(contract: &TelemetryContract) -> bool {
     contract.foreign
@@ -66,7 +39,3 @@ pub(super) fn admit_foreign_view(owner: &TelemetryContract, view: &TelemetryCont
 
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

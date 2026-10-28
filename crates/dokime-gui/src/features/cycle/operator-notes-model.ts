@@ -17,11 +17,7 @@
  * unchanged. The module imports types only, so a node test can load it directly.
  */
 
-/* === Local Imports === */
-
 import type { OperatorNote } from "@/lib/types";
-
-/* === Types === */
 
 export type NoteEditorTab = "code" | "preview";
 
@@ -32,11 +28,7 @@ export type NoteDraft =
 
 export type NoteSubmission = { kind: "create"; markdown: string } | { kind: "edit"; noteId: string; markdown: string };
 
-/* === Constants === */
-
 export const CLOSED_NOTE_DRAFT: NoteDraft = { mode: "closed" };
-
-/* === Public Functions === */
 
 export function openNewNote(): NoteDraft {
   return { mode: "adding", markdown: "", tab: "code" };

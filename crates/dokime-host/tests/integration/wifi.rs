@@ -7,41 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::support::*;
 use dokime_domain::model;
 use dokime_host::HostTelemetryStream;
 use model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 // Native Collection Reports Either Scan Data Or An Explicit Availability State.
 #[test]
 fn wifi_channel_data() {

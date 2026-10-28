@@ -7,35 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::{Core, Value, ValueError, ValueField, ValueFields, ValueItems, ValueKind, ValueNode};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn value(value: &Core) -> Result<Value, ValueError> {
     let count = node_count(value)?;
@@ -69,8 +43,6 @@ pub(crate) fn text(value: &str) -> Result<String, ValueError> {
     target.push_str(value);
     Ok(target)
 }
-
-/* === Private Functions === */
 
 fn node_count(value: &Core) -> Result<usize, ValueError> {
     match value {
@@ -125,5 +97,3 @@ fn fields(wire: &mut Value, values: &BTreeMap<String, Core>) -> Result<Vec<Value
     }
     Ok(fields)
 }
-
-/* === Tests === */

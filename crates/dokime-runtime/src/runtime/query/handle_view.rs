@@ -7,36 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::RuntimeHandle;
 use crate::queries::{
     RuntimeCursor, RuntimeListFrame, RuntimeResolution, RuntimeStateSnapshot, RuntimeViewFrame, RuntimeViewPayload, RuntimeViewQuery,
     RuntimeViewTopic,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn query_runtime_view(&self, query: RuntimeViewQuery) -> crate::runtime::Result<RuntimeViewFrame> {
@@ -175,10 +150,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> crate::runtime::Result<Option<RuntimeViewPayload>> {
     let scope = query.scope.as_ref();
     let window = &query.window;
@@ -269,5 +240,3 @@ fn list_frame(items: impl Iterator<Item = String>) -> RuntimeListFrame {
 
     RuntimeListFrame { count: items.len(), items }
 }
-
-/* === Tests === */

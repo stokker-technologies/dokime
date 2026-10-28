@@ -9,15 +9,8 @@
 
 // Runtime Organization Packs: Validation, Staging And Boot Promotion
 
-/* === Modules === */
-
 pub(crate) mod policy;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     io::Read,
@@ -25,15 +18,10 @@ use std::{
     sync::Mutex,
 };
 
-// Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
-
-// Local Imports
-
-/* === Constants === */
 
 const DESKTOP_ORGANIZATION_ARCHIVE_BYTES: u64 = 20_971_520;
 const DESKTOP_ORGANIZATION_ENTRIES: u64 = 200;
@@ -52,12 +40,6 @@ const LOGO_VARIANTS: [(&str, &str, &str); 4] = [
     ("contained", "on_light", "contained_on_light"),
     ("contained", "on_dark", "contained_on_dark"),
 ];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 /// What the shell resolved at boot and what the operator changed since.
 pub(crate) struct OrganizationState {
@@ -158,12 +140,6 @@ struct ThemeSection {
     corner_radii: BTreeMap<String, String>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl OrganizationState {
     pub(crate) fn window_icon(&self) -> Option<tauri::image::Image<'static>> {
         let bytes = self.boot.pack.as_ref()?.application_icon.as_deref()?;
@@ -210,8 +186,6 @@ impl LoadedPack {
         }
     }
 }
-
-/* === Public Functions === */
 
 /// Promotes a pending pack and loads the active one before any window exists.
 pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
@@ -282,8 +256,6 @@ pub async fn desktop_organization_remove(app: AppHandle) -> Result<OrganizationS
     drop(session);
     Ok(state.status())
 }
-
-/* === Private Functions === */
 
 fn boot(root: &Path) -> Boot {
     let pending = root.join(PENDING);
@@ -622,8 +594,6 @@ fn remove_folder(path: &Path) -> Result<(), String> {
         _ => Ok(()),
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

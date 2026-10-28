@@ -10,22 +10,14 @@
 // File watches over a running execution: a local tree that grows, rotates and
 // gains files, and an in-process FTP server; and live follows of native outputs.
 
-/* === Modules === */
 pub(crate) mod follow;
 pub(crate) mod ftp;
 pub(crate) mod watch;
 
-/* === Re-Exports === */
 pub(crate) use crate::service_support::prelude::*;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use dokime_domain::model;
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactStatus};
 use dokime_runtime::domains::files::{FileWatch, WatchEvent};
@@ -34,15 +26,9 @@ use {
     model::files::wire::FileWatchSource, model::files::wire::FileWatchSourcePayload, model::files::wire::LocalWatchSource,
 };
 
-/* === Constants === */
 // The artifact folder every story captures into.
 pub(crate) const OUTPUT: &str = "capture";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 // A runtime whose only execution stays running until released.
 pub(crate) struct Bench {
     pub(crate) _root: tempfile::TempDir,
@@ -52,11 +38,6 @@ pub(crate) struct Bench {
     pub(crate) execution: String,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Bench {
     pub(crate) async fn start(configure: impl FnOnce(RuntimeConfig, &Path) -> RuntimeConfig) -> Self {
         let root = tempdir().unwrap();
@@ -79,7 +60,6 @@ impl Bench {
     }
 }
 
-/* === Public Functions === */
 pub(crate) fn request(
     execution: &str, source: FileWatchSourcePayload, rules: Vec<FileRule>, policy: FileWatchPolicy,
 ) -> dokime_operations::files::FileWatch {
@@ -160,7 +140,3 @@ pub(crate) fn append(path: &Path, bytes: &[u8]) {
     let mut file = std::fs::OpenOptions::new().append(true).open(path).unwrap();
     file.write_all(bytes).unwrap();
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

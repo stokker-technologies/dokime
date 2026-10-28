@@ -7,21 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(super) mod admission;
-
-/* === Re-Exports === */
 
 pub(crate) use admission::{Payloads, PreparedSample, TelemetryCursors};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::evidence_runtime::{PublishReceipt, TelemetrySelection, retain_running_samples, validation_rejection};
 use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
@@ -32,28 +21,14 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const TELEMETRY_STREAM_PREFIX: &str = "dokime.tel";
 const TELEMETRY_STREAM_DELIMITER: char = '|';
 const UNSCOPED_STREAM_SEGMENT: &str = "-";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct CapturedPublication {
     pub receipt: harmos::storage::ReadBatch<PublishReceipt>,
     pub failure: Option<crate::runtime::Error>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub(crate) async fn publish_telemetry_to_streams(
@@ -306,8 +281,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
 pub fn telemetry_stream_id_len(scope: Option<&RecordScope>, stream: &Identifier) -> Option<usize> {
     let cycle = scope.and_then(|scope| scope.test_cycle_id.as_ref()).map_or(UNSCOPED_STREAM_SEGMENT, |id| id.as_str());
     let execution = scope.and_then(|scope| scope.test_execution_id.as_ref()).map_or(UNSCOPED_STREAM_SEGMENT, |id| id.as_str());
@@ -336,8 +309,6 @@ pub(super) fn lease_accepts_sample(source: Option<&RecordScope>, target: &Record
             && (source.test_execution_id.is_some() || (source.step_id.is_none() && source.criterion_id.is_none()))
     })
 }
-
-/* === Private Functions === */
 
 fn normalize_batch(
     batch: &mut TelemetryBatch, contract: &crate::telemetry::TelemetryContract, received_at: &Timestamp,
@@ -381,5 +352,3 @@ fn ensure_telemetry_timestamp(sample: &mut TelemetrySample) -> Result<(), String
     sample.values.insert("timestamp".to_owned(), Value::Number(timestamp as f64 / 1_000.0));
     Ok(())
 }
-
-/* === Tests === */

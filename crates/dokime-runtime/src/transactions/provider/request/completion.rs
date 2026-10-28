@@ -7,28 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::records::BuiltinRecordType;
 use crate::transactions::records::draft::BuiltinDraft;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.request.complete", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -52,12 +33,6 @@ pub struct SettleRun {
     pub request_id: CommandId,
     pub at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for CompleteRun {
     type Error = String;
@@ -279,10 +254,6 @@ impl Transaction<RuntimeState> for SettleRun {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn record_publication_failure(request: &mut RunRequest, cause: &str) {
     request.publication_failure = Some(cause.to_owned());
 }
@@ -318,8 +289,6 @@ fn outcomes_settled(state: &RuntimeState, request_id: &CommandId) -> Result<(), 
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

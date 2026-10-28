@@ -9,34 +9,6 @@
 
 // Deliver The Operator's Interrupt To An Armed Wait
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 /// Resolve When The Operator Presses Ctrl+C, Or Ctrl+Break On Windows.
 pub(crate) async fn requested() -> std::io::Result<()> {
     #[cfg(windows)]
@@ -57,7 +29,3 @@ pub(crate) async fn requested() -> std::io::Result<()> {
     #[cfg(not(windows))]
     tokio::signal::ctrl_c().await
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

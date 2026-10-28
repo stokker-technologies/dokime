@@ -7,36 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn main() {
     // The Shell Names The Product From The Generated Brand, Like The Web UI
     let label = brand_text("default-organization.json", "label");
@@ -69,5 +39,3 @@ fn brand_text(file: &str, field: &str) -> String {
     let manifest: serde_json::Value = serde_json::from_slice(&bytes).expect("generated brand JSON");
     manifest[field].as_str().filter(|text| !text.trim().is_empty()).expect("generated brand text field").to_owned()
 }
-
-/* === Tests === */

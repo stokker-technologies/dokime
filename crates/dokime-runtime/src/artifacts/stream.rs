@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-// Third Party Imports
-
-// Local Imports
 use super::directory::Directories;
 use crate::transport::{ArtifactChunk, MAX_ARTIFACT_CHUNK_BYTES};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Artifacts {
@@ -52,21 +34,15 @@ pub struct ArtifactWriter {
     abandoned: bool,
 }
 
-/* === Enums === */
-
 enum Ending {
     Open,
     Complete,
     Abort,
 }
 
-/* === Traits === */
-
 pub trait ArtifactSink: Send + Sync {
     fn push(&self, chunk: ArtifactChunk);
 }
-
-/* === Implementations === */
 
 impl Artifacts {
     pub fn new(token: impl Into<String>, sink: Arc<dyn ArtifactSink>) -> Self {
@@ -272,8 +248,6 @@ impl Drop for ArtifactWriter {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn transfer_identity(token: &str, ordinals: &AtomicU64) -> String {
     let ordinal = ordinals.fetch_add(1, Ordering::Relaxed);
 
@@ -327,10 +301,6 @@ pub(crate) fn inferred_mime(name: &str) -> io::Result<String> {
     Ok(mime.to_owned())
 }
 
-/* === Private Functions === */
-
 fn closed(operation: &str) -> io::Error {
     io::Error::new(io::ErrorKind::BrokenPipe, format!("cannot {operation} an artifact that has already been closed"))
 }
-
-/* === Tests === */

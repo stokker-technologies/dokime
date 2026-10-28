@@ -9,9 +9,6 @@
 
 """Generate Organization Assets"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import base64
 import hashlib
@@ -24,26 +21,9 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-# Third Party Imports
-
-# Local Imports
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
 ROOT = Path(__file__).resolve().parents[5]
 BRAND = ROOT / "organization"
 GENERATED = ROOT / "crates/dokime-gui/src/generated/organization"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def generate() -> None:
@@ -111,9 +91,6 @@ def generate_icons() -> None:
         )
 
 
-# === Private Functions === #
-
-
 def _write_json(path: Path, value: object) -> None:
     text = json.dumps(value, indent=2) + "\n"
     _write_text(path, text)
@@ -164,8 +141,6 @@ def _inline_asset(match: re.Match[str]) -> str:
 def _digest(path: Path) -> dict[str, str]:
     return {"path": path.relative_to(ROOT).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)

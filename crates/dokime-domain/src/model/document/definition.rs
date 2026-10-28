@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::expressions::DataExpression;
 use crate::model::expressions::DataSource;
@@ -36,19 +27,11 @@ use crate::model::values::ValueType;
 use crate::model::values::format::ValueFormatKind;
 use crate::model::values::format::validate_value_format_with;
 
-/* === Constants === */
-
 pub const DURATION_UNIT_SYMBOLS: &[&str] = &["s", "ms", "us", "\u{b5}s", "min", "h"];
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 pub type Document = DocumentDefinition;
 pub type Section = DocumentSection;
 pub type Card = DocumentCard;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentDefinition {
@@ -522,8 +505,6 @@ pub struct DocumentDatasetWarning {
 
 pub struct Plot;
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -759,8 +740,6 @@ pub enum ReferenceAxis {
     Y,
 }
 
-/* === Traits === */
-
 pub trait DocumentTagged {
     fn metadata_mut(&mut self) -> &mut Metadata;
 
@@ -776,8 +755,6 @@ pub trait DocumentTagged {
         self.metadata_mut().tags.extend(tags.into_iter().map(Into::into));
     }
 }
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for PlotDescriptor {
     fn memory_size(&self) -> usize {
@@ -1933,8 +1910,6 @@ impl DocumentTagged for PlotDefinition {
     }
 }
 
-/* === Public Functions === */
-
 pub fn resolve_document_plot_axes(document: &mut DocumentDefinition, contracts: &[TelemetryContract]) {
     for card in &mut document.cards {
         resolve_card_body_plot_axis(&mut card.body, contracts);
@@ -2099,8 +2074,6 @@ pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
         PlotType::AggregateTable => "aggregate_table",
     }
 }
-
-/* === Private Functions === */
 
 fn document_nodes_memory(nodes: &Vec<DocumentNode>, depth: usize) -> usize {
     if depth > 64 {
@@ -2369,8 +2342,6 @@ fn validate_wifi_channel_occupancy<E>(plot: &PlotDefinition, error: &impl Fn(std
 
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

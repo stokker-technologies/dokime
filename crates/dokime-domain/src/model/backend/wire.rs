@@ -9,33 +9,14 @@
 
 // TODO: Describe this module's responsibility.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
-
-// Local Imports
 
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-/* === Constants === */
-
 pub const API_PACKAGE: &str = "dokime.v1";
 pub const API_VERSION: &str = "0.6.0";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One page of captured tracing events, oldest first.
 #[harmos_domain::message]
@@ -267,8 +248,6 @@ pub struct LogFrame {
     pub dropped: u64,
 }
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Readiness {
@@ -309,12 +288,6 @@ pub enum DiagnosticsBundleFramePayload {
     Complete(DiagnosticsBundleCompletion),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub fn compatible_api(package: &str, version: &str) -> bool {
     fn release(version: &str) -> Option<(&str, &str)> {
         let parts: Vec<_> = version.split('.').collect();
@@ -331,7 +304,3 @@ pub fn compatible_api(package: &str, version: &str) -> bool {
 
     package == API_PACKAGE && release(version).is_some_and(|version| Some(version) == release(API_VERSION))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

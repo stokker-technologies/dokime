@@ -9,32 +9,14 @@
 
 """Bound Certificate Input Before Opening Transport"""
 
-# === Imports === #
-
-# Standard Library Imports
 import json
 from pathlib import Path
 
-# Third Party Imports
 import pytest
 
 from dokime_client.client import DokimeClient
-
-# Local Imports
 from dokime_client.client._transport import Transport
 from dokime_client.client.pairing import read
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_ca_input_is_bounded(monkeypatch) -> None:
@@ -75,8 +57,3 @@ def test_pairing_read_bound_and_utf8(tmp_path):
         path.write_bytes(data)
         with pytest.raises(ValueError):
             DokimeClient.from_pairing(path)
-
-
-# === Private Functions === #
-
-# === Entry Point === #

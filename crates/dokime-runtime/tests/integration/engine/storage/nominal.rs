@@ -9,20 +9,12 @@
 
 // Storage Round Trip Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     f64::consts::TAU,
     num::NonZeroUsize,
     time::{Duration, UNIX_EPOCH},
 };
 
-// Third Party Imports
 use harmos::storage::Query;
 use harmos::storage::query::{
     ObjectSelection, ObjectVersions, QueryArrow, RecordSelection, RowSlice, Source, StreamSelection,
@@ -36,7 +28,6 @@ use harmos::storage::query::{
 use harmos::{Application, DefinitionId, Identified, Message, Runtime, state::Never, storage::*};
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::sqlite::storage::{Store, declared, id, page, rows};
 use dokime_runtime::storage::sqlite::Backend;
 use {
@@ -44,14 +35,8 @@ use {
     dokime_runtime::Value, dokime_runtime::storage::telemetry::TelemetryEntry, dokime_runtime::storage::telemetry::TypedCodec,
 };
 
-/* === Constants === */
 const MAX_BYTES: usize = 1024 * 1024;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct App;
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -81,15 +66,11 @@ struct Subject {
     stopped: bool,
 }
 
-/* === Enums === */
 #[harmos::catalog]
 enum Objects {
     Subject(Subject),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl Application for App {
     type Lanes = dokime_runtime::app::Lanes;
     type State = ();
@@ -114,16 +95,11 @@ impl StoredObject for Subject {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn retention(schema: &SchemaKey) -> harmos::domain::Result<ObjectRetention> {
     let definition = harmos::domain::model::storage::catalog::definition::<Objects>(schema)?;
     Ok(definition.retention())
 }
 
-/* === Tests === */
 #[tokio::test]
 async fn nominal() {
     // Configure And Start The Production SQLite Adapter

@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { serializedValueObjectToJson } from "@/lib/api/native-values";
 import type { AnalysisSelection } from "@/lib/document-contracts";
 import type { ReportPayload } from "@/lib/report-types";
 import type { EvidenceAnalysisResult, PlotPayload } from "@/lib/types";
-
-/* === Constants === */
 
 const REPORT_DATA_ID = "hub-report-data";
 
@@ -30,8 +26,6 @@ const EMPTY_REPORT_PAYLOAD: ReportPayload = {
   cycle_summary: null,
   warnings: ["Report data is unavailable."],
 };
-
-/* === Public Functions === */
 
 export function readReportPayload(): ReportPayload {
   const node = document.getElementById(REPORT_DATA_ID);
@@ -64,8 +58,6 @@ export function readReportPayload(): ReportPayload {
   }
 }
 
-/* === Types === */
-
 type CapturedAnalysis = {
   definition: Omit<EvidenceAnalysisResult["definition"], "maxSamples" | "maxOutputValues"> & {
     limits: { max_samples: number; max_output_values: number };
@@ -92,8 +84,6 @@ type CapturedAnalysis = {
     };
   }[];
 };
-
-/* === Private Functions === */
 
 function capturedPlots(plots?: Record<string, PlotPayload>): Record<string, PlotPayload> {
   return Object.fromEntries(

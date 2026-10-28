@@ -8,33 +8,18 @@
 
 """Package The Matching Frozen Plugin Without Compiling"""
 
-# === Imports === #
 
-# Standard Library Imports
 import argparse
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from .. import temporary
 from ..build import paths
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 PACKAGE = "{{package}}"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def package(root: Path, profile: str) -> None:
@@ -63,10 +48,6 @@ def main() -> None:
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
     package(Path.cwd(), parser.parse_args().profile)
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     main()

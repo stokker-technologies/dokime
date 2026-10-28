@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::RecordFilter;
 use crate::records::RecordSeverity;
 use crate::telemetry::{TelemetryFilter, TelemetrySample};
@@ -32,14 +23,6 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordSelection {
@@ -80,12 +63,6 @@ pub struct ScopeSelection {
     pub test_case_id: Option<CaseId>,
     pub template_id: Option<TemplateId>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordSelection {
     pub fn matches(&self, record: &RecordEntry) -> bool {
@@ -191,8 +168,6 @@ impl ScopeSelection {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn scopes_correlate(left: Option<&RecordScope>, right: Option<&RecordScope>) -> bool {
     let empty = RecordScope::default();
     let left = left.unwrap_or(&empty);
@@ -221,13 +196,9 @@ pub(crate) fn scopes_correlate(left: Option<&RecordScope>, right: Option<&Record
         && fields_agree(&left.criterion_id, &right.criterion_id)
 }
 
-/* === Private Functions === */
-
 fn fields_agree<T: PartialEq>(left: &Option<T>, right: &Option<T>) -> bool {
     match (left, right) {
         (Some(left), Some(right)) => left == right,
         _ => true,
     }
 }
-
-/* === Tests === */

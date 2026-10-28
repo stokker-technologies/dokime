@@ -7,37 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::definition::SuiteRegistry;
 pub use crate::definition::SuiteSnapshot;
 pub(crate) use crate::transactions::{RemoveSuiteSet, SetSuiteSet};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::definition::SuiteSet;
 use crate::{RuntimeHandle, runtime::Error, unavailable_rejection};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn set_suites(&self, source: impl Into<String>, suites: SuiteSet) -> std::result::Result<(), Error> {
@@ -113,9 +88,3 @@ impl RuntimeHandle {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

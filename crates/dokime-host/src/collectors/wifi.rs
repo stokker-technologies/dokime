@@ -9,19 +9,12 @@
 
 #![cfg_attr(not(windows), allow(dead_code, unused_imports))]
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 #[cfg(not(windows))]
 pub use crate::platform::linux::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
 
 #[cfg(windows)]
 pub use crate::platform::windows::wifi::WifiLink;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     process::Command,
@@ -29,14 +22,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use sysinfo::Networks;
 
-// Local Imports
 use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
 
 const WINDOWS_WIFI_SCAN_MS: u64 = 4_000;
 const PING_TIMEOUT_MS: u64 = 5_000;
@@ -49,12 +38,6 @@ const WIFI_5_GHZ_CHANNELS: &[u32] = &[
     32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169,
     173, 177,
 ];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct WifiCollector {
     sample_index: u64,
@@ -94,12 +77,6 @@ struct ActiveWifiContext {
 pub(crate) struct WifiCongestionCache {
     latest: Option<WifiCongestionSummary>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl WifiCollector {
     pub(crate) fn new(options: HostOptions, congestion_cache: Arc<Mutex<WifiCongestionCache>>) -> Self {
@@ -456,10 +433,6 @@ impl WifiCongestionCache {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn wifi_congestion_summary(
     active_channel: Option<u32>, active_band: Option<String>, channels: &[WifiChannelCount],
 ) -> WifiCongestionSummary {
@@ -654,5 +627,3 @@ fn wifi_overlap_weight(active_channel: u32, scanned_channel: u32) -> f64 {
 fn wifi_congestion_model(active_channel: u32) -> &'static str {
     if matches!(active_channel, 1..=14) { WIFI_CONGESTION_MODEL_24_GHZ } else { WIFI_CONGESTION_MODEL_SAME_CHANNEL }
 }
-
-/* === Tests === */

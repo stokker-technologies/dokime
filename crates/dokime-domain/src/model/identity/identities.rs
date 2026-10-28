@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::ActorId;
 use crate::model::identity::NodeId;
 use crate::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DokimeIdentity {
@@ -61,8 +43,6 @@ pub struct ExternalIdentityMapping {
     pub display_name: Option<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "provider")]
 pub enum ExternalIdentityProvider {
@@ -70,10 +50,6 @@ pub enum ExternalIdentityProvider {
     Atlassian,
     Other { provider_id: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DokimeIdentity {
     pub fn node_only(node: DokimeNodeIdentity) -> Self {
@@ -124,9 +100,3 @@ impl ExternalIdentityMapping {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

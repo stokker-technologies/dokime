@@ -7,37 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 mod completion;
-
-/* === Re-Exports === */
 
 pub use completion::{CompleteRun, SettleRun, Unsealed};
 pub use dokime_domain::model::execution::request::RunPhase;
 pub use dokime_domain::model::execution::request::RunSummary;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::VecDeque;
 
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::transactions::records::draft::BuiltinDraft;
 use dokime_domain::model::execution::result::CycleStatus;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // The Admission A Run Request Would Make, Planned Against The State Without Applying It.
 pub struct QueuePlan {
@@ -83,12 +65,6 @@ pub struct DispatchProvider {
     pub request_id: CommandId,
     pub at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for RunRequest {
     fn memory_size(&self) -> usize {
@@ -243,8 +219,6 @@ impl DispatchProvider {
     }
 }
 
-/* === Public Functions === */
-
 pub fn plan_queue(state: &RuntimeState, run: &RunProvider) -> Result<QueuePlan, Error> {
     if let Some(request) = state.run_requests.get(&run.command_id) {
         if request.summary.cycle_id != run.test_cycle_id
@@ -352,8 +326,6 @@ pub(super) fn queue_records(state: &RuntimeState, run: &RunProvider) -> crate::t
     records
 }
 
-/* === Private Functions === */
-
 fn deque_memory<T: harmos::MemorySize>(values: &VecDeque<T>) -> usize {
     values
         .iter()
@@ -377,5 +349,3 @@ fn active(state: &RuntimeState, request: &RunRequest) -> Result<(), String> {
     }
     Ok(())
 }
-
-/* === Tests === */

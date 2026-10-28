@@ -9,33 +9,15 @@
 
 // Persistent Ordered State Entries; Only The Changed Search Path Is Copied.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::Index;
 use std::sync::Arc;
 
-// Third Party Imports
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Link<K, V> = Option<Arc<Node<K, V>>>;
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct Map<K, V> {
@@ -69,16 +51,10 @@ pub struct IterMut<'a, K, V> {
     remaining: usize,
 }
 
-/* === Enums === */
-
 enum Part<'a, K, V> {
     Branch(&'a mut Link<K, V>),
     Value(&'a K, &'a mut Arc<V>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<K, V> Default for Map<K, V> {
     fn default() -> Self {
@@ -352,10 +328,6 @@ impl<K, V> Node<K, V> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn height<K, V>(root: &Link<K, V>) -> usize {
     root.as_ref().map_or(0, |node| node.height)
 }
@@ -462,8 +434,6 @@ fn remove<K: Clone + Borrow<Q>, V: Clone, Q: Ord + ?Sized>(root: &mut Link<K, V>
     balance(root);
     previous
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

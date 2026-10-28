@@ -7,25 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use rusqlite::OptionalExtension;
 
-// Local Imports
 use super::{Error, State};
 
 #[cfg(feature = "host")]
 use crate::config::ApplicationMetadata;
 use dokime_domain::model::settings::{ApplicationSettings, SettingsSnapshot, UpdateSettings};
-
-/* === Constants === */
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS application_settings (
@@ -34,18 +22,6 @@ CREATE TABLE IF NOT EXISTS application_settings (
 CREATE TABLE IF NOT EXISTS application_metadata (
     id INTEGER PRIMARY KEY CHECK (id = 1), body BLOB NOT NULL
 );";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl State {
     pub(crate) async fn initialize_settings(&self) -> Result<(), Error> {
@@ -141,10 +117,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn read_snapshot(connection: &rusqlite::Connection) -> Result<SettingsSnapshot, Error> {
     let row: Option<(i64, Vec<u8>)> = connection
         .query_row("SELECT revision, body FROM application_settings WHERE id=1", [], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -163,8 +135,6 @@ fn read_metadata(connection: &rusqlite::Connection) -> Result<ApplicationMetadat
     metadata.validate().map_err(Error::InvalidSettings)?;
     Ok(metadata)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -7,37 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-// Third Party Imports
 use futures_util::FutureExt;
 
-// Local Imports
 use crate::support::host::Host;
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 // A Connected Client Sees The Host Ready Before It Is Stopped
 async fn serve_until_stopped(signal: bool) {
@@ -48,8 +21,6 @@ async fn serve_until_stopped(signal: bool) {
     host.stop(signal).await;
     drop(client);
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn stdin_close_stops() {

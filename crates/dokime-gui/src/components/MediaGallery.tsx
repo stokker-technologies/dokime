@@ -7,12 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from "@/lib/api/native-content";
 import { prepareNativeMedia } from "@/lib/api/native-delivery";
@@ -28,7 +25,6 @@ import {
   mediaBlobType,
 } from "./media-gallery-model";
 
-/* === Types === */
 type MediaUrlEntry = {
   key: string;
   generation: string;
@@ -49,13 +45,10 @@ type MediaDownloadRequest = {
   cancelled: boolean;
 };
 
-/* === Constants === */
-
 const GUI_MEDIA_DOWNLOADS = 2;
 
 const MAX_ACTIVE_MEDIA_DOWNLOADS = GUI_MEDIA_DOWNLOADS;
 
-/* === Components === */
 export function MediaGallery({ artifacts, emptyMessage, runDir }: MediaGalleryProps) {
   const session = useNativeSessionOptional();
   const model = useMediaGallery(artifacts, runDir);
@@ -77,7 +70,6 @@ export function MediaGallery({ artifacts, emptyMessage, runDir }: MediaGalleryPr
   );
 }
 
-/* === Hooks === */
 function useNativeMediaUrls(artifacts: MediaArtifactCandidate[], requestedIds: ReadonlySet<string>): MediaPreviewState {
   const session = useNativeSessionOptional();
   const [, redraw] = useState(0);

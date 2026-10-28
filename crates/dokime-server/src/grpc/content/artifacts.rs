@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::operations::StreamOutput;
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::{
     chunked::{self, ArtifactFrames},
     error::detailed,
@@ -32,24 +23,10 @@ use dokime::operations::content as content_wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::ArtifactReader;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<content_wire::DownloadArtifact> for Resources {
     fn serve<'a>(&'a self, request: content_wire::DownloadArtifact, ctx: Context<'a, content_wire::DownloadArtifact>) -> Served<'a, ()> {
@@ -78,8 +55,6 @@ impl Serve<content_wire::DownloadArtifact> for Resources {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     super::list::register(runtime, maximum).await?;
@@ -120,7 +95,3 @@ pub(in crate::grpc) async fn deliver(
     .run(output)
     .await
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

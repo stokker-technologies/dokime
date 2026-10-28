@@ -8,24 +8,7 @@
 
 """Explicit remote refusals, connection failures, and recovery information."""
 
-# === Imports === #
-
-# Standard Library Imports
 from typing import Literal
-
-# Third Party Imports
-
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
 
 
 class DokimeError(Exception):
@@ -94,10 +77,3 @@ class ExecutionSubmissionUncertain(DokimeError):
         )
         self.execution_id = execution_id
         self.mode = mode
-
-
-# === Public Functions === #
-
-# === Private Functions === #
-
-# === Entry Point === #

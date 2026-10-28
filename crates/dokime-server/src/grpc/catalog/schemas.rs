@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use super::super::value::canonical;
 use super::{Budget, unit};
 use dokime::domain::model::identity::wire as common;
@@ -29,22 +19,6 @@ use dokime::records::RecordSeverity;
 use dokime::records::RecordTone;
 use dokime::telemetry::TelemetryContract;
 use dokime::telemetry::TelemetryRole;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn record(contract: &RecordContract) -> Result<dokime::domain::model::definition::wire::RecordSchema, Status> {
     let mut budget = Budget::new()?;
@@ -119,8 +93,6 @@ pub(crate) fn telemetry(
         foreign: contract.foreign,
     })
 }
-
-/* === Private Functions === */
 
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
     let mut target = canonical::slots(source.len())?;
@@ -198,5 +170,3 @@ fn role(value: &TelemetryRole) -> dokime::domain::model::definition::wire::Telem
         TelemetryRole::Throughput => dokime::domain::model::definition::wire::TelemetryRole::Throughput,
     }
 }
-
-/* === Tests === */

@@ -8,9 +8,6 @@
 
 """Explicit Named Backend Profile Loading Without Network Or Secret Store IO"""
 
-# === Imports === #
-
-# Standard Library Imports
 import json
 import os
 import re
@@ -20,16 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .._profiles import Document, Profile
-
-# Third Party Imports
-# Local Imports
 from ._transport import _target
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 CA_BYTES = 1048576
 PROFILE_BYTES = 1048576
@@ -38,13 +26,6 @@ PROFILE_IDENTIFIER_BYTES = 128
 PROFILES = 128
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9_.-]+\Z")
-
-# === Types === #
-
-# === Classes === #
-
-
-# === Public Functions === #
 
 
 def configuration_path(path: str | Path | None = None) -> Path:
@@ -105,9 +86,6 @@ def decode(data: bytes) -> Document:
     if document.default is not None:
         _get(document, document.default)
     return document
-
-
-# === Private Functions === #
 
 
 def _get(document: Document, identifier: str) -> Profile:
@@ -199,6 +177,3 @@ def _environment_path(identifier: str) -> Path:
     if not value:
         raise ValueError("standard configuration root is unavailable; provide an explicit profile file")
     return Path(value)
-
-
-# === Entry Point === #

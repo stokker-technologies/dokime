@@ -7,25 +7,15 @@
  * ***
  */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import { copyTraceabilityText } from "@/components/traceability/clipboard";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-/* === Constants === */
 
 /** Values longer than this may be truncated in a row, so the tooltip repeats them. */
 const LONG_VALUE_CHARS = 24;
 
-/* === Types === */
-
 type CopyableTraceabilityValueProps = {
   value: string;
 };
-
-/* === Components === */
 
 export function CopyableTraceabilityValue({ value: rawValue }: CopyableTraceabilityValueProps) {
   /* Coerced once, and only the coerced text is read: a row value crosses JSON

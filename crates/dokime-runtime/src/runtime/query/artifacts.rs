@@ -7,37 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 mod read;
-
-/* === Re-Exports === */
 
 pub use crate::execution_runtime::outputs::{ExecutionFileContentKind, ExecutionFileStreamState};
 pub use dokime_domain::model::execution::RecordScope;
 pub use read::RuntimeExecutionFileRead;
 pub(crate) use read::execution_file_frame;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use dokime_domain::model::execution::RecordScope as DomainRecordScope;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeArtifactFrame {
@@ -68,14 +50,6 @@ pub struct RuntimeExecutionFileFrame {
     pub error: Option<String>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) fn artifact_frame<'a>(
     artifacts: impl Iterator<Item = &'a ArtifactRecord>, scope: Option<&DomainRecordScope>, window: &RuntimeWindow,
     resolution: &RuntimeResolution,
@@ -91,7 +65,3 @@ pub(crate) fn artifact_frame<'a>(
         truncated: returned_artifacts < artifacts.total,
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

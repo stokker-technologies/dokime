@@ -7,19 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 use harmos::storage::{RecordRead, StoredRecord, query::RecordSelection};
 
-// Local Imports
 use super::{context_records::ContextRecord, execution::ExecutionView};
 use crate::storage::records;
 use crate::storage::records::{RecordRow, ScopeRow};
@@ -32,27 +21,13 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::state::records::set::TestRecordSet;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
-
-/* === Structs === */
 
 pub struct RecordReader {
     rows: harmos::storage::RecordReader<RecordRow>,
     view: ExecutionView,
     context: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordReader {
     pub(super) async fn open_page(view: &ExecutionView, after: u64) -> Result<Self> {
@@ -135,10 +110,6 @@ impl RecordReader {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // The Execution's Own Records; With Context, Also Its Cycle's Unowned
 // Records And Records Without Any Test Owner.
 fn owned(row: &StoredRecord<RecordRow>, execution: &TestExecution, context: bool) -> bool {
@@ -202,5 +173,3 @@ fn apply_execution_scope(
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
-
-/* === Tests === */

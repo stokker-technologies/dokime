@@ -7,36 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, quote};
 use syn::Error;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn catalog(attribute: TokenStream, item: TokenStream) -> TokenStream {
     let declared = crate::facade::harmos_attribute("catalog", attribute, item.clone());
@@ -72,8 +45,6 @@ pub(crate) fn assert_unique(catalog: &TokenStream, kind: &str) -> TokenStream {
         };
     }
 }
-
-/* === Private Functions === */
 
 fn identifiers(item: TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -111,5 +82,3 @@ fn identifiers(item: TokenStream) -> Result<TokenStream, Error> {
         }
     })
 }
-
-/* === Tests === */

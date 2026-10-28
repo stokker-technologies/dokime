@@ -9,28 +9,10 @@
 
 """Python Build Task"""
 
-# === Imports === #
-
-# Standard Library Imports
-
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import configuration, paths, wheel
 from dokime_tools.package import examples
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 ROOT = configuration.ROOT
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def build(profile: str) -> list[str]:
@@ -43,10 +25,6 @@ def build(profile: str) -> list[str]:
     staged = examples.stage(ROOT, destination, wheel=wheels[0])
     return configuration.relative([*distributions, *staged])
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     raise SystemExit(configuration.invoke(build))

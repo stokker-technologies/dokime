@@ -13,13 +13,9 @@
  * rows actually hold, with their counts under the other active filters.
  */
 
-/* === External Imports === */
-
 import type { Column, RowData } from "@tanstack/react-table";
 import { ListFilter } from "lucide-react";
 import { useId } from "react";
-
-/* === Local Imports === */
 
 import { type DataTableFeatures, facetText } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
@@ -28,13 +24,9 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-/* === Types === */
-
 type DataTableColumnFilterProps<TData extends RowData> = {
   column: Column<DataTableFeatures, TData, unknown>;
 };
-
-/* === Components === */
 
 export function DataTableColumnFilter<TData extends RowData>({ column }: DataTableColumnFilterProps<TData>) {
   const meta = column.columnDef.meta;
@@ -85,8 +77,6 @@ export function DataTableColumnFilter<TData extends RowData>({ column }: DataTab
     </Popover>
   );
 }
-
-/* === Private Components === */
 
 function FacetOptions<TData extends RowData>({ column, picked }: { column: Column<DataTableFeatures, TData, unknown>; picked: unknown[] }) {
   const idPrefix = useId();

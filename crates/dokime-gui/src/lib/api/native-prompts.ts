@@ -9,10 +9,6 @@
 
 /* Native prompt adapters for the original routed UI. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -34,8 +30,6 @@ import {
   valueTypeName,
 } from "./native-values";
 
-/* === Types === */
-
 type PromptView = Wire<Awaited<ReturnType<typeof rpc.promptsGetPrompt>>>;
 type PromptInstance = NonNullable<PromptView["prompt"]>;
 type NativePromptResponse = NonNullable<PromptView["response"]>;
@@ -48,8 +42,6 @@ type PromptActionEmphasis = PromptDefinition["actions"][number]["emphasis"];
 type ConditionVariant = NonNullable<NonNullable<PromptDefinition["condition"]>["nodes"][number]["kind"]>["HarmosVariant"];
 type TelemetryCondition = NonNullable<Extract<ConditionVariant, { case: "Telemetry" }>["value"]["field0"]>;
 type TelemetryMatchOperator = TelemetryCondition["op"];
-
-/* === Public API === */
 
 export async function fetchNativePendingPrompts(
   session: SessionIdentity,
@@ -120,8 +112,6 @@ export async function respondNativePrompt(
     },
   };
 }
-
-/* === Mapping === */
 
 function mapNativePrompt(prompt: PromptInstance, response?: NativePromptResponse): PromptRequest {
   const definition = prompt.definition;

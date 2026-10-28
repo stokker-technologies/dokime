@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { numericValue } from "@/lib/utils";
 
 import { formatDuration, formatNumber } from "./format";
 import { formatRecordValue, isDatetimeValue } from "./record-display";
 import { parseTimestampMs } from "./time-format";
 import type { ExecutionResultSummary, HubRecord, JsonObject, Severity, TelemetryStream } from "./types";
-
-/* === Types === */
-
-/* === Constants === */
 
 const ARTIFACT_LABEL_WORDS: Record<string, string> = {
   api: "API",
@@ -40,8 +34,6 @@ const ARTIFACT_LABEL_WORDS: Record<string, string> = {
   yml: "YAML",
   zip: "ZIP",
 };
-
-/* === Public Functions === */
 
 export function latestSample(stream: TelemetryStream | undefined): JsonObject {
   const latest = stream?.summary.latest_sample;
@@ -150,8 +142,6 @@ export function plottableKeys(stream: TelemetryStream | undefined): string[] {
 export function countBySeverity(records: HubRecord[], level: Severity): number {
   return records.filter((record) => record.level === level).length;
 }
-
-/* === Private Functions === */
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);

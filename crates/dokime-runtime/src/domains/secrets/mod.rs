@@ -7,41 +7,24 @@
  * ***
  */
 
-/* === Modules === */
-
 mod transfer;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
     sync::Arc,
 };
 
-// Third Party Imports
 use keyring::{Entry, Error as KeyringError};
 use thiserror::Error;
 use tokio::sync::Mutex;
 use zeroize::Zeroizing;
 
-// Local Imports
 use crate::config::{RuntimeConfig, Settings};
 use dokime_domain::model::secrets::catalog::{self, Catalog, Metadata, Slot};
 use dokime_domain::model::secrets::{RedactedSecretBinding, SecretBackendKind};
 
-/* === Constants === */
-
 const SHARED_SERVICE: &str = "com.stokker.dokime.shared-secrets";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(crate) struct SecretStore {
@@ -65,8 +48,6 @@ struct OsKeyring;
 
 struct CredentialStore(Arc<keyring_core::CredentialStore>);
 
-/* === Enums === */
-
 #[derive(Debug, Error)]
 pub(crate) enum SecretStoreError {
     #[error("Secret catalog storage failed: {0}")]
@@ -84,15 +65,11 @@ pub(crate) enum SecretStoreError {
     Persistence,
 }
 
-/* === Traits === */
-
 trait Backend: Send + Sync {
     fn set(&self, slot: &str, value: &str) -> Result<(), SecretStoreError>;
     fn get(&self, slot: &str) -> Result<Option<SecretValue>, SecretStoreError>;
     fn remove(&self, slot: &str) -> Result<(), SecretStoreError>;
 }
-
-/* === Implementations === */
 
 impl SecretStore {
     pub(crate) async fn from_config(config: &RuntimeConfig, settings: Settings) -> Result<Self, SecretStoreError> {
@@ -368,10 +345,6 @@ impl Backend for CredentialStore {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn read_entry(service: &str, slot: &str) -> Result<Option<SecretValue>, SecretStoreError> {
     let entry = Entry::new(service, slot).map_err(|_| SecretStoreError::Unavailable)?;
     match entry.get_password() {
@@ -380,5 +353,3 @@ fn read_entry(service: &str, slot: &str) -> Result<Option<SecretValue>, SecretSt
         Err(_) => Err(SecretStoreError::Unavailable),
     }
 }
-
-/* === Tests === */

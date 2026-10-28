@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Mutex, PoisonError};
 
-// Third Party Imports
-
-// Local Imports
 use crate::document::{Card, DocumentAddition, DocumentDefinition, PlotDefinition, Section};
 use crate::execution::log::Level;
 use crate::transport::ExecutionTransport;
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct DocumentIndex {
     document: DocumentDefinition,
@@ -40,12 +22,6 @@ pub struct DocumentHandle<'a> {
     index: &'a Mutex<DocumentIndex>,
     transport: &'a dyn ExecutionTransport,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DocumentIndex {
     pub(crate) fn new(declared: Option<DocumentDefinition>) -> Self {
@@ -118,9 +94,3 @@ impl<'a> DocumentHandle<'a> {
         self.transport.log(Level::Error, format!("the document was not changed: {reason}"));
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -9,39 +9,10 @@
 
 // Storage cancellation Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::*;
 
-// Local Imports
 use super::sqlite::storage::Store;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 #[tokio::test]
 async fn cancellation() {
     let root = tempfile::tempdir().unwrap();

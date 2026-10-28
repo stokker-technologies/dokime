@@ -7,27 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use clap::Parser;
 
-// Local Imports
 use crate::commands::Command;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, Parser)]
 #[command(name = "dokime", about = "Connect To Dokime Backends", version)]
@@ -39,12 +21,6 @@ pub struct Cli {
     pub(crate) command: Command,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Cli {
     pub fn configuration(&self) -> crate::Result<dokime::config::Config> {
         crate::commands::configuration(&self.command)
@@ -55,9 +31,3 @@ impl Cli {
         Box::pin(crate::commands::run(self.command, configuration)).await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

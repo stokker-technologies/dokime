@@ -7,32 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::state::RuntimeState;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.archive", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,18 +23,12 @@ pub struct SetArchived {
     pub archived: bool,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "id")]
 pub enum ArchiveSubject {
     Cycle(TestCycleId),
     Execution(TestExecutionId),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for SetArchived {
     type Error = String;
@@ -102,8 +78,6 @@ impl Transaction<RuntimeState> for SetArchived {
     }
 }
 
-/* === Public Functions === */
-
 pub fn cycle_terminal(lifecycle: CycleStatus) -> bool {
     matches!(lifecycle, CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopped)
 }
@@ -111,7 +85,3 @@ pub fn cycle_terminal(lifecycle: CycleStatus) -> bool {
 pub fn execution_terminal(status: &ExecutionStatus) -> bool {
     !matches!(status, ExecutionStatus::Pending | ExecutionStatus::Running)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

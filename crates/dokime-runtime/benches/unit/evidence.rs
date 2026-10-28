@@ -9,40 +9,18 @@
 
 // Evidence Selection Benchmarks: Record And Telemetry Filters Over Memory
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::hint::black_box;
 
-// Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 
-// Local Imports
 use dokime_domain::model;
 use dokime_runtime::domains::evidence::{RecordSelection, TelemetrySelection};
 use dokime_runtime::telemetry::TelemetrySample;
 use dokime_runtime::{Identifier, Value};
 use {dokime_runtime::records::RecordSeverity, model::records::evidence::Record, model::records::evidence::RecordEntry};
 
-/* === Constants === */
 const COUNTS: [u64; 2] = [1_000, 10_000];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("records_select_entries");
     for count in COUNTS {
@@ -79,7 +57,6 @@ pub fn benchmark(criterion: &mut Criterion) {
     group.finish();
 }
 
-/* === Private Functions === */
 fn records(count: u64) -> Vec<RecordEntry> {
     (0..count)
         .map(|index| {
@@ -119,5 +96,3 @@ fn telemetry_samples(count: u64, stream: &str) -> Vec<TelemetrySample> {
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).unwrap()
 }
-
-/* === Tests === */

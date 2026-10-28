@@ -8,9 +8,6 @@
 
 """Verify the exact installed pure Python wheel."""
 
-# === Imports === #
-
-# Standard Library Imports
 import hashlib
 import importlib.metadata
 import importlib.util
@@ -19,21 +16,7 @@ import sys
 from pathlib import Path
 from zipfile import ZipFile
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import paths
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_pure_wheel(workspace: Path, request) -> None:
@@ -92,8 +75,3 @@ def test_pure_wheel(workspace: Path, request) -> None:
         capture_output=True,
         text=True,
     )
-
-
-# === Private Functions === #
-
-# === Entry Point === #

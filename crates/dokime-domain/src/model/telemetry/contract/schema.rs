@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::identity::SuiteId;
@@ -31,17 +22,9 @@ use crate::model::values::Value;
 use crate::model::values::ValueFormat;
 use crate::model::values::ValueType;
 
-/* === Constants === */
-
 const TIMESTAMP: &str = "timestamp";
 const TIMESTAMP_LABEL: &str = "Timestamp";
 const TIMESTAMP_DESCRIPTION: &str = "The instant this row was measured.";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryContract {
@@ -75,8 +58,6 @@ pub struct TelemetryColumn {
     pub format: Option<ValueFormat>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelemetryRole {
@@ -87,10 +68,6 @@ pub enum TelemetryRole {
     Latency,
     Throughput,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for TelemetryContract {
     fn memory_size(&self) -> usize {
@@ -299,12 +276,6 @@ impl TelemetryColumn {
         self
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

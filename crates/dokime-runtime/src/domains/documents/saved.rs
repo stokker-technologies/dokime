@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use harmos::storage::FileRead;
 use harmos::storage::{ByteRange, ObjectRevision, ObjectVersion};
 
-// Local Imports
 use crate::execution_runtime::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState};
 use crate::storage::Manager;
 use crate::{runtime::Error, runtime::Result};
@@ -32,14 +23,6 @@ use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::execution::saved::validate_relative_output_path;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(crate) struct SavedOutputs {
     session: crate::storage::Manager,
     revision: harmos::storage::ReadBatch<ObjectRevision<TestExecution>>,
@@ -49,12 +32,6 @@ pub(crate) struct SavedOutputFile {
     outputs: SavedOutputs,
     index: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl SavedOutputs {
     pub(crate) async fn open(storage: &Manager, id: &TestExecutionId, checkpoint: Option<&ExecutionCheckpoint>) -> Result<Option<Self>> {
@@ -158,8 +135,6 @@ impl SavedOutputFile {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn entry(id: &TestExecutionId, output: &ExecutionOutput) -> harmos::Result<ExecutionFileEntry> {
     let artifact_id = match &output.content {
         ExecutionOutputContent::Artifact { record, .. } => record.artifact_id.as_str().to_owned(),
@@ -189,8 +164,6 @@ pub(crate) fn entry(id: &TestExecutionId, output: &ExecutionOutput) -> harmos::R
     })
 }
 
-/* === Private Functions === */
-
 fn state(output: &ExecutionOutput) -> ExecutionFileStreamState {
     match output.stream_state {
         Some(SavedStreamState::Interrupted) => ExecutionFileStreamState::Interrupted,
@@ -213,5 +186,3 @@ fn window(output: &ExecutionOutput, offset: u64, bytes: Vec<u8>) -> ExecutionFil
 fn invalid(message: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(message))
 }
-
-/* === Tests === */

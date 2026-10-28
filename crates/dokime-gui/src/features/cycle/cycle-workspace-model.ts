@@ -15,11 +15,7 @@
  * here introduces a second one.
  */
 
-/* === Local Imports === */
-
 import type { CaseActions, ExecutionQueueItem, TestCase, TestCycle, TestCyclePlan, TestExecution } from "@/lib/types";
-
-/* === Constants === */
 
 /**
  * One pill, everywhere, sized by what it says.
@@ -75,8 +71,6 @@ const TERMINAL_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Se
 
 /** The cycle states a whole run ends in, and so the ones Run Again follows. */
 const TERMINAL_CYCLE_STATUSES: ReadonlySet<CycleLifecycle> = new Set(["completed", "failed", "stopped", "interrupted"]);
-
-/* === Types === */
 
 export type CycleLifecycle = TestCycle["status"];
 
@@ -147,8 +141,6 @@ export type ReportDownloadState = {
   label: "Download Report";
   title: string;
 };
-
-/* === Public Functions === */
 
 export function isFinishedCase(status: CaseState): boolean {
   return FINISHED_CASE_STATES.has(status);

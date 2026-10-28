@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::detail::{diagnostic, execution, metadata};
 use super::*;
 use dokime::domain::model::execution::result::CriterionResult;
@@ -27,27 +16,11 @@ use dokime::domain::model::execution::result::StepStatus;
 use dokime::domain::model::execution::wire as execution_model;
 use dokime::runtime::query::RuntimeStateSnapshot;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Page {
     start: usize,
     end: usize,
     observed: Cursor,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> Result<execution_model::ListExecutionStepsReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
@@ -81,8 +54,6 @@ pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> R
         },
     )
 }
-
-/* === Private Functions === */
 
 fn row(step: &StepRecord, ordinal: u64, budget: &mut value::Budget) -> Result<execution_model::ExecutionStep, Status> {
     let mut criteria = canonical::slots(step.criteria.len())?;
@@ -171,5 +142,3 @@ fn reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> 
     }
     Ok(value)
 }
-
-/* === Tests === */

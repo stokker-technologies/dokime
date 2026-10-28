@@ -15,21 +15,13 @@
  * disagree about what the operator is looking at.
  */
 
-/* === External Imports === */
-
 import { useRouterState } from "@tanstack/react-router";
 
-/* === Constants === */
-
 const CYCLE_ROUTE = /^\/cycles\/([^/]+)/;
-
-/* === Public Functions === */
 
 export function cycleIdOfPathname(pathname: string): string | null {
   return CYCLE_ROUTE.exec(pathname)?.[1] ?? null;
 }
-
-/* === Hooks === */
 
 /** The cycle the route names, or null everywhere else. */
 export function useRouteCycleId(): string | null {

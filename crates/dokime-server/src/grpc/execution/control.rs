@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::operations::CallContext;
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use super::{cycle_id, status};
 use crate::grpc::{access::Principal, value::canonical};
 use dokime::domain::model::identity::CaseId;
@@ -33,23 +24,9 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::command::CommandContext;
 use dokime::{RuntimeHandle, transactions::CycleDefinition};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::CreateCycle> for Resources {
     fn serve<'a>(
@@ -299,8 +276,6 @@ impl Serve<wire::CancelExecution> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone() });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -358,12 +333,8 @@ pub(in crate::grpc) fn command_context(
     })
 }
 
-/* === Private Functions === */
-
 fn observed(runtime: &RuntimeHandle) -> dokime::domain::model::execution::wire::ControlReply {
     dokime::domain::model::execution::wire::ControlReply {
         observed_cursor: Some(canonical::cursor(&runtime.watch_state().latest())),
     }
 }
-
-/* === Tests === */

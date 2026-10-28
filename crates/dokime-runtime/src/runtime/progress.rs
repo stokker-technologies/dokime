@@ -16,31 +16,13 @@
 // visible for a short retention, then retire. Nothing here is persisted: the
 // list describes this process only and is published beside runtime state.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     fmt::Display,
     sync::{Arc, Mutex, Weak},
 };
 
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LiveOperation {
@@ -91,18 +73,12 @@ struct Entry {
     retires_at: Option<tokio::time::Instant>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum OperationOutcome {
     Running,
     Finished { at: Timestamp },
     Failed { at: Timestamp, failure: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl OperationSnapshot {
     pub fn revision(&self) -> u64 {
@@ -355,15 +331,9 @@ impl std::fmt::Debug for Operation {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn bounded(mut text: String, maximum: u64) -> String {
     if let Some((end, _)) = text.char_indices().nth(usize::try_from(maximum).expect("validated progress text limit")) {
         text.truncate(end);
     }
     text
 }
-
-/* === Tests === */

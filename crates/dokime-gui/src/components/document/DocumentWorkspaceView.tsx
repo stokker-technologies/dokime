@@ -7,10 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
 import { useCallback, useMemo, useState } from "react";
 
-/* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { updatePlotSettings } from "@/lib/api/native-documents";
 import { useReportDefaults } from "@/lib/application-settings";
@@ -22,7 +20,6 @@ import { DocumentCardContent } from "./DocumentSurface";
 import { DocumentWorkspacePresentation, type DocumentWorkspaceViewProps, visibleDocumentPlots } from "./DocumentWorkspacePresentation";
 import { isDocumentSurfaceCard } from "./document-surface-policy";
 
-/* === Components === */
 export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
   return props.renderMode === "report" ? (
     <DocumentWorkspacePresentation {...props} />
@@ -33,7 +30,6 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
   );
 }
 
-/* === Private Components === */
 function ConnectedDocumentWorkspace(props: Extract<DocumentWorkspaceViewProps, { renderMode: "live" }>) {
   const resolvedCardFilter = props.cardFilter ?? isDocumentSurfaceCard;
   const scopeKey = `${props.document?.document_id}/${props.plotResetKey}`;

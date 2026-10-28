@@ -7,37 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model::execution::result::ResultStatus;
 use dokime_runtime::runtime::query::execution_history::ExecutionBrowseLifecycle;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn container_request_outcomes() {
@@ -457,5 +429,3 @@ async fn execution_retry_receipt() {
     drop(handle);
     rebooted.shutdown().await.unwrap();
 }
-
-/* === Tests === */

@@ -9,19 +9,9 @@
 
 // TODO: Describe this module's responsibility.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
@@ -33,14 +23,6 @@ use crate::model::identity::wire::*;
 #[allow(unused_imports)]
 use crate::model::planning::wire::*;
 use crate::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Correlation Is A Caller Label, Never Authenticated Identity. StartExecution
 // Resolves Durable Attempt Identity; SealCycle Is Intrinsically Idempotent.
@@ -473,8 +455,6 @@ pub struct StepCriterion {
     pub ordinal: u64,
 }
 
-/* === Enums === */
-
 // The requested order key. Ordering is always total: the key, then the cycle ID
 // ascending, so equal keys never permute between pages. An unspecified key is
 // UPDATED_AT. LABEL compares the case-folded label.
@@ -662,13 +642,3 @@ pub enum ParameterCursorSelection {
     ExecutionOutputsId(String),
     PlannedCase(PlannedCaseParameters),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

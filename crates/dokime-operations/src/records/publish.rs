@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use harmos_domain::operations::OperationPolicy;
 
-// Local Imports
-
-/* === Constants === */
-
 const RECORD: OperationPolicy = crate::policy(Duration::from_secs(30));
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Files one process-scoped record against the calling plugin.
 #[harmos::operation(resources = [crate::hosting::Host<RecordPublication>, harmos::operations::HostContext], id = "dokime.records.publish",
@@ -46,20 +28,6 @@ pub struct RecordPublication {
     )]
     pub produced_at: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

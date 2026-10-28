@@ -7,32 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type RecordConditionEvaluation = crate::model::validation::ConditionEvaluation;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecordCondition {
@@ -41,12 +24,6 @@ pub struct RecordCondition {
     #[serde(default, rename = "match")]
     pub match_fields: BTreeMap<String, Value>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for RecordCondition {
     fn memory_size(&self) -> usize {
@@ -59,9 +36,3 @@ impl harmos_domain::MemorySize for RecordCondition {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

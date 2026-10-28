@@ -10,34 +10,7 @@
 // Display capture: the desktop portal on Linux, which writes one PNG of the
 // whole desktop and needs no native display libraries; xcap elsewhere.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::runtime::Result;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // Captures the desktop through the screenshot portal as PNG bytes.
 #[cfg(all(feature = "media-native", target_os = "linux"))]
@@ -82,8 +55,6 @@ pub(super) async fn capture_png(_display: Option<u32>) -> Result<Vec<u8>> {
     Err(super::not_compiled())
 }
 
-/* === Private Functions === */
-
 #[cfg(all(feature = "media-native", not(target_os = "linux")))]
 fn capture_monitor(display: Option<u32>) -> Result<Vec<u8>> {
     use super::unavailable;
@@ -103,5 +74,3 @@ fn capture_monitor(display: Option<u32>) -> Result<Vec<u8>> {
         .map_err(|source| crate::runtime::Error::Operation(format!("screenshot encoding: {source}")))?;
     Ok(bytes.into_inner())
 }
-
-/* === Tests === */

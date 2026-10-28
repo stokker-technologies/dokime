@@ -7,34 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn ready<T, O, I>(ctx: &dokime::execution::InitializationContext<'_, T, O, I>) -> Result<(), crate::error::Error>
 where
     crate::domain::operations::AskReadiness: dokime::execution::Called<T>,
@@ -44,7 +16,3 @@ where
         false => Ok(()),
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

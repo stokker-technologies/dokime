@@ -7,47 +7,24 @@
  * ***
  */
 
-/* === Modules === */
-
 mod frames;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::error::detailed;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{RuntimeHandle, runtime::Error};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::DownloadExecutionFile> for Resources {
     fn serve<'a>(&'a self, request: wire::DownloadExecutionFile, ctx: Context<'a, wire::DownloadExecutionFile>) -> Served<'a, ()> {
@@ -109,8 +86,6 @@ impl Serve<wire::DownloadExecutionFile> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -119,8 +94,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn stream_failure(error: Error) -> Status {
     let status = match &error {
@@ -133,5 +106,3 @@ fn stream_failure(error: Error) -> Status {
 
     detailed(status, &error)
 }
-
-/* === Tests === */

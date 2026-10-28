@@ -7,13 +7,9 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { formatNumber, formatTime } from "@/lib/format";
 import type { RecordDisplay, RecordIconKey, RecordTone, ValueFormat } from "@/lib/types";
 import { cn, isRecord, numericValue } from "@/lib/utils";
-
-/* === Types === */
 
 type RecordDisplaySource = {
   icon?: string | null;
@@ -22,8 +18,6 @@ type RecordDisplaySource = {
 
 /** A datetime value on the wire: the one-key tagged map `{"$datetime": "<rfc3339>"}`. */
 type DatetimeValue = { $datetime: string };
-
-/* === Public Functions === */
 
 export function recordToneShellClass(tone: RecordTone, className?: string): string {
   return cn(
@@ -144,8 +138,6 @@ export function recordToneMarkerColor(tone: RecordTone): string | null {
   if (tone === "muted") return "var(--muted-foreground)";
   return null;
 }
-
-/* === Private Functions === */
 
 function recordIconKey(value: string | null | undefined): RecordIconKey {
   if (

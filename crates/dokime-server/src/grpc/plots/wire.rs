@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use dokime::harmos::domain::Portable;
 use tonic::Status;
 
-// Local Imports
 use super::super::enums::canonical as enums;
 use super::super::value::{Budget, canonical};
 use super::cursor::expression_stream;
@@ -43,19 +34,9 @@ use dokime::runtime::query::PlotPayloadRequest;
 use dokime::runtime::query::PlotPayloadStreamKind;
 use dokime::runtime::query::declared_plot_request;
 
-/* === Constants === */
-
 const SERVER_PLOT_POINTS: u64 = 100_000;
 
 const GENERATED_AT_BYTES: usize = "0000-00-00T00:00:00.000000000Z".len();
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 // Why a plot frame was not built: a transport failure, or a point budget the
 // caller can retry under.
@@ -63,10 +44,6 @@ pub(super) enum FrameError {
     Status(Status),
     TooManyPoints { maximum: usize },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl From<Status> for FrameError {
     fn from(status: Status) -> Self {
@@ -89,8 +66,6 @@ impl From<dokime::harmos::storage::Error> for FrameError {
         Self::from(dokime::harmos::Error::from(error))
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn document_plot_definition(
     descriptor: &PlotDescriptor,
@@ -178,8 +153,6 @@ pub(crate) fn data_expression_wire(expression: &DataExpression) -> Result<dokime
         transforms: expression.transforms.iter().map(data_transform_wire).collect::<Result<_, _>>()?,
     })
 }
-
-/* === Private Functions === */
 
 fn plot_envelope(
     value: PlotPayloadEnvelope, epoch: &str, selection: &str,
@@ -665,8 +638,6 @@ fn plot_marker(value: dokime::runtime::query::PlotMarker) -> Result<dokime::doma
         color: value.color,
     })
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

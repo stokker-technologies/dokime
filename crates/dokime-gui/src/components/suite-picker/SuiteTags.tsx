@@ -14,13 +14,9 @@
  * grow the row's height. What does not fit collapses into one "+N" chip whose
  * tooltip carries the rest. */
 
-/* === Local Imports === */
-
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatTagLabel } from "./model";
-
-/* === Constants === */
 
 /** Character budget of the column, measured off the 11px chip face. */
 const TAG_COLUMN_BUDGET = 44;
@@ -30,8 +26,6 @@ const OVERFLOW_BUDGET = 5;
 
 /** Fixed column width so suite and template rows share one tag column. */
 export const TAG_COLUMN_WIDTH = "w-60 xl:w-80";
-
-/* === Components === */
 
 export function SuiteTags({ className, tags }: { className?: string; tags: string[] }) {
   const { hidden, visible } = splitTags(tags);
@@ -59,8 +53,6 @@ export function SuiteTags({ className, tags }: { className?: string; tags: strin
   );
 }
 
-/* === Subcomponents === */
-
 /** One chip face, shared by the tag column and the Library's provenance pills. */
 export function TagChip({ className, label, title }: { className?: string; label: string; title?: string }) {
   return (
@@ -75,8 +67,6 @@ export function TagChip({ className, label, title }: { className?: string; label
     </span>
   );
 }
-
-/* === Private Functions === */
 
 /** Greedy fit against the character budget, reserving room for the "+N" chip. */
 export function splitTags(tags: string[]): { hidden: string[]; visible: string[] } {

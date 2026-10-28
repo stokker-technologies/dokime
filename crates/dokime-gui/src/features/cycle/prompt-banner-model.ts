@@ -24,11 +24,7 @@
  * The module imports types only, so a node test can load it directly.
  */
 
-/* === Local Imports === */
-
 import type { HubRecord, Severity as PromptLevel } from "@/lib/types";
-
-/* === Types === */
 
 export type PromptLevelTone = "danger" | "warning" | "info" | "muted";
 
@@ -60,16 +56,12 @@ export type AnsweredPrompt = {
   at: string;
 };
 
-/* === Constants === */
-
 const LEVEL_RANK: Record<PromptLevel, number> = {
   error: 3,
   warning: 2,
   info: 1,
   debug: 0,
 };
-
-/* === Public Functions === */
 
 /**
  * Most urgent first; within a level the oldest first, because it has waited
@@ -147,8 +139,6 @@ export function promptLevelTone(level: PromptLevel): PromptLevelTone {
 export function pendingPromptCountLabel(count: number): string {
   return `${count} ${count === 1 ? "prompt" : "prompts"} waiting`;
 }
-
-/* === Private Functions === */
 
 /** An unreadable timestamp sorts last within its level rather than first. */
 function createdAtMs(prompt: RankedPrompt): number {

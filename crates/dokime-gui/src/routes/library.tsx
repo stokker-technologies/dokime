@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-/* === Local Imports === */
-
 import { LibrarySurface } from "@/features/library/LibrarySurface";
-
-/* === Constants === */
 
 const librarySearchSchema = z.object({
   appendTo: z
@@ -31,14 +25,10 @@ const librarySearchSchema = z.object({
     .catch(undefined),
 });
 
-/* === Route === */
-
 export const Route = createFileRoute("/library")({
   component: LibraryRoute,
   validateSearch: (search) => librarySearchSchema.parse(search),
 });
-
-/* === Components === */
 
 function LibraryRoute() {
   const { appendTo } = Route.useSearch();

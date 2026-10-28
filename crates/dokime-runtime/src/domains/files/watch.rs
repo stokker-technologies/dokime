@@ -16,13 +16,6 @@
 // line the Stream policy captures to them, publishing rows to the matched
 // streams and markers as records in the watched execution's scope.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Seek;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -30,11 +23,9 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use tempfile::TempPath;
 use tokio::{io::AsyncSeekExt, sync::oneshot};
 
-// Local Imports
 use super::source::{Entry, Listing, ReadFailure, Source};
 use super::{GapReason, Phase, Policy, Selection, Settings, capped, invalid, unreachable_source};
 use crate::artifacts::ArtifactRecord;
@@ -51,16 +42,8 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 
-/* === Constants === */
-
 // The producer named on the rows and records line matchers publish.
 const SOURCE: &str = "dokime.files";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct FileWatch {
     // Taken by `Drop` to seal an abandoned watch in the background.
@@ -124,8 +107,6 @@ struct Tracked {
     sealable: bool,
 }
 
-/* === Enums === */
-
 #[derive(Debug)]
 pub enum WatchEvent {
     Armed { baseline: Vec<String> },
@@ -133,10 +114,6 @@ pub enum WatchEvent {
     Gap { path: String, offset: u64, reason: GapReason },
     Sealed { path: String, record: Box<ArtifactRecord> },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl FileWatch {
     pub(super) async fn open(runtime: RuntimeHandle, settings: Settings, source: Source) -> Result<Self> {
@@ -734,10 +711,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn over_bytes(maximum: u64, path: &str) -> Error {
     capped(format!("the watch captures at most {maximum} bytes; {path:?} would exceed it"))
 }
@@ -764,5 +737,3 @@ async fn open_spool(path: &TempPath, length: u64, truncate: bool) -> Result<toki
     file.seek(std::io::SeekFrom::Start(length)).await.map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
     Ok(file)
 }
-
-/* === Tests === */

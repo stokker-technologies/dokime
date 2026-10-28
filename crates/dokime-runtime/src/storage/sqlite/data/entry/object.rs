@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::{ObjectEntry, ObjectKey, ObjectVersionToken, SchemaKey, StorageCursor};
 use serde::Serialize;
 
-// Local Imports
 use super::{Buffer, check_size};
 use crate::storage::sqlite::Error;
 
-/* === Constants === */
-
 const PREFIX: usize = std::mem::size_of::<u32>();
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Serialize)]
 struct Header<'a> {
@@ -47,12 +29,6 @@ struct Value<'a> {
     payload: &'static [u8],
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl<'a> From<&'a ObjectEntry> for Header<'a> {
     fn from(value: &'a ObjectEntry) -> Self {
         Self {
@@ -66,8 +42,6 @@ impl<'a> From<&'a ObjectEntry> for Header<'a> {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn portable_bytes(bytes: &[u8]) -> Result<usize, Error> {
     let prefix = bytes.get(..PREFIX).ok_or(Error::Corrupt("truncated SQLite object frame"))?;
@@ -140,7 +114,3 @@ pub(super) fn decode(bytes: &[u8]) -> Result<ObjectEntry, Error> {
     value.value.payload.extend_from_slice(payload);
     Ok(value)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

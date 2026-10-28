@@ -7,38 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::domain::model;
 use {dokime::Value, dokime::domains::execution::authoring::SidecarStepContext};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn inspection_separates_outputs() {
@@ -436,5 +407,3 @@ async fn planned_params_limit() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

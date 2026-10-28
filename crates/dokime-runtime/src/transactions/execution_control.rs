@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
@@ -34,14 +24,6 @@ use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[harmos::transaction(id = "dokime.execution.control", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -50,12 +32,6 @@ pub struct ControlExecution {
     pub action: CycleControlAction,
     pub occurred_at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ControlExecution {
     pub(crate) fn owning_request<'a>(state: &'a RuntimeState, id: &TestExecutionId) -> Option<&'a RunRequest> {
@@ -208,9 +184,3 @@ impl ControlExecution {
         commit_settled_prompts(state, settled);
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

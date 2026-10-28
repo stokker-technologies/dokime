@@ -9,34 +9,18 @@
 
 // Stopped Report Boundary Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{
     Mutex,
     atomic::{AtomicU64, Ordering},
 };
 
-// Third Party Imports
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use dokime_runtime::domains::telemetry::{Sampler, SamplerSession, SettlementError};
 use dokime_runtime::telemetry::{SamplingScope, TelemetrySamplingRequest, TelemetrySourceKind};
 
-// Local Imports
 use crate::service_support::prelude::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[derive(Default)]
 struct QueuedSamples {
     ready: tokio::sync::watch::Sender<bool>,
@@ -59,11 +43,6 @@ struct CollectedSession {
     settling: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl ExecutionFixture for QueuedSamples {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
@@ -149,7 +128,6 @@ impl SamplerSession for CollectedSession {
     }
 }
 
-/* === Public Functions === */
 #[tokio::test]
 async fn stopped_report_boundary() {
     let root = tempdir().unwrap();
@@ -229,7 +207,3 @@ async fn stopped_report_boundary() {
     drop((captured, checkpoint, runtime));
     owner.shutdown().await.unwrap();
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Imports === */
-
 import { Activity, LoaderCircle } from "lucide-react";
 import type { LiveExecutionProgress } from "@/app/live/use-execution-progress";
 import { formatDuration } from "@/lib/format";

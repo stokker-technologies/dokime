@@ -7,19 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 mod options;
 mod project;
-
-/* === Re-Exports === */
 
 pub use options::Options;
 pub use project::Project;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -27,16 +20,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use cargo_metadata::{Message, MetadataCommand, Package};
 use dokime::harmos::plugin::inventory::Declaration;
 use dokime::harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source};
 
-// Local Imports
 use crate::{Error, bundle::files, process};
-
-/* === Constants === */
 
 const PROBE_TIMEOUT_MS: u64 = 30_000;
 const PROBE_OUTPUT_BYTES: u64 = 65_536;
@@ -44,13 +33,7 @@ const STRIP_TIMEOUT_MS: u64 = 120_000;
 const CATALOG_EXPORT_TIMEOUT_MS: u64 = 10_000;
 const CATALOG_STDERR_BYTES: u64 = 262_144;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Executables = BTreeMap<String, Vec<(PathBuf, Option<PathBuf>)>>;
-
-/* === Structs === */
 
 // One plugin's executables as an earlier Cargo build produced them, ready to bundle without compiling again.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -67,12 +50,6 @@ pub struct Collected {
 struct DebugInfo {
     enabled: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DebugInfo {
     fn of(package: &Package) -> Self {
@@ -102,8 +79,6 @@ impl DebugInfo {
             .map(|path| path.clone().into_std_path_buf())
     }
 }
-
-/* === Public Functions === */
 
 #[tracing::instrument(level = "debug", skip_all)]
 pub async fn run(args: Options) -> Result<PathBuf, Error> {
@@ -158,8 +133,6 @@ pub async fn package(collected: Collected, output: &Path) -> Result<PathBuf, Err
     }
     bundle(&collected.package, &collected.target, executables, destination, collected.strip).await
 }
-
-/* === Private Functions === */
 
 async fn metadata(args: &Options, dependencies: bool) -> Result<cargo_metadata::Metadata, Error> {
     let cargo_timeout = args.cargo_timeout;
@@ -508,8 +481,6 @@ fn package_identity(package: &Package) -> Identity {
         },
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

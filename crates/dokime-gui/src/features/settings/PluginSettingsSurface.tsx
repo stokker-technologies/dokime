@@ -17,12 +17,8 @@
  * plugin, with nothing nested inside it.
  */
 
-/* === External Imports === */
-
 import { useMemo } from "react";
 import { toast } from "sonner";
-
-/* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
@@ -34,19 +30,15 @@ import {
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
-import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { SettingsRow } from "@/features/settings/SettingsRow";
+import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { usePageChrome } from "@/shell/page-chrome";
-
-/* === Types === */
 
 type PluginSettingsSurfaceProps = {
   /** The contributed section's id, which is how the frame keys its cards. */
   pluginId: string;
 };
-
-/* === Components === */
 
 export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSurfaceProps) {
   const settings = useSettingsSections();
@@ -98,8 +90,6 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
     </div>
   );
 }
-
-/* === Private Components === */
 
 /** The artifact's own editable settings and secret bindings. */
 function PluginDetailCard({ pluginId }: { pluginId: string }) {

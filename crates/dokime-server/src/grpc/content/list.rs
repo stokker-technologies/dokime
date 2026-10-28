@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use super::metadata;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
@@ -30,24 +21,10 @@ use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{RuntimeHandle, artifacts::ArtifactRecord};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListArtifacts> for Resources {
     fn serve<'a>(
@@ -74,8 +51,6 @@ impl Serve<wire::ListArtifacts> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -84,8 +59,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn inventory_failure(error: dokime::runtime::Error) -> Status {
     let status = match &error {
@@ -149,5 +122,3 @@ fn project(
     }
     Ok(reply)
 }
-
-/* === Tests === */

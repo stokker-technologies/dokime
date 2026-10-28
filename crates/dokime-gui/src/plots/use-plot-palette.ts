@@ -7,20 +7,14 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useTheme } from "next-themes";
 import { useMemo } from "react";
-
-/* === Local Imports === */
 
 import { useAppearance } from "@/lib/appearance";
 import type { ResolvedTheme } from "@/lib/theme";
 import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
 import { plotPaletteFromVariables, resolvePlotThemeColors } from "@/plots/colors";
 import { useUiStore } from "@/stores/ui-store";
-
-/* === Public Functions === */
 
 export function usePlotPalette(): string[] {
   const appearance = useAppearance();

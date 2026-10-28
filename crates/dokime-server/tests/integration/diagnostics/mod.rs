@@ -7,17 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{Cursor, Read as _, Write as _};
-// Third Party Imports
+
 use sha2::Digest as _;
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use {
@@ -26,27 +19,9 @@ use {
     dokime::settings::TextArea,
 };
 
-/* === Constants === */
-
 const SECRET: &str = "diagnostics-fake-secret-material";
 
 const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let environment = support::TestEnvironment::with_installed_plugins(vec![secret_module()]).await;
@@ -111,8 +86,6 @@ fn record(level: &str, message: &str) -> String {
         r#"{{"timestamp":"2026-09-30T14:22:33.000001Z","level":"{level}","target":"dokime::fixture","fields":{{"message":"{message}"}}}}"#
     )
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn collected_archive_material() {

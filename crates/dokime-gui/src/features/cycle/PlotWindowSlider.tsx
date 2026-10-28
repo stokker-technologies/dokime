@@ -7,29 +7,15 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import { TimerReset } from "lucide-react";
 
 import { useEffect, useMemo, useState } from "react";
-
-// Local Imports
 
 import { Slider } from "@/components/ui/slider";
 
 import { elapsedWindowLabel } from "@/plots/axis";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const GUI_PLOT_WINDOW_PRESETS_S = [30, 60, 120, 300, 600, 1_800, 3_600];
-
-/* === Types === */
 
 export type PlotWindowOption = {
   label: string;
@@ -44,8 +30,6 @@ export type PlotWindowState = {
   overridden: boolean;
   choose: (index: number) => void;
 };
-
-/* === Components === */
 
 export function PlotWindowSlider({
   elapsedUnit = null,
@@ -121,8 +105,6 @@ export function PlotWindowControl({ elapsedUnit, live, window }: { elapsedUnit: 
   );
 }
 
-/* === Hooks === */
-
 /** The plot window one document view scales its plots by. */
 export function usePlotWindow(): PlotWindowState {
   const options = usePlotWindowOptions();
@@ -138,8 +120,6 @@ export function usePlotWindow(): PlotWindowState {
     overridden: option.value !== undefined,
   };
 }
-
-/* === Public Functions === */
 
 /**
  * What the window control is called, and how it states its value.
@@ -176,8 +156,6 @@ export function plotWindowOptions(presets: readonly number[]): [PlotWindowOption
     { label: "All", detail: "all stored samples", value: null },
   ];
 }
-
-/* === Private Functions === */
 
 function usePlotWindowOptions(): [PlotWindowOption, ...PlotWindowOption[]] {
   return useMemo(() => plotWindowOptions(GUI_PLOT_WINDOW_PRESETS_S), []);

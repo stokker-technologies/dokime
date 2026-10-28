@@ -7,26 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 // Asked before the startup sequence goes on. The charger is energized while
 // the operator looks, so the question is raised to Warning.
 #[dokime::prompt(
@@ -60,15 +40,3 @@ pub struct SteadyCheck {
     #[prompt(label = "Charger Inspection Passed", default = false)]
     pub accepted: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,15 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod desktop;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -23,20 +16,16 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-// Third Party Imports
 use semver::Version;
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{ChildStdin, ChildStdout, Command},
 };
 
-// Local Imports
 use super::build;
 use crate::error::Error;
 use dokime::terminal::{ColorMode, Terminal};
 use dokime_packaging::process::Child;
-
-/* === Constants === */
 
 const VERSION_TIMEOUT_MS: u64 = 10_000;
 const DEVELOPMENT_POLL_MS: u64 = 500;
@@ -50,13 +39,7 @@ const VERSION_STDERR_BYTES: u64 = 65_536;
 const DEVELOPMENT_COMMAND_BYTES: u64 = 16_384;
 const DEVELOPMENT_REPLY_BYTES: u64 = 65_536;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Snapshot = BTreeMap<PathBuf, (SystemTime, u64)>;
-
-/* === Structs === */
 
 #[derive(clap::Args)]
 #[group(id = "development")]
@@ -126,8 +109,6 @@ struct Gui {
     control: Option<ChildStdin>,
 }
 
-/* === Enums === */
-
 enum ProcessExit {
     Backend(std::process::ExitStatus),
     Gui(std::process::ExitStatus),
@@ -144,15 +125,11 @@ enum ReadinessLine {
     Ready(String),
 }
 
-/* === Traits === */
-
 trait ShutdownOwner {
     async fn drain(&mut self, terminal: &Terminal) -> Result<(), Error>;
     fn terminate(&mut self) -> Result<(), Error>;
     async fn reap(&mut self) -> Result<(), Error>;
 }
-
-/* === Implementations === */
 
 impl ShutdownOwner for Host {
     async fn drain(&mut self, terminal: &Terminal) -> Result<(), Error> {
@@ -184,8 +161,6 @@ impl ShutdownOwner for Host {
         backend
     }
 }
-
-/* === Public Functions === */
 
 pub async fn run(mut args: Args) -> Result<(), Error> {
     let terminal = Terminal::new(ColorMode::Auto);
@@ -344,8 +319,6 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
     }
     result
 }
-
-/* === Private Functions === */
 
 async fn wait_for_exit(running: &mut Option<Host>) -> Result<ProcessExit, Error> {
     let Some(host) = running.as_mut() else {
@@ -790,5 +763,3 @@ fn compatible(host: &Identity, sdk: &Version) -> Result<(), Error> {
     }
     Ok(())
 }
-
-/* === Tests === */

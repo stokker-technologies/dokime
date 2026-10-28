@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::wire;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{canonical, projection};
@@ -30,24 +21,10 @@ use dokime::operations::history::BrowseCycles;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::cycle_history::{CycleBrowsePage as NativePage, CycleBrowseQuery};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<BrowseCycles> for Resources {
     fn serve<'a>(&'a self, mut request: BrowseCycles, _: Context<'a, BrowseCycles>) -> Served<'a, CycleBrowsePage> {
@@ -70,8 +47,6 @@ impl Serve<BrowseCycles> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -80,8 +55,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn project(page: dokime::harmos::storage::ReadBatch<NativePage>, maximum: usize) -> dokime::harmos::Result<Response<CycleBrowsePage>> {
     let projected = page.try_map(project_wire)?;
@@ -121,5 +94,3 @@ fn original_error(source: Status) -> dokime::harmos::Error {
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted { resource: "canonical cycle browse page" }
 }
-
-/* === Tests === */

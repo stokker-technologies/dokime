@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::storage::objects::presentation as native;
 use crate::telemetry::contract::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use crate::{runtime::Error, runtime::Result};
@@ -32,15 +22,7 @@ use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
 use dokime_domain::model::values::ValueType;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Declarations = BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>;
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -86,12 +68,6 @@ struct Column {
     default: Option<native::Value>,
     format: Option<native::ValueFormat>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TryFrom<&Declarations> for Contracts {
     type Error = Error;
@@ -212,8 +188,6 @@ impl TryFrom<Column> for TelemetryColumn {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn value_type_code(value: &ValueType) -> u32 {
     match value {
         ValueType::Boolean => 1,
@@ -256,8 +230,6 @@ pub(super) fn validation_mode(value: u32) -> Result<ValidationMode> {
     }
 }
 
-/* === Private Functions === */
-
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
@@ -290,5 +262,3 @@ fn role(value: u32) -> Result<TelemetryRole> {
         _ => Err(invalid("unknown telemetry role")),
     }
 }
-
-/* === Tests === */

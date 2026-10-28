@@ -7,24 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{Testbench, Transactions, error::LaunchError};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 pub type Origin = dokime::harmos::state::Origin<Testbench>;
 pub type Builder = dokime::harmos::Builder<ChargerBench>;
@@ -32,12 +15,8 @@ pub type Runtime = dokime::harmos::Runtime<ChargerBench>;
 pub type Handle = dokime::harmos::runtime::Handle<ChargerBench>;
 pub type State = dokime::harmos::state::ManagedState<ChargerBench>;
 
-/* === Structs === */
-
 #[derive(Clone, Copy, Debug)]
 pub struct ChargerBench;
-
-/* === Enums === */
 
 // The bench admits all work on one lane.
 #[dokime::harmos::lanes(harmos_path = dokime::harmos)]
@@ -45,10 +24,6 @@ pub enum Lanes {
     #[default]
     Bench,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl dokime::harmos::Application for ChargerBench {
     type Lanes = Lanes;
@@ -59,8 +34,6 @@ impl dokime::harmos::Application for ChargerBench {
     type Resources = ();
 }
 
-/* === Public Functions === */
-
 pub fn builder(origin: impl Into<Origin>, resources: ()) -> Builder {
     Runtime::builder(origin, resources).register(Transactions::catalog())
 }
@@ -70,7 +43,3 @@ pub fn builder(origin: impl Into<Origin>, resources: ()) -> Builder {
 pub async fn launch(origin: impl Into<Origin>) -> Result<Runtime, LaunchError> {
     Ok(builder(origin, ()).runtime().await?)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

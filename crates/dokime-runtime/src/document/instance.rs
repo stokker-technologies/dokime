@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::document::{DocumentDefinition, DocumentPayload};
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentInstance {
@@ -37,12 +19,6 @@ pub struct DocumentInstance {
     pub payload: Option<DocumentPayload>,
     pub updated_at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DocumentInstance {
     pub fn new(definition: DocumentDefinition, updated_at: Timestamp) -> Self {
@@ -58,9 +34,3 @@ impl DocumentInstance {
         self.updated_at = updated_at;
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

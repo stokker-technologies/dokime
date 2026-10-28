@@ -11,20 +11,9 @@
  * TODO: Describe this module's responsibility.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { type ComponentType, createContext, useContext } from "react";
-// Local Imports
+
 import type { DocumentDownsampleTechnique, DocumentViewPlot } from "@/lib/types";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type PlotDisplaySettings = {
   /** `null` restores the host default; `0` keeps every retained sample. */
@@ -37,17 +26,9 @@ export type PlotSettingsButtonProps = {
   onSubmit: (settings: PlotDisplaySettings) => Promise<void>;
 };
 
-/* === Classes === */
-
-/* === Public Functions === */
-
 /** Only a connected workspace supplies an editor; frozen plots retain their captured settings. */
 export const PlotSettingsEditorContext = createContext<ComponentType<PlotSettingsButtonProps> | null>(null);
 
 export function usePlotSettingsEditor() {
   return useContext(PlotSettingsEditorContext);
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

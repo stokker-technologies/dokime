@@ -7,38 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use crate::support::wire::WireMessage;
 
-// Local Imports
 use super::*;
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn client(root: &std::path::Path) -> (impl Sized, WireClient) {
     let owner = runtime(root).await;
@@ -157,8 +129,6 @@ async fn unspecified_source_read() {
     assert_eq!(status.code(), tonic::Code::InvalidArgument);
     assert_eq!(status.message(), "aggregate source is unspecified");
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn detailed_status_directory() {

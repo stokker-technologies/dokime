@@ -7,39 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::support::plots::{self, data_frame, publish, publish_scoped, request, served_points};
 use dokime::Identifier;
 use dokime::domain::model;
 
-/* === Constants === */
-
 const STORED: u64 = 300;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 #[tokio::test]
 async fn sample_watch_fixed_frontier_and_resume() {
@@ -372,7 +345,3 @@ async fn quiet_plot_watch_outlives_the_idle_deadline() {
     drop(handle);
     owner.shutdown().await.unwrap();
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

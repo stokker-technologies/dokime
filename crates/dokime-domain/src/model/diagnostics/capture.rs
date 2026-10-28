@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 #[cfg(feature = "diagnostics")]
 use std::backtrace::Backtrace;
 use std::fmt;
@@ -21,16 +14,11 @@ use std::fmt;
 #[cfg(feature = "diagnostics")]
 use std::panic::Location;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
 #[cfg(feature = "diagnostics")]
 use tracing_error::SpanTrace;
-
-// Local Imports
-
-/* === Constants === */
 
 #[cfg(feature = "diagnostics")]
 const HOME: &str = "~";
@@ -48,12 +36,6 @@ const UNKNOWN: &str = "<unknown>";
 const UNRESOLVED_HINT: &str = "no frame resolved to a symbol: the plugin was \
 built without debug info, or on Windows its .pdb was not found beside the \
 executable";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diagnostic {
@@ -78,12 +60,6 @@ struct Redaction {
     home: Option<String>,
     user: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for Diagnostic {
     fn memory_size(&self) -> usize {
@@ -237,8 +213,6 @@ impl fmt::Display for Diagnostic {
 
 impl std::error::Error for Diagnostic {}
 
-/* === Public Functions === */
-
 #[cfg(feature = "diagnostics")]
 #[must_use]
 pub fn redacted(text: &str) -> String {
@@ -256,8 +230,6 @@ where
         Err(error) => Err(Diagnostic::at(Location::caller(), &error)),
     }
 }
-
-/* === Private Functions === */
 
 #[cfg(feature = "diagnostics")]
 fn located(location: &Location<'_>) -> String {
@@ -386,5 +358,3 @@ fn spans() -> Vec<String> {
 
     spans
 }
-
-/* === Tests === */

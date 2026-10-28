@@ -7,26 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct PluginPage {
     pub entries: Vec<PluginEntry>,
@@ -34,12 +15,6 @@ pub struct PluginPage {
     pub total: usize,
     pub next: Option<Uuid>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PluginStore {
     pub async fn get(&self, id: Uuid) -> Result<PluginEntry, PluginError> {
@@ -99,9 +74,3 @@ impl PluginStore {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

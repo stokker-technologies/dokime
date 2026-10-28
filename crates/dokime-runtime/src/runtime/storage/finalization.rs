@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use futures_util::{StreamExt, stream::FuturesUnordered};
 
-// Local Imports
 use crate::RuntimeHandle;
 use crate::operations::reports::MaterializeReport;
 use crate::runtime::Error;
@@ -27,20 +17,6 @@ use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::reports::wire::ReportSubject;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl super::executions::ExecutionStorage {
     // Execution Reports Need The Cycle Header And Their Own Member Only.
@@ -273,12 +249,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())
 }
-
-/* === Tests === */

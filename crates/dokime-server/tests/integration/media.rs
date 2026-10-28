@@ -10,37 +10,11 @@
 // Operator media operations against a running execution. Live captures run
 // when the host has the device; otherwise the refusal itself is asserted.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use super::content::UploadGate;
 use super::*;
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 #[tokio::test]
 async fn media_capture_artifacts() {
@@ -220,8 +194,6 @@ async fn media_capture_artifacts() {
     owner.shutdown().await.unwrap();
 }
 
-/* === Private Functions === */
-
 pub(super) async fn running_execution(owner: &Runtime, client: &WireClient, gate: &UploadGate) -> model::content::wire::ArtifactScope {
     let cycle_id = support::planned_cycle(
         client,
@@ -310,5 +282,3 @@ fn refused(status: &tonic::Status, device: &str) {
     }
     eprintln!("Skipped live {device} capture: {}", status.message());
 }
-
-/* === Tests === */

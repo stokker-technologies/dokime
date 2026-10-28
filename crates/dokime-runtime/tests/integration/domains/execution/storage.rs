@@ -7,17 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::*;
 use dokime_domain::model::content::wire;
 use dokime_domain::model::execution::request::RunPhase;
@@ -25,23 +16,12 @@ use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use {dokime_domain::model::execution::result::CycleView, dokime_domain::model::execution::result::TestExecution};
 
-/* === Constants === */
 const UNENCODABLE: &str = "fixture report cannot be encoded";
 
 const UNSEALED: &str = "final execution report was not sealed";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct UnencodableReport(FakePythonExecutor, Arc<std::sync::atomic::AtomicBool>);
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl ExecutionFixture for UnencodableReport {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, target: &'a ExecutionProviderTarget,
@@ -53,12 +33,6 @@ impl ExecutionFixture for UnencodableReport {
         self.1.load(std::sync::atomic::Ordering::SeqCst).then(|| UNENCODABLE.to_owned())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn execution_save_sealing() {

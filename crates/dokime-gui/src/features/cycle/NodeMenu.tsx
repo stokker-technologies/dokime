@@ -14,15 +14,9 @@
  * viewer's menu offers without rendering it.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { Archive, ArchiveRestore, Copy, Ellipsis, FileText, Plus, RotateCcw, Settings2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
-// Local Imports
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,12 +27,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type NodeMenuItem, nodeMenuGroups } from "./cycle-workspace-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 /** Archive or Unarchive, as the node's menu offers it. */
 export type ArchiveAction = {
@@ -78,8 +66,6 @@ export type ExecutionMenu = {
   onSettings: (() => void) | null;
 };
 
-/* === Components === */
-
 /** The selected node's own menu, behind one trigger of one size on both pages. */
 export function NodeMenu({ menu, children }: { menu: CycleMenu | ExecutionMenu; children?: ReactNode }) {
   return (
@@ -110,12 +96,6 @@ export function NodeMenu({ menu, children }: { menu: CycleMenu | ExecutionMenu; 
     </DropdownMenu>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 /** One menu entry, wired to the handler its node supplies. */
 function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | ExecutionMenu }) {

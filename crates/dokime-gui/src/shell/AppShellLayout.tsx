@@ -11,31 +11,20 @@
  * Shared Application And Frozen Report Frame; Resourceful Regions Are Supplied.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useRef } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { focusPresentation, useFocusMode } from "./focus-mode";
-import { useNavigationMode } from "./use-sidebar-state";
 import { settingsParent } from "./navigation-model";
 import { PanelHeader } from "./PageShell";
 import { PageChromeProvider, usePageChromeState } from "./page-chrome";
 import type { FrozenCycleStatus } from "./StatusBarFrame";
+import { useNavigationMode } from "./use-sidebar-state";
 
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 /** The four destinations, which have nothing above them to go back to. */
 const TOP_LEVEL = new Set(["/cycles", "/library", "/history", "/settings"]);
 
-/* === Types === */
 export type FrozenShell = {
   selection: { caseId?: string; executionId?: string };
   cycleId: string;
@@ -55,7 +44,6 @@ type AppShellLayoutProps = {
   console?: ReactNode;
 };
 
-/* === Components === */
 export function AppShellLayout(props: AppShellLayoutProps) {
   return (
     <TooltipProvider>
@@ -163,8 +151,6 @@ function LivePanelHeader({
   );
 }
 
-/* === Public Functions === */
-
 /**
  * What a frozen report's page bar says: what the file is, and when it was
  * written. Provenance belongs beside the document's identity, where a reader
@@ -175,10 +161,6 @@ export function frozenReportTitle(generatedAt: string | null): string {
   if (!at || Number.isNaN(at.getTime())) return "Frozen Report";
   return `Frozen Report \u00b7 Generated ${at.toLocaleString()}`;
 }
-
-/* === Private Components === */
-
-/* === Private Functions === */
 
 /**
  * The panel the Back chevron leaves to, or null on a top-level destination.
@@ -210,9 +192,3 @@ function useParentRoute(): string | null {
   if (pathname.startsWith("/library/")) return "/library";
   return null;
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

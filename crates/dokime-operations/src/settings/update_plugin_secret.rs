@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message(skip_debug)]
 #[harmos::operation(resources = [crate::hosting::Host<UpdatePluginSecret>], codec = manual, response = PluginRuntimeSettings, id = "dokime.settings.update_plugin_secret",
@@ -41,12 +23,6 @@ pub struct UpdatePluginSecret {
     pub secret: String,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl std::fmt::Debug for UpdatePluginSecret {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -57,12 +33,6 @@ impl std::fmt::Debug for UpdatePluginSecret {
             .finish()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {
@@ -83,8 +53,6 @@ mod tests {
         assert_eq!(request.secret, "private-value-42");
     }
 }
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

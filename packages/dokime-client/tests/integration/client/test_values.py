@@ -8,31 +8,14 @@
 
 """Round-Trip Typed Values Through The Canonical Wire"""
 
-# === Imports === #
-
-# Standard Library Imports
 import math
 from datetime import UTC, datetime, timedelta
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 import dokime_client
 from dokime_client.client import Aggregate, DatetimeValue, UnsignedValue, _contracts, _wire
 from dokime_client.client._wire import decode, encode
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_number_values() -> None:
@@ -96,9 +79,6 @@ def test_aggregate_codec() -> None:
         pytest.raises(ValueError, Aggregate.percentile, rank).match("outside 0 to 100")
 
 
-# === Private Functions === #
-
-
 def _project(item):
     return _contracts.nested("Evidence", "ListRecords", "records.details", direction="response", **encode(item, 64))
 
@@ -106,6 +86,3 @@ def _project(item):
 def _round_trip(item):
     wire = _project(item)
     return type(wire).FromString(wire.SerializeToString())
-
-
-# === Entry Point === #

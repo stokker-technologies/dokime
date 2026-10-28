@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-// Local Imports
-
-/* === Constants === */
-
 const MAXIMUM_SOURCES: usize = 32;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 /// Organization Defaults Contain Source Locations, Never Authentication Values.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -51,8 +33,6 @@ pub struct Connection {
     pub host: String,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Mode {
@@ -69,10 +49,6 @@ pub enum Source {
     Github { repository: String },
     Gitlab { connection: String, project: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl UpdatePolicy {
     pub fn validate(&self) -> Result<(), String> {
@@ -129,8 +105,6 @@ impl UpdatePolicy {
     }
 }
 
-/* === Public Functions === */
-
 pub fn https_url(value: &str) -> Result<Url, String> {
     if value.len() > 4096 {
         return Err("organization release URL exceeds 4096 bytes".into());
@@ -147,8 +121,6 @@ pub fn https_url(value: &str) -> Result<Url, String> {
     Ok(url)
 }
 
-/* === Private Functions === */
-
 fn validate_name(value: &str) -> Result<(), String> {
     let safe = !value.is_empty()
         && value.len() <= 128
@@ -160,8 +132,6 @@ fn validate_name(value: &str) -> Result<(), String> {
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

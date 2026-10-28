@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 pub(crate) mod analysis;
 pub(crate) mod authoring;
 pub(crate) mod calls;
@@ -23,33 +22,3 @@ pub(crate) mod prompts;
 pub(crate) mod resources;
 pub(crate) mod sdk_error;
 pub(crate) mod stream_admission;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

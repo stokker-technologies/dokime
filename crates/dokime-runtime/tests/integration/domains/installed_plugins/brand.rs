@@ -7,23 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{fs, path::Path};
 
-// Third Party Imports
 use dokime_runtime::domains::{ThemeActivationPolicy, ThemeCornerRadii, ThemeModePolicy};
 use tempfile::tempdir;
 
-// Local Imports
 use dokime_runtime::domains::installed_plugins::load_brand;
 
-/* === Constants === */
 const NEUTRAL_BRAND: &str = r##"
 [app]
 label = "Stokker Technologies Test Hub"
@@ -96,21 +86,6 @@ const REQUIRED_TEST_PALETTE: &[&str] = &[
     "ring",
 ];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn write_brand(dir: &Path, manifest: &str) {
     fs::write(dir.join("organization.toml"), manifest).unwrap();
     let logos = dir.join("logos");
@@ -134,8 +109,6 @@ fn write_brand(dir: &Path, manifest: &str) {
     fs::write(dir.join("theme/light.css"), palette(":root", "#111111")).unwrap();
     fs::write(dir.join("theme/dark.css"), palette(".dark", "#eeeeee")).unwrap();
 }
-
-/* === Tests === */
 
 #[test]
 fn organization_overlay() {

@@ -7,15 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{
     Identifier,
     storage::{
@@ -24,21 +15,12 @@ use harmos::{
     },
 };
 
-// Local Imports
 use super::{PositionedTelemetry, append_retained, invalid};
 use crate::runtime::{Error, Result, storage::execution::ExecutionView};
 use crate::storage::{
     Manager,
     telemetry::{self, TelemetryEntry, TypedCodec},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct TelemetryReader {
     view: ExecutionView,
@@ -56,12 +38,6 @@ struct TypedRead {
     after: u64,
     finished: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TelemetryReader {
     pub(crate) async fn open(view: &ExecutionView, settings: &harmos::config::SchemaSettings) -> Result<Self> {
@@ -198,10 +174,6 @@ impl TelemetryReader {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn read_head(
     session: &Manager, view: &ExecutionView, codec: &TypedCodec, after: u64, page_rows: usize,
 ) -> Result<ReadBatch<Vec<PositionedTelemetry>>> {
@@ -255,5 +227,3 @@ async fn read_head(
     }
     Ok(rows)
 }
-
-/* === Tests === */

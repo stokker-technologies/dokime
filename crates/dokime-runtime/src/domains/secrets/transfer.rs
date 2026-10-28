@@ -9,37 +9,20 @@
 
 // Decode Complete Bounded Files Before Preview Or Atomic Publication.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::Write,
 };
 
-// Third Party Imports
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
-// Local Imports
 use super::{Change, SecretStore, SecretStoreError, SecretValue};
 use dokime_domain::model::secrets::{
     catalog,
     transfer::{self, Action, Archive, Choice, Preview},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -56,12 +39,6 @@ struct Entry {
 }
 
 struct DocumentBuffer(Zeroizing<Vec<u8>>, usize);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl SecretStore {
     pub(crate) async fn export(&self, identifiers: &[String], generation: u64) -> Result<Archive, SecretStoreError> {
@@ -183,10 +160,6 @@ impl Write for DocumentBuffer {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn decode(data: &[u8]) -> Result<Document, SecretStoreError> {
     if data.is_empty() || data.len() as u64 > catalog::DOCUMENT_BYTES.div_ceil(3) * 4 {
         return Err(SecretStoreError::Invalid("Secret archive exceeds its limit or is empty"));
@@ -217,5 +190,3 @@ fn decode(data: &[u8]) -> Result<Document, SecretStoreError> {
     }
     Ok(document)
 }
-
-/* === Tests === */

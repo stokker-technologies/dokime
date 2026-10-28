@@ -7,31 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::Path, sync::Arc};
-// Third Party Imports
 
-// Local Imports
 use super::artifact;
 use dokime::domain::model;
 use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::BackendSelection;
 use dokime_server::grpc::{Config, Server};
 use {dokime::Identifier, dokime::Metadata, dokime::Runtime, dokime::RuntimeConfig};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Fixture {
     pub session: ConnectionSession,
@@ -45,12 +28,6 @@ pub struct Published {
     runtime: Runtime,
     server: Server,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Fixture {
     pub async fn new() -> Self {
@@ -120,8 +97,6 @@ impl Published {
     }
 }
 
-/* === Public Functions === */
-
 pub fn attach(endpoint: String) -> BackendSelection {
     BackendSelection::Attach {
         request: ConnectRequest {
@@ -131,7 +106,3 @@ pub fn attach(endpoint: String) -> BackendSelection {
         },
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

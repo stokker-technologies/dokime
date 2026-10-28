@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Mutex, PoisonError, RwLock},
 };
 
-// Third Party Imports
 use uuid::Uuid;
 
-// Local Imports
 use crate::settings::{SecretReference, SettingValues, Settings};
 use crate::{
     config::Settings as ApplicationSettings,
@@ -31,14 +22,6 @@ use crate::{
     secrets::{SecretStore, SecretStoreError},
 };
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug)]
 pub(crate) struct PluginPreferences {
@@ -54,12 +37,6 @@ pub(crate) struct ResolvedPluginPreferences {
     pub discovered: SettingValues,
     pub redacted_secrets: PluginRuntimeSecretBindings,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PluginPreferences {
     pub(crate) fn new(settings: ApplicationSettings) -> Self {
@@ -172,10 +149,6 @@ impl PluginPreferences {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn redacted_bindings(
     settings: &Settings, values: &SettingValues, secrets: &SecretStore,
 ) -> Result<PluginRuntimeSecretBindings, RuntimePluginManagementError> {
@@ -206,5 +179,3 @@ fn secret_error(error: SecretStoreError) -> RuntimePluginManagementError {
 fn invalid_input(error: impl std::fmt::Display) -> RuntimePluginManagementError {
     RuntimePluginManagementError::InvalidInput(error.to_string())
 }
-
-/* === Tests === */

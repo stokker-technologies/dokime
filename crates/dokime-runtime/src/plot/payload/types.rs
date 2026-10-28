@@ -7,35 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::document::DownsampleTechnique;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-// Local Imports
 use crate::document::{AxisScale, DocumentFilter, FftOptions, HistogramOptions, PlotType, SigmaIntervalOptions};
 use crate::expressions::DataExpression;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -287,8 +270,6 @@ pub struct PlotMarker {
     pub color: String,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlotPayloadStreamKind {
@@ -304,14 +285,6 @@ pub enum PlotCartesianMode {
     Faceted,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn deserialize_window_s<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -324,5 +297,3 @@ where
     }
     Ok(window_s)
 }
-
-/* === Tests === */

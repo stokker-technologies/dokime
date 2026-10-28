@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<FileWatch>], response = (), output = FileWatchFrame, id = "dokime.files.file_watch",
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
@@ -73,20 +55,6 @@ pub struct FileWatch {
     #[row(description = "Bytes the watch may capture across its files: default 256 MiB, maximum 4 GiB.")]
     pub maximum_bytes: Option<u64>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

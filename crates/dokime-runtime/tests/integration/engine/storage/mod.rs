@@ -9,24 +9,16 @@
 
 #![cfg(feature = "storage")]
 
-/* === Modules === */
 mod cancellation;
 mod nominal;
 pub(crate) mod objects;
 pub(crate) mod reports;
 pub(crate) mod sqlite;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::storage::{ScanPage, StorageBackend, StorageCursor, StorageSchema, StoredRecord, query::RecordSelection};
 
-// Local Imports
 use dokime_domain::model;
 use {
     dokime_runtime::Identifier, dokime_runtime::RecordId, dokime_runtime::RecordScope, dokime_runtime::SessionId,
@@ -34,24 +26,8 @@ use {
     dokime_runtime::storage::sqlite::Backend, model::records::evidence::RecordEntry, model::records::publication::RecordPublishRequest,
 };
 
-/* === Constants === */
 const FRAME_BYTES: usize = 1024 * 1024;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn entry(sequence: u64, volts: f64) -> RecordEntry {
     let mut record = RecordPublishRequest::new(Identifier::new("charger.measurement").unwrap(), RecordSeverity::Info).into_record(
         RecordId::from_seed(sequence.to_string()),
@@ -70,8 +46,6 @@ fn entry(sequence: u64, volts: f64) -> RecordEntry {
     entry.ordinal = sequence;
     entry
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn portable_records_identity() {

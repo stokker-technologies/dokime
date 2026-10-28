@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Activity, Clock3, RadioTower } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-
-/* === Local Imports === */
 
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { Badge } from "@/components/ui/badge";
@@ -23,15 +19,11 @@ import { useHubStore } from "@/stores/hub-store";
 
 const GUI_ELAPSED_TICK_MS = 1_000;
 
-/* === Types === */
-
 type RuntimeSectionProps = {
   connection: "connecting" | "connected" | "reconnecting";
   layout?: DocumentCardLayout;
   snapshot: HubLiveState | null;
 };
-
-/* === Components === */
 
 export function RuntimeSection({ connection, layout, snapshot }: RuntimeSectionProps) {
   const now = useNow(GUI_ELAPSED_TICK_MS);

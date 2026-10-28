@@ -7,30 +7,13 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test } from "vitest";
 
-// Local Imports
 import { groupExecutions } from "@/features/explore/explore-data-source";
 import { parseTimestampMs } from "@/lib/time-format";
 import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage, SavedCycleSummary } from "@/lib/types/view-contracts";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function entry(executionId: string, status: string, startedAt: string | null): ExecutionBrowseEntry {
   return {
@@ -84,8 +67,6 @@ function page(entries: ExecutionBrowseEntry[], cycles: ExecutionBrowseCycle[]): 
     cycles,
   };
 }
-
-/* === Entry Point === */
 
 test("Historical Timestamps Remain Valid", () => {
   assert.equal(parseTimestampMs(undefined), null);

@@ -7,36 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::{ActionDispatcherError, OptionProviderOption};
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
 
 json_message!(StatusResponse);
 
 json_message!(OptionsResponse);
 
-/* === Type Aliases === */
-
 pub type ActionDispatcherFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ActionDispatcherError>> + Send + 'a>>;
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DispatchContext {
@@ -54,10 +37,6 @@ pub struct OptionsResponse {
     options: Vec<OptionProviderOption>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait ActionDispatcher: Send + Sync + 'static {
     fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, StatusResponse>;
 
@@ -69,8 +48,6 @@ pub trait ActionDispatcher: Send + Sync + 'static {
 
     fn query_options<'a>(&'a self, entrypoint: &'a str) -> ActionDispatcherFuture<'a, Vec<OptionProviderOption>>;
 }
-
-/* === Implementations === */
 
 impl StatusResponse {
     pub fn ready() -> Self {
@@ -118,9 +95,3 @@ impl From<crate::Error> for ActionDispatcherError {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

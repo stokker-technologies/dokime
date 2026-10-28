@@ -9,26 +9,7 @@
 
 // Portable Remote Listener Settings And One-Time Secrets
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message(skip_default)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,8 +98,6 @@ pub struct RemoteSessionPage {
     pub next_cursor: Option<String>,
 }
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RemoteSessionOutcome {
@@ -126,10 +105,6 @@ pub enum RemoteSessionOutcome {
     Admitted,
     Rejected,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for RemoteListenerSettings {
     fn default() -> Self {
@@ -242,10 +217,6 @@ impl std::fmt::Debug for CreatedPairing {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn required_optional<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
     Option::<String>::deserialize(deserializer)
 }
@@ -289,8 +260,6 @@ fn valid_dns_label(label: &str) -> bool {
         && label.as_bytes().last().is_some_and(u8::is_ascii_alphanumeric)
         && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

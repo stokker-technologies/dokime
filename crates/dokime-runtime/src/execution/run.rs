@@ -7,23 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-// Third Party Imports
-// Third-Party Imports
 use tokio::sync::watch;
 use tracing::Instrument;
 
-// Local Imports
 use super::Environment;
 use super::ExecutionEvidence;
 use super::template::SidecarTemplate;
@@ -41,17 +31,9 @@ use crate::transport::{SidecarCriterionOutcome, SidecarCriterionStatus, SidecarE
 use dokime_domain::model::execution::termination::TerminationReason;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const INITIALIZATION: &str = "initialization";
 const TRACEABILITY: &str = "traceability";
 const PARAMETERS: &str = "resolving parameters";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Inputs {
     pub controls: Arc<crate::transport::control::Controls>,
@@ -67,19 +49,11 @@ pub(super) struct Inputs {
     pub publisher: Option<super::template::SamplePublisher>,
 }
 
-/* === Enums === */
-
 enum Ended {
     Completed,
     Cancelled { step: String },
     Failed { step: String, diagnostic: Box<Diagnostic> },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run<T: SidecarTemplate>(
     executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs, cancel: watch::Receiver<bool>,
@@ -94,8 +68,6 @@ pub(crate) async fn run<T: SidecarTemplate>(
 
     execute::<T>(executions, token, source, declaration, inputs, cancel, observer_tasks).instrument(span).await;
 }
-
-/* === Private Functions === */
 
 async fn execute<T: SidecarTemplate>(
     executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs,
@@ -704,8 +676,6 @@ fn report(executions: &Executions, token: &str, outcome: SidecarExecutionOutcome
         state.push(BufferedFrame::terminal(outcome));
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

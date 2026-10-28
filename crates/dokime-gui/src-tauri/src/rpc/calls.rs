@@ -7,27 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 use crate::rpc::protocol::STREAM_CREDIT as DESKTOP_STREAM_CREDIT;
 
-// Standard Library Imports
 use std::{str::FromStr, time::Duration};
 
-// Third Party Imports
 use tauri::ipc::{Channel, JavaScriptChannelId, Response};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
 
 const DESKTOP_INPUT_BUFFER_ITEMS: u64 = 2;
 const DESKTOP_STREAM_TIMEOUT_MS: u64 = 86_400_000;
@@ -42,12 +31,6 @@ pub const CREDIT_HEADER: &str = "dokime-rpc-credit";
 pub const FRAME_MESSAGE: u8 = 0;
 pub const FRAME_END: u8 = 1;
 pub const FRAME_ERROR: u8 = 2;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(super) struct Streams {
@@ -83,12 +66,6 @@ struct Opening {
     payload: Vec<u8>,
     keep_input: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Streams {
     pub(super) fn new(capacity: usize) -> Self {
@@ -222,8 +199,6 @@ impl Entry {
     }
 }
 
-/* === Public Functions === */
-
 #[tauri::command]
 pub async fn rpc<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -315,8 +290,6 @@ pub async fn rpc_stream_ack<R: tauri::Runtime>(
     bridge.streams.get(webview.label(), generation, stream(headers)?)?.acknowledge(count)
 }
 
-/* === Private Functions === */
-
 async fn forward(
     entry: &Entry, context: &Context, client: &dokime::client::Client, channel: &Channel<Response>, path: &str,
     receiver: mpsc::Receiver<Vec<u8>>, deadline: Duration,
@@ -370,8 +343,6 @@ fn deadline(headers: &tauri::http::HeaderMap, default: Duration, maximum: Durati
 fn stream(headers: &tauri::http::HeaderMap) -> Result<u64, RpcError> {
     header(headers, STREAM_HEADER)?.and_then(|value| value.parse().ok()).ok_or(RpcError::UnknownStream)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

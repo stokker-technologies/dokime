@@ -7,13 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-
-/* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
@@ -27,8 +23,6 @@ import { type ExploreEntry, type ExploreTarget, exploreEntryKey } from "./explor
 
 const GUI_FILTER_DEBOUNCE_MS = 250;
 
-/* === Types === */
-
 type ExploreSurfaceProps = {
   comparing: boolean;
   onBack: () => void;
@@ -37,8 +31,6 @@ type ExploreSurfaceProps = {
   onToggleSelected: (entryKey: string) => void;
   selectedIds: Set<string>;
 };
-
-/* === Components === */
 
 /**
  * Browse execution history, grouped by cycle where associated, and compare
@@ -131,8 +123,6 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
     </PageShell>
   );
 }
-
-/* === Private Components === */
 
 /**
  * One quiet line above the list, and the reasons only when there are any: a

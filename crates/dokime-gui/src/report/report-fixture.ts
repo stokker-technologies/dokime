@@ -18,14 +18,10 @@
  * hook reached the frozen path unnoticed.
  */
 
-/* === Local Imports === */
-
 import type { DocumentNode } from "@/lib/document-contracts";
 import type { DocumentCapturePayload } from "@/lib/document-normalizer";
 import type { ReportPayload } from "@/lib/report-types";
 import type { ArtifactRecord, HubRecord, StepExecutionRecord, TestCyclePlan, TestExecution } from "@/lib/types";
-
-/* === Constants === */
 
 export const FIXTURE_CYCLE_ID = "cycle-1";
 
@@ -41,8 +37,6 @@ export const FIXTURE_RECORD_MESSAGE = "Case provider work settled";
 
 /** A previewable text artifact, bytes and all, exactly as a report carries it. */
 export const FIXTURE_ARTIFACT_NAME = "startup-summary.json";
-
-/* === Public Functions === */
 
 export function reportFixturePayload(): ReportPayload {
   return {
@@ -86,8 +80,6 @@ export function reportFixturePayload(): ReportPayload {
     warnings: [],
   };
 }
-
-/* === Private Functions === */
 
 function plan(): TestCyclePlan {
   return {

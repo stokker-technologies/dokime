@@ -7,23 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     process::Command,
 };
 
-// Third Party Imports
 use tauri_bundler::{BundleBinary, BundleSettings, NsisSettings, PackageSettings, PackageType, SettingsBuilder};
 
-// Local Imports
 use super::{
     artwork,
     inspect::{self, DistributionMetadata},
@@ -31,22 +22,6 @@ use super::{
     payload::{self, Payload},
 };
 use crate::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn assemble(
     manifest: &Manifest, payload: &Payload, source: &Path, scratch: &Path, output: &Path, sign: bool,
@@ -335,8 +310,6 @@ pub(crate) fn validate_label(label: &str) -> Result<(), Error> {
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn resolve_organization(manifest: &Manifest, source: &Path) -> Result<dokime::config::organization::ResolvedPack, Error> {
     let base = source.join("organization");
     let overrides = manifest.installer.organization.as_deref();
@@ -552,8 +525,6 @@ fn sign_windows_installer(settings: &InstallerSigning, path: &Path) -> Result<()
     command.args(["verify", "/pa"]).arg(path);
     inspect::run(&mut command, "installer Authenticode verification failed")
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

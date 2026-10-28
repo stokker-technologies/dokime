@@ -7,45 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::Path, sync::Arc};
 
-// Third Party Imports
 use dokime_runtime::{Identifier, Metadata};
 use tokio::sync::Barrier;
 
-// Local Imports
 use dokime_runtime::{Runtime, RuntimeConfig};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn config(root: &Path, application: &Path) -> RuntimeConfig {
     crate::service_support::budgets::runtime_config(root, Metadata::new(Identifier::new("fixture.identity").unwrap(), "Identity", None))
         .with_application_root(application)
 }
-
-/* === Tests === */
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn concurrent_creators_identity() {

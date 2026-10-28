@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod streams;
-
-/* === Re-Exports === */
 
 pub use dokime_domain::model::telemetry::host::contracts::HostTextList;
 pub use dokime_domain::model::telemetry::host::contracts::HostTimestamp;
@@ -27,31 +23,3 @@ pub use dokime_domain::model::telemetry::host_stream_identifiers;
 pub use crate::records::host::{
     ProcessExited, StepHandleCancelled, TargetAcquired, TargetLost, TestCycleCompleted, ToolConnectionAcquired, ToolConnectionLost,
 };
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

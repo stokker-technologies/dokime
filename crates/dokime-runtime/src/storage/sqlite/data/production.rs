@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::result::Result;
 use std::{
     fs::OpenOptions,
@@ -22,7 +15,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
 use harmos::storage::*;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{
@@ -30,11 +22,8 @@ use sha2::{
     digest::common::hazmat::{SerializableState, SerializedState},
 };
 
-// Local Imports
 use super::super::{Error, State};
 use super::{entry, files, position, saved, sequence};
-
-/* === Constants === */
 
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_productions (
@@ -47,19 +36,7 @@ CREATE TABLE IF NOT EXISTS storage_deleted_files (
 ";
 const CHUNK_BYTES: usize = 1024 * 1024;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct RecoveryCancellation(std::sync::Arc<std::sync::atomic::AtomicBool>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for RecoveryCancellation {
     fn drop(&mut self) {
@@ -341,8 +318,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn check_available(connection: &Connection, id: &str) -> Result<(), Error> {
     if deleted(connection, id)? {
         return Err(Error::Conflict("file identity has been deleted"));
@@ -389,8 +364,6 @@ pub(super) fn stored_checkpoint(connection: &Connection, file: &StagedFile) -> R
     };
     Ok(Some((generation, phase, value)))
 }
-
-/* === Private Functions === */
 
 fn deleted(connection: &Connection, id: &str) -> Result<bool, Error> {
     Ok(connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_deleted_files WHERE id=?1)", [id], |row| row.get(0))?)
@@ -451,5 +424,3 @@ fn verify_prefix_cancellable(
     }
     Ok(())
 }
-
-/* === Tests === */

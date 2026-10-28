@@ -14,13 +14,9 @@
  * bar: a file has no application to command.
  */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-
-/* === Local Imports === */
 
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import {
@@ -46,8 +42,6 @@ import { useRouteCycleId } from "@/shell/route-scope";
 import { useSidebarState } from "@/shell/use-sidebar-state";
 import { useUiStore } from "@/stores/ui-store";
 
-/* === Constants === */
-
 const DENSITY_OPTIONS: { value: DensityPreference; label: string }[] = [
   { value: "comfortable", label: "Comfortable" },
   { value: "compact", label: "Compact" },
@@ -60,8 +54,6 @@ const THEME_OPTIONS: { value: ThemeModePreference; label: string }[] = [
   { value: "dark", label: "Dark" },
 ];
 
-/* === Components === */
-
 /** The menu bar row. The live shell is the only one that has it. */
 export function MenuBar() {
   return (
@@ -73,8 +65,6 @@ export function MenuBar() {
     </Menubar>
   );
 }
-
-/* === Private Components === */
 
 function LiveMenus() {
   const navigate = useNavigate();
@@ -249,8 +239,6 @@ function ThemeGroup({
 function MenuTrigger({ children }: { children: string }) {
   return <MenubarTrigger className="h-full rounded-none px-3 font-normal [font-size:inherit]">{children}</MenubarTrigger>;
 }
-
-/* === Private Functions === */
 
 /** Quit closes the one main window; the desktop shell exits with it. */
 async function closeDesktopWindow(): Promise<void> {

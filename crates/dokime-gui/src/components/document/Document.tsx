@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type DocumentProps = {
   children: ReactNode;
@@ -35,8 +29,6 @@ type DocumentGridProps = {
   children: ReactNode;
   className?: string;
 };
-
-/* === Components === */
 
 export function Document({ children, className, description, title }: DocumentProps) {
   return (

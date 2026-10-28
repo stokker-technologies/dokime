@@ -9,35 +9,10 @@
 
 // Settle Execution Publications, Cancellation And Capture Leases.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{
     ExecutionCleanup, ExecutionFixtureContext, ExecutionSignal, Finalization, HostCapture, Identifier, Instant, ProgressCleanup,
     ProviderExecutionFailure, StepLeaseBridge, TestExecution, close_record_subscriptions, failure, sampling_scope,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for ProgressCleanup {
     fn drop(&mut self) {
@@ -225,10 +200,6 @@ impl HostCapture {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn telemetry_failure(error: impl ToString) -> ProviderExecutionFailure {
     failure("sidecar_telemetry", error.to_string())
 }
@@ -246,5 +217,3 @@ fn remove_matching_lease(held: &mut std::collections::BTreeMap<String, String>, 
         held.remove(token);
     }
 }
-
-/* === Tests === */

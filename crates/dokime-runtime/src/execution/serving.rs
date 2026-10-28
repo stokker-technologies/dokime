@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-// Third Party Imports
 use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
 use harmos::sidecar::operations::{ServingError, WireTable};
 use harmos::sidecar::{Refusal, Supervisor};
 use harmos::{Dependencies, RegistrationBatch};
 
-// Local Imports
 use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
 use crate::transport::buffer::lock;
 use crate::transport::templated;
@@ -32,8 +23,6 @@ use crate::transport::{
     EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RUN_BOUND, RunExecution,
     SIGNAL_BOUND, SidecarExecutionOutcome, SignalReply, TransportFuture,
 };
-
-/* === Constants === */
 
 const RUN_POLICY: OperationPolicy = OperationPolicy {
     timeout: RUN_BOUND,
@@ -46,15 +35,9 @@ pub const SIGNAL_POLICY: OperationPolicy = OperationPolicy {
     retries: RetryPolicy::Never,
 };
 
-/* === Macros === */
-
 templated!(Run, RunExecution);
 
 templated!(Signal, ExecutionSignal);
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One template's run operation: the request is the portable `RunExecution`;
 // the type parameter only selects the template's operation identity.
@@ -73,14 +56,10 @@ struct InputAdmission {
     changed: Arc<tokio::sync::Notify>,
 }
 
-/* === Enums === */
-
 enum Answered {
     Prompt { prompt_id: String, answer: Result<OperatorAnswer, String> },
     Lease { lease_token: String, resolution: Result<LeaseResolution, String> },
 }
-
-/* === Traits === */
 
 // The host's embedded template registry behind the generic
 // `dokime.template.run`/`dokime.template.signal` pair (`Run<()>`/`Signal<()>`):
@@ -125,8 +104,6 @@ pub trait Runnable: Send + Sync + 'static {
 
     fn shutdown(&self) -> TransportFuture<'_, ()>;
 }
-
-/* === Implementations === */
 
 impl Drop for InputAdmission {
     fn drop(&mut self) {
@@ -418,8 +395,6 @@ impl<T: SidecarTemplate> Runnable for Workflow<T> {
     }
 }
 
-/* === Public Functions === */
-
 pub fn contracts(template: &str) -> Result<[harmos::operations::Contract; 2], harmos::operations::ContractError> {
     contracts_with_settings(template, &harmos::config::SchemaSettings::default())
 }
@@ -490,8 +465,6 @@ where
     table.register(RegistrationBatch::new(dependencies).operation::<Run<T>>().operation::<Signal<T>>())
 }
 
-/* === Private Functions === */
-
 fn registry() -> &'static Mutex<Vec<Arc<dyn Runnable>>> {
     static SERVED: OnceLock<Mutex<Vec<Arc<dyn Runnable>>>> = OnceLock::new();
     SERVED.get_or_init(Mutex::default)
@@ -540,8 +513,6 @@ fn delivery_scope(
         .filter(|source| source.test_execution_id.is_some() && source.test_execution_id == holder.test_execution_id)
         .unwrap_or_else(|| holder.clone())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

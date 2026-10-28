@@ -7,40 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use crate::support::wire::WireMessage;
 use prost::Message;
-// Local Imports
+
 use super::*;
 use dokime::Value;
 use dokime::definition::{FileDefinition, ParameterExpr, ParameterSelection, SuiteSet};
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn selection(suite: &dokime::definition::TestSuite) -> model::planning::wire::RegisteredSelection {
     model::planning::wire::RegisteredSelection {
@@ -539,8 +512,6 @@ async fn payload_budget_allocation() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn materialization_rejects_nonfinite_parameters_before_registration() {

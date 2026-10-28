@@ -9,30 +9,9 @@
 
 // Borrow Record Sequences Without Changing Their Storage Owner
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 #[cfg(feature = "storage")]
 use crate::storage::ReadRows;
 use dokime_domain::model::records::evidence::RecordEntry;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Clone, Copy)]
 pub enum View<'a> {
@@ -40,10 +19,6 @@ pub enum View<'a> {
     #[cfg(feature = "storage")]
     Retained(&'a ReadRows<RecordEntry>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> View<'a> {
     pub fn iter(self) -> impl DoubleEndedIterator<Item = &'a RecordEntry> + Clone {
@@ -99,9 +74,3 @@ impl<'a> From<&'a ReadRows<RecordEntry>> for View<'a> {
         Self::Retained(rows)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

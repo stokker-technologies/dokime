@@ -10,16 +10,6 @@
 // Native host collection: every stream reads this machine through the
 // collectors' own platform probes (nmcli, iw, ping, bluetoothctl and friends).
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::support::*;
 use dokime_domain::model;
 use dokime_host::{Host, HostTelemetryStream};
@@ -28,29 +18,10 @@ use dokime_runtime::telemetry::validate_telemetry_sample;
 use model::telemetry::{TelemetryBatch, TelemetrySample};
 use model::telemetry::{ValidationMode, host_telemetry_contract};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn single_sample(batch: &TelemetryBatch) -> &TelemetrySample {
     assert_eq!(batch.samples.len(), 1);
     &batch.samples[0]
 }
-
-/* === Tests === */
 
 #[test]
 fn host_stream_row() {

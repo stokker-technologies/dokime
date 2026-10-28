@@ -19,19 +19,13 @@
  * under the label, with the rest of its story a click away.
  */
 
-/* === External Imports === */
-
 import { LoaderCircle } from "lucide-react";
-
-/* === Local Imports === */
 
 import { StepFailure, sortedStepRecords, stepBadgeVariant, stepRecordLabel } from "@/components/document/StepRecordsCard";
 import { Badge } from "@/components/ui/badge";
 import type { StepExecutionRecord } from "@/lib/types";
 import { LIST_STATUS_PILL_CLASS } from "./cycle-workspace-model";
 import { durationText, useElapsedSeconds } from "./use-elapsed";
-
-/* === Types === */
 
 export type ExecutionStepsCriteriaProps = {
   steps: StepExecutionRecord[];
@@ -40,12 +34,8 @@ export type ExecutionStepsCriteriaProps = {
   live?: boolean;
 };
 
-/* === Constants === */
-
 /** Ordinal, label, duration, status: the one row template of both lists. */
 const ROW_COLUMNS = "grid-cols-(--layout-step-record)";
-
-/* === Components === */
 
 export function ExecutionStepsCriteria({ steps, criteria, live = true }: ExecutionStepsCriteriaProps) {
   return (
@@ -55,8 +45,6 @@ export function ExecutionStepsCriteria({ steps, criteria, live = true }: Executi
     </div>
   );
 }
-
-/* === Private Components === */
 
 function RecordColumn({ empty, live, records, title }: { empty: string; live: boolean; records: StepExecutionRecord[]; title: string }) {
   const ordered = sortedStepRecords(records);

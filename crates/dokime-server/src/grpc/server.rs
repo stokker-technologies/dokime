@@ -7,30 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{net::SocketAddr, sync::Arc};
 
-// Third Party Imports
 use dokime::harmos::grpc::Attached;
 
-// Local Imports
 use super::access::Listeners;
 use super::{Config, Error, appearance, authorization, catalog, content, execution, history, observation, planning, reports};
 use dokime::RuntimeHandle;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Service {
@@ -48,12 +31,6 @@ pub struct Server {
     remote: Option<Arc<super::remote::Controller>>,
     detach_failure: Option<Arc<dokime::harmos::Error>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Service {
     pub async fn new(runtime: RuntimeHandle, config: Config) -> Result<Self, Error> {
@@ -184,9 +161,3 @@ impl Drop for Server {
         self.listeners.remove(self.address);
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

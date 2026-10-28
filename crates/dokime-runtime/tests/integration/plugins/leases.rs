@@ -7,17 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-// Third Party Imports
+
 use harmos::Message;
-// Local Imports
+
 use super::*;
 use dokime_domain::model;
 use dokime_runtime::execution::Signal;
@@ -26,16 +20,11 @@ use dokime_runtime::transport::{ExecutionSignal, SignalReply};
 use dokime_runtime::{Identifier, TestExecutionId, Value, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime};
 
-/* === Constants === */
 // One attribute line: rustfmt re-indents a continued attribute inside a macro body on every pass.
 const DELIVERY_POLICY: harmos::OperationPolicy = <Signal<()> as harmos::OperationDeclaration>::POLICY;
 
-/* === Macros === */
-
-/* === Type Aliases === */
 type Reads = Arc<tokio::sync::watch::Sender<usize>>;
 
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct GatewayRow {
@@ -51,11 +40,6 @@ struct CountingCollector {
     reads: Reads,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl RecordingSidecar {
     fn delivered(&self) -> Vec<TelemetrySample> {
         self.calls
@@ -105,9 +89,6 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 macro_rules! delivery_fixture {
     ($operation:ident, $id:literal) => {
         #[harmos::operation(id = $id, response = SignalReply, policy = DELIVERY_POLICY, visibility = Host, resources = [RecordingSidecar])]
@@ -144,8 +125,6 @@ async fn register_sidecars(handle: &dokime_runtime::RuntimeHandle, sidecars: &[(
         handle.operations().register(batch.lane(dokime_runtime::app::Lanes::Open)).await.unwrap();
     }
 }
-
-/* === Functions === */
 
 async fn runtime(root: &std::path::Path) -> (Runtime, Reads) {
     // The host is an installed plugin like any other, and its six streams
@@ -458,5 +437,4 @@ async fn foreign_stream_refuses() {
     runtime.shutdown().await.expect("the runtime stops");
 }
 
-/* === Tests === */
 // template record demand captures startup and releases on cancellation.

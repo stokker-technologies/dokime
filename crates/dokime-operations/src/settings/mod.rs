@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod get_plugin_settings;
 mod get_settings;
 mod list_storage_sources;
@@ -18,8 +16,6 @@ mod set_storage_source_enabled;
 mod update_application_settings;
 mod update_plugin_secret;
 mod update_plugin_settings;
-
-/* === Re-Exports === */
 
 pub use get_plugin_settings::GetPluginSettings;
 pub use get_settings::GetSettings;
@@ -31,27 +27,10 @@ pub use update_application_settings::UpdateApplicationSettings;
 pub use update_plugin_secret::UpdatePluginSecret;
 pub use update_plugin_settings::UpdatePluginSettings;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Endpoint;
 use super::{MUTATION, ORDINARY};
 use dokime_domain::model::settings::wire::*;
 use dokime_domain::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[harmos::catalog]
 pub enum Operations {
@@ -65,10 +44,6 @@ pub enum Operations {
     ReadApplicationSettings(ReadApplicationSettings),
     UpdateApplicationSettings(UpdateApplicationSettings),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Endpoint for GetSettings {
     const PATH: &'static str = "/dokime.v1.Settings/GetSettings";
@@ -105,9 +80,3 @@ impl Endpoint for ReadApplicationSettings {
 impl Endpoint for UpdateApplicationSettings {
     const PATH: &'static str = "/dokime.v1.Settings/UpdateApplicationSettings";
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

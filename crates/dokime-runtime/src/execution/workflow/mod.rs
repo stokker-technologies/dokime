@@ -7,38 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, PoisonError};
 
-// Third Party Imports
-// Third-Party Imports
 use harmos::sidecar::Refusal;
 use tokio::sync::watch;
 
-// Local Imports
 use super::template::SidecarTemplate;
 use crate::definition::TestCaseTemplate;
 use crate::prompts::PromptResponse;
 use crate::transport::buffer::{ExecutionState, Executions, Tasks, lock};
 use crate::transport::{CommandExecutionReply, CommandExecutionRequest, EvidenceBatch, RunExecution, StepAdmission};
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Workflow<T: SidecarTemplate> {
     workflow: String,
@@ -55,15 +37,11 @@ pub struct Workflow<T: SidecarTemplate> {
     binding: Option<Arc<dyn std::any::Any + Send + Sync>>,
 }
 
-/* === Enums === */
-
 #[derive(Clone)]
 pub enum SampleOutput {
     Host(harmos::sidecar::Supervisor),
     Embedded(Arc<dyn EmbeddedPublisher>),
 }
-
-/* === Traits === */
 
 pub trait EmbeddedPublisher: Send + Sync {
     fn publish(
@@ -71,8 +49,6 @@ pub trait EmbeddedPublisher: Send + Sync {
         storage_payload: Vec<u8>,
     ) -> Result<(), String>;
 }
-
-/* === Implementations === */
 
 impl<T: SidecarTemplate> Workflow<T> {
     pub fn new(workflow: impl Into<String>, source: impl Into<String>) -> Self {
@@ -455,10 +431,6 @@ impl<T: SidecarTemplate> Clone for Workflow<T> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn resolved(parameters_json: &str) -> Result<BTreeMap<String, Value>, Refusal> {
     serde_json::from_str(parameters_json).map_err(|error| Refusal::of(format!("invalid resolved parameters JSON: {error}")))
 }
@@ -480,5 +452,3 @@ fn retain_capacity(executions: &mut BTreeMap<String, ExecutionState>, maximum: u
         None => Err(Refusal::of(format!("sidecar already has {maximum} active executions"))),
     }
 }
-
-/* === Tests === */

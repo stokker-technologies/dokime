@@ -12,16 +12,10 @@
  * camera photo and an audio recording, each stored as an execution artifact.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Mic, Monitor, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-// Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
 import { invalidateWorkflowDocuments, invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
@@ -29,20 +23,12 @@ import { captureNativePhoto, captureNativeScreenshot, type NativeAudioRecording,
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { RecordScope } from "@/lib/types";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 type MediaCaptureControlsProps = {
   /** A cycle and execution scope; captures are execution artifacts. */
   scope: RecordScope;
 };
 
 type Activity = "idle" | "screenshot" | "photo" | "recording" | "stopping";
-
-/* === Components === */
 
 export function MediaCaptureControls({ scope }: MediaCaptureControlsProps) {
   const session = useNativeSessionOptional();
@@ -148,12 +134,6 @@ function CaptureControls({ identity, scope }: MediaCaptureControlsProps & { iden
     </div>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));

@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Imports === */
-
 import { parseTimestampMs } from "@/lib/time-format";
-
-/* === DocumentOverview model: traceability/progress formatting helpers === */
 
 export function relativeTime(timestamp: string): string {
   const then = parseTimestampMs(timestamp);

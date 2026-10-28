@@ -7,20 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use dokime_domain::model::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE as MEDIA_TYPE;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::StorageCursor;
 
-// Local Imports
 use super::{context::Context, records::Contracts as RecordContracts, telemetry::Contracts};
 use crate::execution::context::captured::source::CapturedSource;
 use crate::storage::objects::presentation as native;
@@ -29,15 +19,7 @@ use dokime_domain::model::execution::saved::EXECUTION_CONTEXT_SCHEMA_VERSION;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
 const SCHEMA_VERSION: u32 = EXECUTION_CONTEXT_SCHEMA_VERSION;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -55,12 +37,6 @@ pub(crate) struct Source {
     record_contracts: Option<RecordContracts>,
     captured_at: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Source {
     // The Decode Owner Remains Retained: Moved Strings, Palettes And Schema
@@ -115,10 +91,6 @@ impl TryFrom<&CapturedSource> for Source {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
@@ -130,5 +102,3 @@ fn take<T>(value: Option<T>) -> Result<T> {
 fn text(source: &str) -> Result<String> {
     Ok(source.to_owned())
 }
-
-/* === Tests === */

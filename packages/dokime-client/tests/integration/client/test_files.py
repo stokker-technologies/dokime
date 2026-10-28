@@ -8,29 +8,18 @@
 
 """Verify Original File Identity, Committed Resume Prefixes And Terminal Seals"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import files
 from dokime_client.client._transport import Transport as ClientTransport
 from dokime_client.client.errors import ProtocolError, RpcError
 from dokime_client.client.models import Backend
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 DATA = b"registered-output:" + b"a" * 65_536 + b":finished"
 IDENTITY = files.FileIdentity("original-store", "original-history", "file-1", "execution-1", "output.bin")
@@ -41,10 +30,6 @@ BACKEND = Backend(
     display_name="Test Backend",
     methods=frozenset({"/dokime.v1.Content/FollowExecutionFile"}),
 )
-
-# === Types === #
-
-# === Classes === #
 
 
 class WireValue(SimpleNamespace):
@@ -118,9 +103,6 @@ class Transport:
         assert (service, method) == ("Content", "FollowExecutionFile")
         self.request = request
         return self.reader
-
-
-# === Public Functions === #
 
 
 @pytest.mark.parametrize("prefix_length", [0, 17, 65_537, len(DATA)])
@@ -457,9 +439,6 @@ def test_growing_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert reader.closed
 
 
-# === Private Functions === #
-
-
 def _growth(opened: int) -> list[tuple[int, int]]:
     """The Prefix Available At Open, Then Appends Of Varying Size Within 64 KiB"""
     pieces = [(0, opened)]
@@ -527,6 +506,3 @@ def _frames(offset: int) -> list[WireValue]:
         )
     )
     return frames
-
-
-# === Entry Point === #

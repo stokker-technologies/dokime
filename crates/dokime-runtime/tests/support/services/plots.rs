@@ -9,39 +9,12 @@
 
 // The Saved-Telemetry Plot Paths, Shared By Their Integration Guards And Full-Scale System Stories.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::prelude::*;
 use dokime_runtime::runtime::query::{DownsampleTechnique, PlotPayloadRequest, RuntimePlotQueryMode};
-
-/* === Constants === */
 
 const SAMPLE_BATCH: usize = 1_000;
 
 const MINUTES_PER_DAY: usize = 24 * 60;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn register_plot_suite(runtime: &RuntimeHandle) {
     let definition = TestSuiteDefinition {
@@ -152,8 +125,6 @@ pub async fn saved_windows(days: usize) {
     owner.shutdown().await.unwrap();
 }
 
-/* === Private Functions === */
-
 async fn save_day(runtime: &RuntimeHandle, day: usize) {
     for start in (0..MINUTES_PER_DAY).step_by(120) {
         runtime.publish_telemetry_batch(minute_batch(day * MINUTES_PER_DAY + start)).await.unwrap();
@@ -188,5 +159,3 @@ fn minute_batch(first: usize) -> TelemetryBatch {
     }
     batch
 }
-
-/* === Tests === */

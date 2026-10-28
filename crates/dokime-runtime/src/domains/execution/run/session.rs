@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tokio_util::sync::CancellationToken;
 
-// Local Imports
 use super::artifacts::ArtifactBridge;
 use super::{
     CaseResult, DropReason, ExecutionFixtureContext, PhaseTracker, PromptBridge, StepLeaseBridge, StreamLog, Target,
@@ -31,14 +21,6 @@ use crate::transport::{
     SidecarExecutionOutcome, StepAdmission,
 };
 use dokime_domain::model::execution::result::TestExecution;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Opened {
     pub context: ExecutionFixtureContext,
@@ -74,12 +56,6 @@ struct Pages {
     artifacts: ArtifactBridge,
     phase: PhaseTracker,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Session {
     pub(super) fn new(opened: Opened) -> Self {
@@ -514,9 +490,3 @@ impl Session {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

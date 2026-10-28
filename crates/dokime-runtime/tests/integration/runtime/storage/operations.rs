@@ -7,44 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use harmos::builtins::storage::{Query, StorageStatus};
 use harmos::operations::{StreamSettings, stream};
 use harmos::storage::ObjectCatalog;
 use harmos::storage::query::{ObjectSelection, ObjectVersions, QueryOutput, RowSlice, Source};
 
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_runtime::storage::objects::{Objects, suite::Suite};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn storage_operations_view() {

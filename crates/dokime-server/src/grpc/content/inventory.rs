@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::projection;
 use dokime::ExecutionFileEntry;
@@ -29,14 +20,6 @@ use dokime::RuntimeHandle;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: RuntimeHandle,
@@ -48,12 +31,6 @@ struct Count {
     returned: usize,
     more: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListExecutionFiles> for Resources {
     fn serve<'a>(
@@ -79,8 +56,6 @@ impl Serve<wire::ListExecutionFiles> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -89,8 +64,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn project(
     entries: &[ExecutionFileEntry], id: &TestExecutionId, epoch: &str, request: &wire::ListExecutionFiles, limit: usize, maximum: usize,
@@ -190,5 +163,3 @@ fn invalid_wire() -> dokime::harmos::Error {
         reason: "original order or encoded length differs",
     }
 }
-
-/* === Tests === */

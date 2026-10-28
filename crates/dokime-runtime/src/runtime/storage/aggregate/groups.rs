@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{cmp::Ordering, collections::BTreeMap};
 
-// Third Party Imports
 use harmos::{
     Aggregate,
     storage::query::{
@@ -25,19 +17,10 @@ use harmos::{
     },
 };
 
-// Local Imports
 use super::fields::{self, Row};
 use crate::runtime::query::aggregate::{AggregateOperator, AggregateOutcome, AggregateQuery};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Groups {
     entries: BTreeMap<Key, Vec<Accumulator>>,
@@ -45,12 +28,6 @@ pub(super) struct Groups {
 }
 
 struct Key(Vec<Value>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Groups {
     pub(super) fn fold<'a>(query: &AggregateQuery, rows: impl Iterator<Item = Row<'a>> + Clone) -> Result<Self> {
@@ -127,8 +104,6 @@ impl Ord for Key {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
     if query.aggregates.is_empty() || query.aggregates.len() as u64 > 64 || query.filters.len() as u64 > 64 {
         return Err(invalid("aggregate request exceeds its column or filter bound"));
@@ -183,8 +158,6 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn reductions(query: &AggregateQuery) -> Vec<Accumulator> {
     query.aggregates.iter().map(|column| Accumulator::new(Agg::Of(column.aggregate))).collect()
@@ -372,5 +345,3 @@ fn reduction_error(error: harmos::storage::Error) -> Error {
         error => error.into(),
     }
 }
-
-/* === Tests === */

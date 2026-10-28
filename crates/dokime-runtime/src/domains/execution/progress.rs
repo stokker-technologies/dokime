@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Mutex};
 
-// Third Party Imports
-
-// Local Imports
 use crate::execution::ExecutionProgress;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LiveExecutionProgress {
@@ -52,12 +34,6 @@ pub struct ProgressRegistry {
 pub struct ProgressWatch {
     receiver: tokio::sync::watch::Receiver<ProgressSnapshot>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ProgressSnapshot {
     pub fn revision(&self) -> u64 {
@@ -120,9 +96,3 @@ impl ProgressWatch {
         Some(self.latest())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

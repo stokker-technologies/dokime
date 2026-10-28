@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::history::document::canonical::wire as document_wire;
 use crate::grpc::{
     catalog, execution, notes,
@@ -32,22 +23,6 @@ use dokime::domain::model::execution::result::StepStatus;
 use dokime::domain::model::execution::result::TestExecution;
 use dokime::domain::model::execution::snapshot::ExecutionSnapshot;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(super) fn execution_document(
     value: dokime::execution::storage::ExecutionDocument,
 ) -> Result<dokime::domain::model::history::wire::HistoricalExecutionDocument, Status> {
@@ -59,8 +34,6 @@ pub(super) fn execution_document(
         execution: Some(test_execution(value.execution)?),
     })
 }
-
-/* === Private Functions === */
 
 fn test_execution(value: TestExecution) -> Result<dokime::domain::model::history::wire::HistoricalTestExecution, Status> {
     let snapshot = execution_snapshot(value.snapshot, &value.scope)?;
@@ -316,5 +289,3 @@ fn projected_value(
 fn construction_failure(source: dokime::harmos::Error) -> Status {
     super::super::wire::checkpoint_failure(source.into())
 }
-
-/* === Tests === */

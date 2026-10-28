@@ -7,24 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use futures_util::StreamExt;
 
-// Standard Library Imports
 use std::collections::BTreeMap;
-
-// Third Party Imports
 
 use harmos::storage::ReadBatch;
 
 use super::Scope;
 
-// Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
 use crate::storage::{
     Manager, ReadRows,
@@ -41,24 +31,8 @@ use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::records::evidence::RecordEntry;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type TelemetryRows = crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>;
 type ScannedTelemetry = (TelemetryRows, Vec<std::ops::Range<usize>>);
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn sealed_member(
     ctx: &Scope, storage: &Manager, seal: &dokime_domain::model::execution::saved::ExecutionSeal, operation: &Operation,
@@ -204,8 +178,6 @@ async fn materialize_execution(
     documents
         .try_map_with(plots, |documents, plots| assemble(final_report, captured, execution, documents, plots, (records, preview), defaults))
 }
-
-/* === Private Functions === */
 
 async fn context_records(inspection: &ExecutionView) -> Result<crate::execution::evidence_rows::EvidenceRows<RecordEntry>> {
     let mut records = crate::execution::evidence_rows::EvidenceRows::default();
@@ -452,8 +424,6 @@ fn assemble(
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

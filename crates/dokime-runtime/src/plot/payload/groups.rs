@@ -7,23 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt::{self, Write};
 use std::ops::Range;
 
-// Third Party Imports
 use harmos::signal::{Aggregates, Series};
 use harmos::storage::ReadBatch;
 
-// Local Imports
 use super::projection::{memory, series_entry, text, vector, x_value};
 use super::{PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotPoint, PlotSeries};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
@@ -31,17 +22,9 @@ use crate::runtime::Result;
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 // Even The Exact Decimal Expansion Of The Smallest Binary Subnormal Fits:
 // Its Fraction Has MANTISSA_DIGITS - MIN_EXP Places, Plus Sign And "0.".
 const SCALAR_TEXT_BYTES: usize = (f64::MANTISSA_DIGITS as i32 - f64::MIN_EXP) as usize + 3;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct ScalarText {
     bytes: [u8; SCALAR_TEXT_BYTES],
@@ -61,8 +44,6 @@ struct GroupRows<'a> {
     rows: Vec<GroupRow<'a>>,
     groups: Vec<Range<usize>>,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Copy)]
 enum Source<'a> {
@@ -87,10 +68,6 @@ enum Inputs<'a> {
     Fields(std::slice::Iter<'a, String>),
     Expressions(std::slice::Iter<'a, DataExpression>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Source<'_> {
     fn input(self, sample: &TelemetrySample) -> Option<&Value> {
@@ -158,8 +135,6 @@ impl Write for TextLength {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn project(
     telemetry: &[TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
     context: &PlotPayloadContext,
@@ -218,8 +193,6 @@ pub(super) fn contains(actual: &str, expected: &Value) -> bool {
         None => false,
     }
 }
-
-/* === Private Functions === */
 
 fn operation(request: &PlotPayloadRequest) -> Option<Operation<'_>> {
     // Record Correlation Has Priority Over Telemetry Aggregates In The Shared Projection.
@@ -437,8 +410,6 @@ fn scalar<'a>(value: &'a Value, scratch: &'a mut ScalarText) -> Option<&'a str> 
         value => borrowed(value),
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

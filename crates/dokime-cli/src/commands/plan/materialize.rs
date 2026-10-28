@@ -9,28 +9,9 @@
 
 // Materialize Canonical Template Cases
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::operations::planning::MaterializeTemplate;
 
-/* === Constants === */
-
 const INPUT_BYTES: u64 = 16_777_216;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -47,22 +28,13 @@ pub(crate) struct Args {
     id_only: bool,
 }
 
-/* === Enums === */
-
 enum Input {
     Canonical(MaterializeTemplate),
     Template(super::input::Planned),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
-    // === Read Request === //
 
     let mut input = args.input;
     let input = match input.input_file.take() {
@@ -77,8 +49,6 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
         }
         None => Input::Template(input.plan()?.single_template()?),
     };
-
-    // === Resolve And Materialize === //
 
     let client = args.connection.connect().await?;
     let result = async {
@@ -102,7 +72,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     client.close_and_wait().await;
     result
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

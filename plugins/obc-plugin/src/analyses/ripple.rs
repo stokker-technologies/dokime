@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::convert::Infallible;
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::analysis::{Analysis, Limits, Output, Response, ResultData, Samples, Values};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Ripple;
 
@@ -36,12 +18,6 @@ pub struct Amplitude {
     value: f64,
     unit: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Analysis for Ripple {
     type Parameters = ();
@@ -88,9 +64,3 @@ impl ResultData for Amplitude {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

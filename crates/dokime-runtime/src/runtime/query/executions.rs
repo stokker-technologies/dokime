@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::cmp::Ordering;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::execution::storage::ExecutionMetadata;
 use crate::state::RuntimeState;
 use crate::transactions::{ControlExecution, CycleControlAction};
@@ -27,14 +18,6 @@ use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExecutionControls {
@@ -64,8 +47,6 @@ pub struct ExecutionOrder {
     pub descending: bool,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArchiveScope {
@@ -86,10 +67,6 @@ pub enum ExecutionOrderKey {
     Title,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl ArchiveScope {
     pub fn admits(self, archived: bool) -> bool {
         match self {
@@ -105,8 +82,6 @@ impl ExecutionFilter {
         self == &Self::default()
     }
 }
-
-/* === Public Functions === */
 
 pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<ExecutionControls> {
     let execution = state.executions.get(id)?;
@@ -164,8 +139,6 @@ pub fn compare(left: &ExecutionMetadata, right: &ExecutionMetadata, order: Execu
     keyed.then_with(|| left.execution_id.as_str().cmp(right.execution_id.as_str()))
 }
 
-/* === Private Functions === */
-
 fn matches_text(metadata: &ExecutionMetadata, text: &str) -> bool {
     let needle = text.trim().to_lowercase();
     if needle.is_empty() {
@@ -201,5 +174,3 @@ fn instants(left: Option<&Timestamp>, right: Option<&Timestamp>) -> Ordering {
         (None, None) => Ordering::Equal,
     }
 }
-
-/* === Tests === */

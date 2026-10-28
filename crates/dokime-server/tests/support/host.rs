@@ -7,30 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
 };
-// Third Party Imports
+
 use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdout, Command};
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Host {
     child: Child,
@@ -39,12 +23,6 @@ pub struct Host {
     stderr: PathBuf,
     _root: Option<TempDir>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Host {
     fn drop(&mut self) {
@@ -169,9 +147,3 @@ impl Host {
         assert!(status.success(), "the host exited with {status}:\n{diagnostics}");
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -14,24 +14,13 @@
 
 #![cfg(target_os = "linux")]
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::os::unix::fs::PermissionsExt;
 
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model;
 use dokime_host::HostStreamSample;
 use dokime_host::collectors::bluetooth::BluetoothCollector;
 use model::values::Value;
 
-/* === Constants === */
 const FIXTURE: &str = r#"#!/usr/bin/env python3
 import os, sys, time
 from pathlib import Path
@@ -47,21 +36,6 @@ sys.stderr.flush()
 sys.exit(7 if os.environ["DOKIME_PROBE_CASE"] == "failure" else 0)
 "#;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn collect_case(mode: &str) -> HostStreamSample {
     // Scripted Probe On PATH
     let root = tempfile::tempdir().unwrap();
@@ -85,8 +59,6 @@ fn collect_case(mode: &str) -> HostStreamSample {
     assert!(!std::path::Path::new("/proc").join(pid).exists(), "probe must be reaped before collection returns");
     sample
 }
-
-/* === Tests === */
 
 #[test]
 fn probe_child_succeeds() {

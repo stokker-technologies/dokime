@@ -7,26 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 // `clap::Args` is derived here rather than mirrored by a second struct in the
 
 // Cargo extension: `cargo dokime sidecar build`'s flags *are* these fields, and a
@@ -93,12 +73,6 @@ pub struct Options {
     pub json: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Options {
     pub fn cargo_options(&self) -> Vec<String> {
         let mut options = Vec::new();
@@ -119,12 +93,6 @@ impl Options {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn deadline(value: &str) -> Result<std::time::Duration, String> {
     value.parse::<std::num::NonZeroU64>().map(|seconds| std::time::Duration::from_secs(seconds.get())).map_err(|error| error.to_string())
 }
-
-/* === Tests === */

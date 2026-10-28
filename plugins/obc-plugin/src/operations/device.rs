@@ -9,17 +9,6 @@
 
 // Manual device operation implementations
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{
     Resources,
     domain::{
@@ -30,20 +19,6 @@ use crate::{
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::Refusal;
 use obc_runtime::device::{Device, Fault, Power};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Operation for ReadDevice {
     type Error = Refusal;
@@ -65,10 +40,6 @@ impl Operation for SetPower {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn observed(device: &Device) -> DeviceState {
     let enabled = device.power == Power::Running;
     let fault = device.fault.map(|fault| match fault {
@@ -81,5 +52,3 @@ fn observed(device: &Device) -> DeviceState {
         fault,
     }
 }
-
-/* === Tests === */

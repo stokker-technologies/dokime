@@ -7,31 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use dokime::harmos::domain::Portable;
 use dokime::harmos::operations::StreamOutput;
 use sha2::{Digest as _, Sha256};
 use tonic::Status;
 
-// Local Imports
 use dokime::runtime::ArtifactReader;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct ArtifactFrames(pub(super) dokime::harmos::operations::Response<dokime::domain::model::content::wire::ArtifactFrame>);
 
@@ -46,16 +29,12 @@ pub(super) struct Download<F> {
     pub(super) message_limit: usize,
 }
 
-/* === Enums === */
-
 pub(super) enum Source {
     Bytes { data: dokime::harmos::operations::Response<Vec<u8>>, read: usize },
     Opened { reader: dokime::harmos::storage::FileReader, batch: Option<dokime::harmos::storage::FileReadBatch>, read: usize },
     Artifact(Box<ArtifactReader>),
     Evidence(Box<dokime::domains::exports::evidence::Bundle>),
 }
-
-/* === Traits === */
 
 pub(super) trait Frames: Send + 'static {
     type Frame: Portable + Send + Sync + 'static;
@@ -67,8 +46,6 @@ pub(super) trait Frames: Send + 'static {
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame;
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame;
 }
-
-/* === Implementations === */
 
 impl Frames for ArtifactFrames {
     type Frame = dokime::domain::model::content::wire::ArtifactFrame;
@@ -252,10 +229,6 @@ impl<F: Frames> Download<F> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn checked_offset(offset: u64, count: usize, size: u64, noun: &str) -> Result<u64, Status> {
     offset
         .checked_add(count as u64)
@@ -289,5 +262,3 @@ fn stream_failure(error: dokime::harmos::Error) -> Status {
         _ => Status::internal(error.to_string()),
     }
 }
-
-/* === Tests === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod pagination;
 
 pub(crate) mod search;
@@ -26,31 +24,18 @@ pub(crate) mod steps;
 
 pub(crate) mod documents_execution;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
-// Third Party Imports
+
 use crate::support::wire::WireMessage;
 use prost::Message;
 use tokio::sync::Notify;
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use dokime::domain::model::execution::result::CycleView;
 use dokime::domains::ExecutionProviderTarget;
 use dokime::transport::ProviderExecutionFailure;
 use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Progress;
 
@@ -69,12 +54,6 @@ struct Gated {
     execution: WireClient,
     cycle: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionFixture for Progress {
     fn run_cycle<'a>(
@@ -128,10 +107,6 @@ impl Gated {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn registered_create_definitions() {
@@ -976,5 +951,3 @@ async fn run_cycle_targets() {
 fn run(id: &str) -> contracts::execution::GetCycle {
     contracts::execution::GetCycle { cycle_id: id.into() }
 }
-
-/* === Tests === */

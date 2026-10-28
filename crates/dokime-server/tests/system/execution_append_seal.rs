@@ -10,33 +10,14 @@
 // Execution Append And Seal At Full Scale: A 1,003-Member Cycle Appends In One
 // Request And Seals; Integration Keeps The 100-Member Guard Of The Same Path.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::support::{self, wire::*};
 use dokime::client::contracts;
 use dokime::domain::model;
 use dokime::storage::sqlite::{StorageCounters, counters};
 use dokime_server::grpc::Server;
 
-/* === Constants === */
-
 const SMALL: usize = 10;
 const LARGE: usize = 1_003;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Storage Work Of One Stage, As Deterministic Counter Deltas.
 #[derive(Debug, Clone, Copy)]
@@ -44,12 +25,6 @@ struct Work {
     transactions: u64,
     batches: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Work {
     fn between(before: StorageCounters, after: StorageCounters) -> Self {
@@ -59,10 +34,6 @@ impl Work {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn create(wire: &WireClient, label: &str) -> String {
     wire.unary::<contracts::execution::CreateCycle>(auth(
@@ -128,8 +99,6 @@ async fn append_and_seal(handle: &dokime::RuntimeHandle, wire: &WireClient, case
     assert_eq!(sealed.execution_count, members as u64);
     (append, seal)
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn execution_append_seal() {

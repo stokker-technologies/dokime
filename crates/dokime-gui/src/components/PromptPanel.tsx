@@ -17,12 +17,8 @@
  * submit was attempted.
  */
 
-/* === External Imports === */
-
 import { AlertTriangle, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-
-/* === Local Imports === */
 
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
@@ -42,8 +38,6 @@ import {
 import type { PromptField, PromptRequest } from "@/lib/types";
 import { occurrenceKeys } from "@/lib/utils";
 
-/* === Types === */
-
 type PromptPanelProps = {
   prompt: PromptRequest | undefined;
   submittingAction?: string | null;
@@ -53,8 +47,6 @@ type PromptPanelProps = {
   onAction: (action: string, values?: PromptValues) => void;
   onValueChange: (field: PromptField, value: PromptValue) => void;
 };
-
-/* === Components === */
 
 export function PromptPanel({ prompt, submittingAction = null, values, emergencyAction, onAction, onValueChange }: PromptPanelProps) {
   if (!prompt) {

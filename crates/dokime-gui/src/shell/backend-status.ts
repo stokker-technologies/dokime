@@ -9,17 +9,11 @@
 
 /* Backend identity and connection state from the existing runtime subscription. */
 
-/* === External Imports === */
-
 import { useQuery } from "@tanstack/react-query";
-
-/* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
 import * as rpc from "@/lib/rpc/generated/client";
 import { useHubStore } from "@/stores/hub-store";
-
-/* === Types === */
 
 export type ConnectionState = "connected" | "reconnecting" | "disconnected" | "unknown";
 
@@ -30,8 +24,6 @@ export type BackendStatus = {
   /** Connection failure reported by the runtime subscription. */
   detail: string | null;
 };
-
-/* === Hooks === */
 
 export function useBackendStatus(): BackendStatus {
   const session = useNativeSession();

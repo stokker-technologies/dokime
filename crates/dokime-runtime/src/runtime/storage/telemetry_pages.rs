@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::Identifier;
 
-// Local Imports
 use super::{
     execution::ExecutionView,
     paging::{Cursor, page_limit},
@@ -28,22 +18,6 @@ use crate::{
     runtime::Result,
     runtime::query::checkpoint_telemetry::{ExecutionTelemetryPage, ExecutionTelemetryQuery},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn read(
     view: &ExecutionView, stream: &Identifier, query: ExecutionTelemetryQuery, settings: &harmos::config::SchemaSettings,
@@ -102,7 +76,3 @@ pub(crate) async fn read(
         })
     })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

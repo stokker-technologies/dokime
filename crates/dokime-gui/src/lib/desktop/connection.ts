@@ -10,8 +10,6 @@
 /* Desktop connection wire types, mirroring `src-tauri/src/connection/contract.rs`.
    All protobuf 64-bit integers cross IPC as decimal strings. */
 
-/* === Types === */
-
 /** Attaching to a caller-owned listener never starts a runtime. */
 export type ConnectionTarget = { kind: "local"; endpoint: string } | { kind: "remote"; endpoint: string; caCertificatePem: string | null };
 

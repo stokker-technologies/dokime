@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 mod catalog;
 mod executions;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-// Local Imports
 use super::shared::Map;
 use super::{
     DokimeIdentity, EvidenceRecords, InstalledPluginErrorRecord, MaterializedParameter, PluginOwner, PromptDefinition, PromptId,
@@ -33,14 +24,6 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // The managed snapshot's state encoding. Catalogs and execution plans are
 // stored once and referenced by position (see `catalog` and `executions`), so
@@ -125,12 +108,6 @@ struct Decoded {
     archived_cycles: BTreeSet<TestCycleId>,
     archived_executions: BTreeSet<TestExecutionId>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serialize for RuntimeState {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -290,10 +267,6 @@ impl Decoded {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // Returns The Position Of A Shared Value, Storing It On First Sight
 fn intern<'a, T: PartialEq + ?Sized>(values: &mut Vec<&'a T>, value: &'a T) -> u32 {
     let index = match values.iter().position(|candidate| *candidate == value) {
@@ -314,5 +287,3 @@ fn position<T: PartialEq + ?Sized>(values: &[&T], value: &T) -> u32 {
 fn resolve<T: Clone>(values: &[T], index: u32, kind: &str) -> Result<T, String> {
     values.get(index as usize).cloned().ok_or_else(|| format!("state references a missing shared {kind}"))
 }
-
-/* === Tests === */

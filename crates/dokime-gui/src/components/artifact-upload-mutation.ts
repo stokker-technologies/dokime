@@ -7,17 +7,11 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-
-/* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowDocuments, invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import { type NativeArtifactUploadOptions, nativeContentSession, uploadNativeArtifact } from "@/lib/api/native-content";
-
-/* === Hooks === */
 
 export function useOperatorArtifactUploadMutation() {
   const session = useNativeSession();

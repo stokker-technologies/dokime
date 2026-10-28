@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod request;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::{TestCase, TestCaseTemplate};
 use crate::document::DocumentDefinition;
 use crate::domains::ExecutionProviderTarget;
@@ -48,16 +39,8 @@ use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 use dokime_domain::state::records::set::TestRecordSet;
 
-/* === Constants === */
-
 pub(crate) const EXECUTION_NOT_PLANNED: &str = "case has no unstarted execution; schedule a rerun first";
 pub(crate) const PROVIDER_UNAVAILABLE: &str = "every selected case requires a provider execution binding";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.provider.run", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -74,12 +57,6 @@ pub(super) struct RunPlan {
     pub(super) target: ExecutionProviderTarget,
     pub(super) execution_id: TestExecutionId,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for RunProvider {
     type Error = String;
@@ -108,8 +85,6 @@ impl Transaction<RuntimeState> for RunProvider {
         apply_run_provider(state, self).expect("Harmos checked provider admission before applying it");
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn execution_available(state: &RuntimeState, execution: &TestExecution) -> bool {
     execution.status == ExecutionStatus::Skipped
@@ -194,8 +169,6 @@ pub(crate) fn scheduled_execution_record(
         snapshot,
     }
 }
-
-/* === Private Functions === */
 
 fn prepare_run_provider(state: &RuntimeState, run: &RunProvider) -> Result<RunPlan, Error> {
     let id = run
@@ -307,5 +280,3 @@ fn summary(status: ResultStatus) -> ResultSummary {
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).unwrap_or_else(|_| Identifier::new("provider.invalid_identifier").expect("fallback identifier is valid"))
 }
-
-/* === Tests === */

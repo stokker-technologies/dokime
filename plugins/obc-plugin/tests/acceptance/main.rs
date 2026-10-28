@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     num::NonZeroUsize,
@@ -21,10 +14,8 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use dokime::__harmos as harmos;
 use dokime::execution::ExecutionScope;
 use dokime::operations::hosting::{Host as Hosted, Serve, Served};
@@ -39,16 +30,8 @@ use harmos::plugin::{
 use harmos::{Context, RegistrationExt};
 use obc_plugin::ObcPlugin;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type NoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Fixture>, harmos::sidecar::Notice) + Send + Sync>;
 type Resident = harmos::sidecar::Supervised<Fixture, harmos::sidecar::Executable, NoticeHandler>;
-
-/* === Structs === */
 
 struct Fixture;
 
@@ -86,17 +69,11 @@ struct Bench {
     declaration: harmos::plugin::inventory::Declaration,
 }
 
-/* === Enums === */
-
 #[harmos::lanes(harmos_path = dokime::__harmos)]
 enum Lanes {
     #[default]
     Open,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl dokime::__harmos::Application for Fixture {
     type Lanes = Lanes;
@@ -479,10 +456,6 @@ impl Bench {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // The host operations a suite plugin requires, served by this fixture host.
 async fn serve_host(operations: &harmos::operations::OperationManager<Lanes>, hosting: &Arc<Hosting>) -> harmos::Result<()> {
     use dokime::operations::files::{AwaitFileWatchArmed, WatchFile};
@@ -533,8 +506,6 @@ async fn dispatch(operations: &harmos::operations::OperationManager<Lanes>, meth
         Err(error) => panic!("{method} was advertised but did not dispatch: {error}"),
     }
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn inventory_matches_dispatch() {

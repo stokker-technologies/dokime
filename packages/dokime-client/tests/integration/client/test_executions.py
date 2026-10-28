@@ -8,16 +8,11 @@
 
 """Start, Control, Await And Seal Executions"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 from typing import Any
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import (
     BackendChanged,
     ClientClosed,
@@ -42,12 +37,6 @@ from .backend import (
 )
 from .canonical import _message
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 # Each Mutation Breaks One Invariant Of The Sealed Checkpoint Identity.
 MALFORMED_CHECKPOINTS = {
     "version_garbage": ("version", b"malformed"),
@@ -65,12 +54,6 @@ MALFORMED_CHECKPOINTS = {
     "invalid_epoch": ("epoch", "invalid/history"),
     "position_zero": ("sequence", 0),
 }
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_wait_awaits_seal() -> None:
@@ -410,8 +393,3 @@ def test_malformed_checkpoint(mutation: str) -> None:
             assert restored is not None and _wire.equal(restored._wire(), valid)
 
     asyncio.run(scenario())
-
-
-# === Private Functions === #
-
-# === Entry Point === #

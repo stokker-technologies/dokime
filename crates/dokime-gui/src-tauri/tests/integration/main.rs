@@ -9,8 +9,6 @@
 
 #![recursion_limit = "256"]
 
-/* === Modules === */
-
 mod connection;
 mod http;
 mod native_session;
@@ -22,34 +20,4 @@ mod storage;
 #[path = "../support/mod.rs"]
 mod support;
 
-/* === Re-Exports === */
-
 use support::wire;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

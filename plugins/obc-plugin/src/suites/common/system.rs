@@ -7,29 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::document::{Column, PlotDefinition};
 use dokime::prelude::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[dokime::catalog]
 pub enum SystemInputs {
@@ -40,12 +19,6 @@ pub enum SystemInputs {
     WifiChannelOccupancy(host::WifiChannelOccupancy),
     Bluetooth(host::Bluetooth),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn section(owner: &str) -> Section {
     let mut section = Section::new("System Information");
@@ -90,8 +63,6 @@ pub fn section(owner: &str) -> Section {
     section
 }
 
-/* === Private Functions === */
-
 fn series<R: TelemetryStream>(
     owner: &str, metric: &str, label: &str, unit: &str, decimals: u8, columns: impl IntoIterator<Item = Column<R>>,
 ) -> PlotDefinition {
@@ -105,5 +76,3 @@ fn series<R: TelemetryStream>(
 
     plot
 }
-
-/* === Tests === */

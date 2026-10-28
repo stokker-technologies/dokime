@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::{
     document::capture::Capture,
     report::{input::CycleReportInput, value::Value},
@@ -33,14 +23,6 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy)]
 pub(in crate::report) struct Header<'a> {
@@ -59,12 +41,6 @@ pub(in crate::report) struct Cycle<'a> {
     pub created_at: &'a Timestamp,
     pub result: Option<&'a ResultSummary>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> Header<'a> {
     pub(in crate::report) fn cycle(snapshot: &'a CycleSnapshot, documents: &'a BTreeMap<DocumentId, Capture>) -> Self {
@@ -103,10 +79,6 @@ impl<'a> From<&'a CycleReportInput> for Header<'a> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // A Captured Report States Its Cycle By Its Members: Running, Else Its Result.
 fn captured_status(input: &CycleReportInput) -> CycleStatus {
     if input.cycle.test_executions.iter().any(|execution| matches!(execution.status, ExecutionStatus::Running)) {
@@ -119,5 +91,3 @@ fn captured_status(input: &CycleReportInput) -> CycleStatus {
         Some(ResultStatus::Pending) | None => CycleStatus::Ready,
     }
 }
-
-/* === Tests === */

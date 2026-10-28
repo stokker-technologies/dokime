@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-
-/* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -24,12 +20,12 @@ import { PluginList } from "@/features/settings/plugins/PluginList";
 import { programKey, programSource } from "@/features/settings/plugins/PluginPrograms";
 import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import {
+  useInstallPluginMutation,
   usePluginReleaseMutation,
   usePluginsQuery,
   useRemovePluginMutation,
   useRestartAppMutation,
   useSetPluginEnabledMutation,
-  useInstallPluginMutation,
 } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -38,8 +34,6 @@ import type { PluginSource } from "@/lib/api/native-plugins";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import type { PluginEntry } from "@/lib/types/view-contracts";
-
-/* === Components === */
 
 export function PluginsSection() {
   const brand = useBrand();
@@ -320,8 +314,6 @@ export function PluginsSection() {
     </>
   );
 }
-
-/* === Private Functions === */
 
 function errorMessage(error: unknown, fallback: string): string | null {
   if (!error) {

@@ -7,32 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Serialize, Serializer, ser::SerializeSeq};
 
-// Local Imports
 use super::{ReportValue, ReportValues};
 use dokime_domain::model::definition::parameters::ParameterDefinition;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::{Value, ValueType};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Serialize)]
 pub(super) struct Cycle<'a> {
@@ -117,12 +100,6 @@ struct Parameter<'a> {
 
 struct Values<'a>(&'a [Value]);
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Serialize for Parameters<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let mut rows = serializer.serialize_seq(Some(self.0.len()))?;
@@ -155,9 +132,3 @@ impl Serialize for Values<'_> {
         rows.end()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

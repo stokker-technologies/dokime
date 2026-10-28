@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { commands } from "@/lib/desktop/commands";
 import { isReportBuild } from "@/lib/ui-mode";
-
-/* === Public Functions === */
 
 export async function openLocalPath(path: string | null | undefined): Promise<boolean> {
   const trimmed = path?.trim();

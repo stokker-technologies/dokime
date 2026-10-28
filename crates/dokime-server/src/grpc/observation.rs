@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use super::execution;
 use super::value::canonical;
 use crate::grpc::transcode::Transcode;
@@ -31,8 +22,6 @@ use dokime::operations::observation as wire;
 use dokime::runtime::progress::{OperationOutcome, OperationSnapshot};
 use dokime::runtime::query::RuntimeChange;
 
-/* === Constants === */
-
 const SERVER_SHELL_RESPONSE_BYTES: u64 = 524_288;
 const SERVER_TRACEABILITY_RESPONSE_BYTES: u64 = 524_288;
 const SERVER_TRACEABILITY_SCAN_ITEMS: u64 = 8_192;
@@ -41,22 +30,10 @@ pub const WATCH_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(
 
 pub(super) const STREAM: &str = "runtime.state";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::GetRuntimeShell> for Resources {
     fn serve<'a>(
@@ -262,8 +239,6 @@ impl Serve<wire::GetTraceability> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
@@ -282,8 +257,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) 
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn operation_frames(operations: &OperationSnapshot) -> Result<Vec<dokime::domain::model::observation::wire::OperationProgress>, Status> {
     operations
@@ -359,5 +332,3 @@ fn evidence_counts(counts: &dokime::domains::evidence::EvidenceCounts) -> dokime
         notes: counts.notes as u64,
     }
 }
-
-/* === Tests === */

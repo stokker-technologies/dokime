@@ -8,31 +8,13 @@
 
 """Generate Release Metadata From Canonically Inspected Bundles"""
 
-# === Imports === #
-
-# Standard Library Imports
 import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
-# Third Party Imports
 import pytest
-
-# Local Imports
 from dokime_tools.package import plugins
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_release_feed_uses_inspected_identity_targets_and_complete_digest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -60,8 +42,3 @@ def test_release_feed_uses_inspected_identity_targets_and_complete_digest(tmp_pa
         plugins.release_feed(assets * 2, tool=tool, requires_dokime="=0.1.0")
     with pytest.raises(ValueError, match="credential-free HTTPS"):
         plugins.release_feed([(bundle, "https://token@example.test/plugin")], tool=tool, requires_dokime="=0.1.0")
-
-
-# === Private Functions === #
-
-# === Entry Point === #

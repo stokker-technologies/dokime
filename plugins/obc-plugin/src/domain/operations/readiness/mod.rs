@@ -7,26 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::domain::model::readiness::Readiness;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::operation(
     id = "obc.bench.check_readiness",
@@ -37,15 +18,3 @@ use crate::domain::model::readiness::Readiness;
 )]
 #[derive(Clone, PartialEq)]
 pub struct AskReadiness {}
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

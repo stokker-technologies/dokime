@@ -7,47 +7,24 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{num::NonZeroUsize, sync::Arc, time::Instant};
 
-// Third Party Imports
 use dokime::harmos::operations::{Response, StreamOutput};
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::error::detailed;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{RuntimeHandle, runtime::Error};
 
-/* === Constants === */
-
 // A Quiet Follow Sends An Empty Chunk Well Inside The Client's 30 s Idle Deadline.
 const FOLLOW_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::FollowExecutionFile> for Resources {
     fn serve<'a>(&'a self, request: wire::FollowExecutionFile, ctx: Context<'a, wire::FollowExecutionFile>) -> Served<'a, ()> {
@@ -117,8 +94,6 @@ impl Serve<wire::FollowExecutionFile> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -127,8 +102,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn send(
     output: &StreamOutput<dokime::domain::model::content::wire::ExecutionFileFollowFrame>,
@@ -153,5 +126,3 @@ fn failure(error: Error) -> Status {
     };
     detailed(status, &error)
 }
-
-/* === Tests === */

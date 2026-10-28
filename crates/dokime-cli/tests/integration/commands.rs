@@ -7,39 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{io::Write, path::Path};
 
-// Third Party Imports
 use clap::Parser;
 
-// Local Imports
 use dokime::client::profiles::Store;
 use dokime_cli::{Cli, Error};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn configuration(root: &Path) -> dokime::config::Config {
     dokime::config::ApplicationOptions {
@@ -49,8 +22,6 @@ fn configuration(root: &Path) -> dokime::config::Config {
     .resolve()
     .unwrap()
 }
-
-/* === Tests === */
 
 #[test]
 fn execution_lifecycle_parser() {

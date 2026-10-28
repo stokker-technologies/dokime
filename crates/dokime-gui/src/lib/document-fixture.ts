@@ -11,13 +11,6 @@
  * Canonical Document Capture Test Fixtures
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import type {
   CardBinding,
   DocumentCapture_Serialize,
@@ -27,11 +20,6 @@ import type {
   PlotInput,
 } from "./document-contracts";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 interface CaptureFixture {
   sources: DocumentCardDefinition_Serialize[];
   bindings: CardBinding[];
@@ -40,9 +28,6 @@ interface CaptureFixture {
   sections?: Record<string, Metadata>;
 }
 
-/* === Classes === */
-
-/* === Public Functions === */
 export function documentCaptureFixture(input: CaptureFixture): DocumentCapture_Serialize {
   const metadata = input.metadata ?? { identifier: "default", label: "Plots" };
   return {
@@ -94,7 +79,3 @@ export function plotInputFixture(input: Partial<PlotInput> = {}): PlotInput {
     ...input,
   };
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

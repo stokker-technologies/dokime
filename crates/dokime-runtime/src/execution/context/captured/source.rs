@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::storage::StorageCursor;
 
-// Local Imports
 use super::ExecutionContext;
 use crate::records::RecordContract;
 use crate::telemetry::contract::TelemetryContract;
@@ -28,14 +19,6 @@ use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::NodeId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -53,12 +36,6 @@ pub(crate) struct CapturedSource {
     pub telemetry_contracts: BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>,
     pub record_contracts: BTreeMap<Identifier, BTreeMap<u32, RecordContract>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl CapturedSource {
     pub(crate) fn validate_header(&self) -> Result<()> {
@@ -82,9 +59,3 @@ impl CapturedSource {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

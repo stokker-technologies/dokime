@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Types === */
-
 /** One labelled distribution's backend statistics; `null` until they arrive. */
 export type StatsSummaryRow = {
   label: string;
@@ -71,8 +69,6 @@ export type StatsSummary = {
   max?: number;
 };
 
-/* === Constants === */
-
 /** The legend table's statistics, in column order; count alone has no unit. */
 export const SERIES_STATISTICS = [
   ["count", "Count"],
@@ -83,8 +79,6 @@ export const SERIES_STATISTICS = [
   ["std", "Std"],
   ["rms", "Rms"],
 ] as const;
-
-/* === Public Functions === */
 
 /**
  * The legend table's columns, the same on a live plot and in a report: the

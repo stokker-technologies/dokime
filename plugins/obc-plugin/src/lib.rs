@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod analyses;
 pub mod domain;
 pub mod error;
@@ -19,21 +17,13 @@ pub mod prompts;
 pub mod settings;
 pub mod suites;
 
-/* === Re-Exports === */
-
 pub use error::Error;
 pub use settings::BenchSettings;
 pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::harmos::Dependencies;
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
 use dokime::harmos::plugin::{Attachment, Declared};
@@ -42,8 +32,6 @@ use dokime::prelude::*;
 use obc_runtime::app;
 use obc_runtime::{Stop, Testbench};
 
-/* === Constants === */
-
 pub const SOURCE: &str = <ObcPlugin as Declared>::ID;
 const LIFECYCLE: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
@@ -51,13 +39,7 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
     retries: RetryPolicy::Never,
 };
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Observing = ObserverAttachment<Resources, Publisher<ObcPlugin>>;
-
-/* === Structs === */
 
 pub struct Resources {
     app: OnceLock<obc_runtime::Client>,
@@ -71,14 +53,8 @@ pub struct ObcPlugin {
     observers: Option<Arc<Observing>>,
 }
 
-/* === Enums === */
-
 #[dokime::catalog]
 pub enum Records {}
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Resources {
     pub fn app(&self) -> &obc_runtime::Client {
@@ -182,9 +158,3 @@ impl dokime::Plugin for ObcPlugin {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

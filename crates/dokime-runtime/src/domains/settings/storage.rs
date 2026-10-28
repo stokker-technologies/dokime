@@ -7,34 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::storage::sqlite::Source as StorageSource;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn storage_sources(&self) -> Result<Vec<StorageSource>> {
@@ -56,15 +31,9 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn settings_error(error: crate::storage::sqlite::Error) -> Error {
     match error {
         crate::storage::sqlite::Error::Catalog(message) => Error::validation("invalid_storage_sources", message, Vec::new()),
         error => error.into(),
     }
 }
-
-/* === Tests === */

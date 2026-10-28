@@ -8,34 +8,17 @@
 
 """Serve Canonical Generated Operations In Socket Fixtures"""
 
-# === Imports === #
-
-# Standard Library Imports
 import json
 from collections.abc import Mapping
 from typing import Any
 
-# Third Party Imports
 import grpc
 from google.protobuf.message import Message
 from google.protobuf.message_factory import GetMessageClass
 
-# Local Imports
 import dokime_client
 from dokime_client.client import DatetimeValue, UnsignedValue, _contracts, _wire
 from dokime_client.operation import Operation
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def _message(
@@ -164,8 +147,3 @@ def register(server, implementation) -> None:
         response_serializer=lambda result: result.SerializeToString(),
     )
     server.add_generic_rpc_handlers([grpc.method_handlers_generic_handler(service, methods) for service, methods in handlers.items()])
-
-
-# === Private Functions === #
-
-# === Entry Point === #

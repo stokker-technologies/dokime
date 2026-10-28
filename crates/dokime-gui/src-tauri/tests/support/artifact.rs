@@ -7,37 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::RuntimeHandle;
 use dokime::artifacts::ArtifactUploadInput;
 use dokime::definition::{TestCaseTemplate, TestSuite};
 use dokime::{Identifier, Metadata, RecordScope, TemplateId};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct Provider(tokio::sync::watch::Sender<Option<String>>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for Provider {
     fn default() -> Self {
@@ -100,8 +75,6 @@ impl dokime::ExecutionFixture for Provider {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
     let metadata = || Metadata::new(Identifier::new("rpc.artifact").unwrap(), "Artifact fixture", None);
@@ -186,7 +159,3 @@ pub async fn registered_cycle(
     runtime.append_executions(cycle_id.clone(), bindings.clone()).await.unwrap();
     (cycle_id, bindings.into_iter().map(|(execution, _case)| execution).collect())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

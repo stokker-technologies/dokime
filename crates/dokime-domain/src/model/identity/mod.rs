@@ -9,14 +9,10 @@
 
 // Canonical Identities And Identifier Observation Patterns
 
-/* === Modules === */
-
 pub mod id;
 pub mod identities;
 mod pattern;
 pub mod wire;
-
-/* === Re-Exports === */
 
 pub use harmos_domain::Identifier;
 pub use harmos_domain::Metadata;
@@ -54,31 +50,3 @@ pub use identities::DokimeNodeIdentity;
 pub use identities::ExternalIdentityMapping;
 pub use identities::ExternalIdentityProvider;
 pub use pattern::IdentifierPattern;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

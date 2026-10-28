@@ -33,12 +33,6 @@
  * the report rather than written to a URL it does not own.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import { useNavigate } from "@tanstack/react-router";
 import {
   BellRing,
@@ -60,8 +54,6 @@ import {
 } from "lucide-react";
 import { type KeyboardEvent, type RefObject, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-
-// Local Imports
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -94,10 +86,6 @@ import {
   selectedCycleRow,
 } from "./cycle-workspace-model";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const GUI_LONG_PRESS_MS = 500;
 
 /**
@@ -117,8 +105,6 @@ const TONE_CLASS: Record<GlyphTone, string> = {
 
 /** How long a touch must rest on a row before its menu opens. */
 const LONG_PRESS_MS = GUI_LONG_PRESS_MS;
-
-/* === Types === */
 
 export type CycleSidebarState = {
   data?: { plan: TestCyclePlan | null; executions: TestExecution[] };
@@ -145,8 +131,6 @@ export type CycleSidebarCasesViewProps = {
 type GlyphTone = "running" | "success" | "danger" | "warning" | "muted";
 
 type Glyph = { icon: LucideIcon; tone: GlyphTone; spin?: boolean; label: string };
-
-/* === Components === */
 
 export function CycleSidebarCasesView({
   cycleId,
@@ -591,12 +575,6 @@ function TreeNotice({ action, message, title }: { action?: { label: string; onCl
     </li>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 /** The selected row's ground, full width; otherwise a hover ground only. */
 function rowTone(selected: boolean): string {

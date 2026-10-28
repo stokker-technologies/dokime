@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::{MaterializedParameter, ParameterSource};
 use crate::state::RuntimeState;
 use dokime_domain::model::execution::RecordScope;
@@ -28,14 +19,6 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::MeasurementUnit;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.parameters.scoped.upsert", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -48,12 +31,6 @@ pub struct UpsertScopedParameter {
     pub group_id: Option<Identifier>,
     pub unit: Option<MeasurementUnit>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for UpsertScopedParameter {
     type Error = String;
@@ -77,8 +54,6 @@ impl Transaction<RuntimeState> for UpsertScopedParameter {
     }
 }
 
-/* === Public Functions === */
-
 pub fn apply_upsert_scoped_parameter(state: &mut RuntimeState, update: UpsertScopedParameter) -> bool {
     let Some(parameters) = scoped_parameters_mut(state, &update.scope) else {
         return false;
@@ -86,8 +61,6 @@ pub fn apply_upsert_scoped_parameter(state: &mut RuntimeState, update: UpsertSco
     let metadata = update.metadata.unwrap_or_else(|| synthetic_metadata(&update.key));
     upsert_parameter(parameters, &update.key, update.value, update.source, metadata, update.group_id, update.unit)
 }
-
-/* === Private Functions === */
 
 fn upsert_parameter(
     parameters: &mut BTreeMap<String, MaterializedParameter>, key: &str, value: Value, source: ParameterSource, metadata: Metadata,
@@ -127,5 +100,3 @@ fn synthetic_metadata(key: &str) -> Metadata {
 fn ensure_runtime_active(state: &RuntimeState) -> Result<(), String> {
     if state.shutting_down { Err("runtime is shutting down".to_owned()) } else { Ok(()) }
 }
-
-/* === Tests === */

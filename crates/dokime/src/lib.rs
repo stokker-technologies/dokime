@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(feature = "client")]
 #[path = "error.rs"]
 pub mod client_error;
@@ -20,38 +18,8 @@ pub mod installation;
 pub mod terminal;
 pub mod version;
 
-/* === Re-Exports === */
-
 pub use dokime_domain as domain;
 pub use dokime_runtime::*;
 
 #[cfg(feature = "client")]
 pub use dokime_client as client;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

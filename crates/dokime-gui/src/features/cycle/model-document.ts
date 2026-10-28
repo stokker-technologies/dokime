@@ -11,25 +11,7 @@
  * context its plots read, and de-duplicated artifacts. Evidence values come
  * from the backend; nothing here derives them. */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
 import type { DocumentViewCard, HubLiveState, TelemetryStream } from "@/lib/types";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export function mergeParameterContexts(...contexts: Array<Record<string, unknown> | null | undefined>): Record<string, unknown> | null {
   const merged: Record<string, unknown> = {};
@@ -66,8 +48,6 @@ export function uniqueArtifacts<T extends { artifact_id: string }>(artifacts: T[
   });
 }
 
-/* === Private Functions === */
-
 function plotContextStreams(documentPlots: DocumentViewCard["plots"]): string[] {
   const streams = new Set<string>();
   documentPlots.forEach((plot) => {
@@ -82,5 +62,3 @@ function plotContextStreams(documentPlots: DocumentViewCard["plots"]): string[] 
   });
   return [...streams].sort();
 }
-
-/* === Entry Point === */

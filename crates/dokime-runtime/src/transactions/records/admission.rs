@@ -7,36 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::state::PluginOwner;
 use crate::state::RuntimeState;
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn host(state: &RuntimeState, kind: &Identifier) -> Result<(), String> {
     if builtin(kind)
@@ -63,8 +36,6 @@ pub(crate) fn sidecar(state: &RuntimeState, owner: &str, kind: &Identifier) -> R
     if provider(state, owner, kind)? { Ok(()) } else { Err(format!("record publisher {owner} is not owned by a plugin bundle")) }
 }
 
-/* === Private Functions === */
-
 fn builtin(kind: &Identifier) -> bool {
     crate::records::builtin_record_types().contains(kind)
 }
@@ -78,5 +49,3 @@ fn declares(state: &RuntimeState, owner: &str, kind: &Identifier) -> bool {
         .chain(state.suites.suites().filter(|suite| suite.source == owner).flat_map(|suite| &suite.record_contracts))
         .any(|contract| &contract.record_type == kind)
 }
-
-/* === Tests === */

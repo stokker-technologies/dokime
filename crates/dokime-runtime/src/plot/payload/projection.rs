@@ -7,40 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 use harmos::storage::ReadBatch;
 use serde_json::Value as JsonValue;
 
-// Local Imports
 use super::{PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotPoint, PlotSeries};
 use crate::runtime::{Error, Result};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn plain(
     telemetry: &[TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
@@ -62,8 +35,6 @@ pub(super) fn json_value(value: &Value) -> Result<JsonValue> {
     }
     json_valid(value)
 }
-
-/* === Private Functions === */
 
 fn plain_series(samples: &[&TelemetrySample], telemetry: &[TelemetrySample], request: &PlotPayloadRequest) -> Result<Vec<PlotSeries>> {
     let x_key = request.x_key.as_deref().unwrap_or("timestamp");
@@ -177,8 +148,6 @@ fn json_valid(value: &Value) -> Result<JsonValue> {
 pub(super) fn memory() -> Error {
     harmos::Error::ResourceExhausted { resource: "initial plot projection" }.into()
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

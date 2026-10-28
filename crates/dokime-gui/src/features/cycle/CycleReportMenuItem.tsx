@@ -17,22 +17,14 @@
  * already in progress.
  */
 
-/* === External Imports === */
-
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-
-/* === Local Imports === */
 
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useCycleCommands } from "./cycle-queries";
 import { reportDownloadState } from "./cycle-workspace-model";
 
-/* === Constants === */
-
 /** One shape for the cluster's labelled buttons: the bar control height. */
-
-/* === Types === */
 
 export type CycleReportMenuItemProps = {
   cycleId: string;
@@ -41,8 +33,6 @@ export type CycleReportMenuItemProps = {
   /** The cycle or execution label the file is named after. */
   label: string;
 };
-
-/* === Components === */
 
 export function CycleReportMenuItem({ cycleId, executionId, label }: CycleReportMenuItemProps) {
   const { downloadReport } = useCycleCommands(cycleId);

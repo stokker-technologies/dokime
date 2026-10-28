@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { ChevronDown, ListChecks, LoaderCircle } from "lucide-react";
 import { type ComponentProps, useState } from "react";
-
-/* === Local Imports === */
 
 import { DocumentCard } from "@/components/document/DocumentCard";
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
@@ -20,8 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatDuration } from "@/lib/format";
 import type { DocumentCardLayout, StepExecutionRecord, StepFailureDetail } from "@/lib/types";
-
-/* === Types === */
 
 type StepRecordsCardProps = {
   records: StepExecutionRecord[];
@@ -34,8 +28,6 @@ type StepRecordsCardProps = {
 
 type BadgeVariant = ComponentProps<typeof Badge>["variant"];
 
-/* === Constants === */
-
 const RECORD_TYPE_ORDER: Record<StepExecutionRecord["record_type"], number> = {
   step: 0,
   criterion: 1,
@@ -43,8 +35,6 @@ const RECORD_TYPE_ORDER: Record<StepExecutionRecord["record_type"], number> = {
   finalize: 3,
   interrupt: 4,
 };
-
-/* === Components === */
 
 export function StepRecordsCard({
   records,
@@ -155,8 +145,6 @@ export function StepFailure({ detail }: { detail: StepFailureDetail }) {
   );
 }
 
-/* === Public Functions === */
-
 export function sortedStepRecords(records: StepExecutionRecord[]): StepExecutionRecord[] {
   const executionStarts = new Map<string, number>();
   for (const record of records) {
@@ -212,8 +200,6 @@ export function stepRecordLabel(record: StepExecutionRecord, showRecordType: boo
   }
   return `${record.record_type}: ${label}`;
 }
-
-/* === Private Functions === */
 
 function sortableTimestamp(value: string): number {
   const timestamp = Date.parse(value);

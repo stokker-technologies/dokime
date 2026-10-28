@@ -9,14 +9,6 @@
 
 /* Suite selection model. */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
 import { createPlanSelection, type TestCyclePlanSelectionDraft, type TestcaseFormDraft } from "@/components/start-cycle-form-model";
 
 import { reviveNativeValues } from "@/lib/api/native-values";
@@ -25,13 +17,7 @@ import type { SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/l
 
 import { isRecord } from "@/lib/utils";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 export const SUITE_DRAFT_STORAGE_KEY = "dokime-test-hub.suite-drafts.v1";
-
-/* === Types === */
 
 /* SuitePicker model: draft-store, search/filter, sanitize, guards */
 
@@ -62,10 +48,6 @@ export type DiagramStep = {
   label: string;
   order: number;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export function selectionDraftKey(suiteId: string, templateId: string): string {
   return `${suiteId}::${templateId}`;
@@ -317,8 +299,6 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(sortJson(value));
 }
 
-/* === Private Functions === */
-
 function searchTokens(query: string): string[] {
   return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
@@ -369,5 +349,3 @@ function sortJson(value: unknown): unknown {
       .map(([key, item]) => [key, sortJson(item)]),
   );
 }
-
-/* === Entry Point === */

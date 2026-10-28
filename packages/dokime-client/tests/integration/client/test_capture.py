@@ -8,33 +8,16 @@
 
 """Verify capture completeness, immutable provenance and streamed transfer integrity."""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 from pathlib import Path
 from typing import Any
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import ExecutionEvidence, ProtocolError, RpcError
 
 from .backend import SUITE_ID, TEMPLATE, collect, prepare
 from .capture_backend import serve
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_saved_execution_evidence(tmp_path: Path) -> None:
@@ -186,8 +169,3 @@ def test_history_refused() -> None:
                 _ = [record async for record in evidence.records()]
 
     asyncio.run(scenario())
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -7,35 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     net::SocketAddr,
     sync::{Arc, RwLock},
 };
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use tonic::{Request, Status};
 
-// Local Imports
 use super::Error;
 use super::remote::sessions::{Outcome, SessionLog};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct Principal {
@@ -49,8 +32,6 @@ pub(super) struct Listeners {
     sessions: Arc<SessionLog>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug)]
 pub(crate) enum Policy {
     TrustedLocal,
@@ -58,10 +39,6 @@ pub(crate) enum Policy {
     Key([u8; 32]),
     Clients(Arc<super::remote::pairing::Registry>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Principal {
     pub(crate) fn is_local(&self) -> bool {
@@ -188,8 +165,6 @@ impl dokime::harmos::grpc::authentication::Authenticator for Listeners {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn revocation(call: &dokime::harmos::operations::CallContext) -> Option<tokio_util::sync::CancellationToken> {
     call.get::<Principal>().and_then(|principal| principal.revoked.clone())
 }
@@ -212,13 +187,9 @@ pub(super) fn verifier(key: &str) -> Result<[u8; 32], Error> {
     Ok(Sha256::digest(key.as_bytes()).into())
 }
 
-/* === Private Functions === */
-
 fn valid_key(key: &str) -> bool {
     (32..=4096).contains(&key.len()) && key.bytes().all(|byte| byte.is_ascii_graphic())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

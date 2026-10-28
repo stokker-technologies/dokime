@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { HistogramChart } from "@/components/HistogramChart";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { histogramAxisTitle } from "@/plots/histogram-axes";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
-
-/* === Components === */
 
 /**
  * A histogram plot: the backend's bins per series and its statistics of each.

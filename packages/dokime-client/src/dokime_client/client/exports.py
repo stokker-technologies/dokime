@@ -8,37 +8,19 @@
 
 """Download Complete Saved Evidence With Explicit Overwrite"""
 
-# === Imports === #
-
-# Standard Library Imports
 import re
 from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
-# Third Party Imports
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
-# Local Imports
 from . import _wire
 from ._transport import Transport
 from .errors import ProtocolError
 from .history import Download
 from .models import Backend
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 async def export_evidence(
@@ -79,9 +61,6 @@ async def export_evidence(
     return Download(path, size, sha256, MessageToDict(metadata, preserving_proto_field_name=True))
 
 
-# === Private Functions === #
-
-
 def _destination(path: Path, overwrite: bool) -> None:
     if not path.name or not path.parent.is_dir():
         raise ValueError("evidence destination requires a filename and an existing parent directory")
@@ -93,6 +72,3 @@ def _destination(path: Path, overwrite: bool) -> None:
     partial = path.with_name(path.name + ".part")
     if partial.exists() or partial.is_symlink():
         raise FileExistsError("evidence download staging file already exists")
-
-
-# === Entry Point === #

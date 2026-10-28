@@ -8,32 +8,14 @@
 
 """Verify Candidate Tutorial Provenance And Artifact-Only Packaging"""
 
-# === Imports === #
-
-# Standard Library Imports
 import shutil
 import zipfile
 from pathlib import Path
 
-# Third Party Imports
 import pytest
-
-# Local Imports
 from dokime_tools.package import examples
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 WHEEL = "dokime_client-0.1.0-py3-none-any.whl"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_candidate_archive(tmp_path: Path) -> None:
@@ -142,9 +124,6 @@ def test_candidate_refusal(tmp_path: Path, fault: str) -> None:
     assert retained.read_bytes() == b"previous valid candidate"
 
 
-# === Private Functions === #
-
-
 def _fixture(tmp_path: Path) -> tuple[Path, Path]:
     root = tmp_path / "repository"
     package = root / "packages/dokime-client"
@@ -178,6 +157,3 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
         encoding="utf-8",
     )
     return root, wheel
-
-
-# === Entry Point === #

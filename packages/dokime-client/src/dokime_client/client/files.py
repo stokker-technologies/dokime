@@ -8,9 +8,6 @@
 
 """Follow Registered Execution Files With Explicit Resume Identity"""
 
-# === Imports === #
-
-# Standard Library Imports
 import hashlib
 import os
 import re
@@ -19,27 +16,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-# Third Party Imports
 from google.protobuf.message import Message
 
-# Local Imports
 from . import _wire
 from .errors import ProtocolError
 from .models import Backend
 
-# Type Checking Imports
 if TYPE_CHECKING:
     from ._transport import Transport
 
-# === Public Exports === #
-
-# === Constants === #
 
 FOLLOW_BUFFER_BYTES = 65536
-
-# === Types === #
-
-# === Classes === #
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,9 +72,6 @@ class FileUpdate:
     committed_offset: int
     phase: str
     sha256: str | None = None
-
-
-# === Public Functions === #
 
 
 async def follow_file(
@@ -212,8 +196,3 @@ async def follow_file(
             yield terminal
         finally:
             await reader.close()
-
-
-# === Private Functions === #
-
-# === Entry Point === #

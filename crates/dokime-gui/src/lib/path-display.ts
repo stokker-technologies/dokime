@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === Constants === */
-
 const PATH_KEY_PATTERN = /(^|_)(dir|path|directory|file|folder)(_|$)/i;
 const WINDOWS_PATH_PATTERN = /^[a-z]:[\\/][^<>:"|?*\n\r]+/i;
 const UNC_PATH_PATTERN = /^\\\\[^\\/\n\r]+[\\/][^\\/\n\r]+/;
 const POSIX_PATH_PATTERN = /^\/(?:[^/\n\r]+\/)+[^/\n\r]*/;
-
-/* === Public Functions === */
 
 export function isPathLike(value: string, key = ""): boolean {
   const trimmed = value.trim();
@@ -36,8 +32,6 @@ export function compactPath(value: string): string {
   }
   return `...${separator}${parts.slice(-2).join(separator)}`;
 }
-
-/* === Private Functions === */
 
 function hasPathSeparator(value: string): boolean {
   return value.includes("\\") || value.includes("/");

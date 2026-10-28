@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { RecordScope } from "@/lib/types";
-
-/* === Types === */
 
 /** Artifact ownership is determined solely by its declared scope. */
 export type ScopedArtifact = {
   scope?: RecordScope | null;
 };
-
-/* === Public Functions === */
 
 export function artifactVisibleInScope(artifact: ScopedArtifact, filter: RecordScope): boolean {
   return scopeVisibleIn(artifact.scope, filter);
@@ -37,8 +31,6 @@ export function scopeVisibleIn(scope: RecordScope | null | undefined, filter: Re
     fieldVisibleIn(scope?.suite_id, filter.suite_id)
   );
 }
-
-/* === Private Functions === */
 
 function fieldVisibleIn(record: string | null | undefined, selected: string | null | undefined): boolean {
   return selected == null || record === selected;

@@ -7,48 +7,24 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use crate::{Host, HostOptions, HostTelemetryConfig, HostTelemetryStream, host_telemetry_contracts};
 use dokime_domain::model::telemetry::TelemetryBatch;
 use dokime_domain::model::telemetry::TelemetryContract;
 
-/* === Constants === */
-
 const SYSTEM_INTERVAL_MS: u64 = 1_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct HostTelemetryCollectorImpl {
     host: Host,
     options: HostOptions,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait HostTelemetryCollector: Send + Sync + 'static {
     fn interval(&self, stream: &str) -> std::time::Duration;
 
     fn collect(&self, stream: &str) -> Result<Option<TelemetryBatch>, String>;
 }
-
-/* === Implementations === */
 
 impl HostTelemetryCollectorImpl {
     fn new(config: HostTelemetryConfig) -> Self {
@@ -70,8 +46,6 @@ impl HostTelemetryCollector for HostTelemetryCollectorImpl {
     }
 }
 
-/* === Public Functions === */
-
 pub fn contracts() -> Vec<TelemetryContract> {
     host_telemetry_contracts()
 }
@@ -92,8 +66,6 @@ pub fn collection_timeout(stream: &str) -> std::time::Duration {
     std::time::Duration::from_millis(milliseconds)
 }
 
-/* === Private Functions === */
-
 pub(crate) fn interval_ms(stream: HostTelemetryStream) -> u64 {
     match stream {
         HostTelemetryStream::System | HostTelemetryStream::Network => 1_000,
@@ -102,5 +74,3 @@ pub(crate) fn interval_ms(stream: HostTelemetryStream) -> u64 {
         HostTelemetryStream::WifiChannelOccupancy => 30_000,
     }
 }
-
-/* === Tests === */

@@ -7,35 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 mod serialization;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, fmt};
 
-// Third Party Imports
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{MapAccess, SeqAccess, Visitor},
 };
 
-// Local Imports
 use crate::runtime::Result;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Clone, Debug)]
 pub enum Value {
@@ -48,10 +29,6 @@ pub enum Value {
     Array(Vec<Value>),
     Object(BTreeMap<String, Value>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Value {
     pub fn from_serializable<T: ?Sized + Serialize>(source: &T, maximum_depth: usize) -> Result<Self> {
@@ -150,9 +127,3 @@ impl<'de> Deserialize<'de> for Value {
         deserializer.deserialize_any(Owned)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

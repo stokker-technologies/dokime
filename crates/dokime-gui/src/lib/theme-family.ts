@@ -7,19 +7,13 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { RuntimeThemeFamily } from "@/lib/appearance";
 import { type ResolvedTheme, type ThemeVariableMap, themeCornerRadiusVariables } from "@/lib/theme";
-
-/* === Types === */
 
 type ThemeFamilyPreference = {
   activeThemeId?: string | null;
   storedThemeId?: string | null;
 };
-
-/* === Public Functions === */
 
 export function resolveThemeFamily(
   themes: readonly RuntimeThemeFamily[],

@@ -9,17 +9,6 @@
 
 // Indexed Record And Telemetry Correlation For Plot Projection
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::super::{self as payload, PlotPayloadRequest, PlotPoint};
 use super::{
     input::Read,
@@ -32,14 +21,6 @@ use crate::{
     telemetry::TelemetrySample,
 };
 use dokime_domain::model::records::evidence::RecordEntry;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy)]
 struct Expression<'a> {
@@ -66,17 +47,11 @@ struct Candidate {
     value: Option<f64>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 enum Source<'a> {
     Timing(&'a str),
     Telemetry { stream: &'a str, field: &'a str },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Plan<'_> {
     fn candidate(&self, read: &Read<'_>, ordinal: i64, record: RecordEntry) -> Result<Option<Candidate>> {
@@ -213,8 +188,6 @@ impl Plan<'_> {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn project(read: &Read<'_>, request: &PlotPayloadRequest, mut visit: impl FnMut(Series) -> Result<()>) -> Result<bool> {
     let timing = request.y_expressions.iter().any(|expression| expression_for(expression, true).is_some());
     let expressions: Vec<_> = request.y_expressions.iter().filter_map(|expression| expression_for(expression, timing)).collect();
@@ -296,8 +269,6 @@ pub(super) fn project(read: &Read<'_>, request: &PlotPayloadRequest, mut visit: 
     Ok(true)
 }
 
-/* === Private Functions === */
-
 fn expression_for(expression: &DataExpression, timing: bool) -> Option<Expression<'_>> {
     let DataSource::Record { record_type } = &expression.source else {
         return None;
@@ -309,5 +280,3 @@ fn expression_for(expression: &DataExpression, timing: bool) -> Option<Expressio
     })?;
     Some(Expression { kind: record_type, source, expression })
 }
-
-/* === Tests === */

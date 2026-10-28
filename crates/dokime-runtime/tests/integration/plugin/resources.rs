@@ -7,28 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
     Arc, LazyLock, Mutex,
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
-// Third Party Imports
+
 use dokime_runtime::harmos::operations::{ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
-// Local Imports
+
 use dokime_runtime::execution::{Caller, CleanupContext, InitializationContext, Run, StepContext, Workflow};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::{Harness, HarnessError};
 use dokime_runtime::{Refusal, Supervisor};
 
-/* === Constants === */
 const SUITE: &str = "resources.checks";
 const TEMPLATE: &str = "resources.checks.probe";
 
@@ -39,11 +32,6 @@ const WATCH_SETTLE: Duration = Duration::from_millis(500);
 
 static DOUBLES: LazyLock<Mutex<BTreeMap<String, Arc<Observations>>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[derive(Default)]
 struct Observations {
     events: Mutex<Vec<&'static str>>,
@@ -120,7 +108,6 @@ struct ProbeParameters {
 
 struct CatalogOnly;
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("execution received a different resource handle")]
@@ -155,9 +142,6 @@ enum ProbeRequired {
     StartRun(StartRun),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl Observations {
     fn record(&self, event: &'static str) {
         self.events.lock().unwrap().push(event);
@@ -420,9 +404,6 @@ impl dokime_runtime::Plugin for CatalogOnly {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn registered(observations: &Arc<Observations>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("observations-{}", NEXT.fetch_add(1, Ordering::SeqCst));
@@ -482,8 +463,6 @@ async fn opened(observations: &Arc<Observations>) -> super::native::Native<dokim
     )
     .await
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn shared_within_between() {

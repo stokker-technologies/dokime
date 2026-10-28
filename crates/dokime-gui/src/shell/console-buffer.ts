@@ -18,15 +18,9 @@
  * Pure: no React, no path aliases, so the Node test runner imports it as is.
  */
 
-/* === External Imports === */
-
 import { createStore } from "zustand/vanilla";
 
-/* === Local Imports === */
-
 import type { HubRecord } from "@/lib/types";
-
-/* === Types === */
 
 export type ConsoleStreamKey = {
   cycleId: string | null;
@@ -77,8 +71,6 @@ type ConsoleRecordsActions = {
 
 export type ConsoleRecordsStore = ConsoleRecordsState & ConsoleRecordsActions;
 
-/* === Constants === */
-
 const GUI_CONSOLE_BUFFERS = 4;
 const GUI_CONSOLE_RECORDS = 5_000;
 const GUI_CONSOLE_RETENTION_BYTES = 2_097_152;
@@ -96,8 +88,6 @@ export const EMPTY_CONSOLE_BUFFER: ConsoleBuffer = {
   error: null,
   records: [],
 };
-
-/* === Public Functions === */
 
 export function consoleBufferKey({ cycleId, executionId, level }: ConsoleStreamKey): string {
   return `${cycleId ?? "*"}/${executionId ?? "*"}/${level}`;
@@ -164,8 +154,6 @@ export function createConsoleRecordsStore() {
     };
   });
 }
-
-/* === Private Functions === */
 
 function recordSequence(record: HubRecord): bigint {
   const digits = record.record_id.slice(record.record_id.lastIndexOf("-") + 1);

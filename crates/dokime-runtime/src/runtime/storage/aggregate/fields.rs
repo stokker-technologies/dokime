@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::definition::TestCase;
 use crate::records::RecordSeverity;
 use crate::{runtime::Error, runtime::Result, runtime::query::aggregate::AggregateSource};
@@ -32,8 +22,6 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
 
 const COMMON: &[&str] =
     &["label", "description", "tags", "attributes", "definition_identifier", "definition_created_at", "definition_updated_at"];
@@ -84,14 +72,6 @@ const RECORD: &[&str] = &[
     "related_artifact_identifier",
 ];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 pub(super) enum Row<'a> {
     Case(&'a TestCase),
     Cycle(&'a TestCycle),
@@ -109,10 +89,6 @@ pub(super) enum Field<'a> {
     Strings(&'a [String]),
     Object(&'a BTreeMap<String, Value>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Row<'_> {
     pub(super) fn source(&self) -> AggregateSource {
@@ -219,8 +195,6 @@ impl Field<'_> {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn columns(source: AggregateSource) -> impl Iterator<Item = &'static str> {
     let specific = match source {
         AggregateSource::Cases => CASE,
@@ -236,8 +210,6 @@ pub(crate) fn columns(source: AggregateSource) -> impl Iterator<Item = &'static 
 pub(super) fn known(source: AggregateSource, name: &str) -> bool {
     columns(source).any(|column| column == name)
 }
-
-/* === Private Functions === */
 
 fn metadata_field<'a>(metadata: &'a Metadata, name: &str) -> Option<Field<'a>> {
     Some(match name {
@@ -333,5 +305,3 @@ fn cycle_status(status: CycleStatus) -> &'static str {
 fn invalid(message: &'static str) -> Error {
     Error::validation("aggregate_query_invalid", message, Vec::new())
 }
-
-/* === Tests === */

@@ -7,23 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 mod index;
-
-/* === Re-Exports === */
 
 pub(crate) use index::{AnnotationKind, Index, Member, Sample};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
 
-// Third Party Imports
 use harmos::storage::FileReference;
 
-// Local Imports
 use super::html::HtmlReport;
 use crate::storage::Manager;
 use crate::{
@@ -31,14 +22,6 @@ use crate::{
     runtime::{progress::Operation, storage::cycle::CycleSnapshot},
 };
 use dokime_domain::model::execution::result::TestExecution;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct CycleReport {
     manager: Manager,
@@ -52,17 +35,11 @@ pub(crate) struct CapturedMember {
     pub(in crate::report) decodes: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
-/* === Enums === */
-
 // One Cycle Member In Cycle Order: Captured Evidence, Or A Planned Row Nobody Started.
 pub(crate) enum CycleMember {
     Captured(std::sync::Arc<CapturedMember>),
     Planned(Box<TestExecution>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl CycleMember {
     pub(crate) fn capture(input: harmos::storage::ReadBatch<super::CapturedExecutionReportInput>) -> Result<Self> {
@@ -120,9 +97,3 @@ impl CycleReport {
         self.file.finish(&self.manager).await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

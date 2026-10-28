@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod analysis;
 mod context;
 mod request;
 mod stream;
-
-/* === Re-Exports === */
 
 pub use crate::plot::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
@@ -27,13 +23,6 @@ pub(crate) use analysis::definitions as analysis_definitions;
 pub(crate) use request::{request_record_types, request_telemetry_streams};
 pub use stream::{RuntimePlotQueryMode, RuntimePlotStreamBatch, matching_plot_payload_request, plot_payload_stream_kind};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::plot::{
     PlotPayloadContext, finish_retained_plot_payload, plot_payload_diagnostics, project_retained_plot_payload, resolved_format,
 };
@@ -43,14 +32,6 @@ use context::RuntimePlotEnvelopeContext;
 use dokime_domain::model::time::Timestamp;
 use request::{canonical_plot_request, scope_selection};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 /// What a live plot watch re-reads a plot for: rows on the telemetry streams
 /// it reads, and state changes when it reads records or no telemetry at all.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -58,12 +39,6 @@ pub struct PlotWatchKeys {
     telemetry_streams: Vec<String>,
     records: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     /// Telemetry Streams With Newly Durable Rows Between Two Saved Frontiers.
@@ -112,8 +87,6 @@ impl PlotWatchKeys {
     }
 }
 
-/* === Public Functions === */
-
 /// Reduces Display Points Without Repeating Evidence Reads Or Analysis.
 pub fn reduce_plot_payload(
     envelope: harmos::storage::ReadBatch<PlotPayloadEnvelope>, request: &PlotPayloadRequest, maximum: usize,
@@ -153,8 +126,6 @@ pub async fn query_plot_stream_batches(
         })
         .collect())
 }
-
-/* === Private Functions === */
 
 fn plot_payload_context<'a>(
     request: &'a PlotPayloadRequest, contract: Option<&'a TelemetryContract>, run_started_at: Option<&'a Timestamp>,
@@ -384,8 +355,6 @@ async fn query_spilled_plot(
 fn telemetry_contract<'a>(context: &'a RuntimePlotEnvelopeContext, stream: &str) -> Option<&'a TelemetryContract> {
     context.snapshot.state().telemetry_definitions.iter().find(|(id, _)| id.as_str() == stream).map(|(_, contract)| contract)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

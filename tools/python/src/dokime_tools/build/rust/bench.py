@@ -8,32 +8,15 @@
 
 """Build Benchmark Leaves And Their Matching Hosts Without A Test Archive"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import subprocess
 import sys
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import bench, frontend, paths
 from dokime_tools.package import plugins
 from dokime_tools.test import archive
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 ROOT = frontend.ROOT
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def build() -> None:
@@ -66,10 +49,6 @@ def main(arguments: list[str] | None = None) -> int:
         return 1
     return 0
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     sys.exit(main())

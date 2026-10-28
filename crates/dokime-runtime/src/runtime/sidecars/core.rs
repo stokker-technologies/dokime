@@ -7,44 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, RwLock};
 
-// Third Party Imports
 use harmos::operations::HostContext;
 use harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use crate::RuntimeHandle;
 use crate::app::OperationManager;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::records::RecordPublication;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Default)]
 pub(crate) struct RecordIngress {
     runtime: RwLock<Option<RuntimeHandle>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordIngress {
     pub(crate) async fn register(operations: &OperationManager) -> harmos::Result<Arc<Self>> {
@@ -96,15 +73,9 @@ impl Serve<RecordPublication> for RecordIngress {
     }
 }
 
-/* === Public Functions === */
-
 // Serves Harmos's `streams.publish` built-in; each call reaches the calling
 // sidecar's own native endpoint through the call's host context.
 pub(crate) async fn register_publications(operations: &OperationManager) -> harmos::Result<()> {
     let batch = harmos::RegistrationBatch::new(harmos::Dependencies::new()).operation::<harmos::builtins::streams::Publish>();
     operations.register(batch.lane(crate::app::Lanes::Open)).await
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

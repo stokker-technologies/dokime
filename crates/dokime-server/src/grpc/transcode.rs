@@ -7,45 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use dokime::harmos::MessageError;
 use dokime::harmos::domain::Portable;
 use dokime::harmos::grpc::{Transcoded, Wire};
 use tonic::Status;
 
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Debug, thiserror::Error)]
 #[error("message encoding failed: {0}")]
 pub(super) struct Untranscodable(#[from] MessageError);
-
-/* === Enums === */
-
-/* === Traits === */
 
 pub(super) trait Transcode {
     fn wire_bytes(&self) -> Result<Vec<u8>, Untranscodable>;
 
     fn wire_len(&self) -> Result<usize, Untranscodable>;
 }
-
-/* === Implementations === */
 
 impl<T: Portable> Transcode for T {
     fn wire_bytes(&self) -> Result<Vec<u8>, Untranscodable> {
@@ -74,9 +49,3 @@ impl From<Untranscodable> for dokime::harmos::Error {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

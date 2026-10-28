@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{io::Write, path::PathBuf};
 
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::model::identity::Identifier;
 use dokime::domain::model::identity::wire::Metadata;
 use dokime::operations::execution::CreateCycle;
 
-/* === Constants === */
-
 const INPUT_BYTES: u64 = 16_777_216;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -60,14 +42,6 @@ pub(crate) struct Args {
     #[arg(long, conflicts_with = "json", help = "Print Only The Created Cycle UUID For Scripts.")]
     id_only: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -112,8 +86,6 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     result
 }
 
-/* === Private Functions === */
-
 fn created(output: &mut impl Write, cycle: &str, json: bool) -> crate::Result<()> {
     if json {
         writeln!(output, "{}", serde_json::json!({"cycle_id": cycle}))?;
@@ -123,5 +95,3 @@ fn created(output: &mut impl Write, cycle: &str, json: bool) -> crate::Result<()
     output.flush()?;
     Ok(())
 }
-
-/* === Tests === */

@@ -10,11 +10,7 @@
 /* Native delivery payloads for verified documents, mirroring the types beside
    the delivery commands in `src-tauri/src/app/desktop.rs`. */
 
-/* === Local Imports === */
-
 import type { RpcError } from "./rpc";
-
-/* === Types === */
 
 /**
  * The bounded document kinds supported by native delivery.

@@ -11,15 +11,9 @@
  * The active cycle: shell state the Library adds cases to.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { Search } from "lucide-react";
 import { useState } from "react";
 
-// Local Imports
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -31,17 +25,11 @@ import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 /* The picker's columns: name, state, created, identifier, members. Every row
    is a subgrid of the list, so each column keeps one vertical down the list. */
 const PICKER_COLUMNS = "grid grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] gap-x-4";
 
 const PICKER_ROW = "col-span-full grid grid-cols-subgrid items-center px-3";
-
-/* === Types === */
 
 type PickerListProps = {
   activeId: string | null;
@@ -52,8 +40,6 @@ type PickerListProps = {
   onSearch: (text: string) => void;
   search: string;
 };
-
-/* === Components === */
 
 /** The active cycle in one line: its name, its short identifier and its state pill. */
 export function ActiveCycleSummary({ cycle }: { cycle: OpenCycle }) {
@@ -212,9 +198,3 @@ export function ActiveCyclePicker() {
     </>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

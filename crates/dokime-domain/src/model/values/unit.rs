@@ -7,29 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos_domain::Identifier;
 use harmos_domain::Metadata;
 use serde::Deserialize;
 use serde::Serialize;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeasurementUnit {
@@ -37,8 +18,6 @@ pub struct MeasurementUnit {
     pub family: UnitFamily,
     pub symbol: String,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -53,10 +32,6 @@ pub enum UnitFamily {
     Ratio,
     Custom,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for MeasurementUnit {
     fn memory_size(&self) -> usize {
@@ -79,9 +54,3 @@ impl MeasurementUnit {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

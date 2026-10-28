@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::{Code, Status};
 
-// Local Imports
 use super::super::{evidence::canonical as evidence, value::projection};
 use super::wire;
 use crate::grpc::transcode::Transcode;
@@ -29,24 +20,10 @@ use dokime::operations::history as contract;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::checkpoint_records::ExecutionRecordPage;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<contract::ListCheckpointRecords> for Resources {
     fn serve<'a>(
@@ -67,8 +44,6 @@ impl Serve<contract::ListCheckpointRecords> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -77,8 +52,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn project(
     page: dokime::harmos::storage::ReadBatch<ExecutionRecordPage>, maximum: usize,
@@ -130,5 +103,3 @@ fn exhausted() -> dokime::harmos::Error {
         resource: "canonical checkpoint record page",
     }
 }
-
-/* === Tests === */

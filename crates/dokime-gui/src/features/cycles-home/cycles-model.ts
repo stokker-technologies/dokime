@@ -10,15 +10,11 @@
 /* Grouping, ordering and labelling for the Cycles home. Pure so the ordering
    rules stay testable away from the query layer. */
 
-/* === Local Imports === */
-
 import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import { type CycleState, cycleState } from "@/features/cycle/cycle-workspace-model";
 import { mapCycleStatus } from "@/lib/api/native-planning";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { PromptRequest } from "@/lib/types";
-
-/* === Constants === */
 
 const STATE_TONES: Record<CycleState["variant"], CycleRow["statusTone"]> = {
   default: "good",
@@ -26,8 +22,6 @@ const STATE_TONES: Record<CycleState["variant"], CycleRow["statusTone"]> = {
   secondary: "neutral",
   warning: "warn",
 };
-
-/* === Types === */
 
 type CycleSummary = Wire<GeneratedCycleSummary>;
 
@@ -58,8 +52,6 @@ export type CycleGroup = {
   emptyText: string;
   rows: CycleRow[];
 };
-
-/* === Public Functions === */
 
 export function cycleRows(cycles: CycleSummary[], attentionByCycleId: ReadonlyMap<string, number>): CycleRow[] {
   return cycles.map((cycle) => {
@@ -155,8 +147,6 @@ export function applyFrozenOrder(rows: CycleRow[], frozenIds: readonly string[])
   });
   return [...ordered, ...byId.values()];
 }
-
-/* === Private Functions === */
 
 function statePhase(cycle: CycleSummary): Parameters<typeof cycleState>[0] {
   switch (cycle.phase?.HarmosVariant.case) {

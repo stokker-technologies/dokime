@@ -7,27 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::{InstalledPlugin, RuntimeState};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleCatalog {
@@ -40,8 +22,6 @@ pub struct BundleCatalog {
 
     pub plugins: Vec<InstalledPlugin>,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
@@ -66,10 +46,6 @@ pub enum ProviderCatalog {
     Bundle(BundleCatalog),
     Embedded { plugin: Box<InstalledPlugin>, generation: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeState {
     pub(crate) fn execution_identity(&self, source: &str) -> Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity> {
@@ -225,12 +201,6 @@ impl RuntimeState {
         Ok(candidate)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

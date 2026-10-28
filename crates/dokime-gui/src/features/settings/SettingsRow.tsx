@@ -16,15 +16,9 @@
  * is after changing the value.
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type SettingsRowProps = {
   children?: ReactNode;
@@ -38,8 +32,6 @@ type SettingsRowProps = {
   /** The autosave readout; see `SettingsFieldStatus`. */
   status?: ReactNode;
 };
-
-/* === Components === */
 
 export function SettingsRow({ children, className, control, description, error, htmlFor, label, status }: SettingsRowProps) {
   return (

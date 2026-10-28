@@ -16,12 +16,8 @@
  * sealed report has no gear and reads what the operator chose.
  */
 
-/* === External Imports === */
-
 import { Settings2 } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
-
-/* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -33,8 +29,6 @@ import type { DocumentDownsampleTechnique } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import type { PlotSettingsButtonProps } from "./plot-settings";
 
-/* === Constants === */
-
 export const TECHNIQUE_OPTIONS: Array<{ value: DocumentDownsampleTechnique; label: string }> = [
   { value: "auto", label: "Auto" },
   { value: "lttb", label: "Largest Triangle (LTTB)" },
@@ -42,13 +36,9 @@ export const TECHNIQUE_OPTIONS: Array<{ value: DocumentDownsampleTechnique; labe
   { value: "raw", label: "Raw Samples" },
 ];
 
-/* === Types === */
-
 type PlotSettingsFormProps = PlotSettingsButtonProps & {
   onClose: () => void;
 };
-
-/* === Components === */
 
 export function PlotSettingsButton({ plot, onSubmit }: PlotSettingsButtonProps) {
   const [open, setOpen] = useState(false);
@@ -166,8 +156,6 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
     </DialogContent>
   );
 }
-
-/* === Private Functions === */
 
 /** `null` for the default, a bounded integer, or `undefined` when the text is not one. */
 function parseDisplayPoints(raw: string): number | null | undefined {

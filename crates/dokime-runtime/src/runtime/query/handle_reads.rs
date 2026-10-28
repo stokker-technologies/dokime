@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::telemetry::TelemetrySample;
 use crate::{
@@ -33,20 +23,6 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub(crate) async fn projected_evidence_snapshot(
@@ -364,10 +340,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn evidence_memory() -> crate::runtime::Error {
     harmos::Error::ResourceExhausted {
         resource: "evidence snapshot construction",
@@ -381,5 +353,3 @@ fn evidence_clone_rows<'a, T: Clone + 'a>(count: usize, rows: impl Iterator<Item
     result.extend(rows.cloned());
     Ok(result)
 }
-
-/* === Tests === */

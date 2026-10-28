@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test } from "vitest";
 
-// Local Imports
 import {
   STORAGE_RESET_CONFIRMATION,
   type StorageResetContext,
   storageResetAvailable,
   storageResetConfirmed,
 } from "@/features/settings/storage-reset-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function resetContext(overrides: Partial<StorageResetContext> = {}): StorageResetContext {
   return {
@@ -44,8 +27,6 @@ function resetContext(overrides: Partial<StorageResetContext> = {}): StorageRese
     ...overrides,
   } as StorageResetContext;
 }
-
-/* === Entry Point === */
 
 test("Storage Reset", () => {
   // A Development Desktop That Owns Its Backend Offers The Reset

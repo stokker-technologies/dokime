@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Imports === */
-
 import { RotateCcw } from "lucide-react";
 import { type PointerEvent, useEffect, useMemo, useState } from "react";
 import { DocumentMetricGroup } from "./DocumentMetricGroup";

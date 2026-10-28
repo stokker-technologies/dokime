@@ -7,40 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::secrets::{Export, Import, List, Lookup, Preview, Put, Remove};
 use crate::secrets::{Change, SecretStore, SecretStoreError, SecretValue};
 use crate::{RuntimeHandle, app::Lanes};
 use dokime_domain::model::secrets::catalog::{Snapshot, Value};
 use dokime_domain::model::secrets::transfer::{Archive, Preview as ImportPreview};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<Lookup> for SecretStore {
     fn serve<'a>(&'a self, request: Lookup, _: Context<'a, Lookup>) -> Served<'a, Value> {
@@ -114,8 +91,6 @@ impl From<SecretStoreError> for Status {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) async fn register(runtime: &RuntimeHandle) -> crate::runtime::Result<()> {
     let store: Arc<SecretStore> = runtime.secret_store();
     let mut dependencies = harmos::Dependencies::new();
@@ -137,7 +112,3 @@ pub(crate) async fn register(runtime: &RuntimeHandle) -> crate::runtime::Result<
     runtime.operations.register(batch.lane(Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

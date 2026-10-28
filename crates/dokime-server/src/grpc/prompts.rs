@@ -7,25 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(in crate::grpc) mod canonical;
-
-/* === Re-Exports === */
-
-/* === Imports === */
 
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::domain::Portable;
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::{
     execution,
     value::{self, canonical as values},
@@ -41,26 +32,12 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::prompts as wire;
 use dokime::runtime::query::RuntimeStateSnapshot;
 
-/* === Constants === */
-
 const STREAM: &str = "runtime.state";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListDefinitions> for Resources {
     fn serve<'a>(
@@ -246,8 +223,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -265,8 +240,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn page(limit: u32, after: &str, given: Option<&Cursor>, snapshot: &RuntimeStateSnapshot) -> Result<usize, Status> {
     let current = NativeCursor {
@@ -294,5 +267,3 @@ fn page(limit: u32, after: &str, given: Option<&Cursor>, snapshot: &RuntimeState
 fn prompt_id(id: &str) -> Result<PromptId, Status> {
     PromptId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid prompt UUID"))
 }
-
-/* === Tests === */

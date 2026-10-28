@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { beforeEach, test, vi } from "vitest";
 
-// Local Imports
 import { type InstallPluginProgress, installNativePlugin } from "@/lib/api/native-plugins";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -29,14 +20,6 @@ const fixture = vi.hoisted(() => ({
 }));
 
 const session = { generation: "7", isCurrent: () => true };
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function installation(installId: string) {
   return {
@@ -55,8 +38,6 @@ function emit(...messages: InstallPluginProgress[]): void {
   assert.ok(channel, "the installation invoke carries a progress channel");
   for (const message of messages) channel.onmessage(message);
 }
-
-/* === Entry Point === */
 
 vi.mock("@tauri-apps/api/core", () => ({
   Channel: class {

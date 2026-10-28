@@ -8,39 +8,22 @@
 
 """Lossless Record Replay And Saved Telemetry Following."""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import re
 from collections.abc import AsyncGenerator, Awaitable, Sequence
 from contextlib import suppress
 from fnmatch import fnmatchcase
 
-# Third Party Imports
 from google.protobuf.message import Message
 
-# Local Imports
 from .. import _wire
 from .._transport import Transport
 from ..errors import ProtocolError, RpcError
 from ..models import Backend
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 FILTER_BYTES = 4096
 FILTER_ITEMS = 64
 MAXIMUM_SAMPLE_PAGE_ITEMS = 5000
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 async def read_records(
@@ -191,9 +174,6 @@ def validate_patterns(patterns: Sequence[str]) -> None:
             raise ValueError("listener filters accept identifier globs using only '*' and '?' wildcards")
 
 
-# === Private Functions === #
-
-
 def _scope(expected: Message, actual: Message) -> bool:
     return all(
         not expected.HasField(field) or actual.HasField(field) and getattr(actual, field) == getattr(expected, field)
@@ -237,6 +217,3 @@ def _records(
         ):
             raise ProtocolError("record identity or journal position differs")
         previous = item.sequence
-
-
-# === Entry Point === #

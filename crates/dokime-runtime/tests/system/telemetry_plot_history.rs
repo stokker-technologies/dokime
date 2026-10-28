@@ -10,38 +10,7 @@
 // Telemetry Plot History At Full Scale: A 50,000-Row Plot And Seven Days Of Minute-Rate
 // History; `integration/domains/evidence/plots.rs` Guards Both Paths At 5,000 Rows And One Day.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::plots;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn telemetry_plot_history() {

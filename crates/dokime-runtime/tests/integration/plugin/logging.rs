@@ -7,45 +7,25 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_runtime::execution::log::Level;
 use dokime_runtime::execution::{CriterionContext, InitializationContext, StepContext};
 use dokime_runtime::plugin::testing::Harness;
 
-/* === Constants === */
 const SUITE: &str = "logging.checks";
 const TEMPLATE: &str = "logging.checks.levels";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Checks;
 
 struct Levels {
     samples: usize,
 }
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum PluginSuites {
     Checks(Checks),
@@ -83,10 +63,6 @@ impl Levels {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 #[tokio::test]
 async fn macros_format_context() {
     let report = Harness::template(TEMPLATE).run::<PluginSuites>().await.expect("the run completes");
@@ -105,5 +81,3 @@ async fn macros_format_context() {
         assert!(logged.contains(&(expected.0 as i32, expected.1)), "expected {expected:?} in the execution log, got {logged:?}");
     }
 }
-
-/* === Tests === */

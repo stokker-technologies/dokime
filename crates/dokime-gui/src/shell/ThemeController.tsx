@@ -7,19 +7,13 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useEffect } from "react";
-
-/* === Local Imports === */
 
 import { useAppearance } from "@/lib/appearance";
 import { useApplicationTheme } from "@/lib/application-theme";
 import { applyDensity, applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "@/lib/theme";
 import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
 import { useUiStore } from "@/stores/ui-store";
-
-/* === Components === */
 
 /** Applies runtime theme variables and density to the document root. */
 export function ThemeController() {

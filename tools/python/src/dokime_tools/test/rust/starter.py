@@ -9,9 +9,7 @@
 
 """Prove The Generated Starter In The Nightly Lane"""
 
-# === Imports === #
 
-# Standard Library Imports
 import json
 import os
 import shutil
@@ -20,23 +18,8 @@ import sys
 import tomllib
 from time import perf_counter
 
-# Third Party Imports
-# Local Imports
 from dokime_tools import temporary
 from dokime_tools.build import configuration, paths
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test(profile: str) -> None:
@@ -173,10 +156,6 @@ def test(profile: str) -> None:
             )
     print(f"[test:rust:starter] Completed In {perf_counter() - started:.2f}s", flush=True)
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     raise SystemExit(configuration.invoke(test))

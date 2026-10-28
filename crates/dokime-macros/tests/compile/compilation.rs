@@ -10,43 +10,14 @@
 // Authoring attributes compiled by a real `rustc` against a freshly built SDK:
 // each story compiles one fixture and inspects its diagnostics or inventory.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct SdkArtifact {
     library: std::path::PathBuf,
     serde: std::path::PathBuf,
     native_paths: Vec<std::path::PathBuf>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn sdk_artifact() -> &'static SdkArtifact {
     static SDK: std::sync::OnceLock<SdkArtifact> = std::sync::OnceLock::new();
@@ -367,8 +338,6 @@ fn artifact(source: &str) -> Vec<u8> {
 fn declaration_of(source: &str) -> sdk::harmos::plugin::inventory::Declaration {
     sdk::harmos::plugin::inventory::Declaration::inspect(&artifact(source), sdk::harmos::plugin::inventory::Facility::Sidecar).unwrap()
 }
-
-/* === Tests === */
 
 #[test]
 fn catalog_identifiers_are_unique() {

@@ -7,32 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, fs, ops::RangeInclusive, process::Command, time::Duration};
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 
 const WIFI_COMMAND_TIMEOUT_MS: u64 = 5_000;
 const WIFI_SCAN_TIMEOUT_MS: u64 = 30_000;
 
 const PROC_NET_WIRELESS: &str = "/proc/net/wireless";
 const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[cfg(not(windows))]
 #[derive(Clone, Debug, PartialEq)]
@@ -53,12 +34,6 @@ pub struct WifiLinkReport {
     pub rx_phy_mbps: Option<f64>,
     pub tx_phy_mbps: Option<f64>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[cfg(not(windows))]
 impl NmcliWifiRow {
@@ -119,8 +94,6 @@ impl WifiLinkReport {
     }
 }
 
-/* === Public Functions === */
-
 #[cfg(not(windows))]
 pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String> {
     let mut command = Command::new("nmcli");
@@ -171,8 +144,6 @@ pub(crate) fn adapter_matches(device: Option<&str>, filter: Option<&str>) -> boo
     };
     device.is_some_and(|device| device.eq_ignore_ascii_case(filter))
 }
-
-/* === Private Functions === */
 
 #[cfg(not(windows))]
 fn iw_links(timeout: Duration) -> Result<BTreeMap<String, WifiLinkReport>, String> {
@@ -230,5 +201,3 @@ fn non_empty(value: String) -> Option<String> {
     let value = value.trim();
     (!value.is_empty()).then(|| value.to_owned())
 }
-
-/* === Tests === */

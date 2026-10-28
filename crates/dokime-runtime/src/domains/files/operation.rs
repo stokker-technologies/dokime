@@ -12,20 +12,11 @@
 // execution seals. It settles with what it sealed and the gaps it saw; a
 // cancelled watch seals what it captured through `stop`.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
-// Third Party Imports
 use harmos::{Context, RegistrationExt};
 
-// Local Imports
 use super::{FileWatch, WatchEvent};
 use crate::app::Lanes;
 use crate::operations::hosting::{Host, Serve, Served};
@@ -37,14 +28,6 @@ use dokime_domain::model::files::wire::WatchFileOutcome;
 use dokime_domain::model::files::wire::WatchedArtifact;
 use dokime_operations::files::AwaitFileWatchArmed;
 use dokime_operations::files::WatchFile;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Registered before any plugin attaches, bound to the runtime once it exists.
 pub struct Resources {
@@ -69,12 +52,6 @@ struct Watching {
     ready: tokio::sync::watch::Sender<Option<Result<FileWatchArmed, String>>>,
     ticket: Option<u64>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Watching {
     fn register(resources: &Arc<Resources>, ctx: &Context<'_, WatchFile>) -> Result<Self, Error> {
@@ -236,8 +213,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 // Registers the step built-ins, the Harmos instance controls, `WatchFile` and
 // `AwaitFileWatchArmed`, before any plugin that requires them attaches.
 pub async fn register(operations: &crate::app::OperationManager) -> harmos::Result<Arc<Resources>> {
@@ -256,8 +231,6 @@ pub async fn register(operations: &crate::app::OperationManager) -> harmos::Resu
     Ok(resources)
 }
 
-/* === Private Functions === */
-
 fn execution_of(call: &harmos::operations::CallContext) -> Option<String> {
     call.value::<crate::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution)
 }
@@ -269,8 +242,6 @@ fn collect_gaps(events: &mut Vec<WatchEvent>, gaps: &mut Vec<FileWatchGap>) {
         }
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

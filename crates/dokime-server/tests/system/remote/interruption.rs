@@ -9,20 +9,12 @@
 
 // Interrupt Actual Remote Scripts Through Their Native Terminals
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     process::Command,
 };
 
-// Third Party Imports
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -32,7 +24,6 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-// Local Imports
 use dokime::client::{Client, TestCycleHandle, TestExecutionHandle};
 use dokime::domain::model::identity::wire::Metadata;
 use dokime::domain::model::planning::wire::{RegisteredSelection, RegisteredSelectionParametersEntry, SelectionValues};
@@ -46,16 +37,8 @@ use dokime::operations::{
     planning::MaterializeTemplate,
 };
 
-/* === Constants === */
-
 // Every scenario's script waits at most 60 s on its own; past this the script is stuck.
 const SCRIPT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Process {
     child: Box<dyn portable_pty::Child + Send + Sync>,
@@ -83,8 +66,6 @@ struct Gate {
     released: CancellationToken,
 }
 
-/* === Enums === */
-
 enum Action {
     Interrupt(Client),
     InterruptOnSample(Client),
@@ -97,10 +78,6 @@ enum Boundary {
     Append,
     Start,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Process {
     fn drop(&mut self) {
@@ -246,8 +223,6 @@ async fn relay(mut incoming: TcpStream, mut outgoing: TcpStream, gate: Option<Ga
     Ok(())
 }
 
-/* === Public Functions === */
-
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
     // Each Interruption Story Is Boxed So Only The Running One's Await Temporaries Occupy The Stack.
@@ -271,8 +246,6 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
     Box::pin(partial_capture(client, endpoint, root)).await;
 }
-
-/* === Private Functions === */
 
 async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHandle) {
     let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
@@ -723,5 +696,3 @@ async fn admitted(client: &Client, id: TestExecutionId) {
     tokio::time::timeout(std::time::Duration::from_secs(120), waiting).await.expect("script must admit its printed execution");
     changes.close().await;
 }
-
-/* === Tests === */

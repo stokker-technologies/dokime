@@ -7,24 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{Error, Expr, FnArg, GenericArgument, ImplItem, ImplItemFn, ItemImpl, Meta, Path, PathArguments, ReturnType, Type};
 
-// Local Imports
 use crate::arguments::{self, Arguments};
-
-/* === Constants === */
 
 const ARGUMENTS: &[&str] = &[
     "id",
@@ -47,12 +35,6 @@ const LIFECYCLE: &[&str] = &["initialize", "traceability", "cleanup"];
 const RUNNABLE_CONTEXT: &str = "StepContext";
 const CONTEXTS: &[&str] = &["InitializationContext", "TraceabilityContext", "StepContext", "ObserverContext", "CleanupContext"];
 const CRITERION_CONTEXT: &str = "CriterionContext";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Stages<'a> {
     steps: &'a [DeclaredStep],
@@ -89,19 +71,11 @@ struct DeclaredObserver {
     records: TokenStream,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 pub(crate) enum Part {
     Ok,
     Err,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn template(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
@@ -165,8 +139,6 @@ pub(crate) fn marks(path: &Path, name: &str) -> bool {
         _ => false,
     }
 }
-
-/* === Private Functions === */
 
 fn observed(signature: &syn::Signature) -> Result<(), Error> {
     const SHAPE: &str = "a template observer must be \
@@ -1133,5 +1105,3 @@ fn strip(block: &mut ItemImpl) {
         }
     }
 }
-
-/* === Tests === */

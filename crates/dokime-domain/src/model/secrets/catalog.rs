@@ -7,21 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
-
-// Local Imports
-
-/* === Constants === */
 
 pub const CATALOG_ITEMS: u64 = 1_024;
 pub const SECRET_BYTES: u64 = 65_536;
@@ -29,12 +17,6 @@ pub const DOCUMENT_BYTES: u64 = 524_288;
 pub const IDENTIFIER_BYTES: u64 = 128;
 pub const LABEL_BYTES: u64 = 256;
 pub const DESCRIPTION_BYTES: u64 = 2_048;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,12 +63,6 @@ pub struct Snapshot {
 pub struct Value {
     pub value: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Metadata {
     pub fn check_limits(&self) -> Result<(), &'static str> {
@@ -138,8 +114,6 @@ impl std::fmt::Debug for Value {
     }
 }
 
-/* === Public Functions === */
-
 pub fn check_identifier_limit(identifier: &str) -> Result<(), &'static str> {
     if identifier.len() as u64 > IDENTIFIER_BYTES {
         return Err("Secret identifier exceeds the configured byte limit");
@@ -176,10 +150,6 @@ pub fn validate_label(label: &str) -> Result<(), &'static str> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

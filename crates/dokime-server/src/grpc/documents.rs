@@ -7,23 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 mod wire;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 
-// Local Imports
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::DocumentId;
 use dokime::domain::model::identity::Identifier;
@@ -32,24 +23,10 @@ use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::documents as contract;
 use dokime::operations::hosting::{Host, Serve, Served};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<contract::CaptureCurrentDocument> for Resources {
     fn serve<'a>(
@@ -111,8 +88,6 @@ impl Serve<contract::UpdatePlotSettings> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -124,8 +99,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn owner(scope: Option<dokime::domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
@@ -143,5 +116,3 @@ fn scope(scope: Option<dokime::domain::model::documents::wire::DocumentScope>) -
     let execution = TestExecutionId::from_uuid(scope.execution_id).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     Ok((cycle, execution))
 }
-
-/* === Tests === */

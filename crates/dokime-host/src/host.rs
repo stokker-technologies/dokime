@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::{
     FixtureHostTelemetrySource, HOST_FIXTURE_SOURCE, HostOptions, HostStreamSample, HostTelemetryConfig, HostTelemetrySourceKind,
     HostTelemetryStream,
@@ -33,14 +24,6 @@ use crate::{
 };
 use dokime_domain::model::telemetry::TelemetryBatch;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Host {
@@ -64,12 +47,6 @@ pub struct HostSnapshot {
     pub wifi_channel_occupancy: Vec<HostStreamSample>,
     pub bluetooth: Option<HostStreamSample>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Host {
     pub fn new(config: HostTelemetryConfig) -> Self {
@@ -176,9 +153,3 @@ impl Host {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

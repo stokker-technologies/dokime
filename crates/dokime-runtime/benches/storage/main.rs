@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod contention;
 mod directories;
 mod files;
@@ -20,33 +18,20 @@ mod query;
 mod transforms;
 mod waveforms;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::convert::Infallible;
 use std::num::{NonZeroU32, NonZeroUsize};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
-// Third Party Imports
+
 use criterion::{BenchmarkId, Criterion, SamplingMode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-// Local Imports
+
 use harmos::storage::*;
 use harmos::{Identifier, Runtime, state::Envelope};
 
-/* === Constants === */
-
 const PAYLOAD_BYTES: usize = 128;
 static STATE_CLONES: AtomicUsize = AtomicUsize::new(0);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Model;
 
@@ -74,8 +59,6 @@ struct Observed {
 
 struct Projection;
 
-/* === Enums === */
-
 #[harmos::lanes]
 enum Lanes {
     #[default]
@@ -93,10 +76,6 @@ enum Transactions {
 enum Records {
     Observed(Observed),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Clone for State {
     fn clone(&self) -> Self {
@@ -152,10 +131,6 @@ impl RecordProjection for Projection {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn main() {
     println!("{}", serde_json::json!({"kind":"storage_benchmark_provenance", "provenance": metrics::provenance()}));
@@ -401,5 +376,3 @@ async fn verify_recovery(storage: &StorageManager) {
     }
     assert_eq!(count, through.sequence);
 }
-
-/* === Tests === */

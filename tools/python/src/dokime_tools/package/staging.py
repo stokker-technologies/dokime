@@ -8,29 +8,10 @@
 
 """Stage Build Output Without Following Links"""
 
-# === Imports === #
-
-# Standard Library Imports
 import os
 import shutil
 import stat
 from pathlib import Path
-
-# Third Party Imports
-
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def clear_output(path: Path) -> None:
@@ -81,9 +62,6 @@ def sync_output(source: Path, destination: Path) -> None:
             _permissions(src, dst)
         else:
             stage_file(src, dst)
-
-
-# === Private Functions === #
 
 
 def _ensure_directory(path: Path, *, create: bool = True) -> None:
@@ -137,6 +115,3 @@ def _permissions(source: Path, destination: Path) -> None:
     same = bool(src & stat.S_IWRITE) == bool(dst & stat.S_IWRITE) if os.name == "nt" else src == dst
     if not same:
         destination.chmod(src)
-
-
-# === Entry Point === #

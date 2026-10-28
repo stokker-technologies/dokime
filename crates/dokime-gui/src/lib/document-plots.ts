@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Local Imports === */
-
 export {
   documentPlotGroupDescription,
   documentPlotSpec,

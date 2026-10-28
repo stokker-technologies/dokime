@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { selectLogo, useBrand } from "@/lib/brand";
 import { cn } from "@/lib/utils";
-
-/* === Components === */
 
 /**
  * Renders the configured surface-specific artwork or app label. The shell

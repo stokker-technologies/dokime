@@ -7,37 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{RuntimeHandle, exports::cycle::ArtifactContent, runtime::Error, runtime::Result};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::HealthItemId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn add_operator_note(&self, mut request: crate::evidence_runtime::OperatorNoteRequest) -> Result<OperatorNote> {
@@ -94,10 +69,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn collect_artifact(reader: &mut crate::runtime::ArtifactReader, max_bytes: usize) -> Result<Vec<u8>> {
     let too_large = || Error::Operation(format!("artifact exceeds the {max_bytes}-byte materialization limit; use streaming access"));
     if reader.record().size_bytes > max_bytes as u64 {
@@ -116,5 +87,3 @@ async fn collect_artifact(reader: &mut crate::runtime::ArtifactReader, max_bytes
         bytes.extend_from_slice(&buffer[..count]);
     }
 }
-
-/* === Tests === */

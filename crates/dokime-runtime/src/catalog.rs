@@ -7,21 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use harmos::catalog::{Catalog, Contains, InertCatalog, Member, Node, Visitor};
 
-/* === Imports === */
-
-// Standard Library Imports
 #[cfg(feature = "native")]
 use std::marker::PhantomData;
 
-// Third Party Imports
-
-// Local Imports
 #[cfg(feature = "native")]
 use crate::definition::DeclaredTemplate;
 
@@ -29,8 +19,6 @@ use crate::definition::DeclaredTemplate;
 use crate::execution::SidecarTemplate;
 use crate::records::{DeclaredRecord, RecordContract};
 use crate::telemetry::{TelemetryContract, TelemetryStream};
-
-/* === Constants === */
 
 #[cfg(feature = "native")]
 const UNSET: Publication = Publication {
@@ -41,10 +29,6 @@ const UNSET: Publication = Publication {
     window: 0,
     row: harmos::schema::declaration::Definition::of::<()>(),
 };
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 #[cfg(feature = "native")]
 pub type Publication = harmos::sidecar::inventory::publications::Entry;
@@ -62,8 +46,6 @@ pub type Publish = for<'a> fn(
 #[cfg(feature = "native")]
 pub type Bind =
     fn(&mut harmos::sidecar::operations::WireTable, &str, &[RecordContract]) -> Result<(), harmos::sidecar::operations::ServingError>;
-
-/* === Structs === */
 
 #[cfg(feature = "native")]
 pub struct Streams;
@@ -145,15 +127,9 @@ pub struct ListenerEntry {
     pub record: &'static str,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait IdentifierCatalog<V: Visitor<Entry = Node<&'static str>>> {
     const IDENTIFIERS: &'static [Node<&'static str>];
 }
-
-/* === Implementations === */
 
 impl<V: Visitor<Entry = Node<&'static str>>> IdentifierCatalog<V> for () {
     const IDENTIFIERS: &'static [Node<&'static str>] = &[];
@@ -403,8 +379,6 @@ impl<T: crate::plugin::Listener> Member<T> for Listeners {
     };
 }
 
-/* === Public Functions === */
-
 pub fn entries<C, V>() -> Vec<V::Entry>
 where
     C: Catalog<V>,
@@ -524,8 +498,6 @@ pub const fn deduplicated<const N: usize>(declared: &[Publication]) -> [Publicat
     assert!(written == N, "a deduplicated grant has exactly its distinct streams");
     distinct
 }
-
-/* === Private Functions === */
 
 const fn granted_id(granted: &[Node<harmos::catalog::RequirementEntry>], id: &str) -> bool {
     let mut index = 0;
@@ -669,5 +641,3 @@ where
         publisher.publish_batch_on_context::<T>(&batch, Some(token)).await.map_err(|error| error.to_string())
     })
 }
-
-/* === Tests === */

@@ -10,47 +10,22 @@
 // Operator media captured on the backend host: each capture becomes one
 // execution artifact under its media folder, sealed through the upload path.
 
-/* === Modules === */
-
 mod audio;
 mod camera;
 mod screen;
 
-/* === Re-Exports === */
-
 pub use audio::AudioRecording;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::artifacts::{ArtifactRecord, ArtifactUploadInput};
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
-
-/* === Constants === */
 
 // Error code of a capture refused because the host has no usable device.
 pub const UNAVAILABLE: &str = "media_unavailable";
 
 // Error code of a capture refused because this build has no native capture.
 pub const NOT_COMPILED: &str = "media_not_compiled";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     // Captures one display as `screenshots/<UTC timestamp>.png`.
@@ -97,10 +72,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn require_execution(scope: &RecordScope) -> Result<()> {
     if scope.test_cycle_id.is_none() || scope.test_execution_id.is_none() {
         return Err(Error::Admission(AdmissionFailure::Validation {
@@ -141,5 +112,3 @@ fn not_compiled() -> Error {
         message: "capture not available in this build".into(),
     })
 }
-
-/* === Tests === */

@@ -9,10 +9,6 @@
 
 /* Native notes and health adapters for the original routed UI. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -27,15 +23,11 @@ import {
   timestampIso,
 } from "./native-values";
 
-/* === Types === */
-
 type AnnotationOwner = Wire<NonNullable<Parameters<typeof rpc.notesCreateNote>[1]["owner"]>>;
 type AnnotationSelection = Wire<NonNullable<Parameters<typeof rpc.notesListNotes>[1]["selection"]>>;
 type NativeOperatorNote = Wire<Awaited<ReturnType<typeof rpc.notesListNotes>>["notes"][number]>;
 type NativeHealthItem = Wire<Awaited<ReturnType<typeof rpc.healthListHealth>>["items"][number]>;
 type NotePublication = Wire<Awaited<ReturnType<typeof rpc.notesCreateNote>>>["publication"];
-
-/* === Public API === */
 
 export async function fetchNativeNotes(session: SessionIdentity, scope: RecordScope): Promise<OperatorNote[]> {
   const selection = annotationSelection(scope);
@@ -124,8 +116,6 @@ export async function editNativeNote(session: SessionIdentity, epoch: string, no
   if (!reply.note) throw new Error(`Native note ${noteId} returned no edited note.`);
   return mapNativeNote(reply.note);
 }
-
-/* === Mapping === */
 
 function mapNativeNote(note: NativeOperatorNote): OperatorNote {
   const timestamp = timestampIso(note.createdAt);

@@ -7,29 +7,22 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
     Arc, LazyLock, Mutex,
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
-// Third Party Imports
+
 use dokime_runtime::harmos::operations::{Host, ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{ActivationId, ObserverAttachment, ObserverContext};
-// Local Imports
+
 use dokime_runtime::execution::{CriterionContext, InitializationContext, StepContext};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::{Refusal, Supervisor};
 
-/* === Constants === */
 const SUITE: &str = "calls.checks";
 const TEMPLATE: &str = "calls.checks.probe";
 const LATE: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::OperationPolicy {
@@ -45,11 +38,8 @@ static WIRE_CANCELLATIONS: AtomicU64 = AtomicU64::new(0);
 // Woken whenever a fixture records a tick or a cancellation.
 static CHANGED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
-/* === Macros === */
-/* === Type Aliases === */
 type ObserverTicks = Arc<Mutex<Vec<(u64, ActivationId)>>>;
 
-/* === Structs === */
 #[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 struct GetReadingResponse {
@@ -93,7 +83,6 @@ struct WireCancellation {
     completed: bool,
 }
 
-/* === Enums === */
 #[dokime_runtime::catalog]
 enum Implemented {
     GetReading(GetReading),
@@ -124,9 +113,6 @@ enum ProbeRequired {
     Echo(Echo),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::operation(id = "call_fixture.get_reading", policy = super::native::POLICY, response = GetReadingResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetReading {}
@@ -357,9 +343,6 @@ impl Drop for WireCancellation {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 // Resolves once `done` holds, re-checking after every recorded change.
 async fn until(done: impl Fn() -> bool) {
     loop {
@@ -376,8 +359,6 @@ async fn until(done: impl Fn() -> bool) {
 fn configured(settings: BTreeMap<String, dokime_runtime::Value>) -> Vec<u8> {
     serde_json::to_vec(&Configuration { settings, ..Configuration::default() }).unwrap()
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn step_criterion_operation() {

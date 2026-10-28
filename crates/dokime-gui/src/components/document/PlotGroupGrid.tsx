@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { memo, type ReactNode, useMemo } from "react";
-
-/* === Local Imports === */
 
 import { documentPlotGroupDescription, documentPlotSpec, type PlotCardSpec } from "@/lib/document-plots";
 import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "@/lib/types";
@@ -36,8 +32,6 @@ import { type PromptMarker, promptMarkers } from "@/plots/prompt-markers";
 import type { PlotViewportMode } from "@/plots/types";
 import { usePlotPalette } from "@/plots/use-plot-palette";
 
-/* === Types === */
-
 export type PlotSettingsChange = (plotId: string, settings: PlotDisplaySettings) => Promise<void>;
 
 type LivePlotGroupGridProps = {
@@ -55,8 +49,6 @@ type LivePlotGroupGridProps = {
   title: string;
   viewportMode?: PlotViewportMode;
 };
-
-/* === Public Functions === */
 
 /** One plots card: its plots form one group titled by the enclosing section. */
 export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({

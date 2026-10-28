@@ -7,36 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo::rerun-if-changed=build.rs");
     let target = std::env::var("TARGET")?;
@@ -48,5 +18,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dokime_packaging::export_application_settings(&destination)?;
     Ok(())
 }
-
-/* === Tests === */

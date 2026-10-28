@@ -7,33 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::PathBuf, time::Duration};
 
-// Third Party Imports
-
-// Local Imports
 use dokime_client::{
     Client, Target,
     profiles::{Secret, Selection, Store},
     secrets::{KeyringStore, SecretStore},
 };
 
-/* === Constants === */
-
 const MAXIMUM_TIMEOUT_MS: u64 = 86_400_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 #[group(id = "connection")]
@@ -58,12 +40,6 @@ pub struct Args {
 pub struct Resolved {
     pub selection: Selection,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Args {
     pub fn with_settings(mut self, settings: dokime_domain::model::settings::application::ClientPreferences) -> Self {
@@ -143,8 +119,6 @@ impl Args {
     }
 }
 
-/* === Public Functions === */
-
 // OS Stores Can Block. Detached Workers Keep The Invocation Deadline Bounded.
 // Dropping The Receiver Does Not Cancel An OS Operation Already In Progress.
 pub async fn secrets<T, E>(budget: Duration, operation: impl FnOnce() -> Result<T, E> + Send + 'static) -> crate::client_error::Result<T>
@@ -161,7 +135,3 @@ where
         .map_err(|_| crate::client_error::Error::SecretTimeout)?
         .map_err(|_| crate::client_error::Error::Setup("Secret store worker failed".into()))?
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,20 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
-
-// Third Party Imports
 
 use tokio::sync::OnceCell;
 
-// Local Imports
 use super::invalid;
 use crate::document::PlotType;
 use crate::execution::context::captured::source::CapturedSource;
@@ -34,14 +24,6 @@ use crate::telemetry::TelemetryContract;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::Identifier;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(in crate::report) struct ReadCache {
     reduced: OnceCell<harmos::storage::ReadBatch<PlotPayload>>,
 }
@@ -52,19 +34,11 @@ impl ReadCache {
     }
 }
 
-/* === Enums === */
-
 #[derive(PartialEq, Eq)]
 pub(in crate::report) enum ReadPlan {
     Raw(Vec<(Identifier, u32)>),
     Reduced(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(in crate::report) async fn materialize(
     ctx: &crate::report::Scope, source: &CapturedSource, execution: &TestExecution, request: PlotPayloadRequest,
@@ -140,8 +114,6 @@ pub(in crate::report) fn read_plan(
     }
     Ok(ReadPlan::Raw(streams))
 }
-
-/* === Private Functions === */
 
 fn saved(
     input: &crate::plot::spilled::Input, request: &PlotPayloadRequest, generated_at: &str, context: &PlotPayloadContext,
@@ -238,8 +210,6 @@ fn full(
 ) -> harmos::storage::ReadBatch<PlotPayload> {
     full_retained(samples, records, request, generated_at, context).expect("fixture plot construction")
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

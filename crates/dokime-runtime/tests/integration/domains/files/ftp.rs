@@ -12,43 +12,22 @@
 // secret store by reference. FTPS needs a certificate the platform
 // verifier trusts, so it is checked manually against a real server.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use libunftp::ServerBuilder;
 use unftp_core::auth::{AuthenticationError, Authenticator, Credentials, Principal};
 use unftp_sbe_fs::Filesystem;
 
-// Local Imports
 use super::*;
 use dokime_domain::model;
 use dokime_runtime::domains::files::{GapReason, Phase, UNREACHABLE};
 use {model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload, model::files::wire::FtpWatchSource};
 
-/* === Constants === */
 const USER: &str = "bench";
 const PASSWORD: &str = "bench-secret";
 const SECRET: &str = "bench-ftp";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[derive(Debug)]
 struct BenchLogin;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 #[async_trait::async_trait]
 impl Authenticator for BenchLogin {
     async fn authenticate(&self, username: &str, secrets: &Credentials) -> Result<Principal, AuthenticationError> {
@@ -62,9 +41,6 @@ impl Authenticator for BenchLogin {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 // Serves `root` on a free loopback port until the runtime stops.
 async fn serve(root: &Path) -> u16 {
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
@@ -137,8 +113,6 @@ async fn refusing_resume(port: u16) -> (u16, tokio::task::JoinHandle<()>) {
     });
     (proxy_port, task)
 }
-
-/* === Tests === */
 
 #[tokio::test(flavor = "multi_thread")]
 async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() {

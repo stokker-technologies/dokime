@@ -9,29 +9,10 @@
 
 // Register Explicit Execution Identities In An Existing Cycle
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::model::identity::{CaseId, TestCycleId, TestExecutionId};
 use dokime::operations::execution::{AppendExecutions, ExecutionBinding};
 
-/* === Constants === */
-
 const INPUT_BYTES: u64 = 16_777_216;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -71,14 +52,6 @@ pub(crate) struct Args {
     #[command(flatten)]
     id_file: crate::commands::id_file::Args,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -155,7 +128,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

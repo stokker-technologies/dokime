@@ -8,9 +8,6 @@
 
 """Prepare Shared Harmos Python Contracts From Selected Cargo Outputs"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import hashlib
 import json
@@ -20,17 +17,9 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 # isort: split
 from dokime_tools.ci.bootstrap import prepare_harmos
 from dokime_tools.package.contracts import locate
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 ROOT = Path(__file__).resolve().parents[5]
 _HEADER = "# ***\n#\n# Dokime\n#\n# SPDX-License-Identifier: Apache-2.0\n#\n# ***\n"
@@ -47,12 +36,6 @@ _FILES = {
 
 # The Generated Files Whose Bytes Identify The Contract Set, In Hash Order.
 CONTRACT_SET = ("contracts.json", "descriptors.bin")
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def generate(
@@ -176,9 +159,6 @@ def main() -> None:
     parser.add_argument("--cargo-config", type=Path)
     args = parser.parse_args()
     generate(args.build_json, check=args.check, cargo_config=args.cargo_config)
-
-
-# === Private Functions === #
 
 
 def _profiles(export: Path) -> str:
@@ -346,8 +326,6 @@ def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
     for relative in selected:
         generated[relative] = (source / relative).read_bytes()
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     main()

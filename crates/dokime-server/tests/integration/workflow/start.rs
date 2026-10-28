@@ -9,36 +9,7 @@
 
 // Verify Durable Attempt Admission Without Caller Keys
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn planned(client: &WireClient, owner: &Runtime) -> (String, String) {
     let cycle = support::planned_cycle(client, authenticated(create()), selection_plan(owner)).await.unwrap();
@@ -58,8 +29,6 @@ async fn sealed(handle: &dokime::RuntimeHandle, id: &str) {
     let id = dokime::TestExecutionId::from_uuid(id).unwrap();
     support::on_state_change(handle, async || handle.watch_state().latest().state().executions[&id].saved.is_some().then_some(())).await;
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn blocking_run_drains_and_preserves_work_after_callback_error() {

@@ -9,29 +9,10 @@
 
 // Saved Backend Profile Remove
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::client::{
     profiles::{self, Secret},
     secrets::{KeyringStore, SecretStore},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -41,14 +22,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Saved Backend Profile Identifier.")]
     identifier: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
     let removed = args.config.store()?.update(|document| {
@@ -64,7 +37,3 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::{BuiltinRecordType, RecordSeverity};
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::{BuiltinDraft, Drafts};
@@ -30,14 +21,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[harmos::transaction(id = "dokime.execution.label.rename", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RenameLabel {
@@ -46,18 +29,12 @@ pub struct RenameLabel {
     pub edited_at: Timestamp,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "id")]
 pub enum LabelSubject {
     Cycle(TestCycleId),
     Execution(TestExecutionId),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for RenameLabel {
     type Error = String;
@@ -147,8 +124,6 @@ impl RenameLabel {
     }
 }
 
-/* === Public Functions === */
-
 pub fn case_attempts(state: &RuntimeState, id: &TestExecutionId) -> Vec<TestExecutionId> {
     let Some(execution) = state.executions.get(id) else {
         return Vec::new();
@@ -166,7 +141,3 @@ pub fn case_attempts(state: &RuntimeState, id: &TestExecutionId) -> Vec<TestExec
         })
         .unwrap_or_else(|| vec![id.clone()])
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

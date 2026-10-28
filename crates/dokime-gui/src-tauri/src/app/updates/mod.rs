@@ -7,16 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod plugins;
 mod sources;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -25,29 +18,19 @@ use std::{
 #[cfg(feature = "updater")]
 use std::time::Duration;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 #[cfg(feature = "updater")]
 use tauri_plugin_updater::UpdaterExt;
 
-// Local Imports
 use super::organization::{
     OrganizationState,
     policy::{Mode, UpdatePolicy},
 };
 
-/* === Constants === */
-
 const DESKTOP_UPDATE_SETTINGS_BYTES: u64 = 16_384;
 #[cfg(feature = "updater")]
 const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct UpdateState(Arc<Shared>);
@@ -104,12 +87,6 @@ pub struct UpdateCheck {
 pub struct InstallResult {
     pub version: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl UpdateState {
     fn status(&self) -> Result<UpdateStatus, String> {
@@ -228,8 +205,6 @@ impl UpdateState {
     }
 }
 
-/* === Public Functions === */
-
 pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let root = super::settings::application_root(&app.config().identifier)?.join("release-sources");
     let path = root.join("selection.json");
@@ -319,10 +294,6 @@ pub async fn desktop_updates_install(state: State<'_, UpdateState>, candidate: S
         Err("This distribution manages desktop updates outside the application".into())
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

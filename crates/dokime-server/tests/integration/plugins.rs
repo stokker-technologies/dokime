@@ -7,28 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::RegistrationExt;
 use dokime::harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
     PluginManager, PluginTransition, Router,
 };
 use sha2::{Digest, Sha256};
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use model::plugins::wire::InstallPluginFrameFrame as Frame;
-
-/* === Constants === */
 
 const DYNAMIC_OWNER: &str = "grpc_dynamic_fixture";
 const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
@@ -37,13 +27,7 @@ const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harm
     retries: dokime::harmos::operations::RetryPolicy::Never,
 };
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type DynamicBackend = PluginBackend<DynamicResources, DynamicResources, DynamicResources>;
-
-/* === Structs === */
 
 #[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[derive(Clone)]
@@ -103,8 +87,6 @@ struct DynamicHost {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum DynamicOperations {
     Unary(DynamicUnary),
@@ -117,10 +99,6 @@ enum DynamicOperations {
 enum DynamicReplacements {
     Unary(DynamicReplacement),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl dokime::harmos::Operation for DynamicReplacement {
     type Error = tonic::Status;
@@ -246,10 +224,6 @@ impl PluginLifecycle for DynamicHost {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn dynamic_grant(request: &DynamicUnary) -> Option<dokime::harmos::plugin::Grant> {
     match request.value {
@@ -735,5 +709,3 @@ async fn bounded_installed_metadata() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

@@ -7,30 +7,18 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
-// Third Party Imports
 
-// Local Imports
 
-/* === Constants === */
 const RESPONSE: f64 = 0.5;
 
 const MAXIMUM_C: f64 = 150.0;
 
 static CHAMBERS: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<Chamber>>>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
-/* === Macros === */
 
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Chamber {
     celsius: f64,
     target_c: f64,
@@ -52,7 +40,6 @@ pub struct Identity {
     pub firmware: String,
 }
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 pub enum BenchError {
     #[error("the chamber cannot hold {celsius} °C")]
@@ -61,9 +48,7 @@ pub enum BenchError {
     Unopened { port: String },
 }
 
-/* === Traits === */
 
-/* === Implementations === */
 impl Sensor {
     pub fn open(port: impl Into<String>, ambient_c: f64) -> Self {
         let port = port.into();
@@ -127,9 +112,7 @@ impl Heater {
     }
 }
 
-/* === Public Functions === */
 
-/* === Private Functions === */
 fn registry() -> std::sync::MutexGuard<'static, BTreeMap<String, Arc<Mutex<Chamber>>>> {
     CHAMBERS.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -138,7 +121,6 @@ fn rest(chamber: &Mutex<Chamber>) {
     chamber.lock().unwrap_or_else(PoisonError::into_inner).powered = false;
 }
 
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -9,28 +9,10 @@
 
 //! Own a native process tree through leader exit and descendant cleanup.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{future::Future, io, pin::Pin, process::ExitStatus};
 
-// Third Party Imports
 use process_wrap::tokio::{ChildWrapper, CommandWrap, KillOnDrop};
 use tokio::process::{ChildStderr, ChildStdin, ChildStdout, Command};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Child {
     child: Box<dyn ChildWrapper>,
@@ -38,12 +20,6 @@ pub struct Child {
     #[cfg(unix)]
     group: libc::pid_t,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Child {
     pub fn stdin(&mut self) -> &mut Option<ChildStdin> {
@@ -141,8 +117,6 @@ impl Drop for Child {
     }
 }
 
-/* === Public Functions === */
-
 pub fn spawn(command: Command) -> io::Result<Child> {
     spawn_with(command, false)
 }
@@ -150,8 +124,6 @@ pub fn spawn(command: Command) -> io::Result<Child> {
 pub fn spawn_session(command: Command) -> io::Result<Child> {
     spawn_with(command, true)
 }
-
-/* === Private Functions === */
 
 fn spawn_with(command: Command, session: bool) -> io::Result<Child> {
     let mut command = CommandWrap::from(command);
@@ -177,5 +149,3 @@ fn spawn_with(command: Command, session: bool) -> io::Result<Child> {
         group,
     })
 }
-
-/* === Tests === */

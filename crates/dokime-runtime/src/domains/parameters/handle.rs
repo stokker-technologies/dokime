@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::definition::ParameterSource;
 use crate::{
     RuntimeHandle,
@@ -29,14 +18,6 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::MeasurementUnit;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(crate) struct ScopedParameterUpdate {
     key: String,
     value: Value,
@@ -45,12 +26,6 @@ pub(crate) struct ScopedParameterUpdate {
     group_id: Option<Identifier>,
     unit: Option<MeasurementUnit>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ScopedParameterUpdate {
     pub(crate) fn new(key: impl Into<String>, value: impl Into<Value>, source: ParameterSource) -> Self {
@@ -88,9 +63,3 @@ impl RuntimeHandle {
         self.commit(transaction).await.is_ok()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

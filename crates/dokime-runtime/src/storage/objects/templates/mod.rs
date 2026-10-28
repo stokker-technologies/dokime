@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 pub(super) mod analysis;
 mod conditions;
 pub(super) mod documents;
@@ -16,25 +15,10 @@ mod layout;
 pub(super) mod prompts;
 mod suite;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::metadata;
 use crate::storage::{Error, Result, values};
 use dokime_domain::model::values::UnitFamily;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Definition {
@@ -222,11 +206,6 @@ pub struct Map {
     cells: Vec<values::Cell>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Template {
     pub(super) fn encoding_memory(value: &crate::definition::TestCaseTemplate) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
@@ -1104,9 +1083,6 @@ impl<'de> serde::Deserialize<'de> for Map {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn value_type_name(value: &dokime_domain::model::values::ValueType) -> &'static str {
     use dokime_domain::model::values::ValueType;
     match value {
@@ -1164,8 +1140,6 @@ fn value_type(value: &str) -> Result<dokime_domain::model::values::ValueType> {
         _ => Err(Error::Invalid("invalid parameter value type")),
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

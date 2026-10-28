@@ -9,35 +9,9 @@
 
 // Dokime Storage Settings
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use harmos::storage::{StorageFilesystemSettings, StorageRequestSettings, StorageResponseSettings, StorageSettings};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn storage_defaults() -> StorageSettings {
     let active = std::thread::available_parallelism().map_or(4, NonZeroUsize::get).clamp(4, 16);
@@ -61,10 +35,6 @@ pub fn storage_defaults() -> StorageSettings {
     }
 }
 
-/* === Private Functions === */
-
 fn nonzero(value: usize) -> NonZeroUsize {
     NonZeroUsize::new(value.max(1)).unwrap()
 }
-
-/* === Tests === */

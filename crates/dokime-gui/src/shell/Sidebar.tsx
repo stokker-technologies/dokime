@@ -9,17 +9,12 @@
 
 /* Shared Destinations For Desktop Sidebar, Tablet Rail And Phone Tabs. */
 
-/* === External Imports === */
-
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from "react";
-
-/* === Local Imports === */
-
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
 import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
 import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
@@ -31,8 +26,6 @@ import { SidebarRow } from "@/shell/sidebar-row";
 import { useSidebarState } from "@/shell/use-sidebar-state";
 import { useBackendStatus } from "./backend-status";
 import { SidebarFrame } from "./SidebarFrame";
-
-/* === Types === */
 
 export type SidebarProps =
   | { live?: true }
@@ -51,8 +44,6 @@ type Destination = {
   to: "/cycles" | "/history" | "/library" | "/settings";
 };
 
-/* === Constants === */
-
 const DESTINATIONS: Destination[] = [
   { icon: ListChecks, label: "Cycles", prefix: "/cycles", to: "/cycles" },
   { icon: Library, label: "Library", prefix: "/library", to: "/library" },
@@ -61,8 +52,6 @@ const DESTINATIONS: Destination[] = [
 ];
 
 const SETTINGS_SECTION_ROUTE = /^\/settings\/([^/]+)/;
-
-/* === Components === */
 
 export function Sidebar(props: SidebarProps) {
   const { mode } = useSidebarState();
@@ -121,8 +110,6 @@ export function Sidebar(props: SidebarProps) {
     </>
   );
 }
-
-/* === Private Components === */
 
 /** The four destinations and the active one's children. Live application only. */
 function DestinationTree({ expanded = false }: { expanded?: boolean }) {
@@ -259,8 +246,6 @@ function ChildRegion({
     </ul>
   );
 }
-
-/* === Private Functions === */
 
 function isCurrent(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);

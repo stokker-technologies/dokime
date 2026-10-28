@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { type ReactNode, useState } from "react";
-
-/* === Local Imports === */
 
 import { formatNumber } from "@/lib/format";
 import type { ValueFormat } from "@/lib/types";
@@ -19,8 +15,6 @@ import { HISTOGRAM_COUNT_LABEL } from "@/plots/histogram-axes";
 import { type HistogramDistribution, histogramBars } from "@/plots/histogram-bins";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText } from "@/plots/plot-placeholder";
-
-/* === Types === */
 
 type HistogramChartProps = {
   title: string;
@@ -35,8 +29,6 @@ type HistogramChartProps = {
   /** Content the card holds under the chart, such as its statistics, under the one title. */
   children?: ReactNode;
 };
-
-/* === Components === */
 
 export function HistogramChart({
   children,
@@ -120,8 +112,6 @@ export function HistogramChart({
     </section>
   );
 }
-
-/* === Private Functions === */
 
 /** Where bin `index` of `count` centres along the chart, in percent. */
 function binCentre(index: number, count: number): number {

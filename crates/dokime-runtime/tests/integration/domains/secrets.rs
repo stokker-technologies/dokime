@@ -9,43 +9,14 @@
 
 // Saved Base64 Files Carry Secrets Between Independent Keyring Stores.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-// Third Party Imports
 use base64::Engine as _;
 
-// Local Imports
 use dokime_domain::model::secrets::{
     catalog::Metadata,
     transfer::{Action, Choice},
 };
 use dokime_operations::secrets as wire;
 use dokime_runtime::{Runtime, RuntimeConfig};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[test]
 fn secret_metadata_rejects_old_name_field() {

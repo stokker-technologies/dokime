@@ -8,9 +8,6 @@
 
 """Follow And Replay Live Records And Telemetry"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import json
 import runpy
@@ -19,28 +16,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import Cycle, Execution, _wire
 from dokime_client.client.execution import handle as execution_module
 
 from .backend import EXECUTION_ID, SUITE_ID, TEMPLATE, collect, prepare, serve
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 EXAMPLE = Path(__file__).resolve().parents[3] / "examples/remote/python/control-test.py"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_live_values() -> None:
@@ -165,8 +148,3 @@ def test_example_listeners_drain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             assert server.stop_calls == 0
 
     asyncio.run(scenario())
-
-
-# === Private Functions === #
-
-# === Entry Point === #

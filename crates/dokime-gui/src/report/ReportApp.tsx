@@ -12,12 +12,8 @@
  * Selection stays local to the document; no live service is constructed.
  */
 
-/* === External Imports === */
-
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-
-/* === Local Imports === */
 
 import { DokimeToaster } from "@/components/DokimeToaster";
 import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
@@ -27,14 +23,10 @@ import { ReportCycleWorkspace } from "./ReportCycleWorkspace";
 import { ReportShell } from "./ReportShell";
 import { cycleSnapshotSource } from "./report-snapshot";
 
-/* === Constants === */
-
 const reportRouter = createRouter({
   history: createMemoryHistory({ initialEntries: ["/"] }),
   routeTree: createRootRoute({ component: ReportSurface }),
 });
-
-/* === Components === */
 
 export function ReportApp({ payload }: { payload: ReportPayload }) {
   const source = useMemo(() => cycleSnapshotSource(payload), [payload]);
@@ -52,8 +44,6 @@ export function ReportApp({ payload }: { payload: ReportPayload }) {
     </>
   );
 }
-
-/* === Private Components === */
 
 /** The routed surface: the shell, the workspace, and which case is open. */
 function ReportSurface() {
@@ -81,5 +71,3 @@ function ReportSurface() {
     </ReportShell>
   );
 }
-
-/* === Private Functions === */

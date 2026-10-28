@@ -7,26 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
 mod private {
     pub trait Number {}
     impl Number for i64 {}
     impl Number for f64 {}
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
-// Third Party Imports
 use serde::de::DeserializeOwned;
 
-// Local Imports
 use super::*;
 use crate::records::RecordSeverity;
 use dokime_domain::model::execution::RecordScope;
@@ -35,14 +26,6 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct FormPrompt<T> {
     definition: PromptDefinition,
@@ -71,10 +54,6 @@ pub struct MultipleChoicePrompt<T> {
     choices: BTreeMap<String, T>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait Prompt: Send {
     type Response;
 
@@ -100,8 +79,6 @@ pub trait PromptNumber: private::Number + DeserializeOwned + Into<Value> + Copy 
     fn field_kind() -> PromptFieldKind;
     fn value_type() -> ValueType;
 }
-
-/* === Implementations === */
 
 impl<T> FormPrompt<T> {
     pub fn new(id: &str, label: impl Into<String>) -> Self {
@@ -366,8 +343,6 @@ impl<T: Clone + Send> Prompt for MultipleChoicePrompt<T> {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn definition(id: &str, label: String, archetype: PromptArchetype) -> PromptDefinition {
     PromptDefinition {
         prompt_type: Identifier::new(id).expect("a prompt identifier is valid"),
@@ -428,10 +403,6 @@ pub(super) fn validate_response(definition: &PromptDefinition, response: &Prompt
     }
 }
 
-/* === Private Functions === */
-
 fn refused(error: impl std::fmt::Display) -> crate::Error {
     crate::Error::PromptRefused(error.to_string())
 }
-
-/* === Tests === */

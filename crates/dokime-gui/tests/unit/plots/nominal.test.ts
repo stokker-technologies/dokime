@@ -7,17 +7,12 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
-// Local Imports
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { plotWindowOptions } from "@/features/cycle/PlotWindowSlider";
 import {
@@ -49,10 +44,6 @@ import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ER
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { lttbIndices, m4Indices, minMaxIndices, reduceIndices, windowIndices } from "@/plots/reduce";
 import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 /* The pulse suite: 100 ms cadence, sin(0.5 i), about 12.6 samples per period. */
 const PULSE_PERIOD_MS = 100;
@@ -89,14 +80,6 @@ const SUMMARIES = [
     window: { from: 0, to: 9 },
   },
 ] as SeriesSummary[];
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function pulse(count: number, startS = 0) {
   const x: number[] = [];
@@ -161,8 +144,6 @@ function posToVal(position: number, axis: "x" | "y") {
 function histogram(fields: Record<string, unknown>): HistogramDeclaration {
   return fields as HistogramDeclaration;
 }
-
-/* === Entry Point === */
 
 test("Configured Plot Windows Preserve Inheritance And All", () => {
   const options = plotWindowOptions([17, 42]);

@@ -9,33 +9,15 @@
 
 """Shared Profile Conformance And Explicit Selection Scenarios"""
 
-# === Imports === #
-
-# Standard Library Imports
 import json
 from pathlib import Path
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import DokimeClient
 from dokime_client.client.profiles import configuration_path, decode, load
 
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
 _CASES = json.loads((Path(__file__).resolve().parents[5] / "crates/dokime-client/tests/fixtures/profiles.json").read_text())
-
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 @pytest.mark.parametrize("case", _CASES, ids=lambda case: case["name"])
@@ -89,8 +71,3 @@ def test_profile_read_bound(tmp_path):
     path.write_bytes(b" " * (1024 * 1024 + 1))
     with pytest.raises(ValueError, match="exceeds"):
         load("local", path=path)
-
-
-# === Private Functions === #
-
-# === Entry Point === #

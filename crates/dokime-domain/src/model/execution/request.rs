@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::model::execution::StepCommand;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::identity::CaseId;
 use crate::model::identity::CommandId;
 use crate::model::identity::NodeId;
@@ -29,14 +20,6 @@ use crate::model::identity::StepAttemptId;
 use crate::model::identity::TestCycleId;
 use crate::model::identity::TestExecutionId;
 use crate::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RunSummary {
@@ -88,8 +71,6 @@ pub struct StepCommandReceipt {
     pub detail: Option<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunPhase {
@@ -114,10 +95,6 @@ pub enum StepCommandPhase {
     Failed,
     Interrupted,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for RunSummary {
     fn memory_size(&self) -> usize {
@@ -284,9 +261,3 @@ impl RunPhase {
         matches!(self, Self::Completed | Self::Failed | Self::Stopped | Self::Interrupted)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

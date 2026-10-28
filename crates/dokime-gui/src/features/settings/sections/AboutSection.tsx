@@ -10,15 +10,10 @@
 import { useState } from "react";
 import { DesktopUpdateDialog } from "@/components/DesktopUpdateDialog";
 import { Button } from "@/components/ui/button";
-import { isTauriDesktop } from "@/lib/desktop-open";
-
-/* === Local Imports === */
-
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useBrand } from "@/lib/brand";
-
-/* === Components === */
+import { isTauriDesktop } from "@/lib/desktop-open";
 
 export function AboutSection() {
   const brand = useBrand();

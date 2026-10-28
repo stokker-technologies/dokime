@@ -10,22 +10,11 @@
 // A data expression's aggregate is the Harmos vocabulary under its wire name,
 // the same in JSON, in the expression tree and back.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos_domain::Aggregate;
 
-// Local Imports
 use dokime_domain::model;
 use model::expressions::{DataExpression, DataTransform, Expression, telemetry};
 
-/* === Constants === */
 const VOCABULARY: [Aggregate; 11] = [
     Aggregate::Count,
     Aggregate::Sum,
@@ -39,24 +28,6 @@ const VOCABULARY: [Aggregate; 11] = [
     Aggregate::Percentile(95),
     Aggregate::Percentile(100),
 ];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 // Every member serializes tagged `aggregate` under its name and reads back.
 #[test]

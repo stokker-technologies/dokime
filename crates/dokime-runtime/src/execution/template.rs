@@ -7,33 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use crate::definition::TestCaseTemplate;
 use crate::execution::{CleanupContext, CriterionContext, InitializationContext, ObserverContext, StepContext, TraceabilityContext};
 use crate::parameters::FromParameters;
 use crate::plugin::Diagnostic;
 use dokime_domain::model::traceability::TraceabilitySection;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 // Publishes one stream's rows in order as one batch; rows before a refused
 // row stay published and the refused row and the rest are missed.
@@ -47,8 +31,6 @@ pub type StepFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Diagnostic>> + 
 pub type InitializationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Diagnostic>> + Send + 'a>>;
 pub type TraceabilityFuture<'a> = Pin<Box<dyn Future<Output = Result<Vec<TraceabilitySection>, Diagnostic>> + Send + 'a>>;
 pub type EvaluationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<Option<T>, Diagnostic>> + Send + 'a>>;
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct TemplateDefinition {
@@ -74,10 +56,6 @@ pub struct DeclaredObserver {
     pub streams: Vec<crate::telemetry::TelemetryContract>,
     pub records: Vec<crate::records::RecordContract>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
 
 pub trait SidecarTemplate: Send + Sized + 'static {
     const RUN: &'static str;
@@ -135,8 +113,6 @@ pub trait SidecarTemplate: Send + Sized + 'static {
     fn evaluate<'a>(criterion: &'a str, ctx: &'a CriterionContext<'_, Self, Self::Parameters>) -> EvaluationFuture<'a, bool>;
 }
 
-/* === Implementations === */
-
 impl DeclaredObserver {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>, interval_ms: u64) -> Self {
         Self {
@@ -156,9 +132,3 @@ impl DeclaredObserver {
         self
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

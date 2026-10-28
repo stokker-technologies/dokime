@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-// Local Imports
 use crate::settings::{SettingValues, Settings};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::secrets::RedactedSecretBinding;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimePluginSettings {
@@ -63,8 +45,6 @@ pub struct PluginRuntimeSecretBindings {
     pub missing_required: Vec<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, Error, PartialEq)]
 pub enum RuntimePluginManagementError {
     #[error("installed plugin {0} was not found")]
@@ -77,10 +57,6 @@ pub enum RuntimePluginManagementError {
     Store(String),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<std::io::Error> for RuntimePluginManagementError {
     fn from(error: std::io::Error) -> Self {
         Self::Store(error.to_string())
@@ -92,9 +68,3 @@ impl From<crate::storage::Error> for RuntimePluginManagementError {
         Self::Store(error.to_string())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

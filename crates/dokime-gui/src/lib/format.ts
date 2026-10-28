@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { ValueFormat } from "@/lib/types";
-
-/* === Types === */
 
 export type NumberFormatOptions = {
   /** The axis tick increment; sets the fraction digits when no format declares its own. */
@@ -27,8 +23,6 @@ export type TimeFormatOrigin = {
   runStart?: number | null;
   cycleStart?: number | null;
 };
-
-/* === Constants === */
 
 // IEC units: artifact sizes and memory readouts are counted in binary steps.
 const BYTE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB"] as const;
@@ -61,8 +55,6 @@ const SI_PREFIXES: ReadonlyArray<readonly [number, string]> = [
 
 const MIN_SI_EXPONENT = SI_PREFIXES[0][0];
 const MAX_SI_EXPONENT = SI_PREFIXES[SI_PREFIXES.length - 1][0];
-
-/* === Public Functions === */
 
 /**
  * Formats a byte count for a size or memory readout: binary steps with IEC
@@ -241,8 +233,6 @@ export function defaultPlotNumber(value: number, increment?: number): string {
   const maximumFractionDigits = Math.min(6, fromIncrement ?? 4);
   return value.toLocaleString(undefined, { maximumFractionDigits });
 }
-
-/* === Private Functions === */
 
 /** Three significant digits, without trailing zeros. */
 function significant(value: number): number {

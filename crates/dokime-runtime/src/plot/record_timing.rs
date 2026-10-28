@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::document::DocumentFilter;
 use crate::document::frame::{Lookup, Side, Strategy, nanos};
 use crate::expressions::DataSource;
@@ -25,15 +14,7 @@ use crate::plot::{PlotPayloadRequest, parse_timestamp, record_samples::RecordSam
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::records::evidence::RecordEntry;
 
-/* === Constants === */
-
 pub(crate) const RECORD_CONTEXT_STREAM: &str = "dokime.plot.record_context";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct RecordFilterLookup<'a> {
     filters: Vec<(&'a DocumentFilter, RecordSampleLookup<'a>)>,
@@ -50,12 +31,6 @@ pub(super) struct RecordPair<'a> {
     pub(super) end: &'a RecordEntry,
     pub(super) seconds: f64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> RecordFilterLookup<'a> {
     pub(super) fn try_new(telemetry: &'a [TelemetrySample], request: &'a PlotPayloadRequest) -> crate::runtime::Result<Self> {
@@ -125,10 +100,6 @@ impl<'a> RecordPairLookup<'a> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn record_memory() -> crate::runtime::Error {
     harmos::Error::ResourceExhausted { resource: "record correlation" }.into()
 }
@@ -144,5 +115,3 @@ fn filter_stream<'a>(telemetry: &[TelemetrySample], request: &'a PlotPayloadRequ
         _ => request.stream.as_str(),
     }
 }
-
-/* === Tests === */

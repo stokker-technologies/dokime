@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::PathBuf, time::Duration};
 
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::{measurement, system, verdicts};
@@ -38,18 +28,10 @@ use dokime::operations::files::WatchFile;
 use dokime::prelude::*;
 use obc_runtime::device::{Device, Power};
 
-/* === Constants === */
-
 const CONNECTION_BUDGET_S: f64 = 30.0;
 const STARTUP_STREAM: &str = "obc.charger.startup.samples";
 
-/* === Macros === */
-
 bench!(Parameters);
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // A type of its own rather than a home on [`InputMeasurement`]: four suites measure
 // the same physical thing and each owns the stream its evidence travels, so
@@ -192,8 +174,6 @@ pub struct Parameters {
     pub connection_budget_s: f64,
 }
 
-/* === Enums === */
-
 #[dokime::catalog]
 pub enum Prompts {
     StartupCheck(checkpoint::StartupCheck),
@@ -231,10 +211,6 @@ pub enum Streams {
     Samples(Samples),
     ChargerLog(ChargerLog),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime::template(
     id = STARTUP_TEMPLATE, label = "Start-Up Sequence",
@@ -481,10 +457,6 @@ impl Startup {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn publish_runtime_sample<T, O, I>(
     ctx: &mut StepContext<'_, T, O, I>, interval_s: f64, device: &mut Device, index: u64, total: u64, checkpoint: u64,
 ) -> Result<(), Error> {
@@ -587,8 +559,6 @@ fn signal_correlation(identifier: &str) -> PlotDefinition {
 fn startup_document() -> Document {
     let mut document = Document::new("default", "Start-Up Sequence");
 
-    // === What One Execution Shows === //
-
     let mut voltage = Plot::time_series("AC Voltage");
     voltage.id("obc.charger.startup.sequence.signals");
     voltage.unit("V");
@@ -620,8 +590,6 @@ fn startup_document() -> Document {
     phase_breakdown.plot(signal_correlation("obc.charger.startup.sequence.signal_correlation"));
     document.section(phase_breakdown);
 
-    // === The Current, And The Host Around It === //
-
     let mut current = Plot::time_series("AC Current");
     current.id("obc.charger.startup.sequence.current");
     current.unit("A");
@@ -636,5 +604,3 @@ fn startup_document() -> Document {
 
     document
 }
-
-/* === Tests === */

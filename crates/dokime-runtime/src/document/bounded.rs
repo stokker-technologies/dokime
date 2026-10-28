@@ -7,29 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Write;
 
-// Third Party Imports
 use serde::Serialize;
 
-// Local Imports
 use super::input::{BorrowedData, BorrowedInput, DocumentSelection};
 use super::{DocumentDefinition, DocumentNode, DocumentPayload, DocumentResolveInput};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Debug)]
 pub struct DocumentLimits {
@@ -53,12 +36,6 @@ pub(crate) struct SharedBindings<'a> {
     rows: usize,
     limits: DocumentLimits,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for DocumentLimits {
     fn default() -> Self {
@@ -134,8 +111,6 @@ impl<'a> SharedBindings<'a> {
         Ok(captured)
     }
 }
-
-/* === Public Functions === */
 
 pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_depth: usize) -> Result<usize, DocumentLimit> {
     struct Counter {
@@ -220,8 +195,6 @@ pub(crate) fn capture_document_borrowed(
 ) -> crate::Result<crate::document::capture::Capture> {
     SharedBindings::new(input.selection, input.data, limits)?.capture(input.definition)
 }
-
-/* === Private Functions === */
 
 fn preflight_definition(
     definition: &DocumentDefinition, telemetry_rows: usize, limits: DocumentLimits, bytes: usize,
@@ -312,8 +285,6 @@ fn has_repeat(nodes: &[DocumentNode]) -> bool {
         DocumentNode::Section(section) => section.repeat.is_some() || has_repeat(&section.children),
     })
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

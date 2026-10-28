@@ -7,34 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn response_limit(value: &impl dokime::harmos::domain::Portable, maximum: usize) -> Result<(), Status> {
     if crate::grpc::transcode::Transcode::wire_len(value)? > maximum {
@@ -42,7 +15,3 @@ pub(super) fn response_limit(value: &impl dokime::harmos::domain::Portable, maxi
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

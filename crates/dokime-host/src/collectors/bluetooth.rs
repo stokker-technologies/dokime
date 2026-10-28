@@ -9,13 +9,6 @@
 
 #![cfg_attr(not(windows), allow(dead_code, unused_imports))]
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
@@ -24,24 +17,13 @@ use std::{
 #[cfg(not(windows))]
 use std::process::Command;
 
-// Third Party Imports
-
-// Local Imports
 use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
 
 const BLUETOOTH_DEEP_SCAN_INTERVAL_MS: u64 = 300_000;
 #[cfg(not(windows))]
 const BLUETOOTH_COMMAND_TIMEOUT_MS: u64 = 5_000;
 const WINDOWS_BLUETOOTH_TIMEOUT_MS: u64 = 10_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct BluetoothCollector {
     sample_index: u64,
@@ -50,12 +32,6 @@ pub struct BluetoothCollector {
     last_deep_refresh: Option<Instant>,
     cached_values: Option<BTreeMap<String, Value>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl BluetoothCollector {
     pub fn new(options: HostOptions) -> Self {
@@ -147,10 +123,6 @@ impl BluetoothCollector {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 #[cfg(windows)]
 fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnapshot) -> BTreeMap<String, Value> {
     let mut values = BTreeMap::new();
@@ -167,5 +139,3 @@ fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnaps
 
     values
 }
-
-/* === Tests === */

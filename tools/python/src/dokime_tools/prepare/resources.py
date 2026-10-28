@@ -8,32 +8,15 @@
 
 """Refresh Or Check Crate-Local Embedded Runtime Resources"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import tempfile
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build.frontend import REPORT, ROOT, ensure_report, render_report
 from dokime_tools.package.staging import stage_file, sync_output
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 BRAND = ROOT / "organization"
 DISTRIBUTION = ROOT / "crates/dokime-runtime/dist-brand"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def refresh() -> None:
@@ -65,9 +48,6 @@ def main() -> None:
         refresh()
 
 
-# === Private Functions === #
-
-
 def _brand_files() -> list[Path]:
     if not (BRAND / "organization.toml").is_file():
         raise ValueError("organization pack has no manifest")
@@ -95,8 +75,6 @@ def _compare_files(expected: dict[Path, bytes], destination: Path) -> None:
             f"stale runtime resources in {destination}: {', '.join(changed)}; run `mise run prepare:report` and commit the output"
         )
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     main()

@@ -9,32 +9,14 @@
 
 """Export Verified Native Installer Inputs"""
 
-# === Imports === #
-
-# Standard Library Imports
 import hashlib
 import json
 import stat
 import zipfile
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output, stage_file
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def export(root: Path, profile: str) -> Path:
@@ -100,9 +82,6 @@ def archive(source: Path, output: Path) -> Path:
     return destination
 
 
-# === Private Functions === #
-
-
 def _entry(source: Path, name: str, checksum: str | None) -> tuple[zipfile.ZipInfo, bytes]:
     relative = Path(name)
     unsafe = relative.is_absolute() or ".." in relative.parts
@@ -125,6 +104,3 @@ def _entry(source: Path, name: str, checksum: str | None) -> tuple[zipfile.ZipIn
 def _write_entries(bundle: zipfile.ZipFile, entries: list[tuple[zipfile.ZipInfo, bytes]]) -> None:
     for entry, data in entries:
         bundle.writestr(entry, data)
-
-
-# === Entry Point === #

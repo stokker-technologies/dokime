@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::{inspection, wire};
 use crate::grpc::content::window;
 use crate::grpc::transcode::Transcode;
@@ -28,24 +19,10 @@ use dokime::operations::history;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{ExecutionFileContent, RuntimeHandle};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<history::ReadCheckpointOutput> for Resources {
     fn serve<'a>(
@@ -161,8 +138,6 @@ impl Serve<history::ReadCheckpointOutput> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -172,12 +147,8 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted {
         resource: "canonical checkpoint file window",
     }
 }
-
-/* === Tests === */

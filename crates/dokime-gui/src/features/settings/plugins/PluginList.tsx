@@ -15,12 +15,8 @@
  * nested inside this row.
  */
 
-/* === External Imports === */
-
-import type { ReactNode } from "react";
 import { Trash2 } from "lucide-react";
-
-/* === Local Imports === */
+import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -28,8 +24,6 @@ import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/Pl
 import { formatArtifactSize } from "@/lib/artifact-tree";
 import { useBrand } from "@/lib/brand";
 import type { PluginEntry } from "@/lib/types/view-contracts";
-
-/* === Types === */
 
 type PluginListProps = {
   actions?: ReactNode;
@@ -50,8 +44,6 @@ type StatusPresentation = {
   reason: string | null;
   variant: "destructive" | "outline" | "success" | "warning";
 };
-
-/* === Components === */
 
 export function PluginList({
   actions,
@@ -107,8 +99,6 @@ export function PluginList({
   return <PluginTable actions={actions} label="Plugins" rows={[...builtInRows, ...rows]} />;
 }
 
-/* === Public Functions === */
-
 export function statusPresentation(entry: PluginEntry, brandLabel: string): StatusPresentation {
   if (entry.error) {
     return {
@@ -135,8 +125,6 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
   if (entry.boot_error) return { label: "Failed", reason: entry.boot_error, variant: "destructive" };
   return { label: "Disabled", reason: null, variant: "outline" };
 }
-
-/* === Private Functions === */
 
 /** The bundle's version and size, as the row's one muted column. */
 function entrySource(entry: PluginEntry): string {

@@ -9,8 +9,6 @@
 
 #![recursion_limit = "256"]
 
-/* === Modules === */
-
 // Public Within The Unit-Test Build Only: Each Target Uses Its Own Part Of The Shared Story Support.
 #[cfg(all(test, feature = "host"))]
 #[path = "../tests/support/services/mod.rs"]
@@ -121,8 +119,6 @@ pub mod brand {
     pub use crate::domains::installed_plugins::brand::theme;
 }
 
-/* === Re-Exports === */
-
 pub use definition::{Parameter, ParameterDefault, ParameterExpansion};
 pub use dokime_domain::DEV_PROTOCOL;
 pub use dokime_domain::Error as ApiError;
@@ -230,34 +226,7 @@ pub(crate) use runtime::command::{internal_rejection, rejected_receipt, unavaila
 #[cfg(feature = "host")]
 pub use runtime::{OpenedReport, ReportOrigin, Runtime, RuntimeHandle};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 // Generated authoring paths resolve the same way inside and outside this crate.
 extern crate self as dokime_runtime;
 
-// Local Imports
-
-/* === Constants === */
-
 pub const MACRO_CONTRACT: u32 = 27;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

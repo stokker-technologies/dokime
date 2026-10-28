@@ -7,30 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
 mod admission;
 mod inventory;
 mod wire;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use contract as v1;
 use sha2::{Digest, Sha256};
 use tokio::sync::OwnedSemaphorePermit;
 use tonic::Status;
 use uuid::Uuid;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use dokime::domain::model::plugins::wire as plugins_model;
 use dokime::harmos::domain::Portable;
@@ -43,29 +34,15 @@ use dokime::{
     plugins::{PluginError, PluginStore},
 };
 
-/* === Constants === */
-
 const SERVER_DIAGNOSTIC_TEXT_BYTES: u64 = 4_096;
 const SERVER_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
 const SERVER_PLUGIN_UPLOAD_IDLE_MS: u64 = 30_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     pub runtime: RuntimeHandle,
     pub admission: admission::Admission,
     pub max_message_bytes: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Resources {
     async fn submit<T: Send + 'static, F: std::future::Future<Output = Result<T, PluginError>> + Send + 'static>(
@@ -301,8 +278,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
@@ -326,8 +301,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn message(
     input: &StreamInput<plugins_model::InstallPluginFrame>, idle_ms: u64,
@@ -375,5 +348,3 @@ fn failure(error: PluginError, diagnostic_bytes: usize) -> Status {
         _ => Status::unavailable("plugin storage unavailable; reconcile installation state before retrying mutation"),
     }
 }
-
-/* === Tests === */

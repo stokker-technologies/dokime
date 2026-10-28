@@ -7,40 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::preferences::Resources;
 use dokime::RuntimeHandle;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
 
-/* === Constants === */
-
 const SERVER_SETTINGS_RESPONSE_BYTES: u64 = 4_194_304;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListStorageSources> for Resources {
     fn serve<'a>(
@@ -75,8 +52,6 @@ impl Serve<wire::SetStorageSourceEnabled> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
@@ -94,8 +69,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     Ok(())
 }
 
-/* === Private Functions === */
-
 async fn sources(resources: &Resources) -> Result<Response<dokime::domain::model::settings::wire::StorageSources>, Status> {
     let sources = resources.runtime.storage_sources().await.map_err(super::super::execution::status)?;
     resources.produce(|| {
@@ -111,5 +84,3 @@ async fn sources(resources: &Resources) -> Result<Response<dokime::domain::model
         dokime::domain::model::settings::wire::StorageSources { sources: output }
     })
 }
-
-/* === Tests === */

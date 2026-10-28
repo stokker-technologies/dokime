@@ -28,14 +28,10 @@
  * frozen rendering does not construct those resources.
  */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import { LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-
-/* === Local Imports === */
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { Button } from "@/components/ui/button";
@@ -71,12 +67,10 @@ import { stepLabel } from "./ExecutionControl";
 import { ExecutionSections } from "./ExecutionSections";
 import { executionPagePrompts } from "./execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
-import { NodeSummary } from "./NodeSummary";
 import type { ArchiveAction, CycleMenu, ExecutionMenu } from "./NodeMenu";
+import { NodeSummary } from "./NodeSummary";
 import { answerablePrompts } from "./prompt-banner-model";
 import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
-
-/* === Types === */
 
 export type CycleWorkspaceProps = {
   cycleId: string;
@@ -90,8 +84,6 @@ export type CycleWorkspaceProps = {
 };
 
 type PendingConfirm = { kind: "seal" } | null;
-
-/* === Components === */
 
 export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true, onSelectionChange }: CycleWorkspaceProps) {
   const navigate = useNavigate();
@@ -457,8 +449,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   );
 }
 
-/* === Private Functions === */
-
 /** A case whose attempt sealed keeps the label its report froze. */
 function caseSealed(executions: TestExecution[], caseId: string): boolean {
   return executions.some((execution) => execution.case_id === caseId && execution.sealed);
@@ -467,8 +457,6 @@ function caseSealed(executions: TestExecution[], caseId: string): boolean {
 function executionTitlePrefix(row: CycleExecutionRow): string {
   return `Execution ${row.ordinal} · `;
 }
-
-/* === Private Components === */
 
 function WorkspaceNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (

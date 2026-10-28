@@ -9,29 +9,11 @@
 
 // Portable Saved Evidence Export Subject And Transfer Inventory
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::content::wire::{ArtifactChunk, ArtifactCompletion};
 
-/* === Constants === */
-
 pub const EVIDENCE_EXPORT_SCHEMA_VERSION: u32 = 1;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,8 +31,6 @@ pub struct EvidenceExportFrame {
     pub payload: Option<EvidenceExportPayload>,
 }
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvidenceSubject {
@@ -65,13 +45,3 @@ pub enum EvidenceExportPayload {
     Chunk(ArtifactChunk),
     Complete(ArtifactCompletion),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

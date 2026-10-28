@@ -22,8 +22,6 @@ import type {
   DocumentSigmaInterval,
 } from "./plot";
 
-/* === Document Presentation Types === */
-
 export type DocumentDataExpression = JsonObject;
 
 export type DocumentFilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists";

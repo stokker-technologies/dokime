@@ -7,37 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 #[cfg(feature = "fault-injection")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn node_identity_restart() {
@@ -120,8 +93,6 @@ async fn old_incompatible_startup() {
     runtime.shutdown().await.unwrap();
     assert_eq!(std::fs::read(legacy.join("journal.jsonl")).unwrap(), b"incompatible old history\n");
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn boot_reboots_intact() {

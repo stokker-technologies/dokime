@@ -9,40 +9,16 @@
 
 // Atomic manual device power changes
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use dokime::harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::{Error, Testbench};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::harmos::transaction(harmos_path = dokime::harmos, id = "obc.device.set_power", irreversible)]
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SetPower {
     pub enabled: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<Testbench> for SetPower {
     type Error = Error;
@@ -65,9 +41,3 @@ impl Transaction<Testbench> for SetPower {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,46 +7,25 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Mutex;
 
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 
-/* === Constants === */
 // The Steady Charging Cycle That Stranded Its Root Had 9 Members, One With 637
 // Telemetry Aggregates (49 Columns x 13 Statistics) Charged Near 4 MB.
 const MEMBERS: usize = 9;
 const COLUMNS: usize = 49;
 const STREAM: &str = "fixture.wide";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[derive(Clone, Default)]
 struct Captured(Arc<Mutex<Vec<u8>>>);
 
 // Publishes One Wide Telemetry Stream Into The First Member Only
 struct WideTelemetryExecutor;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl std::io::Write for Captured {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.0.lock().unwrap().extend_from_slice(bytes);
@@ -94,9 +73,6 @@ impl Captured {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 // Run One Wide Cycle To Its Seal And Return Its Final Resident View
 async fn sealed_cycle(handle: &RuntimeHandle, suite: TestSuite) -> CycleView {
     let cycle_id = start_cycle(handle, suite).await;
@@ -226,8 +202,6 @@ fn assert_round_trip(handle: &RuntimeHandle) {
     let decoded: dokime_runtime::state::RuntimeState = serde_json::from_slice(&encoded).unwrap();
     assert!(&decoded == latest.state(), "state survives its snapshot encoding");
 }
-
-/* === Tests === */
 
 // Sealed Cycles Leave Live State At The Next Cycle Start Or Restart, So A Wide
 // Cycle Never Strands Its Root And The State Snapshot Stays Bounded With The

@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::{
     CycleFields, Entries, Entry, EntryMetadata, Groups, Scope, build_snapshot, collect_entries, collect_groups, emit_parameter, exhausted,
     owned_entry, reserved, visit_resource_entries, visit_section, visit_test_groups,
@@ -34,26 +24,12 @@ use dokime_domain::model::{
     values::Value,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct OneGroup {
     seen: bool,
     value: Option<TraceabilitySnapshot>,
 }
 
 struct OneEntry(Option<TraceabilityEntry>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Groups for OneGroup {
     fn group(
@@ -78,8 +54,6 @@ impl Entries for OneEntry {
         Ok(())
     }
 }
-
-/* === Public Functions === */
 
 pub(in crate::traceability) fn execution_snapshots(
     cycle: &CycleView, scope: &RecordScope, admitted: Option<&TestExecution>, at: &Timestamp,
@@ -165,12 +139,8 @@ pub(in crate::traceability) fn source_group(
     })
 }
 
-/* === Private Functions === */
-
 fn collect_one(visit: &mut dyn FnMut(&mut dyn Groups) -> Result<()>) -> Result<Option<TraceabilitySnapshot>> {
     let mut group = OneGroup { seen: false, value: None };
     visit(&mut group)?;
     Ok(group.value)
 }
-
-/* === Tests === */

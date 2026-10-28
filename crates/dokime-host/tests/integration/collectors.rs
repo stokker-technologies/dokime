@@ -7,23 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
 #[cfg(windows)]
 use dokime_host::collectors::wifi::WifiLink;
 #[cfg(target_os = "linux")]
 use dokime_host::collectors::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
 
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 #[cfg(target_os = "linux")]
 const HE_160_LINK: &str = "Connected to a4:ce:da:c0:83:f0 (on wlp5s0)
 \tSSID: Arcadia
@@ -64,24 +52,6 @@ const PROC_WIRELESS: &str = "Inter-| sta-|   Quality        |   Discarded packet
 wlp5s0: 0000   70.  -40.  -256        0      0      0      0      0        0
   wlan1: 0000    0.  -256.  -256        0      0      0      0      0        0
 ";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(target_os = "linux")]
 #[test]

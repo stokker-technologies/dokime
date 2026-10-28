@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::{Context, RegistrationExt};
 
-// Local Imports
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::runtime::GetHealth;
 use crate::operations::runtime::GetIdentity;
@@ -28,25 +19,11 @@ use dokime_domain::model::runtime::wire::Health;
 use dokime_domain::model::runtime::wire::Identity;
 use dokime_domain::model::runtime::wire::Readiness;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Runtime {
     identity: Identity,
     shutdown: tokio::sync::watch::Receiver<bool>,
     state: tokio::sync::watch::Receiver<crate::queries::RuntimeStateSnapshot>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<GetHealth> for Runtime {
     fn serve<'a>(&'a self, _: GetHealth, _: Context<'a, GetHealth>) -> Served<'a, Health> {
@@ -70,8 +47,6 @@ impl Serve<GetIdentity> for Runtime {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) async fn register(runtime: &RuntimeHandle) -> crate::runtime::Result<()> {
     let served = Arc::new(Runtime {
         identity: Identity {
@@ -90,7 +65,3 @@ pub(crate) async fn register(runtime: &RuntimeHandle) -> crate::runtime::Result<
     runtime.operations.register(batch.lane(Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

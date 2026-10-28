@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{self, canonical};
 use dokime::RuntimeHandle;
@@ -31,24 +22,10 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::execution_history::{ExecutionBrowsePage, ExecutionBrowseQuery};
 use dokime::runtime::query::{ExecutionFilter, ExecutionOrder, ExecutionOrderKey};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::BrowseExecutions> for Resources {
     fn serve<'a>(
@@ -75,8 +52,6 @@ impl Serve<wire::BrowseExecutions> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -85,8 +60,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn project(
     page: dokime::harmos::storage::ReadBatch<ExecutionBrowsePage>, maximum: usize,
@@ -156,5 +129,3 @@ fn execution_status(status: dokime::domain::model::execution::wire::ExecutionSta
         dokime::domain::model::execution::wire::ExecutionStatus::Interrupted => Ok(ExecutionStatus::Interrupted),
     }
 }
-
-/* === Tests === */

@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::value::{Budget, canonical};
 use dokime::domain::model::identity::wire::Severity;
 use dokime::domain::model::records::evidence::RecordEntry;
 use dokime::records::RecordSeverity;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn record(entry: &RecordEntry) -> Result<dokime::domain::model::evidence::wire::CapturedRecord, Status> {
     let record = &entry.record;
@@ -94,8 +68,6 @@ pub(crate) fn severity(value: RecordSeverity) -> Severity {
     }
 }
 
-/* === Private Functions === */
-
 fn text(value: &str) -> Result<String, Status> {
     crate::grpc::value::projection::text(value).map_err(allocation_error)
 }
@@ -107,5 +79,3 @@ fn optional(value: Option<&str>) -> Result<Option<String>, Status> {
 fn allocation_error(source: dokime::harmos::Error) -> Status {
     Status::resource_exhausted(source.to_string())
 }
-
-/* === Tests === */

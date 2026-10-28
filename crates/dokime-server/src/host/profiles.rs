@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     fs::File,
     io::BufWriter,
@@ -21,37 +14,19 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-// Third Party Imports
 use tracing_subscriber::Layer;
 
-// Local Imports
 use super::logging::BoxedLayer;
 use crate::host::{Error, Result};
-
-/* === Constants === */
 
 const SERVER_RETAINED_PROFILES: u64 = 3;
 
 const DEV_PROFILE_ENV: &str = "DOKIME_DEV_PROFILE";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(crate) struct DevProfileGuards {
     _chrome: tracing_chrome::FlushGuard,
     _flame: tracing_flame::FlushGuard<BufWriter<File>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn dev_profile_layers(root: &Path) -> Result<Option<(Vec<BoxedLayer>, DevProfileGuards)>> {
     if !dev_profile_enabled() {
@@ -75,8 +50,6 @@ pub(crate) fn dev_profile_layers(root: &Path) -> Result<Option<(Vec<BoxedLayer>,
     };
     Ok(Some((layers, guards)))
 }
-
-/* === Private Functions === */
 
 fn dev_profile_enabled() -> bool {
     profile_enabled(std::env::var(DEV_PROFILE_ENV).ok().as_deref())
@@ -118,5 +91,3 @@ fn prune_stale_profile_dirs(profiles_root: &Path, maximum: usize) {
         let _ = std::fs::remove_dir_all(stale_dir);
     }
 }
-
-/* === Tests === */

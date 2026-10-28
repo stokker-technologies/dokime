@@ -8,9 +8,6 @@
 
 """Assemble Product Installers Through The Candidate Authoring Tool"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import base64
 import binascii
@@ -21,8 +18,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_tools import temporary
 from dokime_tools.build import paths
 from dokime_tools.build.frontend import ROOT
@@ -30,21 +25,9 @@ from dokime_tools.ci import bootstrap
 from dokime_tools.package import payload
 from dokime_tools.package.staging import clear_output, stage_file
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 TAURI = Path("crates/dokime-gui/src-tauri")
 UPDATER_TARGET = "windows-x86_64"
 PROJECT_URL = "https://github.com/stokker-technologies/dokime"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def check(root: Path = ROOT) -> None:
@@ -167,9 +150,6 @@ def main() -> int:
     return 0
 
 
-# === Private Functions === #
-
-
 def _invoke(args: argparse.Namespace) -> None:
     release_root = os.environ.get("RELEASE_ASSET_ROOT")
     invalid_release = args.command != "verify" or args.dist_dir is not None or not release_root
@@ -285,8 +265,6 @@ def _stable_tag() -> str:
 def _release_requested() -> bool:
     return os.environ.get("DOKIME_RELEASE_CONTEXT") == "true" or bool(_stable_tag())
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     raise SystemExit(main())

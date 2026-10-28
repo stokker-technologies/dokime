@@ -7,35 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
-// Third Party Imports
 use harmos::operations::HostContext;
 use harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use super::session::Session;
 use crate::app::OperationManager;
 use crate::execution::ExecutionScope;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::transport::{EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, TransportFuture};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 pub(crate) struct Sessions {
@@ -48,12 +31,6 @@ pub(crate) struct Embedded {
 }
 
 struct Serving(Arc<Sessions>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Sessions {
     pub(super) fn insert(&self, execution: &str, session: Arc<Session>) {
@@ -163,8 +140,6 @@ impl Serve<LeaseAsk> for Serving {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) async fn register(operations: &OperationManager, sessions: &Arc<Sessions>) -> harmos::Result<()> {
     let served = Arc::new(Serving(Arc::clone(sessions)));
     let mut dependencies = harmos::Dependencies::new();
@@ -175,7 +150,3 @@ pub(crate) async fn register(operations: &OperationManager, sessions: &Arc<Sessi
         harmos::RegistrationBatch::new(dependencies).operation::<EvidenceBatch>().operation::<OperatorQuestion>().operation::<LeaseAsk>();
     operations.register(batch.lane(crate::app::Lanes::Open)).await
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

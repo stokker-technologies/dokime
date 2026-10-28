@@ -9,22 +9,13 @@
 
 // TODO: Describe this module's responsibility.
 
-/* === Modules === */
-
 mod cycle;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::reports::MaterializeReport;
 use crate::report::Scope;
@@ -34,14 +25,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::reports::wire::MaterializedReport;
 use dokime_domain::model::reports::wire::ReportSubject;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Resources {
     pub(super) execution_storage: Arc<ExecutionStorage>,
     pub(super) settings: crate::storage::sqlite::State,
@@ -49,12 +32,6 @@ pub(super) struct Resources {
     pub(super) progress: Arc<crate::runtime::progress::OperationRegistry>,
     scope: Scope,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<MaterializeReport> for Resources {
     fn serve<'a>(&'a self, request: MaterializeReport, _: Context<'a, MaterializeReport>) -> Served<'a, MaterializedReport> {
@@ -84,8 +61,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) async fn register(runtime: &RuntimeHandle) -> Result<()> {
     let resources = Arc::new(Resources {
         execution_storage: runtime.execution_storage.clone(),
@@ -107,8 +82,6 @@ pub(crate) async fn register(runtime: &RuntimeHandle) -> Result<()> {
     runtime.operations.register(batch.lane(Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn execution(
     ctx: &Scope, resources: &Resources, id: &TestExecutionId, at: &harmos::storage::StorageCursor,
@@ -211,5 +184,3 @@ pub(crate) fn status(error: Error) -> Status {
     status.set_source(Arc::new(error));
     status
 }
-
-/* === Tests === */

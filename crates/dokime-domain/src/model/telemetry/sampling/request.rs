@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::time::DurationMillis;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySamplingRequest {
@@ -74,8 +56,6 @@ pub struct SamplingScope {
     pub test_execution_id: Option<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelemetrySourceKind {
@@ -84,10 +64,6 @@ pub enum TelemetrySourceKind {
     Wasm,
     External,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TelemetrySamplingRequest {
     pub fn sample_key(&self) -> TelemetrySampleKey {
@@ -98,9 +74,3 @@ impl TelemetrySamplingRequest {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

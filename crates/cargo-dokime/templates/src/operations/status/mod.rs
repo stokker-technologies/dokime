@@ -7,35 +7,12 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::Bench;
 use crate::domain::operations::GetStatus;
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 // The request is the operation: this body runs one attempt with the resources
 // the definition declares, and holds no state of its own.
@@ -52,9 +29,3 @@ impl Operation for GetStatus {
         ))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

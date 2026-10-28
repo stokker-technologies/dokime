@@ -7,19 +7,11 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-// Third Party Imports
 
-// Local Imports
 use crate::bench::Heater;
 use crate::domain::model::prompts::SoakCheckpoint;
 use crate::domain::operations::ReadChamber;
@@ -27,15 +19,9 @@ use crate::{Error, Result};
 use dokime::host::ToolConnectionAcquired;
 use dokime::prelude::*;
 
-/* === Constants === */
 
 const RAMP_POLL: Duration = Duration::from_millis(10);
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // A record is a type, declared once, in the file of whatever publishes it —
 // here, beside the step that files it. The struct's fields *are* the contract's
@@ -119,7 +105,6 @@ struct Summary<'a> {
     operator_note: Option<&'a str>,
 }
 
-/* === Enums === */
 
 #[dokime::catalog]
 pub enum Required {
@@ -147,9 +132,6 @@ pub enum ObserverStreams {
     SoakRow(SoakRow),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 
 #[template(
     id = "{{crate}}.soak.hold",
@@ -268,12 +250,10 @@ impl Hold {
     async fn reach(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let SoakParameters { target_c, band_c, .. } = *ctx.parameters();
 
-        // === Set The Target === //
 
         ctx.resources().heater.lock().await.set_target(target_c).await?;
         dokime::info!(ctx, "heater set to {target_c:.1} °C");
 
-        // === Wait For The Band === //
 
         loop {
             // The bench's own operation rather than this attempt's handle on
@@ -295,7 +275,6 @@ impl Hold {
         description = "Holds, writing the chamber log as it goes.\nThe step waits on its own observer by the type it publishes — an exact number of rows rather than a length of time, so what the run measured does not depend on how quickly it got going — and appends one line per row through an artifact writer, so the evidence reaches the host while the hold is still running rather than all at once at the end. The row carries the measurement, so the step reads the chamber once, in the observer, rather than twice. What it measured is published as one `HoldReached`, which is a struct rather than a map of details nothing checks until admission."
     )]
     async fn hold(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        // === Open The Chamber Log === //
 
         let mut log = ctx.artifacts().create("heater.log")?;
         // Subscribed before the chamber is marked as holding, so the very next
@@ -305,7 +284,6 @@ impl Hold {
         let mut held = ctx.listen::<SoakRow>();
         ctx.resources().holding.store(true, Ordering::Release);
 
-        // === Count The Hold === //
 
         let wanted = ctx.parameters().hold_samples;
         let mut celsius = ctx.parameters().target_c;
@@ -325,7 +303,6 @@ impl Hold {
         log.finish()?;
         dokime::info!(ctx, "held for {sample} samples, ending at {celsius:.2} °C");
 
-        // === Publish What It Measured === //
 
         let summary = serde_json::to_vec_pretty(&self.summary(ctx.parameters(), celsius))?;
         ctx.artifacts().write("summary.json", summary)?;
@@ -339,14 +316,12 @@ impl Hold {
 
     #[step(label = "Operator Check", description = "Asks the operator to sign off, on a bench that has one.")]
     async fn check(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        // === Skip An Unattended Bench === //
 
         if !ctx.parameters().attended {
             ctx.info("unattended bench: no operator was asked");
             return Ok(());
         }
 
-        // === Ask The Operator === //
 
         let answer = ctx.ask(SoakCheckpoint::default()).await?;
         dokime::info!(ctx, "operator note: {}", answer.note);
@@ -433,9 +408,3 @@ impl Hold {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,21 +7,15 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileUp, Loader2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
-
-/* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { formatInstallPluginBytes, type InstallPluginProgress } from "@/lib/api/native-plugins";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type PluginDropZoneProps = {
   disabled: boolean;
@@ -31,8 +25,6 @@ type PluginDropZoneProps = {
   onPick: () => void;
   progress: InstallPluginProgress | null;
 };
-
-/* === Components === */
 
 export function PluginDropZone({ disabled, error, filename, onDrop, onPick, progress }: PluginDropZoneProps) {
   const brand = useBrand();
@@ -75,8 +67,6 @@ export function PluginDropZone({ disabled, error, filename, onDrop, onPick, prog
     </div>
   );
 }
-
-/* === Private Functions === */
 
 /**
  * Follow the shell's native file drag over the zone. The webview never sees a

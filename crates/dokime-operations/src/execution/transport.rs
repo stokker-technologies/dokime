@@ -7,34 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use harmos_domain::operations::OperationPolicy;
 
-// Local Imports
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
 
 pub const MAX_ARTIFACT_CHUNK_BYTES: usize = 1024 * 1024;
 
 const EVIDENCE: OperationPolicy = crate::policy(Duration::from_secs(30));
 const OPERATOR: OperationPolicy = crate::policy(Duration::from_secs(7 * 24 * 60 * 60));
 const LEASE: OperationPolicy = crate::policy(Duration::from_secs(60));
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // The Execution Transport A Template Run Drives Against Its Host: Evidence
 // Pages, Operator Questions And Telemetry Leases.
@@ -255,8 +238,6 @@ pub struct LeaseResolution {
     pub message: String,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(i32)]
 pub enum Level {
@@ -266,10 +247,6 @@ pub enum Level {
     Warn = 3,
     Error = 4,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Entry {
     pub fn new(level: Level, message: impl Into<String>) -> Self {
@@ -331,18 +308,10 @@ impl ArtifactChunk {
     }
 }
 
-/* === Public Functions === */
-
 pub fn timestamp() -> String {
     let now = Timestamp::from_system_time(std::time::SystemTime::now());
     format!("{}.{:03}Z", &now.as_str()[..19], now.unix_millis().unwrap_or_default() % 1000)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

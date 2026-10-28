@@ -9,26 +9,6 @@
 
 // Manual device observation
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct DeviceState {
@@ -41,15 +21,3 @@ pub struct DeviceState {
     #[row(description = "Latched fault, when present: overcurrent or power_loss.")]
     pub fault: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

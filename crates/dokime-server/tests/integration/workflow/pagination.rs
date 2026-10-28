@@ -7,42 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::domain::model;
-
-/* === Constants === */
 
 const PREPARATION_CASES: usize = 48;
 // Two Full Pages And A Partial One; Shutdown Seals A Durable Report Per Case.
 const PAGE_LIMIT: u32 = 4;
 const PAGED_CASES: u64 = 2 * PAGE_LIMIT as u64 + 1;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn large_cycles_order() {
@@ -265,5 +236,3 @@ async fn queued_cycle_seals_every_member() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

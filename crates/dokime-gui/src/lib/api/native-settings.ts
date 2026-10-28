@@ -9,10 +9,6 @@
 
 /* Native settings adapters for the original settings surfaces. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -26,8 +22,6 @@ import type {
 } from "@/lib/types/view-contracts";
 
 import { jsonToNativeValue, nativeValueObjectToJson, safeNumber } from "./native-values";
-
-/* === Types === */
 
 type SettingsFrame = Wire<Awaited<ReturnType<typeof rpc.settingsGetSettings>>>;
 type SettingsSection = SettingsFrame["sections"][number];
@@ -44,8 +38,6 @@ type NativeSecretReference = NonNullable<
 type SecretBackendKind = NonNullable<NonNullable<PluginRuntimeSettings["secretBindings"]>["bindings"][number]["value"]>["backend"];
 type SettingValues = LegacyPluginRuntimeSettings["values"];
 
-/* === Settings frame === */
-
 export async function fetchNativeSettingsFrame(session: SessionIdentity): Promise<RuntimeSettingsFrame> {
   const frame = await rpc.settingsGetSettings(session, {});
   const paths = frame.bootstrapPaths;
@@ -55,8 +47,6 @@ export async function fetchNativeSettingsFrame(session: SessionIdentity): Promis
     cards: frame.cards.map(mapSettingsCard),
   };
 }
-
-/* === Plugin Settings === */
 
 export type NativePluginRuntimeSettings = PluginRuntimeSettings;
 
@@ -102,8 +92,6 @@ export async function updateNativePluginSettings(session: SessionIdentity, plugi
 export async function updateNativePluginSecret(session: SessionIdentity, pluginId: string, secretId: string, secret: string) {
   return mapNativePluginRuntimeSettings(await rpc.settingsUpdatePluginSecret(session, { pluginId, secretId, secret }));
 }
-
-/* === Mapping === */
 
 function mapSettingsSection(section: SettingsSection): RuntimeSettingsSection {
   const owner =

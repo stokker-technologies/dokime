@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::authoring::{action, definition, field, validate_response};
 use super::{PromptActionEmphasis, PromptArchetype, PromptDefinition, PromptField, PromptFieldKind, PromptResponse};
 use crate::values::FieldValue;
@@ -26,18 +16,6 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
 
 pub trait DeclaredPrompt: Sized + Send + 'static {
     type Answer: Send;
@@ -56,8 +34,6 @@ pub trait PromptFieldValue: FieldValue {
         Vec::new()
     }
 }
-
-/* === Implementations === */
 
 impl PromptFieldValue for String {
     const KIND: PromptFieldKind = PromptFieldKind::Text;
@@ -94,8 +70,6 @@ impl PromptFieldValue for f64 {
 impl PromptFieldValue for f32 {
     const KIND: PromptFieldKind = PromptFieldKind::Float;
 }
-
-/* === Public Functions === */
 
 pub fn declared_form(id: &str, label: impl Into<String>) -> PromptDefinition {
     definition(id, label.into(), PromptArchetype::FormPrompt)
@@ -152,8 +126,6 @@ pub fn declared_metadata(id: &str, label: impl Into<String>, description: Option
     Metadata::new(Identifier::new(id).expect("a prompt field identifier is valid"), label.into(), description)
 }
 
-/* === Private Functions === */
-
 fn describe(declared: ValueType) -> &'static str {
     match declared {
         ValueType::Text => "text",
@@ -163,5 +135,3 @@ fn describe(declared: ValueType) -> &'static str {
         _ => "value",
     }
 }
-
-/* === Tests === */

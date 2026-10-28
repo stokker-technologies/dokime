@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 mod get_installation;
 mod install;
 mod list_admitted_plugins;
 mod list_installations;
 mod remove;
 mod set_enabled;
-
-/* === Re-Exports === */
 
 pub use get_installation::GetInstallation;
 pub use install::Install;
@@ -25,13 +21,6 @@ pub use list_installations::ListInstallations;
 pub use remove::Remove;
 pub use set_enabled::SetEnabled;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Endpoint;
 use super::INSTALLATION;
 use super::{MUTATION, ORDINARY};
@@ -39,16 +28,6 @@ use super::{MUTATION, ORDINARY};
 #[allow(unused_imports)]
 use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::plugins::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[harmos::catalog]
 pub enum Operations {
@@ -59,10 +38,6 @@ pub enum Operations {
     Remove(Remove),
     ListAdmittedPlugins(ListAdmittedPlugins),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Endpoint for ListInstallations {
     const PATH: &'static str = "/dokime.v1.Plugins/ListInstallations";
@@ -87,9 +62,3 @@ impl Endpoint for Remove {
 impl Endpoint for ListAdmittedPlugins {
     const PATH: &'static str = "/dokime.v1.Plugins/ListAdmittedPlugins";
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

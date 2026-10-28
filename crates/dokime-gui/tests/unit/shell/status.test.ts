@@ -7,15 +7,10 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test } from "vitest";
 
-// Local Imports
 import { startupDiagnostics } from "@/app/native-session/errors";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { statusPresentation } from "@/features/settings/plugins/PluginList";
@@ -30,19 +25,7 @@ import {
   summarizeOperations,
 } from "@/shell/status-bar-operations";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 type FrameOptions = { fraction?: number; phase?: string; seconds?: number };
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function frame(
   id: string,
@@ -58,8 +41,6 @@ function frame(
     status: { HarmosVariant: { case: status } },
   };
 }
-
-/* === Entry Point === */
 
 test("Operation Progress", () => {
   // One Running Operation Shows Its Label, Phase And Determinate Progress

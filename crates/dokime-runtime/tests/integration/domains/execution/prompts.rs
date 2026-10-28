@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
-// Third Party Imports
+
 use tempfile::tempdir;
-// Local Imports
+
 use super::*;
 use crate::service_support::prompts::{assert_late_answer_refused, settlement_records};
 use dokime_domain::model;
@@ -31,14 +25,6 @@ use {
     dokime_runtime::records::RecordCondition, model::records::product::ProductConnectionDetails,
     model::records::product::ProductConnectionState,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct AskingChecks;
 
@@ -100,16 +86,6 @@ impl dokime_runtime::runtime::EmbeddedProvider for Asking {
         Ok(())
     }
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn prompt_commands_records() {
@@ -359,8 +335,6 @@ async fn shutdown_preserves_prompts() {
 
 #[tokio::test]
 async fn cycle_stop_settles() {
-    // === Ask An Operator Question From A Running Execution === //
-
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (_owner, runtime) = inspection_runtime(root.path(), executor.clone()).await;
@@ -373,11 +347,7 @@ async fn cycle_stop_settles() {
     let id = ask_inspection(&runtime, &running, 0).await;
     assert_eq!(cycle_pending(&runtime, &test_cycle_id).await, 1);
 
-    // === Stop The Cycle === //
-
     runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
-
-    // === The Stop Itself Settled The Question === //
 
     assert!(runtime.prompt_settled_at(&id).await.is_some(), "the stop settles the open prompt in its own transaction");
     assert!(runtime.prompt_response(&id).await.is_none());
@@ -390,8 +360,6 @@ async fn cycle_stop_settles() {
 
 #[tokio::test]
 async fn execution_stop_settles() {
-    // === Ask From The First Of Two Running Executions === //
-
     let root = tempdir().unwrap();
     let executor = Arc::new(MemberStopExecutor::default());
     let (_owner, runtime) = inspection_runtime(root.path(), executor.clone()).await;
@@ -412,11 +380,7 @@ async fn execution_stop_settles() {
         .expect("first execution is running");
     let id = ask_inspection(&runtime, &running, index).await;
 
-    // === Stop That Execution Alone === //
-
     runtime.stop_execution(running.test_executions[index].test_execution_id.clone(), CommandContext::default()).await.unwrap();
-
-    // === Its Question Settles With The Stop === //
 
     assert!(runtime.prompt_settled_at(&id).await.is_some(), "the execution stop settles its open prompt");
     assert_eq!(cycle_pending(&runtime, &test_cycle_id).await, 0);
@@ -426,8 +390,6 @@ async fn execution_stop_settles() {
 
 #[tokio::test]
 async fn interruption_settles_prompts() {
-    // === Leave A Question Open When The Host Goes Down === //
-
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (mut owner, runtime) = inspection_runtime(root.path(), executor.clone()).await;
@@ -440,8 +402,6 @@ async fn interruption_settles_prompts() {
     let id = ask_inspection(&runtime, &running, 0).await;
     drop(runtime);
     owner.shutdown().await.unwrap();
-
-    // === After Restart The Question Is Settled, Not Waiting === //
 
     let (mut owner, runtime) = inspection_runtime(root.path(), executor.clone()).await;
     assert!(runtime.prompt_settled_at(&id).await.is_some(), "an interrupted execution leaves no open prompt");
@@ -704,8 +664,6 @@ async fn stopped_cycle_question() {
 async fn check_stopped_question(stop_cycle: bool) {
     use dokime_domain::model::execution::result::ExecutionStatus;
 
-    // === Run A Step That Waits On An Operator === //
-
     let root = tempdir().unwrap();
     let config = crate::service_support::budgets::runtime_config(
         root.path(),
@@ -726,8 +684,6 @@ async fn check_stopped_question(stop_cycle: bool) {
     let asked = until_state(&runtime, |state| !state.pending_prompt_projection().is_empty()).await;
     let id = asked.state().pending_prompt_projection()[0].prompt_id.clone();
 
-    // === Stop While The Question Is Open === //
-
     if stop_cycle {
         runtime.seal_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
     } else {
@@ -736,8 +692,6 @@ async fn check_stopped_question(stop_cycle: bool) {
             .clone();
         runtime.stop_execution(execution, CommandContext::default()).await.unwrap();
     }
-
-    // === The Run Ends Stopped, Not Failed === //
 
     let ended = if stop_cycle {
         wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Stopped).await
@@ -758,5 +712,3 @@ async fn check_stopped_question(stop_cycle: bool) {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

@@ -7,43 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
 use dokime::harmos::plugin::inventory::CarrierSection;
 use harmos_packaging::bundle::{Bundle, Limits};
 
-// Local Imports
 use crate::error::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(clap::Args)]
 #[command(about = "Verify a plugin bundle and print its manifest and derived declarations as JSON")]
 pub struct Args {
     pub bundle: PathBuf,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn run(args: Args) -> Result<(), Error> {
     let limits = Limits::default();
@@ -72,7 +47,3 @@ pub fn run(args: Args) -> Result<(), Error> {
     println!();
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

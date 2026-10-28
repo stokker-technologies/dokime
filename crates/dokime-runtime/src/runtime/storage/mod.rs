@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod aggregate;
 mod artifact_inventory;
 mod artifact_reads;
@@ -36,34 +34,4 @@ pub(crate) mod requests;
 pub(crate) mod telemetry;
 pub(crate) mod telemetry_pages;
 
-/* === Re-Exports === */
-
 pub(crate) use assembly::build;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

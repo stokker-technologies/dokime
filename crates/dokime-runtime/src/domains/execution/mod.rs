@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod authoring;
 mod handle;
 pub(crate) mod lifecycle;
@@ -21,32 +19,9 @@ pub(crate) mod registry;
 pub mod requests;
 pub(crate) mod run;
 
-/* === Re-Exports === */
-
 pub use registry::SuiteSnapshot;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{RuntimeHandle, RuntimeState, runtime::Error, transactions::Transactions, unavailable_rejection};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub(crate) async fn commit_with_key<T>(&self, idempotency_key: Option<String>, transaction: T) -> Result<harmos::state::Receipt, Error>
@@ -61,9 +36,3 @@ impl RuntimeHandle {
         .map_err(|error| unavailable_rejection(error.to_string()))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

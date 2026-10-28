@@ -7,41 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-// Third Party Imports
-
-// Local Imports
 use crate::client_error::{Error, Result};
-
-/* === Constants === */
 
 #[cfg(any(windows, target_os = "macos"))]
 const PRODUCT: &str = "Dokime";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct Program {
     name: &'static str,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Program {
     pub const GUI: Self = Self { name: "dokime-gui" };
@@ -67,8 +43,6 @@ impl Program {
     }
 }
 
-/* === Public Functions === */
-
 pub fn hand_over(mut command: Command) -> Result<()> {
     #[cfg(unix)]
     {
@@ -81,8 +55,6 @@ pub fn hand_over(mut command: Command) -> Result<()> {
         std::process::exit(status.code().unwrap_or(1));
     }
 }
-
-/* === Private Functions === */
 
 fn executable(path: &Path) -> Option<PathBuf> {
     if !path.is_file() {
@@ -105,5 +77,3 @@ fn installed_directories() -> Vec<PathBuf> {
 fn installed_directories() -> Vec<PathBuf> {
     vec![PathBuf::from("/usr/bin"), PathBuf::from("/usr/local/bin")]
 }
-
-/* === Tests === */

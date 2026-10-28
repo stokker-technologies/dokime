@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::io;
 
@@ -30,9 +23,6 @@ use std::sync::atomic::AtomicU64;
 #[cfg(feature = "native")]
 use std::time::SystemTime;
 
-// Third Party Imports
-
-// Local Imports
 use super::stream::{ArtifactSink, validated};
 
 #[cfg(feature = "native")]
@@ -41,8 +31,6 @@ use super::stream::{inferred_mime, transfer_identity};
 #[cfg(feature = "native")]
 use crate::transport::{ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES};
 
-/* === Constants === */
-
 #[cfg(feature = "native")]
 const GROWTH_FLOOR: u64 = 64 * 1024;
 
@@ -50,12 +38,6 @@ const ARTIFACTS: &str = "artifacts";
 
 // The registration name of the whole artifacts folder.
 const ROOT: &str = "";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Directories {
     area: PathBuf,
@@ -85,12 +67,6 @@ struct Watched {
     restart: bool,
     refused: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Directories {
     pub(super) fn new(token: Arc<str>, sink: Arc<dyn ArtifactSink>, ordinals: Arc<AtomicU64>) -> Self {
@@ -296,10 +272,6 @@ impl Watched {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn working_area(token: &str) -> PathBuf {
     use std::hash::{DefaultHasher, Hash, Hasher};
     let mut hasher = DefaultHasher::new();
@@ -364,5 +336,3 @@ fn read(path: &Path, from: u64, pending: u64, sweeping: bool) -> io::Result<Vec<
 
     Ok(pieces)
 }
-
-/* === Tests === */

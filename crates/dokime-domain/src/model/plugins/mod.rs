@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod appearance;
 pub mod contribution;
 mod dispatch;
@@ -17,8 +15,6 @@ mod installed;
 mod permission;
 pub mod product;
 pub mod wire;
-
-/* === Re-Exports === */
 
 pub use appearance::RuntimeAppLogo;
 pub use appearance::RuntimeAppearanceFrame;
@@ -49,31 +45,3 @@ pub use product::SidecarExecutionBinding;
 pub use product::SuiteContractError;
 pub use product::TestSuiteDefinition;
 pub use product::resolve_suite_plot_axes;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

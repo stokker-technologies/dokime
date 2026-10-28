@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Imports === */
-
 import { StickyNote } from "lucide-react";
 import { DocumentCard } from "@/components/document/DocumentCard";
 import { MarkdownText } from "@/components/MarkdownText";

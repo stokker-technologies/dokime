@@ -7,29 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Mutex;
-// Third Party Imports
+
 use tokio::sync::Notify;
-// Local Imports
+
 use super::*;
 use dokime_runtime::execution::{CallbackTask, Callbacks, TemplateDefinition};
 
-/* === Constants === */
 static DRIVEN: Mutex<Option<Arc<Loop>>> = Mutex::new(None);
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Foreign;
 
 struct Resource(Arc<Loop>);
@@ -44,11 +32,6 @@ struct Loop {
     events: Mutex<Vec<&'static str>>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Loop {
     fn new(stage: &'static str) -> Self {
         Self {
@@ -158,9 +141,6 @@ impl SidecarTemplate for Foreign {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn driven() -> Arc<Loop> {
     DRIVEN.lock().unwrap().clone().expect("a case names the loop it drives before it starts the workflow")
 }
@@ -259,5 +239,3 @@ async fn interrupted_join_teardown() {
     assert_eq!(*foreign.events.lock().unwrap(), ["joined"]);
     assert_eq!(*other.events.lock().unwrap(), ["joined"]);
 }
-
-/* === Tests === */

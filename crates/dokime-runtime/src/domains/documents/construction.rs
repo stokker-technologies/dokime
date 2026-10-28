@@ -7,21 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::built_in_card;
 use crate::document::{DocumentCardBody, DocumentSection};
-
-/* === Constants === */
 
 pub(super) const RESULT_SECTIONS: [Section; 2] = [
     Section {
@@ -110,12 +97,6 @@ pub(super) const CYCLE_SECTIONS: [Section; 3] = [
     },
 ];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Copy)]
 pub(super) struct Section {
     id: &'static str,
@@ -129,14 +110,6 @@ struct Card {
     order: i32,
     body: DocumentCardBody,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn sections(descriptors: &[Section]) -> Vec<DocumentSection> {
     descriptors
@@ -152,7 +125,3 @@ pub(super) fn sections(descriptors: &[Section]) -> Vec<DocumentSection> {
         })
         .collect()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

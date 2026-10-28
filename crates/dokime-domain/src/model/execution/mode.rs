@@ -9,29 +9,9 @@
 
 // Execution mode and step commands
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::identity::StepId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -49,10 +29,6 @@ pub enum StepCommand {
     RunStep { step_id: StepId },
     Finish,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionMode {
     pub const fn as_str(self) -> &'static str {
@@ -77,9 +53,3 @@ impl harmos_domain::MemorySize for StepCommand {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

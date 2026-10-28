@@ -7,25 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::result::Result;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// Third Party Imports
 use harmos::storage::*;
 use rusqlite::params;
 
-// Local Imports
 use super::super::{Error, State};
 use super::{entry, saved};
-
-/* === Constants === */
 
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_mutations (
@@ -34,17 +23,6 @@ CREATE TABLE IF NOT EXISTS storage_mutations (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS storage_mutation_expiry ON storage_mutations(expires);
 ";
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl State {
     pub(super) async fn mutations_save(&self, receipts: StorageBatch<MutationReceipt>) -> Result<(), Error> {
@@ -172,10 +150,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn expiry(at: SystemTime) -> Result<String, Error> {
     let value = at.duration_since(UNIX_EPOCH).map_err(|_| Error::Data("receipt expiry precedes epoch"))?.as_nanos();
     let mut encoded = String::new();
@@ -184,5 +158,3 @@ fn expiry(at: SystemTime) -> Result<String, Error> {
     write!(encoded, "{value:032x}").expect("writing to a string");
     Ok(encoded)
 }
-
-/* === Tests === */

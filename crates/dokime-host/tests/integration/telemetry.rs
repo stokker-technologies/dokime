@@ -7,42 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model;
 use dokime_host::{HOST_STREAMS, Host, HostTelemetryStream, host_telemetry_contracts};
 use dokime_runtime::telemetry::TelemetryRow;
 use dokime_runtime::telemetry::validate_telemetry_sample;
 use model::telemetry::ValidationMode;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[test]
 fn host_cadence_matches_contracts() {

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod commands;
 mod control;
 mod detail;
@@ -16,24 +14,17 @@ mod loan;
 mod requests;
 mod steps;
 
-/* === Re-Exports === */
-
 pub(super) use control::command_context;
 pub(crate) use detail::result as result_summary;
 
-/* === Imports === */
-
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use prost::Message;
 use tonic::{Code, Status};
 
-// Local Imports
 use super::value;
 use super::value::canonical;
 use dokime::definition::TestCase;
@@ -53,24 +44,10 @@ use dokime::runtime::query::{
 };
 use dokime::{RuntimeHandle, runtime::Error};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::GetCase> for Resources {
     fn serve<'a>(
@@ -207,8 +184,6 @@ impl Resources {
         inspection_reply(self, value)
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     control::register(runtime).await?;
@@ -375,8 +350,6 @@ pub(super) fn execution_summary(
     }
 }
 
-/* === Private Functions === */
-
 fn inspection_reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.wire_len()? > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));
@@ -515,5 +488,3 @@ fn execution_page<'a>(
         cursor: Some(cursor),
     })
 }
-
-/* === Tests === */

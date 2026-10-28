@@ -9,27 +9,8 @@
 
 // Admit One Execution By Its Durable Identity
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::model::execution::ExecutionMode;
 use dokime::domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -48,14 +29,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Emit The Admitted Execution Identity As JSON.")]
     json: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -76,7 +49,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

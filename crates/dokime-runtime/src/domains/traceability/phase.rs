@@ -7,34 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::traceability::{RecordExecutionTraceability, UpdateExecutionPhase};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{RuntimeHandle, runtime::Error, unavailable_rejection};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub(crate) async fn commit_execution_phase(&self, update: UpdateExecutionPhase) -> Result<(), Error> {
@@ -48,9 +23,3 @@ impl RuntimeHandle {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,33 +7,18 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
-// Local Imports
 import { OrganizationPackView } from "@/features/settings/sections/OrganizationPackRow";
 import { organizationPackPresentation } from "@/features/settings/sections/organization-pack";
 import type { OrganizationStatus } from "@/lib/desktop/organization";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const NONE: OrganizationStatus = { active: null, pending: null, removed: false, error: null };
 const CUSTOM = { label: "Stokker Technologies Test Hub", organization: "Stokker Technologies" };
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Tests === */
 
 test("the brand card names the pack, what happens next and the actions that apply", () => {
   const none = row(NONE);
@@ -73,8 +58,6 @@ test("a refused pending pack reports that the last valid pack remains active", (
   assert.match(retained, /The last valid pack remains active/);
   assert.doesNotMatch(retained, /The bundled organization applies/);
 });
-
-/* === Private Functions === */
 
 function row(status: OrganizationStatus, choiceError: string | null = null): string {
   return renderToStaticMarkup(

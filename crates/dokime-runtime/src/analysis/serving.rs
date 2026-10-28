@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::ExecutionContext;
 use harmos::sidecar::Refusal;
 use harmos::sidecar::operations::Carrier;
 
-// Local Imports
 use super::{Analysis, Error, Operation, Request, Response};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One analysis invocation: the request is consumed by exactly one blocking
 // worker, which a cancelled attempt keeps and a retry or `stop` awaits; the
@@ -39,12 +21,6 @@ pub struct Evaluation<A> {
     worker: Option<tokio::task::JoinHandle<Result<Response, Error>>>,
     analysis: std::marker::PhantomData<fn() -> A>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<A: Analysis> harmos::Executable for Operation<A> {
     type Carrier = Evaluation<A>;
@@ -93,10 +69,6 @@ impl<A: Analysis> Carrier for Evaluation<A> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn check<A: Analysis>(request: &Request) -> Result<(), Refusal> {
     if request.parameters.len() as u64 > dokime_domain::model::analysis::MAX_PARAMETER_BYTES as u64 {
         return Err(Refusal::of("analysis configuration exceeds its budget"));
@@ -109,5 +81,3 @@ fn check<A: Analysis>(request: &Request) -> Result<(), Refusal> {
         .map_err(Refusal::of)?;
     Ok(())
 }
-
-/* === Tests === */

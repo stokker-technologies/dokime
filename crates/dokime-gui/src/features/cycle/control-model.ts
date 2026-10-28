@@ -23,21 +23,8 @@
  * from the queries.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import type { TestExecution } from "@/lib/types";
 import { executionStatusLabel, isTerminalExecutionStatus, isUnstartedExecution } from "./cycle-workspace-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 /** One lifecycle action of the execution's Control card, in card order. */
 export type ExecutionAction = "Start" | "Cancel" | "Pause" | "Resume" | "Stop" | "Re-Run";
@@ -79,10 +66,6 @@ export type CycleControlInput = {
   /** The member running now, with its step's label and id. */
   running: { ordinal: number; step: string | null; stepId: string | null } | null;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /**
  * The runtime owns finalization. Completed records cover only finished steps,
@@ -137,7 +120,3 @@ export function cycleControlState({ phase, running }: CycleControlInput): CycleC
 export function inputNeededLabel(ordinals: readonly number[]): string | null {
   return ordinals.length ? `Input needed on ${ordinals.map((ordinal) => `#${ordinal}`).join(", ")}` : null;
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

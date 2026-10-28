@@ -9,30 +9,12 @@
 
 // Wait For One Durable Execution Outcome
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::model::execution::wire::ResultStatus;
 use dokime::domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
 const MAXIMUM_TIMEOUT_MS: u64 = 86_400_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 #[group(id = "execution_wait")]
@@ -52,14 +34,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Emit The Frozen Outcome And Exact Checkpoint As JSON.")]
     json: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     execute(args, None, settings).await
@@ -134,13 +108,9 @@ pub(super) async fn execute(
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn observation(kind: &str, value: &impl serde::Serialize) -> dokime::client::Result<()> {
     use std::io::Write;
     let output = serde_json::json!({"observation": kind, "value": value});
     let result = writeln!(std::io::stderr(), "{output}");
     result.map_err(|error| dokime::client::Error::Rpc(dokime::client::RpcStatus::internal(error.to_string())))
 }
-
-/* === Tests === */

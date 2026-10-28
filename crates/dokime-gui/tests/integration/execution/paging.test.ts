@@ -7,29 +7,12 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test } from "vitest";
 
-// Local Imports
 import { EXECUTION_FILE_WINDOW_BYTES, pageExecutionFile } from "@/lib/execution-file-paging";
 import type { ExecutionFileLifecycle, ExecutionFileReadWindow } from "@/lib/types";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function boundedServer(content: Uint8Array, { state = "finalized", shrinkTo = Number.POSITIVE_INFINITY } = {}) {
   const requests: { offset: number; maxBytes: number }[] = [];
@@ -53,8 +36,6 @@ function boundedServer(content: Uint8Array, { state = "finalized", shrinkTo = Nu
 function bytes(length: number) {
   return Uint8Array.from({ length }, (_, index) => index % 251);
 }
-
-/* === Entry Point === */
 
 test("File Paging", async () => {
   // A Small File Loads In One Request

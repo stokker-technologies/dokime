@@ -7,34 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use futures_util::future::BoxFuture;
 use harmos::storage::{ByteRange, FileReader, ReadBatch};
 
-// Local Imports
 use super::error;
 use crate::storage::Manager;
 use crate::{
     execution_runtime::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileStreamState},
     runtime::Result,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct Reader {
     session: Manager,
@@ -48,12 +31,6 @@ struct Pending {
     maximum: NonZeroUsize,
     future: tokio::sync::Mutex<BoxFuture<'static, Result<ReadBatch<ExecutionFileContent>>>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Reader {
     pub(super) fn new(
@@ -124,8 +101,6 @@ impl Reader {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) async fn collect(
     metadata: ReadBatch<ExecutionFileContent>, mut reader: FileReader, offset: u64, length: usize,
 ) -> Result<ReadBatch<ExecutionFileContent>> {
@@ -182,13 +157,9 @@ pub(crate) async fn collect(
     Ok(content)
 }
 
-/* === Private Functions === */
-
 async fn read(
     session: Manager, file: std::fs::File, metadata: ReadBatch<ExecutionFileContent>, offset: u64, length: usize,
 ) -> Result<ReadBatch<ExecutionFileContent>> {
     let reader = session.read_opened_file(file, ByteRange { offset, limit: Some(length as u64) }).await?;
     collect(metadata, reader, offset, length).await
 }
-
-/* === Tests === */

@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
 
-// Third Party Imports
 use arrow_array::{
     ArrayRef, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, StringArray, StructArray, UInt32Array, UInt64Array,
 };
@@ -26,24 +18,7 @@ use harmos::schema::{
     graph::{Kind, Schema},
 };
 
-// Local Imports
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn capture_payload(
     schema: &Schema, values: &BTreeMap<String, Value>, settings: &harmos::config::SchemaSettings,
@@ -117,10 +92,6 @@ pub fn capture_payload(
     let mut rows = harmos::storage::arrow::encode_payloads(schema, &payload, allowance).map_err(|error| error.to_string())?;
     rows.pop().ok_or_else(|| "matcher encoded no row".into())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

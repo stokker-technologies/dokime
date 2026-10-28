@@ -7,37 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::operations::{Direction, OperationDeclaration};
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::{Client, UploadError};
 use dokime_domain::model::plugins::wire;
 
-/* === Constants === */
-
 const PLUGIN_CHUNK_BYTES: usize = 65_536;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     // Install one plugin bundle in the backend's advertised chunk size, which accounts for its decode retention.
@@ -73,14 +49,10 @@ impl Client {
     }
 }
 
-/* === Public Functions === */
-
 pub fn plugin_bundle_digest(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
-
-/* === Private Functions === */
 
 pub(super) fn chunk_bytes<O: OperationDeclaration>(
     advertised: Option<u32>, request_limit: usize, fallback: usize, template: &<O::Input as Direction>::Item, path: &[&str],
@@ -99,8 +71,6 @@ fn install_frames(bytes: Vec<u8>, sha256: String, chunk_bytes: usize) -> impl It
     });
     std::iter::once(header).chain(chunks).map(|frame| wire::InstallPluginFrame { frame: Some(frame) })
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

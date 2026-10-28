@@ -8,9 +8,6 @@
 
 """Keep Harmos Tool Preparation Exact And Offline Across Source Modes"""
 
-# === Imports === #
-
-# Standard Library Imports
 import hashlib
 import json
 import os
@@ -18,27 +15,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Third Party Imports
 import pytest
-
-# Local Imports
 from dokime_tools.build import storage
 from dokime_tools.ci import bootstrap
 from dokime_tools.prepare import bindings
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 REVISION = "1" * 40
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 @pytest.fixture(autouse=True)
@@ -435,9 +417,6 @@ def test_binding_consumer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         bindings.generate(None, root=tmp_path, cargo_config=config)
 
 
-# === Private Functions === #
-
-
 def _manifest(root: Path, declaration: str) -> None:
     text = "[workspace.dependencies]\n"
     text += "".join(f"{name} = {declaration}\n" for name in bootstrap.HARMOS_PACKAGES)
@@ -464,6 +443,3 @@ def _override(root: Path, namespace: str) -> tuple[Path, Path]:
     crate = (checkout / "crates/harmos").as_posix()
     config.write_text(f'[patch."{namespace}"]\nharmos = {{ path = "{crate}" }}\n')
     return config, checkout
-
-
-# === Entry Point === #

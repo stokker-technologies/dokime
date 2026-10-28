@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Write;
 use std::sync::Arc;
 
-// Third Party Imports
 use async_trait::async_trait;
 use harmos::sidecar::StreamDeclaration;
 
-// Local Imports
 use dokime_runtime::InstalledPlugin;
 use dokime_runtime::Refusal;
 use dokime_runtime::execution::Runnable;
@@ -34,7 +25,6 @@ use dokime_runtime::transport::{
     SidecarExecutionOutcome, SignalReply, TransportFuture,
 };
 
-/* === Constants === */
 pub const SOURCE: &str = "fixture_suites";
 pub const SUITE: &str = "fixture.checks";
 
@@ -46,11 +36,6 @@ pub const PULSE_DISPLAY_POINTS: u32 = 400;
 
 const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 pub struct Observed<T: SidecarTemplate> {
     pub workflow: Workflow<T>,
     pub watched: tokio::sync::watch::Sender<bool>,
@@ -114,7 +99,6 @@ struct PulseProduced {
     rows: u32,
 }
 
-/* === Enums === */
 #[dokime_runtime::catalog]
 enum Streams {
     Pulse(Pulse),
@@ -131,9 +115,6 @@ enum Templates {
     Check(Check),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl Behaviour {
     pub fn new(pulse_rows: u32, spectrum_rows: u32, hold: bool) -> Self {
         Self {
@@ -345,9 +326,6 @@ impl<T: SidecarTemplate> Runnable for Observed<T> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn declaration<R>() -> StreamDeclaration
 where
     R: harmos::StreamSpec + harmos::RowMetadata + Described,
@@ -362,5 +340,3 @@ where
             .unwrap(),
     }
 }
-
-/* === Tests === */

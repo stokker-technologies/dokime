@@ -7,32 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::wire::Metadata;
 
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -173,8 +155,6 @@ pub struct ElapsedFormat {
     pub unit: ElapsedUnit,
 }
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValueType {
@@ -288,13 +268,3 @@ pub enum ValueFormatKind {
     ElapsedSinceRun(ElapsedFormat),
     ElapsedSinceCycle(ElapsedFormat),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Imports === */
-
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { createLogger, defineConfig } from "vite";
-
-/* === Constants === */
 
 const apiPort = process.env.DOKIME_API_PORT ?? "8765";
 const frontendPort = Number(process.env.DOKIME_DEV_PORT ?? "5173");

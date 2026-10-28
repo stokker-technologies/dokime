@@ -9,8 +9,6 @@
 
 /* Installed-plugin contracts. */
 
-/* === Types === */
-
 /**
  * Presentation record for a code-defined plugin admitted by the native
  * runtime. This stays at the settings boundary instead of importing the
@@ -57,8 +55,6 @@ export type SettingValues = PluginRuntimeSettings["values"];
  * host-owned settings and secret readiness.
  */
 export type InstalledPluginDetail = RuntimeInstalledPluginRecord & PluginRuntimeSettings;
-
-/* === Constants === */
 
 export const RUNTIME_LABELS: Record<InstalledPluginRuntimeKind, string> = {
   code: "Code-defined",

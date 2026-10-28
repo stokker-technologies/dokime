@@ -7,21 +7,17 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/* === Local Imports === */
-
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
@@ -38,16 +34,12 @@ import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { PageNotice, PageShell } from "@/shell/PageShell";
 
-/* === Constants === */
-
 const GUI_FILTER_DEBOUNCE_MS = 250;
 
 /* The Status track, in the pill's own type size so it follows every density:
    room for the longest state label (16 characters at under 0.7em each), the
    pill's padding and the cell's. */
 const STATUS_COLUMN_WIDTH = "w-[calc(var(--pill-text)_*_11_+_2_*_var(--pill-pad-x)_+_--spacing(6))]";
-
-/* === Components === */
 
 /**
  * Home. Three fixed groups over every loaded cycle, a filter box, and one way
@@ -207,8 +199,6 @@ function CycleGroupSection({
 function CycleTitle({ row }: { row: CycleRow }) {
   return <span className="block truncate">{row.label}</span>;
 }
-
-/* === Private Functions === */
 
 function rowId(row: CycleRow): string {
   return row.cycleId;

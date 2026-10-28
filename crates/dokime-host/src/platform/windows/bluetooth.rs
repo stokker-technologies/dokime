@@ -7,28 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{process::Command, time::Duration};
 
-// Third Party Imports
 use serde::Deserialize;
 
-// Local Imports
 use crate::{Error, HostOptions, Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct BluetoothSnapshot {
@@ -54,14 +37,6 @@ struct BluetoothPnPEntity {
     #[serde(rename = "ConfigManagerErrorCode")]
     config_manager_error_code: Option<u32>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn snapshot(options: &HostOptions, timeout: Duration) -> Result<BluetoothSnapshot> {
     let output = bluetooth_pnp_json(timeout)?;
@@ -91,8 +66,6 @@ pub fn snapshot(options: &HostOptions, timeout: Duration) -> Result<BluetoothSna
     })
 }
 
-/* === Private Functions === */
-
 fn bluetooth_pnp_json(timeout: Duration) -> Result<String> {
     let script =
         "Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName,Status,Present,ConfigManagerErrorCode | ConvertTo-Json -Compress";
@@ -111,5 +84,3 @@ fn bluetooth_devices_from_json(output: &str) -> Result<Vec<BluetoothPnPEntity>> 
     }
     serde_json::from_value(value).map(|device| vec![device]).map_err(|error| Error::Probe(error.to_string()))
 }
-
-/* === Tests === */

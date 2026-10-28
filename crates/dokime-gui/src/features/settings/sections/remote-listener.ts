@@ -11,21 +11,8 @@
  * Live Remote Listener Commits Against The Host's Applied State
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import type { Wire } from "@/lib/rpc/canonical";
 import type * as rpc from "@/lib/rpc/generated/client";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type ListenerStatus = Wire<Awaited<ReturnType<typeof rpc.remoteReadListener>>>;
 export type ListenerSettings = NonNullable<ListenerStatus["settings"]>;
@@ -39,10 +26,6 @@ type Commit = {
   send: (settings: ListenerSettings) => Promise<ListenerStatus>;
   fail: (message: string) => void;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /** The listener runs only when the host reports a bound address; saved intent alone is not running. */
 export function listenerRunning(status: ListenerStatus): boolean {
@@ -80,11 +63,7 @@ export function certificateNames(text: string): string[] {
   return text.split(/[\s,]+/).filter(Boolean);
 }
 
-/* === Private Functions === */
-
 function appliedSettings(status: ListenerStatus): ListenerSettings {
   if (!status.settings) throw new Error("Backend omitted listener settings.");
   return status.settings;
 }
-
-/* === Entry Point === */

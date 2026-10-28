@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::values::wire::Value;
 use crate::model::values::wire::ValueError;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Authored identity and description of a Dokime object.
 #[harmos_domain::message]
@@ -133,8 +115,6 @@ pub struct Diagnostic {
     pub backtrace: String,
 }
 
-/* === Enums === */
-
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataError {
     #[error("metadata identifier is invalid")]
@@ -169,10 +149,6 @@ pub enum EvidenceOriginKind {
     StepAttemptId(String),
     Cleanup(bool),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TryFrom<&crate::model::identity::Metadata> for Metadata {
     type Error = ValueError;
@@ -225,9 +201,3 @@ impl TryFrom<&Metadata> for crate::model::identity::Metadata {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -11,36 +11,20 @@
  * Shared Backend Registry
  */
 
-/* === Imports === */
-
 import type { Document, Profile } from "@generated/application-settings";
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { connectionError } from "@/app/native-session/errors";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { commands } from "@/lib/desktop/commands";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { preferencesError } from "./application-preferences";
 import { SettingsCard } from "./SettingsCard";
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
 
 export function BackendsTable({
   failure,
@@ -373,12 +357,6 @@ function AddBackend({
     </Dialog>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 export function backendValidation(
   identifier: string,

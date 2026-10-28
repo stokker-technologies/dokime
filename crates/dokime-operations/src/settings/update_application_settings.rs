@@ -7,22 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use super::*;
 use serde::{Deserialize, Serialize};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<UpdateApplicationSettings>], response = SettingsSnapshot, id = "dokime.settings.update_application_settings",
     policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
@@ -32,54 +18,10 @@ pub struct UpdateApplicationSettings {
     pub update: UpdateSettings,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
 #[cfg(feature = "runtime")]
 mod runtime {
-    /* === Modules === */
 
-    /* === Re-Exports === */
-
-    /* === Imports === */
-
-    // Standard Library Imports
-
-    // Third Party Imports
-
-    // Local Imports
     use super::*;
 
-    /* === Constants === */
-
-    /* === Macros === */
-
     crate::hosted!(UpdateApplicationSettings);
-
-    /* === Type Aliases === */
-
-    /* === Structs === */
-
-    /* === Enums === */
-
-    /* === Traits === */
-
-    /* === Implementations === */
-
-    /* === Public Functions === */
-
-    /* === Private Functions === */
-
-    /* === Tests === */
 }

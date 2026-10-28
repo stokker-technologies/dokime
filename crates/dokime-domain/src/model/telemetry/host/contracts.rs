@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos_domain::Message;
 
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::telemetry::contract::TelemetryColumn;
@@ -33,11 +24,7 @@ use crate::model::values::FieldValue;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
 
-/* === Constants === */
-
 const UNDECLARED_FIELD: &str = "undeclared host row field";
-
-/* === Macros === */
 
 macro_rules! host_contracts {
     (
@@ -148,10 +135,6 @@ macro_rules! host_contracts {
 
 crate::host_streams!(host_contracts);
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[harmos_domain::message]
 #[derive(Clone, PartialEq)]
 pub struct HostTimestamp {
@@ -163,12 +146,6 @@ pub struct HostTimestamp {
 pub struct HostTextList {
     pub values: Vec<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl FieldValue for HostTimestamp {
     const VALUE_TYPE: ValueType = ValueType::Datetime;
@@ -211,8 +188,6 @@ impl FieldValue for HostTextList {
     }
 }
 
-/* === Public Functions === */
-
 pub fn host_telemetry_contracts() -> Vec<TelemetryContract> {
     let mut contracts = Vec::with_capacity(HOST_STREAMS.len());
     for stream in HOST_STREAMS.iter().copied() {
@@ -221,8 +196,6 @@ pub fn host_telemetry_contracts() -> Vec<TelemetryContract> {
     }
     contracts
 }
-
-/* === Private Functions === */
 
 fn project_host_field(values: &mut BTreeMap<String, Value>, name: &str, kind: ValueType) -> Result<(), FieldError> {
     let member = match kind {
@@ -270,8 +243,6 @@ fn column(identifier_value: &str, label: &str, value_type: ValueType, role: Tele
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).expect("host telemetry identifiers are valid")
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

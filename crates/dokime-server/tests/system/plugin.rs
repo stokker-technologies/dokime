@@ -7,29 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 mod diagnosis;
 mod shutdown;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-// Third Party Imports
-// Local Imports
+
 use crate::support::{self, host::Host};
 use dokime::Value;
 use dokime::client::{Client, ResponseStream, contracts};
 use dokime::domain::model;
-
-/* === Constants === */
 
 const STARTUP_SUITE: &str = "obc.charger.startup";
 const PROTECTION_SUITE: &str = "obc.charger.protection";
@@ -52,12 +42,6 @@ const HOST_FAST_STREAM: &str = "host.system";
 const HOST_STREAMS: &[&str] =
     &["host.system", "host.network", "host.wifi", "host.wifi.latency", "host.wifi.channel_occupancy", "host.bluetooth"];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 // The Shared Walkthrough Fixture: A Development Host Over A Private Copy Of The Built Bundle, With
 // Its Runtime Watch Open. Every Scene Starts From `Session::ready` (the development session from
 // `Session::launch`) and leaves the fixture ready, so scenes run alone or in walkthrough order.
@@ -70,12 +54,6 @@ struct Session {
     client: Client,
     changes: Changes,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Session {
     // A Development Host Launched Over Its Bundle Copy, Before The First Reload.
@@ -137,10 +115,6 @@ impl Session {
         drop(self.root);
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 // The Development Session: The Selected Bundle Serves From The First Reload, Without An
 // Installation; Reloading Unchanged Bytes Keeps The Suites; A Reload Refuses Bytes That Are Not A
@@ -1205,8 +1179,6 @@ async fn scene_reports(client: &Client, changes: &mut Changes) {
     assert_eq!(executions.len(), 9);
     assert!(executions.iter().all(|execution| execution.sealed), "all nine execution reports seal before the cycle report: {executions:?}");
 }
-
-/* === Tests === */
 
 // The Plugin-And-Host Walkthrough Over The Built Bundle Is One Story Of Independently Runnable
 // Scenes On One Shared Fixture. Each Scene Is A Test That Reruns Alone (`-- plugin::<scene>`);

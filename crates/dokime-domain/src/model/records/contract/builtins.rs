@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::LazyLock;
 
-// Third Party Imports
-
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::records::RecordContract;
@@ -30,15 +20,11 @@ use crate::model::records::RecordTone;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
 
-/* === Constants === */
-
 pub const PRODUCT_CONNECTION_STATES: &[&str] = &["connected", "disconnected"];
 pub const PRODUCT_READINESS_STATES: &[&str] = &["ready", "not_ready", "busy", "unknown"];
 pub const PRODUCT_TARGET_LOCK_STATES: &[&str] = &["locked", "lost", "unknown"];
 pub const PRODUCT_CALIBRATION_KINDS: &[&str] = &["field", "tilt"];
 pub const PRODUCT_CALIBRATION_PHASES: &[&str] = &["started", "activity", "completed"];
-
-/* === Macros === */
 
 macro_rules! builtin_record_types {
     ($($variant:ident => $identifier:literal,)+) => {
@@ -153,16 +139,6 @@ builtin_record_types! {
     ProgressMilestone => "progress.milestone",
     ProcessExited => "process.exited",
 }
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl BuiltinRecordType {
     pub fn identifier(self) -> Identifier {
@@ -343,8 +319,6 @@ impl std::fmt::Display for BuiltinRecordType {
     }
 }
 
-/* === Public Functions === */
-
 pub fn builtin_record_types() -> &'static [Identifier] {
     static TYPES: LazyLock<Vec<Identifier>> =
         LazyLock::new(|| builtin_record_contracts().into_iter().map(|contract| contract.record_type).collect());
@@ -355,8 +329,6 @@ pub fn builtin_record_types() -> &'static [Identifier] {
 pub fn builtin_record_contracts() -> Vec<RecordContract> {
     BuiltinRecordType::ALL.iter().map(|kind| kind.contract()).collect()
 }
-
-/* === Private Functions === */
 
 fn simple_contract(record_type: &str, severity: RecordSeverity) -> RecordContract {
     contract(record_type, severity, Vec::new())
@@ -606,8 +578,6 @@ fn label(identifier: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

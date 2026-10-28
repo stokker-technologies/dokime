@@ -7,39 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::support::server::{Published, attach};
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 #[tokio::test]
 async fn attached_backend_survives() {
     let root = tempfile::tempdir().unwrap();

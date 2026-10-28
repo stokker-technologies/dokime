@@ -13,15 +13,11 @@
 // `WatchFile` operation runs the same watch over one file for a step, with its
 // line matchers.
 
-/* === Modules === */
-
 mod ftp;
 mod local;
 mod operation;
 mod source;
 mod watch;
-
-/* === Re-Exports === */
 
 pub use dokime_domain::model::files::wire::FileWatchGapReason as GapReason;
 pub use dokime_domain::model::files::wire::FileWatchPhase as Phase;
@@ -30,14 +26,8 @@ pub use dokime_domain::model::files::wire::FileWatchSelection as Selection;
 pub use operation::{Resources as StepBuiltins, register};
 pub use watch::{FileWatch, WatchEvent};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use crate::files::{FileMatcher, LineMatchers};
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 use dokime_domain::model::artifacts::name;
@@ -50,8 +40,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_operations::files::FileWatch as FileWatchRequest;
 use dokime_operations::files::WatchFile;
 use source::Source;
-
-/* === Constants === */
 
 // Error code of a request the watch refuses before it starts.
 pub const INVALID: &str = "file_watch_request";
@@ -67,12 +55,6 @@ pub const UNTRUSTED: &str = "file_watch_untrusted";
 
 // Error code of a source scheme this build does not support yet.
 pub const UNSUPPORTED: &str = "file_watch_unsupported";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // A validated watch request, before its source is opened.
 struct Settings {
@@ -90,12 +72,6 @@ struct Settings {
     maximum_files: usize,
     maximum_bytes: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     // Opens a watch over the request's source, scoped to its explicit execution
@@ -267,10 +243,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(message: impl Into<String>) -> Error {
     Error::validation(INVALID, message, Vec::new())
 }
@@ -332,5 +304,3 @@ fn capped(message: impl Into<String>) -> Error {
 fn unreachable_source(message: impl std::fmt::Display) -> Error {
     Error::unavailable(UNREACHABLE, message.to_string())
 }
-
-/* === Tests === */

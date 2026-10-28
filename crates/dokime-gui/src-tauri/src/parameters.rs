@@ -7,30 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, io::Read, path::Path};
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 
 const MAX_BYTES: usize = 1024 * 1024;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Values = BTreeMap<String, BTreeMap<String, Value>>;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Value {
@@ -41,14 +22,6 @@ pub struct Value {
 
     pub unit: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn load(path: &Path) -> std::io::Result<Option<Values>> {
     let file = match std::fs::File::open(path) {
@@ -77,8 +50,6 @@ pub fn save(path: &Path, values: &Values) -> std::io::Result<()> {
     dokime::harmos::filesystem::publication::write(path, &bytes).map_err(Into::into)
 }
 
-/* === Private Functions === */
-
 fn validate(values: &Values) -> std::io::Result<()> {
     let valid_id = |id: &str| !id.is_empty() && id.len() <= 256 && !id.chars().any(char::is_control);
     let count = values.values().map(BTreeMap::len).sum::<usize>();
@@ -102,5 +73,3 @@ fn validate(values: &Values) -> std::io::Result<()> {
 fn invalid(message: &'static str) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidData, message)
 }
-
-/* === Tests === */

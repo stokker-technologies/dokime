@@ -8,29 +8,13 @@
 
 """Run Python Client Lanes With The Independent Python Product Wheel"""
 
-# === Imports === #
 
-# Standard Library Imports
 import argparse
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import paths
 from dokime_tools.test import policy, run
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def main() -> int:
@@ -48,10 +32,6 @@ def main() -> int:
         arguments.append(f"--basetemp={Path(scratch) / 'fixtures'}")
         return run.main(["test", "--profile", options.profile, "--language", "python", "--project", "packages/dokime-client", *arguments])
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     raise SystemExit(main())

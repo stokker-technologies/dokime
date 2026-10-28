@@ -7,22 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::PathBuf, time::Duration};
 
-// Third Party Imports
-
-// Local Imports
 use super::{BackendDiagnostics, DesktopSessionError as Error};
 use dokime_server::host;
-
-/* === Constants === */
 
 const DESKTOP_READINESS_TIMEOUT_MS: u64 = 60_000;
 const DESKTOP_STARTUP_DIAGNOSTIC_BYTES: u64 = 65_536;
@@ -32,23 +20,11 @@ const BEARER: &str = "bearer";
 const AUTHORIZATION: &str = "authorization";
 const SECRET_KEYS: [&str; 4] = [AUTHORIZATION, "token", "secret", "password"];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug)]
 pub struct Backend {
     arguments: host::Args,
     log: Option<PathBuf>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Backend {
     pub fn new(arguments: host::Args) -> Self {
@@ -61,8 +37,6 @@ impl Backend {
         self
     }
 }
-
-/* === Public Functions === */
 
 pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Result<(host::Session, String), Error> {
     let launch = async {
@@ -95,8 +69,6 @@ pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Resu
         }
     }
 }
-
-/* === Private Functions === */
 
 fn redact(line: &str) -> String {
     // Locate The Secrets
@@ -160,8 +132,6 @@ fn quoted_end(bytes: &[u8], from: usize) -> usize {
 fn quote_or_blank(byte: u8) -> bool {
     matches!(byte, b'"' | b'\'' | b' ' | b'\t')
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 #[test]

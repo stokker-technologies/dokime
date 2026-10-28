@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(feature = "native")]
 pub(crate) mod buffer;
 
@@ -20,8 +18,6 @@ pub(crate) mod frame;
 pub mod protocol;
 pub mod provider;
 pub mod recording;
-
-/* === Re-Exports === */
 
 pub(crate) use protocol::templated;
 pub use protocol::{
@@ -36,34 +32,16 @@ pub use provider::{
     ProviderTelemetryRow,
 };
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
 
-// Third Party Imports
-
-// Local Imports
 use crate::execution::lease::LeaseHold;
 use crate::prompts::{PromptRequest, PromptResponse};
 use crate::telemetry::{LeaseGap, LeaseRequest};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type TransportFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
 
 // An owned handle on the execution's log and records, for work that outlives
 // the borrow of its stage: a process's output, a watch's markers.
@@ -111,11 +89,3 @@ pub trait ExecutionTransport: Send + Sync {
 
     fn document(&self, addition: crate::document::DocumentAddition);
 }
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

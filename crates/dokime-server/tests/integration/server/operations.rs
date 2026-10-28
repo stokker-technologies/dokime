@@ -9,39 +9,22 @@
 
 // Verify Response Publication Failure After Operation Effects
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{
     Arc,
     atomic::{AtomicU32, Ordering},
 };
 
-// Third Party Imports
 use clap::Parser;
 use dokime::harmos::RegistrationExt;
 use tokio::sync::Notify;
 
-// Local Imports
 use super::{Config, Server, runtime};
-
-/* === Constants === */
 
 const POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(120),
     attempt_timeout: std::time::Duration::from_secs(120),
     retries: dokime::harmos::operations::RetryPolicy::Never,
 };
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::harmos::message(harmos_path = dokime::harmos)]
 struct Receipt {
@@ -63,12 +46,6 @@ struct Gate {
     acted: Notify,
     release: Notify,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl dokime::harmos::Operation for Mutate {
     type Error = tonic::Status;
@@ -92,12 +69,6 @@ impl dokime::harmos::Operation for Mutate {
         Ok(Receipt { calls }.into())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn response_publication_faults() {

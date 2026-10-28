@@ -9,36 +9,11 @@
 
 // Match Bounded Identifier Globs For Evidence Observation
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct IdentifierPattern(String);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl IdentifierPattern {
     pub fn new(value: impl Into<String>) -> crate::Result<Self> {
@@ -97,12 +72,6 @@ impl From<IdentifierPattern> for String {
         value.0
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

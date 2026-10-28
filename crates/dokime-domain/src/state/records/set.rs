@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::execution::health::HealthItem;
 use crate::model::execution::notes::OperatorNote;
 use crate::model::identity::NoteId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TestRecordSet {
@@ -44,12 +26,6 @@ pub struct TestRecordSet {
     #[serde(default)]
     record_subscriptions_closed: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for TestRecordSet {
     fn memory_size(&self) -> usize {
@@ -145,12 +121,6 @@ impl TestRecordSet {
         true
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

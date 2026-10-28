@@ -11,23 +11,16 @@
  * Remote Listener Settings And Pairing Files
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
-// Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { Input } from "@/components/ui/input";
-import type { Wire } from "@/lib/rpc/canonical";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -41,15 +34,8 @@ import {
 } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
 
 export function RemoteSection({ advanced = false }: { advanced?: boolean }) {
   const session = useNativeSessionOptional();
@@ -348,12 +334,6 @@ function PairedClients({ session }: { session: ConnectedSession }) {
     </SettingsCard>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Remote access settings are unavailable. Reconnect to the host and try again.";

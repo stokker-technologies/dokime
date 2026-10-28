@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod follow;
 mod logs;
 pub(crate) mod reader;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{sync::Arc, time::Instant};
 
-// Third Party Imports
 use futures_util::future::BoxFuture;
 use harmos::storage::{ByteRange, CaptureConsistency, FileMetadata, FileReference, FrozenFile as FrozenSnapshot, OpenedCapture};
 
-// Local Imports
 use super::executions::{Acquisition, ExecutionStorage};
 use crate::execution_runtime::{
     authoring::ExecutionFileTarget,
@@ -41,14 +32,6 @@ use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct NativeOutput {
     file: tempfile::NamedTempFile,
@@ -74,8 +57,6 @@ pub(super) struct FrozenFile {
     session: Option<crate::storage::Manager>,
 }
 
-/* === Enums === */
-
 enum FrozenSource {
     Snapshot(FrozenSnapshot),
     Uploaded(tokio::fs::File),
@@ -86,10 +67,6 @@ enum FileSelection {
     Window { offset: u64, limit: usize },
     Snapshot,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl FileSelection {
     fn extent(self, size_bytes: u64) -> Result<(u64, usize)> {
@@ -345,7 +322,6 @@ impl FrozenFile {
         Ok(reference)
     }
 }
-/* === Public Functions === */
 
 pub(super) async fn capture(acquisition: &mut Acquisition) -> Result<()> {
     if !acquisition.outputs_sealed || !acquisition.outputs_quiescent {
@@ -410,8 +386,6 @@ pub(super) async fn abandon(acquisition: &mut Acquisition) -> Result<()> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn output_state(closed: Option<SavedStreamState>) -> ExecutionFileStreamState {
     match closed {
@@ -514,5 +488,3 @@ async fn interrupt_source(storage: &Manager, execution: &TestExecutionId, path: 
     source.captured = true;
     Ok(())
 }
-
-/* === Tests === */

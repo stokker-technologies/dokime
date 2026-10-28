@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::model::execution::ExecutionCheckpoint;
 pub use crate::model::execution::PageCursor;
 pub use crate::model::execution::SavedEvidenceError;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use harmos_domain::model::storage::{FileReference, ObjectVersionToken, StorageCursor};
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::result::{CycleStatus, CycleView, ExecutionStatus, TestCycle, TestExecution};
 use crate::model::artifacts::{ArtifactRecord, ArtifactStatus};
 use crate::model::identity::Metadata;
@@ -33,12 +24,8 @@ use crate::model::identity::TestCycleId;
 use crate::model::identity::TestExecutionId;
 use crate::model::time::Timestamp;
 
-/* === Constants === */
-
 pub const EXECUTION_CONTEXT_MEDIA_TYPE: &str = "application/vnd.dokime.execution-context+postcard";
 pub const EXECUTION_CONTEXT_SCHEMA_VERSION: u32 = 1;
-
-/* === Macros === */
 
 macro_rules! owned_memory {
     ($type:ty, $($field:ident),+ $(,)?) => {
@@ -72,11 +59,7 @@ owned_memory!(VerifiedReplicaFile, source, local);
 
 owned_memory!(CycleSeal, owner_node_id, evidence_through, executions, report, dependencies_saved, sealed_at,);
 
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, SavedEvidenceError>;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -132,8 +115,6 @@ pub struct CycleSeal {
     pub sealed_at: Timestamp,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExecutionOutputContent {
@@ -147,10 +128,6 @@ pub enum SavedStreamState {
     Finalized,
     Interrupted,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for ExecutionOutputContent {
     fn memory_size(&self) -> usize {
@@ -300,8 +277,6 @@ impl CycleSeal {
     }
 }
 
-/* === Public Functions === */
-
 pub fn validate_cycle_revisions(cycle: &TestCycle, evidence_through: &StorageCursor, revisions: &[ExecutionRevision]) -> Result<()> {
     validate_cycle_members(cycle.lifecycle, cycle.execution_ids.iter(), evidence_through, revisions)
 }
@@ -369,8 +344,6 @@ pub fn validate_relative_output_path(relative_path: &str) -> Result<()> {
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn validate_cycle_members<'a>(
     lifecycle: CycleStatus, ids: impl ExactSizeIterator<Item = &'a TestExecutionId>, evidence_through: &StorageCursor,
     revisions: &[ExecutionRevision],
@@ -420,5 +393,3 @@ fn check_file(file: &FileReference, id: &TestExecutionId) -> Result<()> {
     }
     Ok(())
 }
-
-/* === Tests === */

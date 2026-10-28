@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod analysis;
 pub mod asset;
 pub(crate) mod cycle;
@@ -24,38 +22,8 @@ pub mod saved;
 mod scope;
 pub mod value;
 
-/* === Re-Exports === */
-
 pub use crate::execution::evidence_rows::EvidenceRows;
 pub use input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument};
 pub use renderer::Renderer;
 pub(crate) use saved::{CapturedExecutionReportInput, PreparedExecutionReport};
 pub(crate) use scope::Scope;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

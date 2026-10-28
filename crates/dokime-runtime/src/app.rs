@@ -7,28 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{Application, state::Origin as HarmosOrigin};
 
-// Local Imports
 use crate::config::Config;
 use crate::runtime_state::RuntimeState;
 use crate::transactions::Transactions;
 use dokime_domain::state::records::Records;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 pub type Origin = HarmosOrigin<RuntimeState>;
 pub(crate) type Builder = harmos::Builder<Dokime>;
@@ -40,8 +24,6 @@ pub(crate) type OperationManager = harmos::operations::OperationManager<Lanes>;
 #[cfg(feature = "simulation")]
 pub type Simulated = harmos::simulation::SimulatedRuntime<Dokime>;
 
-/* === Structs === */
-
 #[derive(Clone, Copy, Debug)]
 pub struct Dokime;
 
@@ -52,8 +34,6 @@ pub struct Resources {
     pub(crate) renderer: crate::report::Renderer,
 }
 
-/* === Enums === */
-
 #[harmos::lanes]
 pub enum Lanes {
     #[default]
@@ -62,10 +42,6 @@ pub enum Lanes {
     #[lane(serial)]
     Execution,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Resources {
     pub fn new(schema_settings: harmos::config::SchemaSettings) -> Self {
@@ -85,8 +61,6 @@ impl Application for Dokime {
     type Streams = ();
     type Resources = Resources;
 }
-
-/* === Public Functions === */
 
 pub(crate) fn builder(origin: impl Into<Origin>, resources: Resources) -> Builder {
     let preparation_bytes = std::num::NonZeroUsize::new(8 * 1024 * 1024);
@@ -130,7 +104,3 @@ pub fn simulate(origin: impl Into<Origin>, seed: u64) -> Result<Simulated, harmo
     let resources = Resources::new(Default::default());
     builder(origin, resources).entropy_seed(seed).simulate()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

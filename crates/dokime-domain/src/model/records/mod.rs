@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod contract;
 pub mod error;
 pub mod evidence;
 pub mod product;
 pub mod publication;
 pub mod resources;
-
-/* === Re-Exports === */
 
 pub use crate::model::validation::CompatibilityStatus;
 pub use crate::model::validation::ValidationMode;
@@ -42,31 +38,3 @@ pub use evidence::{Record, RecordEntry, RecordMarker};
 pub use product::*;
 pub use publication::{PublishReceipt, PublishStatus, RecordPublishRequest};
 pub use resources::{ResourceLifecycle, ResourceRecord};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

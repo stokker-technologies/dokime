@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
-
-// Local Imports
 use crate::evidence_runtime::ScopeSelection;
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::plot::PlotPayloadRequest;
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_streams: &[Identifier]) -> PlotPayloadRequest {
     if !telemetry_streams.iter().any(|stream| stream.as_str() == request.stream)
@@ -92,8 +66,6 @@ pub(super) fn scope_selection(request: &PlotPayloadRequest) -> ScopeSelection {
     })
 }
 
-/* === Private Functions === */
-
 fn expression_telemetry_streams(expression: &DataExpression) -> Vec<String> {
     let mut streams = Vec::new();
     if let DataSource::Telemetry { stream, .. } = &expression.source {
@@ -142,5 +114,3 @@ fn request_expressions(request: &PlotPayloadRequest) -> impl Iterator<Item = &Da
 fn expression_needs_dimension_context(expression: &DataExpression) -> bool {
     matches!(&expression.source, DataSource::Dimension { .. } | DataSource::Parameter { .. })
 }
-
-/* === Tests === */

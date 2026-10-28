@@ -7,26 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,8 +61,6 @@ pub struct AdmissionIssue {
     pub expected: Option<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum ConnectionTarget {
@@ -125,13 +104,3 @@ pub enum ConnectionError {
     NotConnected,
     GenerationExhausted,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

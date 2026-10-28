@@ -9,41 +9,18 @@
 
 // Native Remote Listener Management Operations
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::{Change, Controller, Error};
 use dokime::RuntimeHandle;
 use dokime::domain::model::remote::{CreatedPairing, PairedClientPage, RemoteListenerStatus, RemoteSessionPage};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::remote as wire;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Remote(Arc<Controller>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ReadListener> for Remote {
     fn serve<'a>(&'a self, _: wire::ReadListener, _: Context<'a, wire::ReadListener>) -> Served<'a, RemoteListenerStatus> {
@@ -100,8 +77,6 @@ impl Serve<wire::RevokePairedClient> for Remote {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, controller: Arc<Controller>) -> Result<(), Error> {
     let served = Arc::new(Remote(controller));
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -124,8 +99,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, controller: Arc<Controller
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn status(error: Error) -> Status {
     match error {
         Error::Configuration(message) => Status::invalid_argument(message),
@@ -134,5 +107,3 @@ fn status(error: Error) -> Status {
         other => Status::unavailable(other.to_string()),
     }
 }
-
-/* === Tests === */

@@ -13,19 +13,10 @@
 
 #![cfg(unix)]
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use dokime_runtime::harmos::operations::Host;
 
-// Local Imports
 use dokime_domain::model;
 use dokime_runtime::execution::log::Level;
 use dokime_runtime::host::{ProcessExited, StepHandleCancelled};
@@ -33,7 +24,6 @@ use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;
 use {dokime_runtime::operations::process::RunProcess, model::process::wire::Output};
 
-/* === Constants === */
 const SUITE: &str = "process.checks";
 const RUN: &str = "process.checks.run";
 const CANCEL: &str = "process.checks.cancel";
@@ -42,11 +32,6 @@ const CANCEL: &str = "process.checks.cancel";
 // signal from a process it submitted.
 const READY_POLL: Duration = Duration::from_millis(5);
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Checks;
 
 struct RunOnce;
@@ -59,7 +44,6 @@ struct CancelParameters {
     ready: String,
 }
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
@@ -81,9 +65,6 @@ enum Templates {
     SpawnCancel(SpawnCancel),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::suite(id = SUITE, label = "Process Built-In", templates = Templates)]
 impl Checks {}
 
@@ -135,9 +116,6 @@ impl SpawnCancel {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn shell(script: &str) -> RunProcess {
     RunProcess::new("sh").args(["-c", script])
 }
@@ -146,7 +124,6 @@ fn logged(report: &dokime_runtime::plugin::testing::Report, level: Level) -> Vec
     report.log().iter().filter(|entry| entry.level == level as i32).map(|entry| entry.message.clone()).collect()
 }
 
-/* === Tests === */
 // One shot: stdout streams into the produced artifact, stderr reaches the log
 // at warning with the execution's identity, and the exit is recorded.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

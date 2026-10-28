@@ -7,32 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use thiserror::Error as ThisError;
 
-// Local Imports
 use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, Error>;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, ThisError)]
 pub enum Error {
@@ -123,10 +103,6 @@ pub enum Error {
     Operation(String),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 // A Missing Or Duplicated Registration Resource Is A Harmos Registration Failure.
 impl From<harmos::ResourceError> for Error {
     fn from(error: harmos::ResourceError) -> Self {
@@ -191,10 +167,6 @@ impl From<std::io::Error> for Error {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn harmos_message(error: &harmos::Error) -> String {
     use std::fmt::Write as _;
 
@@ -216,5 +188,3 @@ fn harmos_message(error: &harmos::Error) -> String {
     }
     message
 }
-
-/* === Tests === */

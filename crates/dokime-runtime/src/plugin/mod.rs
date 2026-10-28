@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod configuration;
 
 #[cfg(feature = "native")]
@@ -21,8 +19,6 @@ pub mod settings;
 
 #[cfg(feature = "native")]
 pub mod testing;
-
-/* === Re-Exports === */
 
 pub use configuration::{Configuration, Secret};
 pub use settings::NoSettings;
@@ -37,30 +33,6 @@ pub use publisher::Publisher;
 pub use crate::diagnostics::install_subscriber;
 pub use crate::diagnostics::{Diagnostic, redacted};
 pub use crate::diagnostics::{captured, install_panic_hook, panicked};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 #[cfg(feature = "native")]
 pub fn run<P>() -> std::io::Result<()>
@@ -84,7 +56,3 @@ where
         crate::Refusal::of(diagnostic.summary())
     })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -9,19 +9,9 @@
 
 // TODO: Describe this module's responsibility.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 
@@ -33,14 +23,6 @@ use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -249,8 +231,6 @@ pub struct PromptResponse {
     pub accepted: bool,
 }
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PromptArchetype {
@@ -340,13 +320,3 @@ pub enum EvidenceConditionKind {
     All(EvidenceConditions),
     Any(EvidenceConditions),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

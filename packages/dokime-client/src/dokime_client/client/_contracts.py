@@ -8,36 +8,20 @@
 
 """Construct Product Messages From Shared Generated Operation Descriptors"""
 
-# === Imports === #
-
-# Standard Library Imports
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, cast
 
-# Third Party Imports
 from google.protobuf.descriptor import Descriptor
 from google.protobuf.message import Message
 from google.protobuf.message_factory import GetMessageClass
 
-# Local Imports
 from ..operation import Operation
 from .errors import ProtocolError
 
-# Type Checking Imports
 if TYPE_CHECKING:
     from google._upb._message import Descriptor as UpbDescriptor
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def operation(service: str, method: str) -> Operation:
@@ -111,8 +95,3 @@ def variant(message: Message) -> str:
     if selected is None:
         raise ProtocolError("canonical variant has no selected branch")
     return selected
-
-
-# === Private Functions === #
-
-# === Entry Point === #

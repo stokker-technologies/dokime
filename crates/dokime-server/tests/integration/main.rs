@@ -9,8 +9,6 @@
 
 #![recursion_limit = "256"]
 
-/* === Modules === */
-
 mod appearance;
 mod append;
 mod authoring;
@@ -41,39 +39,14 @@ mod workflow;
 #[path = "../support/mod.rs"]
 mod support;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
-// Third Party Imports
+
 use tonic::{
     Code, Request,
     transport::{Certificate, ClientTlsConfig, Endpoint},
 };
-// Local Imports
+
 use dokime::client::contracts;
 use dokime_server::grpc::{Config, Server, TlsIdentity};
 use support::wire::*;
 use {dokime::Identifier, dokime::Metadata, dokime::Runtime};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

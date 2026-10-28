@@ -8,9 +8,6 @@
 
 """Poll a remote test. Edit the constants below, then run this file."""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import json
 import math
@@ -20,15 +17,7 @@ from contextlib import aclosing
 from dataclasses import asdict
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_client.client import DokimeClient, Execution, Value
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 PAIRING_FILE = Path("lab.dokime-pair")
 CYCLE_LABEL = "Polling Demonstration"
@@ -37,12 +26,6 @@ PARAMETERS: dict[str, Value] = {"sample_count": 8}
 
 
 POLL_INTERVAL = 0.5
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 async def poll(handle: Execution, interval: float) -> dict[str, object]:
@@ -109,10 +92,6 @@ async def count_records(handle: Execution, counts: Counter[str]) -> None:
         async for record in reader:
             counts[record.type] += 1
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     asyncio.run(main())

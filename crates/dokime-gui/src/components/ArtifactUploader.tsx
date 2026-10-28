@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
-import { commands } from "@/lib/desktop/commands";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileUp, Image as ImageIcon, Square, Video } from "lucide-react";
 import { type MutableRefObject, useEffect, useId, useRef, useState } from "react";
-
-/* === Local Imports === */
-
 import { useNativeSession } from "@/app/native-session/context";
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
 import { Button } from "@/components/ui/button";
@@ -25,10 +19,9 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { invalidateWorkflowDocuments, invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import { uploadScope } from "@/lib/api/native-content";
+import { commands } from "@/lib/desktop/commands";
 import { type NativeRecordingSink, openNativeRecording } from "@/lib/rpc/artifact-upload";
 import type { RecordScope } from "@/lib/types";
-
-/* === Types === */
 
 type ArtifactUploaderProps = {
   executionScope: RecordScope | null;
@@ -39,16 +32,12 @@ type ArtifactUploaderProps = {
   onArtifactsChanged: () => Promise<void>;
 };
 
-/* === Constants === */
-
 const GUI_CAMERA_JPEG_QUALITY_PERCENT = 92;
 const GUI_RECORDING_TIMESLICE_MS = 2_000;
 const GUI_UPLOAD_PROGRESS_MS = 250;
 
 /** Bounds peak webview heap to one fragment of the recording, not the whole thing. */
 const RECORDING_TIMESLICE_MS = GUI_RECORDING_TIMESLICE_MS;
-
-/* === Components === */
 
 export function ArtifactUploader({
   executionScope,
@@ -610,8 +599,6 @@ function formatElapsed(ms: number): string {
   }
   return `${pad(minutes)}:${pad(seconds)}`;
 }
-
-/* === Private Functions === */
 
 function composeRecordingStream(
   display: MediaStream,

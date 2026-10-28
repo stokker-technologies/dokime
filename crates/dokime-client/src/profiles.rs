@@ -9,13 +9,6 @@
 
 // Named Backend Profiles And Atomic Configuration Updates
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeSet,
     env,
@@ -24,24 +17,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
 pub use dokime_domain::model::backends::{Document, Profile, Secret};
 
-// Local Imports
 use super::{Target, secrets::SecretStore};
-
-/* === Constants === */
 
 const CA_BYTES: u64 = 1_048_576;
 const PROFILE_BYTES: u64 = 1_048_576;
 const PROFILE_ID_BYTES: u64 = 256;
 const PROFILES: u64 = 128;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // A configuration file. Reading and selection never create files or connect.
 pub struct Store {
@@ -54,8 +37,6 @@ pub struct Selection {
     pub expected_backend_id: Option<String>,
     pub secret: Secret,
 }
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -74,10 +55,6 @@ pub enum Error {
     #[error(transparent)]
     Secrets(#[from] super::secrets::Error),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 pub fn decode(bytes: &[u8]) -> Result<Document, Error> {
     if bytes.len() as u64 > PROFILE_BYTES {
@@ -301,10 +278,6 @@ impl Store {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(message: &str) -> Error {
     Error::Invalid(message.to_owned())
 }
@@ -319,8 +292,6 @@ fn environment_path(identifier: &str) -> Result<PathBuf, Error> {
         .map(PathBuf::from)
         .ok_or_else(|| invalid("standard configuration root is unavailable; provide an explicit profile file"))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

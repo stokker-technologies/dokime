@@ -7,31 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Publication {
@@ -39,15 +19,11 @@ pub enum Publication {
     Record(Box<RecordPublishRequest>),
 }
 
-/* === Traits === */
-
 pub trait Publishable {
     type Payload: Into<Publication>;
 
     fn publication(self) -> Self::Payload;
 }
-
-/* === Implementations === */
 
 impl Publishable for RecordPublishRequest {
     type Payload = Self;
@@ -62,9 +38,3 @@ impl From<RecordPublishRequest> for Publication {
         Self::Record(Box::new(request))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

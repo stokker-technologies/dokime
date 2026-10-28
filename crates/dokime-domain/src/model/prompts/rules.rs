@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::PromptDefinition;
 use crate::model::diagnostics::ValidationIssue;
 use crate::model::expressions::BooleanExpression;
@@ -29,25 +19,11 @@ use crate::model::expressions::ExpressionKind;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rule {
     pub predicate: BooleanExpression,
     pub message: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for Rule {
     fn memory_size(&self) -> usize {
@@ -60,8 +36,6 @@ impl harmos_domain::MemorySize for Rule {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub fn validate_rules(definition: &PromptDefinition) -> Vec<ValidationIssue> {
     if definition.rules.len() > 32 {
@@ -85,8 +59,6 @@ pub fn validate_rules(definition: &PromptDefinition) -> Vec<ValidationIssue> {
         })
         .collect()
 }
-
-/* === Private Functions === */
 
 fn expression_type(
     expression: &Expression, definition: &PromptDefinition, depth: usize, remaining: &mut usize,
@@ -145,5 +117,3 @@ fn issue(index: usize, message: &str) -> ValidationIssue {
         expected: None,
     }
 }
-
-/* === Tests === */

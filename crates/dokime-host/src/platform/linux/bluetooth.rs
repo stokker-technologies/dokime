@@ -7,37 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, process::Command, time::Duration};
 
-// Third Party Imports
-
-// Local Imports
 use crate::HostOptions;
 use crate::collectors::maybe_insert;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 #[cfg(not(windows))]
 pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions, timeout: Duration) -> Result<BTreeMap<String, Value>, String> {
@@ -67,8 +41,6 @@ pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions, timeout: Duration)
     values.insert("bluetooth_device_names".to_owned(), Value::Array(devices.into_iter().map(Value::from).collect()));
     Ok(values)
 }
-
-/* === Private Functions === */
 
 #[cfg(not(windows))]
 fn bluetoothctl_output(args: &[&str], timeout: Duration) -> Result<String, String> {
@@ -122,5 +94,3 @@ fn parse_linux_device_names(output: &str) -> Vec<String> {
         .filter(|name| !name.is_empty())
         .collect()
 }
-
-/* === Tests === */

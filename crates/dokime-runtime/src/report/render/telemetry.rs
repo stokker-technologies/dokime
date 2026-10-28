@@ -7,36 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Serialize, Serializer, ser::SerializeMap};
 
-// Local Imports
 use super::ReportValue;
 use crate::telemetry::TelemetrySample;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct SampleValues<'a>(pub(super) &'a TelemetrySample);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serialize for SampleValues<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -52,9 +28,3 @@ impl Serialize for SampleValues<'_> {
         fields.end()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

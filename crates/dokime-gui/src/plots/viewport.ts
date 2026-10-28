@@ -18,8 +18,6 @@
  * imports so a node test can load it directly.
  */
 
-/* === Constants === */
-
 /**
  * The drag thresholds, in CSS pixels: a drag shorter than `dist` on both
  * axes is a click, and a drag within `uni` on one axis zooms the other alone.
@@ -31,8 +29,6 @@ export const PLOT_DRAG_OPTIONS = {
   dist: 4,
   setScale: true,
 } as const;
-
-/* === Types === */
 
 export type ViewportRange = {
   min: number;
@@ -57,8 +53,6 @@ export type PlotArea = {
   height: number;
 };
 
-/* === Public Functions === */
-
 /**
  * The viewport a released selection box holds, or `null` for an empty box.
  *
@@ -80,8 +74,6 @@ export function heldViewport(
   if (!x && !y) return null;
   return { x, y };
 }
-
-/* === Private Functions === */
 
 /** Whether the box covers the whole axis: uPlot's one-axis drag fills the other. */
 function spansAxis(start: number, extent: number, full: number): boolean {

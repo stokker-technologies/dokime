@@ -7,36 +7,25 @@
  * ***
  */
 
-/* === Modules === */
-
 mod error;
 mod source;
-
-/* === Re-Exports === */
 
 pub use error::{Error, Result};
 pub use source::{Bundled, Directory, Source};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     fmt::Write as _,
     path::{Component, Path, PathBuf},
 };
 
-// Third Party Imports
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use cssparser::{
     AtRuleParser, CowRcStr, DeclarationParser, Parser, ParserState, QualifiedRuleParser, RuleBodyItemParser, RuleBodyParser,
     StyleSheetParser,
 };
 
-// Local Imports
 use crate::domains::{ThemeCornerRadii, ThemeVariant};
-
-/* === Constants === */
 
 pub const TYPOGRAPHY_CSS_FILE: &str = "theme/typography.css";
 pub const BASE_CSS_FILE: &str = "theme/base.css";
@@ -83,12 +72,6 @@ const REQUIRED_PALETTE_PROPERTIES: &[&str] = &[
 ];
 const REQUIRED_CHART_COLORS: usize = 8;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Authored {
     pub typography_css: String,
@@ -104,18 +87,12 @@ struct StylesheetRuleParser;
 
 struct CustomPropertyParser;
 
-/* === Enums === */
-
 #[derive(Debug)]
 enum ParsedRule {
     Import,
     AtRule,
     Style { selector: String, variables: BTreeMap<String, String> },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Authored {
     pub fn combined_css(&self, corner_radii: &ThemeCornerRadii) -> String {
@@ -227,8 +204,6 @@ impl<'i> RuleBodyItemParser<'i, Option<(String, String)>, String> for CustomProp
     }
 }
 
-/* === Public Functions === */
-
 #[tracing::instrument(level = "debug", skip_all)]
 pub fn load(dir: &Path) -> Result<Authored, Error> {
     let source = Directory::new(dir).map_err(|source| Error::Read { path: dir.to_path_buf(), source })?;
@@ -273,8 +248,6 @@ pub fn parse(typography_css: String, base_css: String, light_css: String, dark_c
         dark,
     })
 }
-
-/* === Private Functions === */
 
 fn reject_imports(file: &'static str, rules: &[ParsedRule]) -> Result<(), Error> {
     if rules.iter().any(|rule| matches!(rule, ParsedRule::Import)) {
@@ -492,5 +465,3 @@ fn theme_variant(file: &'static str, selector: &'static str, mut variables: BTre
     }
     Ok(ThemeVariant { variables, plot_palette })
 }
-
-/* === Tests === */

@@ -7,38 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
 mod construction;
-
-/* === Re-Exports === */
 
 pub(crate) use construction::{slots, text};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 use time::OffsetDateTime;
 
-// Local Imports
 use crate::model::identity::wire::Timestamp;
 use crate::model::values::Value as Core;
 
-/* === Constants === */
-
 // Nesting deeper than this is refused when a wire value is rebuilt.
 pub const MAX_DEPTH: usize = 64;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // A dynamic value flattened into its nodes, so its schema stays small and its
 // nesting is bounded by data rather than by the protobuf descriptor.
@@ -78,8 +61,6 @@ pub struct ValueField {
     pub key: String,
     pub value: u32,
 }
-
-/* === Enums === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -125,10 +106,6 @@ pub enum ValueError {
     #[error("value object repeats a key")]
     Duplicate,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Value {
     pub fn to_core(&self) -> Result<crate::model::values::Value, ValueError> {
@@ -233,9 +210,3 @@ impl Timestamp {
         OffsetDateTime::from_unix_timestamp(self.seconds)?.replace_nanosecond(self.nanos as u32)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

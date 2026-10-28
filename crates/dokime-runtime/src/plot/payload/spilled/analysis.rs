@@ -9,15 +9,6 @@
 
 // Exact Plot Statistics Over Paged Series
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{
     Aggregate,
     signal::Summary,
@@ -28,7 +19,6 @@ use harmos::{
 };
 use rusqlite::params;
 
-// Local Imports
 use super::super::{
     PlotPayloadRequest,
     analyses::{self, BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, SigmaBin, SigmaSeries},
@@ -38,22 +28,6 @@ use super::{
     series::{Series, scalar_number},
 };
 use crate::runtime::Result;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn histogram(series: &Series, bins: usize) -> Result<HistogramSeries> {
     let mut moments = Summary::new();
@@ -207,8 +181,6 @@ pub(super) fn interval(read: &Read<'_>, series: &Series, request: &PlotPayloadRe
     Ok(output)
 }
 
-/* === Private Functions === */
-
 fn quantile(read: &Read<'_>, label: &str, count: usize, fraction: f64) -> Result<f64> {
     let rank = fraction * (count - 1) as f64;
     let value = |offset: usize| -> Result<f64> {
@@ -252,5 +224,3 @@ fn interval_bin(output: &mut SigmaSeries, bin: i64, summary: &Summary, request: 
         upper,
     });
 }
-
-/* === Tests === */

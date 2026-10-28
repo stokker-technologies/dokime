@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-
-/* === Types === */
 
 export type PageChrome = {
   /** Title Case page title rendered at the left inset of the page bar. */
@@ -27,14 +23,10 @@ type PageChromeInput = {
   overflow?: ReactNode;
 };
 
-/* === Constants === */
-
 const EMPTY_CHROME: PageChrome = { actions: null, overflow: null, title: "" };
 
 const PageChromeStateContext = createContext<PageChrome>(EMPTY_CHROME);
 const PageChromePublishContext = createContext<(chrome: PageChrome | null) => void>(() => undefined);
-
-/* === Components === */
 
 /**
  * Holds the page bar contents for the active route. The shell renders the
@@ -57,8 +49,6 @@ export function PageChromeProvider({ children }: { children: ReactNode }) {
     </PageChromePublishContext.Provider>
   );
 }
-
-/* === Public Functions === */
 
 /**
  * Publishes the page title and the one page-bar action for the mounted route.

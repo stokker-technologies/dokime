@@ -7,39 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use crate::{HostTelemetryCollector, HostTelemetryConfig, telemetry};
 use dokime_domain::model::plugins::InstalledPlugin;
 
-/* === Constants === */
-
 /// Installation Catalog Identity, Distinct From The Stored Sample Source.
 pub const HOST_PLUGIN_SOURCE: &str = "host";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn installed_plugin() -> InstalledPlugin {
     InstalledPlugin {
@@ -66,8 +40,6 @@ pub fn host_telemetry_collector(config: HostTelemetryConfig) -> Arc<dyn HostTele
     telemetry::collector(config)
 }
 
-/* === Private Functions === */
-
 fn configure_contract(contract: &mut dokime_domain::model::telemetry::TelemetryContract) {
     let stream = crate::HOST_STREAMS.iter().copied().find(|stream| {
         let identifier = stream.as_str();
@@ -78,5 +50,3 @@ fn configure_contract(contract: &mut dokime_domain::model::telemetry::TelemetryC
         contract.interval = Some(dokime_domain::model::time::DurationMillis(interval));
     }
 }
-
-/* === Tests === */

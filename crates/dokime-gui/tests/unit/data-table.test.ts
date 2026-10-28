@@ -11,35 +11,16 @@
  * Shared Table Behavior
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { type ReactTable, useTable } from "@tanstack/react-table";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
-// Local Imports
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableFeatures, dataTableColumns, dataTableFeatures } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */
 
 const column = dataTableColumns<{ id: string; value: string }>();
 const columns = column.columns([column.accessor("value", { header: "Value", meta: { filter: "text" } })]);

@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 
-// Third Party Imports
 use harmos::storage::FileReference;
 use sha2::Digest;
 
-// Local Imports
 use dokime_domain::model;
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_runtime::records::RecordContract;
@@ -30,21 +21,9 @@ use dokime_runtime::telemetry::contract::TelemetryContract;
 use harmos::storage::StorageBackends;
 use model::execution::{HealthItem, OperatorNote};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReportOwner;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl harmos::Application for ReportOwner {
     type Lanes = ReportOwner;
     type State = ();
@@ -66,7 +45,6 @@ impl harmos::operations::Lane for ReportOwner {
     }
 }
 
-/* === Public Functions === */
 pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> {
     use harmos::operations::Lane;
     let runtime = harmos::Runtime::<ReportOwner>::builder((), ())
@@ -207,7 +185,3 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     owner.stop().await.unwrap();
     html
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

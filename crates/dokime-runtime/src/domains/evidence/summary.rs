@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceSummaries {
@@ -55,12 +37,6 @@ pub struct TelemetryStreamSummary {
     pub latest_sequence: u64,
     pub updated_at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for RecordSummary {
     fn memory_size(&self) -> usize {
@@ -212,9 +188,6 @@ impl EvidenceSummaries {
         entry.updated_at.clone_from(&sample.timestamp);
     }
 }
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn summary_memory() -> crate::runtime::Error {
     harmos::Error::ResourceExhausted {
@@ -228,5 +201,3 @@ fn summary_slots<T>(count: usize) -> crate::runtime::Result<Vec<T>> {
     rows.try_reserve_exact(count).map_err(|_| summary_memory())?;
     Ok(rows)
 }
-
-/* === Tests === */

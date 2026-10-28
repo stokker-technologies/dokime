@@ -9,21 +9,12 @@
 
 // Collector Benchmarks: Native And Fixture Stream Reads
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::hint::black_box;
 
-// Third Party Imports
 use criterion::{BenchmarkId, Criterion};
 
-// Local Imports
 use dokime_host::{HOST_STREAMS, Host, HostTelemetryStream};
 
-/* === Constants === */
 const NATIVE_STREAMS: [(&str, HostTelemetryStream); 4] = [
     ("collector_reads_system", HostTelemetryStream::System),
     ("collector_reads_network", HostTelemetryStream::Network),
@@ -31,19 +22,6 @@ const NATIVE_STREAMS: [(&str, HostTelemetryStream); 4] = [
     ("collector_reads_bluetooth", HostTelemetryStream::Bluetooth),
 ];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
     let host = Host::new(dokime_host::HostTelemetryConfig::default());
     for (name, stream) in NATIVE_STREAMS {
@@ -61,7 +39,3 @@ pub fn benchmark(criterion: &mut Criterion) {
     }
     group.finish();
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

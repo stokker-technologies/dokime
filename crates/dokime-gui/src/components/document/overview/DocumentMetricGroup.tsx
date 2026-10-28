@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Imports === */
-
 import { GripVertical } from "lucide-react";
 import type { CSSProperties, PointerEvent } from "react";
 import { Metric } from "@/components/Metric";

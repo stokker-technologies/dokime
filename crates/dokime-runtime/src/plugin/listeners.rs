@@ -7,29 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::ExecutionContext;
 use harmos::operations::{NoStream, OperationDeclaration, Requires};
 use harmos::sidecar::operations::Carrier;
 use harmos::sidecar::{Refusal, Supervisor};
 
-// Local Imports
 use crate::records::DeclaredRecord;
 use dokime_domain::model::records::evidence::Record;
-
-/* === Constants === */
 
 pub const LISTENER_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(30),
@@ -37,13 +26,7 @@ pub const LISTENER_POLICY: harmos::operations::OperationPolicy = harmos::operati
     retries: harmos::operations::RetryPolicy::Never,
 };
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type HearFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Refusal>> + Send + 'a>>;
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -63,10 +46,6 @@ pub struct ListenerContext<'a, L> {
     listener: PhantomData<fn() -> L>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 // A listener is a callback operation over `Delivery`; `#[dokime::listener]`
 // declares its identity, resources and record type.
 pub trait Listener: Sized + OperationDeclaration<Request = Delivery, Response = (), Input = NoStream, Output = NoStream> {
@@ -74,8 +53,6 @@ pub trait Listener: Sized + OperationDeclaration<Request = Delivery, Response = 
 
     fn hear<'a>(ctx: &'a ListenerContext<'a, Self>, record: Self::Record) -> HearFuture<'a>;
 }
-
-/* === Implementations === */
 
 impl<L> ListenerContext<'_, L> {
     pub fn call(&self) -> &harmos::operations::CallContext {
@@ -134,9 +111,3 @@ impl Delivery {
         R::from_record(&record)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

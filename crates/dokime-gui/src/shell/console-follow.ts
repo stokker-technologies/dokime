@@ -18,19 +18,11 @@
  * Pure: no React, no path aliases, so the Node test runner imports it as is.
  */
 
-/* === Imports === */
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
 /** Within one row of the bottom still counts as following. */
 export const FOLLOW_SLACK_PX = 22;
 
 /** Breathing room above the first row and below the last, inside the scroll area. */
 export const CONSOLE_LIST_PADDING_PX = 8;
-
-/* === Types === */
 
 /** What decides whether the list is pinned to its newest row. */
 export type ScrollMetrics = {
@@ -50,10 +42,6 @@ export type ConsoleWindow = {
   /** Where the first drawn row sits inside the content. */
   offset: number;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /** Whether the list shows its last row, give or take `slack` pixels. */
 export function consoleTailPinned({ clientHeight, scrollHeight, scrollTop }: ScrollMetrics, slack: number = FOLLOW_SLACK_PX): boolean {
@@ -101,7 +89,3 @@ export function consoleWindow({
     offset: padding + first * rowHeight,
   };
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

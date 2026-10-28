@@ -16,14 +16,10 @@
  * values through validation and RPC failures. Without an active cycle it adds
  * nothing and offers New Cycle. */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-
-/* === Local Imports === */
 
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
 import { type EditorParameterRow, editorProblemCount, editorRow, seedEditorRows } from "@/components/parameter-editor/model";
@@ -49,14 +45,10 @@ import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, Test
 import { cn } from "@/lib/utils";
 import { useParameterOverridesStatus, useParameterOverridesStore } from "@/stores/parameter-overrides-store";
 
-/* === Constants === */
-
 const STEP_LABELS: { key: DialogStep; label: string }[] = [
   { key: "parameters", label: "Parameters" },
   { key: "summary", label: "Summary" },
 ];
-
-/* === Types === */
 
 type TemplateDialogProps = {
   /** The active cycle the cases join; absent, the dialog adds nothing. */
@@ -74,8 +66,6 @@ type TemplateDialogProps = {
 };
 
 type DialogStep = "parameters" | "summary";
-
-/* === Components === */
 
 export function TemplateDialog({
   activeCycle,
@@ -406,8 +396,6 @@ export function TemplateDialog({
   );
 }
 
-/* === Subcomponents === */
-
 /**
  * Two equal slots around a short connector.
  *
@@ -504,8 +492,6 @@ function SummaryStep({
   );
 }
 
-/* === Hooks === */
-
 /**
  * Touch density, read from the `data-density` attribute the shell writes on
  * `html`. That attribute is the one source both the native appearance settings
@@ -514,8 +500,6 @@ function SummaryStep({
 export function useTouchDensity(): boolean {
   return useSyncExternalStore(subscribeToDensity, readTouchDensity, () => false);
 }
-
-/* === Private Functions === */
 
 function subscribeToDensity(onChange: () => void): () => void {
   if (typeof MutationObserver === "undefined") {

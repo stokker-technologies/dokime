@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{self, Write};
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::BuiltinRecordType;
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::BuiltinDraft;
@@ -31,14 +22,6 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::state::records::set::TestRecordSet;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.cycle.copy", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -59,12 +42,6 @@ struct Budget {
     quoted: bool,
     escaped: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for CopyCycle {
     type Error = String;
@@ -205,9 +182,3 @@ impl CopyCycle {
         records
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

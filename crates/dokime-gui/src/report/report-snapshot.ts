@@ -16,14 +16,10 @@
  * application's own code with `live={false}`.
  */
 
-/* === Local Imports === */
-
 import type { CycleSnapshotSource, FrozenPlotPayloads } from "@/features/cycle/snapshot-source";
 import { mapDocumentCapture } from "@/lib/document-normalizer";
 import type { ReportCaseRunPayload, ReportPayload } from "@/lib/report-types";
 import type { DocumentViewPayload, HubLiveState } from "@/lib/types";
-
-/* === Constants === */
 
 const NO_PLOT_PAYLOADS: FrozenPlotPayloads = { plots: {} };
 
@@ -43,8 +39,6 @@ const FROZEN_REVISIONS = {
   telemetry: {},
   traceability: 0,
 };
-
-/* === Public Functions === */
 
 export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource {
   const caseRuns = new Map<string, ReportCaseRunPayload>();
@@ -83,8 +77,6 @@ export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource
       (executionId === null ? payload.snapshot?.traceability : caseRuns.get(executionId)?.traceability) ?? null,
   };
 }
-
-/* === Private Functions === */
 
 function materialize(document: Parameters<typeof mapDocumentCapture>[0] | undefined): DocumentViewPayload | null {
   return document ? mapDocumentCapture(document) : null;

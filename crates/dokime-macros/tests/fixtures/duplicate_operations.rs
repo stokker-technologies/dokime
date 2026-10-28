@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 
 mod first {
     use super::POLICY;
@@ -41,39 +40,23 @@ mod second {
     }
 }
 
-/* === Re-Exports === */
 
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
 };
 
-/* === Macros === */
 
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Duplicated;
 
-/* === Enums === */
 #[sdk::catalog]
 enum DuplicatedOperations {
     First(first::Read),
     Second(second::Read),
 }
 
-/* === Traits === */
 
-/* === Implementations === */
 impl sdk::harmos::builtins::lifecycle::Policy for Duplicated {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
@@ -113,13 +96,9 @@ impl sdk::Plugin for Duplicated {
     }
 }
 
-/* === Public Functions === */
 
-/* === Private Functions === */
 fn main() {
     // Schema markers link only through a reachable `markers()` call, as the
     // sidecar runtime makes; inspection resolves contracts against them.
     std::hint::black_box(<Duplicated as sdk::harmos::plugin::Declared>::markers()).unwrap();
 }
-
-/* === Tests === */

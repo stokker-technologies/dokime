@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod annotations;
 mod artifacts;
 pub mod case;
@@ -19,26 +17,6 @@ pub mod presentation;
 pub mod suite;
 mod templates;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 #[harmos::catalog]
 pub enum Objects {
     Case(case::Case),
@@ -48,13 +26,3 @@ pub enum Objects {
     Request(super::requests::Request),
     Suite(suite::Suite),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

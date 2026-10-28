@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::{preferences::Resources, wire as projection};
 use crate::grpc::value::{Budget, canonical};
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -29,20 +20,6 @@ use dokime::{
     RuntimeHandle,
     domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::GetSettings> for Resources {
     fn serve<'a>(
@@ -105,8 +82,6 @@ impl Serve<wire::UpdatePluginSecret> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let mut dependencies = dokime::harmos::Dependencies::new();
@@ -123,8 +98,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn plugin_id(id: &str) -> Result<dokime::domain::model::identity::Identifier, Status> {
     projection::identifier(id.to_owned(), "plugin_id")
 }
@@ -134,5 +107,3 @@ fn plugin_response(
 ) -> Result<Response<dokime::domain::model::settings::wire::PluginRuntimeSettings>, Status> {
     resources.produce_result(|| projection::encode_plugin_settings(settings, resources.maximum))
 }
-
-/* === Tests === */

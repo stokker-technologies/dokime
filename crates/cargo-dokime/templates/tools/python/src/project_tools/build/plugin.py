@@ -8,33 +8,18 @@
 
 """Compile The Plugin Once And Freeze Its Catalog And Assets"""
 
-# === Imports === #
 
-# Standard Library Imports
 import argparse
 import subprocess
 import sys
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from .. import temporary
 from . import paths
 from .rust.__main__ import build as build_rust
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 PACKAGE = "{{package}}"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def build(root: Path, profile: str) -> None:
@@ -112,10 +97,6 @@ def main() -> None:
     options = parser.parse_args()
     build(Path.cwd(), options.profile)
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     main()

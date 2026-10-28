@@ -7,38 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::process::ExitCode;
 
-// Third Party Imports
 use clap::Parser;
 
-// Local Imports
 use dokime::domain::model::diagnostics::Diagnostic;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn main() -> ExitCode {
     let cli = dokime_cli::Cli::parse();
@@ -99,8 +72,6 @@ fn report_error(terminal: &dokime::terminal::Terminal, error: dokime_cli::Error)
     terminal.failure(diagnostic);
     error.exit_code()
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 #[test]

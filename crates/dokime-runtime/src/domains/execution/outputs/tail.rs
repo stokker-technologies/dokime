@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     io::{Read, Seek},
@@ -21,25 +14,15 @@ use std::{
     sync::Arc,
 };
 
-// Third Party Imports
 use harmos::{ServiceContext, services::Resident};
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use crate::runtime::storage::executions::{ExecutionStorage, TailStop};
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type LogBuffer = Vec<u8>;
 type FileJob = tokio::task::JoinHandle<(std::fs::File, std::io::Result<FileResult>)>;
-
-/* === Structs === */
 
 struct LogTail {
     poll_interval: std::time::Duration,
@@ -56,8 +39,6 @@ struct LogTail {
     final_end: Option<u64>,
     drained: bool,
 }
-
-/* === Enums === */
 
 enum FileResult {
     End(u64),
@@ -81,10 +62,6 @@ enum TailError {
     #[error("log state is invalid: {0}")]
     State(&'static str),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn start_execution_log_tail(
@@ -380,10 +357,6 @@ impl LogTail {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn operation_error(error: impl ToString) -> Error {
     Error::Operation(error.to_string())
 }
@@ -393,5 +366,3 @@ fn remove_stopped_tail(runtime: &RuntimeHandle, name: &str, stops: &mut BTreeMap
         stops.remove(name);
     }
 }
-
-/* === Tests === */

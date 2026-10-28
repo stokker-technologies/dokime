@@ -7,40 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 mod plots;
 pub(crate) mod telemetry;
 
-/* === Re-Exports === */
-
 pub(super) use plots::{ReadCache, ReadPlan, materialize, read_plan};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::{Query, arrow::ArrowBatch, query::QueryArrow};
 
-// Local Imports
 use crate::{runtime::Error, runtime::Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) async fn visit_batches(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, query: Query, mut visit: impl FnMut(ArrowBatch) -> Result<()>,
@@ -74,7 +48,3 @@ pub(super) async fn visit_batches(
 pub(super) fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

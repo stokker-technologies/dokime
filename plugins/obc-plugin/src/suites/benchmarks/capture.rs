@@ -9,30 +9,13 @@
 
 // Generated Telemetry And Two Operator Checkpoints
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::suites::common::measurement::{self, InputMeasurement};
 use crate::{error::Error, prompts::checkpoint::SteadyCheck};
 use dokime::prelude::*;
 use obc_runtime::device::{Device, Supply};
 
-/* === Constants === */
 const STREAM: &str = "obc.benchmarks.samples";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 pub struct Capture;
 
 #[dokime::parameters]
@@ -47,7 +30,6 @@ pub struct Parameters {
 #[dokime::stream(id = "obc.benchmarks.samples", row = InputMeasurement, window = 4096, label = "Benchmark Samples")]
 pub struct Samples;
 
-/* === Enums === */
 #[dokime::catalog]
 pub enum Streams {
     Samples(Samples),
@@ -58,9 +40,6 @@ pub enum Prompts {
     Check(SteadyCheck),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime::template(
     id = "obc.benchmarks.capture", label = "High-Volume Capture", parameters = Parameters,
     streams = Streams, prompts = Prompts,
@@ -106,9 +85,6 @@ impl Capture {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 async fn accept(ctx: &mut StepContext<'_, Capture, (), Parameters>) -> Result<(), Error> {
     let response = ctx.ask(SteadyCheck::default()).await?;
     if !response.accepted {
@@ -116,5 +92,3 @@ async fn accept(ctx: &mut StepContext<'_, Capture, (), Parameters>) -> Result<()
     }
     Ok(())
 }
-
-/* === Tests === */

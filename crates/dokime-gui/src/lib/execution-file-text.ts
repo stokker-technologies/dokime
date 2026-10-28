@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { ArtifactRecord } from "@/lib/types";
-
-/* === Constants === */
 
 const GUI_FILE_BUFFER_CHARS = 1_000_000;
 const GUI_FILE_PREVIEW_BYTES = 262_144;
@@ -23,8 +19,6 @@ export const TEXT_FILE_PREVIEW_BUDGET_BYTES = GUI_FILE_PREVIEW_BYTES;
 export const TEXT_FILE_FOLLOW_TAIL_BYTES = GUI_FILE_TAIL_BYTES;
 export const TEXT_FILE_BUFFER_MAX_CHARS = GUI_FILE_BUFFER_CHARS;
 
-/* === Types === */
-
 export type TextArtifactLanguage = "json" | "log" | "text";
 
 export type TextHighlightKind = "boolean" | "key" | "level" | "null" | "number" | "plain" | "punctuation" | "string" | "timestamp";
@@ -33,8 +27,6 @@ export type TextHighlightToken = {
   kind: TextHighlightKind;
   text: string;
 };
-
-/* === Public Functions === */
 
 /** Append decoded text, keeping only the newest `TEXT_FILE_BUFFER_MAX_CHARS`. */
 export function appendBoundedText(current: string, addition: string): string {
@@ -98,8 +90,6 @@ export function highlightTextLine(line: string, language: TextArtifactLanguage):
   }
   return [{ kind: "plain", text: line }];
 }
-
-/* === Private Functions === */
 
 function highlightJsonLine(line: string): TextHighlightToken[] {
   const tokens: TextHighlightToken[] = [];

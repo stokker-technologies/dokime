@@ -7,13 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Braces, Copy, Download } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-
-/* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { copyTraceabilityText } from "@/components/traceability/clipboard";
@@ -26,18 +22,12 @@ import { type TraceabilityExportName, traceabilityJson, traceabilityJsonFilename
 import type { TraceabilitySnapshot } from "@/lib/types";
 import { isReportBuild } from "@/lib/ui-mode";
 
-/* === Constants === */
-
 const GUI_DOWNLOAD_REVOKE_MS = 1_000;
-
-/* === Types === */
 
 type TraceabilityJsonDialogProps = {
   exportName?: TraceabilityExportName | null;
   traceability: TraceabilitySnapshot | null | undefined;
 };
-
-/* === Components === */
 
 /**
  * The traceability card's header action: the whole traceability as JSON.
@@ -103,8 +93,6 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
     </Dialog>
   );
 }
-
-/* === Private Functions === */
 
 /**
  * Save the JSON where this surface can: the native picker on the desktop, a

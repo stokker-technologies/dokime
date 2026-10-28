@@ -14,10 +14,6 @@
  * that table becomes a projection with names of its own, which is why no
  * caller has to know that "mean_ms" was column three. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { Row2 as GeneratedAggregateReply, Row14 as GeneratedValue } from "@generated/dokime/v1/QueryMessages/Aggregate/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
@@ -28,8 +24,6 @@ import { jsonToNativeValue, NativeApiLimitError, safeNumber } from "./native-val
 type AggregateReply = Wire<GeneratedAggregateReply>;
 type Value = Wire<GeneratedValue>;
 
-/* === Types === */
-
 /** What the lake knows about one step of one template, in the GUI's terms. */
 export type StepDurationStatistic = {
   meanMs: number;
@@ -38,8 +32,6 @@ export type StepDurationStatistic = {
 
 /** Keyed by the step's declaration identity, which is what the catalog names. */
 export type StepDurationStatistics = Record<string, StepDurationStatistic>;
-
-/* === Constants === */
 
 /* The widened STEPS source joins its execution and that execution's frozen
    case revision, so the template and the execution's verdict are columns of
@@ -56,8 +48,6 @@ const PASSED_STATUS = "passed";
 
 const SAMPLE_COUNT_ALIAS = "sample_count";
 const MEAN_MS_ALIAS = "mean_ms";
-
-/* === Public API === */
 
 /**
  * The mean duration of each step of one template over its passed executions.
@@ -97,8 +87,6 @@ export async function fetchNativeStepDurations(session: SessionIdentity, templat
   return mapStepDurations(reply);
 }
 
-/* === Mapping === */
-
 /**
  * Read the aggregate table by column name.
  *
@@ -127,8 +115,6 @@ export function mapStepDurations(reply: AggregateReply): StepDurationStatistics 
   }
   return statistics;
 }
-
-/* === Private Functions === */
 
 function columnIndex(reply: AggregateReply, name: string): number {
   const index = reply.columns.indexOf(name);

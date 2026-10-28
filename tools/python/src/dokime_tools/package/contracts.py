@@ -8,27 +8,8 @@
 
 """Locate The Contract Export Of The dokime-server Build Script In One Cargo Build"""
 
-# === Imports === #
-
-# Standard Library Imports
 import json
 from pathlib import Path
-
-# Third Party Imports
-
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def locate(messages: Path) -> Path:
@@ -80,8 +61,3 @@ def locate(messages: Path) -> Path:
         if not (root / relative).is_file():
             raise ValueError(f"missing selected contract export: {name}")
     return root
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -9,34 +9,20 @@
 
 // Plot Benchmarks: Durable Telemetry Visibility Through Native Storage
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::time::{Duration, Instant};
 
-// Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 use futures_util::FutureExt;
 use harmos::{Message, schema::Described};
 
-// Local Imports
 use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
 use dokime_runtime::telemetry::{TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
 use dokime_runtime::{Identifier, Metadata, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig};
 
-/* === Constants === */
 const OWNER: &str = "bench_plot";
 const STREAM: &str = "bench.plot";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct PlotRow {
@@ -44,13 +30,6 @@ struct PlotRow {
     value: Option<f64>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     if std::env::var_os("DOKIME_PLOT_MEASURE").is_some() {
@@ -89,8 +68,6 @@ pub fn benchmark(criterion: &mut Criterion) {
     drop(runtime);
     executor.block_on(owner.shutdown()).unwrap();
 }
-
-/* === Private Functions === */
 
 async fn measure_queries() {
     let root = tempfile::tempdir().unwrap();
@@ -189,5 +166,3 @@ fn metadata(identifier: &str, label: &str) -> Metadata {
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).unwrap()
 }
-
-/* === Tests === */

@@ -16,36 +16,9 @@
 // runtime's workers get the same stack, so the same binary behaves alike in
 // development and release on every operating system.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::future::Future;
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
 pub const STACK_BYTES: usize = 32 * 1024 * 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // Runs the future to completion on a multi-threaded runtime whose driving and
 // worker threads use the supplied execution stack policy. A panic inside the future
@@ -73,7 +46,3 @@ where
         Err(panic) => std::panic::resume_unwind(panic),
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

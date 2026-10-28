@@ -7,46 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Token, Type, punctuated::Punctuated};
 
-// Local Imports
-
-/* === Constants === */
-
 const ROLES: &[&str] = &["value", "counter", "state", "distance", "latency", "throughput"];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct RowFieldDeclaration {
     name: Ident,
     ty: Type,
     format: Option<Expr>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn implementation(input: &DeriveInput) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -158,8 +131,6 @@ pub(crate) fn optional(ty: &Type) -> bool {
 
     path.path.segments.last().is_some_and(|segment| segment.ident == "Option")
 }
-
-/* === Private Functions === */
 
 fn handles(fields: &[RowFieldDeclaration]) -> Vec<TokenStream> {
     let sdk = crate::facade::root();
@@ -291,5 +262,3 @@ fn read(field: &RowFieldDeclaration) -> TokenStream {
 
     quote!(#name: #sdk::telemetry::field(values, #identifier)?)
 }
-
-/* === Tests === */

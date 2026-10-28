@@ -9,27 +9,9 @@
 
 // Replays Saved Telemetry Before Following Durable Storage Changes.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<WatchSamples>], response = (), output = TelemetrySamplesReply, id = "dokime.telemetry.watch_samples",
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
@@ -39,20 +21,6 @@ pub struct WatchSamples {
     pub selection: Option<ListSamples>,
     pub follow: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

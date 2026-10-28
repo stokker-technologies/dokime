@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod case_materialization;
 pub mod conditions;
 pub mod parameters;
 pub mod registry;
 pub mod suite;
 pub mod wire;
-
-/* === Re-Exports === */
 
 pub use case_materialization::CaseMaterializationError;
 pub use case_materialization::CaseMaterializationOptions;
@@ -56,31 +52,3 @@ pub use suite::TestCase;
 pub use suite::TestCaseTemplate;
 pub use suite::TestSuite;
 pub use suite::template_identifier;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -9,35 +9,18 @@
 
 // Independent Pairing Verifiers And Bounded Client Lifecycles
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{
     Arc, RwLock,
     atomic::{AtomicU64, Ordering},
 };
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
-// Local Imports
 use super::{Controller, Error, store};
 use dokime::domain::model::remote::{CreatedPairing, PairedClient, PairedClientPage, PairingFile};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct Registry {
     entries: RwLock<Vec<Entry>>,
@@ -49,12 +32,6 @@ struct Entry {
     record: store::Client,
     revoked: CancellationToken,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::fmt::Debug for Registry {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -233,10 +210,6 @@ impl Controller {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn unix_millis() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis().min(u64::MAX as u128) as u64
 }
@@ -302,8 +275,6 @@ async fn validate_endpoint(
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

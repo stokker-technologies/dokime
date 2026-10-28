@@ -7,32 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use keyring::Entry;
 use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct KeyringStore;
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -40,15 +19,11 @@ pub enum Error {
     Unavailable,
 }
 
-/* === Traits === */
-
 pub trait SecretStore: Send + Sync {
     fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, Error>;
     fn write(&self, endpoint: &str, token: &str) -> Result<(), Error>;
     fn remove(&self, endpoint: &str) -> Result<(), Error>;
 }
-
-/* === Implementations === */
 
 impl SecretStore for KeyringStore {
     fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, Error> {
@@ -71,13 +46,7 @@ impl SecretStore for KeyringStore {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn entry(endpoint: &str) -> Result<Entry, Error> {
     let account = Sha256::digest(endpoint.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     Entry::new("com.stokker.dokime.backend", &account).map_err(|_| Error::Unavailable)
 }
-
-/* === Tests === */

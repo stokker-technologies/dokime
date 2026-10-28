@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(super) mod projection;
-
-/* === Re-Exports === */
-
-/* === Imports === */
 
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::value::{self, canonical};
 
 use dokime::RuntimeHandle;
@@ -36,17 +27,9 @@ use dokime::domains::evidence::TelemetrySelection;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::telemetry as wire;
 
-/* === Constants === */
-
 const SERVER_DEFAULT_TELEMETRY_ITEMS: u64 = 500;
 const SERVER_EVIDENCE_SELECTION_ITEMS: u64 = 64;
 const SERVER_MAXIMUM_TELEMETRY_ITEMS: u64 = 5_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     pub(super) runtime: RuntimeHandle,
@@ -56,8 +39,6 @@ struct Resources {
 struct Selection {
     query: TelemetrySelection,
 }
-
-/* === Enums === */
 
 enum ProjectionError {
     Status(Status),
@@ -87,10 +68,6 @@ impl ProjectionError {
         }
     }
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListSamples> for Resources {
     fn serve<'a>(
@@ -247,8 +224,6 @@ impl Selection {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
@@ -261,8 +236,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 /// An Empty Complete Page Keeps Every Cursor And Proves The Followed Stream Is Alive.
 fn heartbeat() -> dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
@@ -389,5 +362,3 @@ fn timestamp(value: Option<common::Timestamp>, _: &str) -> Result<Option<Timesta
 fn request_is_complete(latest: bool, sample_count: usize, limit: usize) -> bool {
     latest || sample_count < limit
 }
-
-/* === Tests === */

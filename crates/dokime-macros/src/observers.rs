@@ -7,37 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Parser;
 use syn::{Error, Meta, Token, punctuated::Punctuated};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn stream(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
@@ -53,8 +26,6 @@ pub(crate) fn stream(attribute: TokenStream, item: TokenStream) -> TokenStream {
 pub(crate) fn observer(attribute: TokenStream, item: TokenStream) -> TokenStream {
     crate::facade::harmos_attribute("observer", attribute, item)
 }
-
-/* === Private Functions === */
 
 fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -203,5 +174,3 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
         #publishable
     })
 }
-
-/* === Tests === */

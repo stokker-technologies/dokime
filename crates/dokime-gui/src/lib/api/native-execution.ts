@@ -9,10 +9,6 @@
 
 /* Native execution detail and control adapters for the original routed UI. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 

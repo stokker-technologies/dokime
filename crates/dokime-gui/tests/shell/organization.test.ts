@@ -11,37 +11,19 @@
  * Brand Surface Selection And Resource Ownership
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
-// Third Party Imports
 import { test, vi } from "vitest";
 
-// Local Imports
 import { brandFromLogos, selectLogo } from "@/lib/brand";
 import { loadAppearance } from "@/lib/rpc/appearance";
 
-/* === Re-Exports === */
-
-/* === Constants === */
 const calls = vi.hoisted(() => ({ appearance: vi.fn(), download: vi.fn() }));
 vi.mock("@/lib/rpc/generated/client.js", () => ({
   appearanceGetAppearance: calls.appearance,
   contentDownloadAppearanceAsset: calls.download,
 }));
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */
 
 test("Brand Asset Lifecycle", async () => {
   const categories = ["TransparentOnLight", "TransparentOnDark", "ContainedOnLight", "ContainedOnDark"];

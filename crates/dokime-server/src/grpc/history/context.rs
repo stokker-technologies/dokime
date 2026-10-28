@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::document::canonical::wire as document_wire;
 use super::wire;
 use crate::grpc::{
@@ -36,24 +27,10 @@ use dokime::operations::history;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::execution_history::ExecutionCheckpointContext;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<history::GetCheckpointContext> for Resources {
     fn serve<'a>(
@@ -74,8 +51,6 @@ impl Serve<history::GetCheckpointContext> for Resources {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
@@ -111,8 +86,6 @@ pub(super) fn checkpoint_context(
         appearance: Some(appearance::historical(value.appearance)?),
     })
 }
-
-/* === Private Functions === */
 
 fn cycle_context(
     value: dokime::runtime::ExecutionCycleContext,
@@ -172,5 +145,3 @@ fn original_error(source: Status) -> dokime::harmos::Error {
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint context" }
 }
-
-/* === Tests === */

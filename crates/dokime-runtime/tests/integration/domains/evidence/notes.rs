@@ -7,40 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use dokime_domain::model::identity::CommandId;
 
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model;
 use dokime_runtime::domains::evidence::notes::{CreateNote, NotePublication};
 use model::execution::notes::NoteOwner;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 async fn fixture(root: &std::path::Path) -> (Runtime, CreateNote) {
     let metadata = Metadata::new(Identifier::new("notes.fixture").unwrap(), "Notes", None);
     let owner = Runtime::start(crate::service_support::budgets::runtime_config(root, metadata.clone())).await.unwrap();
@@ -56,8 +29,6 @@ async fn fixture(root: &std::path::Path) -> (Runtime, CreateNote) {
     };
     (owner, request)
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn empty_cycle_datasets() {

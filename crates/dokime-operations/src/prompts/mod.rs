@@ -7,15 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
 mod get_definition;
 mod get_prompt;
 mod list_definitions;
 mod list_pending;
 mod respond;
-
-/* === Re-Exports === */
 
 pub use get_definition::GetDefinition;
 pub use get_prompt::GetPrompt;
@@ -23,13 +19,6 @@ pub use list_definitions::ListDefinitions;
 pub use list_pending::ListPending;
 pub use respond::Respond;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Endpoint;
 use super::ORDINARY;
 
@@ -44,16 +33,6 @@ use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::prompts::wire::*;
 use dokime_domain::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 // Current definitions are ordered by prompt type; pending requests by prompt ID.
 
@@ -74,10 +53,6 @@ pub enum Operations {
     Respond(Respond),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Endpoint for ListDefinitions {
     const PATH: &'static str = "/dokime.v1.Prompts/ListDefinitions";
 }
@@ -97,9 +72,3 @@ impl Endpoint for GetPrompt {
 impl Endpoint for Respond {
     const PATH: &'static str = "/dokime.v1.Prompts/Respond";
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

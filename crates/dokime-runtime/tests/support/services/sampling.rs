@@ -10,21 +10,12 @@
 // The Smoke-Provider Sampling Paths, Shared By Their Acceptance Guards And Full-Scale
 // System Stories: Paged Replay, Whole-Capture Seals, Running Reports And Report Progress.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 use std::sync::Arc;
 
-// Third Party Imports
 use tempfile::tempdir;
 use tokio::sync::Barrier;
 
-// Local Imports
 use super::prelude::*;
 use super::smoke::{Behaviour, PULSE_DISPLAY_POINTS, PULSE_PLOT, PULSE_STREAM, SOURCE, SUITE, Smoke};
 use dokime_domain::model::execution::result::CriterionStatus;
@@ -38,15 +29,7 @@ use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimeChange, RuntimeP
 use dokime_runtime::{Identifier, Metadata, TestCycleId, TestExecutionId};
 use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
 
-/* === Constants === */
-
 const LIVE_DISPLAY_POINTS: u32 = 1_500;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One Size Of The Sampling Paths.
 #[derive(Clone, Copy, Debug)]
@@ -69,13 +52,6 @@ pub struct Contention {
     pub rounds: usize,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 // cases whose own stream spans many pages replay and seal independent of history.
 pub async fn paged_evidence_settles(size: Sampling) {
     let root = tempdir().unwrap();
@@ -372,8 +348,6 @@ pub async fn contended_reads(size: Contention) {
     owner.shutdown().await.unwrap();
 }
 
-/* === Private Functions === */
-
 fn replay_diagnostics() {
     let _ = tracing_subscriber::fmt()
         .with_env_filter("dokime_runtime::domains::execution::run=debug,dokime_runtime::execution::run=debug")
@@ -508,5 +482,3 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize, row
 fn small_storage_pages(config: &mut dokime_runtime::RuntimeConfig, bytes: usize) {
     config.storage.response.batch_bytes = std::num::NonZeroUsize::new(bytes).unwrap();
 }
-
-/* === Tests === */

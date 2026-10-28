@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{ExecutionFixtureContext, Target, TestExecution, failure};
 use crate::transport::{CommandExecutionRequest, ProviderExecutionFailure};
 use dokime_domain::model::execution::request::StepCommand;
@@ -27,24 +16,10 @@ use dokime_domain::model::execution::termination::TerminationReason;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::StepAttemptId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Default)]
 pub(super) struct Pending {
     receipt: Option<StepCommandReceipt>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Pending {
     pub(super) fn invalidate(&mut self) {
@@ -61,8 +36,6 @@ impl Pending {
         Ok(self.receipt.as_mut())
     }
 }
-
-/* === Public Functions === */
 
 // Answers Whether The Execution Still Has An Unsettled Command; Only Admission Reloads Its Durable Receipt.
 pub(super) async fn reconcile(
@@ -170,8 +143,6 @@ pub(super) async fn reconcile(
     save(context, request_id, command, phase, attempt_id, (!reply.message.is_empty()).then_some(reply.message)).await
 }
 
-/* === Private Functions === */
-
 async fn save(
     context: &ExecutionFixtureContext, request_id: &CommandId, command: &mut StepCommandReceipt, phase: StepCommandPhase,
     attempt_id: Option<StepAttemptId>, detail: Option<String>,
@@ -203,8 +174,6 @@ async fn save(
     command.updated_at = cached_at;
     Ok(open)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -7,32 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use harmos_domain::Value;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::cmp::Ordering;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -46,12 +26,6 @@ pub enum ValueType {
     Object,
     Array,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn value_matches_type(value: &Value, value_type: &ValueType) -> bool {
     match value_type {
@@ -100,8 +74,6 @@ pub fn numeric_cmp(value: &Value, bound: &Value) -> Option<std::cmp::Ordering> {
     }
 }
 
-/* === Private Functions === */
-
 fn integer_float_cmp(value: i64, bound: f64) -> Option<std::cmp::Ordering> {
     use std::cmp::Ordering;
     if !bound.is_finite() {
@@ -136,5 +108,3 @@ fn unsigned_float_cmp(value: u64, bound: f64) -> Option<std::cmp::Ordering> {
         order => Some(order),
     }
 }
-
-/* === Tests === */

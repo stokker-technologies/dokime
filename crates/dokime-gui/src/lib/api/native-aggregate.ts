@@ -15,13 +15,7 @@
  * declares its own copy of that message, so these adapters work on its shape
  * rather than on one generated type. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { Aggregate } from "@/lib/document-contracts";
-
-/* === Types === */
 
 type UnitMember = "Count" | "Sum" | "Mean" | "Median" | "Min" | "Max" | "Rms" | "Std";
 
@@ -37,8 +31,6 @@ type DecodedAggregate =
     }
   | undefined;
 
-/* === Constants === */
-
 const UNIT_MEMBERS: Record<string, UnitMember> = {
   count: "Count",
   sum: "Sum",
@@ -52,8 +44,6 @@ const UNIT_MEMBERS: Record<string, UnitMember> = {
 
 const PERCENTILE = /^p(\d{1,3})$/;
 const MAX_RANK = 100;
-
-/* === Public API === */
 
 /** The wire message for one document aggregate; unknown names are refused. */
 export function aggregateMessage(name: string): AggregateMessage {

@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
-
-// Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
 use dokime::operations::content as v1;
 
-/* === Constants === */
-
 const CYCLE_REPORT: &str = "cycle.summary";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug)]
 pub(crate) struct VerifiedContent {
@@ -55,8 +37,6 @@ pub struct DeliveryError {
     pub failure: DeliveryFailure,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeliveryStage {
@@ -77,10 +57,6 @@ pub enum DeliveryFailure {
     #[error("{0}")]
     Local(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DeliveryError {
     pub(crate) fn local(stage: DeliveryStage, message: impl Into<String>) -> Self {
@@ -143,8 +119,6 @@ impl VerifiedContent {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) async fn fetch_verified(
     lease: &SessionLease, source: &ArtifactSource, destination: &Path, frame_bytes: usize,
@@ -227,10 +201,6 @@ pub(crate) async fn push_verified(
         Err(error) => Err(error.to_string()),
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

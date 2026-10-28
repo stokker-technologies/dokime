@@ -9,21 +9,12 @@
 
 // Write Captured Evidence To Typed SQLite Tables
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 
-// Third Party Imports
 use rusqlite::{Connection, limits::Limit, params, params_from_iter, types::Value as SqlValue};
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
-// Local Imports
 use super::{
     InventoryBudget,
     error::{Error, Result},
@@ -36,8 +27,6 @@ use dokime_domain::model::{
     telemetry::TelemetryContract,
     values::{Value, ValueType},
 };
-
-/* === Constants === */
 
 const SCHEMA: &str = r#"
 CREATE TABLE cycles(cycle_id TEXT PRIMARY KEY, phase TEXT NOT NULL, body_json TEXT NOT NULL) STRICT;
@@ -102,12 +91,6 @@ CREATE TABLE outputs(
 ) STRICT;
 "#;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Writer {
     connection: Connection,
     streams: Vec<StreamInventory>,
@@ -144,12 +127,6 @@ pub(super) struct StreamInventory {
     pub partitions: Vec<String>,
     pub samples: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Writer {
     pub fn open(path: &Path, snapshot: &Snapshot) -> Result<Self> {
@@ -514,10 +491,6 @@ impl Writer {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn cancelled(token: &CancellationToken) -> Result<()> {
     if token.is_cancelled() { Err(Error::Cancelled) } else { Ok(()) }
 }
@@ -561,8 +534,6 @@ fn cell(value: &Value) -> Result<SqlValue> {
         }
     })
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

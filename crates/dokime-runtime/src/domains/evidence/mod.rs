@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod artifacts;
 pub(crate) mod health;
 pub mod notes;
 pub(crate) mod publish;
 mod selection;
 mod summary;
-
-/* === Re-Exports === */
 
 pub use crate::artifacts::ArtifactUploadInput;
 pub use dokime_domain::model::execution::notes::OperatorNoteRequest;
@@ -26,14 +22,8 @@ pub(crate) use selection::scopes_correlate;
 pub use selection::{RecordSelection, ScopeSelection, TelemetrySelection};
 pub use summary::{EvidenceSummaries, RecordSummary, TelemetryStreamSummary};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::prompts::PromptInstance;
 use crate::records::RecordContract;
@@ -42,14 +32,6 @@ use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceSnapshot {
@@ -76,12 +58,6 @@ pub struct EvidenceCounts {
     pub notes: usize,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl EvidenceSnapshot {
     pub fn counts(&self) -> EvidenceCounts {
         EvidenceCounts {
@@ -95,9 +71,3 @@ impl EvidenceSnapshot {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

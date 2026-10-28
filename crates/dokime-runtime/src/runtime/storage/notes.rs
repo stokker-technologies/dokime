@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::storage::ObjectVersion;
 
-// Local Imports
 use super::executions::{Acquisition, ExecutionStorage};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::RecordScope;
@@ -28,24 +19,10 @@ use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(crate) struct AnnotationAdmission {
     _guards: Vec<tokio::sync::OwnedMutexGuard<()>>,
     _owners: Vec<Arc<tokio::sync::Mutex<Acquisition>>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionStorage {
     pub(crate) async fn admit_annotations(&self, scope: &RecordScope) -> Result<AnnotationAdmission> {
@@ -131,10 +108,6 @@ impl ExecutionStorage {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn annotation_limit(reason: &'static str) -> Error {
     Error::Operation(reason.into())
 }
@@ -182,5 +155,3 @@ fn includes_note(
     }
     Ok(found == note)
 }
-
-/* === Tests === */

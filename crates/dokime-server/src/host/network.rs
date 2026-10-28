@@ -7,39 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::net::SocketAddr;
 
-// Third Party Imports
-
-// Local Imports
 use super::NetworkArgs;
 use crate::grpc::Config;
-
-/* === Constants === */
 
 const SERVER_ALLOWED_ORIGINS: u64 = 32;
 const SERVER_LISTEN_PORT: u64 = 8_765;
 const SERVER_MAXIMUM_MESSAGE_BYTES: u64 = 16_777_216;
 const SERVER_MESSAGE_BYTES: u64 = 1_048_576;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl NetworkArgs {
     pub fn config(&self) -> crate::host::Result<Config> {
@@ -75,12 +51,6 @@ impl NetworkArgs {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn input(message: impl Into<String>) -> crate::host::Error {
     crate::host::Error::Input(message.into())
 }
-
-/* === Tests === */

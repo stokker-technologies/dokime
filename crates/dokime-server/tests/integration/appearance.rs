@@ -7,40 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use crate::support::wire::WireMessage;
 use prost::Message;
 use sha2::{Digest, Sha256};
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use dokime::domains::installed_plugins::{ResolvedBrand, load_brand};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn brand(path: &std::path::Path) -> ResolvedBrand {
     let mut brand = load_brand(
@@ -225,5 +198,3 @@ async fn appearance_refuses_transfer() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

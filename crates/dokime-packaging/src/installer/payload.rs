@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     path::{Component, Path},
 };
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::manifest::Artifact;
 use crate::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -52,14 +35,6 @@ pub struct Identity {
     pub slug: String,
     pub updater_public_key: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
@@ -190,13 +165,9 @@ pub async fn download(artifact: &Artifact, destination: &Path) -> Result<(), Err
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn safe_identity(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

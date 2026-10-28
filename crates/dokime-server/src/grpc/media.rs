@@ -9,20 +9,11 @@
 
 // Operator media operations: host captures sealed as execution artifacts.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{sync::Arc, time::Duration};
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::content::{artifact_scope, content_failure, metadata};
 use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
@@ -37,8 +28,6 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::media as contract;
 use dokime::runtime::Error;
 
-/* === Constants === */
-
 const SERVER_MEDIA_DEFAULT_RECORDING_MS: u64 = 600_000;
 const SERVER_MEDIA_PROGRESS_MS: u64 = 1_000;
 const SERVER_MEDIA_RECORDING_MS: u64 = 3_600_000;
@@ -47,12 +36,6 @@ const SERVER_MEDIA_RECORDING_MS: u64 = 3_600_000;
 // GStreamer or platform encoder is linked yet. The desktop's MediaRecorder sink
 // remains the video path until that decision lands.
 const NO_VIDEO_ENCODER: &str = "no video encoder available in this build";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: RuntimeHandle,
@@ -64,12 +47,6 @@ struct Unsupported;
 
 // A Cancelled Or Failed Stream Still Seals What Was Recorded.
 struct Unsealed(Option<Recording>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<contract::Screenshot> for Resources {
     fn serve<'a>(&'a self, request: contract::Screenshot, _: Context<'a, contract::Screenshot>) -> Served<'a, ArtifactMetadata> {
@@ -193,8 +170,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let unsupported = Arc::new(Unsupported);
@@ -213,8 +188,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn capture_scope(scope: Option<&dokime::domain::model::content::wire::ArtifactScope>) -> Result<RecordScope, Status> {
     let scope = artifact_scope(scope)?;
@@ -241,5 +214,3 @@ fn failure(error: Error) -> Status {
         _ => content_failure(error),
     }
 }
-
-/* === Tests === */

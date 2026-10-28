@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
-
-// Local Imports
 use super::answering;
 use dokime::domain::model;
 use dokime::execution::{Caller, SidecarTemplate, Workflow};
@@ -31,25 +21,7 @@ use obc_plugin::domain::model::readiness::Readiness;
 use obc_plugin::domain::operations::AskReadiness;
 use obc_plugin::domain::operations::ListConnections;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Connections = Arc<Mutex<Vec<String>>>;
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn assert_record_contract(request: model::records::publication::RecordPublishRequest) {
     let contract = dokime::catalog::entries::<obc_plugin::suites::Suites, dokime::catalog::Suites>()
@@ -462,5 +434,3 @@ fn answer<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, prompt_id: Pr
     };
     workflow.answer(token, &prompt_id.to_string(), &serde_json::to_string(&response).unwrap()).unwrap();
 }
-
-/* === Tests === */

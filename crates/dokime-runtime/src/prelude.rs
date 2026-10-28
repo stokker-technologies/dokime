@@ -7,10 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::Slot;
 pub use crate::document::{Band, Card, Document, Line, Plot, Section, format};
 pub use crate::domains::{OptionsResponse, StatusResponse};
@@ -38,31 +34,3 @@ pub use crate::{
     stream, suite, template,
 };
 pub use tokio_stream::{Elapsed, Stream, StreamExt};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

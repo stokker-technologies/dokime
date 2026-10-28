@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Collapsible as CollapsiblePrimitive } from "radix-ui";
 import * as React from "react";
 

@@ -9,14 +9,10 @@
 
 /* Coalesce runtime-watch refreshes while preserving one trailing observation. */
 
-/* === Types === */
-
 export type RuntimeProjectionRefreshCoordinator = {
   request(options?: { ensureTrailing?: boolean }): Promise<void>;
   dispose(): void;
 };
-
-/* === Exports === */
 
 export function createRuntimeProjectionRefreshCoordinator(refresh: () => Promise<void>): RuntimeProjectionRefreshCoordinator {
   let inFlight: Promise<void> | undefined;

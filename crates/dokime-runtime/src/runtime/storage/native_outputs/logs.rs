@@ -7,33 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     io::{Seek, Write},
     sync::Arc,
 };
 
-// Third Party Imports
-
-// Local Imports
 use super::{LogPrefix, NativeOutput, error, open_file, validate_producer_path};
 use crate::{runtime::Result, runtime::storage::executions::ExecutionStorage};
 use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Close {
     execution: TestExecutionId,
@@ -46,12 +28,6 @@ struct Append {
     path: String,
     bytes: Vec<u8>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Append {
     fn write(&self, mut file: std::fs::File, acknowledged: u64) -> std::io::Result<()> {
@@ -272,10 +248,6 @@ impl crate::RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn retryable(source: &std::io::Error) -> bool {
     matches!(source.kind(), std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut)
 }
@@ -286,8 +258,6 @@ fn active_log(output: &NativeOutput) -> Result<()> {
         _ => Err(error("log path belongs to a different or closed producer")),
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

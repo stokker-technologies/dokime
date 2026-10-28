@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::state::RuntimeState;
 use dokime_domain::model::plugins::InstalledPlugin;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.artifact.install", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -42,12 +24,6 @@ pub struct InstallPlugin {
 pub struct RemovePlugin {
     pub source: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for InstallPlugin {
     type Error = String;
@@ -76,12 +52,6 @@ impl Transaction<RuntimeState> for RemovePlugin {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn ensure_runtime_active(state: &RuntimeState) -> Result<(), String> {
     if state.shutting_down { Err("runtime is shutting down".to_owned()) } else { Ok(()) }
 }
-
-/* === Tests === */

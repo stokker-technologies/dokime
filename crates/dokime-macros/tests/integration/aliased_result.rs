@@ -7,26 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use sdk::definition::DeclaredTemplate;
 use sdk::execution::{CriterionContext, ObserverContext, StepContext};
-// Local Imports
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/* === Structs === */
 #[derive(Debug)]
 struct Error;
 
@@ -39,16 +24,11 @@ struct Row {
     value: f64,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 #[sdk::catalog]
 enum SamplesStreams {
     Row(Row),
 }
 
-/* === Implementations === */
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("probe failed")
@@ -81,12 +61,6 @@ impl Probe {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[test]
 fn aliased_result_template() {

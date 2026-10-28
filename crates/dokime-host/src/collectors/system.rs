@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, process::Command};
 
-// Third Party Imports
 use starship_battery::{
     Battery, Manager as BatteryManager, State as BatteryState,
     units::{
@@ -30,20 +22,11 @@ use starship_battery::{
 };
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, System};
 
-// Local Imports
 use crate::{
     HostStreamSample, HostTelemetryStream, Result,
     collectors::{integer, maybe_insert},
 };
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct SystemCollector {
     sample_index: u64,
@@ -59,12 +42,6 @@ struct PowerProfileContext {
     mode: Option<String>,
     performance_bias: Option<i64>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for SystemCollector {
     fn default() -> Self {
@@ -143,10 +120,6 @@ impl SystemCollector {
         Ok(HostStreamSample::new(HostTelemetryStream::System, values))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn git_config_value(key: &str) -> Option<String> {
     let mut command = Command::new("git");
@@ -264,5 +237,3 @@ fn power_performance_bias(name: &str) -> i64 {
         _ => 50,
     }
 }
-
-/* === Tests === */

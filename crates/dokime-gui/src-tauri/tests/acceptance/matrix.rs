@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     fs::OpenOptions,
     io::Write,
@@ -21,11 +14,11 @@ use std::{
     process::{Child, Command, Stdio},
     sync::Arc,
 };
-// Third Party Imports
+
 use async_trait::async_trait;
 use dokime::harmos::sidecar::StreamDeclaration;
 use serde_json::{Value, json};
-// Local Imports
+
 use crate::support::bridge::{Harness, Local};
 use dokime::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
 use dokime::{
@@ -36,17 +29,9 @@ use dokime_gui::connection::ConnectionSession;
 use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
 use dokime_server::grpc::{Config, Server};
 
-/* === Constants === */
-
 const CONTRACT: &str = "crates/dokime-gui/src-tauri/tests/fixtures/execution.json";
 
 static ROOT: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 struct State {
@@ -78,12 +63,6 @@ struct Reading {
 
 #[dokime::prompt(id = "matrix.continue", label = "Continue?")]
 struct Continue;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Process {
     fn drop(&mut self) {
@@ -205,10 +184,6 @@ impl EmbeddedProvider for Provider {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn root() -> PathBuf {
     ROOT.lock().unwrap().clone().expect("a case names the directory its execution traces into")
 }
@@ -297,8 +272,6 @@ async fn run_matrix(interface: &str) {
         runtime.shutdown().await.unwrap();
     }
 }
-
-/* === Tests === */
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn python_runs_matrix() {

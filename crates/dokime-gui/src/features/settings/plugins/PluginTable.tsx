@@ -16,17 +16,11 @@
  * settings button keep their own hit areas inside it.
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Switch } from "@/components/ui/switch";
-
-/* === Types === */
 
 export type PluginTableRow = {
   /** Rendered under the name when the plugin reports a problem. */
@@ -44,8 +38,6 @@ export type PluginTableRow = {
   /** The row's own actions, on the shared trailing column. */
   trailing?: ReactNode;
 };
-
-/* === Constants === */
 
 const column = dataTableColumns<PluginTableRow>();
 
@@ -101,8 +93,6 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
   }),
 ]);
 
-/* === Components === */
-
 export function PluginTable({ label, rows, actions }: { label: string; rows: PluginTableRow[]; actions?: ReactNode }) {
   return (
     <DataTable
@@ -116,8 +106,6 @@ export function PluginTable({ label, rows, actions }: { label: string; rows: Plu
     />
   );
 }
-
-/* === Private Functions === */
 
 function rowKey(row: PluginTableRow): string {
   return row.key;

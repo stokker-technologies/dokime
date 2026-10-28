@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod bounds;
 pub mod limits;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::identity::ParameterId;
@@ -32,16 +23,12 @@ use crate::model::values::MeasurementUnit;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
 
-/* === Constants === */
-
 pub const MAX_SPACE_ITEMS: usize = 1_000;
 pub const MAX_MATERIALIZED_CASES: usize = 1_000;
 pub const MAX_NODES: usize = 4_096;
 pub const MAX_DEPTH: usize = 32;
 pub const MAX_TEXT_BYTES: usize = 4_096;
 pub const MAX_COLLECTION_ITEMS: usize = 256;
-
-/* === Macros === */
 
 product_error!(ParameterResolverError, formatter {
     Self::DuplicateParameter(parameter) => write!(formatter, "duplicate parameter definition for {parameter}"),
@@ -64,12 +51,8 @@ product_error!(ParameterResolverError, formatter {
     Self::TooManyItems { parameter, count, max_items } => write!(formatter, "list parameter {parameter:?} has {count} items; at most {max_items} are allowed"),
 });
 
-/* === Type Aliases === */
-
 pub type ParameterGroupId = Identifier;
 pub type DynamicDefaultResolver = dyn Fn(DynamicDefaultKey) -> Option<Value> + Send + Sync;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ParameterDefinition {
@@ -147,8 +130,6 @@ pub struct ResolvedParameterSpace {
     pub definition: ParameterDefinition,
     pub values: Vec<Value>,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -274,10 +255,6 @@ enum EvaluatedExpr {
     Space(Vec<Value>),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl harmos_domain::MemorySize for ParameterExpansion {
     fn memory_size(&self) -> usize {
         let heap = match self {
@@ -376,8 +353,6 @@ impl ParameterSource {
         matches!(self, Self::Telemetry | Self::Record | Self::Output)
     }
 }
-
-/* === Public Functions === */
 
 pub fn resolve_parameter_spaces(
     definitions: &[ParameterDefinition], dynamic_defaults: &DynamicDefaultResolver,
@@ -626,8 +601,6 @@ pub(crate) fn validate_parameter_value(definition: &ParameterDefinition, value: 
 
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn parameter_expression_memory(expression: &ParameterExpr, depth: usize) -> usize {
     if depth > 64 {
@@ -1042,5 +1015,3 @@ fn validate_numeric_bounds(definition: &ParameterDefinition, value: &Value) -> R
 fn round_number(value: f64) -> f64 {
     (value * 1_000_000_000_000.0).round() / 1_000_000_000_000.0
 }
-
-/* === Tests === */

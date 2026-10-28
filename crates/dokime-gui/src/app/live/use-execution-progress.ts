@@ -7,19 +7,13 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useEffect, useState } from "react";
-
-/* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openNativeExecutionProgressStream } from "@/lib/api/native-observation";
 import { safeNumber } from "@/lib/api/native-values";
 
 const GUI_RECONNECT_MS = 1_000;
-
-/* === Types === */
 
 export interface LiveExecutionProgress {
   testExecutionId: string;
@@ -30,8 +24,6 @@ export interface LiveExecutionProgress {
   elapsedMs: number;
   remainingMs: number | null;
 }
-
-/* === Public Functions === */
 
 export function useExecutionProgress(testExecutionId: string | null): LiveExecutionProgress | null {
   /* A frozen report mounts the same workspace without a connection: there is

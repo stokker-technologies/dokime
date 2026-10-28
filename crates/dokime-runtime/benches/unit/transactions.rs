@@ -9,40 +9,17 @@
 
 // Transaction Benchmarks: Folding Record Publications Into Runtime State
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::hint::black_box;
 
-// Third Party Imports
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput};
 use harmos::state::{Records, Transaction};
 
-// Local Imports
 use dokime_domain::model;
 use {
     dokime_runtime::state::RuntimeState, dokime_runtime::transactions::PublishRecord, model::records::product::ProductCalibrationDetails,
     model::records::product::ProductCalibrationKind, model::records::product::ProductCalibrationPhase,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
     let folded = fold(prepared(500));
     assert_eq!(folded.record_count, 500);
@@ -57,7 +34,6 @@ pub fn benchmark(criterion: &mut Criterion) {
     group.finish();
 }
 
-/* === Private Functions === */
 fn prepared(count: u64) -> (RuntimeState, Vec<PublishRecord>) {
     let mut state = RuntimeState::new(dokime_runtime::model::identity::new_id());
     state.install_builtin_domains().unwrap();
@@ -84,5 +60,3 @@ fn fold((mut state, transactions): (RuntimeState, Vec<PublishRecord>)) -> Runtim
     }
     state
 }
-
-/* === Tests === */

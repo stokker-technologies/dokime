@@ -12,43 +12,17 @@
 // whole tree under a compiler. The descendant story re-runs this binary on
 // `process::process_fixture_mode` to play cargo and the compiler under it.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use dokime_packaging::{Error, process::run};
 
-/* === Constants === */
 // A bounded wait for a process that has already been signalled to disappear;
 // the operating system exposes no portable exit notification for a process
 // this story does not own.
 const GONE_POLL: Duration = Duration::from_millis(5);
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 #[cfg(unix)]
 fn shell(script: &str) -> Command {
     let mut command = Command::new("sh");
@@ -72,8 +46,6 @@ async fn wait_gone(pid: &str) {
         tokio::time::sleep(GONE_POLL).await;
     }
 }
-
-/* === Tests === */
 
 #[cfg(unix)]
 #[tokio::test]

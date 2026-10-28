@@ -7,49 +7,26 @@
  * ***
  */
 
-/* === Modules === */
-
 mod parameters;
 pub(super) mod schemas;
 
-/* === Re-Exports === */
-
 pub(super) use parameters::{unit, wire as parameters};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeSet, sync::Arc};
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use super::value::{Budget, canonical};
 use dokime::RuntimeHandle;
 use dokime::domain::model::definition::wire as schema;
 use dokime::operations::catalog as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: RuntimeHandle,
     max_message_bytes: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListSuites> for Resources {
     fn serve<'a>(
@@ -121,8 +98,6 @@ impl Serve<wire::GetTelemetrySchema> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
@@ -145,8 +120,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) 
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
     let mut target = canonical::slots(source.len())?;
@@ -371,5 +344,3 @@ fn suite_tags(entry: &dokime::definition::SuiteSnapshot) -> Result<Vec<String>, 
     }
     Ok(values)
 }
-
-/* === Tests === */

@@ -7,30 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
 mod installer;
 mod sidecar;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(clap::Subcommand)]
 pub enum Command {
@@ -43,10 +21,6 @@ pub enum Command {
     Sidecar(sidecar::Args),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Command {
     #[tracing::instrument(level = "debug", skip_all)]
     pub async fn run(self) -> Result<(), crate::error::Error> {
@@ -57,9 +31,3 @@ impl Command {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

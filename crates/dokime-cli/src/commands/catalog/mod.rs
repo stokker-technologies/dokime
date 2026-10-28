@@ -9,30 +9,8 @@
 
 // Browse Registered Suite Catalogs
 
-/* === Modules === */
-
 mod list;
 mod show;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
@@ -43,20 +21,12 @@ pub(crate) enum Command {
     Show(show::Args),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
         Command::List(args) => list::run(args, settings).await,
         Command::Show(args) => show::run(args, settings).await,
     }
 }
-
-/* === Private Functions === */
 
 // The CLI names a template by its readable ID, `<suite id>.<segment>`, in the
 // `template_id` it prints and accepts; the registered UUID stays on the wire.
@@ -75,5 +45,3 @@ fn readable(suite: &dokime::domain::model::catalog::wire::SuiteDefinition) -> cr
     }
     Ok(value)
 }
-
-/* === Tests === */

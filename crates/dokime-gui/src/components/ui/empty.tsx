@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
-
-/* === Local Imports === */
 
 import { cn } from "@/lib/utils";
 

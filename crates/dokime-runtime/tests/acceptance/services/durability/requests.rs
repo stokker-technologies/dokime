@@ -7,40 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use harmos::storage::{ObjectKey, ObjectPoint, ObjectVersion, StorageBackend};
 
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_runtime::storage::requests::Request;
 use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn durable_requests_reopens() {
@@ -131,5 +104,3 @@ async fn run_child(root: PathBuf) {
     crate::service_support::children::announce_ready();
     std::future::pending::<()>().await;
 }
-
-/* === Tests === */

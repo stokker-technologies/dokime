@@ -8,33 +8,16 @@
 
 """Build The Shared Test Archive And Its Fixtures Without Replacing Product Exports"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import subprocess
 import sys
 from time import perf_counter
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import cargo, configuration, frontend
 from dokime_tools.package.staging import clear_output
 from dokime_tools.test import archive, policy
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 ROOT = frontend.ROOT
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def build(profile: str, *, extended: bool = False) -> list[str]:
@@ -84,10 +67,6 @@ def main(arguments: list[str] | None = None) -> int:
         return 1
     return 0
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     sys.exit(main())

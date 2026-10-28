@@ -14,13 +14,6 @@
  * so the report keeps the live structure without its commands.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { CycleEvidenceView } from "@/features/cycle/CycleEvidenceView";
 import {
   buildCycleCases,
@@ -38,21 +31,11 @@ import { NodeSummary } from "@/features/cycle/NodeSummary";
 import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 export type ReportCycleWorkspaceProps = {
   source: CycleSnapshotSource;
   selection: CycleSelection;
   /** Moves the report's selection, as its sidebar does. */
 };
-
-/* === Classes === */
-
-/* === Components === */
 
 /** Captured data drives the same cycle and execution presentation used live. */
 export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspaceProps) {
@@ -148,9 +131,3 @@ export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspace
     />
   );
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */

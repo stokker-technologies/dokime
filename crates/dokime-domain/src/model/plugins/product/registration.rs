@@ -7,35 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::definition::TestSuite;
 use crate::model::document::resolve_document_plot_axes;
 use crate::model::records::RecordContract;
 use crate::model::telemetry::TelemetryContract;
 
-/* === Constants === */
-
-/* === Macros === */
-
 product_error!(SuiteContractError, formatter {
     Self::EmptySuiteId => formatter.write_str("suite id must not be empty"),
 });
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestSuiteDefinition {
@@ -58,16 +40,10 @@ pub struct SidecarExecutionBinding {
     pub workflow: String,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SuiteContractError {
     EmptySuiteId,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TestSuiteDefinition {
     pub fn new(suite_id: impl Into<String>, suite: TestSuite) -> crate::Result<Self> {
@@ -93,8 +69,6 @@ impl SidecarExecutionBinding {
     }
 }
 
-/* === Public Functions === */
-
 pub fn resolve_suite_plot_axes(definition: &mut TestSuiteDefinition) {
     // Normalized, so the automatic `timestamp` column a contract does not
     // spell out is still a column a plot's x axis can be read against.
@@ -105,7 +79,3 @@ pub fn resolve_suite_plot_axes(definition: &mut TestSuiteDefinition) {
         }
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,15 +7,7 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import { type ComponentType, type ReactNode, useCallback } from "react";
-
-// Local Imports
 
 import { type DocumentBlockChrome, DocumentSectionActionContext } from "@/components/document/DocumentViewRenderer";
 import { DocumentWorkspacePresentation, type DocumentWorkspaceViewProps } from "@/components/document/DocumentWorkspacePresentation";
@@ -28,12 +20,6 @@ import { elapsedColumnUnit } from "@/plots/axis";
 import { FrozenConsole } from "@/shell/ConsoleDrawerView";
 import type { DocumentSurface } from "./document-view-model";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 export type DocumentViewProps = {
   workspace?: ComponentType<DocumentWorkspaceViewProps>;
   surface: DocumentSurface;
@@ -44,8 +30,6 @@ export type DocumentViewProps = {
   /** The frame each card gets; absent keeps the renderer's default. */
   cardChrome?: (card: DocumentViewCard) => DocumentBlockChrome;
 };
-
-/* === Components === */
 
 export function DocumentViewPresentation({
   workspace: Workspace = DocumentWorkspacePresentation,
@@ -99,8 +83,6 @@ export function FrozenDocumentConsole({ surface }: { surface: DocumentSurface })
   return surface.options.live ? null : <FrozenConsole records={surface.view.records} />;
 }
 
-/* === Public Functions === */
-
 /**
  * The one elapsed unit every windowed time-series card in `sections` shares,
  * or `null` when the window is wall time.
@@ -129,9 +111,3 @@ export function documentWindowElapsedUnit(sections: DocumentViewSection[]): stri
 export function documentHasWindowedCards(sections: DocumentViewSection[]): boolean {
   return sections.some((section) => section.cards.some((card) => isDocumentSurfaceCard(card) && card.kind === "plots"));
 }
-
-/* === Private Functions === */
-
-/* === Constants === */
-
-/* === Hooks === */

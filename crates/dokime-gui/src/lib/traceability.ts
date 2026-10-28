@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { JsonObject, RecordScope, TraceabilityGroup, TraceabilityItem, TraceabilitySnapshot } from "@/lib/types";
-
-/* === Types === */
 
 type TraceabilityMetadata = {
   identifier: string;
@@ -44,8 +40,6 @@ export type TraceabilityExportName = {
   cycleLabel: string;
   executionOrdinal: number;
 };
-
-/* === Public Functions === */
 
 /**
  * The traceability a card renders, as indented JSON.
@@ -93,8 +87,6 @@ export function traceabilitySnapshotFromItems<TScope>(
     scope: mapScope(items.at(-1)?.scope),
   };
 }
-
-/* === Private Functions === */
 
 function traceabilityGroups<TScope>(
   item: TraceabilitySnapshotInput<TScope>,

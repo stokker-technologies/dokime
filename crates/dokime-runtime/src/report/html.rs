@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{cell::RefCell, collections::BTreeMap, io::Write, ops::Deref};
 
-// Third Party Imports
-
-// Local Imports
 use super::{
     CapturedExecutionReportInput, CycleReportInput,
     cycle::{CycleMember, Index},
@@ -35,20 +25,10 @@ use crate::{
 };
 use dokime_domain::model::identity::DocumentId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct HtmlReport {
     index: harmos::storage::ReadBatch<Index>,
     source: Source,
 }
-
-/* === Enums === */
 
 enum Source {
     Saved {
@@ -66,10 +46,6 @@ enum Source {
 pub(super) enum Member {
     Captured(harmos::storage::ReadBatch<CapturedExecutionReportInput>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Deref for Member {
     type Target = CycleReportInput;
@@ -217,10 +193,6 @@ impl HtmlReport {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn cycle_document(
     snapshot: &CycleSnapshot, limits: crate::document::bounded::DocumentLimits,
 ) -> Result<harmos::storage::ReadBatch<BTreeMap<DocumentId, Capture>>> {
@@ -250,8 +222,6 @@ fn cycle_document(
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

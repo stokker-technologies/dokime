@@ -7,45 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
-// Third Party Imports
-// Third-Party Imports
 use tokio::sync::{oneshot, watch};
 
-// Local Imports
 use super::log::Level;
 use crate::artifacts::Artifacts;
 use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Scanning {
     stop: watch::Sender<bool>,
     completion: oneshot::Receiver<()>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn start(artifacts: Artifacts, executions: &Executions, token: &str, tasks: &Tasks) -> Scanning {
     let interval = Duration::from_millis(100);
@@ -79,8 +53,6 @@ pub(super) async fn settle(scanning: Scanning, artifacts: &Artifacts, executions
     report(executions, token, notes);
 }
 
-/* === Private Functions === */
-
 async fn scan_blocking(artifacts: &Artifacts) -> Vec<String> {
     let artifacts = artifacts.clone();
     tokio::task::spawn_blocking(move || artifacts.scan()).await.expect("a scan tick does not panic")
@@ -98,5 +70,3 @@ fn report(executions: &Executions, token: &str, notes: Vec<String>) {
         state.push(BufferedFrame::log(Level::Warn, note));
     }
 }
-
-/* === Tests === */

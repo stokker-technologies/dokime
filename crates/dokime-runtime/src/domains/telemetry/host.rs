@@ -7,37 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use dokime_host::HostTelemetryCollector;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::Duration,
 };
 
-// Third Party Imports
-
-// Local Imports
 use super::{Sampler, SamplerSession, SettlementError};
 use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry::{SamplingScope, TelemetryBatch, TelemetryCaptureLease, TelemetrySamplingRequest};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct HostTelemetrySource {
     collector: Arc<dyn HostTelemetryCollector>,
@@ -67,12 +49,6 @@ struct Collecting {
     expired: bool,
     aborting: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl HostTelemetrySource {
     pub fn new(collector: Arc<dyn HostTelemetryCollector>) -> Self {
@@ -312,10 +288,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn due_streams<T: Copy + Ord + std::ops::Add<Duration, Output = T>>(
     streams: &[String], working: &mut BTreeSet<String>, next_due: &mut BTreeMap<String, T>, now: T, interval: impl Fn(&str) -> Duration,
 ) -> Vec<String> {
@@ -342,8 +314,6 @@ fn host_producer_key() -> String {
 fn collection_timeout(stream: &str) -> Duration {
     dokime_host::collection_timeout(stream)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

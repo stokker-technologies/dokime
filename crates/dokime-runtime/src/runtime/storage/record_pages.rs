@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{
     execution::ExecutionView,
     paging::{Cursor, page_limit},
@@ -27,22 +16,6 @@ use crate::{
     runtime::Result,
     runtime::query::checkpoint_records::{ExecutionRecordPage, ExecutionRecordQuery},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn read(view: &ExecutionView, query: ExecutionRecordQuery) -> Result<harmos::storage::ReadBatch<ExecutionRecordPage>> {
     let limit = page_limit(query.limit)?;
@@ -97,7 +70,3 @@ pub(crate) async fn read(view: &ExecutionView, query: ExecutionRecordQuery) -> R
         })
     })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

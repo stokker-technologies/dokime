@@ -11,25 +11,10 @@
  * Live Execution Selection And Honest Progress.
  */
 
-/* === Imports === */
+import type { TestCyclePlan, TestExecution } from "@/lib/types";
 
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-import type { TestExecution, TestCyclePlan } from "@/lib/types";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 export type RunFocus = { cycleLabel: string; executionLabel: string; execution: TestExecution; percent: number | null };
 
-/* === Classes === */
-
-/* === Public Functions === */
 export function activeRunFocus(details: readonly { plan: TestCyclePlan | null; executions: TestExecution[] }[]): RunFocus[] {
   const active: RunFocus[] = [];
   for (const { plan, executions } of details) {
@@ -83,7 +68,3 @@ export function runDestination(focus: readonly RunFocus[]) {
         search: { executionId: first.execution.test_execution_id },
       };
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

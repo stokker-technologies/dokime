@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { AlertTriangle, Braces, Clipboard, Clock } from "lucide-react";
-
-/* === Local Imports === */
 
 import { RecordGlyph } from "@/components/RecordGlyph";
 import { Badge } from "@/components/ui/badge";
@@ -24,18 +20,12 @@ import { absoluteTimestampLabel } from "@/lib/time-format";
 import type { HubRecord } from "@/lib/types";
 import { isRecord } from "@/lib/utils";
 
-/* === Types === */
-
 type RecordDetailsDialogProps = {
   selected: HubRecord | null;
   onClose: () => void;
 };
 
-/* === Constants === */
-
 const STACKTRACE_KEYS = new Set(["stack", "stacktrace", "stack_trace", "traceback", "trace", "exception_stack", "error_stack"]);
-
-/* === Components === */
 
 export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogProps) {
   const record = selected;
@@ -149,8 +139,6 @@ function RawBlock({ label, value }: { label: string; value: string }) {
     </section>
   );
 }
-
-/* === Private Functions === */
 
 function recordStacktrace(record: HubRecord): string | null {
   return findStacktrace(record.details) ?? findStacktrace({ message: record.message });

@@ -7,17 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::{Map, Value};
 use crate::definition::RuntimeCondition;
 use crate::records::RecordCondition;
@@ -25,14 +16,8 @@ use crate::storage::{Error, Result};
 use crate::telemetry::{TelemetryCondition, TelemetryConditionOperator};
 use dokime_domain::model::identity::Identifier;
 
-/* === Constants === */
 const MAX_DEPTH: usize = 64;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Condition {
@@ -52,11 +37,6 @@ struct Node {
     tolerance: Option<f64>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Condition {
     pub(super) fn encoding_memory(value: &RuntimeCondition) -> Result<usize> {
         let mut count = 0;
@@ -118,9 +98,6 @@ impl<'de> Deserialize<'de> for Condition {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn encoding_memory(value: &RuntimeCondition, depth: usize, count: &mut usize) -> Result<usize> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("condition exceeds depth limit"));
@@ -309,8 +286,6 @@ fn telemetry_operator(operator: &str) -> Result<TelemetryConditionOperator> {
         _ => Err(Error::Invalid("invalid telemetry condition operator")),
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

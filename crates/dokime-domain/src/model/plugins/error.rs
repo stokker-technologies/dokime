@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::diagnostics::DebugLevel;
 use crate::model::diagnostics::ErrorCause;
 use crate::model::execution::RecordScope;
@@ -30,14 +20,6 @@ use crate::model::identity::TestCycleId;
 use crate::model::identity::TestExecutionId;
 use crate::model::identity::TraceId;
 use crate::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstalledPluginErrorRecord {
@@ -58,8 +40,6 @@ pub struct InstalledPluginErrorRecord {
     pub recorded_at: Timestamp,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InstalledPluginPhase {
@@ -72,10 +52,6 @@ pub enum InstalledPluginPhase {
     Finalize,
     Interrupt,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl InstalledPluginErrorRecord {
     pub fn new(
@@ -124,9 +100,3 @@ impl InstalledPluginErrorRecord {
         self
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

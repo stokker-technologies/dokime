@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Pause, Play, RotateCcw, Square, TimerReset } from "lucide-react";
-
-/* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import type { RunCommandState } from "@/features/execution/run-command";
-
-/* === Types === */
 
 type RunCommandPanelProps = {
   onPause: () => void;
@@ -27,8 +21,6 @@ type RunCommandPanelProps = {
   onStop: () => void;
   state: RunCommandState;
 };
-
-/* === Components === */
 
 export function RunCommandPanel({ onPause, onRerun, onRestart, onResume, onStart, onStop, state }: RunCommandPanelProps) {
   if (state.kind === "none") {

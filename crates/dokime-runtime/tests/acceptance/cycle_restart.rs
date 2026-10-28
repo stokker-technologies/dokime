@@ -9,47 +9,27 @@
 
 // Cycle Finalization Crash And Restart Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::process::Command;
 
-// Third Party Imports
 use harmos::storage::state::{RecoveryEntry, RecoveryPage, RecoverySnapshot, StateBackend};
 use harmos::storage::{ReadLimits, RecoveryPosition, StorageBatch, StorageFuture, StoreHistory};
 
-// Local Imports
 use crate::service_support::prelude::*;
 use crate::service_support::publication::{PublicationBackend, PublicationFault};
 use dokime_runtime::storage::objects::cycle::Cycle;
 
-/* === Constants === */
 const ROOT: &str = "DOKIME_CYCLE_RESTART_ROOT";
 const PHASE: &str = "DOKIME_CYCLE_RESTART_PHASE";
 const CHILD: &str = "cycle_restart::cycle_restart_child";
 const BEFORE_REPORT: i32 = 73;
 const BEFORE_ADOPTION: i32 = 74;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct CrashAdoption {
     inner: Arc<dyn StateBackend>,
     root: PathBuf,
     adoption: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl StateBackend for CrashAdoption {
     fn history(&self) -> &StoreHistory {
         self.inner.history()
@@ -92,12 +72,6 @@ impl StateBackend for CrashAdoption {
         self.inner.close()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 fn has_cycle_adoption(value: &serde_json::Value) -> bool {
     match value {

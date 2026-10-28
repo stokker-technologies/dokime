@@ -9,19 +9,9 @@
 
 // TODO: Describe this module's responsibility.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 #[allow(unused_imports)]
 use crate::model::execution::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
@@ -29,14 +19,6 @@ use crate::model::identity::wire::Metadata;
 
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -144,8 +126,6 @@ pub struct TraceabilityPage {
     pub host_traceability_fingerprint: String,
 }
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationStatus {
@@ -154,13 +134,3 @@ pub enum OperationStatus {
     Finished,
     Failed,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

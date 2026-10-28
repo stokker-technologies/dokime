@@ -13,30 +13,11 @@
 // instance cancels it with SIGTERM, a grace period and a kill on Unix, and
 // TerminateProcess on Windows.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
-
-/* === Constants === */
-
 // The grace a cancelled process gets between SIGTERM and the kill.
 pub const DEFAULT_GRACE_MS: u32 = 2_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,18 +40,12 @@ pub struct ProcessExit {
     pub cancelled: bool,
 }
 
-/* === Enums === */
-
 // Where one output of the process goes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Output {
     Log,
     Artifact(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Output {
     pub fn artifact(self) -> Option<String> {
@@ -90,9 +65,3 @@ impl ProcessExit {
         std::time::Duration::from_millis(self.duration_ms)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

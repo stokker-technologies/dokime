@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod browse_cycles;
 mod browse_executions;
 mod delete_execution;
@@ -20,8 +18,6 @@ mod get_execution_checkpoint;
 mod list_checkpoint_records;
 mod list_checkpoint_telemetry;
 mod read_checkpoint_output;
-
-/* === Re-Exports === */
 
 pub use browse_cycles::BrowseCycles;
 pub use browse_executions::BrowseExecutions;
@@ -35,13 +31,6 @@ pub use list_checkpoint_records::ListCheckpointRecords;
 pub use list_checkpoint_telemetry::ListCheckpointTelemetry;
 pub use read_checkpoint_output::ReadCheckpointOutput;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Endpoint;
 use super::TRANSFER;
 use super::{MUTATION, ORDINARY};
@@ -86,16 +75,6 @@ use dokime_domain::model::history::wire::*;
 #[allow(unused_imports)]
 use dokime_domain::model::telemetry::wire::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 // Permanently delete one sealed historical execution. The caller supplies a
 
 // stable request identifier so a retry can identify the accepted deletion.
@@ -122,10 +101,6 @@ pub enum Operations {
     ListCheckpointTelemetry(ListCheckpointTelemetry),
     GetCheckpointContext(GetCheckpointContext),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Endpoint for BrowseCycles {
     const PATH: &'static str = "/dokime.v1.History/BrowseCycles";
@@ -170,9 +145,3 @@ impl Endpoint for ListCheckpointTelemetry {
 impl Endpoint for GetCheckpointContext {
     const PATH: &'static str = "/dokime.v1.History/GetCheckpointContext";
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

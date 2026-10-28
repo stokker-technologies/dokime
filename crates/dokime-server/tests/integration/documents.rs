@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::domain::model;
 use model::documents::wire::DocumentFrameFrame as Frame;
@@ -26,29 +15,11 @@ use {
     dokime::document::DocumentSection, dokime::runtime::command::CommandContext,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[dokime::harmos::message(harmos_path = dokime::harmos)]
 struct BenchRow {
     elapsed_s: f64,
     voltage_v: f64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn current_document_rows() {
@@ -365,5 +336,3 @@ async fn duration_x_axis() {
     drop(handle);
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

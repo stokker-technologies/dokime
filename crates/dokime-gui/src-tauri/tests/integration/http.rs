@@ -9,42 +9,11 @@
 
 // Verify HTTP TLS initialization before any backend connection.
 
-/* === Modules === */
-
 #[path = "../../src/app/http.rs"]
 mod transport;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{Read, Write};
 use std::sync::Arc;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn first_https_request() {

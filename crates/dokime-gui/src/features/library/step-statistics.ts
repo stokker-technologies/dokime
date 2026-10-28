@@ -15,20 +15,12 @@
  * never passed simply has no answer, and an answer that fails to arrive is not
  * a fault the operator has to read about. */
 
-/* === External Imports === */
-
 import { useQuery } from "@tanstack/react-query";
-
-/* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
 import { fetchNativeStepDurations, type StepDurationStatistics } from "@/lib/api/native-query";
 
-/* === Types === */
-
 export type TemplateStepStatistics = StepDurationStatistics;
-
-/* === Constants === */
 
 /** One identity for "nothing to show", so a pending render is not a new object. */
 const NO_STATISTICS: TemplateStepStatistics = {};
@@ -44,14 +36,10 @@ const DURATION_SCALES: { divisor: number; limit: number; unit: string }[] = [
 /** Two significant digits: the timeline says the order, not the measurement. */
 const SIGNIFICANT_DIGITS = 2;
 
-/* === Query Keys === */
-
 export const stepStatisticsQueryKeys = {
   all: ["library", "step-statistics"] as const,
   template: (templateId: string) => [...stepStatisticsQueryKeys.all, templateId] as const,
 };
-
-/* === Hooks === */
 
 /**
  * The step statistics of one template, keyed by the step's declaration id.
@@ -68,8 +56,6 @@ export function useTemplateStepStatistics(templateId: string): TemplateStepStati
   });
   return query.data ?? NO_STATISTICS;
 }
-
-/* === Public Functions === */
 
 /**
  * A mean duration as the timeline prints it: at most two significant digits

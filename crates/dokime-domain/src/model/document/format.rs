@@ -7,35 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::model::values::ElapsedUnit;
 use crate::model::values::ValueFormat;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn normal() -> ValueFormat {
     ValueFormat::Normal { max_fraction_digits: None }
@@ -60,7 +33,3 @@ pub fn elapsed_seconds() -> ValueFormat {
 pub fn elapsed_ms() -> ValueFormat {
     ValueFormat::ElapsedSinceRun { unit: ElapsedUnit::Milliseconds }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

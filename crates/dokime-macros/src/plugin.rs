@@ -7,31 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Error, GenericArgument, ItemImpl, Meta, Path, PathArguments, Token, Type};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 struct Contributed {
@@ -44,12 +25,6 @@ struct Contributed {
 struct RequiredEntry {
     path: Path,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl syn::parse::Parse for RequiredEntry {
     fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
@@ -65,8 +40,6 @@ impl syn::parse::Parse for RequiredEntry {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn plugin(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(expanded) => crate::facade::contracted(expanded),
@@ -76,8 +49,6 @@ pub(crate) fn plugin(attribute: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 }
-
-/* === Private Functions === */
 
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -341,5 +312,3 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
 fn last_ident(path: &Path) -> String {
     path.segments.last().map(|segment| segment.ident.to_string()).unwrap_or_default()
 }
-
-/* === Tests === */

@@ -7,32 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::runtime::storage::record_capture::CapturedRecord;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use crate::{
     runtime::Result,
     runtime::storage::record_capture::{Process, Source},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct RecordSubscription {
     source: Arc<Source>,
@@ -48,12 +30,6 @@ pub struct CapturedRecords {
     frontier: u64,
     reader: tokio::sync::Mutex<Process>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordSubscription {
     pub(crate) fn new(source: &Arc<Source>, state_manager: &crate::app::StateManager, after: harmos::state::Position) -> Self {
@@ -125,9 +101,3 @@ impl super::RuntimeHandle {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

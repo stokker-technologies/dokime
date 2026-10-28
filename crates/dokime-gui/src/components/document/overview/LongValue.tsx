@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Imports === */
-
 import { Clipboard } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ValueDisplay } from "@/components/ValueDisplay";

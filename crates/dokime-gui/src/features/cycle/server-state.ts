@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-
-/* === Local Imports === */
 
 import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
 import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
@@ -33,8 +29,6 @@ import type { DocumentViewPayload, RecordScope } from "@/lib/types";
 import { documentRetry, documentRetryDelay } from "./document-query-model";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
-/* === Constants === */
-
 const GUI_CAPTURED_DOCUMENTS = 16;
 const GUI_EVIDENCE_GC_MS = 30_000;
 const GUI_PAGE_ITEMS = 500;
@@ -42,8 +36,6 @@ const GUI_RECONNECT_MS = 1_000;
 
 /** How long an unobserved evidence read stays cached; records and documents are large. */
 const EVIDENCE_GC_MS = GUI_EVIDENCE_GC_MS;
-
-/* === Types === */
 
 type PromptResponseVariables = {
   action: string;
@@ -60,8 +52,6 @@ type EditNoteVariables = {
   noteId: string;
   text: string;
 };
-
-/* === Query Keys === */
 
 export const workflowQueryKeys = {
   all: ["workflow"] as const,
@@ -83,8 +73,6 @@ export const workflowQueryKeys = {
     scope ? ([...workflowQueryKeys.all, "traceability", scope] as const) : ([...workflowQueryKeys.all, "traceability"] as const),
 };
 
-/* === Private Functions === */
-
 /** The connection a live read needs. Unreachable while a snapshot stands in. */
 function requireSession(session: ReturnType<typeof useNativeSessionOptional>) {
   if (!session) throw new Error("A connected native backend is required.");
@@ -100,8 +88,6 @@ function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
 function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
   return session?.identity.generation ?? "frozen";
 }
-
-/* === Query Hooks === */
 
 /**
  * A scope's latest records: the tail read once, then appended from the
@@ -275,8 +261,6 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
   return snapshot && enabled ? frozenQuery(snapshot.document(null) ?? undefined) : query;
 }
 
-/* === Invalidation === */
-
 export async function invalidateWorkflowResourceQueries(queryClient: QueryClient) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }),
@@ -328,8 +312,6 @@ export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }),
   ]);
 }
-
-/* === Mutation Hooks === */
 
 export function usePromptResponseMutation() {
   const session = useNativeSession();
@@ -384,8 +366,6 @@ function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
   return { ...session.identity, own: session.own };
 }
 
-/* === Captured Documents === */
-
 /** The documents last captured, by query: a capture whose frontiers are unchanged answers these. */
 const capturedDocuments = new Map<string, { completed: CompletedDocument; mapped: DocumentViewPayload }>();
 
@@ -414,8 +394,6 @@ async function capturedDocument(
   }
   return mapped;
 }
-
-/* === Record Tails === */
 
 /** One live record stream per scope, shared by every holder of that scope. */
 const recordTails = new Map<string, { holders: number; stop: () => void }>();

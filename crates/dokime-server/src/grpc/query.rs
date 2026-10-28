@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 mod codec;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
-// Local Imports
 use super::error::detailed;
 use super::value::{self, Budget, canonical};
 use dokime::RuntimeHandle;
@@ -31,24 +22,10 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::query as wire;
 use dokime::runtime::query::aggregate::{AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::Aggregate> for Resources {
     fn serve<'a>(
@@ -65,8 +42,6 @@ impl Serve<wire::Aggregate> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
@@ -78,8 +53,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
     let mut budget = Budget::new()?;
@@ -153,5 +126,3 @@ fn status(error: dokime::runtime::Error) -> Status {
     };
     detailed(status, &error)
 }
-
-/* === Tests === */

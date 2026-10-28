@@ -7,37 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::{CycleResetAction as Action, ResetCycle as Reset};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::transactions::cycle::plan_cycle_reset;
 use crate::{CommandContext, RuntimeHandle, runtime::Error};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn delete_cycle_case(&self, test_cycle_id: TestCycleId, test_case_id: CaseId, context: CommandContext) -> Result<(), Error> {
@@ -69,9 +44,3 @@ impl RuntimeHandle {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

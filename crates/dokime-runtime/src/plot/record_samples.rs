@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use time::OffsetDateTime;
 
-// Local Imports
 use crate::document::frame::{Lookup, Side, Strategy};
 use crate::plot::{PlotPayloadRequest, parse_timestamp, sample_matches_scope, stream_matches_alias};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct PlotSamples<'a> {
     telemetry: &'a [TelemetrySample],
@@ -48,12 +30,6 @@ pub(crate) struct RecordSampleLookup<'a> {
     samples: Vec<IndexedRecordSample<'a>>,
     lookup: Lookup<'a>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> PlotSamples<'a> {
     pub(super) fn new(telemetry: &'a [TelemetrySample], request: &'a PlotPayloadRequest) -> Self {
@@ -119,10 +95,6 @@ impl<'a> RecordSampleLookup<'a> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn lookup_memory() -> crate::runtime::Error {
     harmos::Error::ResourceExhausted { resource: "record sample lookup" }.into()
 }
@@ -148,5 +120,3 @@ fn indexed_samples<'a>(
         Some(IndexedRecordSample { sample, timestamp })
     })
 }
-
-/* === Tests === */

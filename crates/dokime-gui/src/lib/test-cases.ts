@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { TestCase } from "@/lib/types";
-
-/* === Public Functions === */
 
 export function testCaseTitle(testCase: TestCase | undefined, fallback: string): string {
   const label = testCase?.label?.trim();

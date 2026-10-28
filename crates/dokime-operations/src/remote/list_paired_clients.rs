@@ -9,27 +9,9 @@
 
 // ListPairedClients
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<ListPairedClients>], response = PairedClientPage, id = "dokime.remote.list_paired_clients",
     policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
@@ -39,20 +21,6 @@ pub struct ListPairedClients {
     pub cursor: Option<String>,
     pub limit: u32,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

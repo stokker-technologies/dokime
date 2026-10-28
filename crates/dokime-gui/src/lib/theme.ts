@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Types === */
-
 export type ThemeModePreference = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 export type DensityPreference = "comfortable" | "compact" | "touch";
@@ -24,8 +22,6 @@ export type ThemeCornerRadii = {
   "4xl"?: string | null;
 };
 
-/* === Constants === */
-
 let managedThemeVariables = new Set<string>();
 const runtimeThemeStyleId = "dokime-runtime-theme";
 
@@ -39,8 +35,6 @@ const cornerRadiusVariables = [
   ["3xl", "brand-radius-3xl"],
   ["4xl", "brand-radius-4xl"],
 ] as const satisfies ReadonlyArray<readonly [keyof ThemeCornerRadii, string]>;
-
-/* === Public Functions === */
 
 export function applyDensity(density: DensityPreference): void {
   if (typeof document === "undefined") {

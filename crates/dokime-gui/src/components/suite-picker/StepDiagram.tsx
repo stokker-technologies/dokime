@@ -14,18 +14,12 @@
  * step's authored description beside the template's facts. No eyebrow and no
  * per-step expander: the timeline says what it is. */
 
-/* === External Imports === */
-
 import { useState } from "react";
-
-/* === Local Imports === */
 
 import { MarkdownText } from "@/components/MarkdownText";
 import type { SuiteTemplateEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { DiagramStep } from "./model";
-
-/* === Constants === */
 
 /** Beyond this the timeline scrolls horizontally instead of compressing. */
 const SCROLLING_STEP_COUNT = 8;
@@ -34,8 +28,6 @@ const SCROLLING_STEP_COUNT = 8;
    node's edge instead of running under the circle. The inset is the node's
    radius; the touch node is larger, so it takes a larger inset. */
 const CONNECTOR = "pointer-events-none absolute top-6 border-t [[data-density=touch]_&]:top-6";
-
-/* === Components === */
 
 export function StepDiagram({
   durations,
@@ -118,8 +110,6 @@ export function StepDiagram({
   );
 }
 
-/* === Subcomponents === */
-
 /** What the catalog projection knows about the template, on one label/value grid. */
 function TemplateFacts({ selectedIndex, stepCount, template }: { selectedIndex: number; stepCount: number; template: SuiteTemplateEntry }) {
   const facts: [string, string][] = [
@@ -138,8 +128,6 @@ function TemplateFacts({ selectedIndex, stepCount, template }: { selectedIndex: 
     </dl>
   );
 }
-
-/* === Private Functions === */
 
 /**
  * Join the soft line breaks a rustdoc paragraph carries so the text flows to

@@ -7,14 +7,6 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-/* === External Imports === */
-
 import {
   Boxes,
   ChevronDown,
@@ -29,8 +21,6 @@ import {
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
-/* === Local Imports === */
-
 import { Button } from "@/components/ui/button";
 import {
   type ArtifactTreeFile,
@@ -44,8 +34,6 @@ import {
 import { artifactLabel } from "@/lib/dashboard";
 import { isPreviewableTextArtifact } from "@/lib/execution-file-text";
 import { isMediaArtifact } from "@/lib/media";
-
-/* === Types === */
 
 export type ArtifactActions = {
   open: (artifact: ArtifactTreeFile) => Promise<unknown>;
@@ -64,8 +52,6 @@ type ArtifactTreeViewProps = ArtifactTreeProps & {
   actions?: ArtifactActions;
   renderTextPreview?: TextPreview;
 };
-
-/* === Components === */
 
 export function ArtifactTreeView({ artifacts, emptyMessage, runDir, actions, renderTextPreview }: ArtifactTreeViewProps) {
   const visibleArtifacts = useMemo(() => visibleArtifactInputs(artifacts, runDir), [artifacts, runDir]);
@@ -428,11 +414,3 @@ function visibleArtifactInputs(artifacts: ArtifactTreeInput[], runDir?: string |
 function folderFileCount(folder: ArtifactTreeFolder): number {
   return folder.files.length + folder.folders.reduce((total, child) => total + folderFileCount(child), 0);
 }
-
-/* === Re-Exports === */
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

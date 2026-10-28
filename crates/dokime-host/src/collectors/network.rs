@@ -7,39 +7,22 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use sysinfo::Networks;
 
-// Local Imports
 use crate::{
     HostStreamSample, HostTelemetryStream, Result,
     collectors::{integer, maybe_insert},
 };
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const NETWORK_LINK_INTERVAL_MS: u64 = 5_000;
 
 const BYTES_PER_MEGABYTE: f64 = 1_000_000.0;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct NetworkCollector {
     sample_index: u64,
@@ -64,12 +47,6 @@ struct PrimaryNetwork {
     mac: Option<String>,
     operational_state: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for NetworkCollector {
     fn default() -> Self {
@@ -145,10 +122,6 @@ impl NetworkCollector {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn primary_network(networks: &Networks) -> Option<PrimaryNetwork> {
     networks
         .iter()
@@ -181,5 +154,3 @@ fn route_context() -> RouteContext {
         local_addresses,
     }
 }
-
-/* === Tests === */

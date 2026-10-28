@@ -7,37 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::RuntimeHandle;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub(crate) async fn finalize_execution_aggregate_outputs(&self, test_execution_id: &TestExecutionId) {
@@ -101,10 +76,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // A Step Waits Until Its Cycle Closes Or A Stop Reaches The Request That Runs It.
 fn cycle_is_stopped(state: &crate::state::RuntimeState, test_cycle_id: &TestCycleId) -> bool {
     let closing =
@@ -114,5 +85,3 @@ fn cycle_is_stopped(state: &crate::state::RuntimeState, test_cycle_id: &TestCycl
             &request.summary.cycle_id == test_cycle_id && !request.summary.phase.terminal() && request.summary.stop_requested
         })
 }
-
-/* === Tests === */

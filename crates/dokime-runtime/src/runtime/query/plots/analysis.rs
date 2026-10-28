@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::Message;
 
-// Local Imports
 use crate::analysis::{Definition, Request, Samples, Selection};
 use crate::domains::ActionDispatcher;
 use crate::plot::{PlotComputation, PlotComputedSeries, PlotEvidence, PlotPayload, PlotPayloadRequest};
@@ -28,21 +19,11 @@ use crate::telemetry::{TelemetryContract, TelemetrySample};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::Identifier;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(crate) struct Prepared {
     definition: Definition,
     selection: Selection,
     target: Target,
 }
-
-/* === Enums === */
 
 enum Target {
     Builtin,
@@ -53,10 +34,6 @@ pub(crate) enum Environment<'a> {
     Live(&'a RuntimeHandle),
     Report { resources: &'a crate::report::analysis::Resources },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Prepared {
     pub(super) fn resolve(
@@ -294,8 +271,6 @@ impl Environment<'_> {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn definitions(
     runtime: &RuntimeHandle, state: &crate::queries::RuntimeStateSnapshot,
 ) -> crate::runtime::Result<Vec<Definition>> {
@@ -309,8 +284,6 @@ pub(crate) fn definitions(
     definitions.sort_by(|left, right| left.id.cmp(&right.id));
     Ok(definitions)
 }
-
-/* === Private Functions === */
 
 // Step And Criterion Attribution Do Not Start A New Telemetry Sequence.
 fn evidence_owner(
@@ -333,5 +306,3 @@ fn unavailable(message: impl Into<String>) -> crate::runtime::Error {
         message: message.into(),
     })
 }
-
-/* === Tests === */

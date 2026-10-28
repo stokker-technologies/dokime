@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::identity::SuiteId;
@@ -31,14 +22,6 @@ use crate::model::values::MeasurementUnit;
 use crate::model::values::Value;
 use crate::model::values::ValueFormat;
 use crate::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecordContract {
@@ -79,8 +62,6 @@ pub struct RecordDisplay {
     #[serde(default)]
     pub tone: RecordTone,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -126,10 +107,6 @@ pub enum RecordTone {
     #[default]
     Neutral,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for RecordContract {
     fn memory_size(&self) -> usize {
@@ -280,10 +257,6 @@ impl RecordField {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn retained_memory<const N: usize>(inline: usize, fields: [(usize, usize); N]) -> usize {
     fields.into_iter().fold(
         inline,
@@ -292,5 +265,3 @@ fn retained_memory<const N: usize>(inline: usize, fields: [(usize, usize); N]) -
         },
     )
 }
-
-/* === Tests === */

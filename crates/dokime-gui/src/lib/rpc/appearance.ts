@@ -12,8 +12,6 @@ import type { SessionIdentity } from "./transport.js";
 const GUI_APPEARANCE_ASSET_BYTES = 8_388_608;
 const GUI_APPEARANCE_CHUNK_BYTES = 65_536;
 
-/* === Canonical Types === */
-
 type AppearanceSnapshot = Wire<Awaited<ReturnType<typeof rpc.appearanceGetAppearance>>>;
 
 const maxAssetBytes = BigInt(GUI_APPEARANCE_ASSET_BYTES);

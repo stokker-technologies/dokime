@@ -7,19 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 
 const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
@@ -48,11 +35,6 @@ const SECOND_RECORD: &str = "checks.record";
 #[cfg(not(duplicate_records))]
 const SECOND_RECORD: &str = "other.record";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct FirstTemplate;
 
@@ -85,7 +67,6 @@ struct SecondStream {
     value: u64,
 }
 
-/* === Enums === */
 
 #[sdk::catalog]
 enum FirstTemplates {
@@ -125,9 +106,6 @@ enum Streams {
 #[sdk::catalog]
 enum Operations {}
 
-/* === Traits === */
-
-/* === Implementations === */
 
 #[sdk::template(id = "checks.probe", label = "First")]
 impl FirstTemplate {
@@ -204,10 +182,5 @@ impl sdk::Plugin for Plugin {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn main() {}
-
-/* === Tests === */

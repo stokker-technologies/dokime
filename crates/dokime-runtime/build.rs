@@ -7,38 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn main() {
     println!("cargo:rustc-env=DOKIME_NATIVE_TARGET={}", env::var("TARGET").expect("Cargo supplies TARGET"));
@@ -114,5 +85,3 @@ fn collect_assets(directory: &Path, files: &mut Vec<PathBuf>) {
         }
     }
 }
-
-/* === Tests === */

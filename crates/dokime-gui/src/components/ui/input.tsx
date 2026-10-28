@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type * as React from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Components === */
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (

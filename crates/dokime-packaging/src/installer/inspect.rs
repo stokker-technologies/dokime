@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     io::Read,
@@ -21,20 +14,10 @@ use std::{
     process::Command,
 };
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::payload::{self, Identity};
 use crate::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -59,14 +42,6 @@ pub struct Inspection {
     pub installer_signature: String,
     pub updater_signature: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn inspect(package: &Path) -> Result<Inspection, Error> {
     let original = package.canonicalize()?;
@@ -231,8 +206,6 @@ pub(crate) fn run(command: &mut Command, requirement: &str) -> Result<(), Error>
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
     let result = Command::new("rpmkeys")
@@ -400,8 +373,6 @@ fn validate_metadata(metadata: &DistributionMetadata) -> Result<(), Error> {
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

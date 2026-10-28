@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::{ObjectRead, ObjectVersion, ReadBatch, StoredObject, query::ObjectVersions};
 
-// Local Imports
 use super::{Pending, Receipt, RunReceipt, error, receipt_error};
 use crate::runtime::Result;
 use crate::storage::{
@@ -27,22 +17,6 @@ use crate::storage::{
 };
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NodeId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) async fn read(storage: &Manager, session: &crate::storage::Manager, id: &CommandId) -> Result<Option<ReadBatch<RunReceipt>>> {
     let Some(parent) = session.read_object::<Request>(id.as_str(), ObjectVersion::Latest).await.map_err(receipt_error)? else {
@@ -168,7 +142,3 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Receipt>) -> R
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,17 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
 use async_trait::async_trait;
 use dokime_runtime::Identifier;
 use dokime_runtime::Message;
@@ -25,18 +17,10 @@ use dokime_runtime::execution::Runnable;
 use dokime_runtime::transport::{ExecutionSignal, SignalReply, TransportFuture};
 use harmos::sidecar::StreamDeclaration;
 
-// Local Imports
 use dokime_runtime::InstalledPlugin;
 use dokime_runtime::runtime::EmbeddedProvider;
 
-/* === Constants === */
 const TEMPLATE: &str = "fixture.template.t0";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Default)]
 struct Signals {
@@ -60,11 +44,6 @@ struct Probe {
     signals: Signals,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Runnable for Idle {
     fn template_identifier(&self) -> &str {
         TEMPLATE
@@ -150,10 +129,6 @@ impl EmbeddedProvider for Probe {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn run_route() -> String {
     format!("host.{}", <dokime_runtime::execution::Run<()> as harmos::OperationDeclaration>::ID)
 }
@@ -174,7 +149,6 @@ fn run_request(token: &str) -> dokime_runtime::transport::RunExecution {
     }
 }
 
-/* === Tests === */
 #[tokio::test]
 async fn admitted_catalog_is_durable_before_exposure() {
     let root = tempfile::tempdir().unwrap();

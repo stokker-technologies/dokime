@@ -9,28 +9,8 @@
 
 // Application Preferences And Revision-Checked Updates
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::model::{document::DownsampleTechnique, remote::RemoteListenerSettings};
 use serde::{Deserialize, Serialize};
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -97,8 +77,6 @@ pub struct SettingsConflict {
     pub actual: u64,
 }
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -124,10 +102,6 @@ pub enum Density {
     Compact,
     Touch,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for Appearance {
     fn default() -> Self {
@@ -240,10 +214,6 @@ impl std::fmt::Display for SettingsConflict {
 
 impl std::error::Error for SettingsConflict {}
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn validate_duration(value: u64) -> Result<(), String> {
     let duration = std::time::Duration::from_millis(value);
     if value == 0 || value > (1_u64 << 53) - 1 || duration.as_nanos() > i64::MAX as u128 {
@@ -251,5 +221,3 @@ fn validate_duration(value: u64) -> Result<(), String> {
     }
     Ok(())
 }
-
-/* === Tests === */

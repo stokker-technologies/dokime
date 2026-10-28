@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::ArtifactId;
 use crate::model::identity::Identifier;
@@ -30,14 +21,6 @@ use crate::model::records::RecordSeverity;
 use crate::model::records::error::RecordErrorDetail;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::record(id = "dokime.record")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -63,12 +46,6 @@ pub struct Record {
     pub related_stream_id: Option<TelemetryStreamId>,
     pub related_artifact_id: Option<ArtifactId>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos_domain::MemorySize for Record {
     fn memory_size(&self) -> usize {
@@ -137,9 +114,3 @@ impl Record {
         self
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

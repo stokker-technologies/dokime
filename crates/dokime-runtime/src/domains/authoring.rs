@@ -7,36 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::domains::Permission;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn identifier(value: &str) -> Identifier {
     Identifier::new(value).unwrap_or_else(|error| panic!("invalid artifact identifier {value}: {error}"))
@@ -53,7 +26,3 @@ pub fn metadata(identifier_value: &str, label: &str, description: &str) -> Metad
 pub fn bounded(value: u32, default: u32, maximum: u32) -> u32 {
     if value == 0 { default } else { value.min(maximum) }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

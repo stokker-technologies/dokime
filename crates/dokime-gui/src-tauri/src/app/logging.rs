@@ -7,44 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
 use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
-// Local Imports
-
-/* === Constants === */
 
 static ACTIVE_LOG: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
-
-/* === Structs === */
 
 pub(crate) struct LoggingGuards {
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn active_log() -> Option<PathBuf> {
     ACTIVE_LOG.get().cloned()
@@ -80,8 +54,6 @@ pub(crate) fn init(identifier: &str, retained_files: usize) -> LoggingGuards {
 
     LoggingGuards { _stderr: stderr_guard, _file: file_guard }
 }
-
-/* === Private Functions === */
 
 fn env_filter() -> EnvFilter {
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
@@ -133,5 +105,3 @@ fn today() -> String {
     });
     time::OffsetDateTime::now_utc().format(&DATE_FORMAT).unwrap_or_else(|_| "unknown-date".to_owned())
 }
-
-/* === Tests === */

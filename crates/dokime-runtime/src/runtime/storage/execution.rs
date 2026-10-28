@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::storage::{FileReader, FileReference, ObjectRevision, ObjectVersion, StorageCursor};
 
-// Local Imports
 use crate::storage::Manager;
 use crate::{
     execution::context::{ExecutionContext, captured::source::CapturedSource},
@@ -35,14 +26,6 @@ use dokime_domain::model::execution::saved::validate_outputs;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone)]
 pub struct ExecutionView {
     storage: Manager,
@@ -51,17 +34,11 @@ pub struct ExecutionView {
     captured: Option<CapturedSourceOwner>,
 }
 
-/* === Enums === */
-
 #[derive(Clone)]
 pub(crate) enum CapturedSourceOwner {
     Live(Arc<CapturedSource>),
     Saved(harmos::storage::ReadBatch<CapturedSource>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::ops::Deref for CapturedSourceOwner {
     type Target = CapturedSource;
@@ -358,8 +335,6 @@ impl ExecutionView {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn verify_file(mut reader: FileReader) -> Result<()> {
     while reader.next().await?.is_some() {}
     Ok(())
@@ -372,10 +347,6 @@ pub(crate) fn check_seal_position(position: &StorageCursor, dependencies: &Stora
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn whole() -> harmos::storage::ByteRange {
     harmos::storage::ByteRange { offset: 0, limit: None }
 }
-
-/* === Tests === */

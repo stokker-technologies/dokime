@@ -7,27 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
-
-// Local Imports
 use crate::domain::operations::GetStatus;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::settings]
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -45,15 +27,3 @@ pub struct Evidence {
     )]
     pub images_directory: PathBuf,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,19 +7,13 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useMemo } from "react";
-
-/* === Local Imports === */
 
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import type { SeriesLegendColumn, SeriesLegendRow, StatsSummary, StatsSummaryRow } from "@/lib/statistics";
 import { formatStatValue, seriesLegendColumnWidth, statsSummaryCells } from "@/lib/statistics";
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 /**
  * A time series or scatter plot's legend: one clickable row per trace that
@@ -43,8 +37,6 @@ type StatsSummaryTableProps =
   | { legend: SeriesLegend; rows?: undefined; titled?: undefined };
 
 type DescribedRow = { count: number; label: string; stats: StatsSummary; unit?: string };
-
-/* === Constants === */
 
 const STATISTICS = [
   ["mean", "Mean"],
@@ -76,8 +68,6 @@ const COLUMNS: DataTableColumns<DescribedRow> = [
   }),
 ];
 
-/* === Components === */
-
 export function StatsSummaryTable(props: StatsSummaryTableProps) {
   return props.legend ? (
     <SeriesLegendTable legend={props.legend} />
@@ -85,8 +75,6 @@ export function StatsSummaryTable(props: StatsSummaryTableProps) {
     <DescribedStatsTable rows={props.rows} titled={props.titled ?? true} />
   );
 }
-
-/* === Private Functions === */
 
 function rowLabel(row: DescribedRow): string {
   return row.label;
@@ -117,8 +105,6 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
     });
   }) as DataTableColumns<SeriesLegendRow>;
 }
-
-/* === Private Components === */
 
 function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled: boolean }) {
   const described = useMemo(

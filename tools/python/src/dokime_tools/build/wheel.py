@@ -8,30 +8,13 @@
 
 """Build Client Distributions With The Locked Repository Backend"""
 
-# === Imports === #
-
-# Standard Library Imports
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def build(root: Path, profile: str) -> list[Path]:
@@ -82,8 +65,3 @@ def build(root: Path, profile: str) -> list[Path]:
     if len(sources) != 1:
         raise ValueError(f"expected one dokime-client source distribution in {output}, found {len(sources)}")
     return [*wheels, *sources]
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod contract;
 pub mod evidence;
 pub mod host;
@@ -16,8 +14,6 @@ pub mod row;
 pub mod sampling;
 pub mod stream;
 pub mod wire;
-
-/* === Re-Exports === */
 
 pub use crate::model::validation::CompatibilityStatus;
 pub use crate::model::validation::ValidationMode;
@@ -44,31 +40,3 @@ pub use sampling::TelemetrySamplingRequest;
 pub use sampling::TelemetrySourceDescriptor;
 pub use sampling::TelemetrySourceKind;
 pub use stream::TelemetryStream;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

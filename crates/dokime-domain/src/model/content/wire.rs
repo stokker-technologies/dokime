@@ -9,32 +9,14 @@
 
 // TODO: Describe this module's responsibility.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 #[allow(unused_imports)]
 use crate::model::appearance::wire::*;
 
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -242,8 +224,6 @@ pub struct AppearanceAssetFrame {
     pub payload: Option<AppearanceAssetFramePayload>,
 }
 
-/* === Enums === */
-
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArtifactState {
@@ -320,13 +300,3 @@ pub enum AppearanceAssetFramePayload {
     Chunk(ArtifactChunk),
     Complete(ArtifactCompletion),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

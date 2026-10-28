@@ -14,19 +14,13 @@
  * with its 2px gap, so the table header below lands on a navigation row.
  */
 
-/* === External Imports === */
-
 import { Search, X } from "lucide-react";
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import type { DataTableSearch } from "@/components/data-table/data-table-model";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-/* === Types === */
 
 export type ActiveFilter = { id: string; text: string };
 
@@ -37,8 +31,6 @@ type DataTableToolbarProps = {
   onClearAll: () => void;
   search?: DataTableSearch;
 };
-
-/* === Components === */
 
 export function DataTableToolbar({ actions, filters, onClear, onClearAll, search }: DataTableToolbarProps) {
   if (!search && !actions && !filters.length) {

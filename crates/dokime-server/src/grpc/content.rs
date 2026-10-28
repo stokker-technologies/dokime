@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(super) mod artifacts;
 pub(super) mod evidence;
 mod execution;
@@ -19,38 +17,14 @@ mod list;
 mod upload;
 pub(super) mod window;
 
-/* === Re-Exports === */
-
 pub(super) use upload::{artifact_scope, content_failure};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use dokime::{
     RuntimeHandle,
     artifacts::{ArtifactRecord, ArtifactStatus},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     evidence::register(runtime, maximum).await?;
@@ -131,8 +105,6 @@ pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime::domain::model:
     })
 }
 
-/* === Private Functions === */
-
 fn input_allowance<O: dokime::harmos::operations::OperationDeclaration>(
     template: &<O::Input as dokime::harmos::operations::Direction>::Item, path: &[&str], cap: usize, maximum: usize,
 ) -> Result<usize, Status> {
@@ -146,5 +118,3 @@ fn artifact_digest(record: &ArtifactRecord) -> Result<&str, Status> {
         .filter(|digest| digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
         .ok_or_else(|| Status::data_loss("invalid stored artifact metadata"))
 }
-
-/* === Tests === */

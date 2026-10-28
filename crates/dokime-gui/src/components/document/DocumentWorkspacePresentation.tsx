@@ -7,17 +7,7 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-/* === External Imports === */
-
 import { type ReactNode, useCallback } from "react";
-
-/* === Local Imports === */
 
 import type { DocumentCardContentProps } from "@/components/document/DocumentSurfaceView";
 import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
@@ -43,10 +33,6 @@ import type {
 } from "@/lib/types";
 import type { LivePlotStateMap } from "@/plots/live-frames";
 import type { PlotSettingsChange } from "./PlotGroupGrid";
-
-/* === Constants === */
-
-/* === Types === */
 
 type DocumentWorkspaceViewBaseProps = {
   renderCardContent?: (props: DocumentCardContentProps) => ReactNode;
@@ -90,8 +76,6 @@ type ReportDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
 };
 
 export type DocumentWorkspaceViewProps = LiveDocumentWorkspaceViewProps | ReportDocumentWorkspaceViewProps;
-
-/* === Components === */
 
 export function DocumentWorkspacePresentation(props: DocumentWorkspaceViewProps) {
   const authoredFilter = props.cardFilter ?? isDocumentSurfaceCard;
@@ -137,8 +121,6 @@ export function DocumentWorkspacePresentation(props: DocumentWorkspaceViewProps)
     />
   );
 }
-
-/* === Private Functions === */
 
 function documentCardContentProps(
   props: DocumentWorkspaceViewProps,
@@ -188,9 +170,3 @@ export function visibleDocumentPlots(sections: DocumentViewSection[], cardFilter
     section.cards.filter((card) => card.kind === "plots" && cardFilter(card)).flatMap((card) => card.plots),
   );
 }
-
-/* === Re-Exports === */
-
-/* === Hooks === */
-
-/* === Public Functions === */

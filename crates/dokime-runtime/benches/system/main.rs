@@ -9,37 +9,15 @@
 
 // System Benchmarks: The Runtime Driving A Built Sidecar Plugin
 
-/* === Modules === */
 mod report;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
 use criterion::{criterion_group, criterion_main};
 
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
 criterion_group!(benches, report::benchmark);
 criterion_main!(benches);
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn plugin_bundle() -> PathBuf {
     let path = std::env::current_dir()
         .expect("benchmark runner starts in the package")
@@ -52,7 +30,3 @@ pub fn plugin_bundle() -> PathBuf {
     assert!(path.is_file(), "missing built artifact {}; run `mise run build:rust:bench`", path.display());
     path
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

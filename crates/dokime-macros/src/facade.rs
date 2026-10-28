@@ -7,37 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, quote};
 
-// Local Imports
-
-/* === Constants === */
-
 pub(crate) const MACRO_CONTRACT: u32 = 27;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(crate) struct SdkRoot;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ToTokens for SdkRoot {
     fn to_tokens(&self, tokens: &mut TokenStream) {
@@ -46,8 +21,6 @@ impl ToTokens for SdkRoot {
         tokens.extend(quote!(::#name));
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn root() -> SdkRoot {
     SdkRoot
@@ -84,7 +57,3 @@ pub(crate) fn contracted(declared: TokenStream) -> TokenStream {
         );
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

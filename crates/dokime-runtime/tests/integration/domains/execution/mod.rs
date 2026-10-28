@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 pub(crate) mod artifacts;
 pub(crate) mod authoring;
 pub(crate) mod cancel;
@@ -27,33 +26,4 @@ pub(crate) mod simulation;
 pub(crate) mod storage;
 pub(crate) mod streams;
 
-/* === Re-Exports === */
 pub(crate) use crate::service_support::prelude::*;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

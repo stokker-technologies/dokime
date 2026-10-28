@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod append_executions;
 mod cancel_execution;
 mod copy_cycle;
@@ -39,8 +37,6 @@ mod stop_execution;
 mod submit_execution_command;
 pub mod transport;
 mod update_cycle_policy;
-
-/* === Re-Exports === */
 
 pub use append_executions::{AppendExecutions, ExecutionBinding};
 pub use cancel_execution::CancelExecution;
@@ -73,13 +69,6 @@ pub use submit_execution_command::SubmitExecutionCommand;
 pub use transport::{EvidenceBatch, LeaseAsk, OperatorQuestion};
 pub use update_cycle_policy::UpdateCyclePolicy;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Endpoint;
 use super::{MUTATION, ORDINARY};
 
@@ -94,16 +83,6 @@ use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::execution::wire::*;
 #[allow(unused_imports)]
 use dokime_domain::model::planning::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 // Copies the current plan, authored Definition/Operator cycle inputs, documents,
 
@@ -188,10 +167,6 @@ pub enum Operations {
     RenameExecution(RenameExecution),
     UpdateCyclePolicy(UpdateCyclePolicy),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Endpoint for ListExecutionSteps {
     const PATH: &'static str = "/dokime.v1.Execution/ListExecutionSteps";
@@ -304,9 +279,3 @@ impl Endpoint for SealCycle {
 impl Endpoint for UpdateCyclePolicy {
     const PATH: &'static str = "/dokime.v1.Execution/UpdateCyclePolicy";
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

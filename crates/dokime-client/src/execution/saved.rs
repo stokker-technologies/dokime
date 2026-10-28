@@ -7,43 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{TestExecutionHandle, invalid, validate_checkpoint};
 use crate::{ResponseStream, Result, contracts};
 use dokime_domain::model::execution::ExecutionCheckpoint;
 use dokime_domain::model::execution::PageCursor;
 
-/* === Constants === */
-
 const PAGE_ITEMS: u64 = 100;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Pages {
     checkpoint: ExecutionCheckpoint,
     position: u64,
     after: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TestExecutionHandle {
     pub async fn context_at(
@@ -198,10 +173,6 @@ impl Pages {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn same_checkpoint(
     expected: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
     actual: Option<&dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint>,
@@ -236,5 +207,3 @@ fn samples(table: &str, page: &dokime_domain::model::history::wire::CheckpointTe
     }
     Ok(())
 }
-
-/* === Tests === */

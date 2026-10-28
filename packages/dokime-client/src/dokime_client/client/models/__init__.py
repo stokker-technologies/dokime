@@ -8,9 +8,6 @@
 
 """Public Python values returned by the remote client."""
 
-# === Imports === #
-
-# Standard Library Imports
 from __future__ import annotations
 
 import re
@@ -19,21 +16,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Self
 
-# Third Party Imports
-
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
 type Value = None | bool | int | float | str | datetime | list[Value] | dict[str, Value]
-
-# === Classes === #
 
 
 class DatetimeValue(datetime):
@@ -250,10 +233,3 @@ class SavedSample:
     epoch: str
     ordinal: int
     sample: Sample
-
-
-# === Public Functions === #
-
-# === Private Functions === #
-
-# === Entry Point === #

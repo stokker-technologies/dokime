@@ -7,18 +7,14 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 import { PromptPanel } from "@/components/PromptPanel";
 import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
-// Local Imports
+
 import {
   executionDocumentSections,
   executionPagePrompts,
@@ -52,10 +48,6 @@ import { durationParts, formatDuration } from "@/lib/format";
 import { promptDecision } from "@/lib/prompts";
 import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptField, PromptRequest } from "@/lib/types";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const IDENTITY: ExecutionFileIdentity = {
   store: "store",
   epoch: "epoch",
@@ -64,17 +56,9 @@ const IDENTITY: ExecutionFileIdentity = {
   relativePath: "obc.charger.steady/stream.000000.log",
 } as ExecutionFileIdentity;
 
-/* === Types === */
-
 type CardKind = DocumentViewCard["kind"];
 
 type PromptLevel = RankedPrompt["level"];
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function cards(...kinds: string[]): Pick<DocumentViewCard, "kind">[] {
   return kinds.map((kind) => ({ kind: kind as CardKind }));
@@ -91,8 +75,6 @@ function prompt(id: string, level: string, createdAt: string): RankedPrompt {
 function bytes(length: number) {
   return Uint8Array.from({ length }, (_, index) => index % 251);
 }
-
-/* === Entry Point === */
 
 test("Page Sections", () => {
   // Built-In Card Kinds Own Their Sections And Every Other Kind Is Report

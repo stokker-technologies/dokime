@@ -7,13 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { type ReactNode, useEffect, useState } from "react";
-
-/* === Local Imports === */
 
 import { DokimeToaster } from "@/components/DokimeToaster";
 import { AppearanceProvider, type ThemeModePolicy, useAppearance } from "@/lib/appearance";
@@ -23,16 +19,10 @@ import { isTauriDesktop } from "@/lib/desktop-open";
 import { useNativeSessionOptional } from "./native-session/context";
 import { createDokimeQueryClient } from "./query-client";
 
-/* === Types === */
-
 type AppProvidersProps = { children: ReactNode };
 type ForcedTheme = "light" | "dark";
 
-/* === Constants === */
-
 const THEME_STORAGE_KEY = "dokime-test-hub.theme";
-
-/* === Components === */
 
 /**
  * The connected native session owns the query client used by route data. The
@@ -88,8 +78,6 @@ function ThemeModePolicyController() {
 
   return null;
 }
-
-/* === Private Functions === */
 
 function forcedThemeFromPolicy(policy: ThemeModePolicy): ForcedTheme | undefined {
   switch (policy) {

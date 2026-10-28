@@ -7,27 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::fmt;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de;
 
-// Local Imports
-
-/* === Constants === */
-
 const DOKIME_ID_NAMESPACE: [u8; 16] = [0xd0, 0x11, 0xed, 0x1d, 0x5e, 0xed, 0x4d, 0xa7, 0x9c, 0x0f, 0xe1, 0xd5, 0xea, 0x11, 0xab, 0x1e];
-
-/* === Macros === */
 
 macro_rules! typed_uuid {
     ($name:ident) => {
@@ -183,24 +169,12 @@ product_error!(HubIdError, formatter {
     Self::InvalidDocumentId => formatter.write_str("DocumentId must be a valid UUID or document identifier"),
 });
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HubIdError {
     InvalidUuid { type_name: &'static str },
     InvalidCaseId,
     InvalidDocumentId,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn seeded_uuid(type_name: &str, seed: &str) -> String {
     let mut left = fnv1a64(&DOKIME_ID_NAMESPACE, 0xcbf29ce484222325);
@@ -221,8 +195,6 @@ pub(crate) fn validate_uuid(type_name: &'static str, value: &str) -> Result<(), 
         );
     if valid { Ok(()) } else { Err(HubIdError::InvalidUuid { type_name }) }
 }
-
-/* === Private Functions === */
 
 fn fnv1a64(bytes: &[u8], seed: u64) -> u64 {
     bytes.iter().fold(seed, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3))
@@ -271,5 +243,3 @@ fn validate_document_id(value: &str) -> Result<(), HubIdError> {
 
     if valid { Ok(()) } else { Err(HubIdError::InvalidDocumentId) }
 }
-
-/* === Tests === */

@@ -11,25 +11,15 @@
  * Portable Media Gallery Values And Pure Artifact Computations.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import type { ArtifactSource } from "@/lib/desktop/delivery";
-// Local Imports
+
 import type { MediaArtifactKind } from "@/lib/media";
 import type { RecordScope } from "@/lib/types";
 
-/* === Re-Exports === */
-
-/* === Constants === */
 const SAFE_IMAGE_TYPES = new Set(["image/avif", "image/bmp", "image/gif", "image/jpeg", "image/png", "image/webp"]);
 const SAFE_VIDEO_TYPES = new Set(["video/mp4", "video/mpeg", "video/ogg", "video/webm"]);
 const SAFE_AUDIO_TYPES = new Set(["audio/flac", "audio/mp4", "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm"]);
 
-/* === Types === */
 export type MediaGalleryArtifact = {
   artifact_id: string;
   label: string;
@@ -68,9 +58,6 @@ export type MediaPreviewState = {
   urls: Record<string, string>;
 };
 
-/* === Classes === */
-
-/* === Public Functions === */
 export function artifactContentKey(artifact: MediaGalleryArtifact): string {
   return [
     artifact.artifact_id,
@@ -126,7 +113,3 @@ export function mediaArtifactSource(artifact: MediaGalleryArtifact): ArtifactSou
   }
   return { kind: "artifact", artifactId: artifact.artifact_id };
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

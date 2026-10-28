@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod appearance;
 pub mod backend;
 pub mod catalog;
@@ -37,14 +35,8 @@ pub mod secrets;
 pub mod settings;
 pub mod telemetry;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use harmos_domain::catalog::Member;
 use harmos_domain::catalog::Visitor;
 use harmos_domain::operations::OperationDeclaration;
@@ -52,10 +44,6 @@ use harmos_domain::operations::OperationPolicy;
 use harmos_domain::operations::RetryPolicy;
 use harmos_domain::operations::WireDeclaration;
 use harmos_domain::schema::Described;
-
-// Local Imports
-
-/* === Constants === */
 
 pub const PACKAGE: &str = "dokime.v1";
 
@@ -81,12 +69,6 @@ pub const FOLLOW: OperationPolicy = policy(Duration::from_secs(86_400));
 // Inside An `ORDINARY` Stop With Room To Save The Evidence; The Desktop And Server Stops Build On It.
 pub const STOP_SETTLEMENT: OperationPolicy = policy(Duration::from_secs(5));
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct Endpoints;
 
 pub struct Declaration {
@@ -95,8 +77,6 @@ pub struct Declaration {
     pub wire: WireDeclaration,
     pub rust_type: fn() -> &'static str,
 }
-
-/* === Enums === */
 
 #[harmos::catalog]
 pub enum Operations {
@@ -171,16 +151,12 @@ pub enum Operations {
     Telemetry(telemetry::Operations),
 }
 
-/* === Traits === */
-
 // Public Transport Binding And Its Native-Only Boundary.
 pub trait Endpoint: OperationDeclaration {
     const PATH: &'static str;
     // Native Listener Trust Never Comes From A Remote Call's Loopback Address.
     const LOCAL_ONLY: bool = false;
 }
-
-/* === Implementations === */
 
 impl Endpoint for harmos::builtins::host::Catalog {
     const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
@@ -203,10 +179,6 @@ where
     };
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 const fn policy(timeout: Duration) -> OperationPolicy {
     OperationPolicy {
         timeout,
@@ -214,5 +186,3 @@ const fn policy(timeout: Duration) -> OperationPolicy {
         retries: RetryPolicy::Never,
     }
 }
-
-/* === Tests === */

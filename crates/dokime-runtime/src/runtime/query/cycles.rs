@@ -7,31 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::cmp::Ordering;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::state::RuntimeState;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::TestCycle;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CycleFilter {
@@ -48,8 +31,6 @@ pub struct CycleOrder {
     pub descending: bool,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleOrderKey {
@@ -65,10 +46,6 @@ pub enum CyclePageError {
     UnknownContinuation,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl std::fmt::Display for CyclePageError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -78,8 +55,6 @@ impl std::fmt::Display for CyclePageError {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub fn select_cycles<'a>(state: &'a RuntimeState, filter: &CycleFilter, order: CycleOrder) -> Vec<&'a TestCycle> {
     let mut selected: Vec<&TestCycle> = state.cycles.values().filter(|cycle| matches_filter(state, cycle, filter)).collect();
@@ -98,8 +73,6 @@ pub fn cycle_page<'a>(
     let next = (start + page.len() < selected.len()).then(|| page.last().map(|cycle| cycle.test_cycle_id.to_string())).flatten();
     Ok((page, next))
 }
-
-/* === Private Functions === */
 
 fn matches_filter(state: &RuntimeState, cycle: &TestCycle, filter: &CycleFilter) -> bool {
     matches_cycle(cycle, state.archived_cycles.contains(&cycle.test_cycle_id), filter)
@@ -165,5 +138,3 @@ fn instants(left: &Timestamp, right: &Timestamp) -> Ordering {
         (None, None) => Ordering::Equal,
     }
 }
-
-/* === Tests === */

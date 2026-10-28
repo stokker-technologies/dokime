@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::de::DeserializeOwned;
 
-// Local Imports
 use crate::InstalledPlugin;
 use crate::definition::SuiteSet;
 use crate::domains::{OptionProviderContribution, Permission};
@@ -31,22 +21,6 @@ use crate::prompts::PromptDefinition;
 use crate::records::RecordContract;
 use crate::telemetry::TelemetryContract;
 use crate::{runtime::Error, runtime::Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn decode_registrations(
     source: &str, version: &str, description: &str, registrations: &[harmos::sidecar::Registration],
@@ -90,8 +64,6 @@ pub(crate) fn decode_registrations(
     Ok(installation)
 }
 
-/* === Private Functions === */
-
 fn decode_once<T: DeserializeOwned>(registrations: &[harmos::sidecar::Registration], source: &str, namespace: &str) -> Result<Option<T>> {
     let matching = registrations.iter().filter(|entry| entry.namespace == namespace).collect::<Vec<_>>();
     let Some(registration) = matching.first() else {
@@ -107,5 +79,3 @@ fn decode_once<T: DeserializeOwned>(registrations: &[harmos::sidecar::Registrati
         .map(Some)
         .map_err(|error| Error::Operation(format!("plugin `{source}` registered invalid `{namespace}` data: {error}")))
 }
-
-/* === Tests === */

@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import type { PlotCardSpec, PlotViewportMode } from "@/plots/types";
-
-/* === Components === */
 
 export function TrajectoryPlot({
   actions,

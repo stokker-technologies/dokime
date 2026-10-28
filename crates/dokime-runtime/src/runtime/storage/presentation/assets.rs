@@ -7,36 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
 
-// Local Imports
 use super::error;
 use crate::{installed_plugins::RuntimeInstalledPluginAsset, runtime::Error, runtime::Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(in crate::runtime::storage) async fn capture_logo(asset: &RuntimeInstalledPluginAsset, maximum: u64) -> Result<String> {
     validate_mime(&asset.mime_type)?;
@@ -74,7 +48,3 @@ pub(super) fn validate_file(metadata: &std::fs::Metadata, maximum: u64) -> Resul
         Ok(())
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

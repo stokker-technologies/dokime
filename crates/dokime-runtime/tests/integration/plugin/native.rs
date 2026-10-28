@@ -7,17 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
-// Third Party Imports
 use harmos::RegistrationExt;
 use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
@@ -26,7 +19,6 @@ use harmos::plugin::{
 use harmos::sidecar::{Attach, Notice, Supervised};
 use tonic::Status;
 
-// Local Imports
 use dokime_domain::model;
 use dokime_runtime::operations::files::{AwaitFileWatchArmed, WatchFile};
 use dokime_runtime::operations::hosting::{Host as Hosted, Serve, Served};
@@ -34,7 +26,7 @@ use dokime_runtime::transport::{
     EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, StepAdmission,
 };
 use {dokime_runtime::records::RecordPublication, model::records::publication::RecordPublishRequest};
-/* === Constants === */
+
 const BOUND: Duration = Duration::from_secs(120);
 // Initialization carries the configuration and the host's operation assignments.
 const SDK_BYTES: usize = 64 * 1024;
@@ -46,13 +38,10 @@ pub(super) const POLICY: harmos::operations::OperationPolicy = harmos::operation
     retries: harmos::operations::RetryPolicy::Never,
 };
 
-/* === Macros === */
-/* === Type Aliases === */
 type Notices = Arc<dyn Fn(&harmos::ServiceContext<Fixture>, Notice) + Send + Sync>;
 
 pub(super) type Operations = harmos::operations::OperationManager<Lanes>;
 
-/* === Structs === */
 pub(super) struct Fixture;
 
 pub(super) struct Native<A: Attach> {
@@ -96,16 +85,12 @@ struct Backend {
     shutdown_attempted: bool,
 }
 
-/* === Enums === */
 #[harmos::lanes]
 pub(super) enum Lanes {
     #[default]
     Open,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl harmos::Application for Fixture {
     type Lanes = Lanes;
     type State = ();
@@ -407,7 +392,6 @@ impl Serve<AwaitFileWatchArmed> for Hosting {
     }
 }
 
-/* === Public Functions === */
 pub(super) fn attach<P>() -> harmos::sidecar::PluginNative<P>
 where
     P: harmos::Plugin<Context = harmos::sidecar::Supervisor> + harmos::plugin::Declared,
@@ -475,7 +459,3 @@ pub(super) async fn settled<T: dokime_runtime::execution::SidecarTemplate>(
         }
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

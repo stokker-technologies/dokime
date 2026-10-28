@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { type ReactNode, useCallback, useEffect } from "react";
-
-/* === Local Imports === */
 
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import { usePlotInteraction } from "@/plots/interaction";
 import type { PlotCardSpec, PlotViewportMode } from "@/plots/types";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
-
-/* === Components === */
 
 export function TimeSeriesPlot({
   actions,

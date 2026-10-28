@@ -7,26 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ExecutionScope {
@@ -51,12 +31,6 @@ pub struct WatchTicket {
     #[row(description = "The caller's ticket naming this watch for AwaitFileWatchArmed.")]
     pub ticket: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::operations::ContextValue for ExecutionScope {
     const KEY: &'static str = "dokime.execution.scope";
@@ -139,9 +113,3 @@ impl std::fmt::Display for IdempotencyKey {
         formatter.write_str(&self.0)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

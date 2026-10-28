@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod addition;
 pub mod column;
 pub mod definition;
 pub mod format;
 pub mod host;
 pub mod validation;
-
-/* === Re-Exports === */
 
 pub use addition::DocumentAddition;
 pub use column::Column;
@@ -76,31 +72,3 @@ pub use definition::TelemetrySummaryTileDefinition;
 pub use definition::resolve_document_plot_axes;
 pub use definition::validate_plot_definition;
 pub use validation::validate_document_definition;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

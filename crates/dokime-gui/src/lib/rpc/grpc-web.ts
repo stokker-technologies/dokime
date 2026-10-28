@@ -4,18 +4,13 @@
    that serves it (`dokime server --grpc-web`). The desktop never selects it;
    its WebView reaches the backend only through the shell's IPC bridge. */
 
-/* === External Imports === */
 import { create, type DescMessage, fromBinary, type MessageInitShape, type MessageShape, toBinary } from "@bufbuild/protobuf";
-
-/* === Local Imports === */
 
 import { FRAME_BYTES as DESKTOP_FRAME_BYTES } from "@generated/desktop-protocol";
 import type { BackendLimits } from "../desktop/connection";
 import { isReportBuild } from "../ui-mode";
 import { normalizeRpcError } from "./errors";
 import type { NativeClientStream, NativeStream, SessionIdentity } from "./transport";
-
-/* === Constants === */
 
 const DESKTOP_STREAM_TIMEOUT_MS = 86_400_000;
 const DESKTOP_UNARY_TIMEOUT_MS = 10_000;
@@ -26,7 +21,6 @@ const connections = new Map<string, Connection>();
 const maxFrameBytes = DESKTOP_FRAME_BYTES;
 const text = new TextDecoder("utf-8", { fatal: true });
 
-/* === Types === */
 /** Ephemeral access for one browser connection; never persist it. */
 export type BrowserAccess = {
   generation: string;
@@ -43,7 +37,6 @@ interface Connection {
   cancellation: AbortController;
 }
 
-/* === Public Functions === */
 export function bindConnection(session: SessionIdentity, access: BrowserAccess): () => void {
   current(session);
   if (access.generation !== session.generation) fail("superseded");
@@ -258,7 +251,6 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
   throw new Error("gRPC-Web cannot carry client streams.");
 }
 
-/* === Private Functions === */
 function current(session: SessionIdentity): void {
   if (!session.isCurrent()) fail("superseded");
 }

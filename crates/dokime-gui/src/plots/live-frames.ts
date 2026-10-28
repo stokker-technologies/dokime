@@ -13,12 +13,8 @@
  * visible while its watch reconnects, without accumulating sample history.
  */
 
-/* === Local Imports === */
-
 import { summaryInFlight } from "@/lib/statistics";
 import type { PlotPayload, PlotPayloadDiagnostics, PlotPayloadStreamMessage } from "@/lib/types";
-
-/* === Types === */
 
 export type LivePlotStatus = "idle" | "loading" | "waiting" | "live" | "stale" | "reconnecting" | "error";
 
@@ -42,8 +38,6 @@ export type LivePlotState = {
 };
 
 export type LivePlotStateMap = Record<string, LivePlotState>;
-
-/* === Public Functions === */
 
 export function emptyLivePlotState(): LivePlotState {
   return {

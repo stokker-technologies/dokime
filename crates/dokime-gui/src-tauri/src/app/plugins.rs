@@ -7,41 +7,24 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-// Third Party Imports
 use tauri::ipc::Channel;
 use tauri::{AppHandle, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
-// Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
 use crate::connection::{ConnectionSession, SessionLease};
 use dokime::domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES;
-
-/* === Constants === */
 
 const INSTALL_DEADLINE: Duration = Duration::from_secs(300);
 // Each progress message re-renders the webview; bound how often one is sent.
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 // A native drop is installed right after the webview sees it; an older one is stale.
 const DROP_VALIDITY: Duration = Duration::from_secs(30);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // The latest native file drop per window, recorded by the shell so a installation
 // request names a dropped bundle without the webview passing a path.
@@ -54,8 +37,6 @@ struct FileDrop {
     at: Instant,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(tag = "phase", rename_all = "snake_case")]
 pub enum InstallProgress {
@@ -63,10 +44,6 @@ pub enum InstallProgress {
     Uploading { sent: u64, total: u64 },
     Installing,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DroppedFiles {
     pub fn record(&self, window: &str, paths: &[PathBuf]) {
@@ -90,8 +67,6 @@ impl DroppedFiles {
     }
 }
 
-/* === Public Functions === */
-
 // Install the bundle just dropped on the window, or pick one natively; `None` when the operator cancels the picker.
 pub async fn desktop_plugin_install_file(
     window: WebviewWindow, state: State<'_, ConnectionSession>, dropped: State<'_, DroppedFiles>, app: AppHandle, generation: String,
@@ -114,8 +89,6 @@ pub async fn desktop_plugin_install_file(
     let bytes = read.map_err(|error| format!("The plugin bundle could not be read: {error}"))?;
     install(&lease, bytes, progress, None).await.map(|installed| Some(installed.install_id))
 }
-
-/* === Private Functions === */
 
 pub(super) fn admit(window: &WebviewWindow, state: &ConnectionSession, generation: &str) -> Result<SessionLease, String> {
     ensure_main_window(window)?;
@@ -174,8 +147,6 @@ pub(super) async fn install(
 fn text(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

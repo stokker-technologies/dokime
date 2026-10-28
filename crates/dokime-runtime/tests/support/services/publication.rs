@@ -7,17 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
-// Third Party Imports
+
 use std::num::NonZeroUsize;
 
 use harmos::storage::{
@@ -26,15 +20,7 @@ use harmos::storage::{
     StorageSchema, StoreHistory, StoredRecord, StoredRow,
     query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection},
 };
-// Local Imports
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 pub struct PublicationFault {
     suffix: &'static str,
     exit: Option<i32>,
@@ -66,11 +52,6 @@ thread_local! {
     static STORAGE_NOW: std::cell::Cell<tokio::time::Instant> = std::cell::Cell::new(tokio::time::Instant::now());
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl harmos::storage::WorkerOwner for AdmissionWorker {
     fn stop(&self) -> harmos::storage::StorageFuture<'_, ()> {
         let task = self.0.lock().unwrap().take();
@@ -325,9 +306,3 @@ impl StorageBackend for PublicationBackend {
         self.inner.read_identities(snapshot, selection, page)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

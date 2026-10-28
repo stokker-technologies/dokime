@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::definition::SuiteSet;
 use crate::model::plugins::AppCustomizationContribution;
 use crate::model::plugins::AppThemeContribution;
@@ -30,14 +20,6 @@ use crate::model::prompts::PromptDefinition;
 use crate::model::records::RecordContract;
 use crate::model::settings::Settings;
 use crate::model::telemetry::TelemetryContract;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct InstalledPlugin {
@@ -100,24 +82,12 @@ pub struct SettingDiscovery {
     pub operation: String,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl InstalledPlugin {
     pub fn listened_records(&self) -> impl Iterator<Item = &str> {
         self.listeners.iter().map(|listener| listener.record.as_str())
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn enabled() -> bool {
     true
 }
-
-/* === Tests === */

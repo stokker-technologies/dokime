@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod collectors;
 mod config;
 mod error;
@@ -18,8 +16,6 @@ pub(crate) mod platform;
 mod sample;
 mod telemetry;
 mod telemetry_domain;
-
-/* === Re-Exports === */
 
 // The stream set is a contract both ends compile; it lives in the api crate.
 pub use config::{HostOptions, HostTelemetryConfig, HostTelemetrySourceKind};
@@ -35,34 +31,8 @@ pub use sample::HostStreamSample;
 pub use telemetry::{HostTelemetryCollector, collection_timeout};
 pub use telemetry_domain::{HOST_PLUGIN_SOURCE, configure_contracts, host_telemetry_collector, installed_plugin};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
 /// Stored Sample Producer Identity, Distinct From The Installation Catalog Source.
 pub const HOST_SOURCE_ID: &str = "host.telemetry";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn new_id<T>() -> T
 where
@@ -71,5 +41,3 @@ where
 {
     T::try_from(uuid::Uuid::now_v7().to_string()).expect("a freshly generated UUID is a valid Dokime identity")
 }
-
-/* === Tests === */

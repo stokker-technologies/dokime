@@ -9,10 +9,6 @@
 
 /* Native immutable history and checkpoint adapters for the original routed UI. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type {
   Row14 as GeneratedExecutionAvailability,
   Row15 as GeneratedExecutionBrowseLifecycle,
@@ -83,8 +79,6 @@ type ExecutionBrowseLifecycle = Wire<GeneratedExecutionBrowseLifecycle>;
 type HistoricalExecutionMetadata = Wire<GeneratedHistoricalExecutionMetadata>;
 type HistoryIssue = Wire<GeneratedHistoryIssue>;
 type NativeExecutionBrowsePage = Wire<GeneratedNativeExecutionBrowsePage>;
-
-/* === Limits and session ownership === */
 
 export const NATIVE_CHECKPOINT_WINDOW_BYTES = GUI_CHECKPOINT_WINDOW_BYTES;
 export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = GUI_CHECKPOINT_ARTIFACT_BYTES;
@@ -176,8 +170,6 @@ function mapIssue(issue: HistoryIssue): {
     message: issue.message,
   };
 }
-
-/* === History discovery === */
 
 export type NativeCycleContinuation = { at: CheckpointCursor; after: bigint };
 
@@ -450,8 +442,6 @@ function mapAvailability(value: ExecutionAvailability | undefined): ExecutionBro
   }
 }
 
-/* === Checkpoint reads === */
-
 export async function fetchNativeCheckpointDocument(
   session: SessionIdentity,
   checkpoint: CheckpointReference,
@@ -594,8 +584,6 @@ export async function readNativeCheckpointOutput(
   return content;
 }
 
-/* === Verified checkpoint artifact transfer === */
-
 export interface NativeCheckpointArtifact {
   metadata: ArtifactMetadata;
   bytes: Uint8Array;
@@ -729,8 +717,6 @@ function normalizedSha(value: string, label: string): string {
 function hex(bytes: Uint8Array): string {
   return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
 }
-
-/* === Small display helpers consumed by the original evidence panels === */
 
 export function checkpointFileLabel(file: ExecutionFileMetadata): string {
   return `${file.relativePath} · ${file.sizeBytes.toString()} bytes · ${fileStateLabel(file.state)}`;

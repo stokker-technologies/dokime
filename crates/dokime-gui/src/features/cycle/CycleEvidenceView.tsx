@@ -22,8 +22,6 @@
  * With `live={false}` the same document renders from captured data: the plot window is stated as a sentence instead of a slider.
  */
 
-/* === External Imports === */
-
 import type { ComponentType, ReactNode } from "react";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { Button } from "@/components/ui/button";
@@ -41,8 +39,6 @@ import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
 import { PromptHistory } from "./PromptHistory";
 import { RecordsSection } from "./RecordsSection";
 
-/* === Types === */
-
 export type CycleEvidenceViewProps = {
   live: boolean;
   surface: DocumentSurface;
@@ -59,8 +55,6 @@ export type CycleEvidenceViewProps = {
   /** The page bar's action cluster; none in a file. */
   pageActions?: ReactNode;
 };
-
-/* === Components === */
 
 export function CycleEvidenceView({
   live,
@@ -109,8 +103,6 @@ export function CycleEvidenceView({
   );
 }
 
-/* === Private Components === */
-
 function PaneNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (
     <div className="grid justify-items-start gap-2 py-8">
@@ -124,8 +116,6 @@ function PaneNotice({ action, message, title }: { action?: { label: string; onCl
     </div>
   );
 }
-
-/* === Private Functions === */
 
 /** The document's cards, Records excepted: the shared Records section closes the column. */
 function isDocumentCard(card: DocumentViewCard): boolean {

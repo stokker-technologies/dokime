@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote, quote_spanned};
 use syn::ext::IdentExt;
@@ -24,21 +16,12 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Error, Expr, Ident, LitStr, Meta, Token, Type};
 
-// Local Imports
 use crate::arguments::Shape;
-
-/* === Constants === */
 
 const SECTION_ARGUMENTS: &[&str] = &["label", "description", "status"];
 const FIELD_ARGUMENTS: &[&str] = &["label", "description", "default", "min", "max", "step", "from_environment", "options", "discovered"];
 const FIELD_FLAGS: &[&str] = &["secret"];
 const NUMBERS: &[&str] = &["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "f32", "f64"];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct SettingDeclaration {
     described: TokenStream,
@@ -66,8 +49,6 @@ struct FieldArguments {
     visible_when: Option<(Ident, Expr)>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Boolean,
@@ -77,10 +58,6 @@ enum Kind {
     Choice,
     Secret,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Kind {
     fn named(self) -> &'static str {
@@ -94,8 +71,6 @@ impl Kind {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn section(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
@@ -118,8 +93,6 @@ pub(crate) fn settings(attribute: TokenStream, item: TokenStream) -> TokenStream
         }
     }
 }
-
-/* === Private Functions === */
 
 fn aggregate(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -693,5 +666,3 @@ fn read(field: &SettingDeclaration) -> TokenStream {
 fn stripped(input: &DeriveInput) -> TokenStream {
     crate::arguments::stripped(input, "setting").to_token_stream()
 }
-
-/* === Tests === */

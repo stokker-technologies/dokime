@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use super::super::{
     catalog,
     value::{Budget, canonical},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn selection(value: dokime::domain::model::plots::wire::AnalysisSelection) -> Result<dokime::analysis::Selection, Status> {
     if value.id.is_empty() || value.version == 0 {
@@ -141,8 +115,6 @@ pub(super) fn computation(
     })
 }
 
-/* === Private Functions === */
-
 fn mapped<S, T>(values: impl ExactSizeIterator<Item = S>, mut map: impl FnMut(S) -> Result<T, Status>) -> Result<Vec<T>, Status> {
     let mut output = canonical::slots(values.len())?;
     for value in values {
@@ -150,5 +122,3 @@ fn mapped<S, T>(values: impl ExactSizeIterator<Item = S>, mut map: impl FnMut(S)
     }
     Ok(output)
 }
-
-/* === Tests === */

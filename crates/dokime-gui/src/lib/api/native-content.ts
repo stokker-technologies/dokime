@@ -9,10 +9,6 @@
 
 /* Native content adapters for the original routed UI. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import { UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES } from "@generated/desktop-protocol";
 
 import type { Row3 as ArtifactDownloadFrame } from "@generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb";
@@ -36,8 +32,6 @@ import { NATIVE_MAX_PAGES, NativeApiLimitError, nowIso, safeNumber, sha256Hex, t
 
 const GUI_CONTENT_BYTES = 2_147_483_648;
 const GUI_SMALL_PAGE_ITEMS = 100;
-
-/* === Canonical Types === */
 
 type ArtifactScope = NonNullable<ArtifactMetadata["scope"]>;
 type ArtifactFrame = Wire<ArtifactDownloadFrame>;

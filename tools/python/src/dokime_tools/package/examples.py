@@ -8,9 +8,6 @@
 
 """Stage And Package The Canonical Remote Examples"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import re
 import shutil
@@ -20,21 +17,13 @@ import sys
 import tomllib
 from pathlib import Path
 
-# Third Party Imports
 from packaging.specifiers import SpecifierSet
 from packaging.utils import parse_wheel_filename
 
-# Local Imports
 from dokime_tools import temporary
 from dokime_tools.build import paths, wheel
 from dokime_tools.package.run import assemble, definitions
 from dokime_tools.package.staging import clear_output, stage_file
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 # Only Public Canonical Inputs Travel; Local Keys, Dotenv Files And Evidence Never Do.
 FILES = (
@@ -59,12 +48,6 @@ FILES = (
     "python/pyproject.toml",
     "python/uv.lock",
 )
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def stage(root: Path, destination: Path, *, wheel: Path) -> list[Path]:
@@ -199,9 +182,6 @@ def main() -> None:
         package(Path.cwd(), options.profile)
 
 
-# === Private Functions === #
-
-
 def _regular(path: Path) -> None:
     if any(parent.is_symlink() for parent in path.parents) or not stat.S_ISREG(path.lstat().st_mode):
         raise ValueError(f"example must be a regular file with an unlinked parent: {path}")
@@ -242,8 +222,6 @@ def _environment(project: Path, wheel: Path) -> None:
     if package.get("version") != str(version) or package.get("source") != expected_source:
         raise ValueError("the locked Dokime version or source differs from the candidate")
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     main()

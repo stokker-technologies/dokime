@@ -8,29 +8,18 @@
 
 """Serve A Scripted Backend Over Real In-Process gRPC Sockets"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from fnmatch import fnmatchcase
 from typing import Any
 
-# Third Party Imports
 import grpc
 from google.protobuf.message import Message
 
-# Local Imports
 from dokime_client.client import DokimeClient, Execution, _wire
 
 from .canonical import _message, _value, _value_object, register
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 # Suites and templates are named by readable IDs; only the template's
 # registered UUID travels on the planning wire.
@@ -42,10 +31,6 @@ CASE_ID = "a13ae695-1f02-4464-9f7b-0b14ecffcb41"
 CYCLE_ID = "ad18e512-38cf-4e49-9e07-6da29595521e"
 EXECUTION_ID = "47acbd5a-7496-4947-8078-0b282cf58643"
 COMMAND_ID = "70aefc57-b498-4335-924b-5a45614fb313"
-
-# === Types === #
-
-# === Classes === #
 
 
 class BackendFixture:
@@ -787,9 +772,6 @@ class BackendFixture:
                 await asyncio.gather(changed, sealed, return_exceptions=True)
 
 
-# === Public Functions === #
-
-
 @asynccontextmanager
 async def serve(
     implementation: BackendFixture | None = None,
@@ -827,8 +809,3 @@ async def prepare(client: DokimeClient, *, suite: str = SUITE_ID, template: str 
 
 async def collect[T](iterator: AsyncIterator[T]) -> list[T]:
     return [item async for item in iterator]
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use dokime_domain::model::execution::saved::ExecutionCheckpoint;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::storage::ObjectRevision;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::execution::storage::{ExecutionDocument, ExecutionMetadata};
 use crate::runtime::query::executions::{self, ExecutionFilter, ExecutionOrder};
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
@@ -33,14 +24,6 @@ use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ExecutionBrowseQuery {
@@ -151,8 +134,6 @@ pub struct ExecutionCheckpointContext {
     pub appearance: crate::installed_plugins::RuntimeAppearanceFrame,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionBrowseLifecycle {
@@ -171,10 +152,6 @@ pub enum ExecutionAvailability {
     Interrupted,
     Uncheckpointed,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::ops::Deref for ExecutionCheckpointOutputs {
     type Target = [dokime_domain::model::execution::saved::ExecutionOutput];
@@ -433,10 +410,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn contract_count<T>(contracts: &BTreeMap<dokime_domain::model::identity::Identifier, BTreeMap<u32, T>>) -> Result<usize> {
     contracts.values().try_fold(0usize, |count, versions| {
         count.checked_add(versions.len()).ok_or_else(|| Error::Operation("checkpoint contract count overflows".into()))
@@ -574,5 +547,3 @@ fn browse_page<'a>(
 fn error(error: impl ToString) -> Error {
     Error::Operation(error.to_string())
 }
-
-/* === Tests === */

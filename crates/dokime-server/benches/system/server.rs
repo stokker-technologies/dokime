@@ -9,12 +9,6 @@
 
 // Server Process Driver: Built Artifact Paths, Readiness, And Shutdown
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::{
@@ -25,18 +19,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use tempfile::TempDir;
 
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 pub struct Server {
     child: Child,
     endpoint: String,
@@ -50,11 +34,6 @@ pub struct StorageCounters {
     pub durable_files: u64,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Server {
     pub fn start(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -137,13 +116,11 @@ impl Drop for Server {
     }
 }
 
-/* === Public Functions === */
 pub fn plugin_bundle() -> Option<PathBuf> {
     let path = build_root().join("fixtures/plugins/obc-plugin.dokime");
     path.is_file().then_some(path)
 }
 
-/* === Private Functions === */
 fn startup_event(stdout: &mut BufReader<ChildStdout>) -> serde_json::Value {
     let mut line = String::new();
     assert!(stdout.read_line(&mut line).unwrap() > 0, "the server exited before reporting readiness");
@@ -165,5 +142,3 @@ fn build_root() -> PathBuf {
         .join("target/build/bench")
         .join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH))
 }
-
-/* === Tests === */

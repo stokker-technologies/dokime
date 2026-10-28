@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use super::super::value::canonical;
 use crate::grpc::transcode::Transcode;
 use dokime::domain::model::plugins::wire as plugins_model;
 use dokime::plugins::{PluginEntry, PluginLastBoot, PluginState};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_model::PluginInstallation, Status> {
     normalize(&mut entry, limit)?;
@@ -105,7 +79,3 @@ pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Sta
         .map_err(|_| Status::resource_exhausted("plugin installation state exceeds response budget"))?;
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

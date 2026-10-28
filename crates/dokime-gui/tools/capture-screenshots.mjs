@@ -26,10 +26,6 @@
 //
 // Usage: mise run screenshots:capture
 
-/* === Imports === */
-
-// Standard Library Imports
-
 import { execFile, spawn } from "node:child_process";
 
 import { once } from "node:events";
@@ -47,14 +43,6 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { promisify } from "node:util";
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const run = promisify(execFile);
 
@@ -100,14 +88,6 @@ const OBSERVATION_DURATION = "6";
 const PROTECTION_SUITE = "Charger Protection";
 
 const OPERATOR_NOTE = "Trace steady, no fault indicated.";
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 /* Process And Session Helpers */
 
@@ -727,7 +707,5 @@ function terminate(pid, signal = "SIGTERM") {
     // The process group already exited.
   }
 }
-
-/* === Entry Point === */
 
 await main();

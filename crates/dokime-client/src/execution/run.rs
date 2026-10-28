@@ -9,35 +9,17 @@
 
 // Start One Execution And Drain Its Requested Observations
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use super::{ResponseStream, Result, TestExecutionHandle, poll_interval};
 use dokime_domain::model::{evidence::wire::RecordPage, execution::ExecutionMode, telemetry::wire::TelemetrySamplesReply};
-
-/* === Constants === */
 
 const REQUEST_POLL_MS: u64 = 200;
 const SAMPLE_PAGE_ITEMS: u64 = 1_000;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Callback<'a, T> = &'a mut (dyn FnMut(&T) -> Result<()> + Send);
 pub type RecordCallback<'a> = Callback<'a, RecordPage>;
 pub type SampleCallback<'a> = Callback<'a, TelemetrySamplesReply>;
-
-/* === Structs === */
 
 // Listener Selection Affects Observation Only, Never Captured Evidence.
 #[derive(Clone, Debug)]
@@ -60,12 +42,6 @@ pub struct RunCallbacks<'a> {
     pub records: Option<RecordCallback<'a>>,
     pub samples: Option<SampleCallback<'a>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for RunOptions {
     fn default() -> Self {
@@ -136,10 +112,6 @@ impl TestExecutionHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn drain<T: Send + 'static>(reader: Option<&ResponseStream<T>>, mut callback: Option<Callback<'_, T>>) -> Result<()> {
     let Some(reader) = reader else { return Ok(()) };
     while let Some(page) = reader.message().await? {
@@ -148,8 +120,6 @@ async fn drain<T: Send + 'static>(reader: Option<&ResponseStream<T>>, mut callba
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

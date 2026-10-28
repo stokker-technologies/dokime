@@ -7,37 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::grpc::transcode::Transcode;
 use dokime::domain::model::plugins::wire as plugins_model;
 use dokime::state::PluginOwner;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn page(
     runtime: &RuntimeHandle, request: &mut v1::ListAdmittedPlugins, limit: usize, local_only: bool,
@@ -110,7 +83,3 @@ pub(super) fn page(
     }
     Ok(reply.into())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -10,20 +10,7 @@
 // Sampling Guards: Each Smoke-Provider Sampling Path At A Size Just Past Its Display
 // Points And Page Limits; `system/execution_sampling.rs` Runs The 20,000-Row Sizes.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::sampling::{self, Sampling};
-
-/* === Constants === */
 
 const SIZE: Sampling = Sampling {
     paged_rows: 640,
@@ -32,24 +19,6 @@ const SIZE: Sampling = Sampling {
     spectrum_rows: 1_024,
     page_bytes: 64 * 1024,
 };
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 // Cases whose own stream spans many pages replay and seal independent of history.
 #[tokio::test]

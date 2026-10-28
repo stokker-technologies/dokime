@@ -9,32 +9,14 @@
 
 // Decide Which Wakes Concern One Execution's Supervisor, So Global Commits Cost No Storage Queries.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use crate::RuntimeState;
 use dokime_domain::model::execution::result::CyclePhase;
 use dokime_domain::model::identity::{CommandId, TestCycleId};
 
-/* === Constants === */
-
 // An Open Command Is Re-Polled At This Pace When The Run Reports No Evidence For It.
 pub(super) const COMMAND_POLL: Duration = Duration::from_millis(200);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 /// The Part Of A Committed State That One Execution's Supervisor Acts On.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,8 +38,6 @@ pub(super) struct Subject<'a> {
     pub request: Option<&'a CommandId>,
 }
 
-/* === Enums === */
-
 /// What Woke A Supervisor: A Global Commit, Or A Change Signalled On Its Own Session.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Wake {
@@ -65,10 +45,6 @@ pub(super) enum Wake {
     Session { command_admitted: bool },
     Poll,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Concern {
     pub(super) fn of(state: &RuntimeState, subject: &Subject<'_>) -> Self {
@@ -126,12 +102,6 @@ impl Supervision {
         self.command_open = open;
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

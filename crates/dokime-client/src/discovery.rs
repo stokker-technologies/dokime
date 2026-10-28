@@ -7,41 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::Channel,
 };
 
-// Local Imports
 use super::{Backend, Error, Limits, Result, transport};
 use dokime_operations::Endpoint;
 use dokime_operations::backend;
 use dokime_operations::runtime;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) async fn discover(
     channel: Channel, authorization: Option<&MetadataValue<Ascii>>, expected_id: Option<&str>, bytes: usize,
@@ -132,7 +106,3 @@ pub(super) async fn discover(
         },
     })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,31 +7,12 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test, vi } from "vitest";
 
-// Local Imports
 import { createRuntimeProjectionRefreshCoordinator, createThrottledRefresh } from "@/app/live/runtime-refresh";
 import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/native-planning";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */
 
 test("Runtime Refresh Preserves A Trailing Observation", async () => {
   let finish!: () => void;

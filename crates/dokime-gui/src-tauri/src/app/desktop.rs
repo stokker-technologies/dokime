@@ -7,28 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use std::{fs, os::unix::fs::PermissionsExt};
 
-// Third Party Imports
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
-// Local Imports
 // ***
 
 //
@@ -45,18 +36,10 @@ use tauri_plugin_opener::OpenerExt;
 use crate::app::content::{self, DeliveryError, DeliveryStage};
 use crate::connection::ConnectionSession;
 
-/* === Constants === */
-
 const DESKTOP_DIAGNOSTICS_BUNDLE_BYTES: u64 = 33_554_432;
 const DESKTOP_DOCUMENT_TIMEOUT_MS: u64 = 30_000;
 const DESKTOP_JSON_DOCUMENT_BYTES: u64 = 33_554_432;
 const DESKTOP_REPORT_FILENAME_CHARS: u64 = 128;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,8 +57,6 @@ pub struct ArtifactDeliveryRequest {
     pub filename: String,
     pub action: DeliveryAction,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -120,17 +101,11 @@ pub enum DeliveryAction {
     Open,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl std::fmt::Debug for DesktopSaveDocument {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.debug_struct("DesktopSaveDocument").field("kind", &self.kind).field("filename", &self.filename).finish_non_exhaustive()
     }
 }
-
-/* === Public Functions === */
 
 pub async fn desktop_open_path(app: AppHandle, path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))
@@ -428,8 +403,6 @@ pub fn desktop_set_title(window: WebviewWindow, title: String) -> Result<(), Str
     set_window_title(&window, &title).map_err(|error| error.to_string())
 }
 
-// === Native document delivery helpers === //
-
 pub(crate) fn ensure_main_window(window: &WebviewWindow) -> Result<(), String> {
     if window.label() == "main" { Ok(()) } else { Err("Native document delivery is restricted to the main window".into()) }
 }
@@ -453,8 +426,6 @@ pub(super) fn ensure_private_directory(path: &Path) -> Result<(), String> {
 pub(super) fn set_private_file(path: &Path) -> Result<(), String> {
     protect(path, false, |_| Ok(()), restrict_to_owner)
 }
-
-/* === Private Functions === */
 
 fn protect(
     path: &Path, directory: bool, create: impl FnOnce(&Path) -> Result<(), String>, restrict: impl FnOnce(&Path, u32) -> Result<(), String>,
@@ -733,8 +704,6 @@ async fn move_verified_file(
     .await
     .map_err(|error| error.to_string())?
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -9,18 +9,8 @@
 
 // Catalog Parameter Projection And Value Validation
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use super::super::value::Budget;
 use super::super::value::canonical;
 use dokime::definition::{DynamicDefaultKey, ParameterBinaryOp, ParameterDefinition, ParameterExpr};
@@ -28,22 +18,6 @@ use dokime::domain::model::definition::wire as schema;
 use dokime::domain::model::identity::wire as common;
 use dokime::domain::model::values::MeasurementUnit;
 use dokime::domain::model::values::UnitFamily;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(in crate::grpc) fn wire(
     parameters: &[ParameterDefinition], budget: &mut Budget,
@@ -115,8 +89,6 @@ pub(in crate::grpc) fn unit(unit: &MeasurementUnit) -> Result<schema::Measuremen
         },
     })
 }
-
-/* === Private Functions === */
 
 fn finite(values: &[f64]) -> Result<(), Status> {
     if values.iter().any(|v| !v.is_finite()) { Err(Status::internal("catalog contains nonfinite expression")) } else { Ok(()) }
@@ -205,5 +177,3 @@ fn project_value(
 ) -> Result<dokime::domain::model::values::wire::Value, Status> {
     canonical::encode(source, budget, depth)
 }
-
-/* === Tests === */

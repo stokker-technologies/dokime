@@ -9,23 +9,16 @@
 
 /* A Single Settings Panel With Shared Navigation And Viewer Preferences. */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
-import { useNavigationMode } from "@/shell/use-sidebar-state";
 import { useId, useMemo, useState } from "react";
-import { Switch } from "@/components/ui/switch";
-import { useUiStore } from "@/stores/ui-store";
-
-/* === Local Imports === */
-
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
 import { AboutSection } from "@/features/settings/sections/AboutSection";
-import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
 import { BootstrapPaths } from "@/features/settings/sections/BootstrapPaths";
+import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
 import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
@@ -33,19 +26,17 @@ import type { RuntimeSettingsFrame } from "@/features/settings/settings-contract
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { PanelHeader } from "@/shell/PageShell";
-import { OrganizationPackRow } from "./sections/OrganizationPackRow";
 import { usePageChrome } from "@/shell/page-chrome";
+import { useNavigationMode } from "@/shell/use-sidebar-state";
+import { useUiStore } from "@/stores/ui-store";
 import { ApplicationPreferences } from "./ApplicationPreferences";
 import { BackendsTable } from "./BackendsTable";
 import { PluginSettingsCards } from "./PluginSettingsCards";
-
-/* === Types === */
+import { OrganizationPackRow } from "./sections/OrganizationPackRow";
 
 type SettingsSurfaceProps = {
   section?: SettingsSectionId;
 };
-
-/* === Components === */
 
 /** The Selected Section Of The Shared Settings Panel. */
 export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {

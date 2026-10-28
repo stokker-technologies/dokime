@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<FollowExecutionFile>], response = (), output = ExecutionFileFollowFrame, id = "dokime.content.follow_execution_file",
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
@@ -44,20 +26,6 @@ pub struct FollowExecutionFile {
     #[row(description = "Defaults to 64 KiB; must not exceed 64 KiB.")]
     pub max_bytes: u32,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

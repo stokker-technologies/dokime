@@ -7,22 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use rusqlite::{Connection, params};
 
-// Local Imports
 use super::{Error, State};
-
-/* === Constants === */
 
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_sources (
@@ -32,12 +21,6 @@ CREATE TABLE IF NOT EXISTS storage_sources (
 INSERT OR IGNORE INTO storage_sources VALUES ('local', 'local', 0, 1);
 ";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Source {
     pub identifier: String,
@@ -45,12 +28,6 @@ pub struct Source {
     pub priority: i64,
     pub enabled: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl State {
     pub async fn register_source(&self, identifier: &str, adapter: &str) -> Result<(), Error> {
@@ -132,10 +109,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(message: &str) -> Error {
     Error::Catalog(message.into())
 }
@@ -153,5 +126,3 @@ fn sources(connection: &Connection) -> rusqlite::Result<Vec<Source>> {
         })?
         .collect()
 }
-
-/* === Tests === */

@@ -9,13 +9,6 @@
 
 // Bounded Persistent Log Of Remote Sessions
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -23,13 +16,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use dokime::domain::model::remote::{RemoteSession, RemoteSessionOutcome, RemoteSessionPage};
-
-/* === Constants === */
 
 const SERVER_REMOTE_IDLE_MS: u64 = 60_000;
 const SERVER_REMOTE_PAGE_BYTES: u64 = 1_048_576;
@@ -37,12 +26,6 @@ const SERVER_REMOTE_PAGE_ITEMS: u64 = 100;
 const SERVER_REMOTE_SESSIONS: u64 = 500;
 
 // The log keeps the most recent sessions only.
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Remote sessions as the authenticator sees them, persisted beside the listener security.
 pub(crate) struct SessionLog {
@@ -66,16 +49,10 @@ struct Document {
     sessions: Vec<RemoteSession>,
 }
 
-/* === Enums === */
-
 pub(crate) enum Outcome<'a> {
     Admitted,
     Rejected(&'a str),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl SessionLog {
     pub(crate) fn new() -> Self {
@@ -198,10 +175,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis() as u64)
 }
@@ -228,8 +201,6 @@ fn write(path: &Path, document: &Document) -> Result<(), String> {
     }
     dokime::harmos::filesystem::publication::write(path, &bytes).map_err(|error| error.to_string())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

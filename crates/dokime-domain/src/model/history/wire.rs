@@ -9,19 +9,9 @@
 
 // Saved History Discovery And Immutable Evidence Projection Contracts.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 #[allow(unused_imports)]
 use crate::model::appearance::wire::*;
 
@@ -62,14 +52,6 @@ use crate::model::prompts::wire::*;
 #[allow(unused_imports)]
 use crate::model::telemetry::wire::*;
 use crate::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -487,8 +469,6 @@ pub struct HistoricalCycle {
     pub result: Option<ResultSummary>,
 }
 
-/* === Enums === */
-
 // The requested order key. Ordering is always total: the key, then the
 // execution ID ascending, so equal keys never permute between pages. An
 // unspecified key is STARTED_AT. TITLE compares the case-folded title. An
@@ -555,13 +535,3 @@ pub enum HistoricalDocumentCardBody {
     Plot(DocumentPlotDefinition),
     Owner(DocumentOwnerReference),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -21,12 +21,8 @@
  * on the row's own column tracks; the row itself stays one line.
  */
 
-/* === External Imports === */
-
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
-
-/* === Local Imports === */
 
 import { RecordDetailsDialog } from "@/components/RecordDetailsDialog";
 import { Badge } from "@/components/ui/badge";
@@ -38,15 +34,11 @@ import type { HubRecord } from "@/lib/types";
 import { useRowWindow } from "@/lib/use-row-window";
 import { cn } from "@/lib/utils";
 
-/* === Constants === */
-
 /** One control height for every filter, whatever its primitive's own default. */
 const FILTER_CONTROL_CLASS = "h-[var(--bar-control-height)]";
 
 /** The record row's column tracks: time, level, source, message, type. */
 const RECORD_ROW_COLUMNS = "grid grid-cols-[--spacing(24)_--spacing(22)_--spacing(40)_minmax(0,1fr)_auto] gap-x-3";
-
-/* === Components === */
 
 export function RecordTimeline({
   live = true,
@@ -200,8 +192,6 @@ export function RecordTimeline({
     </>
   );
 }
-
-/* === Private Functions === */
 
 function compareRecordTimelineOrder(left: HubRecord, right: HubRecord): number {
   const timestamp = right.timestamp.localeCompare(left.timestamp);

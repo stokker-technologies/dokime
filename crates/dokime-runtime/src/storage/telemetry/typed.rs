@@ -9,13 +9,6 @@
 
 // Typed Telemetry Storage Codec
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     borrow::Cow,
     collections::BTreeMap,
@@ -23,7 +16,6 @@ use std::{
     sync::{Arc, Mutex, PoisonError},
 };
 
-// Third Party Imports
 use arrow_array::{Array, StringArray, StructArray, TimestampNanosecondArray, UInt32Array, UInt64Array};
 use harmos::{
     Message,
@@ -35,7 +27,6 @@ use harmos::{
     storage::{PayloadEncoding, SchemaKey, arrow::ArrowBatch},
 };
 
-// Local Imports
 use super::{Sample, TelemetryEntry, sample};
 use crate::storage::Error;
 use crate::storage::Result;
@@ -46,14 +37,6 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct TypedCodec {
@@ -93,12 +76,6 @@ struct Metadata {
     summary: Vec<values::Cell>,
     metadata: Vec<values::Cell>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TypedCodec {
     pub fn new(stream: &Identifier, version: u32, payload: &Schema, settings: &harmos::config::SchemaSettings) -> Result<Self> {
@@ -371,8 +348,6 @@ impl CodecCache {
     }
 }
 
-/* === Public Functions === */
-
 pub fn codec(contract: &TelemetryContract, settings: &harmos::config::SchemaSettings) -> Result<TypedCodec> {
     let schema = contract.storage_schema.as_ref().ok_or(Error::Invalid("captured telemetry has no typed storage schema"))?;
     TypedCodec::new(&contract.stream, contract.schema_version, schema, settings)
@@ -519,8 +494,6 @@ pub(crate) fn index_metadata(bytes: &[u8]) -> Result<(Option<ScopeRow>, String, 
     }
     Ok((metadata.scope, metadata.source, metadata.signals))
 }
-
-/* === Private Functions === */
 
 // Counts Admission Payload Passes On This Thread So Tests Can Prove Each Row Is Read Once.
 #[cfg(test)]
@@ -755,8 +728,6 @@ fn value(value: Scalar<'_>) -> Value {
         }
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

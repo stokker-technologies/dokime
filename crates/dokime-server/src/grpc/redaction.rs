@@ -7,38 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde_json::Value;
-
-// Local Imports
-
-/* === Constants === */
 
 pub(crate) const REDACTED: &str = "<redacted>";
 const SECRET_FRAGMENTS: &[&str] =
     &["secret", "credential", "password", "passphrase", "token", "apikey", "privatekey", "accesskey", "authorization", "cookie"];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn is_secret_name(name: &str) -> bool {
     let folded: String = name.chars().filter(|character| character.is_alphanumeric()).flat_map(char::to_lowercase).collect();
@@ -65,8 +38,6 @@ pub(crate) fn text(value: &str) -> String {
     dokime::plugin::redacted(value)
 }
 
-/* === Private Functions === */
-
 fn is_redacted_evidence(value: &Value) -> bool {
     if is_redacted_binding(value) {
         return true;
@@ -84,5 +55,3 @@ fn is_redacted_binding(value: &Value) -> bool {
         && fields.get("backend").is_some_and(Value::is_string)
         && fields.get("configured").is_some_and(Value::is_boolean)
 }
-
-/* === Tests === */

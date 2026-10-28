@@ -7,17 +7,11 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import type { PlotCartesianFrame, PlotSeries } from "@/lib/types";
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import type { PlotCardSpec, PlotViewportMode } from "@/plots/types";
-
-/* === Components === */
 
 export function XyIntervalPlot({
   actions,
@@ -67,8 +61,6 @@ export function XyIntervalPlot({
     />
   );
 }
-
-/* === Public Functions === */
 
 export function intervalSeries(plot: PlotCardSpec): PlotSeries[] {
   if (plot.analysis?.kind !== "sigma_interval") return [];

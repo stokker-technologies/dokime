@@ -10,42 +10,19 @@
 // A directory on the backend host. Discovery never follows symbolic links, so
 // a watch cannot leave its root or loop through a linked tree.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-// Local Imports
 use super::source::{Entry, Listing};
 use super::{capped, invalid, unreachable_source};
 use crate::files::{FileMatcher, identity};
 use crate::runtime::Result;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(in crate::domains::files) struct LocalSource {
     root: PathBuf,
     depth: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl LocalSource {
     pub(super) async fn open(root: &str, wait: bool) -> Result<Self> {
@@ -88,10 +65,6 @@ impl LocalSource {
         Ok(copied)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn walk(root: &Path, depth: usize, matcher: &FileMatcher, scan_entries: usize) -> Result<Listing> {
     let metadata = std::fs::metadata(root).map_err(|source| source_error(&root.display().to_string(), source))?;
@@ -156,5 +129,3 @@ fn relative_path(root: &Path, path: &Path) -> Option<String> {
     }
     Some(segments.join("/"))
 }
-
-/* === Tests === */

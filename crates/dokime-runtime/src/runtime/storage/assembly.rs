@@ -7,36 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use crate::app::HarmosRuntime;
 use crate::runtime::state::RuntimeState;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn build(
     fresh: RuntimeState, records: Arc<super::record_capture::Source>, storage: &crate::storage::Manager, resources: crate::app::Resources,
@@ -74,10 +48,6 @@ pub(crate) async fn build(
         .await
 }
 
-/* === Private Functions === */
-
 fn reconciliation_error(source: impl std::error::Error + Send + Sync + 'static) -> harmos::Error {
     harmos::Error::backend("reconcile native Dokime storage", harmos::BackendFailure::Permanent, source)
 }
-
-/* === Tests === */

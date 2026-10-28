@@ -7,33 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::records::RecordCondition;
 use crate::model::telemetry::TelemetryCondition;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type RuntimeConditionEvaluation = crate::model::validation::ConditionEvaluation;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -54,19 +34,11 @@ pub enum RuntimeCondition {
     },
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl harmos_domain::MemorySize for RuntimeCondition {
     fn memory_size(&self) -> usize {
         condition_memory(self, 0)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn condition_memory(condition: &RuntimeCondition, depth: usize) -> usize {
     if depth > 64 {
@@ -101,5 +73,3 @@ fn condition_memory(condition: &RuntimeCondition, depth: usize) -> usize {
     };
     std::mem::size_of::<RuntimeCondition>().saturating_add(heap)
 }
-
-/* === Tests === */

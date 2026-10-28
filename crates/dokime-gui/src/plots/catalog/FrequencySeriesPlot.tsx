@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import type { PlotCardSpec, PlotViewportMode } from "@/plots/types";
-
-/* === Components === */
 
 export function FrequencySeriesPlot({
   actions,
@@ -55,8 +49,6 @@ export function FrequencySeriesPlot({
     />
   );
 }
-
-/* === Private Functions === */
 
 function frequencyBadge(plot: PlotCardSpec): string {
   const unit = plot.fft.level_unit === "linear" ? "FFT · Hz" : `FFT · Hz · ${plot.fft.level_unit}`;

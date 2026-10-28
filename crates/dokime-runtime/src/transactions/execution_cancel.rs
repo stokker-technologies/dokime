@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
@@ -32,15 +22,7 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
 const CANCELLED_MESSAGE: &str = "Execution cancelled before it started.";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.cancel", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -56,18 +38,12 @@ pub(crate) struct CancelRefusal {
     pub message: &'static str,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CancelAdmission {
     Cancelled,
     Unqueued,
     Queued(CommandId),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl CancelExecution {
     pub(crate) fn admit(&self, state: &RuntimeState) -> Result<CancelAdmission, CancelRefusal> {
@@ -161,10 +137,6 @@ impl Transaction<RuntimeState> for CancelExecution {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // A Cancelled Member Is Skipped: It Never Ran, So It Has No Stopped Outcome.
 fn skip_unstarted(execution: &mut dokime_domain::model::execution::result::TestExecution, at: &Timestamp) {
     execution.status = ExecutionStatus::Skipped;
@@ -199,8 +171,6 @@ fn settle_cycle(state: &mut RuntimeState, cycle_id: &TestCycleId, cancelled_requ
     cycle.result = Some(result);
     cycle.touch_at(at.clone());
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

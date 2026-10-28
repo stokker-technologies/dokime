@@ -7,27 +7,14 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-// Third Party Imports
 import { useEffect, useState } from "react";
 
-// Local Imports
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { commands } from "@/lib/desktop/commands";
 import type { UpdateCheck, UpdateMode, UpdateStatus } from "@/lib/desktop/updates";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 type DesktopUpdateDialogProps = { open: boolean; onOpenChange: (open: boolean) => void };
-
-/* === Components === */
 
 export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogProps) {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
@@ -163,9 +150,3 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
     </Dialog>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

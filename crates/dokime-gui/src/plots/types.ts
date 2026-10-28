@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { SeriesSummary } from "@/lib/statistics";
 import type {
   DocumentAxisScale,
@@ -27,8 +25,6 @@ import type {
 } from "@/lib/types";
 import type { HistogramAxes } from "@/plots/histogram-axes";
 import type { PromptMarker } from "@/plots/prompt-markers";
-
-/* === Types === */
 
 export type PlotCardSpec = {
   key: string;

@@ -9,26 +9,7 @@
 
 // Manual device operation declarations
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::domain::model::device::DeviceState;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::operation(
     id = "obc.device.read",
@@ -53,15 +34,3 @@ pub struct ReadDevice {}
 pub struct SetPower {
     pub enabled: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::operations::StreamOutput;
 use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
 
-// Local Imports
 use super::chunked;
 use super::error::detailed;
 use super::value::canonical;
@@ -35,15 +26,7 @@ use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::reports as wire;
 
-/* === Constants === */
-
 const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     pub(super) runtime: RuntimeHandle,
@@ -51,12 +34,6 @@ struct Resources {
 }
 
 struct HtmlFrames(Response<dokime::domain::model::reports::wire::ReportHtmlFrame>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::DownloadCycleReport> for Resources {
     fn serve<'a>(&'a self, request: wire::DownloadCycleReport, ctx: Context<'a, wire::DownloadCycleReport>) -> Served<'a, ()> {
@@ -122,8 +99,6 @@ impl chunked::Frames for HtmlFrames {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
@@ -138,8 +113,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) 
     runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn deliver(
     resources: &Resources, report: OpenedReport, identifier: &Identifier,
@@ -213,8 +186,6 @@ fn report_identifier(value: &str) -> Result<Identifier, Status> {
 fn required_identifier(value: &str) -> Result<Identifier, Status> {
     Identifier::new(value.to_owned()).map_err(|_| Status::invalid_argument("invalid report identifier"))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

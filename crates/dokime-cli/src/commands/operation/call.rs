@@ -7,33 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     io::Write,
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
-
-// Local Imports
 use dokime::client::dynamic::Event;
-
-/* === Constants === */
 
 const INPUT_BYTES: u64 = 16_777_216;
 const INPUT_FRAMES: u64 = 4_096;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -61,14 +43,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Read Input Stream Items As One JSON Value Per Line Within The Configured Input Limits.")]
     input_stream_file: Option<PathBuf>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -103,8 +77,6 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn read_request(path: Option<&Path>, inline: Option<&str>, maximum: usize) -> crate::Result<Vec<u8>> {
     let input = match path {
@@ -226,8 +198,6 @@ fn dispatch_error(error: dokime::client::operations::Error) -> crate::Error {
     };
     if uncertain { crate::Error::OperationUncertain { source: Box::new(error.into()) } } else { error.into() }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

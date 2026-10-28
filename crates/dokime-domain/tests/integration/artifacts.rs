@@ -9,39 +9,9 @@
 
 // Artifact names are validated relative paths shared with execution outputs.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model;
 use model::artifacts::name::{self, InvalidName};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 #[test]
 fn artifact_names_validate() {
     // Folders Are Implicit Path Segments

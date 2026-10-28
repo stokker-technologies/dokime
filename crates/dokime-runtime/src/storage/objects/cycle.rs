@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use harmos::{
     DefinitionId, Identified, MemorySize,
     storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, StorageCursor, StoredObject},
 };
 
-// Local Imports
 use super::{annotations, metadata};
 use crate::storage::{Error, Result};
 use dokime_domain::model::execution::result::CycleStatus;
@@ -37,14 +28,6 @@ use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -102,12 +85,6 @@ struct Input<'a> {
     continue_automatically: bool,
     result: &'a Option<ResultSummary>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> From<&'a TestCycle> for Input<'a> {
     fn from(source: &'a TestCycle) -> Self {
@@ -526,8 +503,6 @@ impl Cycle {
     }
 }
 
-/* === Public Functions === */
-
 pub async fn read(
     storage: &crate::storage::Manager, id: &TestCycleId, version: ObjectVersion,
 ) -> Result<Option<harmos::storage::ReadBatch<ObjectRevision<TestCycle>>>> {
@@ -542,8 +517,6 @@ pub async fn read(
         })
     })?))
 }
-
-/* === Private Functions === */
 
 fn result_status_text(value: &ResultStatus) -> &'static str {
     match value {
@@ -567,5 +540,3 @@ fn lifecycle_text(value: &CycleStatus) -> &'static str {
         CycleStatus::Stopped => "stopped",
     }
 }
-
-/* === Tests === */
