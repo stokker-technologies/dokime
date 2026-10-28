@@ -65,13 +65,21 @@ fn execute(cli: dokime_cli::Cli) -> dokime_cli::Result<()> {
                 .thread_stack_size(stack_bytes)
                 .build()
                 .map_err(dokime_cli::Error::from)?;
-            runtime.block_on(cli.run(configuration))
+            drive(runtime, cli.run(configuration))
         })
         .map_err(dokime_cli::Error::from);
     driver.and_then(|driver| match driver.join() {
         Ok(outcome) => outcome,
         Err(panic) => std::panic::resume_unwind(panic),
     })
+}
+
+// The Command's Orderly Work Completes Inside `block_on`; A Blocking Thread It Abandoned (A Host
+// Collector That Cannot Be Cancelled) Must Not Hold The Process Or Replace Its Exit Status.
+fn drive<T>(runtime: tokio::runtime::Runtime, command: impl std::future::Future<Output = T>) -> T {
+    let outcome = runtime.block_on(command);
+    runtime.shutdown_background();
+    outcome
 }
 
 fn report_error(terminal: &dokime::terminal::Terminal, error: dokime_cli::Error) -> ExitCode {
@@ -93,3 +101,24 @@ fn report_error(terminal: &dokime::terminal::Terminal, error: dokime_cli::Error)
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+#[test]
+fn abandoned_blocking_work_does_not_hold_shutdown() {
+    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel();
+    let blocked = runtime.spawn_blocking(move || {
+        entered.send(()).unwrap();
+        let _ = released.recv();
+    });
+    started.recv().unwrap();
+
+    // Dropping The Runtime Would Wait For The Blocked Thread Until It Is Released.
+    let outcome = drive(runtime, async move {
+        drop(blocked);
+        7
+    });
+    assert_eq!(outcome, 7, "the command's own outcome is the process outcome");
+    release.send(()).unwrap();
+}
