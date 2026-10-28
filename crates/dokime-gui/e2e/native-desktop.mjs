@@ -3290,27 +3290,46 @@ async function settingsJourney(session, notes) {
   assert.ok(endpoint);
   const field = (label) => session.find("css selector", `[aria-label="${label}"]`);
   const rowAction = (name, action) =>
-    session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='${action}']`);
+    session.find(
+      "xpath",
+      `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='${action === "Select" ? "Connect" : action}']`,
+    );
   const add = async (name, identity = "") => {
     await session.clickNamed("button", "Add Backend");
-    await session.type(await field("Backend Name"), name);
-    await session.type(await field("Backend Endpoint"), endpoint);
-    if (identity) await session.type(await field("Expected Backend ID"), identity);
-    await session.clickNamed("button", "Add");
+    await session.type(await field("Backend Identifier"), name);
+    if (identity) {
+      const pairing = join(work, `${name}-pairing.json`);
+      await writeFile(
+        pairing,
+        JSON.stringify({ version: 1, endpoint, backend_identifier: identity, label: name, ca_certificate_pem: null, access_key: null }),
+      );
+      await session.clickNamed("button", "Import Pairing File");
+      const picker = { window: null };
+      await until("native identity pairing import", () => chooseNativeFile(picker, pairing), 120000);
+    } else {
+      await session.type(await session.find("xpath", "//*[@role='dialog']//input[@id=//label[normalize-space(.)='Label']/@for]"), name);
+      await session.type(await field("Backend Endpoint"), endpoint);
+      await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Add Backend']"));
+    }
     await until(`saved backend ${name}`, () => rowAction(name, "Select"));
   };
   await session.clickNamed("button", "Add Backend");
-  await session.type(await field("Backend Name"), "native-invalid");
+  await session.type(await field("Backend Identifier"), "native-invalid");
+  await session.type(
+    await session.find("xpath", "//*[@role='dialog']//input[@id=//label[normalize-space(.)='Label']/@for]"),
+    "native-invalid",
+  );
   await session.type(await field("Backend Endpoint"), "http://operator:private@127.0.0.1/");
-  await session.clickNamed("button", "Add");
+  await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Add Backend']"));
   await until("invalid origin refused", () => session.find("css selector", '[role="dialog"] [role="alert"]'));
   const unchanged = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
-  assert.ok(!unchanged.profiles.some((profile) => profile.name === "native-invalid"));
+  assert.ok(!unchanged.profiles.some((profile) => profile.identifier === "native-invalid"));
   await session.clickNamed("button", "Cancel");
 
   await add("native-recovery");
   await add("native-stale", "deliberately-wrong-native-identity");
-  await session.click(await rowAction("native-stale", "Delete"));
+  await openMenu(session, "Actions for native-stale");
+  await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Cancel");
   assert.ok(await rowAction("native-stale", "Select"));
   await session.click(await rowAction("native-recovery", "Select"));
@@ -3330,12 +3349,12 @@ async function settingsJourney(session, notes) {
     return status.connection.phase === "connected";
   });
   await session.goto("/settings/backends");
-  await until("stale profile deletion", () => rowAction("native-stale", "Delete"));
-  await session.click(await rowAction("native-stale", "Delete"));
+  await openMenu(session, "Actions for native-stale");
+  await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
   await until("stale profile removed", async () => {
     const document = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
-    return !document.profiles.some((profile) => profile.name === "native-stale");
+    return !document.profiles.some((profile) => profile.identifier === "native-stale");
   });
 
   /* Diagnostics: read-only paths with Copy and Open, then the bundle itself. */
