@@ -235,6 +235,8 @@ function PreferencesForm({
           baseline.current = saved;
           if (version.current === input.version) setEdited(new Set());
         } catch (error) {
+          // A Newer Edit Supersedes A Rejected Draft Without Advancing Its Revision.
+          if (validationFailure(error) && version.current !== input.version) return;
           setFailure(error);
           throw error;
         } finally {
@@ -271,6 +273,11 @@ function PreferencesForm({
     const value = (draft[field.group] as unknown as Record<string, string | number | boolean | string[] | null>)[field.key];
     const error = invalid[name] ?? (edited.has(name) && (failure || save.error) ? preferencesError(failure ?? save.error) : null);
     const change = (next: string | number | boolean | string[] | null) => {
+      if (validationFailure(failure ?? save.error)) {
+        writer.current?.reset();
+        save.reset();
+        setFailure(null);
+      }
       version.current++;
       setEdited((current) => new Set(current).add(name));
       setState("saving");
@@ -405,4 +412,8 @@ function PreferencesForm({
     }
     return fresh.data ?? null;
   }
+}
+
+function validationFailure(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "kind" in error && error.kind === "validation";
 }
