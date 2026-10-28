@@ -90,13 +90,13 @@ mod bare_attributes {
         GetReading(GetReading),
         GetStatus(GetStatus),
     }
-        #[operation(id = "prelude-bench.get_reading", description = "Reads.", policy = POLICY, response = GetReadingResponse)]
+        #[operation(id = "prelude_bench.get_reading", description = "Reads.", policy = POLICY, response = GetReadingResponse)]
     #[derive(Clone, PartialEq)]
     struct GetReading {}
     impl dokime_runtime::Operation for GetReading {
         type Error = Refusal;
 
-        async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
+        async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
             let answered: Result<GetReadingResponse, Refusal> = async {
             Ok(GetReadingResponse { reads: 1 })
             }
@@ -104,13 +104,13 @@ mod bare_attributes {
             answered.map(Into::into)
         }
     }
-        #[operation(id = "prelude-bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
+        #[operation(id = "prelude_bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
     #[derive(Clone, PartialEq)]
     struct GetStatus {}
     impl dokime_runtime::Operation for GetStatus {
         type Error = Refusal;
 
-        async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<StatusResponse>, Refusal> {
+        async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<StatusResponse>, Refusal> {
             let answered: Result<StatusResponse, Refusal> = async {
             Ok(StatusResponse::ready())
             }
@@ -152,7 +152,7 @@ mod bare_attributes {
         fn bind_operations(
             &self, table: &mut dokime_runtime::harmos::operations::WireTable,
         ) -> Result<(), dokime_runtime::harmos::operations::ServingError> {
-            table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))
+            table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))
         }
 
         async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {

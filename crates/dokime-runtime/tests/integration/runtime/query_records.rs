@@ -528,7 +528,7 @@ async fn native_entry_independent() {
         result: None,
     };
     let native = Cycle::try_from(&cycle).unwrap();
-    assert!(harmos::Message::encoded_len(&native) < 1024 * 1024);
+    assert!(harmos::Message::encoded_size(&native) < 1024 * 1024);
     let receipt = handle.storage().write_object(&native).await.unwrap();
     handle.storage().flush_until(&receipt.position).await.unwrap();
     let restored = cycle::read(handle.storage(), &cycle.test_cycle_id, ObjectVersion::Latest).await.unwrap().unwrap();

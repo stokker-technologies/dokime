@@ -19,7 +19,7 @@ use std::sync::Arc;
 // Local Imports
 use dokime_runtime::Value;
 use dokime_runtime::domains::OptionProviderOption;
-use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
+use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
 use dokime_runtime::plugin::settings::{Discovered, PluginSettings, SettingsSection};
 use dokime_runtime::plugin::{Configuration, Secret};
 use dokime_runtime::prelude::{OptionsResponse, Refusal, StatusResponse, Supervisor};
@@ -140,7 +140,7 @@ impl dokime_runtime::Plugin for Bench {
     }
 
     fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))
+        table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -157,7 +157,7 @@ struct GetStatus {}
 impl dokime_runtime::Operation for GetStatus {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<StatusResponse>, Refusal> {
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<StatusResponse>, Refusal> {
         let answered: Result<StatusResponse, Refusal> = async {
         Ok(StatusResponse::ready())
         }
@@ -174,7 +174,7 @@ struct ListEnvironments {}
 impl dokime_runtime::Operation for ListEnvironments {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<OptionsResponse>, Refusal> {
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<OptionsResponse>, Refusal> {
         let answered: Result<OptionsResponse, Refusal> = async {
         Ok(OptionsResponse::of([OptionProviderOption {
             value: "development".to_owned(),
@@ -194,7 +194,7 @@ struct DetectPort {}
 impl dokime_runtime::Operation for DetectPort {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<Discovered>, Refusal> {
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<Discovered>, Refusal> {
         let answered: Result<Discovered, Refusal> = async {
         Ok(Discovered::of("/dev/bench0"))
         }
@@ -208,7 +208,7 @@ struct DetectStream {}
 impl dokime_runtime::Operation for DetectStream {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<Discovered>, Refusal> {
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<Discovered>, Refusal> {
         let answered: Result<Discovered, Refusal> = async {
         Ok(Discovered::of(7_i64))
         }
@@ -224,8 +224,8 @@ struct GetVoltage {
 impl dokime_runtime::Operation for GetVoltage {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetVoltageResponse>, Refusal> {
-        let request = &mut { self };
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetVoltageResponse>, Refusal> {
+        let request = self;
         let answered: Result<GetVoltageResponse, Refusal> = async {
         Ok(GetVoltageResponse { volts: f64::from(request.stream) })
         }

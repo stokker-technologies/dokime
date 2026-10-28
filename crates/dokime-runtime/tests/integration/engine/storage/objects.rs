@@ -313,7 +313,7 @@ async fn executions_reopen_results() {
         let schema = crate::engine_support::local_storage::declared::<dokime_runtime::storage::objects::execution::Execution>();
         panic!(
             "execution admission failed: {error}; payload={} resident={} schema={}",
-            harmos::Message::encoded_len(&row),
+            harmos::Message::encoded_size(&row),
             harmos::MemorySize::memory_size(&row),
             serde_json::to_vec(&schema).unwrap().len(),
         )

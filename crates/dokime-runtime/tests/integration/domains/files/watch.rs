@@ -108,10 +108,10 @@ async fn failed_initial_admission_never_reports_armed() {
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let instance = bench.handle.operations().submit(single).unwrap();
+    let instance = bench.handle.operations().submit::<WatchFile>(single).unwrap();
     let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: instance.id().value() };
     assert!(instance.join().await.is_err());
-    assert!(bench.handle.operations().call(ready).await.is_err(), "failed hosted setup cannot report readiness success");
+    assert!(bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready).await.is_err(), "failed hosted setup cannot report readiness success");
     bench.stop().await;
 }
 
@@ -429,11 +429,11 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let watch = bench.handle.operations().submit(request).unwrap();
+    let watch = bench.handle.operations().submit::<WatchFile>(request).unwrap();
     let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() };
     watch.cancel();
     assert!(watch.join().await.is_err());
-    let result = tokio::time::timeout(std::time::Duration::from_secs(120), bench.handle.operations().call(ready)).await;
+    let result = tokio::time::timeout(std::time::Duration::from_secs(120), bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready)).await;
     assert!(result.expect("readiness settles after cancellation").is_err());
     bench.stop().await;
 }
@@ -762,13 +762,13 @@ async fn watch_file_matchers() {
         }],
         markers: vec![LineMarker::new(r"WARN (?P<warning_code>\w+)", "tracking.fixture_warning")],
     };
-    let watch = bench.handle.operations().submit(request).unwrap();
+    let watch = bench.handle.operations().submit::<WatchFile>(request).unwrap();
 
     // Lines Written After The Start Are Captured And Matched
     bench
         .handle
         .operations()
-        .call(dokime_operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() })
+        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() })
         .await
         .unwrap();
     append(&log, APPENDED);

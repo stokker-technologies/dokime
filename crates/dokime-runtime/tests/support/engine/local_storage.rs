@@ -142,7 +142,7 @@ pub(crate) fn id(value: &str) -> Identifier {
 }
 
 pub(crate) fn key() -> SchemaKey {
-    SchemaKey { payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1, id: id("charger"), version: NonZeroU32::new(1).unwrap() }
+    SchemaKey { payload_encoding: harmos::storage::PayloadEncoding::PostcardV1, id: id("charger"), version: NonZeroU32::new(1).unwrap() }
 }
 
 // A Single-Definition Row Graph For Fixture Schemas

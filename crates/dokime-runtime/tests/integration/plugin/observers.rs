@@ -103,7 +103,7 @@ struct Owner {
     observers: Option<Arc<ObserverAttachment<Shared, Publishing>>>,
 }
 
-#[dokime_runtime::stream(id = "observer-fixture.status", label = "Observer Status", window = 64)]
+#[dokime_runtime::stream(id = "observer_fixture.status", label = "Observer Status", window = 64)]
 pub struct ObservationRow {
     index: u64,
 }
@@ -230,7 +230,7 @@ impl Probe {
         }
     }
 }
-#[dokime_runtime::operation(id = "observer-fixture.get_count", policy = super::native::POLICY, response = GetCountResponse, resources = [Shared])]
+#[dokime_runtime::operation(id = "observer_fixture.get_count", policy = super::native::POLICY, response = GetCountResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetCount {}
 impl dokime_runtime::Operation for GetCount {
@@ -245,7 +245,7 @@ impl dokime_runtime::Operation for GetCount {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "observer-fixture.get_probe", policy = super::native::POLICY, response = GetProbeResponse, resources = [Shared])]
+#[dokime_runtime::operation(id = "observer_fixture.get_probe", policy = super::native::POLICY, response = GetProbeResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetProbe {}
 impl dokime_runtime::Operation for GetProbe {
@@ -305,7 +305,7 @@ impl dokime_runtime::Plugin for Owner {
     }
 
     fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Implemented::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))?;
+        table.register(Implemented::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))?;
         dokime_runtime::execution::serve::<Self, OwnerSuites>(table)?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
@@ -348,7 +348,7 @@ impl Watch {
 
     async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>) -> Result<(), WatchError> {
         let host = ctx.host().supervisor();
-        let secrets = host.call(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
+        let secrets = host.call::<GetProbe>(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
         self.0.secrets.store(secrets, Ordering::Release);
         self.0.bump(&self.0.secret_ticks);
         let index = ctx.tick().ordinal() - 1;

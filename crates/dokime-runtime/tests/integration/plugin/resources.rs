@@ -215,7 +215,7 @@ impl Drop for PartialInitialization {
         self.0.record("partial initialization dropped");
     }
 }
-#[dokime_runtime::operation(id = "resource-owner.get_device", policy = super::native::POLICY, response = GetDeviceResponse, resources = [Device])]
+#[dokime_runtime::operation(id = "resource_owner.get_device", policy = super::native::POLICY, response = GetDeviceResponse, resources = [Device])]
 #[derive(Clone, PartialEq)]
 struct GetDevice {}
 impl dokime_runtime::Operation for GetDevice {
@@ -232,7 +232,7 @@ impl dokime_runtime::Operation for GetDevice {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "resource-owner.start_run", policy = super::native::POLICY, response = StartRunResponse, resources = [Device])]
+#[dokime_runtime::operation(id = "resource_owner.start_run", policy = super::native::POLICY, response = StartRunResponse, resources = [Device])]
 #[derive(Clone, PartialEq)]
 struct StartRun {}
 impl dokime_runtime::Operation for StartRun {
@@ -281,7 +281,7 @@ impl dokime_runtime::Plugin for Owner {
     }
 
     fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))?;
+        table.register(Operations::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))?;
         dokime_runtime::execution::serve::<Self, OwnerSuites>(table)
     }
 
@@ -557,7 +557,7 @@ async fn execution_scope_calls() {
         }
         assert!(remaining.is_empty(), "{key}");
         assert_eq!(parts[0], "keyed", "{key}");
-        assert_eq!(parts[2], "resource-owner.get_device", "{key}");
+        assert_eq!(parts[2], "resource_owner.get_device", "{key}");
         stages.push(parts[1]);
     }
     assert_eq!(stages[0], "initialize");

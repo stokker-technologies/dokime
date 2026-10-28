@@ -124,9 +124,9 @@ macro_rules! delivery_fixture {
         }
     };
 }
-delivery_fixture!(GatewayDelivery, "fixture.template.2.signal");
-delivery_fixture!(BenchDelivery, "fixture.template.0.signal");
-delivery_fixture!(ProbeDelivery, "fixture.template.1.signal");
+delivery_fixture!(GatewayDelivery, "fixture.template.t2.signal");
+delivery_fixture!(BenchDelivery, "fixture.template.t0.signal");
+delivery_fixture!(ProbeDelivery, "fixture.template.t1.signal");
 
 async fn register_sidecars(handle: &dokime_runtime::RuntimeHandle, sidecars: &[(&str, &Arc<RecordingSidecar>)]) {
     use harmos::RegistrationExt;
@@ -234,7 +234,7 @@ fn gateway_batch(rssi: f64) -> TelemetryBatch {
 
 async fn admitted_execution(handle: &RuntimeHandle, index: usize) -> TestExecutionId {
     let mut suite = fixture_suite(&["passed"; 3]);
-    let template = format!("fixture.template.{index}");
+    let template = format!("fixture.template.t{index}");
     suite.test_case_templates.retain(|candidate| candidate.metadata.identifier.as_str() == template);
     let suite_id = format!("fixture.registration.{index}");
     handle

@@ -308,7 +308,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Measured {
 #[dokime_runtime::plugin(
     id = "owned-stream",
     provides = (),
-    requires(dokime_runtime::harmos::operations::streams::Publish),
+    requires(dokime_runtime::harmos::builtins::streams::Publish),
     contributions(
         dokime_runtime::Records<MeasuredRecords, MeasuredListeners>,
         dokime_runtime::Settings<MeasuredSettings>,
@@ -392,7 +392,7 @@ impl RecordObserver {
     }
 }
 
-#[dokime_runtime::listener(id = "owned-stream.noted", record = UnitConnected, resources = [Resource])]
+#[dokime_runtime::listener(id = "owned_stream.noted", record = UnitConnected, resources = [Resource])]
 impl Noted {
     async fn hear(ctx: &dokime_runtime::plugin::ListenerContext<'_, Self>, connected: UnitConnected) -> Result<(), Error> {
         let resource = ctx.resource::<Resource>();
@@ -431,7 +431,7 @@ impl Noted {
     }
 }
 
-#[dokime_runtime::listener(id = "owned-stream.echoed", record = UnitConnected, resources = [Resource])]
+#[dokime_runtime::listener(id = "owned_stream.echoed", record = UnitConnected, resources = [Resource])]
 impl Echoed {
     async fn hear(ctx: &dokime_runtime::plugin::ListenerContext<'_, Self>, connected: UnitConnected) -> Result<(), Error> {
         assert_eq!(connected.serial, "SN-7", "the record decodes as its type");
@@ -571,8 +571,8 @@ async fn listener_publishes_asked() {
     invocation.cancel();
     let cancelled = invocation.await;
     assert!(matches!(cancelled, Err(harmos::Error::OperationRefused(harmos::Refusal::Cancelled))), "{cancelled:?}");
-    super::native::call_wire(&runtime.operations, dokime_runtime::plugin::Heard::<Noted>::new(connected("SN-7"))).await.unwrap();
-    super::native::call_wire(&runtime.operations, dokime_runtime::plugin::Heard::<Echoed>::new(connected("SN-7"))).await.unwrap();
+    super::native::call_wire::<Noted>(&runtime.operations, connected("SN-7")).await.unwrap();
+    super::native::call_wire::<Echoed>(&runtime.operations, connected("SN-7")).await.unwrap();
     if let Some(refusal) = probe.refused.lock().unwrap().clone() {
         panic!("the listener could not publish: {refusal}");
     }

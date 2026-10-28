@@ -60,7 +60,6 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
         retries: harmos::operations::RetryPolicy::Never,
-        restart: harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
         harmos::model::operations::lifecycle::Descriptor::new(harmos::model::operations::lifecycle::Action::Initialize, policy).unwrap(),

@@ -127,7 +127,7 @@ enum ProbeRequired {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation(id = "call-fixture.get_reading", policy = super::native::POLICY, response = GetReadingResponse, resources = [Shared])]
+#[dokime_runtime::operation(id = "call_fixture.get_reading", policy = super::native::POLICY, response = GetReadingResponse, resources = [Shared])]
 #[derive(Clone, PartialEq)]
 struct GetReading {}
 impl dokime_runtime::Operation for GetReading {
@@ -142,14 +142,13 @@ impl dokime_runtime::Operation for GetReading {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call-fixture.get_late_reading", policy = LATE, response = GetReadingResponse, resources = [Shared])]
+#[dokime_runtime::operation(id = "call_fixture.get_late_reading", policy = LATE, response = GetReadingResponse)]
 #[derive(Clone, PartialEq)]
 struct GetLateReading {}
 impl dokime_runtime::Operation for GetLateReading {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
-        let resource = context.resource::<Shared>();
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<GetReadingResponse>, Refusal> {
         let answered: Result<GetReadingResponse, Refusal> = async {
         let mut cancellation = WireCancellation { completed: false };
         std::future::pending::<()>().await;
@@ -161,16 +160,15 @@ impl dokime_runtime::Operation for GetLateReading {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call-fixture.get_status",
+#[dokime_runtime::operation(id = "call_fixture.get_status",
     policy = super::native::POLICY,
-    response = dokime_runtime::domains::StatusResponse, resources = [Shared])]
+    response = dokime_runtime::domains::StatusResponse)]
 #[derive(Clone, PartialEq)]
 struct GetStatus {}
 impl dokime_runtime::Operation for GetStatus {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<dokime_runtime::domains::StatusResponse>, Refusal> {
-        let resource = context.resource::<Shared>();
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<dokime_runtime::domains::StatusResponse>, Refusal> {
         let answered: Result<dokime_runtime::domains::StatusResponse, Refusal> = async {
         Ok(dokime_runtime::domains::StatusResponse::ready())
         }
@@ -178,7 +176,7 @@ impl dokime_runtime::Operation for GetStatus {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call-fixture.echo", policy = super::native::POLICY, response = SharedReading, resources = [Shared])]
+#[dokime_runtime::operation(id = "call_fixture.echo", policy = super::native::POLICY, response = SharedReading)]
 #[derive(Clone, PartialEq)]
 struct Echo {
     value: u64,
@@ -186,9 +184,8 @@ struct Echo {
 impl dokime_runtime::Operation for Echo {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<SharedReading>, Refusal> {
-        let resource = context.resource::<Shared>();
-        let request = &mut { self };
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<SharedReading>, Refusal> {
+        let request = self;
         let answered: Result<SharedReading, Refusal> = async {
         Ok(SharedReading { value: request.value })
         }
@@ -196,7 +193,7 @@ impl dokime_runtime::Operation for Echo {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call-fixture.double", policy = super::native::POLICY, response = SharedReading, resources = [Shared])]
+#[dokime_runtime::operation(id = "call_fixture.double", policy = super::native::POLICY, response = SharedReading)]
 #[derive(Clone, PartialEq)]
 struct Double {
     value: u64,
@@ -204,9 +201,8 @@ struct Double {
 impl dokime_runtime::Operation for Double {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<SharedReading>, Refusal> {
-        let resource = context.resource::<Shared>();
-        let request = &mut { self };
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<SharedReading>, Refusal> {
+        let request = self;
         let answered: Result<SharedReading, Refusal> = async {
         Ok(SharedReading { value: request.value * 2 })
         }
@@ -216,7 +212,7 @@ impl dokime_runtime::Operation for Double {
 }
 
 #[allow(dead_code)]
-#[dokime_runtime::operation(id = "call-fixture.hidden", policy = super::native::POLICY, response = (), resources = [Shared])]
+#[dokime_runtime::operation(id = "call_fixture.hidden", policy = super::native::POLICY, response = ())]
 #[derive(Clone, PartialEq)]
 struct Hidden {}
 // Never dispatched: the story proves no catalog lists it.
@@ -224,8 +220,7 @@ struct Hidden {}
 impl dokime_runtime::Operation for Hidden {
     type Error = Refusal;
 
-    async fn run(self, context: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<()>, Refusal> {
-        let resource = context.resource::<Shared>();
+    async fn run(self, _: dokime_runtime::harmos::Context<'_, Self>) -> Result<dokime_runtime::harmos::Response<()>, Refusal> {
         let answered: Result<(), Refusal> = async {
         panic!("an operation no catalog lists must never be dispatched")
         }
@@ -273,7 +268,7 @@ impl dokime_runtime::Plugin for Bench {
     }
 
     fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Implemented::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::ServingError::Catalog)?; dependencies }))?;
+        table.register(Implemented::registration({ let mut dependencies = dokime_runtime::harmos::Dependencies::new(); dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?; dependencies }))?;
         dokime_runtime::execution::serve::<Self, BenchSuites>(table)?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
@@ -299,7 +294,7 @@ impl Watch {
     }
 
     async fn observe(&mut self, ctx: &ObserverContext<'_, Shared>) -> Result<(), dokime_runtime::harmos::sidecar::CallError> {
-        let reading = ctx.call(GetReading {}).await?;
+        let reading = ctx.call::<GetReading>(GetReading {}).await?;
         assert!(reading.reads >= 1, "the operation answered the observer");
         if ctx.tick().ordinal() <= 2
             && let Some(ticks) = &self.0
@@ -323,11 +318,11 @@ impl Probe {
 
     #[dokime_runtime::step(label = "Call the operation", description = "The step asks the operation rather than the method beside it.")]
     async fn call(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
-        let reading = ctx.call(GetReading {}).await?;
+        let reading = ctx.call::<GetReading>(GetReading {}).await?;
         dokime_runtime::info!(ctx, "the operation answered {} reads", reading.reads);
         let echoed = ctx.call(Echo { value: 7 }).await?;
         assert_eq!(echoed.value, 7, "the request reaches the operation it names");
-        let hosted = ctx.host().call(Echo { value: 9 }).await.expect("the host surface routes the same call");
+        let hosted = ctx.host().call::<Echo>(Echo { value: 9 }).await.expect("the host surface routes the same call");
         assert_eq!(hosted.into_owned().value, 9, "the host surface reaches the operation it names");
 
         Ok(())
@@ -335,7 +330,7 @@ impl Probe {
 
     #[dokime_runtime::observer(interval_ms = 10)]
     async fn watch(ctx: &mut dokime_runtime::execution::ObserverContext<'_>) -> Result<(), dokime_runtime::Error> {
-        let reading = ctx.call(GetReading {}).await?;
+        let reading = ctx.call::<GetReading>(GetReading {}).await?;
         dokime_runtime::debug!(ctx, "the observer read {}", reading.reads);
 
         Ok(())
@@ -347,7 +342,7 @@ impl Probe {
         description = "A criterion may call too, which is why it is written `async fn` here."
     )]
     async fn read(ctx: &CriterionContext<'_>) -> Result<bool, dokime_runtime::Error> {
-        let reading = ctx.call(GetReading {}).await?;
+        let reading = ctx.call::<GetReading>(GetReading {}).await?;
         Ok(reading.reads >= 1)
     }
 }
@@ -407,7 +402,7 @@ async fn unanswered_operation_name() {
         .expect("the probe reaches an outcome");
 
     assert!(!report.passed());
-    assert!(report.diagnostics().contains("call-fixture.get_reading"), "{}", report.diagnostics());
+    assert!(report.diagnostics().contains("call_fixture.get_reading"), "{}", report.diagnostics());
 }
 
 #[tokio::test]

@@ -20,7 +20,7 @@ use std::process::Command;
 
 // Third Party Imports
 use harmos::storage::state::{RecoveryEntry, RecoveryPage, RecoverySnapshot, StateBackend};
-use harmos::storage::{ReadLimits, RecoveryPosition, StorageFuture, StoreHistory};
+use harmos::storage::{ReadLimits, RecoveryPosition, StorageBatch, StorageFuture, StoreHistory};
 
 // Local Imports
 use crate::service_support::prelude::*;
@@ -60,7 +60,7 @@ impl StateBackend for CrashAdoption {
     fn read_snapshot(&self, limit: std::num::NonZeroUsize) -> StorageFuture<'_, Option<RecoverySnapshot>> {
         self.inner.read_snapshot(limit)
     }
-    fn write_snapshot<'a>(&'a self, snapshot: &'a RecoverySnapshot) -> StorageFuture<'a, ()> {
+    fn write_snapshot(&self, snapshot: StorageBatch<RecoverySnapshot>) -> StorageFuture<'_, ()> {
         self.inner.write_snapshot(snapshot)
     }
     fn read_entries<'a>(
@@ -68,9 +68,9 @@ impl StateBackend for CrashAdoption {
     ) -> StorageFuture<'a, RecoveryPage> {
         self.inner.read_entries(after, through, limits)
     }
-    fn write_entries<'a>(&'a self, entries: &'a [RecoveryEntry]) -> StorageFuture<'a, ()> {
+    fn write_entries(&self, entries: StorageBatch<RecoveryEntry>) -> StorageFuture<'_, ()> {
         Box::pin(async move {
-            for entry in entries {
+            for entry in entries.as_slice() {
                 let payload: serde_json::Value = serde_json::from_slice(&entry.payload).unwrap();
                 if let Some(intent) = cycle_intent(&payload) {
                     std::fs::write(self.root.join("intent.json"), serde_json::to_vec(intent).unwrap()).unwrap();

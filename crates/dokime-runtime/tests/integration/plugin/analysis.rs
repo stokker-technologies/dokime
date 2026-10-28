@@ -91,7 +91,7 @@ impl Analysis for Scale {
     type Parameters = Parameters;
     type Output = Scaled;
     type Error = std::convert::Infallible;
-    const ID: &'static str = "analysis-fixture.scale";
+    const ID: &'static str = "analysis_fixture.scale";
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Scale Signal";
     const DESCRIPTION: &'static str = "Multiply Original Samples By A Typed Factor";
@@ -107,7 +107,7 @@ impl Analysis for Held {
     type Parameters = ();
     type Output = Scaled;
     type Error = std::sync::mpsc::RecvError;
-    const ID: &'static str = "analysis-fixture.held";
+    const ID: &'static str = "analysis_fixture.held";
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Held Signal";
     const DESCRIPTION: &'static str = "Retained Worker Fixture";
@@ -125,6 +125,7 @@ impl Analysis for Held {
 }
 
 impl harmos::Application for Host {
+    type Lanes = Lanes;
     type State = ();
     type Transaction = harmos::state::Never;
     type Record = ();
@@ -163,7 +164,7 @@ async fn serve() -> harmos::Runtime<Host> {
     runtime
 }
 
-async fn call<A: Analysis>(operations: &harmos::operations::OperationManager, request: Request) -> harmos::Result<Response> {
+async fn call<A: Analysis>(operations: &harmos::operations::OperationManager<Lanes>, request: Request) -> harmos::Result<Response> {
     let payload = operations.call_encoded(A::ID, harmos::Message::encode(&request)).await?;
     <Response as harmos::Message>::decode(&payload)
         .map_err(|source| harmos::Error::backend("decode analysis answer", harmos::BackendFailure::Corrupt, source))

@@ -64,7 +64,7 @@ async fn storage_operations_view() {
     assert_eq!(info.accepted, handle.storage().cursor_accepted());
     assert!(info.saved.covers(&receipt.position).unwrap());
 
-    let (output, mut input) = stream::<QueryOutput>(StreamSettings { items: NonZeroUsize::MIN, bytes: budget }).unwrap();
+    let (output, input) = stream::<QueryOutput>(StreamSettings { items: NonZeroUsize::MIN, bytes: budget }).unwrap();
     let request = Query {
         at: info.saved.clone(),
         source: Source::Objects(ObjectSelection {

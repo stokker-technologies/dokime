@@ -66,9 +66,9 @@ async fn saved_file_roundtrip() {
 
     let metadata = Metadata { identifier: "roundtrip.token".into(), label: "Saved Secret".into(), description: None };
     let request = wire::Put { metadata, value: Some("saved-value-λ".into()), generation: 0 };
-    handle.operations().call(request).await.unwrap();
+    handle.operations().call::<wire::Put>(request).await.unwrap();
     let identifiers = vec!["roundtrip.token".into()];
-    let archive = handle.operations().call(wire::Export { identifiers, generation: 1 }).await.unwrap();
+    let archive = handle.operations().call::<wire::Export>(wire::Export { identifiers, generation: 1 }).await.unwrap();
 
     let file = root.path().join("secrets.b64");
     std::fs::write(&file, &archive.data).unwrap();
@@ -91,14 +91,14 @@ async fn saved_file_roundtrip() {
         RuntimeConfig::new(root.path().join("destination"), metadata).with_credential_store(keyring_core::mock::Store::new().unwrap());
     let mut destination = Runtime::start(destination).await.unwrap();
     let handle = destination.handle();
-    let preview = handle.operations().call(wire::Preview { data: data.clone() }).await.unwrap();
+    let preview = handle.operations().call::<wire::Preview>(wire::Preview { data: data.clone() }).await.unwrap();
     assert_eq!(preview.generation, 0);
     assert_eq!(preview.entries.len(), 1);
     assert!(!preview.entries[0].exists);
 
     let choices = vec![Choice { identifier: preview.entries[0].metadata.identifier.clone(), action: Action::Replace }];
-    handle.operations().call(wire::Import { data, choices, generation: preview.generation }).await.unwrap();
-    let restored = handle.operations().call(wire::Lookup { identifier: "roundtrip.token".into() }).await.unwrap();
+    handle.operations().call::<wire::Import>(wire::Import { data, choices, generation: preview.generation }).await.unwrap();
+    let restored = handle.operations().call::<wire::Lookup>(wire::Lookup { identifier: "roundtrip.token".into() }).await.unwrap();
     assert_eq!(restored.value.as_deref(), Some("saved-value-λ"));
     destination.shutdown().await.unwrap();
 }
