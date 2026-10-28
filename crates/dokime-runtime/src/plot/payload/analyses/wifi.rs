@@ -205,13 +205,6 @@ fn band_index(channel: i64) -> Option<usize> {
 /* === Tests === */
 
 #[cfg(feature = "storage")]
-
-#[cfg(feature = "storage")]
-
-#[cfg(feature = "storage")]
-
-#[cfg(feature = "storage")]
-
 #[cfg(test)]
 mod tests {
     use super::*;
