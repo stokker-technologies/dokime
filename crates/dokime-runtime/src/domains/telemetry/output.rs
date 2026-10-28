@@ -66,9 +66,20 @@ pub(crate) async fn project_saved(
     .await?;
     let mut outputs = Vec::new();
     for contract in contracts {
-        for column in
-            contract.normalized().columns.into_iter().filter(|column| matches!(column.value_type, ValueType::Integer | ValueType::Number))
-        {
+        let mut columns = contract.normalized().columns;
+        columns.retain(|column| matches!(column.value_type, ValueType::Integer | ValueType::Number));
+        if columns.is_empty() {
+            continue;
+        }
+        // The Saved Cursor Is Immutable: Reuse Its First Bounded Page Across Fields.
+        let execution = scope.test_execution_id.as_ref().map(ToString::to_string);
+        let stream = Some(contract.stream.to_string());
+        let first_page = local.telemetry_page(at.clone(), 0, execution.clone(), stream.clone()).await?;
+        if first_page.is_empty() {
+            continue;
+        }
+        let mut end = None;
+        for column in columns {
             let field = column.metadata.identifier.as_str();
             let statistics = [
                 Aggregate::Count,
@@ -87,25 +98,16 @@ pub(crate) async fn project_saved(
             let mut last = None;
             let mut max_abs = 0f64;
             let mut after = 0;
+            let mut page = first_page.as_slice();
+            let mut next_page;
             loop {
-                let page = local
-                    .telemetry_page(
-                        at.clone(),
-                        after,
-                        scope.test_execution_id.as_ref().map(ToString::to_string),
-                        Some(contract.stream.to_string()),
-                    )
-                    .await?;
-                if page.is_empty() {
-                    break;
-                }
                 for row in page {
                     after = row.record.position.sequence;
                     let codec = codecs
                         .iter()
                         .find(|codec| codec.schema() == &row.record.schema)
                         .ok_or_else(|| crate::runtime::Error::Operation("saved telemetry codec is missing".into()))?;
-                    let sample = codec.decode_stored(&row)?.sample;
+                    let sample = codec.decode_stored(row)?.sample;
                     if !dokime_domain::model::execution::scope_visible_in(sample.scope.as_ref(), scope) {
                         continue;
                     }
@@ -126,6 +128,15 @@ pub(crate) async fn project_saved(
                     }
                 }
                 tokio::task::yield_now().await;
+                if end == Some(after) {
+                    break;
+                }
+                next_page = local.telemetry_page(at.clone(), after, execution.clone(), stream.clone()).await?;
+                if next_page.is_empty() {
+                    end = Some(after);
+                    break;
+                }
+                page = &next_page;
             }
             let (Some(first), Some(last)) = (first, last) else {
                 continue;

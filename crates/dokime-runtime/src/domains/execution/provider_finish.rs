@@ -239,7 +239,9 @@ impl RuntimeHandle {
         let cycle_id = finish.test_cycle_id.clone();
         let started_execution_ids = finish.started_execution_ids.clone();
         let execution_ids = finish.started_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
+        let settlement_started = std::time::Instant::now();
         let quiescence = self.quiesce_execution_sampling(&execution_ids).await?;
+        tracing::debug!(%cycle_id, elapsed = ?settlement_started.elapsed(), "execution sampling quiesced");
         let telemetry = prepare_finish_telemetry(&self.state_read(), &finish);
         let admission = match self.prepare_sample_admission(telemetry, crate::domains::telemetry::Payloads::Unchecked).await {
             Ok(admission) => admission.within_quiescence(),
@@ -273,9 +275,11 @@ impl RuntimeHandle {
             })
             .collect::<Vec<_>>();
         drop(state);
+        let aggregates_started = std::time::Instant::now();
         for execution_id in finalize_execution_ids {
             Box::pin(self.finalize_execution_aggregate_outputs(&execution_id)).await;
         }
+        tracing::debug!(%cycle_id, elapsed = ?aggregates_started.elapsed(), "execution aggregate outputs finalized");
         self.complete_sampling(&quiescence).await;
         Ok(())
     }
