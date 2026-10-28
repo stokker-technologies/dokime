@@ -46,6 +46,7 @@ pub(crate) struct Bindings {
 
 pub(crate) struct Dispatcher {
     bindings: Bindings,
+    owner: String,
     calls: OperationManager,
 }
 
@@ -91,8 +92,13 @@ impl Bindings {
         }
         Ok(bindings)
     }
-    pub(crate) fn attach(self, calls: OperationManager) -> Dispatcher {
-        Dispatcher { bindings: self, calls }
+    // The plugin serves its bound operations under its own owner segment.
+    pub(crate) fn attach(self, owner: &str, calls: OperationManager) -> Dispatcher {
+        Dispatcher {
+            bindings: self,
+            owner: owner.to_owned(),
+            calls,
+        }
     }
 }
 
@@ -123,8 +129,12 @@ impl Dispatcher {
         found
     }
 
+    fn route(&self, method: &str) -> String {
+        format!("{}.{method}", self.owner)
+    }
+
     async fn call<Q: harmos::Message, T: harmos::Message>(&self, method: &str, request: Q) -> Result<T, ActionDispatcherError> {
-        let bytes = self.calls.call_encoded(method, request.encode()).await.map_err(dispatch_error)?;
+        let bytes = self.calls.call_encoded(&self.route(method), request.encode()).await.map_err(dispatch_error)?;
 
         T::decode(bytes.as_slice()).map_err(|error| ActionDispatcherError::Malformed(error.to_string()))
     }
@@ -143,7 +153,7 @@ impl ActionDispatcher for Dispatcher {
     ) -> ActionDispatcherFuture<'a, crate::analysis::Response> {
         use harmos::Message;
         let admitted = if self.bindings.analyses.contains(entrypoint) {
-            self.calls.submit_encoded(entrypoint, request.encode()).map_err(dispatch_error)
+            self.calls.submit_encoded(&self.route(entrypoint), request.encode()).map_err(dispatch_error)
         } else {
             Err(ActionDispatcherError::UnknownEntrypoint(entrypoint.into()))
         };

@@ -442,7 +442,7 @@ impl Runtime {
                     continue;
                 }
                 let id = crate::Identifier::new(&live.source).map_err(operation)?;
-                let dispatcher = Arc::new(live.bindings.clone().attach(self.handle.operations.clone()));
+                let dispatcher = Arc::new(live.bindings.clone().attach(&live.source, self.handle.operations.clone()));
                 self.handle.set_action_dispatcher(id.clone(), Arc::clone(&dispatcher) as _);
                 let handle = self.handle.clone();
                 tokio::spawn(async move {
