@@ -175,6 +175,38 @@ criterion = { workspace = true }
 
 # === Target Dependencies === #
 
+[target.'cfg(windows)'.dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+windows-sys = { workspace = true, features = ["Win32_System_Console"] }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
 # === Test Targets === #
 
 # === Bench Targets === #

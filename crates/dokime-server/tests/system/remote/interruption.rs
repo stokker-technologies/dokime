@@ -540,6 +540,11 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
         pixel_height: 0,
     };
     let pair = native_pty_system().openpty(size).unwrap();
+    // An Operator's Terminal Starts Its Shell With Ctrl+C Enabled. A Runner Started In Another
+    // Process Group Ignores Ctrl+C, And The Shell Would Inherit That Through The Pseudo-Terminal.
+    // SAFETY: A Null Handler Only Clears This Process's Ignore-Ctrl+C Attribute.
+    #[cfg(windows)]
+    assert_ne!(unsafe { windows_sys::Win32::System::Console::SetConsoleCtrlHandler(None, 0) }, 0, "Ctrl+C processing must be restorable");
     let child = pair.slave.spawn_command(command).unwrap();
     let mut process = Process { child, reaped: false };
     drop(pair.slave);

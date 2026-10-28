@@ -2726,6 +2726,7 @@ dependencies = [
  "tracing-flame",
  "tracing-subscriber",
  "uuid",
+ "windows-sys 0.61.2",
  "zeroize",
  "zip 9.1.0",
 ]
