@@ -261,7 +261,15 @@ impl Directories {
 #[cfg(feature = "native")]
 impl Watched {
     fn new(transfer_id: String, mime: String) -> Self {
-        Self { transfer_id, mime, sequence: 0, sent: 0, modified: None, restart: false, refused: false }
+        Self {
+            transfer_id,
+            mime,
+            sequence: 0,
+            sent: 0,
+            modified: None,
+            restart: false,
+            refused: false,
+        }
     }
 
     fn piece(&mut self, name: &str, bytes: Vec<u8>, last: bool, replace: bool) -> ArtifactChunk {
@@ -281,7 +289,10 @@ impl Watched {
     }
 
     fn abandon(&mut self, name: &str) -> ArtifactChunk {
-        ArtifactChunk { aborted: true, ..self.piece(name, Vec::new(), true, false) }
+        ArtifactChunk {
+            aborted: true,
+            ..self.piece(name, Vec::new(), true, false)
+        }
     }
 }
 

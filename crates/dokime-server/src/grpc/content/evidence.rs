@@ -97,7 +97,9 @@ impl Operation for Download {
                     })
                 })
                 .map_err(|error| failure(&Error::Dependency(error)))?;
-            let frames = ExportFrames { metadata: Response::from_owner(metadata.owner()) };
+            let frames = ExportFrames {
+                metadata: Response::from_owner(metadata.owner()),
+            };
             chunked::Download {
                 frames,
                 source: chunked::Source::Evidence(Box::new(bundle)),
@@ -125,10 +127,14 @@ impl Frames for ExportFrames {
         Some(self.metadata.clone())
     }
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        EvidenceExportFrame { payload: Some(EvidenceExportPayload::Chunk(ArtifactChunk { offset, data })) }
+        EvidenceExportFrame {
+            payload: Some(EvidenceExportPayload::Chunk(ArtifactChunk { offset, data })),
+        }
     }
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        EvidenceExportFrame { payload: Some(EvidenceExportPayload::Complete(ArtifactCompletion { size_bytes, sha256 })) }
+        EvidenceExportFrame {
+            payload: Some(EvidenceExportPayload::Complete(ArtifactCompletion { size_bytes, sha256 })),
+        }
     }
 }
 

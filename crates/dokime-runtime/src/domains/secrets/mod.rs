@@ -144,7 +144,13 @@ impl SecretStore {
                         known_uses: uses.remove(identifier).unwrap_or_default(),
                     })
                     .collect();
-                catalog::Snapshot { host_id: host, host_label: label, generation: document.secrets.generation, entries, cleanup_pending }
+                catalog::Snapshot {
+                    host_id: host,
+                    host_label: label,
+                    generation: document.secrets.generation,
+                    entries,
+                    cleanup_pending,
+                }
             })
             .await?)
     }
@@ -156,7 +162,10 @@ impl SecretStore {
             label: identifier.into(),
             description: None,
         });
-        let change = Change { metadata, value: Some(SecretValue::new(value.to_owned())) };
+        let change = Change {
+            metadata,
+            value: Some(SecretValue::new(value.to_owned())),
+        };
         self.apply(vec![change], &[], current.generation).await?;
         Ok(())
     }
@@ -189,7 +198,11 @@ impl SecretStore {
 
     pub(crate) async fn redacted_binding(&self, identifier: impl Into<String>) -> Result<RedactedSecretBinding, SecretStoreError> {
         let secret_id = identifier.into();
-        Ok(RedactedSecretBinding { configured: self.contains(&secret_id).await?, backend: SecretBackendKind::OsKeyring, secret_id })
+        Ok(RedactedSecretBinding {
+            configured: self.contains(&secret_id).await?,
+            backend: SecretBackendKind::OsKeyring,
+            secret_id,
+        })
     }
 
     pub(crate) async fn apply(&self, changes: Vec<Change>, removed: &[String], expected: u64) -> Result<bool, SecretStoreError> {

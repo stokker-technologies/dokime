@@ -73,7 +73,10 @@ async fn persisted_cycle_restart() {
     let boundary = runtime.storage().cursor_saved();
     let report = runtime
         .operations()
-        .call(MaterializeReport { subject: ReportSubject::Cycle(cycle_id.to_string()), at: boundary.clone() })
+        .call(MaterializeReport {
+            subject: ReportSubject::Cycle(cycle_id.to_string()),
+            at: boundary.clone(),
+        })
         .await
         .unwrap();
     let html = crate::service_support::reports::bytes(runtime.storage(), &report.report).await;

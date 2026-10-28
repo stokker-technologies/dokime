@@ -76,12 +76,16 @@ impl<L: Listener> harmos::operations::OperationDeclaration for Heard<L> {
 
 impl Delivery {
     pub fn of(record: &Record) -> Self {
-        Self { record_json: serde_json::to_string(record).expect("a filed record serializes") }
+        Self {
+            record_json: serde_json::to_string(record).expect("a filed record serializes"),
+        }
     }
 
     pub fn record<R: DeclaredRecord>(&self) -> crate::Result<R> {
-        let record: Record = serde_json::from_str(&self.record_json)
-            .map_err(|error| crate::Error::RecordDecode { record: R::RECORD_TYPE.to_owned(), reason: error.to_string() })?;
+        let record: Record = serde_json::from_str(&self.record_json).map_err(|error| crate::Error::RecordDecode {
+            record: R::RECORD_TYPE.to_owned(),
+            reason: error.to_string(),
+        })?;
         R::from_record(&record)
     }
 }

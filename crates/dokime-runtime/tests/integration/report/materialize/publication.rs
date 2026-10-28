@@ -187,8 +187,11 @@ async fn dependency_publication_retry() {
     let mut input = template;
     let execution = input.input.cycle.test_executions[0].clone();
     let stored = manager.write_object(&Execution::try_from(&execution).unwrap()).await.unwrap();
-    let revision =
-        ExecutionRevision { execution_id: execution.test_execution_id.clone(), version: stored.version, position: stored.position.clone() };
+    let revision = ExecutionRevision {
+        execution_id: execution.test_execution_id.clone(),
+        version: stored.version,
+        position: stored.position.clone(),
+    };
     input.execution = Some(revision.clone());
     input.evidence_through = stored.position.clone();
     manager.flush_until(&stored.position).await.unwrap();
@@ -285,7 +288,10 @@ async fn admitted_create_window() {
         expected_length: Some(0),
         expected_sha256: None,
     };
-    let mutation = MutationId { window: issued.id, key: Identifier::new("admitted-create.create").unwrap() };
+    let mutation = MutationId {
+        window: issued.id,
+        key: Identifier::new("admitted-create.create").unwrap(),
+    };
     let result = manager.create_file_once(&mutation, &metadata).await;
 
     assert_eq!(fault.created.load(Ordering::SeqCst), 1, "the real backend completed creation before the response");

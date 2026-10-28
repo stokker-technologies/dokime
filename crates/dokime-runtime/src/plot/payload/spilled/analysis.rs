@@ -70,7 +70,11 @@ pub(super) fn histogram(series: &Series, bins: usize) -> Result<HistogramSeries>
     let bins = bins.max(1);
     let width = if low == high { 1.0 } else { (high - low) / bins as f64 };
     let mut output: Vec<_> = (0..bins)
-        .map(|index| HistogramBin { lower: low + index as f64 * width, upper: low + (index + 1) as f64 * width, count: 0 })
+        .map(|index| HistogramBin {
+            lower: low + index as f64 * width,
+            upper: low + (index + 1) as f64 * width,
+            count: 0,
+        })
         .collect();
     series.visit(|point| {
         if let Some(value) = point.y.filter(|value| value.is_finite()) {
@@ -87,7 +91,12 @@ pub(super) fn histogram(series: &Series, bins: usize) -> Result<HistogramSeries>
         min: low,
         max: high,
     });
-    Ok(HistogramSeries { key: series.metadata.key.clone(), bins: output, count: moments.count() as usize, statistics })
+    Ok(HistogramSeries {
+        key: series.metadata.key.clone(),
+        bins: output,
+        count: moments.count() as usize,
+        statistics,
+    })
 }
 
 pub(super) fn boxes(read: &Read<'_>, series: &Series, request: &PlotPayloadRequest) -> Result<Vec<BoxSummary>> {
@@ -143,7 +152,19 @@ pub(super) fn boxes(read: &Read<'_>, series: &Series, request: &PlotPayloadReque
         } else {
             (series.metadata.key.clone(), series.metadata.label.clone())
         };
-        output.push(BoxSummary { key, label, count, min, max, q1, median, q3, lower_whisker, upper_whisker, outliers });
+        output.push(BoxSummary {
+            key,
+            label,
+            count,
+            min,
+            max,
+            q1,
+            median,
+            q3,
+            lower_whisker,
+            upper_whisker,
+            outliers,
+        });
     }
     Ok(output)
 }
@@ -164,7 +185,11 @@ pub(super) fn interval(read: &Read<'_>, series: &Series, request: &PlotPayloadRe
     }
     let mut statement = read.connection.prepare("SELECT bin,value FROM interval_values ORDER BY bin,ordinal").map_err(failure)?;
     let mut rows = statement.query([]).map_err(failure)?;
-    let mut output = SigmaSeries { key: series.metadata.key.clone(), bins: Vec::new(), raw_points: 0 };
+    let mut output = SigmaSeries {
+        key: series.metadata.key.clone(),
+        bins: Vec::new(),
+        raw_points: 0,
+    };
     let mut current = None;
     let mut summary = Summary::new();
     while let Some(row) = rows.next().map_err(failure)? {
@@ -219,7 +244,13 @@ fn interval_bin(output: &mut SigmaSeries, bin: i64, summary: &Summary, request: 
     }
     let count = summary.count() as usize;
     output.raw_points += count;
-    output.bins.push(SigmaBin { x: (bin as f64 + 0.5) * options.bin_width, count, mean, lower, upper });
+    output.bins.push(SigmaBin {
+        x: (bin as f64 + 0.5) * options.bin_width,
+        count,
+        mean,
+        lower,
+        upper,
+    });
 }
 
 /* === Tests === */

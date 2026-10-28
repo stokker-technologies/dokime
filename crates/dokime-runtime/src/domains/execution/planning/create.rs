@@ -43,7 +43,11 @@ impl RuntimeHandle {
         let test_cycle_id = request_key.map_or_else(crate::model::identity::new_id::<TestCycleId>, |key| {
             TestCycleId::from_seed(format!("cycle-create:{}:{key}", self.state_read().identity.node.node_id))
         });
-        let transaction = Create { definition, test_cycle_id: test_cycle_id.clone(), occurred_at: crate::model::time::now_utc() };
+        let transaction = Create {
+            definition,
+            test_cycle_id: test_cycle_id.clone(),
+            occurred_at: crate::model::time::now_utc(),
+        };
         self.commit_with_key(request_key.map(str::to_owned), transaction).await?;
         self.execution_storage.save_cycle(test_cycle_id.clone()).await?;
         self.reconcile_sampling().await;

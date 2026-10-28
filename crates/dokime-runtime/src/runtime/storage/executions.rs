@@ -674,10 +674,11 @@ impl ExecutionStorage {
     }
 
     pub(crate) fn with_active_membership<T>(&self, inspect: impl FnOnce(&dyn Fn(&TestExecutionId) -> bool) -> Result<T>) -> Result<T> {
-        let active = self
-            .active
-            .try_lock()
-            .map_err(|_| Error::Harmos(harmos::Error::ResourceExhausted { resource: "active execution inventory registry busy" }))?;
+        let active = self.active.try_lock().map_err(|_| {
+            Error::Harmos(harmos::Error::ResourceExhausted {
+                resource: "active execution inventory registry busy",
+            })
+        })?;
         inspect(&|id| active.contains_key(id))
     }
     pub(crate) async fn acquire(&self, cycle: &CycleView, execution: &TestExecution) -> Result<Arc<Mutex<Acquisition>>> {
@@ -859,7 +860,10 @@ async fn release_before(storage: &Manager, anchor: &ExecutionRevision) -> Result
     let key_bytes =
         std::num::NonZeroUsize::new(anchor.execution_id.as_str().len()).ok_or_else(|| invalid("execution identity is empty"))?;
     let key = ObjectKey::new(anchor.execution_id.as_str(), key_bytes)?;
-    let through = StorageCursor { history: anchor.position.history.clone(), sequence: predecessor };
+    let through = StorageCursor {
+        history: anchor.position.history.clone(),
+        sequence: predecessor,
+    };
     storage.release_object_history(&schema, &key, &through).await?;
     Ok(())
 }
@@ -873,7 +877,10 @@ fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionR
         && let Some(published) = &acquisition.published
     {
         let file = &acquisition.execution.saved.as_ref().expect("saved original seal").source.context;
-        acquisition.cycle_context = Some(Arc::new(CycleMemberContext { context: file.clone(), appearance: published.appearance.clone() }));
+        acquisition.cycle_context = Some(Arc::new(CycleMemberContext {
+            context: file.clone(),
+            appearance: published.appearance.clone(),
+        }));
     }
     acquisition.published = None;
     acquisition.finalizing = None;
@@ -911,7 +918,10 @@ async fn bind_publication_revision(acquisition: &mut Acquisition, execution: &Te
 
 async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
     if acquisition.pending.is_none() {
-        acquisition.pending = Some(PendingRevision { execution: acquisition.execution.clone(), receipt: None });
+        acquisition.pending = Some(PendingRevision {
+            execution: acquisition.execution.clone(),
+            receipt: None,
+        });
     }
 
     let pending = acquisition.pending.as_mut().expect("original execution save retained");

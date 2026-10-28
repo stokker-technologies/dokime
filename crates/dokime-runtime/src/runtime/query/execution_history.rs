@@ -303,7 +303,10 @@ impl RuntimeHandle {
                             });
                         }
                     }
-                    let archived = Archived { cycles: &state.archived_cycles, executions: &state.archived_executions };
+                    let archived = Archived {
+                        cycles: &state.archived_cycles,
+                        executions: &state.archived_executions,
+                    };
                     browse_page(stored.iter().flat_map(|page| page.iter()), &live, &query, &archived, limit)
                 })
             })?
@@ -398,7 +401,13 @@ impl RuntimeHandle {
                     artifacts.push(*record);
                 }
             }
-            Ok(ExecutionCheckpointEvidence { checkpoint, outputs, artifacts, record_contracts, telemetry })
+            Ok(ExecutionCheckpointEvidence {
+                checkpoint,
+                outputs,
+                artifacts,
+                record_contracts,
+                telemetry,
+            })
         })
     }
 
@@ -412,7 +421,10 @@ impl RuntimeHandle {
             Ok(ExecutionCheckpointDocument {
                 checkpoint,
                 document: ExecutionDocument {
-                    cycle: crate::execution::storage::ExecutionCycle { cycle_id: cycle.test_cycle_id, metadata: cycle.metadata },
+                    cycle: crate::execution::storage::ExecutionCycle {
+                        cycle_id: cycle.test_cycle_id,
+                        metadata: cycle.metadata,
+                    },
                     execution: revision.value,
                 },
                 acquisition_finished: true,

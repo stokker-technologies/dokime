@@ -115,7 +115,11 @@ impl TryFrom<&ExecutionOutputContent> for Content {
             return Err(Error::Invalid("saved output content encoding memory overflow"));
         }
         match value {
-            ExecutionOutputContent::File => Ok(Self { kind: "file".into(), record: None, metadata: None }),
+            ExecutionOutputContent::File => Ok(Self {
+                kind: "file".into(),
+                record: None,
+                metadata: None,
+            }),
             ExecutionOutputContent::Artifact { record, metadata } => Ok(Self {
                 kind: "artifact".into(),
                 record: Some(Record::try_from(record.as_ref())?),
@@ -134,9 +138,10 @@ impl TryFrom<Content> for ExecutionOutputContent {
         }
         match (value.kind.as_str(), value.record, value.metadata) {
             ("file", None, None) => Ok(Self::File),
-            ("artifact", Some(record), Some(metadata)) => {
-                Ok(Self::Artifact { record: Box::new(record.try_into()?), metadata: metadata.try_into()? })
-            }
+            ("artifact", Some(record), Some(metadata)) => Ok(Self::Artifact {
+                record: Box::new(record.try_into()?),
+                metadata: metadata.try_into()?,
+            }),
             _ => Err(Error::Invalid("invalid saved output content descriptor")),
         }
     }

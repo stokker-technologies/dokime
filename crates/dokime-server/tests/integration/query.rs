@@ -111,7 +111,11 @@ async fn percentile_rank_bounded() {
         source: model::query::wire::QuerySource::Steps,
         filters: Vec::new(),
         group_by: Vec::new(),
-        aggregates: vec![model::query::wire::QueryAggregate { aggregate, column: "duration_ms".to_owned(), alias: "statistic".to_owned() }],
+        aggregates: vec![model::query::wire::QueryAggregate {
+            aggregate,
+            column: "duration_ms".to_owned(),
+            alias: "statistic".to_owned(),
+        }],
         limit: 0,
     };
 

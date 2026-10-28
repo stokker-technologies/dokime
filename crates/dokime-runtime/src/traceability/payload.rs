@@ -263,7 +263,12 @@ fn text(value: fmt::Arguments<'_>) -> Result<String> {
 fn entry(
     sink: &mut dyn Entries, identifier: fmt::Arguments<'_>, label: fmt::Arguments<'_>, value: EntryValue<'_>, source: fmt::Arguments<'_>,
 ) -> Result<()> {
-    sink.push(Entry { metadata: EntryMetadata::New { identifier, label }, value, source, unit: None })
+    sink.push(Entry {
+        metadata: EntryMetadata::New { identifier, label },
+        value,
+        source,
+        unit: None,
+    })
 }
 
 pub(crate) fn retained_state(
@@ -772,7 +777,13 @@ fn visit_parameters(state: &RuntimeState, selected: Option<&RecordScope>, at: Op
                 next.scope.values() == row.scope.values() && next.scope.origin() == row.scope.origin() && next.source == row.source
             })
             .count();
-        descriptors.push(ParameterGroup { scope: row.scope, source: row.source, start, length, ordinal: row.ordinal });
+        descriptors.push(ParameterGroup {
+            scope: row.scope,
+            source: row.source,
+            start,
+            length,
+            ordinal: row.ordinal,
+        });
         start += length;
     }
     descriptors.sort_unstable_by_key(|group| group.ordinal);
@@ -896,7 +907,10 @@ fn visit_section(
     groups.group(
         scope,
         at,
-        Some(EntryMetadata::New { identifier: format_args!("{}", section.identifier), label: format_args!("{}", section.label) }),
+        Some(EntryMetadata::New {
+            identifier: format_args!("{}", section.identifier),
+            label: format_args!("{}", section.label),
+        }),
         format_args!("{}|traceability.template.{}", ScopeSeed(scope), section.identifier),
         true,
         &mut |entries| {
@@ -905,7 +919,10 @@ fn visit_section(
                     continue;
                 }
                 entries.push(Entry {
-                    metadata: EntryMetadata::New { identifier: format_args!("{}", row.identifier), label: format_args!("{}", row.label) },
+                    metadata: EntryMetadata::New {
+                        identifier: format_args!("{}", row.identifier),
+                        label: format_args!("{}", row.label),
+                    },
                     value: EntryValue::Borrowed(&row.value),
                     source: format_args!("{}", StatedSource(row.source.as_deref())),
                     unit: row.unit.as_deref(),

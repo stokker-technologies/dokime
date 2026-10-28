@@ -69,7 +69,10 @@ impl Probe {
         let stop = Arc::new((Mutex::new(false), Condvar::new()));
         let signal = Arc::clone(&stop);
         let thread = thread::spawn(move || {
-            let mut observed = Observed { rss_baseline_bytes: rss(), ..Observed::default() };
+            let mut observed = Observed {
+                rss_baseline_bytes: rss(),
+                ..Observed::default()
+            };
             loop {
                 let write = sample();
                 observed.pending_write_bytes = observed.pending_write_bytes.max(write);

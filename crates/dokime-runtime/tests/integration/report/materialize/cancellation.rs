@@ -106,7 +106,10 @@ impl ExecutionFixture for QueuedSamples {
 
 impl Sampler for CollectedQueue {
     fn open(&self) -> std::result::Result<Box<dyn SamplerSession>, String> {
-        Ok(Box::new(CollectedSession { state: self.state.clone(), settling: false }))
+        Ok(Box::new(CollectedSession {
+            state: self.state.clone(),
+            settling: false,
+        }))
     }
 }
 impl SamplerSession for CollectedSession {

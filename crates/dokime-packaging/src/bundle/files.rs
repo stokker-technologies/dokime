@@ -124,7 +124,12 @@ fn inspect(path: &Path) -> std::io::Result<Entry> {
 }
 
 fn discover(root: &Path, maximum: usize, inspect: &impl Fn(&Path) -> std::io::Result<Entry>) -> Result<Vec<(String, PathBuf)>, Error> {
-    let mut discovery = Discovery { root, paths: Vec::new(), maximum, visited: 0 };
+    let mut discovery = Discovery {
+        root,
+        paths: Vec::new(),
+        maximum,
+        visited: 0,
+    };
     discovery.visit(root, 0, inspect)?;
     discovery.paths.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(discovery.paths)

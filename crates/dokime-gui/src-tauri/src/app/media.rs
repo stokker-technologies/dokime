@@ -230,7 +230,10 @@ fn resolve_range(range_header: Option<&str>, len: u64, maximum: u64) -> RangeOut
         return if len <= maximum {
             RangeOutcome::Full
         } else {
-            RangeOutcome::Partial { start: 0, end: maximum.saturating_sub(1).min(len.saturating_sub(1)) }
+            RangeOutcome::Partial {
+                start: 0,
+                end: maximum.saturating_sub(1).min(len.saturating_sub(1)),
+            }
         };
     };
     let Some(spec) = value.strip_prefix("bytes=") else {
@@ -254,7 +257,10 @@ fn resolve_range(range_header: Option<&str>, len: u64, maximum: u64) -> RangeOut
         }
     };
     let max_end = start.saturating_add(maximum - 1);
-    RangeOutcome::Partial { start, end: requested_end.min(len - 1).min(max_end) }
+    RangeOutcome::Partial {
+        start,
+        end: requested_end.min(len - 1).min(max_end),
+    }
 }
 
 async fn read_range(path: &Path, start: u64, end: u64) -> std::io::Result<Vec<u8>> {

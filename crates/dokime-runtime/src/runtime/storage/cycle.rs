@@ -66,7 +66,14 @@ impl CycleSnapshot {
         // A Final Report Is Generated At Its Frozen Cycle's Last Update; The
         // Durable Publication Check Refuses Any Other Header Time.
         let captured_at = source.updated_at.clone();
-        Ok(Self(Arc::new(State { saved, source, revisions, appearance, captured_at, owner_node_id: owner_node_id.clone() })))
+        Ok(Self(Arc::new(State {
+            saved,
+            source,
+            revisions,
+            appearance,
+            captured_at,
+            owner_node_id: owner_node_id.clone(),
+        })))
     }
 
     pub(crate) fn current(

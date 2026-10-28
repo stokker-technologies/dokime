@@ -126,7 +126,10 @@ impl Streams {
 
     #[cfg(feature = "native")]
     pub(crate) fn restricted(mut self, template: &str, streams: impl IntoIterator<Item = String>) -> Self {
-        self.admission = Some(Arc::new(Admission { template: template.to_owned(), streams: streams.into_iter().collect() }));
+        self.admission = Some(Arc::new(Admission {
+            template: template.to_owned(),
+            streams: streams.into_iter().collect(),
+        }));
         self
     }
 
@@ -148,7 +151,11 @@ impl Streams {
     }
 
     pub(crate) fn selecting<R: TelemetryRow>(&self) -> StreamSelection<'_, R> {
-        StreamSelection { streams: self.clone(), row: PhantomData, borrowed: PhantomData }
+        StreamSelection {
+            streams: self.clone(),
+            row: PhantomData,
+            borrowed: PhantomData,
+        }
     }
 
     pub(crate) fn produced(&self, stream: &str) -> u64 {
@@ -270,7 +277,12 @@ impl<'a, R: TelemetryRow> StreamSelection<'a, R> {
     }
 
     fn pushing(self, stream: Identifier) -> Pushing<'a, R> {
-        Pushing { stream, streams: self.streams, row: PhantomData, borrowed: PhantomData }
+        Pushing {
+            stream,
+            streams: self.streams,
+            row: PhantomData,
+            borrowed: PhantomData,
+        }
     }
 }
 

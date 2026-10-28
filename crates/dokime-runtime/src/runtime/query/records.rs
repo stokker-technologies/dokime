@@ -68,7 +68,12 @@ pub(crate) fn record_frame<'a>(
     let mut returned = records.returned;
     returned.reverse();
 
-    RuntimeRecordFrame { records: returned, total_records: records.total, returned_records, truncated: returned_records < records.total }
+    RuntimeRecordFrame {
+        records: returned,
+        total_records: records.total,
+        returned_records,
+        truncated: returned_records < records.total,
+    }
 }
 
 pub(crate) fn execution_capture<'a>(

@@ -304,7 +304,10 @@ fn admitted_values_handed() {
     saved.insert("page_limit".to_owned(), Value::from(1_000));
     saved.insert("archive".to_owned(), Value::from("/var/bench"));
 
-    let configuration = Configuration { settings: saved.clone(), ..Configuration::default() };
+    let configuration = Configuration {
+        settings: saved.clone(),
+        ..Configuration::default()
+    };
     let settings = BenchSettings::decode(&saved, &configuration).expect("the saved values decode");
 
     assert_eq!(settings.workspace.workspace_id.as_deref(), Some("bench-workspace"));
@@ -356,7 +359,10 @@ fn saved_values_empty() {
     let mut saved = defaults();
     saved.insert("port".to_owned(), Value::from("/dev/saved"));
     saved.insert("stream".to_owned(), Value::from(3_u32));
-    let mut configuration = Configuration { settings: saved, ..Configuration::default() };
+    let mut configuration = Configuration {
+        settings: saved,
+        ..Configuration::default()
+    };
     configuration.saved.insert("port".to_owned());
     configuration.saved.insert("stream".to_owned());
     let settings = configuration.settings::<BenchSettings>().expect("the saved values decode");

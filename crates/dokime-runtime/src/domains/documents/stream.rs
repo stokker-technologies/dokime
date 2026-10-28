@@ -50,12 +50,20 @@ enum Source {
 impl ExecutionFileStream {
     pub(crate) fn live(reader: Reader) -> Result<Self> {
         let metadata = reader.metadata().clone();
-        Ok(Self { source: Source::Live(reader), metadata, offset: 0 })
+        Ok(Self {
+            source: Source::Live(reader),
+            metadata,
+            offset: 0,
+        })
     }
 
     pub(crate) fn saved(file: SavedOutputFile) -> Result<Self> {
         let metadata = file.metadata()?;
-        Ok(Self { source: Source::Saved(file), metadata, offset: 0 })
+        Ok(Self {
+            source: Source::Saved(file),
+            metadata,
+            offset: 0,
+        })
     }
 
     pub fn session(&self) -> &crate::storage::Manager {

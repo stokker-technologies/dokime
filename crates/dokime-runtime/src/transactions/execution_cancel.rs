@@ -169,7 +169,13 @@ impl Transaction<RuntimeState> for CancelExecution {
 fn skip_unstarted(execution: &mut dokime_domain::model::execution::result::TestExecution, at: &Timestamp) {
     execution.status = ExecutionStatus::Skipped;
     execution.finished_at = Some(at.clone());
-    execution.result = Some(ResultSummary { passed: 0, failed: 0, blocked: 0, skipped: 1, status: ResultStatus::Cancelled });
+    execution.result = Some(ResultSummary {
+        passed: 0,
+        failed: 0,
+        blocked: 0,
+        skipped: 1,
+        status: ResultStatus::Cancelled,
+    });
     let pending = execution.steps.iter_mut().filter(|step| step.status == StepStatus::Pending);
     for step in pending {
         step.status = StepStatus::Skipped;
@@ -249,7 +255,10 @@ mod tests {
     #[test]
     fn cancel_skips_one_member_and_keeps_continuation() {
         let (mut state, cycle_id, [first, second]) = planned_cycle();
-        let cancel = CancelExecution { test_execution_id: first.clone(), occurred_at: crate::model::time::now_utc() };
+        let cancel = CancelExecution {
+            test_execution_id: first.clone(),
+            occurred_at: crate::model::time::now_utc(),
+        };
         cancel.check(&state).unwrap();
         cancel.apply(&mut state);
 
@@ -271,7 +280,10 @@ mod tests {
         cancel.apply(&mut state);
         assert_eq!(state.record_count, records);
         state.executions.get_mut(&second).unwrap().started_at = Some(crate::model::time::now_utc());
-        let started = CancelExecution { test_execution_id: second, occurred_at: crate::model::time::now_utc() };
+        let started = CancelExecution {
+            test_execution_id: second,
+            occurred_at: crate::model::time::now_utc(),
+        };
         assert_eq!(started.admit(&state).unwrap_err().code, "execution_already_started");
     }
 
@@ -279,7 +291,10 @@ mod tests {
     fn cancel_refuses_a_closed_cycle() {
         let (mut state, cycle_id, [first, _]) = planned_cycle();
         state.cycles.get_mut(&cycle_id).unwrap().phase = CyclePhase::Sealing;
-        let cancel = CancelExecution { test_execution_id: first, occurred_at: crate::model::time::now_utc() };
+        let cancel = CancelExecution {
+            test_execution_id: first,
+            occurred_at: crate::model::time::now_utc(),
+        };
         assert_eq!(cancel.admit(&state).unwrap_err().code, "cycle_closed");
     }
 }

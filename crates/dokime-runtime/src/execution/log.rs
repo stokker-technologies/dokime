@@ -92,7 +92,11 @@ pub enum Level {
 
 impl Entry {
     pub fn new(level: Level, message: impl Into<String>) -> Self {
-        Self { level: level as i32, message: message.into(), timestamp: timestamp() }
+        Self {
+            level: level as i32,
+            message: message.into(),
+            timestamp: timestamp(),
+        }
     }
 }
 

@@ -77,11 +77,10 @@ pub(crate) fn project(
         if request.plot_type == Some(PlotType::WifiChannelOccupancy) && !matches!(payload.analysis, Some(PlotAnalysis::Error { .. })) {
             payload.analysis = Some(wifi::finish(&read)?);
         }
-        let window = payload
-            .summaries
-            .iter()
-            .filter_map(|summary| summary.window)
-            .reduce(|left, right| PlotWindow { from: left.from.min(right.from), to: left.to.max(right.to) });
+        let window = payload.summaries.iter().filter_map(|summary| summary.window).reduce(|left, right| PlotWindow {
+            from: left.from.min(right.from),
+            to: left.to.max(right.to),
+        });
         for summary in &mut payload.summaries {
             summary.window = request.summary_window.or(window);
         }
@@ -108,7 +107,9 @@ fn append(
     }
     let invalid_z = request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty());
     if invalid_z {
-        payload.analysis = Some(PlotAnalysis::Error { message: "Z expressions must select a scalar field without transforms".into() });
+        payload.analysis = Some(PlotAnalysis::Error {
+            message: "Z expressions must select a scalar field without transforms".into(),
+        });
     }
     if request.analysis.is_some() {
         payload.series.push(series.reduce(0, request.technique)?);
@@ -133,8 +134,9 @@ fn analyze(read: &Read<'_>, payload: &mut PlotPayload, series: &mut Series, requ
     match request.plot_type {
         Some(PlotType::Histogram) => {
             if request.y_keys.is_empty() && request.y_expressions.is_empty() {
-                payload.analysis =
-                    Some(PlotAnalysis::Error { message: "histogram plots bin one x field or x expression; none was declared".into() });
+                payload.analysis = Some(PlotAnalysis::Error {
+                    message: "histogram plots bin one x field or x expression; none was declared".into(),
+                });
                 return Ok(());
             }
             if let Some(unit) = &request.histogram.unit {
@@ -218,7 +220,10 @@ mod tests {
         let mut samples = Vec::new();
         let mut records = Vec::new();
         for index in 0..12_u64 {
-            let scope = RecordScope { test_execution_id: Some(TestExecutionId::from_seed((index % 2).to_string())), ..Default::default() };
+            let scope = RecordScope {
+                test_execution_id: Some(TestExecutionId::from_seed((index % 2).to_string())),
+                ..Default::default()
+            };
             let timestamp = Timestamp::new(format!("2026-10-01T00:00:{index:02}Z"));
             let mut sample =
                 TelemetrySample::new(new_id(), Identifier::new("fixture.signal").unwrap(), index, timestamp.clone(), "fixture");

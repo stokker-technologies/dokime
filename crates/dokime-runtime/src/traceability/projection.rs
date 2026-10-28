@@ -176,7 +176,11 @@ pub(crate) fn bounded_snapshots_from_state(
         if id.as_str() <= after {
             continue;
         }
-        candidates.entry(id).or_insert(Candidate { parameter: None, additional: false, stated: Some(index) });
+        candidates.entry(id).or_insert(Candidate {
+            parameter: None,
+            additional: false,
+            stated: Some(index),
+        });
         trim_candidates(&mut candidates, candidate_limit);
     }
 
@@ -624,7 +628,11 @@ fn collect_parameter_traceability<'a>(
         if let Some(group) = groups.iter_mut().find(|group| group.scope == parameter_scope && group.source == source) {
             group.entries.push(entry);
         } else {
-            groups.push(ParameterTraceabilityGroup { scope: parameter_scope.clone(), source: source.to_owned(), entries: vec![entry] });
+            groups.push(ParameterTraceabilityGroup {
+                scope: parameter_scope.clone(),
+                source: source.to_owned(),
+                entries: vec![entry],
+            });
         }
     }
     Ok(())

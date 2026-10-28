@@ -86,9 +86,20 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
         operations.register_operation::<Reader>(owner, Lanes::Open, Arc::new(())).unwrap();
     }
 
-    let metadata = Metadata { identifier: "shared.bench".into(), label: "Shared Bench".into(), description: None };
+    let metadata = Metadata {
+        identifier: "shared.bench".into(),
+        label: "Shared Bench".into(),
+        description: None,
+    };
     for (generation, value) in [(0, "first-test-value"), (1, "replacement-test-value")] {
-        let written = operations.call(secrets::Put { metadata: metadata.clone(), value: Some(value.into()), generation }).await.unwrap();
+        let written = operations
+            .call(secrets::Put {
+                metadata: metadata.clone(),
+                value: Some(value.into()),
+                generation,
+            })
+            .await
+            .unwrap();
         assert_eq!(written.generation, generation + 1);
         for owner in ["plugin.alpha", "plugin.beta"] {
             let reading = operations.submit_from(owner, ReadSecret { identifier: metadata.identifier.clone() }).unwrap().await.unwrap();
@@ -97,7 +108,13 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
         }
     }
 
-    operations.call(secrets::Remove { identifiers: vec![metadata.identifier.clone()], generation: 2 }).await.unwrap();
+    operations
+        .call(secrets::Remove {
+            identifiers: vec![metadata.identifier.clone()],
+            generation: 2,
+        })
+        .await
+        .unwrap();
     for owner in ["plugin.alpha", "plugin.beta"] {
         let result = operations.submit_from(owner, ReadSecret { identifier: metadata.identifier.clone() }).unwrap().await;
         assert!(result.is_err());

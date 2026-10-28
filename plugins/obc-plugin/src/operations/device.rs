@@ -88,7 +88,11 @@ fn observed(device: &Device) -> DeviceState {
         Fault::Overcurrent => "overcurrent".to_owned(),
         Fault::PowerLoss => "power_loss".to_owned(),
     });
-    DeviceState { enabled, voltage_rms_v: if enabled { device.supply.voltage_rms_v } else { 0.0 }, fault }
+    DeviceState {
+        enabled,
+        voltage_rms_v: if enabled { device.supply.voltage_rms_v } else { 0.0 },
+        fault,
+    }
 }
 
 /* === Tests === */

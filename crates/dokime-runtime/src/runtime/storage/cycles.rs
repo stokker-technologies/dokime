@@ -56,9 +56,10 @@ impl ExecutionStorage {
                     if header.saved.is_some() {
                         return Ok(None);
                     }
-                    let cycle = state
-                        .cycle_view(&id)
-                        .ok_or(harmos::Error::InvalidInput { field: "cycle membership", reason: "execution disappeared" })?;
+                    let cycle = state.cycle_view(&id).ok_or(harmos::Error::InvalidInput {
+                        field: "cycle membership",
+                        reason: "execution disappeared",
+                    })?;
                     Ok(Some(cycle))
                 })
                 .await?

@@ -86,7 +86,12 @@ impl SecretStore {
                 exists: current.entries.contains_key(&entry.metadata.identifier),
             })
             .collect();
-        Ok(Preview { host_id: self.host.clone(), host_label: self.label.clone(), generation: current.generation, entries })
+        Ok(Preview {
+            host_id: self.host.clone(),
+            host_label: self.label.clone(),
+            generation: current.generation,
+            entries,
+        })
     }
 
     pub(crate) async fn import(&self, data: &[u8], choices: &[Choice], generation: u64) -> Result<bool, SecretStoreError> {
@@ -105,8 +110,10 @@ impl SecretStore {
         for mut entry in document.entries {
             match actions.remove(entry.metadata.identifier.as_str()) {
                 Some(Action::Skip) => (),
-                Some(Action::Replace) => changes
-                    .push(Change { metadata: entry.metadata.clone(), value: Some(SecretValue::new(std::mem::take(&mut entry.value))) }),
+                Some(Action::Replace) => changes.push(Change {
+                    metadata: entry.metadata.clone(),
+                    value: Some(SecretValue::new(std::mem::take(&mut entry.value))),
+                }),
                 None => return Err(SecretStoreError::Invalid("Import choices do not match the archive")),
             }
         }
@@ -148,7 +155,10 @@ impl SecretStore {
             if bytes as u64 > catalog::DOCUMENT_BYTES {
                 return Err(SecretStoreError::Invalid("The selected secrets exceed the transfer limit"));
             }
-            entries.push(Entry { metadata: slot.metadata.clone(), value: value.expose().to_owned() });
+            entries.push(Entry {
+                metadata: slot.metadata.clone(),
+                value: value.expose().to_owned(),
+            });
         }
         Ok(Document { format_version: 1, entries })
     }

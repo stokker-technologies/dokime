@@ -139,7 +139,11 @@ fn expression_type(
 }
 
 fn issue(index: usize, message: &str) -> ValidationIssue {
-    ValidationIssue { path: format!("rules.{index}"), message: message.into(), expected: None }
+    ValidationIssue {
+        path: format!("rules.{index}"),
+        message: message.into(),
+        expected: None,
+    }
 }
 
 /* === Tests === */

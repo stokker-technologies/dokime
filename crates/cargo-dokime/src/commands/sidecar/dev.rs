@@ -459,7 +459,12 @@ async fn launch(args: &Args, state: &Path, cwd: &Path, bundle: &Path) -> Result<
     let mut child = dokime_packaging::process::spawn(command)?;
     let stdout = child.stdout().take().expect("piped control output");
     let control = child.stdin().take();
-    let mut host = Host { process: child, control, events: BufReader::new(stdout), gui: None };
+    let mut host = Host {
+        process: child,
+        control,
+        events: BufReader::new(stdout),
+        gui: None,
+    };
     // Keep the pipe open through cancellation drain: startup may still publish
     // readiness after Ctrl+C, before it observes the closed stdin control pipe.
     let result = tokio::select! {

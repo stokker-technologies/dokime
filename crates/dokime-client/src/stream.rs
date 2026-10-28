@@ -89,7 +89,10 @@ impl<T: Send + 'static> ResponseStream<T> {
     where
         S: Stream<Item = std::result::Result<T, tonic::Status>> + Send + 'static,
     {
-        let demand = Arc::new(Demand { requested: AtomicBool::new(false), ready: Notify::new() });
+        let demand = Arc::new(Demand {
+            requested: AtomicBool::new(false),
+            ready: Notify::new(),
+        });
         let credit = demand.clone();
         Self::start(client, STREAM_BUFFER_ITEMS as usize, Some(demand), move |sender| async move {
             let mut stream = std::pin::pin!(stream);
@@ -157,7 +160,14 @@ impl<T: Send + 'static> ResponseStream<T> {
             }
         });
 
-        Ok(Self { inner: Arc::new(Response { receiver: Mutex::new(receiver), cancellation, worker: Mutex::new(Some(worker)), demand }) })
+        Ok(Self {
+            inner: Arc::new(Response {
+                receiver: Mutex::new(receiver),
+                cancellation,
+                worker: Mutex::new(Some(worker)),
+                demand,
+            }),
+        })
     }
 
     pub async fn message(&self) -> Result<Option<T>> {
@@ -348,7 +358,10 @@ impl<T, R> Drop for Upload<T, R> {
 
 impl<S> Input<S> {
     pub(super) fn new(inner: S, cancellation: CancellationToken) -> Self {
-        Self { inner: Box::pin(inner), cancellation: Box::pin(cancellation.cancelled_owned()) }
+        Self {
+            inner: Box::pin(inner),
+            cancellation: Box::pin(cancellation.cancelled_owned()),
+        }
     }
 }
 

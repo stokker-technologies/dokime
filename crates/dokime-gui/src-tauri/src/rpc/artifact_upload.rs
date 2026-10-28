@@ -190,7 +190,12 @@ impl ArtifactUploads {
             context: Arc::clone(&context),
             cancel: cancel.clone(),
             last_access: Mutex::new(tokio::time::Instant::now()),
-            writer: tokio::sync::Mutex::new(UploadWriter { sender: Some(sender), next_sequence: 1, offset: 0, digest: Sha256::new() }),
+            writer: tokio::sync::Mutex::new(UploadWriter {
+                sender: Some(sender),
+                next_sequence: 1,
+                offset: 0,
+                digest: Sha256::new(),
+            }),
             outcome: Arc::clone(&outcome),
         });
         // Reserve a registry slot before starting the remote call. A
@@ -444,7 +449,11 @@ impl RecordingSinks {
             let mut file = recording.file.lock().await;
             file.flush().await.map_err(|_| RpcError::InvalidRequest)?;
         }
-        Ok(RecordingHandle { lease: recording.context.lease.clone(), path: recording.path.clone(), header: recording.header.clone() })
+        Ok(RecordingHandle {
+            lease: recording.context.lease.clone(),
+            path: recording.path.clone(),
+            header: recording.header.clone(),
+        })
     }
 
     fn get(&self, owner: &str, generation: u64) -> Result<Arc<Recording>, RpcError> {

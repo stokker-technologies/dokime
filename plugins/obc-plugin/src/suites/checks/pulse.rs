@@ -257,7 +257,11 @@ impl Pulse {
         }
         // Count A Row Only Once Published, So The Stream Step Never Ends Ahead Of It.
         let index = ctx.resources().produced.load(Ordering::Acquire);
-        ctx.publish(PulseRow { sample_index: index as i64, value: pulse_value(index) }).await;
+        ctx.publish(PulseRow {
+            sample_index: index as i64,
+            value: pulse_value(index),
+        })
+        .await;
         ctx.resources().produced.store(index + 1, Ordering::Release);
 
         Ok(())

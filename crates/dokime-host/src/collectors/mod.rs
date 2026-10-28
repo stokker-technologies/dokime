@@ -94,7 +94,11 @@ async fn capture(
         let mut stdout_bytes = Vec::new();
         let mut stderr_bytes = Vec::new();
         let (_, _, status) = tokio::try_join!(stdout.read_to_end(&mut stdout_bytes), stderr.read_to_end(&mut stderr_bytes), wait,)?;
-        Ok(Output { status, stdout: stdout_bytes, stderr: stderr_bytes })
+        Ok(Output {
+            status,
+            stdout: stdout_bytes,
+            stderr: stderr_bytes,
+        })
     };
     tokio::time::timeout(timeout, capture)
         .await

@@ -298,7 +298,9 @@ mod tests {
         };
         let mut duplicate = section.clone();
         duplicate.children.clear();
-        let layout = DocumentLayout { nodes: vec![DocumentNode::Section(Box::new(section)), DocumentNode::Section(Box::new(duplicate))] };
+        let layout = DocumentLayout {
+            nodes: vec![DocumentNode::Section(Box::new(section)), DocumentNode::Section(Box::new(duplicate))],
+        };
         let estimate = normalized_validation_memory(&cards, &layout, 8, 100);
         let issues = validate_normalized_parts(&cards, &layout, 8, 100).unwrap_err();
         assert_eq!(issues.len(), 3);

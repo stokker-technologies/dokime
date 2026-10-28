@@ -42,7 +42,12 @@ use dokime_cli::{Cli, Error};
 /* === Private Functions === */
 
 fn configuration(root: &Path) -> dokime::config::Config {
-    dokime::config::ApplicationOptions { application_root: Some(root.to_owned()), ..Default::default() }.resolve().unwrap()
+    dokime::config::ApplicationOptions {
+        application_root: Some(root.to_owned()),
+        ..Default::default()
+    }
+    .resolve()
+    .unwrap()
 }
 
 /* === Tests === */

@@ -130,7 +130,10 @@ async fn storage_sources() {
     assert_eq!(
         client
             .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
-                contracts::settings::SetStorageSourceEnabled { identifier: "local".into(), enabled: false },
+                contracts::settings::SetStorageSourceEnabled {
+                    identifier: "local".into(),
+                    enabled: false
+                },
                 TOKEN
             ))
             .await
@@ -167,7 +170,10 @@ async fn storage_sources() {
     assert_eq!(
         client
             .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
-                contracts::settings::SetStorageSourceEnabled { identifier: "local".into(), enabled: true },
+                contracts::settings::SetStorageSourceEnabled {
+                    identifier: "local".into(),
+                    enabled: true
+                },
                 TOKEN
             ))
             .await
@@ -271,7 +277,9 @@ fn fixture_module() -> InstalledPlugin {
                 metadata: metadata("fixture.projects", "Projects"),
                 input_schema: None,
                 permissions: Vec::new(),
-                source: OptionProviderSource::Runtime { entrypoint: PluginEntrypoint { name: "projects".to_owned() } },
+                source: OptionProviderSource::Runtime {
+                    entrypoint: PluginEntrypoint { name: "projects".to_owned() },
+                },
             },
         ],
         ..Default::default()
@@ -296,7 +304,10 @@ async fn application_settings() {
     settings.report.plot_points = 3_000;
     settings.telemetry.interval_ms = 2_000;
     let update = contracts::settings::UpdateApplicationSettings {
-        update: model::settings::application::UpdateSettings { expected_revision: initial.revision, settings },
+        update: model::settings::application::UpdateSettings {
+            expected_revision: initial.revision,
+            settings,
+        },
     };
     let saved = client.unary::<contracts::settings::UpdateApplicationSettings>(auth(update.clone(), TOKEN)).await.unwrap().into_inner();
     assert_eq!(saved.revision, initial.revision + 1);
@@ -307,7 +318,10 @@ async fn application_settings() {
     let mut invalid = saved.settings.clone();
     invalid.report.plot_points = 0;
     let update = contracts::settings::UpdateApplicationSettings {
-        update: model::settings::application::UpdateSettings { expected_revision: saved.revision, settings: invalid },
+        update: model::settings::application::UpdateSettings {
+            expected_revision: saved.revision,
+            settings: invalid,
+        },
     };
     assert_eq!(
         client.unary::<contracts::settings::UpdateApplicationSettings>(auth(update, TOKEN)).await.unwrap_err().code(),

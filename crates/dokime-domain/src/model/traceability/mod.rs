@@ -30,12 +30,22 @@ use crate::model::values::Value;
 /* === Constants === */
 
 const TRACEABILITY_SOURCE_PREFIX: &str = "traceability.";
-pub const TEST_DEFINITION_TRACEABILITY: DerivedTraceabilityGroup =
-    DerivedTraceabilityGroup { source: "traceability.test_definition", label: "Test Definition" };
-pub const TEST_EXECUTION_TRACEABILITY: DerivedTraceabilityGroup =
-    DerivedTraceabilityGroup { source: "traceability.test_execution", label: "Test Execution" };
-pub const LEASES_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup { source: "traceability.leases", label: "Leases" };
-pub const HOST_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup { source: "traceability.host", label: "Host" };
+pub const TEST_DEFINITION_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
+    source: "traceability.test_definition",
+    label: "Test Definition",
+};
+pub const TEST_EXECUTION_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
+    source: "traceability.test_execution",
+    label: "Test Execution",
+};
+pub const LEASES_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
+    source: "traceability.leases",
+    label: "Leases",
+};
+pub const HOST_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
+    source: "traceability.host",
+    label: "Host",
+};
 pub const DERIVED_TRACEABILITY_GROUPS: &[DerivedTraceabilityGroup] =
     &[TEST_DEFINITION_TRACEABILITY, TEST_EXECUTION_TRACEABILITY, LEASES_TRACEABILITY, HOST_TRACEABILITY];
 
@@ -131,7 +141,11 @@ impl harmos_domain::MemorySize for TraceabilityRow {
 
 impl TraceabilitySection {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { identifier: Identifier::declared(identifier, "traceability section"), label: label.into(), rows: Vec::new() }
+        Self {
+            identifier: Identifier::declared(identifier, "traceability section"),
+            label: label.into(),
+            rows: Vec::new(),
+        }
     }
 
     // Sections grow by statements, as a document `Section` does; a row is
@@ -147,7 +161,13 @@ impl TraceabilitySection {
 
 impl TraceabilityRow {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>, value: Value) -> Self {
-        Self { identifier: Identifier::declared(identifier, "traceability row"), label: label.into(), value, unit: None, source: None }
+        Self {
+            identifier: Identifier::declared(identifier, "traceability row"),
+            label: label.into(),
+            value,
+            unit: None,
+            source: None,
+        }
     }
 
     pub fn text(identifier: impl Into<String>, label: impl Into<String>, value: impl Into<String>) -> Self {

@@ -139,7 +139,9 @@ impl LeaveWatch {
             .host()
             .submit(WatchFile {
                 execution_id: None,
-                source: Some(FileWatchSource { payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: path.clone() })) }),
+                source: Some(FileWatchSource {
+                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: path.clone() })),
+                }),
                 output: "logs".into(),
                 artifact: Some("logs/device.log".into()),
                 policy: if mirror { FileWatchPolicy::Mirror } else { FileWatchPolicy::Stream },
@@ -225,7 +227,11 @@ async fn swept_watch_warning() {
     assert!(report.passed(), "{}", report.diagnostics());
     assert_eq!(
         report.records::<StepHandleCancelled>(),
-        vec![StepHandleCancelled { step: "tail".into(), kind: "watch".into(), name: "logs/device.log".into() }]
+        vec![StepHandleCancelled {
+            step: "tail".into(),
+            kind: "watch".into(),
+            name: "logs/device.log".into()
+        }]
     );
     let rows = report.samples::<DeviceLog>();
     assert_eq!(rows.len(), 1, "{}", report.diagnostics());

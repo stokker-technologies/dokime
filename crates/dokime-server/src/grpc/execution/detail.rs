@@ -196,7 +196,13 @@ pub(super) fn diagnostic(value: &dokime::plugin::Diagnostic) -> Result<Diagnosti
     }
     let backtrace = bounded(&value.backtrace)?;
 
-    Ok(Diagnostic { message, chain, location, span_trace, backtrace })
+    Ok(Diagnostic {
+        message,
+        chain,
+        location,
+        span_trace,
+        backtrace,
+    })
 }
 
 pub(super) fn list_case_parameters(
@@ -262,7 +268,14 @@ fn parameters(
         });
     }
     let next_after_name = selected.next().is_some().then(|| parameters.last().unwrap().name.clone());
-    reply(service, execution_model::ListMaterializedParametersReply { parameters, next_after_name, cursor: Some(cursor) })
+    reply(
+        service,
+        execution_model::ListMaterializedParametersReply {
+            parameters,
+            next_after_name,
+            cursor: Some(cursor),
+        },
+    )
 }
 
 fn bounded(value: &str) -> Result<String, Status> {
@@ -282,7 +295,10 @@ fn bounded(value: &str) -> Result<String, Status> {
 fn parameter_cursor(
     snapshot: &dokime::runtime::query::RuntimeStateSnapshot, selection: execution_model::ParameterCursorSelection,
 ) -> execution_model::ParameterCursor {
-    execution_model::ParameterCursor { observed: Some(canonical::cursor(snapshot)), selection: Some(selection) }
+    execution_model::ParameterCursor {
+        observed: Some(canonical::cursor(snapshot)),
+        selection: Some(selection),
+    }
 }
 
 fn parameter_page(
@@ -312,10 +328,20 @@ fn case_parameters(
 
     let mut parameters = canonical::slots(count)?;
     for (name, item) in selected.by_ref().take(limit) {
-        parameters.push(execution_model::CaseParameter { name: name.clone(), value: Some(canonical::encode(item, &mut budget, 0)?) });
+        parameters.push(execution_model::CaseParameter {
+            name: name.clone(),
+            value: Some(canonical::encode(item, &mut budget, 0)?),
+        });
     }
     let next_after_name = selected.next().is_some().then(|| parameters.last().unwrap().name.clone());
-    reply(service, execution_model::ListCaseParametersReply { parameters, next_after_name, cursor: Some(cursor) })
+    reply(
+        service,
+        execution_model::ListCaseParametersReply {
+            parameters,
+            next_after_name,
+            cursor: Some(cursor),
+        },
+    )
 }
 
 /* === Tests === */

@@ -238,7 +238,12 @@ unsafe fn read_resource(module: HMODULE, kind: *const u16, name: *const u16, lan
     }
     let bytes = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), length as usize) }.to_vec();
     let name = unsafe { resource_name(name) };
-    Ok(Resource { kind: kind as usize as u16, name, language, bytes })
+    Ok(Resource {
+        kind: kind as usize as u16,
+        name,
+        language,
+        bytes,
+    })
 }
 
 unsafe fn resource_name(name: *const u16) -> Name {

@@ -107,7 +107,11 @@ impl SidecarTemplate for Foreign {
     type Parameters = ();
 
     fn definition() -> TemplateDefinition {
-        TemplateDefinition { template: Probe::declaration(), records: Vec::new(), streams: Vec::new() }
+        TemplateDefinition {
+            template: Probe::declaration(),
+            records: Vec::new(),
+            streams: Vec::new(),
+        }
     }
 
     fn initialize<'a>(ctx: &'a mut InitializationContext<'_, Self, Self::Own>) -> InitializationFuture<'a, (Self, Self::Own)> {

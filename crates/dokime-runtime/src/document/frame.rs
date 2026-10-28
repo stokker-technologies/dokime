@@ -204,9 +204,10 @@ impl<'plan> Plan<'plan> {
             (DataSource::Record { .. }, Some(DataTransform::TimeBetween { previous_record_type })) => {
                 Join::Previous(previous_record_type.as_str())
             }
-            (DataSource::Record { .. }, Some(DataTransform::TelemetryAtOrBefore { stream, field })) => {
-                Join::AtOrBefore { stream: stream.as_str(), field: field.as_str() }
-            }
+            (DataSource::Record { .. }, Some(DataTransform::TelemetryAtOrBefore { stream, field })) => Join::AtOrBefore {
+                stream: stream.as_str(),
+                field: field.as_str(),
+            },
             _ => Join::None,
         };
         let occurrence = matches!(expression.source, DataSource::Record { .. } | DataSource::Artifact { .. })
@@ -271,7 +272,17 @@ impl<'plan> Plan<'plan> {
             (_, _, Kind::Ordinal) => Shape::Original,
             _ => Shape::Numeric { flags: true },
         };
-        Ok(Self { left, right, join, kind, shape, cases, inner, measured, outer })
+        Ok(Self {
+            left,
+            right,
+            join,
+            kind,
+            shape,
+            cases,
+            inner,
+            measured,
+            outer,
+        })
     }
     pub(super) fn work(&self, rows: usize) -> usize {
         let scans = 1 + usize::from(!self.right.is_empty());
@@ -313,8 +324,10 @@ impl<'plan> Plan<'plan> {
                 };
                 for (ordinal, record) in evidence.records.iter().enumerate() {
                     let case = case_of(cases, record.scope);
-                    let row =
-                        Row::Record { record, context: case.map(|case| cases[case]).or_else(|| evidence.context.for_scope(record.scope)) };
+                    let row = Row::Record {
+                        record,
+                        context: case.map(|case| cases[case]).or_else(|| evidence.context.for_scope(record.scope)),
+                    };
                     if record.entry.record_type.as_str() == record_type
                         && evidence.selection.is_none_or(|selection| selection.matches_scope(record.scope))
                         && (self.cases.is_none() || case.is_some())
@@ -428,7 +441,10 @@ impl<'plan> Plan<'plan> {
                 }
                 Column::Attempt => {
                     let attempt = match row.keys.as_ref().and_then(|keys| keys.scope) {
-                        Some(RecordScope { origin: EvidenceOrigin::Step { attempt_id }, .. }) => attempt_id.as_str(),
+                        Some(RecordScope {
+                            origin: EvidenceOrigin::Step { attempt_id },
+                            ..
+                        }) => attempt_id.as_str(),
                         _ => "",
                     };
                     ScalarValue::Text(attempt.to_owned())
@@ -551,7 +567,14 @@ impl<'plan> Plan<'plan> {
             Shape::Elapsed => Output::Value(seconds(first)?),
             Shape::Numeric { flags } => {
                 let flag = |index: usize| flags && matches!(values.get(index), Some(ScalarValue::Bool(true)));
-                Output::Value(Numeric { value: first, signed: flag(1), float: flag(2) }.value()?)
+                Output::Value(
+                    Numeric {
+                        value: first,
+                        signed: flag(1),
+                        float: flag(2),
+                    }
+                    .value()?,
+                )
             }
         })
     }
@@ -596,10 +619,16 @@ impl<'a> Selected<'a> {
 
 impl<'a> Keys<'a> {
     fn record(record: RecordView<'a>) -> Self {
-        Self { scope: record.scope, time: nanos(&record.entry.timestamp) }
+        Self {
+            scope: record.scope,
+            time: nanos(&record.entry.timestamp),
+        }
     }
     fn sample(sample: &'a TelemetrySample) -> Self {
-        Self { scope: sample.scope.as_ref(), time: nanos(&sample.timestamp) }
+        Self {
+            scope: sample.scope.as_ref(),
+            time: nanos(&sample.timestamp),
+        }
     }
 }
 

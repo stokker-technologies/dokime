@@ -107,7 +107,9 @@ pub(super) async fn deliver(
         })
         .map_err(|error| Status::resource_exhausted(error.to_string()))?;
     chunked::Download {
-        frames: Frames { metadata: Response::from_owner(header.owner()) },
+        frames: Frames {
+            metadata: Response::from_owner(header.owner()),
+        },
         source: chunked::Source::opened(archive.reader),
         size_bytes,
         sha256: Some(sha256),

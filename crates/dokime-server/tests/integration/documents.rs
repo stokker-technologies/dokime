@@ -98,7 +98,10 @@ async fn current_document_rows() {
     // frame is a header scoped to the cycle alone.
     let cycle_header = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
-            scope: Some(model::documents::wire::DocumentScope { cycle_id: cycle.to_string(), execution_id: String::new() }),
+            scope: Some(model::documents::wire::DocumentScope {
+                cycle_id: cycle.to_string(),
+                execution_id: String::new(),
+            }),
             document_id: "default".into(),
         }))
         .await

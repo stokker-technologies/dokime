@@ -84,96 +84,110 @@ pub fn cycle_outcome(
 }
 
 pub fn python_outcome(cycle: &CycleView, default_status: &str, case_parameter_status: bool) -> ProviderCycleOutcome {
-    cycle_outcome(cycle, ProviderIdentity { module: "example_module", registrations: 4, suite: "plt400.ract" }, |case, execution| {
-        let status = if case_parameter_status {
-            case.parameters
-                .get("fixture.result")
-                .and_then(|value| match value {
-                    Value::Text(value) => Some(value.as_str()),
-                    _ => None,
-                })
-                .unwrap_or(default_status)
-        } else {
-            default_status
-        };
-        let records = if status == "passed" {
-            vec![ProviderRecordOutcome {
-                record_type: "tracking.fixture_warning".to_owned(),
-                timestamp: Timestamp::new("2026-01-01T00:00:01Z"),
-                severity: RecordSeverity::Warning,
-                message: Some("Fixture warning event for notification inspection.".to_owned()),
-                error: None,
-                details: BTreeMap::from([("warning_code".to_owned(), Value::from("fixture_warning"))]),
-            }]
-        } else {
-            vec![ProviderRecordOutcome {
-                record_type: "test.step.failed".to_owned(),
-                timestamp: Timestamp::new("2026-01-01T00:00:02Z"),
-                severity: RecordSeverity::Error,
-                message: Some("Collect Tracking failed: fixture failure".to_owned()),
-                error: None,
-                details: BTreeMap::from([
-                    ("identifier".to_owned(), Value::from("collect_tracking")),
-                    ("label".to_owned(), Value::from("Collect Tracking")),
-                    ("stacktrace".to_owned(), Value::from("fixture stacktrace")),
-                ]),
-            }]
-        };
-
-        ProviderExecutionOutcome {
-            case_id: case.test_case_id.as_str().to_owned(),
-            test_execution_id: execution.test_execution_id.as_str().to_owned(),
-            template_identifier: "plt400.ract.tracking".to_owned(),
-            label: "Tracking".to_owned(),
-            module: "fixture_suite.plt400.ract.tracking".to_owned(),
-            status: status.to_owned(),
-            phases: vec![
-                ProviderPhaseOutcome {
-                    identifier: "setup".to_owned(),
-                    label: "Setup".to_owned(),
-                    status: if status == "passed" { "passed" } else { "skipped" }.to_owned(),
-                },
-                ProviderPhaseOutcome {
-                    identifier: "collect_tracking".to_owned(),
-                    label: "Collect Tracking".to_owned(),
-                    status: status.to_owned(),
-                },
-            ],
-            records,
-            telemetry: vec![ProviderTelemetryOutcome {
-                stream: "tracking".to_owned(),
-                label: "Tracking".to_owned(),
-                samples: vec![
-                    crate::service_support::contracts::provider_tracking_row(1.0, status == "passed"),
-                    crate::service_support::contracts::provider_tracking_row(2.0, status == "passed"),
-                ],
-            }],
-            criteria: vec![ProviderCriterionOutcome {
-                identifier: "simulation.execution".to_owned(),
-                label: "Simulation Execution".to_owned(),
-                status: status.to_owned(),
-                expected: None,
-                required: Some(true),
-                message: (status != "passed").then(|| "fixture failure".to_owned()),
-            }],
-            failures: if status == "passed" {
-                Vec::new()
+    cycle_outcome(
+        cycle,
+        ProviderIdentity {
+            module: "example_module",
+            registrations: 4,
+            suite: "plt400.ract",
+        },
+        |case, execution| {
+            let status = if case_parameter_status {
+                case.parameters
+                    .get("fixture.result")
+                    .and_then(|value| match value {
+                        Value::Text(value) => Some(value.as_str()),
+                        _ => None,
+                    })
+                    .unwrap_or(default_status)
             } else {
-                vec![ProviderExecutionFailure {
-                    stage: "template".to_owned(),
-                    template_identifier: Some("plt400.ract.tracking".to_owned()),
-                    module: None,
-                    message: "fixture failure".to_owned(),
-                    detail: None,
+                default_status
+            };
+            let records = if status == "passed" {
+                vec![ProviderRecordOutcome {
+                    record_type: "tracking.fixture_warning".to_owned(),
+                    timestamp: Timestamp::new("2026-01-01T00:00:01Z"),
+                    severity: RecordSeverity::Warning,
+                    message: Some("Fixture warning event for notification inspection.".to_owned()),
+                    error: None,
+                    details: BTreeMap::from([("warning_code".to_owned(), Value::from("fixture_warning"))]),
                 }]
-            },
-        }
-    })
+            } else {
+                vec![ProviderRecordOutcome {
+                    record_type: "test.step.failed".to_owned(),
+                    timestamp: Timestamp::new("2026-01-01T00:00:02Z"),
+                    severity: RecordSeverity::Error,
+                    message: Some("Collect Tracking failed: fixture failure".to_owned()),
+                    error: None,
+                    details: BTreeMap::from([
+                        ("identifier".to_owned(), Value::from("collect_tracking")),
+                        ("label".to_owned(), Value::from("Collect Tracking")),
+                        ("stacktrace".to_owned(), Value::from("fixture stacktrace")),
+                    ]),
+                }]
+            };
+
+            ProviderExecutionOutcome {
+                case_id: case.test_case_id.as_str().to_owned(),
+                test_execution_id: execution.test_execution_id.as_str().to_owned(),
+                template_identifier: "plt400.ract.tracking".to_owned(),
+                label: "Tracking".to_owned(),
+                module: "fixture_suite.plt400.ract.tracking".to_owned(),
+                status: status.to_owned(),
+                phases: vec![
+                    ProviderPhaseOutcome {
+                        identifier: "setup".to_owned(),
+                        label: "Setup".to_owned(),
+                        status: if status == "passed" { "passed" } else { "skipped" }.to_owned(),
+                    },
+                    ProviderPhaseOutcome {
+                        identifier: "collect_tracking".to_owned(),
+                        label: "Collect Tracking".to_owned(),
+                        status: status.to_owned(),
+                    },
+                ],
+                records,
+                telemetry: vec![ProviderTelemetryOutcome {
+                    stream: "tracking".to_owned(),
+                    label: "Tracking".to_owned(),
+                    samples: vec![
+                        crate::service_support::contracts::provider_tracking_row(1.0, status == "passed"),
+                        crate::service_support::contracts::provider_tracking_row(2.0, status == "passed"),
+                    ],
+                }],
+                criteria: vec![ProviderCriterionOutcome {
+                    identifier: "simulation.execution".to_owned(),
+                    label: "Simulation Execution".to_owned(),
+                    status: status.to_owned(),
+                    expected: None,
+                    required: Some(true),
+                    message: (status != "passed").then(|| "fixture failure".to_owned()),
+                }],
+                failures: if status == "passed" {
+                    Vec::new()
+                } else {
+                    vec![ProviderExecutionFailure {
+                        stage: "template".to_owned(),
+                        template_identifier: Some("plt400.ract.tracking".to_owned()),
+                        module: None,
+                        message: "fixture failure".to_owned(),
+                        detail: None,
+                    }]
+                },
+            }
+        },
+    )
 }
 
 pub fn custom_outcome(cycle: &CycleView) -> ProviderCycleOutcome {
-    cycle_outcome(cycle, ProviderIdentity { module: "testdb", registrations: 1, suite: "custom.suite" }, |case, execution| {
-        ProviderExecutionOutcome {
+    cycle_outcome(
+        cycle,
+        ProviderIdentity {
+            module: "testdb",
+            registrations: 1,
+            suite: "custom.suite",
+        },
+        |case, execution| ProviderExecutionOutcome {
             case_id: case.test_case_id.as_str().to_owned(),
             test_execution_id: execution.test_execution_id.as_str().to_owned(),
             template_identifier: "custom.template".to_owned(),
@@ -196,8 +210,8 @@ pub fn custom_outcome(cycle: &CycleView) -> ProviderCycleOutcome {
                 message: None,
             }],
             failures: Vec::new(),
-        }
-    })
+        },
+    )
 }
 
 pub fn runnable_executions(cycle: &dokime_domain::model::execution::result::CycleView) -> impl Iterator<Item = &TestExecution> {

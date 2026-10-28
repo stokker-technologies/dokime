@@ -48,7 +48,10 @@ impl Client {
             return Err(UploadError::Invalid("plugin archive size is outside the native limit"));
         }
         let template = wire::InstallPluginFrame {
-            frame: Some(wire::InstallPluginFrameFrame::Chunk(wire::InstallPluginChunk { offset: bytes.len() as u64, data: Vec::new() })),
+            frame: Some(wire::InstallPluginFrameFrame::Chunk(wire::InstallPluginChunk {
+                offset: bytes.len() as u64,
+                data: Vec::new(),
+            })),
         };
         let chunk_bytes = chunk_bytes::<dokime_domain::operations::plugins::Install>(
             self.backend().limits.max_chunk_bytes,

@@ -686,7 +686,11 @@ impl RuntimeHandle {
         // live run in that process would take a viewer's rows as its own.
         let execution = holder.scope.test_execution_id.clone()?;
         let (delivered, receipt) = tokio::sync::oneshot::channel();
-        let delivery = Delivery { requester: holder.requester.clone(), request, delivered };
+        let delivery = Delivery {
+            requester: holder.requester.clone(),
+            request,
+            delivered,
+        };
 
         // A Live Queue Takes It In Order; Otherwise This Delivery Starts The Run's Queue.
         let leases = self.stream_leases();
@@ -731,8 +735,11 @@ impl RuntimeHandle {
         delivery
     }
 
-    async fn signal_leaseholder(&self, execution: &dokime_domain::model::identity::TestExecutionId, requester: &str, request: DeliverSamplesRequest) {
-        let template = self.state_read().executions.get(execution).map(|execution| execution.snapshot.case().metadata.identifier.to_string());
+    async fn signal_leaseholder(
+        &self, execution: &dokime_domain::model::identity::TestExecutionId, requester: &str, request: DeliverSamplesRequest,
+    ) {
+        let template =
+            self.state_read().executions.get(execution).map(|execution| execution.snapshot.case().metadata.identifier.to_string());
         let Some(template) = template else {
             return;
         };

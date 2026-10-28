@@ -42,8 +42,11 @@ impl RuntimeHandle {
     pub async fn update_cycle_policy(
         &self, test_cycle_id: TestCycleId, continue_automatically: bool, context: CommandContext,
     ) -> std::result::Result<(), Error> {
-        let transaction =
-            UpdatePolicy { test_cycle_id: test_cycle_id.clone(), continue_automatically, occurred_at: crate::model::time::now_utc() };
+        let transaction = UpdatePolicy {
+            test_cycle_id: test_cycle_id.clone(),
+            continue_automatically,
+            occurred_at: crate::model::time::now_utc(),
+        };
         transaction.check(&self.state_read()).map_err(|message| Error::conflict("conflict", message))?;
         match context.idempotency_key.as_deref().filter(|key| !key.is_empty()) {
             Some(key) => self.commit_keyed(harmos::state::RequestKey::new(key), transaction).await,

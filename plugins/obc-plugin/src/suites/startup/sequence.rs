@@ -266,7 +266,14 @@ impl Startup {
             Error::Observation(message)
         })?;
         device.logging(&log);
-        Ok(Self { produced: 0, device, log, accepted: false, prompt_action: String::new(), operator_note: String::new() })
+        Ok(Self {
+            produced: 0,
+            device,
+            log,
+            accepted: false,
+            prompt_action: String::new(),
+            operator_note: String::new(),
+        })
     }
 
     fn document() -> Document {
@@ -320,7 +327,9 @@ impl Startup {
             .submit(WatchFile {
                 execution_id: None,
                 source: Some(FileWatchSource {
-                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: self.log.to_string_lossy().into_owned() })),
+                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+                        root: self.log.to_string_lossy().into_owned(),
+                    })),
                 }),
                 output: "charger".into(),
                 artifact: Some("charger/device.log".into()),
@@ -380,10 +389,18 @@ impl Startup {
 
     #[dokime::step(label = "Inspect Powered Charger")]
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        ctx.publish(Checkpoint { sample_index: self.produced, prompt_type: "obc.charger.startup.check".into() }).await;
+        ctx.publish(Checkpoint {
+            sample_index: self.produced,
+            prompt_type: "obc.charger.startup.check".into(),
+        })
+        .await;
         ctx.info("record=prompt_requested");
-        let response =
-            ctx.ask(checkpoint::StartupCheck { operator_note: "charger status indicator steady".into(), ..Default::default() }).await?;
+        let response = ctx
+            .ask(checkpoint::StartupCheck {
+                operator_note: "charger status indicator steady".into(),
+                ..Default::default()
+            })
+            .await?;
         self.accepted = response.accepted;
         self.operator_note = response.operator_note;
         self.prompt_action = if self.accepted { "continue" } else { "decline" }.into();

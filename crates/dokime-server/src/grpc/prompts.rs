@@ -196,7 +196,11 @@ impl Operation for ListPending {
             let next_after_prompt_id = entries.next().is_some().then(|| prompts.last().unwrap().prompt_id.clone());
             let mut cursor = values::cursor(&snapshot);
             cursor.stream = selection;
-            Ok(dokime::domain::model::prompts::wire::ListPendingPromptsReply { prompts, next_after_prompt_id, cursor: Some(cursor) })
+            Ok(dokime::domain::model::prompts::wire::ListPendingPromptsReply {
+                prompts,
+                next_after_prompt_id,
+                cursor: Some(cursor),
+            })
         })
     }
 }
@@ -295,9 +299,16 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 /* === Private Functions === */
 
 fn page(limit: u32, after: &str, given: Option<&Cursor>, snapshot: &RuntimeStateSnapshot) -> Result<usize, Status> {
-    let current =
-        NativeCursor { epoch: snapshot.state().process_epoch().to_string(), stream: STREAM.into(), position: snapshot.revision() };
-    let given = given.map(|value| NativeCursor { epoch: value.epoch.clone(), stream: value.stream.clone(), position: value.position });
+    let current = NativeCursor {
+        epoch: snapshot.state().process_epoch().to_string(),
+        stream: STREAM.into(),
+        position: snapshot.revision(),
+    };
+    let given = given.map(|value| NativeCursor {
+        epoch: value.epoch.clone(),
+        stream: value.stream.clone(),
+        position: value.position,
+    });
     current.page(limit, after, given.as_ref()).map_err(|error| {
         let code = match error {
             CursorError::Selection => tonic::Code::FailedPrecondition,

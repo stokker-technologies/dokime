@@ -69,7 +69,14 @@ pub struct RunCallbacks<'a> {
 
 impl Default for RunOptions {
     fn default() -> Self {
-        Self { mode: ExecutionMode::Automatic, record_types: None, streams: None, timeout: None, interval: None, page_size: None }
+        Self {
+            mode: ExecutionMode::Automatic,
+            record_types: None,
+            streams: None,
+            timeout: None,
+            interval: None,
+            page_size: None,
+        }
     }
 }
 
@@ -151,16 +158,39 @@ mod tests {
     #[test]
     fn observation_options_refused() {
         for options in [
-            RunOptions { record_types: Some(vec!["bad[regex]".into()]), ..Default::default() },
-            RunOptions { streams: Some(vec!["obc.*".into(); 65]), ..Default::default() },
-            RunOptions { interval: Some(Duration::ZERO), ..Default::default() },
+            RunOptions {
+                record_types: Some(vec!["bad[regex]".into()]),
+                ..Default::default()
+            },
+            RunOptions {
+                streams: Some(vec!["obc.*".into(); 65]),
+                ..Default::default()
+            },
+            RunOptions {
+                interval: Some(Duration::ZERO),
+                ..Default::default()
+            },
             RunOptions { page_size: Some(0), ..Default::default() },
-            RunOptions { page_size: Some(5001), ..Default::default() },
+            RunOptions {
+                page_size: Some(5001),
+                ..Default::default()
+            },
         ] {
             let error = options.validate().unwrap_err();
             assert!(matches!(error, super::super::Error::Rpc(status) if status.code() == tonic::Code::InvalidArgument));
         }
-        RunOptions { record_types: Some(Vec::new()), streams: Some(Vec::new()), ..Default::default() }.validate().unwrap();
-        RunOptions { record_types: Some(vec!["obc.*".into(), "dokime.?".into()]), ..Default::default() }.validate().unwrap();
+        RunOptions {
+            record_types: Some(Vec::new()),
+            streams: Some(Vec::new()),
+            ..Default::default()
+        }
+        .validate()
+        .unwrap();
+        RunOptions {
+            record_types: Some(vec!["obc.*".into(), "dokime.?".into()]),
+            ..Default::default()
+        }
+        .validate()
+        .unwrap();
     }
 }

@@ -70,7 +70,10 @@ impl Count {
 impl Sampler for CountingSampler {
     fn open(&self) -> std::result::Result<Box<dyn SamplerSession>, String> {
         self.opens.add();
-        Ok(Box::new(CountingSession { samples: self.samples.clone(), closes: self.closes.clone() }))
+        Ok(Box::new(CountingSession {
+            samples: self.samples.clone(),
+            closes: self.closes.clone(),
+        }))
     }
 }
 
@@ -117,7 +120,11 @@ async fn test_runtime() -> (TempDir, Runtime, RuntimeHandle) {
 }
 
 fn scope(test_cycle_id: Option<String>) -> SamplingScope {
-    SamplingScope { test_cycle_id, test_case_id: None, test_execution_id: None }
+    SamplingScope {
+        test_cycle_id,
+        test_case_id: None,
+        test_execution_id: None,
+    }
 }
 
 fn request(id: &str, interval_ms: u64) -> TelemetrySamplingRequest {
@@ -231,7 +238,10 @@ async fn host_collector_stream() {
     initial_request.stream = "host.system".into();
     let initial = runtime.request_host_sampling(scope(None), vec![initial_request]).await.unwrap();
     assert_eq!(initial[0].request.interval, Some(dokime_runtime::DurationMillis(10)));
-    let initial_selection = TelemetrySelection { streams: vec![Identifier::new("host.system").unwrap().into()], ..Default::default() };
+    let initial_selection = TelemetrySelection {
+        streams: vec![Identifier::new("host.system").unwrap().into()],
+        ..Default::default()
+    };
     until_telemetry(&runtime, || async { (!runtime.collect_telemetry(&initial_selection).await.unwrap().is_empty()).then_some(()) }).await;
 
     let streams = ["host.system", "host.bluetooth"];

@@ -273,7 +273,12 @@ impl<T: Serialize + DeserializeOwned> Iterator for Rows<'_, T> {
 #[cfg(feature = "native")]
 impl Spool {
     fn new() -> std::io::Result<Self> {
-        Ok(Self { data: tempfile::NamedTempFile::new()?, index: tempfile::tempdir()?, bytes: 0, count: 0 })
+        Ok(Self {
+            data: tempfile::NamedTempFile::new()?,
+            index: tempfile::tempdir()?,
+            bytes: 0,
+            count: 0,
+        })
     }
 
     fn key(&self, key: &str) -> std::io::Result<std::path::PathBuf> {

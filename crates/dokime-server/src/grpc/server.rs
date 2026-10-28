@@ -81,7 +81,12 @@ impl Service {
         let journal = config.trace_journal.clone().unwrap_or_else(|| crate::trace::Journal::new(crate::trace::Limits::default()));
         super::trace::register(&runtime, config.max_message_bytes(), journal)?;
         let listeners = authorization::register(&runtime)?;
-        let mut service = Self { runtime: runtime.clone(), config, listeners, remote: None };
+        let mut service = Self {
+            runtime: runtime.clone(),
+            config,
+            listeners,
+            remote: None,
+        };
         service.remote = Some(super::remote::register(&runtime, service.clone()).await?);
         Ok(service)
     }
@@ -115,7 +120,14 @@ impl Service {
         let attachment = self.runtime.grpc().attach(settings).await?;
         let address = attachment.local_addr();
         self.listeners.insert(address, policy, local);
-        Ok(Server { address, tls, attachment: Some(attachment), listeners: self.listeners.clone(), remote: None, detach_failure: None })
+        Ok(Server {
+            address,
+            tls,
+            attachment: Some(attachment),
+            listeners: self.listeners.clone(),
+            remote: None,
+            detach_failure: None,
+        })
     }
 }
 

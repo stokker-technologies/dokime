@@ -64,8 +64,18 @@ impl std::fmt::Debug for Registry {
 
 impl Registry {
     pub(super) fn new(records: Vec<store::Client>) -> Self {
-        let entries = records.into_iter().map(|record| Entry { record, revoked: CancellationToken::new() }).collect();
-        Self { entries: RwLock::new(entries), revision: AtomicU64::new(0), saved: AtomicU64::new(0) }
+        let entries = records
+            .into_iter()
+            .map(|record| Entry {
+                record,
+                revoked: CancellationToken::new(),
+            })
+            .collect();
+        Self {
+            entries: RwLock::new(entries),
+            revision: AtomicU64::new(0),
+            saved: AtomicU64::new(0),
+        }
     }
 
     pub(super) fn records(&self) -> Vec<store::Client> {
@@ -164,14 +174,16 @@ impl Controller {
             created_at: unix_millis(),
             last_seen_at: None,
         };
-        let record = store::Client { metadata: metadata.clone(), verifier: Sha256::digest(key.as_bytes()).into() };
+        let record = store::Client {
+            metadata: metadata.clone(),
+            verifier: Sha256::digest(key.as_bytes()).into(),
+        };
         candidate.clients.push(record.clone());
         self.write_security(&candidate).await?;
-        self.clients
-            .entries
-            .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .push(Entry { record, revoked: CancellationToken::new() });
+        self.clients.entries.write().unwrap_or_else(std::sync::PoisonError::into_inner).push(Entry {
+            record,
+            revoked: CancellationToken::new(),
+        });
         state.document = candidate;
         pairing.access_key = Some(key.to_string());
         Ok(CreatedPairing { client: Some(metadata), pairing })
@@ -299,7 +311,12 @@ mod tests {
 
     fn record(identifier: &str, created_at: u64, key: &str) -> store::Client {
         store::Client {
-            metadata: PairedClient { identifier: identifier.into(), label: "Lab".into(), created_at, last_seen_at: None },
+            metadata: PairedClient {
+                identifier: identifier.into(),
+                label: "Lab".into(),
+                created_at,
+                last_seen_at: None,
+            },
             verifier: Sha256::digest(key.as_bytes()).into(),
         }
     }

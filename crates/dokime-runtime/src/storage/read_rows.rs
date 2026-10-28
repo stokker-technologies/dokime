@@ -52,8 +52,16 @@ impl<T> ReadRows<T> {
 
     pub fn iter(&self) -> RowsIter<'_, T> {
         match &self.source {
-            Rows::Owned(rows) => RowsIter { pages: [].iter(), current: rows.iter(), back: [].iter() },
-            Rows::Native(pages) => RowsIter { pages: pages.iter(), current: [].iter(), back: [].iter() },
+            Rows::Owned(rows) => RowsIter {
+                pages: [].iter(),
+                current: rows.iter(),
+                back: [].iter(),
+            },
+            Rows::Native(pages) => RowsIter {
+                pages: pages.iter(),
+                current: [].iter(),
+                back: [].iter(),
+            },
         }
     }
 
@@ -87,7 +95,11 @@ impl<'a, T> Iterator for RowsIter<'a, T> {
 
 impl<'a, T> Clone for RowsIter<'a, T> {
     fn clone(&self) -> Self {
-        Self { pages: self.pages.clone(), current: self.current.clone(), back: self.back.clone() }
+        Self {
+            pages: self.pages.clone(),
+            current: self.current.clone(),
+            back: self.back.clone(),
+        }
     }
 }
 

@@ -208,7 +208,15 @@ impl Drop for Projection {
 
 impl Process {
     pub(crate) fn new(session: crate::storage::Manager) -> Self {
-        Self { session, history: None, through: 0, before: 0, position: 0, physical: 0, last: None }
+        Self {
+            session,
+            history: None,
+            through: 0,
+            before: 0,
+            position: 0,
+            physical: 0,
+            last: None,
+        }
     }
 
     pub(crate) fn release_completed(&mut self, after: u64) {
@@ -283,7 +291,11 @@ impl Process {
 /* === Private Functions === */
 
 fn projection_error(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> harmos::Error {
-    harmos::Error::Backend { operation: "project Dokime record", kind: harmos::BackendFailure::Permanent, source: source.into() }
+    harmos::Error::Backend {
+        operation: "project Dokime record",
+        kind: harmos::BackendFailure::Permanent,
+        source: source.into(),
+    }
 }
 
 // Restore One Journal Envelope As The Record Row It Captures, If Any.

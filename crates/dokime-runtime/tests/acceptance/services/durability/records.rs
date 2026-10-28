@@ -50,7 +50,10 @@ async fn publish_position_record(runtime: &RuntimeHandle, message: String) {
 }
 
 fn position_selection() -> RecordSelection {
-    RecordSelection { record_types: vec![Identifier::new("calibration.field.completed").unwrap()], ..Default::default() }
+    RecordSelection {
+        record_types: vec![Identifier::new("calibration.field.completed").unwrap()],
+        ..Default::default()
+    }
 }
 
 /* === Tests === */

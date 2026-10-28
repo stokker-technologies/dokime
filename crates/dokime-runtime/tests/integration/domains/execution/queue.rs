@@ -143,7 +143,9 @@ async fn container_seal_isolation() {
 
         let snapshot = runtime.watch_state().latest();
         let mut state = snapshot.state().clone();
-        let transaction = dokime_runtime::transactions::SealCycle { sealed_cycle: state.cycles[&first].clone() };
+        let transaction = dokime_runtime::transactions::SealCycle {
+            sealed_cycle: state.cycles[&first].clone(),
+        };
         transaction.check(&state).expect("cycle seal replays against individually sealed members");
         let member = &sealed.test_executions[0].test_execution_id;
         state.executions.get_mut(member).unwrap().saved = None;
@@ -412,12 +414,18 @@ async fn execution_retry_receipt() {
     register_python_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite).await;
     let execution_id = cycle_snapshot(&runtime, &cycle_id).await.test_executions[0].test_execution_id.clone();
-    let context =
-        CommandContext { idempotency_key: Some("large-request".into()), submitted_by: Some("operator".into()), ..Default::default() };
+    let context = CommandContext {
+        idempotency_key: Some("large-request".into()),
+        submitted_by: Some("operator".into()),
+        ..Default::default()
+    };
     let mode = dokime_domain::model::execution::ExecutionMode::Automatic;
     let accepted = runtime.start_execution(execution_id.clone(), mode, context.clone()).await;
     assert_eq!(accepted.status, CommandStatus::Accepted, "{:?}", accepted.rejection);
-    let other = CommandContext { submitted_by: Some("another-listener".into()), ..Default::default() };
+    let other = CommandContext {
+        submitted_by: Some("another-listener".into()),
+        ..Default::default()
+    };
     let duplicate = runtime.start_execution(execution_id.clone(), mode, other).await;
     assert_eq!(duplicate.command_id, accepted.command_id);
     let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;

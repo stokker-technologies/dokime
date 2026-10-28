@@ -113,7 +113,11 @@ impl Prepared {
         definition.check_selection_limits(selection).map_err(invalid)?;
         definition.limits = definition.limits.constrained();
         let parameters = definition.resolve(selection).map_err(invalid)?;
-        Ok(Some(Self { definition, selection: Selection { parameters, ..selection.clone() }, target }))
+        Ok(Some(Self {
+            definition,
+            selection: Selection { parameters, ..selection.clone() },
+            target,
+        }))
     }
 
     pub(crate) fn check_evidence(&self, telemetry: &[TelemetrySample], request: &PlotPayloadRequest) -> crate::runtime::Result<()> {
@@ -323,7 +327,10 @@ fn invalid(message: impl Into<String>) -> crate::runtime::Error {
 }
 
 fn unavailable(message: impl Into<String>) -> crate::runtime::Error {
-    crate::runtime::Error::Admission(AdmissionFailure::Unavailable { code: "analysis_unavailable".into(), message: message.into() })
+    crate::runtime::Error::Admission(AdmissionFailure::Unavailable {
+        code: "analysis_unavailable".into(),
+        message: message.into(),
+    })
 }
 
 /* === Tests === */

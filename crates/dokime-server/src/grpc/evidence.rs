@@ -116,7 +116,15 @@ impl Reader {
         if scanned > through {
             return Err(Status::invalid_argument("record cursor exceeds replay frontier"));
         }
-        Ok(Self { source, selection, scanned, through, bytes: bytes.min(page_bytes), scan_items, record_items })
+        Ok(Self {
+            source,
+            selection,
+            scanned,
+            through,
+            bytes: bytes.min(page_bytes),
+            scan_items,
+            record_items,
+        })
     }
     fn cursor(&self, position: u64) -> dokime::harmos::Result<Cursor> {
         Ok(Cursor {
@@ -205,7 +213,14 @@ impl Reader {
                 let mut kept = VecDeque::new();
                 kept.try_reserve_exact(keep).map_err(|_| projection_error(exhausted()))?;
 
-                Ok::<_, dokime::harmos::Error>(Tail { page, kept, keep, budget, bytes: 0, oversized: false })
+                Ok::<_, dokime::harmos::Error>(Tail {
+                    page,
+                    kept,
+                    keep,
+                    budget,
+                    bytes: 0,
+                    oversized: false,
+                })
             })
             .map_err(memory_error)?;
         let mut scanned = self.scanned;
@@ -367,7 +382,10 @@ impl Operation for Schema {
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum });
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes: maximum,
+    });
     runtime.operations().register_wire_operation::<List>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Watch>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Schema>("dokime", dokime::app::Lanes::Open, resources)?;

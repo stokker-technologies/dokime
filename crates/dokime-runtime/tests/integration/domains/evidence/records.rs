@@ -95,17 +95,32 @@ async fn native_publications_order() {
     request.details.insert("value".into(), dokime_runtime::Value::Number(7.0));
     request.scope = Some(dokime_runtime::RecordScope::default().with_cycle(dokime_runtime::model::identity::new_id::<TestCycleId>()));
     let timestamp = "2026-09-17T10:00:00Z";
-    let first = RecordPublication { request_json: serde_json::to_string(&request).unwrap(), produced_at: timestamp.into() };
+    let first = RecordPublication {
+        request_json: serde_json::to_string(&request).unwrap(),
+        produced_at: timestamp.into(),
+    };
     let mut forged = serde_json::to_value(&request).unwrap();
     forged["source"] = "foreign.owner".into();
     let mut undeclared = request.clone();
     undeclared.record_type = Identifier::new("undeclared.record").unwrap();
     let publications = [
         first.clone(),
-        RecordPublication { request_json: serde_json::to_string(&forged).unwrap(), produced_at: timestamp.into() },
-        RecordPublication { request_json: serde_json::to_string(&undeclared).unwrap(), produced_at: timestamp.into() },
-        RecordPublication { request_json: "garbled".into(), produced_at: timestamp.into() },
-        RecordPublication { request_json: first.request_json, produced_at: String::new() },
+        RecordPublication {
+            request_json: serde_json::to_string(&forged).unwrap(),
+            produced_at: timestamp.into(),
+        },
+        RecordPublication {
+            request_json: serde_json::to_string(&undeclared).unwrap(),
+            produced_at: timestamp.into(),
+        },
+        RecordPublication {
+            request_json: "garbled".into(),
+            produced_at: timestamp.into(),
+        },
+        RecordPublication {
+            request_json: first.request_json,
+            produced_at: String::new(),
+        },
     ];
     let arrival = dokime_runtime::model::time::now_utc();
     // The host files what the plugin relays under the caller's own identity,

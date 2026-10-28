@@ -46,7 +46,10 @@ async fn started(gate: &Gate) {
 fn start(owner: &Runtime, cycle: &str) -> contracts::execution::StartExecution {
     let cycle = dokime::TestCycleId::from_uuid(cycle).unwrap();
     let execution_id = owner.handle().watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string();
-    contracts::execution::StartExecution { execution_id, mode: model::execution::wire::ExecutionMode::Automatic }
+    contracts::execution::StartExecution {
+        execution_id,
+        mode: model::execution::wire::ExecutionMode::Automatic,
+    }
 }
 
 async fn receipt(handle: &dokime::RuntimeHandle, id: &str) -> impl std::ops::Deref<Target = model::execution::request::RunReceipt> + use<> {
@@ -111,8 +114,10 @@ async fn command_receipts_survive_restart() {
         client.unary::<contracts::execution::SubmitExecutionCommand>(authenticated(command.clone())).await.unwrap().into_inner(),
         receipt
     );
-    let lookup =
-        contracts::execution::GetExecutionCommand { request_id: command.request_id.clone(), command_id: command.command_id.clone() };
+    let lookup = contracts::execution::GetExecutionCommand {
+        request_id: command.request_id.clone(),
+        command_id: command.command_id.clone(),
+    };
     assert_eq!(
         client.unary::<contracts::execution::GetExecutionCommand>(authenticated(lookup.clone())).await.unwrap().into_inner(),
         receipt

@@ -91,7 +91,11 @@ pub enum TelemetrySourceKind {
 
 impl TelemetrySamplingRequest {
     pub fn sample_key(&self) -> TelemetrySampleKey {
-        TelemetrySampleKey { source_kind: self.source_kind.clone(), source_id: self.source_id.clone(), stream: self.stream.clone() }
+        TelemetrySampleKey {
+            source_kind: self.source_kind.clone(),
+            source_id: self.source_id.clone(),
+            stream: self.stream.clone(),
+        }
     }
 }
 

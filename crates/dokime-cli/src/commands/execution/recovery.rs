@@ -236,8 +236,11 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let execution = TestExecutionId::from_uuid("00000000-0000-0000-0000-000000000001").unwrap();
         let cycle = "00000000-0000-0000-0000-000000000002";
-        let args =
-            Args { cancel_on_interrupt: true, owned_cycle: Some(cycle.into()), recovery_directory: Some(directory.path().to_owned()) };
+        let args = Args {
+            cancel_on_interrupt: true,
+            owned_cycle: Some(cycle.into()),
+            recovery_directory: Some(directory.path().to_owned()),
+        };
         let prepared = args.prepare(&execution).unwrap().unwrap();
         std::fs::write(&prepared.executions[0].1, b"previous execution").unwrap();
         assert!(args.prepare(&execution).is_err());
@@ -256,8 +259,11 @@ mod tests {
         let cycle = TestCycleId::from_seed("owned append");
         let first = TestExecutionId::from_seed("first append");
         let second = TestExecutionId::from_seed("second append");
-        let args =
-            Args { cancel_on_interrupt: true, owned_cycle: Some(cycle.to_string()), recovery_directory: Some(directory.path().to_owned()) };
+        let args = Args {
+            cancel_on_interrupt: true,
+            owned_cycle: Some(cycle.to_string()),
+            recovery_directory: Some(directory.path().to_owned()),
+        };
         let executions = [first.clone(), second];
         let plan = args.prepare_append(&cycle, &executions).unwrap().unwrap();
         assert_eq!(plan.executions.len(), 2);

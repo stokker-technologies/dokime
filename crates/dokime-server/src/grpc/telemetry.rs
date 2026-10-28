@@ -260,7 +260,10 @@ impl Selection {
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum });
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes: maximum,
+    });
     runtime.operations().register_wire_operation::<List>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Watch>("dokime", dokime::app::Lanes::Open, resources)?;
     Ok(())

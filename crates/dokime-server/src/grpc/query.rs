@@ -78,7 +78,10 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
     runtime.operations().register_wire_operation::<Aggregate>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            max_message_bytes: maximum,
+        }),
     )?;
     Ok(())
 }
@@ -124,10 +127,20 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
         if !aggregate.aggregate.answerable() {
             return Err(Status::invalid_argument("aggregate percentile rank exceeds 100"));
         }
-        aggregates.push(AggregateColumn { aggregate: aggregate.aggregate, column: aggregate.column, alias: aggregate.alias });
+        aggregates.push(AggregateColumn {
+            aggregate: aggregate.aggregate,
+            column: aggregate.column,
+            alias: aggregate.alias,
+        });
     }
 
-    Ok(AggregateQuery { source, filters, group_by: std::mem::take(&mut request.group_by), aggregates, limit: request.limit as usize })
+    Ok(AggregateQuery {
+        source,
+        filters,
+        group_by: std::mem::take(&mut request.group_by),
+        aggregates,
+        limit: request.limit as usize,
+    })
 }
 
 fn status(error: dokime::runtime::Error) -> Status {

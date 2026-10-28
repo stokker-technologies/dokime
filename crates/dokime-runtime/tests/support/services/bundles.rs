@@ -34,8 +34,12 @@ use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, S
 
 /* === Public Functions === */
 pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
-    let identity =
-        Identity { name: package.into(), version: version.parse().unwrap(), description: "A fixture.".into(), package: Default::default() };
+    let identity = Identity {
+        name: package.into(),
+        version: version.parse().unwrap(),
+        description: "A fixture.".into(),
+        package: Default::default(),
+    };
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
     let policy = harmos::operations::OperationPolicy {

@@ -72,8 +72,17 @@ impl MaterializationFixture {
         let execution =
             tokio::time::timeout(SETTLE, inspected_execution(&runtime, &cycle)).await.expect("steady execution reaches inspection");
         let at = runtime.storage().flush().await.unwrap();
-        let request = MaterializeReport { subject: model::reports::wire::ReportSubject::Execution(execution.to_string()), at };
-        Self { _root: root, owner, runtime, cycle, request }
+        let request = MaterializeReport {
+            subject: model::reports::wire::ReportSubject::Execution(execution.to_string()),
+            at,
+        };
+        Self {
+            _root: root,
+            owner,
+            runtime,
+            cycle,
+            request,
+        }
     }
 
     async fn close(mut self) {
@@ -195,7 +204,10 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
 }
 
 async fn materialization(runtime: &RuntimeHandle, request: &MaterializeReport) -> Duration {
-    let materialize = MaterializeReport { subject: request.subject.clone(), at: request.at.clone() };
+    let materialize = MaterializeReport {
+        subject: request.subject.clone(),
+        at: request.at.clone(),
+    };
     let started = Instant::now();
     let report = runtime.operations().call(materialize).await.unwrap();
     let elapsed = started.elapsed();
@@ -289,7 +301,10 @@ async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runti
     }
     let test_cycle_id = runtime
         .create_cycle(
-            CycleDefinition { metadata: registration.suite.metadata.clone(), continue_automatically: true },
+            CycleDefinition {
+                metadata: registration.suite.metadata.clone(),
+                continue_automatically: true,
+            },
             CommandContext::default(),
         )
         .await

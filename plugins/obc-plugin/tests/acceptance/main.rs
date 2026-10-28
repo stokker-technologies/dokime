@@ -132,7 +132,10 @@ impl Hosting {
             .value::<ExecutionScope>()
             .ok()
             .flatten()
-            .ok_or(harmos::Error::InvalidInput { field: "execution scope", reason: "the call is not part of a template run" })?
+            .ok_or(harmos::Error::InvalidInput {
+                field: "execution scope",
+                reason: "the call is not part of a template run",
+            })?
             .execution)
     }
 
@@ -217,7 +220,11 @@ impl Operation for Evidence {
                 scope.step_id = Some(start.step_id.clone());
                 scope.origin = dokime::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
             }
-            admitted.push(StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+            admitted.push(StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            });
         }
         let settled = batch.record_subscriptions_settling;
         if settled {
@@ -246,7 +253,10 @@ impl Operation for Question {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut OperatorQuestion, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<OperatorAnswer>> {
-        Err(harmos::Error::InvalidInput { field: "operator question", reason: "the OBC checks never ask the operator" })
+        Err(harmos::Error::InvalidInput {
+            field: "operator question",
+            reason: "the OBC checks never ask the operator",
+        })
     }
 }
 
@@ -286,7 +296,10 @@ impl Operation for Watching {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut dokime::operations::files::WatchFile, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<dokime::domain::model::files::wire::WatchFileOutcome>> {
-        Err(harmos::Error::InvalidInput { field: "file watch", reason: "the test host watches no files" })
+        Err(harmos::Error::InvalidInput {
+            field: "file watch",
+            reason: "the test host watches no files",
+        })
     }
 }
 
@@ -304,7 +317,10 @@ impl Operation for AwaitingWatch {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut Self::Declaration, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<dokime::domain::model::files::wire::FileWatchArmed>> {
-        Err(harmos::Error::InvalidInput { field: "file watch", reason: "the test host watches no files" })
+        Err(harmos::Error::InvalidInput {
+            field: "file watch",
+            reason: "the test host watches no files",
+        })
     }
 }
 
@@ -326,7 +342,10 @@ impl Operation for Lease {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut LeaseAsk, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<LeaseResolution>> {
-        Ok(harmos::operations::Response::new(LeaseResolution { granted: false, message: "the test host leases nothing".into() }))
+        Ok(harmos::operations::Response::new(LeaseResolution {
+            granted: false,
+            message: "the test host leases nothing".into(),
+        }))
     }
 }
 
@@ -349,12 +368,10 @@ impl Operation for Publishing {
         &mut self, context: Self::Context<'ctx>, request: &mut harmos::operations::streams::Publish, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
         if self.native.is_none() {
-            let resident = self
-                .hosting
-                .resident
-                .get()
-                .cloned()
-                .ok_or(harmos::Error::InvalidInput { field: "native publication", reason: "the resident is not running" })?;
+            let resident = self.hosting.resident.get().cloned().ok_or(harmos::Error::InvalidInput {
+                field: "native publication",
+                reason: "the resident is not running",
+            })?;
             self.native = Some(<Publication as harmos::operations::Operation>::initialize(Arc::new(resident), context.clone()).await?);
         }
         self.native

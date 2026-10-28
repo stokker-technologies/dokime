@@ -365,7 +365,11 @@ impl Operation for ListAdmittedPlugins {
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), admission: admission::Admission::new(), max_message_bytes: maximum });
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        admission: admission::Admission::new(),
+        max_message_bytes: maximum,
+    });
     runtime.operations().register_wire_operation::<ListInstallations>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<GetInstallation>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Install>("dokime", dokime::app::Lanes::Open, resources.clone())?;

@@ -68,7 +68,12 @@ impl RecordEntry {
     }
 
     pub fn from_record(sequence: u64, record: Record) -> Self {
-        Self { sequence, ordinal: 0, captured_scopes: Vec::new(), record }
+        Self {
+            sequence,
+            ordinal: 0,
+            captured_scopes: Vec::new(),
+            record,
+        }
     }
 }
 

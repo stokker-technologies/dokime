@@ -61,7 +61,12 @@ impl harmos_domain::MemorySize for TelemetryBatch {
 
 impl TelemetryBatch {
     pub fn new(batch_id: TelemetryBatchId, stream: Identifier, samples: Vec<TelemetrySample>) -> Self {
-        Self { batch_id, stream, schema_version: 1, samples }
+        Self {
+            batch_id,
+            stream,
+            schema_version: 1,
+            samples,
+        }
     }
 }
 

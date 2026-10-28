@@ -140,7 +140,9 @@ fn original_error(source: Status) -> dokime::harmos::Error {
 }
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical saved telemetry page" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical saved telemetry page",
+    }
 }
 
 /* === Tests === */

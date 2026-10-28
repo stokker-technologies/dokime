@@ -61,7 +61,13 @@ impl RotatingFile {
         let previous = directory.join(format!("{filename}{ROTATED_SUFFIX}"));
         let file = append(&path)?;
         let written = file.metadata().map(|metadata| metadata.len()).unwrap_or(0);
-        Ok(Self { maximum_bytes, path, previous, file, written })
+        Ok(Self {
+            maximum_bytes,
+            path,
+            previous,
+            file,
+            written,
+        })
     }
 
     fn rotate(&mut self) {

@@ -135,10 +135,16 @@ fn command_rejection(error: Error) -> CommandRejection {
         | Error::Admission(AdmissionFailure::NotFound { code, message })
         | Error::Admission(AdmissionFailure::Timeout { code, message })
         | Error::Admission(AdmissionFailure::Cancelled { code, message })
-        | Error::Admission(AdmissionFailure::Internal { code, message }) => {
-            CommandRejection { code, message, validation_issues: Vec::new() }
-        }
-        error => CommandRejection { code: "runtime_internal".to_owned(), message: error.to_string(), validation_issues: Vec::new() },
+        | Error::Admission(AdmissionFailure::Internal { code, message }) => CommandRejection {
+            code,
+            message,
+            validation_issues: Vec::new(),
+        },
+        error => CommandRejection {
+            code: "runtime_internal".to_owned(),
+            message: error.to_string(),
+            validation_issues: Vec::new(),
+        },
     }
 }
 

@@ -203,7 +203,9 @@ impl TryFrom<OriginRow> for dokime_domain::model::execution::EvidenceOrigin {
         match (row.phase, row.attempt_id) {
             (0, None) => Ok(Self::Default),
             (1, None) => Ok(Self::Initialization),
-            (2, Some(id)) => Ok(Self::Step { attempt_id: StepAttemptId::from_uuid(id)? }),
+            (2, Some(id)) => Ok(Self::Step {
+                attempt_id: StepAttemptId::from_uuid(id)?,
+            }),
             (3, None) => Ok(Self::Cleanup),
             _ => Err(Error::Invalid("invalid native capture origin")),
         }
@@ -217,7 +219,9 @@ impl serde::Serialize for OriginRow {
         let origin = match (self.phase, self.attempt_id.as_deref()) {
             (0, None) => EvidenceOrigin::Default,
             (1, None) => EvidenceOrigin::Initialization,
-            (2, Some(id)) => EvidenceOrigin::Step { attempt_id: StepAttemptId::from_uuid(id).map_err(serde::ser::Error::custom)? },
+            (2, Some(id)) => EvidenceOrigin::Step {
+                attempt_id: StepAttemptId::from_uuid(id).map_err(serde::ser::Error::custom)?,
+            },
             (3, None) => EvidenceOrigin::Cleanup,
             _ => return Err(serde::ser::Error::custom("invalid native capture origin")),
         };
@@ -482,7 +486,11 @@ impl TryFrom<ErrorRow> for dokime_domain::model::records::error::RecordErrorDeta
         use dokime_domain::model::identity::TraceId;
         let mut cause_chain = exact_slots(row.cause_chain.len())?;
         for cause in row.cause_chain {
-            cause_chain.push(ErrorCause { message: cause.message, code: cause.code, source: cause.source });
+            cause_chain.push(ErrorCause {
+                message: cause.message,
+                code: cause.code,
+                source: cause.source,
+            });
         }
         Ok(Self {
             message: row.message,

@@ -217,7 +217,10 @@ pub enum ObserverStreams {
 impl Steady {
     async fn initialize(_: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<(Self, SteadyResources), Error> {
         readiness::ready(ctx).await?;
-        let template = Self { accepted: false, prompt_action: String::new() };
+        let template = Self {
+            accepted: false,
+            prompt_action: String::new(),
+        };
 
         let shared = SteadyResources {
             device: Mutex::new(Device::initialize(ctx.parameters().supply()).map_err(Error::Device)?),
@@ -267,7 +270,13 @@ impl Steady {
         let wanted = ctx.parameters().sample_count()?;
         let interval_s = ctx.resources().interval_s;
         let events = ctx.stream::<BenchEvent>().open();
-        events.push(BenchEvent { event: "hold_started".into(), elapsed_s: 0.0, voltage_rms_v: nominal(ctx)? }).await;
+        events
+            .push(BenchEvent {
+                event: "hold_started".into(),
+                elapsed_s: 0.0,
+                voltage_rms_v: nominal(ctx)?,
+            })
+            .await;
         // An exact number of rows rather than a length of time, so what the run
         // measured does not depend on how quickly it got going. Counted off the
         // sampler's own counter rather than awaited by type: `InputMeasurement` is one
@@ -280,7 +289,13 @@ impl Steady {
         while ctx.resources().produced.load(Ordering::Acquire).saturating_sub(started) < wanted {
             tokio::time::sleep(STEADY_SAMPLE_POLL).await;
         }
-        events.push(BenchEvent { event: "hold_reached".into(), elapsed_s: wanted as f64 * interval_s, voltage_rms_v: nominal(ctx)? }).await;
+        events
+            .push(BenchEvent {
+                event: "hold_reached".into(),
+                elapsed_s: wanted as f64 * interval_s,
+                voltage_rms_v: nominal(ctx)?,
+            })
+            .await;
         ctx.info(format!("record=sidecar_held samples={wanted}"));
         Ok(())
     }
@@ -289,7 +304,10 @@ impl Steady {
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.info("record=sidecar_prompt_requested");
         let response = ctx
-            .ask(checkpoint::SteadyCheck { operator_note: "Waveform and charger status indicator stable".into(), ..Default::default() })
+            .ask(checkpoint::SteadyCheck {
+                operator_note: "Waveform and charger status indicator stable".into(),
+                ..Default::default()
+            })
             .await?;
         self.accepted = response.accepted;
         self.prompt_action = if self.accepted { "continue" } else { "decline" }.into();
@@ -301,7 +319,11 @@ impl Steady {
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let device = ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.clone();
         let produced = ctx.resources().produced.load(Ordering::Acquire);
-        ctx.publish(Completed { sample_count: produced, accepted: self.accepted && device.fault.is_none() }).await;
+        ctx.publish(Completed {
+            sample_count: produced,
+            accepted: self.accepted && device.fault.is_none(),
+        })
+        .await;
         let summary = serde_json::to_vec_pretty(&serde_json::json!({
             "supply": device.supply,
             "sample_count": produced,

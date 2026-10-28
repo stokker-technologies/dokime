@@ -59,7 +59,10 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
                 PluginLastBoot::Loaded { at } => (at, plugins_model::PluginLastBootResult::Loaded(true)),
                 PluginLastBoot::Failed { error, at } => (at, plugins_model::PluginLastBootResult::Error(error)),
             };
-            Ok::<_, Status>(plugins_model::PluginLastBoot { at: Some(canonical::timestamp(&at)?), result: Some(result) })
+            Ok::<_, Status>(plugins_model::PluginLastBoot {
+                at: Some(canonical::timestamp(&at)?),
+                result: Some(result),
+            })
         })
         .transpose()?;
     let result = plugins_model::PluginInstallation {

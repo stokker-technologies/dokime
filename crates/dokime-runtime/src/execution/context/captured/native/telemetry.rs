@@ -102,7 +102,10 @@ impl TryFrom<&Declarations> for Contracts {
             for contract in versions.values() {
                 contracts.push(Contract::try_from(contract)?);
             }
-            streams.push(Stream { key: key.as_str().to_owned(), versions: contracts });
+            streams.push(Stream {
+                key: key.as_str().to_owned(),
+                versions: contracts,
+            });
         }
         Ok(Self { streams })
     }

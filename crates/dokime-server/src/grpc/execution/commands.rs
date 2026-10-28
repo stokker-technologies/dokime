@@ -97,7 +97,10 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
     runtime.operations().register_wire_operations::<Operations, super::Resources>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(super::Resources { runtime: runtime.clone(), max_message_bytes }),
+        Arc::new(super::Resources {
+            runtime: runtime.clone(),
+            max_message_bytes,
+        }),
     )?;
     Ok(())
 }

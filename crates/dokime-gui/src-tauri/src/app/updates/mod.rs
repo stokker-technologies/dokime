@@ -156,7 +156,13 @@ impl UpdateState {
         let (policy, generation) = self.snapshot()?;
         let current_version = app.package_info().version.to_string();
         if policy.mode == Mode::Disabled {
-            return Ok(UpdateCheck { status: "disabled".into(), current_version, version: None, body: None, candidate: None });
+            return Ok(UpdateCheck {
+                status: "disabled".into(),
+                current_version,
+                version: None,
+                body: None,
+                candidate: None,
+            });
         }
         let manifest = sources::resolve(&policy, "latest.json").await?;
         let updater = app
@@ -187,7 +193,13 @@ impl UpdateState {
                 inner.candidate = Some(Candidate { id, generation, update });
                 result
             }
-            None => UpdateCheck { status: "up_to_date".into(), current_version, version: None, body: None, candidate: None },
+            None => UpdateCheck {
+                status: "up_to_date".into(),
+                current_version,
+                version: None,
+                body: None,
+                candidate: None,
+            },
         };
         inner.last = Some(result.clone());
         inner.error = None;
@@ -406,10 +418,22 @@ mod tests {
                 candidate: None,
             }),
         }));
-        state.configure(Selection { mode: Mode::Manual, source: Some("public".into()) }).unwrap();
+        state
+            .configure(Selection {
+                mode: Mode::Manual,
+                source: Some("public".into()),
+            })
+            .unwrap();
         let saved = std::fs::read(&path).unwrap();
         let generation = state.snapshot().unwrap().1;
-        assert!(state.configure(Selection { mode: Mode::AutomaticCheck, source: Some("missing".into()) }).is_err());
+        assert!(
+            state
+                .configure(Selection {
+                    mode: Mode::AutomaticCheck,
+                    source: Some("missing".into())
+                })
+                .is_err()
+        );
         assert_eq!(std::fs::read(&path).unwrap(), saved);
         assert_eq!(state.snapshot().unwrap().1, generation);
 

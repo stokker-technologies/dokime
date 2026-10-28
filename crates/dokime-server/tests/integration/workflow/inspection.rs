@@ -42,7 +42,15 @@ use {dokime::Value, dokime::domains::execution::authoring::SidecarStepContext};
 
 #[tokio::test]
 async fn inspection_separates_outputs() {
-    let Gated { root: _root, gate, mut owner, service: _service, server, execution: client, cycle: id } = Gated::open().await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service: _service,
+        server,
+        execution: client,
+        cycle: id,
+    } = Gated::open().await;
     let cycle = client
         .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.clone() }))
         .await
@@ -100,7 +108,10 @@ async fn inspection_separates_outputs() {
     for unknown_variant in [false, true] {
         let refused = client
             .invalid_enum::<contracts::execution::StartExecution, model::execution::wire::ExecutionMode>(
-                authenticated(contracts::execution::StartExecution { mode: Default::default(), execution_id: selected.clone() }),
+                authenticated(contracts::execution::StartExecution {
+                    mode: Default::default(),
+                    execution_id: selected.clone(),
+                }),
                 "mode",
                 unknown_variant,
             )
@@ -336,7 +347,10 @@ async fn planned_params_limit() {
     .await
     .to_string();
     let case_id = client
-        .unary::<contracts::execution::ListCases>(contracts::execution::ListCases { cycle_id: cycle_id.clone(), ..Default::default() })
+        .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
+            cycle_id: cycle_id.clone(),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .into_inner()
@@ -344,7 +358,10 @@ async fn planned_params_limit() {
         .remove(0)
         .case_id;
     let detail = client
-        .unary::<contracts::execution::GetCase>(contracts::execution::GetCase { cycle_id: cycle_id.clone(), case_id: case_id.clone() })
+        .unary::<contracts::execution::GetCase>(contracts::execution::GetCase {
+            cycle_id: cycle_id.clone(),
+            case_id: case_id.clone(),
+        })
         .await
         .unwrap()
         .into_inner();
@@ -360,8 +377,12 @@ async fn planned_params_limit() {
         .remove(0)
         .execution_id;
     assert_eq!(detail.parameter_count, 257);
-    let mut request =
-        contracts::execution::ListCaseParameters { cycle_id: cycle_id.clone(), case_id: case_id.clone(), limit: 73, ..Default::default() };
+    let mut request = contracts::execution::ListCaseParameters {
+        cycle_id: cycle_id.clone(),
+        case_id: case_id.clone(),
+        limit: 73,
+        ..Default::default()
+    };
     let mut all = Vec::new();
     loop {
         let page = client.unary::<contracts::execution::ListCaseParameters>(request.clone()).await.unwrap().into_inner();

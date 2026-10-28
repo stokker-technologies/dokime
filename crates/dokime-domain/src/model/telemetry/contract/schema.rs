@@ -265,7 +265,17 @@ impl TelemetryColumn {
     }
 
     pub fn new(metadata: Metadata, value_type: ValueType, role: TelemetryRole) -> Self {
-        Self { metadata, value_type, role, unit: None, display_unit: None, required: true, nullable: false, default: None, format: None }
+        Self {
+            metadata,
+            value_type,
+            role,
+            unit: None,
+            display_unit: None,
+            required: true,
+            nullable: false,
+            default: None,
+            format: None,
+        }
     }
 
     pub fn optional(mut self) -> Self {

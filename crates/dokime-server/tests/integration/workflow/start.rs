@@ -48,7 +48,10 @@ async fn planned(client: &WireClient, owner: &Runtime) -> (String, String) {
 }
 
 fn start(id: &str) -> contracts::execution::StartExecution {
-    contracts::execution::StartExecution { execution_id: id.to_owned(), mode: model::execution::wire::ExecutionMode::Automatic }
+    contracts::execution::StartExecution {
+        execution_id: id.to_owned(),
+        mode: model::execution::wire::ExecutionMode::Automatic,
+    }
 }
 
 async fn sealed(handle: &dokime::RuntimeHandle, id: &str) {
@@ -71,7 +74,10 @@ async fn blocking_run_drains_and_preserves_work_after_callback_error() {
     let execution = client.execution(dokime::TestExecutionId::from_uuid(first.clone()).unwrap());
 
     // Invalid Observation Filters Cannot Admit Hardware Work.
-    let invalid = dokime::client::RunOptions { record_types: Some(vec!["bad[regex]".into()]), ..Default::default() };
+    let invalid = dokime::client::RunOptions {
+        record_types: Some(vec!["bad[regex]".into()]),
+        ..Default::default()
+    };
     let error = execution.run(invalid, Default::default()).await.unwrap_err();
     assert!(matches!(error, dokime::client::Error::Rpc(ref status) if status.code() == Code::InvalidArgument));
     assert!(owner.handle().watch_state().latest().state().run_requests.is_empty());
@@ -88,8 +94,18 @@ async fn blocking_run_drains_and_preserves_work_after_callback_error() {
         samples.push(page.complete);
         Ok(())
     };
-    let options = dokime::client::RunOptions { record_types: Some(Vec::new()), streams: Some(Vec::new()), ..Default::default() };
-    let running = execution.run(options, dokime::client::RunCallbacks { records: Some(&mut on_records), samples: Some(&mut on_samples) });
+    let options = dokime::client::RunOptions {
+        record_types: Some(Vec::new()),
+        streams: Some(Vec::new()),
+        ..Default::default()
+    };
+    let running = execution.run(
+        options,
+        dokime::client::RunCallbacks {
+            records: Some(&mut on_records),
+            samples: Some(&mut on_samples),
+        },
+    );
     let release = async {
         gate.started.notified().await;
         gate.release.notify_one();
@@ -107,8 +123,17 @@ async fn blocking_run_drains_and_preserves_work_after_callback_error() {
     let mut refuse = |_: &model::evidence::wire::RecordPage| -> dokime::client::Result<()> {
         Err(dokime::client::Error::Rpc(tonic::Status::aborted("operator callback refused page")))
     };
-    let options = dokime::client::RunOptions { record_types: Some(Vec::new()), ..Default::default() };
-    let running = execution.run(options, dokime::client::RunCallbacks { records: Some(&mut refuse), samples: None });
+    let options = dokime::client::RunOptions {
+        record_types: Some(Vec::new()),
+        ..Default::default()
+    };
+    let running = execution.run(
+        options,
+        dokime::client::RunCallbacks {
+            records: Some(&mut refuse),
+            samples: None,
+        },
+    );
     let (error, ()) = tokio::join!(running, async {
         gate.started.notified().await;
     });
@@ -151,7 +176,10 @@ async fn start_identity_survives() {
         .start_execution(
             dokime::TestExecutionId::from_uuid(first.clone()).unwrap(),
             dokime::domain::model::execution::ExecutionMode::Automatic,
-            dokime::CommandContext { submitted_by: Some("another-listener".into()), ..Default::default() },
+            dokime::CommandContext {
+                submitted_by: Some("another-listener".into()),
+                ..Default::default()
+            },
         )
         .await;
     assert_eq!(native.command_id.to_string(), original.command_id);
@@ -164,7 +192,10 @@ async fn start_identity_survives() {
     assert_eq!(handle.watch_state().latest().state().run_requests.len(), 2);
 
     // Conflicting Options Are Refused Without Dispatching Or Mutating The Seal.
-    let conflict = contracts::execution::StartExecution { mode: model::execution::wire::ExecutionMode::Interactive, ..request.clone() };
+    let conflict = contracts::execution::StartExecution {
+        mode: model::execution::wire::ExecutionMode::Interactive,
+        ..request.clone()
+    };
     let refused = wire.unary::<contracts::execution::StartExecution>(authenticated(conflict)).await.unwrap().into_inner();
     assert!(
         matches!(refused.outcome, Some(model::execution::wire::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")

@@ -87,7 +87,13 @@ impl Operation for Upload {
             let upload = self
                 .resources
                 .runtime
-                .begin_artifact_upload(ArtifactUploadInput { scope, filename, content_type, size_bytes: upload_size, sha256 })
+                .begin_artifact_upload(ArtifactUploadInput {
+                    scope,
+                    filename,
+                    content_type,
+                    size_bytes: upload_size,
+                    sha256,
+                })
                 .await
                 .map_err(content_failure)?;
             self.upload = Some(upload.clone());
@@ -178,15 +184,20 @@ pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime::domain::model::cont
         .as_deref()
         .map(|id| TestExecutionId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid execution UUID")))
         .transpose()?;
-    Ok(RecordScope { test_cycle_id: cycle_id, test_case_id: case_id, test_execution_id: execution_id, ..RecordScope::default() })
+    Ok(RecordScope {
+        test_cycle_id: cycle_id,
+        test_case_id: case_id,
+        test_execution_id: execution_id,
+        ..RecordScope::default()
+    })
 }
 
 pub(in crate::grpc) fn content_failure(error: dokime::runtime::Error) -> Status {
     use dokime::runtime::Error;
     let status = match &error {
-        Error::ExportStorage { source: dokime::domains::exports::storage::StorageError::ArchiveTooLarge { .. } } => {
-            Status::resource_exhausted("cycle bundle exceeds native content limit")
-        }
+        Error::ExportStorage {
+            source: dokime::domains::exports::storage::StorageError::ArchiveTooLarge { .. },
+        } => Status::resource_exhausted("cycle bundle exceeds native content limit"),
         Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("artifact upload owner not found"),
         Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
         Error::Admission(AdmissionFailure::Forbidden { .. }) => Status::permission_denied("artifact upload failed"),

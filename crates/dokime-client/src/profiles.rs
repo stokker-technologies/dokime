@@ -126,7 +126,12 @@ pub fn select(document: &Document, backend: Option<&str>, endpoint: Option<&str>
     }
     if let Some(endpoint) = endpoint {
         let target = Target::new(endpoint, None).map_err(|_| invalid("invalid endpoint"))?;
-        return Ok(Selection { identifier: None, target, expected_backend_id: None, secret: Secret::None });
+        return Ok(Selection {
+            identifier: None,
+            target,
+            expected_backend_id: None,
+            secret: Secret::None,
+        });
     }
     let identifier =
         backend.or(environment).or(document.default.as_deref()).ok_or_else(|| invalid("select a backend profile or explicit endpoint"))?;
@@ -363,7 +368,10 @@ mod tests {
     fn pairing_profiles_keep_independent_credentials() {
         let root = tempfile::tempdir().unwrap();
         let store = Store::new(root.path().join("backends.json"));
-        let secrets = Credentials { values: Mutex::new(BTreeMap::new()), fail_publication: None };
+        let secrets = Credentials {
+            values: Mutex::new(BTreeMap::new()),
+            fail_publication: None,
+        };
         let first = store.import_pairing(&pairing('a'), "first", &secrets).unwrap();
         let second = store.import_pairing(&pairing('b'), "second", &secrets).unwrap();
         let first_key = selection(&first).unwrap().credential_key();
@@ -381,7 +389,10 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("backends.json");
         let store = Store::new(&path);
-        let secrets = Credentials { values: Mutex::new(BTreeMap::new()), fail_publication: Some(path) };
+        let secrets = Credentials {
+            values: Mutex::new(BTreeMap::new()),
+            fail_publication: Some(path),
+        };
         assert!(store.import_pairing(&pairing('a'), "first", &secrets).is_err());
         assert!(secrets.values.lock().unwrap().is_empty());
     }
@@ -391,7 +402,10 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("absent/backends.json");
         let store = Store::new(&path);
-        let secrets = Credentials { values: Mutex::new(BTreeMap::new()), fail_publication: None };
+        let secrets = Credentials {
+            values: Mutex::new(BTreeMap::new()),
+            fail_publication: None,
+        };
         let mut invalid = pairing('a');
         invalid.endpoint = "http://0.0.0.0:8765".into();
         assert!(store.import_pairing(&invalid, "first", &secrets).is_err());

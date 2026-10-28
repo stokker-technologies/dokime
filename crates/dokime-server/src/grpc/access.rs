@@ -81,7 +81,11 @@ impl Policy {
     fn authenticate_values<'a>(&self, mut secrets: impl Iterator<Item = Option<&'a str>>) -> Result<Principal, Status> {
         if matches!(self, Self::TrustedLocal | Self::Open) {
             let subject = if matches!(self, Self::TrustedLocal) { "local" } else { "remote" };
-            return Ok(Principal { subject: subject.into(), local: false, revoked: None });
+            return Ok(Principal {
+                subject: subject.into(),
+                local: false,
+                revoked: None,
+            });
         }
         let value = secrets
             .next()
@@ -96,12 +100,18 @@ impl Policy {
             .ok_or_else(|| Status::unauthenticated("invalid secrets"))?;
         let digest: [u8; 32] = Sha256::digest(token.as_bytes()).into();
         match self {
-            Self::Key(expected) if bool::from(digest.ct_eq(expected)) => {
-                Ok(Principal { subject: "remote".into(), local: false, revoked: None })
-            }
+            Self::Key(expected) if bool::from(digest.ct_eq(expected)) => Ok(Principal {
+                subject: "remote".into(),
+                local: false,
+                revoked: None,
+            }),
             Self::Clients(clients) => {
                 let (subject, revoked) = clients.authenticate(&digest)?;
-                Ok(Principal { subject, local: false, revoked: Some(revoked) })
+                Ok(Principal {
+                    subject,
+                    local: false,
+                    revoked: Some(revoked),
+                })
             }
             _ => Err(Status::unauthenticated("invalid credentials")),
         }
@@ -110,7 +120,10 @@ impl Policy {
 
 impl Listeners {
     pub(super) fn new() -> Self {
-        Self { policies: RwLock::new(BTreeMap::new()), sessions: Arc::new(SessionLog::new()) }
+        Self {
+            policies: RwLock::new(BTreeMap::new()),
+            sessions: Arc::new(SessionLog::new()),
+        }
     }
 
     pub(super) fn insert(&self, address: SocketAddr, policy: Policy, local: bool) {
@@ -167,7 +180,10 @@ impl dokime::harmos::grpc::authentication::Authenticator for Listeners {
         Box::pin(async move {
             self.authenticate_call(call)
                 // Carry the authored status so the served error keeps its message.
-                .map_err(|status| dokime::harmos::Error::OperationFailed { operation: call.path().to_owned(), source: Arc::new(status) })
+                .map_err(|status| dokime::harmos::Error::OperationFailed {
+                    operation: call.path().to_owned(),
+                    source: Arc::new(status),
+                })
         })
     }
 }

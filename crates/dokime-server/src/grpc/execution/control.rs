@@ -520,13 +520,19 @@ pub(in crate::grpc) fn command_context(
     // The Configured Shared Authorizer Rejects External Calls Without A Principal.
     // Trusted Internal Calls Retain Native Attribution Without Inventing A Principal.
     let submitted_by = context.context().get::<Principal>().map(|principal| principal.subject().to_owned());
-    Ok(CommandContext { correlation_id, idempotency_key: None, submitted_by })
+    Ok(CommandContext {
+        correlation_id,
+        idempotency_key: None,
+        submitted_by,
+    })
 }
 
 /* === Private Functions === */
 
 fn observed(runtime: &RuntimeHandle) -> dokime::domain::model::execution::wire::ControlReply {
-    dokime::domain::model::execution::wire::ControlReply { observed_cursor: Some(canonical::cursor(&runtime.watch_state().latest())) }
+    dokime::domain::model::execution::wire::ControlReply {
+        observed_cursor: Some(canonical::cursor(&runtime.watch_state().latest())),
+    }
 }
 
 /* === Tests === */

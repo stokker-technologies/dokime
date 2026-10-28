@@ -102,7 +102,10 @@ impl Operation for Materialize {
         let snapshot = self.resources.runtime.watch_state().latest();
         let resolved = resolve(
             snapshot.state(),
-            Some(dokime::domain::model::planning::wire::SelectionPlan { selections: vec![selection], ..Default::default() }),
+            Some(dokime::domain::model::planning::wire::SelectionPlan {
+                selections: vec![selection],
+                ..Default::default()
+            }),
             &registration_id,
         )?;
         let mut reply = checked_preview(
@@ -281,7 +284,11 @@ pub(super) fn resolve(
         let generated = materialize_template_cases(
             &entry.suite_id,
             template,
-            CaseMaterializationSelection { case_overrides: parameters, file_overrides: files, ..Default::default() },
+            CaseMaterializationSelection {
+                case_overrides: parameters,
+                file_overrides: files,
+                ..Default::default()
+            },
             CaseMaterializationOptions {
                 max_cases: case_limit,
                 force: false,

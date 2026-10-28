@@ -102,7 +102,11 @@ pub(crate) fn encode_value(value: &Value) -> Result<Vec<Cell>> {
     let plan = value_encoding(value)?;
     let mut cells = Vec::new();
     cells.try_reserve_exact(plan.cells).map_err(|_| error("stored scalar allocation failed"))?;
-    cells.push(Cell { kind: "object".into(), children: 1, ..Default::default() });
+    cells.push(Cell {
+        kind: "object".into(),
+        children: 1,
+        ..Default::default()
+    });
     append(value, Some("value".into()), 1, &mut cells)?;
     Ok(cells)
 }
@@ -476,8 +480,16 @@ mod tests {
 
     fn scalar(kind: &str) -> Vec<Cell> {
         vec![
-            Cell { kind: "object".into(), children: 1, ..Default::default() },
-            Cell { name: Some("value".into()), kind: kind.into(), ..Default::default() },
+            Cell {
+                kind: "object".into(),
+                children: 1,
+                ..Default::default()
+            },
+            Cell {
+                name: Some("value".into()),
+                kind: kind.into(),
+                ..Default::default()
+            },
         ]
     }
 
@@ -570,7 +582,10 @@ mod tests {
         unnamed[1].name = None;
 
         let mut trailing = canonical.clone();
-        trailing.push(Cell { kind: "null".into(), ..Default::default() });
+        trailing.push(Cell {
+            kind: "null".into(),
+            ..Default::default()
+        });
         let mut unknown = canonical.clone();
         unknown[1].kind = "unknown".into();
 
@@ -580,7 +595,11 @@ mod tests {
 
         let mut array = scalar("array");
         array[1].children = 1;
-        let named = Cell { name: Some("named".into()), kind: "null".into(), ..Default::default() };
+        let named = Cell {
+            name: Some("named".into()),
+            kind: "null".into(),
+            ..Default::default()
+        };
         array.push(named);
         assert!(decode(&array).is_err());
     }
@@ -590,11 +609,17 @@ mod tests {
         let mut cells = scalar("array");
         for _ in 1..MAX_DEPTH {
             cells.last_mut().unwrap().children = 1;
-            cells.push(Cell { kind: "array".into(), ..Default::default() });
+            cells.push(Cell {
+                kind: "array".into(),
+                ..Default::default()
+            });
         }
         assert!(decode(&cells).is_ok());
         cells.last_mut().unwrap().children = 1;
-        cells.push(Cell { kind: "null".into(), ..Default::default() });
+        cells.push(Cell {
+            kind: "null".into(),
+            ..Default::default()
+        });
         assert!(decode(&cells).is_err());
     }
 

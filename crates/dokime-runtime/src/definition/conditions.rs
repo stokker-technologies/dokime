@@ -54,7 +54,10 @@ pub fn evaluate_runtime_condition(
                     return evaluation;
                 }
             }
-            RuntimeConditionEvaluation { satisfied: true, ..RuntimeConditionEvaluation::default() }
+            RuntimeConditionEvaluation {
+                satisfied: true,
+                ..RuntimeConditionEvaluation::default()
+            }
         }
         RuntimeCondition::Any { conditions } => {
             let mut reasons = Vec::new();
@@ -67,7 +70,11 @@ pub fn evaluate_runtime_condition(
                     reasons.push(reason);
                 }
             }
-            RuntimeConditionEvaluation { satisfied: false, matched_sequence: None, reason: Some(reasons.join("; ")) }
+            RuntimeConditionEvaluation {
+                satisfied: false,
+                matched_sequence: None,
+                reason: Some(reasons.join("; ")),
+            }
         }
     }
 }

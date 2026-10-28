@@ -49,7 +49,9 @@ impl ReadinessProbe {
     }
 
     async fn run(&mut self, _: &Supervisor, _: &mut AskReadiness) -> Result<Readiness, Refusal> {
-        Ok(Readiness { stopped: dokime::plugin::refusal(self.resources.app().stopped().await)? })
+        Ok(Readiness {
+            stopped: dokime::plugin::refusal(self.resources.app().stopped().await)?,
+        })
     }
 }
 

@@ -155,7 +155,11 @@ fn flatten(
         }
         ParameterExpr::Linspace { start, stop, count } => {
             finite(&[*start, *stop])?;
-            Kind::Linspace(dokime::domain::model::catalog::wire::LinearSpace { start: *start, stop: *stop, count: *count as u64 })
+            Kind::Linspace(dokime::domain::model::catalog::wire::LinearSpace {
+                start: *start,
+                stop: *stop,
+                count: *count as u64,
+            })
         }
         ParameterExpr::Reference { parameter } => Kind::Reference(parameter.clone()),
         ParameterExpr::DynamicDefault { key, fallback } => Kind::DynamicDefault(dokime::domain::model::catalog::wire::DynamicDefault {

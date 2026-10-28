@@ -83,7 +83,10 @@ async fn serve(root: &Path) -> u16 {
 }
 
 fn ftp(url: String, secret: Option<&str>) -> FileWatchSourcePayload {
-    FileWatchSourcePayload::Ftp(FtpWatchSource { url, secret_id: secret.map(str::to_owned) })
+    FileWatchSourcePayload::Ftp(FtpWatchSource {
+        url,
+        secret_id: secret.map(str::to_owned),
+    })
 }
 
 async fn store_ftp_secret(bench: &Bench) {
@@ -176,7 +179,11 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     let preserved = bench.handle.read_artifact_content(&extraction.sealed()[0].artifact_id, 100).await.unwrap().unwrap();
     assert_eq!(preserved.bytes, b"WARN\n");
 
-    let artifact_request = dokime_domain::operations::files::WatchFile { markers: Vec::new(), output: "fallback".into(), ..request };
+    let artifact_request = dokime_domain::operations::files::WatchFile {
+        markers: Vec::new(),
+        output: "fallback".into(),
+        ..request
+    };
     let mut artifact = bench.handle.open_watch_file(&artifact_request, None).await.unwrap();
     poll(&mut artifact).await;
     append(&log, b"tail\n");

@@ -286,7 +286,11 @@ impl DeclaredRecord for StepHandleCancelled {
     }
 
     fn from_details(values: &BTreeMap<String, Value>) -> Result<Self, FieldError> {
-        Ok(Self { step: field(values, "step")?, kind: field(values, "kind")?, name: field(values, "name")? })
+        Ok(Self {
+            step: field(values, "step")?,
+            kind: field(values, "kind")?,
+            name: field(values, "name")?,
+        })
     }
 }
 

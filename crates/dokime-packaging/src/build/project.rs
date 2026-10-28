@@ -88,7 +88,15 @@ impl Project {
             .map(std::path::absolute)
             .transpose()?
             .unwrap_or_else(|| metadata.target_directory.clone().into_std_path_buf());
-        Ok(Self { options, metadata, package_name: package_name.to_string(), sdk_version, sdk_source, watch_paths, target_directory })
+        Ok(Self {
+            options,
+            metadata,
+            package_name: package_name.to_string(),
+            sdk_version,
+            sdk_source,
+            watch_paths,
+            target_directory,
+        })
     }
 
     pub fn package_name(&self) -> &str {

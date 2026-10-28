@@ -64,7 +64,11 @@ impl TryFrom<&crate::analysis::Selection> for Selection {
     type Error = Error;
     fn try_from(value: &crate::analysis::Selection) -> Result<Self> {
         Self::encoding_memory(value)?;
-        Ok(Self { id: value.id.clone(), version: value.version, parameters: Some(Map::try_from(&value.parameters)?) })
+        Ok(Self {
+            id: value.id.clone(),
+            version: value.version,
+            parameters: Some(Map::try_from(&value.parameters)?),
+        })
     }
 }
 

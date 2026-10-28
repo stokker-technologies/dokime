@@ -386,7 +386,14 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
     terminal.success(format!("Plugin declarations and assets collected in {:.1}s", collection_started.elapsed().as_secs_f64()));
     terminal.status("Building verified plugin bundle");
     let bundle_started = Instant::now();
-    let sources = inputs.iter().map(|(path, bytes, executable)| Source { path, bytes, executable: executable.clone() }).collect::<Vec<_>>();
+    let sources = inputs
+        .iter()
+        .map(|(path, bytes, executable)| Source {
+            path,
+            bytes,
+            executable: executable.clone(),
+        })
+        .collect::<Vec<_>>();
     let bundle = Bundle::build(package_identity(package), &sources, limits)?;
     let parent = output.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
     std::fs::create_dir_all(parent)?;
@@ -457,7 +464,11 @@ async fn collect_executable(
     Ok((
         format!("bin/{target}/{binary_name}"),
         binary,
-        Executable { facility: Facility::Sidecar, target: target.to_owned(), registrations },
+        Executable {
+            facility: Facility::Sidecar,
+            target: target.to_owned(),
+            registrations,
+        },
     ))
 }
 
@@ -531,7 +542,11 @@ mod tests {
         let sources = [Source {
             path: "bin/x86_64-pc-windows-msvc/fixture.exe",
             bytes: executable.as_bytes(),
-            executable: Some(Executable { facility: Facility::Sidecar, target: target.into(), registrations: vec![] }),
+            executable: Some(Executable {
+                facility: Facility::Sidecar,
+                target: target.into(),
+                registrations: vec![],
+            }),
         }];
         let identity = Identity {
             name: "fixture".into(),

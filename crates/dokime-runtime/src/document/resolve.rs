@@ -111,7 +111,13 @@ impl DocumentMaterializer<'_> {
                         if capture.repeats.insert(section.node_id.clone(), Vec::new()).is_some()
                             || capture
                                 .sections
-                                .insert(section.node_id.clone(), SectionBinding { metadata: section.metadata, unavailable: Some(reason) })
+                                .insert(
+                                    section.node_id.clone(),
+                                    SectionBinding {
+                                        metadata: section.metadata,
+                                        unavailable: Some(reason),
+                                    },
+                                )
                                 .is_some()
                         {
                             capture.identity_collision = true;
@@ -126,7 +132,13 @@ impl DocumentMaterializer<'_> {
                         let capture = self.capture.as_mut().expect("capture assembly is active");
                         if capture
                             .sections
-                            .insert(section.node_id, SectionBinding { metadata: section.metadata, unavailable: None })
+                            .insert(
+                                section.node_id,
+                                SectionBinding {
+                                    metadata: section.metadata,
+                                    unavailable: None,
+                                },
+                            )
                             .is_some()
                         {
                             capture.identity_collision = true;
@@ -140,7 +152,9 @@ impl DocumentMaterializer<'_> {
     }
 
     fn materialize_layout(&mut self, layout: DocumentLayout) -> Result<DocumentLayoutPayload> {
-        Ok(DocumentLayoutPayload { nodes: self.materialize_nodes(layout.nodes)? })
+        Ok(DocumentLayoutPayload {
+            nodes: self.materialize_nodes(layout.nodes)?,
+        })
     }
 
     fn materialize_nodes(&mut self, nodes: Vec<DocumentNode>) -> Result<Vec<DocumentNodePayload>> {
@@ -187,7 +201,10 @@ impl DocumentMaterializer<'_> {
             return Ok(None);
         }
         self.ensure_card_payload(&placement.card_id)?;
-        Ok(Some(DocumentNodePayload::Card(DocumentCardPlacementPayload { card_id: placement.card_id, layout: placement.layout })))
+        Ok(Some(DocumentNodePayload::Card(DocumentCardPlacementPayload {
+            card_id: placement.card_id,
+            layout: placement.layout,
+        })))
     }
 
     fn ensure_card_payload(&mut self, card_id: &Identifier) -> Result<()> {
@@ -202,12 +219,18 @@ impl DocumentMaterializer<'_> {
                 },
                 DocumentCardBody::Plot { plot } => {
                     let input = plot_input_for_definition(plot, &[], self.markers_len, self.selection);
-                    CardBindingResult::Plot { descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())) }
+                    CardBindingResult::Plot {
+                        descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())),
+                    }
                 }
                 _ => CardBindingResult::Static,
             };
             let source_id = capture.source_ids.get(card_id).expect("captured card source exists").clone();
-            let binding = CardBinding { source_id, metadata: card.metadata.clone(), result };
+            let binding = CardBinding {
+                source_id,
+                metadata: card.metadata.clone(),
+                result,
+            };
             self.card_payload_ids.insert(card_id.clone(), capture.cards.len());
             push_exact(&mut capture.cards, binding)?;
             return Ok(());
@@ -377,7 +400,10 @@ impl DocumentMaterializer<'_> {
                 }
                 self.card_definitions.insert(repeated_id.clone(), repeated);
 
-                DocumentNode::Card(DocumentCardPlacement { card_id: repeated_id, layout: placement.layout.clone() })
+                DocumentNode::Card(DocumentCardPlacement {
+                    card_id: repeated_id,
+                    layout: placement.layout.clone(),
+                })
             }
             DocumentNode::Section(section) => {
                 let identifier = suffixed_identifier(&section.node_id, suffix);
@@ -447,7 +473,10 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits)
     };
     materializer.capture_nodes(definition.layout.nodes.clone())?;
     if capture.identity_collision {
-        return Err(DocumentFailure::InvalidDefinition { issues: vec!["captured repeat identities collide".into()] }.into());
+        return Err(DocumentFailure::InvalidDefinition {
+            issues: vec!["captured repeat identities collide".into()],
+        }
+        .into());
     }
     Ok(Capture {
         definition,
@@ -504,7 +533,13 @@ pub(crate) fn resolve_normalized(
     definition: crate::document::DocumentDefinition, selection: crate::document::DocumentSelection, data: BorrowedData<'_>,
     materialize_plots: bool, limits: DocumentLimits,
 ) -> Result<DocumentPayload> {
-    let crate::document::DocumentDefinition { document_id, metadata, cards: card_definitions, layout: layout_definition, .. } = definition;
+    let crate::document::DocumentDefinition {
+        document_id,
+        metadata,
+        cards: card_definitions,
+        layout: layout_definition,
+        ..
+    } = definition;
     validate_normalized_parts(&card_definitions, &layout_definition, limits.layout_depth, limits.maximum_plot_points)
         .map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
     binding::validate(&card_definitions, &layout_definition.nodes)?;

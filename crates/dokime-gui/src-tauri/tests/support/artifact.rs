@@ -119,7 +119,12 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         subscriptions: vec![],
         attributes: Default::default(),
     };
-    let suite = TestSuite { metadata: metadata(), tags: vec![], parameter_groups: vec![], test_case_templates: vec![template] };
+    let suite = TestSuite {
+        metadata: metadata(),
+        tags: vec![],
+        parameter_groups: vec![],
+        test_case_templates: vec![template],
+    };
     runtime
         .set_suites(
             "provider:fixture",

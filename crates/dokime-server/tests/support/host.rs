@@ -114,7 +114,13 @@ impl Host {
         assert_eq!(ready["dev_protocol"], 4);
         assert_eq!(ready["transport"], "grpc");
         let endpoint = ready["endpoint"].as_str().unwrap().to_owned();
-        Self { child, endpoint, replies: lines, stderr, _root: None }
+        Self {
+            child,
+            endpoint,
+            replies: lines,
+            stderr,
+            _root: None,
+        }
     }
 
     pub async fn command(&mut self, request: serde_json::Value) -> serde_json::Value {

@@ -127,7 +127,10 @@ impl Operation for Put {
 
     async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::Put, _: &mut ()) -> Result<Response<Snapshot>, Self::Error> {
         let store = Arc::clone(&self.store);
-        let change = Change { metadata: request.metadata.clone(), value: request.value.take().map(SecretValue::new) };
+        let change = Change {
+            metadata: request.metadata.clone(),
+            value: request.value.take().map(SecretValue::new),
+        };
         let generation = request.generation;
         let snapshot = {
             let cleanup = store.apply(vec![change], &[], generation).await?;

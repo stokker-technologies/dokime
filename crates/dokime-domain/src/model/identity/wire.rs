@@ -185,7 +185,10 @@ impl TryFrom<&crate::model::identity::Metadata> for Metadata {
         }
         let mut attributes = slots(metadata.attributes.len())?;
         for (key, value) in &metadata.attributes {
-            attributes.push(MetadataAttribute { key: text(key)?, value: Some(Value::try_from(value)?) });
+            attributes.push(MetadataAttribute {
+                key: text(key)?,
+                value: Some(Value::try_from(value)?),
+            });
         }
         Ok(Self {
             identifier: text(metadata.identifier.as_str())?,

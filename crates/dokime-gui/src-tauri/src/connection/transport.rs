@@ -47,7 +47,11 @@ impl Target {
             ConnectionTarget::Remote { endpoint, ca_certificate_pem } => dokime::client::Target::remote(endpoint, ca_certificate_pem),
         }
         .map_err(ConnectionError::from)?;
-        Ok(Self { endpoint: inner.endpoint().to_owned(), remote: inner.is_remote(), inner })
+        Ok(Self {
+            endpoint: inner.endpoint().to_owned(),
+            remote: inner.is_remote(),
+            inner,
+        })
     }
 }
 

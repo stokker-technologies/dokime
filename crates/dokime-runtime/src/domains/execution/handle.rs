@@ -53,7 +53,10 @@ impl RuntimeHandle {
             }
         };
         if let Err(error) = self
-            .commit(crate::transactions::outputs::FinalizeExecutionOutputs { test_execution_id: test_execution_id.clone(), outputs })
+            .commit(crate::transactions::outputs::FinalizeExecutionOutputs {
+                test_execution_id: test_execution_id.clone(),
+                outputs,
+            })
             .await
         {
             tracing::warn!(%error, %test_execution_id, "failed to record execution aggregates");

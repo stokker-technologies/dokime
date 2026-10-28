@@ -197,9 +197,12 @@ fn organization_validation() {
     let active = destination.path().join("organization/active");
     fs::create_dir_all(&active).unwrap();
     fs::write(active.join("organization.toml"), "invalid [").unwrap();
-    let config = dokime_runtime::config::ApplicationOptions { application_root: Some(destination.path().into()), ..Default::default() }
-        .resolve()
-        .unwrap();
+    let config = dokime_runtime::config::ApplicationOptions {
+        application_root: Some(destination.path().into()),
+        ..Default::default()
+    }
+    .resolve()
+    .unwrap();
     assert_eq!(config.brand.unwrap().identity.label, "Dokime");
     assert_eq!(fs::read_to_string(active.join("organization.toml")).unwrap(), "invalid [");
 }

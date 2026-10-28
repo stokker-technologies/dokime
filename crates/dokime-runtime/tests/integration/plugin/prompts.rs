@@ -126,7 +126,13 @@ impl Ask {
         // === Ask With Custom Initial Values === //
 
         let seen = format!("{} samples looked right", 3);
-        let again = ctx.ask(SignOff { note: seen, retries: None, ..Default::default() }).await?;
+        let again = ctx
+            .ask(SignOff {
+                note: seen,
+                retries: None,
+                ..Default::default()
+            })
+            .await?;
         self.heard.push(format!("custom note={} retries={:?}", again.note, again.retries));
         for line in &self.heard {
             dokime_runtime::info!(ctx, "{line}");

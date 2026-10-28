@@ -351,7 +351,10 @@ async fn permanent_finalization_settles() {
     assert_eq!(original_cycle.value.execution_ids.len(), 1);
     let fresh_cycle = runtime
         .create_cycle(
-            CycleDefinition { metadata: original_cycle.value.metadata.clone(), continue_automatically: false },
+            CycleDefinition {
+                metadata: original_cycle.value.metadata.clone(),
+                continue_automatically: false,
+            },
             CommandContext::default(),
         )
         .await

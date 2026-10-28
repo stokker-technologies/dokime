@@ -75,8 +75,17 @@ impl<I: ExactSizeIterator> Progress<I> {
     pub fn new(phase: impl Into<String>, iterator: I, sink: Arc<dyn ProgressSink>, warmup: u64) -> Self {
         let phase = phase.into();
         let total = u64::try_from(iterator.len()).unwrap_or(u64::MAX);
-        let progress =
-            Self { iterator, sink, phase, started: Instant::now(), completed: 0, total, pending: false, finished: false, warmup };
+        let progress = Self {
+            iterator,
+            sink,
+            phase,
+            started: Instant::now(),
+            completed: 0,
+            total,
+            pending: false,
+            finished: false,
+            warmup,
+        };
         progress.report();
 
         progress

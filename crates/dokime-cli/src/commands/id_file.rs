@@ -96,7 +96,9 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "first\nsecond\n");
 
         assert!(Args::default().open().unwrap().is_none());
-        let missing = Args { id_file: Some(directory.path().join("missing").join("ids.txt")) };
+        let missing = Args {
+            id_file: Some(directory.path().join("missing").join("ids.txt")),
+        };
         assert!(matches!(missing.open(), Err(crate::Error::Input(_))));
     }
 }

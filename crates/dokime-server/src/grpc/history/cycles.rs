@@ -67,7 +67,13 @@ impl Operation for Browse {
         let at = request.at.take().map(|at| wire::cursor(Some(at))).transpose()?;
         let filter = crate::grpc::execution::cycle_filter(request.filter.as_ref())?;
         let limit = (request.limit != 0).then_some(request.limit as usize);
-        let query = CycleBrowseQuery { at, after: request.after_sequence, limit, max_bytes: self.resources.maximum, filter };
+        let query = CycleBrowseQuery {
+            at,
+            after: request.after_sequence,
+            limit,
+            max_bytes: self.resources.maximum,
+            filter,
+        };
 
         // Project Only The Selected Headers
         let page = self.resources.runtime.browse_cycles(query).await.map_err(wire::query_failure)?;
@@ -109,7 +115,11 @@ fn project_wire(page: NativePage) -> dokime::harmos::Result<CycleBrowsePage> {
             archived: cycle.archived,
         });
     }
-    Ok(CycleBrowsePage { entries, at: Some(wire::cursor_wire_ref(&page.at)), next_after_sequence: page.next })
+    Ok(CycleBrowsePage {
+        entries,
+        at: Some(wire::cursor_wire_ref(&page.at)),
+        next_after_sequence: page.next,
+    })
 }
 
 fn original_error(source: Status) -> dokime::harmos::Error {

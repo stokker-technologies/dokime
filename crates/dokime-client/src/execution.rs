@@ -88,7 +88,9 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let checkpoint = self
             .client
-            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint { execution_identifier: self.id.to_string() })
+            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint {
+                execution_identifier: self.id.to_string(),
+            })
             .await?;
         validate_checkpoint(&self.id, &checkpoint)?;
         Ok(checkpoint)
@@ -189,7 +191,10 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_pause_execution(contracts::execution::PauseExecution { execution_id: self.id.to_string(), context: None })
+            .execution_pause_execution(contracts::execution::PauseExecution {
+                execution_id: self.id.to_string(),
+                context: None,
+            })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)
@@ -199,7 +204,10 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_resume_execution(contracts::execution::ResumeExecution { execution_id: self.id.to_string(), context: None })
+            .execution_resume_execution(contracts::execution::ResumeExecution {
+                execution_id: self.id.to_string(),
+                context: None,
+            })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)
@@ -209,7 +217,10 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_stop_execution(contracts::execution::StopExecution { execution_id: self.id.to_string(), context: None })
+            .execution_stop_execution(contracts::execution::StopExecution {
+                execution_id: self.id.to_string(),
+                context: None,
+            })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)

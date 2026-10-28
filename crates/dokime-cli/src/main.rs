@@ -76,7 +76,10 @@ fn execute(cli: dokime_cli::Cli) -> dokime_cli::Result<()> {
 
 fn report_error(terminal: &dokime::terminal::Terminal, error: dokime_cli::Error) -> ExitCode {
     // Present Distinct Causes Without Capturing Debug Traces.
-    let mut diagnostic = Diagnostic { message: error.to_string(), ..Default::default() };
+    let mut diagnostic = Diagnostic {
+        message: error.to_string(),
+        ..Default::default()
+    };
     let mut source = std::error::Error::source(&error);
     while let Some(cause) = source {
         let message = cause.to_string();

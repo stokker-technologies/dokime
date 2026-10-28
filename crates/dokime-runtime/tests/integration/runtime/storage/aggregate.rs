@@ -52,7 +52,11 @@ async fn unknown_column_exist() {
             source: AggregateSource::Executions,
             filters: Vec::new(),
             group_by: vec!["template_id".into()],
-            aggregates: vec![AggregateColumn { aggregate: Aggregate::Count, column: String::new(), alias: "total".into() }],
+            aggregates: vec![AggregateColumn {
+                aggregate: Aggregate::Count,
+                column: String::new(),
+                alias: "total".into(),
+            }],
             limit: 0,
         })
         .await
@@ -75,7 +79,11 @@ async fn aggregate_width_is_enforced() {
         filters: Vec::new(),
         group_by: Vec::new(),
         aggregates: (0..65)
-            .map(|index| AggregateColumn { aggregate: Aggregate::Count, column: String::new(), alias: format!("count_{index}") })
+            .map(|index| AggregateColumn {
+                aggregate: Aggregate::Count,
+                column: String::new(),
+                alias: format!("count_{index}"),
+            })
             .collect(),
         limit: 0,
     };
@@ -85,7 +93,11 @@ async fn aggregate_width_is_enforced() {
         dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Validation { ref code, .. }) if code == "aggregate_query_invalid"
     ));
 
-    query.aggregates = vec![AggregateColumn { aggregate: Aggregate::Count, column: String::new(), alias: "total".into() }];
+    query.aggregates = vec![AggregateColumn {
+        aggregate: Aggregate::Count,
+        column: String::new(),
+        alias: "total".into(),
+    }];
     let outcome = runtime.handle().aggregate(query).await.unwrap();
     assert_eq!(outcome.columns, ["total"]);
     runtime.shutdown().await.unwrap();

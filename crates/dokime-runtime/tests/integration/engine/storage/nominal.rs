@@ -131,8 +131,11 @@ async fn nominal() {
     let backend = &store.backend;
     let history = backend.history().clone();
     let at = |sequence| StorageCursor { history: history.clone(), sequence };
-    let waveform_schema =
-        SchemaKey { id: id("story.waveform"), version: std::num::NonZeroU32::MIN, payload_encoding: PayloadEncoding::PostcardV1 };
+    let waveform_schema = SchemaKey {
+        id: id("story.waveform"),
+        version: std::num::NonZeroU32::MIN,
+        payload_encoding: PayloadEncoding::PostcardV1,
+    };
     let subject_schema =
         Objects::encode(&Subject { id: "execution".into(), stopped: false }, NonZeroUsize::new(MAX_BYTES).unwrap()).unwrap().schema;
     let typed_stream = id("typed-voltage");
@@ -150,8 +153,11 @@ async fn nominal() {
     let mut waves = Vec::with_capacity(samples);
     for index in 0..samples {
         let phase = TAU * index as f64 / 64.0;
-        let waveform =
-            Waveform { a: amplitude * phase.sin(), b: amplitude * (phase - TAU / 3.0).sin(), c: amplitude * (phase + TAU / 3.0).sin() };
+        let waveform = Waveform {
+            a: amplitude * phase.sin(),
+            b: amplitude * (phase - TAU / 3.0).sin(),
+            c: amplitude * (phase + TAU / 3.0).sin(),
+        };
         waves.push(StoredRow {
             record: StoredRecord {
                 position: at(index as u64 + 4),
@@ -193,7 +199,13 @@ async fn nominal() {
     backend.write_objects(store.batch(vec![stopped.clone()])).await.unwrap();
 
     // Persist Original Typed Rows With Nested Schema And Complete Sample Metadata
-    let typed = TypedWave { rms: amplitude / 2.0f64.sqrt(), details: Details { label: "meter-A".into(), samples: vec![1.0, 2.0, 3.0] } };
+    let typed = TypedWave {
+        rms: amplitude / 2.0f64.sqrt(),
+        details: Details {
+            label: "meter-A".into(),
+            samples: vec![1.0, 2.0, 3.0],
+        },
+    };
     let mut sample = TelemetrySample::new(
         dokime_runtime::model::identity::new_id(),
         typed_stream.clone(),
@@ -204,7 +216,11 @@ async fn nominal() {
     .with_storage_payload(typed.encode_to_vec());
     sample.summary.insert("health".into(), Value::Text("ok".into()));
     sample.metadata.insert("operator".into(), Value::Text("lab".into()));
-    let typed_entry = TelemetryEntry { epoch: SessionId::from_seed("nominal"), ordinal: 0, sample };
+    let typed_entry = TelemetryEntry {
+        epoch: SessionId::from_seed("nominal"),
+        ordinal: 0,
+        sample,
+    };
     let typed_row = StoredRow {
         record: StoredRecord {
             position: at(object_position + 2),
@@ -424,7 +440,11 @@ async fn nominal() {
                 after: 0,
             }),
             transforms: vec![Transform::Sort(Sort {
-                keys: vec![SortKey { field: "payload.a".into(), descending: true, nulls_first: false }],
+                keys: vec![SortKey {
+                    field: "payload.a".into(),
+                    descending: true,
+                    nulls_first: false,
+                }],
             })],
             slice: RowSlice { offset: 5, limit: Some(17) },
         })
@@ -448,13 +468,23 @@ async fn nominal() {
     let records = backend
         .read_records(
             &view,
-            &RecordSelection { schema: waveform_schema.clone(), scope: None, item: None, source_start: None, source_end: None },
+            &RecordSelection {
+                schema: waveform_schema.clone(),
+                scope: None,
+                item: None,
+                source_start: None,
+                source_end: None,
+            },
             page(0, rows(8)),
         )
         .await
         .unwrap();
     assert_eq!(records, [record]);
-    let revisions = ObjectSelection { schema: None, key: None, versions: ObjectVersions::Revisions };
+    let revisions = ObjectSelection {
+        schema: None,
+        key: None,
+        versions: ObjectVersions::Revisions,
+    };
     let objects = backend.read_objects(&view, &revisions, page(0, rows(8))).await.unwrap();
     assert_eq!(objects, [subject.clone(), stopped.clone()]);
     for (file, expected) in files {

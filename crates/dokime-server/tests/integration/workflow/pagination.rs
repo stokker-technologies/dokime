@@ -53,7 +53,11 @@ async fn large_cycles_order() {
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime::definition::ParameterExpansion::Cartesian;
     parameter.value_type = dokime::ValueType::Integer;
-    parameter.expression = dokime::definition::ParameterExpr::Range { start: 0, stop: PAGED_CASES as i64 - 1, step: 1 };
+    parameter.expression = dokime::definition::ParameterExpr::Range {
+        start: 0,
+        stop: PAGED_CASES as i64 - 1,
+        step: 1,
+    };
     support::register_fixture_execution(&owner.handle(), suite).await;
     let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
@@ -62,7 +66,11 @@ async fn large_cycles_order() {
         client.unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() }).await.unwrap().into_inner();
     assert_eq!(summary.case_count, PAGED_CASES);
     assert_eq!(summary.execution_count, PAGED_CASES);
-    let mut request = contracts::execution::ListCases { cycle_id: id.clone(), limit: PAGE_LIMIT, ..Default::default() };
+    let mut request = contracts::execution::ListCases {
+        cycle_id: id.clone(),
+        limit: PAGE_LIMIT,
+        ..Default::default()
+    };
     let mut cases = Vec::new();
     let mut pages = 0;
     loop {
@@ -117,7 +125,11 @@ async fn large_cycles_order() {
     let large = list.cycles.iter().find(|cycle| cycle.cycle_id == id).unwrap();
     assert_eq!(large.case_count, PAGED_CASES);
     assert_eq!(large.execution_count, PAGED_CASES);
-    let mut request = contracts::execution::ListExecutions { cycle_id: id.clone(), limit: PAGE_LIMIT, ..Default::default() };
+    let mut request = contracts::execution::ListExecutions {
+        cycle_id: id.clone(),
+        limit: PAGE_LIMIT,
+        ..Default::default()
+    };
     let mut attempts = Vec::new();
     let mut pages = 0;
     loop {
@@ -183,7 +195,11 @@ async fn queued_cycle_seals_every_member() {
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime::definition::ParameterExpansion::Cartesian;
     parameter.value_type = dokime::ValueType::Integer;
-    parameter.expression = dokime::definition::ParameterExpr::Range { start: 0, stop: PREPARATION_CASES as i64 - 1, step: 1 };
+    parameter.expression = dokime::definition::ParameterExpr::Range {
+        start: 0,
+        stop: PREPARATION_CASES as i64 - 1,
+        step: 1,
+    };
     support::register_fixture_execution(&owner.handle(), suite).await;
     let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
     let outcome = client.start_first(run(&id)).await.unwrap().into_inner().outcome.unwrap();
@@ -216,7 +232,11 @@ async fn queued_cycle_seals_every_member() {
     assert_eq!(after.case_count, PREPARATION_CASES as u64);
     assert_eq!(after.execution_count, PREPARATION_CASES as u64);
     assert_eq!(gate.calls.load(std::sync::atomic::Ordering::SeqCst), 1, "queued members never reached the provider");
-    let mut request = contracts::execution::ListExecutions { cycle_id: id.clone(), limit: 73, ..Default::default() };
+    let mut request = contracts::execution::ListExecutions {
+        cycle_id: id.clone(),
+        limit: 73,
+        ..Default::default()
+    };
     let mut count = 0;
     loop {
         let page = client.unary::<contracts::execution::ListExecutions>(request.clone()).await.unwrap().into_inner();

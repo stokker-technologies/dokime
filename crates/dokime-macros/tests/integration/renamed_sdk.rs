@@ -176,8 +176,13 @@ impl GetStatusHandler {
     }
 
     async fn run(&mut self, _: &sdk::Supervisor, _: &mut GetStatus) -> Result<sdk::domains::StatusResponse, sdk::Refusal> {
-        Ok(sdk::domains::StatusResponse::ready()
-            .field("Echo", self::dokime::reply(self::dokime::Payload { text: "author syntax survives".to_owned() }).text))
+        Ok(sdk::domains::StatusResponse::ready().field(
+            "Echo",
+            self::dokime::reply(self::dokime::Payload {
+                text: "author syntax survives".to_owned(),
+            })
+            .text,
+        ))
     }
 }
 
@@ -228,7 +233,10 @@ impl sdk::Plugin for Renamed {
         let settings = sdk::plugin::refusal(config.settings::<RenamedSettings>())?;
         let _ = settings.chamber.port;
 
-        Ok(Self { resources: Arc::new(Resources), observers: None })
+        Ok(Self {
+            resources: Arc::new(Resources),
+            observers: None,
+        })
     }
 
     async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {

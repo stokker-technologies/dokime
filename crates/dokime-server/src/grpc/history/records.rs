@@ -136,7 +136,9 @@ fn original_error(source: Status) -> dokime::harmos::Error {
 }
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint record page" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical checkpoint record page",
+    }
 }
 
 /* === Tests === */

@@ -176,7 +176,10 @@ async fn shared_stream_publishes() {
     let rows = handle
         .collect_telemetry(&TelemetrySelection {
             streams: vec![Identifier::new(Sample::ID).unwrap().into()],
-            scope: ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
+            scope: ScopeSelection {
+                test_cycle_id: Some(cycle.clone()),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .await
@@ -201,8 +204,12 @@ async fn shared_stream_publishes() {
     let storage = handle.storage();
     let at = storage.flush().await.unwrap();
     let schema = codec.schema().clone();
-    let query =
-        Query { at, source: Source::Schemas(SchemaSelection { schema: Some(schema) }), transforms: Vec::new(), slice: RowSlice::default() };
+    let query = Query {
+        at,
+        source: Source::Schemas(SchemaSelection { schema: Some(schema) }),
+        transforms: Vec::new(),
+        slice: RowSlice::default(),
+    };
     let mut schemas = storage.query(query).await.unwrap();
     while schemas.next().await.unwrap().is_some() {}
     assert_eq!(schemas.completion().unwrap().rows, 1, "neither template republishes the admitted schema");

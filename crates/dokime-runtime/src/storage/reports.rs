@@ -109,9 +109,19 @@ impl Prepared {
             let row = Publication::new(input)?;
             let text = input.owner.scope_text()?;
             let scope = Identifier::new(text)?;
-            Ok(PublicationState { row, scope, schema: schema(), schema_position: None, position: None })
+            Ok(PublicationState {
+                row,
+                scope,
+                schema: schema(),
+                schema_position: None,
+                position: None,
+            })
         })?;
-        Ok(Self { schema_settings: *schema_settings, manager: manager.clone(), state: Some(state) })
+        Ok(Self {
+            schema_settings: *schema_settings,
+            manager: manager.clone(),
+            state: Some(state),
+        })
     }
 
     pub async fn finish(&mut self) -> Result<StorageCursor> {

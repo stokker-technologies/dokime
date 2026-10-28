@@ -163,7 +163,13 @@ impl ReportFileIdentity<'_> {
 
         let mut media_type = report_text(self.media_type.len())?;
         media_type.push_str(self.media_type);
-        Ok(FileMetadata { id, scope: Some(scope), media_type, expected_length: Some(length), expected_sha256: Some(digest) })
+        Ok(FileMetadata {
+            id,
+            scope: Some(scope),
+            media_type,
+            expected_length: Some(length),
+            expected_sha256: Some(digest),
+        })
     }
 }
 
@@ -304,7 +310,13 @@ impl PreparedExecutionReport {
         {
             return Err(Error::InvalidReportInputs("report production reuses an output file identity".into()));
         }
-        Ok(Self { captured, outputs, context, report, sealed_at: None })
+        Ok(Self {
+            captured,
+            outputs,
+            context,
+            report,
+            sealed_at: None,
+        })
     }
 
     pub(crate) async fn publish_current(
@@ -378,11 +390,21 @@ impl PreparedExecutionReport {
 
 impl ReportFile {
     fn new(data: harmos::storage::ReadBatch<ReportFileData>) -> Self {
-        Self { data, producer: None, written: 0, finished: None }
+        Self {
+            data,
+            producer: None,
+            written: 0,
+            finished: None,
+        }
     }
 
     pub(super) fn render(html: &HtmlReport, owner: &str, nonce: uuid::Uuid, suffix: &str) -> Result<Self> {
-        let identity = ReportFileIdentity { owner, nonce, suffix, media_type: "text/html" };
+        let identity = ReportFileIdentity {
+            owner,
+            nonce,
+            suffix,
+            media_type: "text/html",
+        };
         let mut writer = ReportWriter::new()?;
         html.write(&mut writer)?;
         let data = writer.finish(identity)?;
@@ -390,7 +412,12 @@ impl ReportFile {
     }
 
     fn context(captured: &CapturedSource, nonce: uuid::Uuid) -> Result<Self> {
-        let identity = ReportFileIdentity { owner: captured.execution_id.as_str(), nonce, suffix: ".context", media_type: MEDIA_TYPE };
+        let identity = ReportFileIdentity {
+            owner: captured.execution_id.as_str(),
+            nonce,
+            suffix: ".context",
+            media_type: MEDIA_TYPE,
+        };
         let seed = harmos::storage::ReadBatch::new(());
         let build = |_| NativeSource::try_from(captured);
         let native = seed.try_map(build)?;
@@ -462,7 +489,11 @@ impl ReportFile {
 impl ReportWriter {
     fn new() -> Result<Self> {
         let spool = tempfile::tempfile()?;
-        Ok(Self { output: BufWriter::with_capacity(1024 * 1024, spool), digest: Sha256::new(), length: 0 })
+        Ok(Self {
+            output: BufWriter::with_capacity(1024 * 1024, spool),
+            digest: Sha256::new(),
+            length: 0,
+        })
     }
 
     fn finish(mut self, identity: ReportFileIdentity<'_>) -> Result<ReportFileData> {
@@ -470,7 +501,10 @@ impl ReportWriter {
         let mut spool = self.output.into_inner().map_err(|error| error.into_error())?;
         spool.seek(SeekFrom::Start(0))?;
         let metadata = identity.metadata(self.length, self.digest.finalize().into())?;
-        Ok(ReportFileData { metadata, spool: std::sync::Mutex::new(spool) })
+        Ok(ReportFileData {
+            metadata,
+            spool: std::sync::Mutex::new(spool),
+        })
     }
 }
 
@@ -547,7 +581,12 @@ mod tests {
 
     #[test]
     fn report_spool_hashes_incremental_writes_and_rewinds() {
-        let identity = ReportFileIdentity { owner: "spooled.report", nonce: uuid::Uuid::nil(), suffix: ".report", media_type: "text/html" };
+        let identity = ReportFileIdentity {
+            owner: "spooled.report",
+            nonce: uuid::Uuid::nil(),
+            suffix: ".report",
+            media_type: "text/html",
+        };
         let mut writer = ReportWriter::new().unwrap();
         let block = vec![0xa5; 1024 * 1024];
         let mut expected = Sha256::new();
@@ -569,11 +608,19 @@ mod tests {
     #[test]
     fn report_file_metadata_identifies_content() {
         let nonce = uuid::Uuid::nil();
-        let identity = ReportFileIdentity { owner: "fixture.execution", nonce, suffix: ".context", media_type: MEDIA_TYPE };
+        let identity = ReportFileIdentity {
+            owner: "fixture.execution",
+            nonce,
+            suffix: ".context",
+            media_type: MEDIA_TYPE,
+        };
         for capacity in [0, 128] {
             let bytes = Vec::with_capacity(capacity);
             let metadata = identity.metadata(bytes.len() as u64, Sha256::digest(&bytes).into()).unwrap();
-            let data = ReportFileData { metadata, spool: std::sync::Mutex::new(tempfile::tempfile().unwrap()) };
+            let data = ReportFileData {
+                metadata,
+                spool: std::sync::Mutex::new(tempfile::tempfile().unwrap()),
+            };
             assert_eq!(data.metadata.expected_length, Some(0));
             assert_eq!(data.metadata.scope.as_ref().unwrap().as_str(), identity.owner);
             assert_eq!(data.metadata.id.as_str(), "fixture.execution.00000000-0000-0000-0000-000000000000.context");

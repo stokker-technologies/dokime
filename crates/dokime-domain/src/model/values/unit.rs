@@ -72,7 +72,11 @@ impl harmos_domain::MemorySize for MeasurementUnit {
 
 impl MeasurementUnit {
     pub fn custom(identifier: Identifier, label: impl Into<String>, symbol: impl Into<String>) -> Self {
-        Self { metadata: Metadata::new(identifier, label, None), family: UnitFamily::Custom, symbol: symbol.into() }
+        Self {
+            metadata: Metadata::new(identifier, label, None),
+            family: UnitFamily::Custom,
+            symbol: symbol.into(),
+        }
     }
 }
 

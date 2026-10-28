@@ -144,7 +144,9 @@ impl GetReadingHandler {
         Self(shared)
     }
     async fn run(&mut self, _: &Supervisor, _: &mut GetReading) -> Result<GetReadingResponse, Refusal> {
-        Ok(GetReadingResponse { reads: self.0.reads.fetch_add(1, Ordering::SeqCst) + 1 })
+        Ok(GetReadingResponse {
+            reads: self.0.reads.fetch_add(1, Ordering::SeqCst) + 1,
+        })
     }
 }
 #[dokime_runtime::message]
@@ -382,7 +384,9 @@ async fn step_criterion_operation() {
     let reads = Arc::new(AtomicU64::new(0));
     let counted = Arc::clone(&reads);
     let report = Harness::template(TEMPLATE)
-        .answering::<GetReading, _>(move |_| GetReadingResponse { reads: counted.fetch_add(1, Ordering::SeqCst) + 1 })
+        .answering::<GetReading, _>(move |_| GetReadingResponse {
+            reads: counted.fetch_add(1, Ordering::SeqCst) + 1,
+        })
         .answering::<Echo, _>(|request: Echo| SharedReading { value: request.value })
         .run::<BenchSuites>()
         .await

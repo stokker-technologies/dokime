@@ -57,7 +57,11 @@ pub enum Secret {
 
 impl Default for Document {
     fn default() -> Self {
-        Self { version: 1, default: None, profiles: Vec::new() }
+        Self {
+            version: 1,
+            default: None,
+            profiles: Vec::new(),
+        }
     }
 }
 

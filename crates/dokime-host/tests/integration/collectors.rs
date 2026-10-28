@@ -89,13 +89,21 @@ fn iw_link_parsing() {
     // HE 160 MHz Link Captured From A Live Association
     assert_eq!(
         WifiLinkReport::parse_iw_link(HE_160_LINK),
-        Some(WifiLinkReport { rssi_dbm: Some(-46.0), rx_phy_mbps: Some(2401.9), tx_phy_mbps: Some(2401.9) })
+        Some(WifiLinkReport {
+            rssi_dbm: Some(-46.0),
+            rx_phy_mbps: Some(2401.9),
+            tx_phy_mbps: Some(2401.9)
+        })
     );
 
     // Legacy Rates With Per-Chain Signal And A Signal Average
     assert_eq!(
         WifiLinkReport::parse_iw_link(LEGACY_LINK),
-        Some(WifiLinkReport { rssi_dbm: Some(-67.0), rx_phy_mbps: Some(54.0), tx_phy_mbps: Some(24.0) })
+        Some(WifiLinkReport {
+            rssi_dbm: Some(-67.0),
+            rx_phy_mbps: Some(54.0),
+            tx_phy_mbps: Some(24.0)
+        })
     );
 
     // Disconnected Interface And Non-Netdev Devices

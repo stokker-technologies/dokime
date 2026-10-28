@@ -175,16 +175,21 @@ fn encoding_node(value: &crate::document::DocumentNode, depth: usize, count: &mu
 
 fn append_node(value: &crate::document::DocumentNode, nodes: &mut Vec<Node>) -> Result<()> {
     match value {
-        crate::document::DocumentNode::Card(card) => {
-            nodes.push(Node { card: Some(documents::Placement::try_from(card)?), ..Default::default() })
-        }
+        crate::document::DocumentNode::Card(card) => nodes.push(Node {
+            card: Some(documents::Placement::try_from(card)?),
+            ..Default::default()
+        }),
         crate::document::DocumentNode::Section(section) => {
             let definition = Section {
                 node_id: section.node_id.as_str().to_owned(),
                 metadata: Some(metadata::Row::try_from(&section.metadata)?),
                 repeat: section.repeat.as_ref().map(documents::Repeat::try_from).transpose()?,
             };
-            nodes.push(Node { children: section.children.len() as u32, section: Some(definition), card: None });
+            nodes.push(Node {
+                children: section.children.len() as u32,
+                section: Some(definition),
+                card: None,
+            });
             for child in &section.children {
                 append_node(child, nodes)?;
             }

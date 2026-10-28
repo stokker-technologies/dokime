@@ -93,7 +93,10 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
             executions: args
                 .case_ids
                 .into_iter()
-                .map(|case_id| ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id })
+                .map(|case_id| ExecutionBinding {
+                    execution_id: uuid::Uuid::now_v7().to_string(),
+                    case_id,
+                })
                 .collect(),
         },
     };
@@ -110,7 +113,10 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     // Retain Exact Retry Identities If The Admission Reply Is Lost.
     eprintln!(
         "Append Registration: {}",
-        serde_json::to_string(&AppendExecutions { cycle_id: cycle_id.clone(), executions: request.executions.clone() })?
+        serde_json::to_string(&AppendExecutions {
+            cycle_id: cycle_id.clone(),
+            executions: request.executions.clone()
+        })?
     );
     let client = args.connection.connect().await?;
     let cycle = client.cycle(id);

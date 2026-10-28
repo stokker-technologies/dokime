@@ -205,7 +205,12 @@ fn materialize_template_cases_detail(
     }
     .push_cases(0, &mut current, &mut cases)?;
 
-    Ok(CaseMaterializationOutput { case_count: cases.len(), test_cases: cases, exceeds_default_cap, default_cap: options.max_cases })
+    Ok(CaseMaterializationOutput {
+        case_count: cases.len(),
+        test_cases: cases,
+        exceeds_default_cap,
+        default_cap: options.max_cases,
+    })
 }
 
 fn filtered_dimensions(

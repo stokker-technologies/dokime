@@ -74,8 +74,11 @@ async fn schemas_exact_pages() {
         .column(TelemetryColumn::declared("count", "Count", ValueType::Integer, TelemetryRole::Counter))
         .strict();
     telemetry.columns[1].default = Some(Value::Integer(i64::MAX));
-    telemetry.columns[1].unit =
-        Some(MeasurementUnit { metadata: support::metadata("unit.tick", "Tick"), family: UnitFamily::Count, symbol: "tick".into() });
+    telemetry.columns[1].unit = Some(MeasurementUnit {
+        metadata: support::metadata("unit.tick", "Tick"),
+        family: UnitFamily::Count,
+        symbol: "tick".into(),
+    });
     telemetry.columns[1].display_unit = Some("ticks".into());
     registration.telemetry_contracts = vec![telemetry];
     handle.set_suites("provider:fixture", dokime::definition::SuiteSet::new([registration.clone()])).await.unwrap();

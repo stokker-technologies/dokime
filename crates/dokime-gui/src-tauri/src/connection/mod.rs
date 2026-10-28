@@ -235,7 +235,12 @@ impl ConnectionSession {
         .await
         .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
-        let lease = SessionLease { generation: generation.to_string(), client, cancellation, preferences: Arc::clone(&self.preferences) };
+        let lease = SessionLease {
+            generation: generation.to_string(),
+            client,
+            cancellation,
+            preferences: Arc::clone(&self.preferences),
+        };
         if remember && let Some(token) = token {
             let endpoint = target.endpoint.clone();
             self.access_secrets(generation, &lease.cancellation, move |store| {

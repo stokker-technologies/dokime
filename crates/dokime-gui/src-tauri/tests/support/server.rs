@@ -85,7 +85,13 @@ impl Fixture {
             .await
             .unwrap();
 
-        Self { session, server, runtime, artifacts, _root: root }
+        Self {
+            session,
+            server,
+            runtime,
+            artifacts,
+            _root: root,
+        }
     }
 
     pub fn generation(&self) -> u64 {

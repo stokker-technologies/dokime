@@ -217,14 +217,27 @@ impl RuntimeHandle {
         let path = path.as_ref();
         let file = tokio::fs::File::open(path).await.map_err(error)?;
         let size_bytes = file.metadata().await.map_err(error)?.len();
-        let upload = self.begin_artifact_upload(ArtifactUploadInput { scope, filename, content_type, size_bytes, sha256: None }).await?;
+        let upload = self
+            .begin_artifact_upload(ArtifactUploadInput {
+                scope,
+                filename,
+                content_type,
+                size_bytes,
+                sha256: None,
+            })
+            .await?;
 
         let session = self.storage().clone();
         let source = file.try_clone().await.map_err(error)?.into_std().await;
         let mut reader = session.read_opened_file(source, ByteRange { offset: 0, limit: Some(size_bytes) }).await?;
         while let Some(batch) = reader.next().await? {
             // The Native Page Owner Survives The Spawned Append And Blocking Write.
-            upload.send_chunk(Chunk { upload: upload.clone(), bytes: Bytes::Read(batch) }).await?;
+            upload
+                .send_chunk(Chunk {
+                    upload: upload.clone(),
+                    bytes: Bytes::Read(batch),
+                })
+                .await?;
         }
 
         let completed = reader.completion()?;
@@ -330,7 +343,11 @@ impl ExecutionStorage {
             status: ArtifactStatus::Staged,
             created_at: Timestamp::from_datetime(metadata.created_at.expect("runtime artifact creation time")),
         };
-        let progress = Arc::new(UploadProgress { operation, sent: AtomicU64::new(0), expected: input.size_bytes });
+        let progress = Arc::new(UploadProgress {
+            operation,
+            sent: AtomicU64::new(0),
+            expected: input.size_bytes,
+        });
         let state = Upload {
             file: tokio::fs::File::from_std(tempfile::NamedTempFile::new().map_err(error)?.into_file()),
             closing: None,
@@ -345,7 +362,13 @@ impl ExecutionStorage {
         };
         acquisition.artifacts.insert(id.clone(), state);
         drop(acquisition);
-        Ok(ArtifactUpload { storage: Arc::downgrade(&self), execution, id, progress, _owner: owner })
+        Ok(ArtifactUpload {
+            storage: Arc::downgrade(&self),
+            execution,
+            id,
+            progress,
+            _owner: owner,
+        })
     }
 
     pub(crate) async fn artifact_records(&self) -> Result<Vec<ArtifactRecord>> {
@@ -509,7 +532,10 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
         created_at: record.created_at.clone(),
         file: reference,
         stream_state: Some(if *status == ArtifactStatus::Complete { SavedStreamState::Finalized } else { SavedStreamState::Interrupted }),
-        content: ExecutionOutputContent::Artifact { record: Box::new(record), metadata: upload.metadata.clone() },
+        content: ExecutionOutputContent::Artifact {
+            record: Box::new(record),
+            metadata: upload.metadata.clone(),
+        },
     };
     // A Refused Descriptor Retains The Original Finished Handle For Retry
     upload.record.status = status.clone();

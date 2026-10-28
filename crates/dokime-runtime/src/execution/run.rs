@@ -143,7 +143,10 @@ async fn execute<T: SidecarTemplate>(
                 None,
                 &transport,
                 &evidence,
-                Ended::Failed { step: PARAMETERS.into(), diagnostic: Box::new(Diagnostic::of(refusal.to_string())) },
+                Ended::Failed {
+                    step: PARAMETERS.into(),
+                    diagnostic: Box::new(Diagnostic::of(refusal.to_string())),
+                },
                 None,
                 false,
             )
@@ -263,7 +266,10 @@ async fn execute<T: SidecarTemplate>(
     if let Some(diagnostic) = settle_callbacks(&environment, &transport).await
         && matches!(ended, Ended::Completed)
     {
-        ended = Ended::Failed { step: "settling callbacks".into(), diagnostic: Box::new(diagnostic) };
+        ended = Ended::Failed {
+            step: "settling callbacks".into(),
+            diagnostic: Box::new(diagnostic),
+        };
     }
 
     let reason = match &ended {
@@ -295,7 +301,10 @@ async fn execute<T: SidecarTemplate>(
     }
 
     if let Some(diagnostic) = environment.streams().failure() {
-        ended = Ended::Failed { step: "publishing stream evidence".into(), diagnostic: Box::new(diagnostic) };
+        ended = Ended::Failed {
+            step: "publishing stream evidence".into(),
+            diagnostic: Box::new(diagnostic),
+        };
     }
 
     // Gaps join the evidence where the observers' rows did: after everything
@@ -305,7 +314,10 @@ async fn execute<T: SidecarTemplate>(
     let inputs_settled = match finalize_record_inputs(&executions, &token, &mut cancel, &mut evidence, host_managed_subscriptions).await {
         Ok(()) => true,
         Err(diagnostic) => {
-            ended = Ended::Failed { step: "settling record subscriptions".into(), diagnostic: Box::new(diagnostic) };
+            ended = Ended::Failed {
+                step: "settling record subscriptions".into(),
+                diagnostic: Box::new(diagnostic),
+            };
             false
         }
     };
@@ -483,7 +495,10 @@ async fn walk<T: SidecarTemplate>(
                 controls.complete(&command.id, None, Some(message.into()));
                 continue;
             }
-            return Ended::Failed { step: declared.metadata.identifier.to_string(), diagnostic: Box::new(Diagnostic::of(message)) };
+            return Ended::Failed {
+                step: declared.metadata.identifier.to_string(),
+                diagnostic: Box::new(Diagnostic::of(message)),
+            };
         }
         let step = declared.metadata.identifier.clone();
         // Progress is recorded here, before the step's own code can run, so a
@@ -510,7 +525,10 @@ async fn walk<T: SidecarTemplate>(
             if *cancel.borrow() {
                 return Ended::Cancelled { step: step.to_string() };
             }
-            return Ended::Failed { step: step.to_string(), diagnostic: Box::new(diagnostic) };
+            return Ended::Failed {
+                step: step.to_string(),
+                diagnostic: Box::new(diagnostic),
+            };
         }
         evidence.record_step(step.clone());
         environment.handles().begin(super::StepIdentity {
@@ -574,7 +592,10 @@ async fn walk<T: SidecarTemplate>(
                 return Ended::Cancelled { step: step.to_string() };
             }
             Some(Err(diagnostic)) => {
-                return Ended::Failed { step: step.to_string(), diagnostic: Box::new(diagnostic) };
+                return Ended::Failed {
+                    step: step.to_string(),
+                    diagnostic: Box::new(diagnostic),
+                };
             }
             Some(Ok(())) => {}
         }
@@ -642,7 +663,12 @@ async fn conclude<T: SidecarTemplate>(
             ),
         };
 
-        criteria.push(SidecarCriterionOutcome { identifier, label, status: status as i32, message });
+        criteria.push(SidecarCriterionOutcome {
+            identifier,
+            label,
+            status: status as i32,
+            message,
+        });
     }
 
     let passed = criteria.iter().filter(|criterion| criterion.status == SidecarCriterionStatus::Passed as i32).count();

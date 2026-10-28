@@ -56,7 +56,11 @@ pub struct PluginIdentity {
 
 impl From<&Identity> for PluginIdentity {
     fn from(identity: &Identity) -> Self {
-        Self { name: identity.name.clone(), version: identity.version.to_string(), description: identity.description.clone() }
+        Self {
+            name: identity.name.clone(),
+            version: identity.version.to_string(),
+            description: identity.description.clone(),
+        }
     }
 }
 

@@ -170,7 +170,10 @@ impl DesktopSession {
             let document = super::super::connection::registry::load().await.map_err(|error| Error::Connection { error })?;
             Some(
                 dokime::client::profiles::get(&document, identifier)
-                    .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?
+                    .map_err(|error| Error::Startup {
+                        message: error.to_string(),
+                        diagnostics: None,
+                    })?
                     .clone(),
             )
         } else {
@@ -180,7 +183,10 @@ impl DesktopSession {
             let target = dokime::client::Target::new(&profile.endpoint, profile.ca_certificate_pem.clone())
                 .map_err(|error| Error::Connection { error: error.into() })?;
             let target = if target.is_remote() {
-                ConnectionTarget::Remote { endpoint: profile.endpoint.clone(), ca_certificate_pem: profile.ca_certificate_pem.clone() }
+                ConnectionTarget::Remote {
+                    endpoint: profile.endpoint.clone(),
+                    ca_certificate_pem: profile.ca_certificate_pem.clone(),
+                }
             } else {
                 ConnectionTarget::Local { endpoint: profile.endpoint.clone() }
             };
@@ -189,7 +195,11 @@ impl DesktopSession {
                 dokime::client::profiles::Secret::Keyring => ConnectionSecrets::Saved,
             };
             BackendSelection::Attach {
-                request: ConnectRequest { target, secrets, expected_backend_id: profile.expected_backend_id.clone() },
+                request: ConnectRequest {
+                    target,
+                    secrets,
+                    expected_backend_id: profile.expected_backend_id.clone(),
+                },
             }
         } else {
             selection
@@ -202,9 +212,10 @@ impl DesktopSession {
         }
         let revision = self.begin(false)?;
         let owner = self.clone();
-        let result = tokio::spawn(async move { owner.select_owned(revision, selection).await })
-            .await
-            .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
+        let result = tokio::spawn(async move { owner.select_owned(revision, selection).await }).await.map_err(|error| Error::Startup {
+            message: error.to_string(),
+            diagnostics: None,
+        })?;
         // Startup is over, one way or another: whatever phase it last
         // reported no longer describes anything a caller should show. The
         // success path already clears it before publishing its snapshot;
@@ -284,9 +295,10 @@ impl DesktopSession {
         // Reset Under A New Revision
         let revision = self.begin(false)?;
         let owner = self.clone();
-        let result = tokio::spawn(async move { owner.reset_owned(revision, root, None).await })
-            .await
-            .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
+        let result = tokio::spawn(async move { owner.reset_owned(revision, root, None).await }).await.map_err(|error| Error::Startup {
+            message: error.to_string(),
+            diagnostics: None,
+        })?;
         if let Err(error) = &result {
             self.fail(revision, error);
         }
@@ -306,9 +318,12 @@ impl DesktopSession {
         // Back Up And Reset Under A New Revision
         let revision = self.begin(false)?;
         let owner = self.clone();
-        let result = tokio::spawn(async move { owner.reset_owned(revision, root, Some(destination)).await })
-            .await
-            .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
+        let result = tokio::spawn(async move { owner.reset_owned(revision, root, Some(destination)).await }).await.map_err(|error| {
+            Error::Startup {
+                message: error.to_string(),
+                diagnostics: None,
+            }
+        })?;
         if let Err(error) = &result {
             self.fail(revision, error);
         }
@@ -458,11 +473,15 @@ impl DesktopSession {
         let source = root.clone();
         let archive = tokio::task::spawn_blocking(move || source.archive(&destination, |bytes| owner.report_archived(revision, bytes)))
             .await
-            .map_err(|error| Error::StorageReset { reason: StorageResetReason::Failed, message: error.to_string() })??;
+            .map_err(|error| Error::StorageReset {
+                reason: StorageResetReason::Failed,
+                message: error.to_string(),
+            })??;
         tracing::warn!(archive = %archive.display(), "local storage archived");
-        self.clear_and_restart(revision, root, &mut resources)
-            .await
-            .map_err(|error| Error::Archived { archive: archive.display().to_string(), error: Box::new(error) })
+        self.clear_and_restart(revision, root, &mut resources).await.map_err(|error| Error::Archived {
+            archive: archive.display().to_string(),
+            error: Box::new(error),
+        })
     }
     async fn clear_and_restart(
         &self, revision: u64, root: StorageRoot, resources: &mut Resources,
@@ -474,7 +493,10 @@ impl DesktopSession {
         tracing::warn!(root = %path.display(), "resetting local storage");
         tokio::task::spawn_blocking(move || root.clear())
             .await
-            .map_err(|error| Error::StorageReset { reason: StorageResetReason::Failed, message: error.to_string() })?
+            .map_err(|error| Error::StorageReset {
+                reason: StorageResetReason::Failed,
+                message: error.to_string(),
+            })?
             .inspect_err(|error| {
                 tracing::error!(root = %path.display(), ?error, "local storage reset refused");
             })?;
@@ -536,7 +558,13 @@ mod tests {
         assert_eq!(archived.archived_bytes, Some(4096));
         assert_eq!(archived.status_revision, 3);
 
-        owner.fail(revision, &Error::Startup { message: "failed".to_owned(), diagnostics: None });
+        owner.fail(
+            revision,
+            &Error::Startup {
+                message: "failed".to_owned(),
+                diagnostics: None,
+            },
+        );
         let failed = next_status(&mut updates).await;
         assert_eq!(failed.phase, None);
         assert_eq!(failed.archived_bytes, None);

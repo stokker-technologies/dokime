@@ -131,7 +131,16 @@ impl RecordProjection for Projection {
             let value = entry.payload.get("payload").and_then(serde_json::Value::as_str).unwrap().to_owned();
             let payload = harmos::Message::encode_to_vec(&Text { value });
             let item = Identifier::new(format!("record-{}", entry.position.0)).unwrap();
-            output.push(RecordInput { schema: schema(), item, payload, scope: None, source: None, source_time: None }).await?;
+            output
+                .push(RecordInput {
+                    schema: schema(),
+                    item,
+                    payload,
+                    scope: None,
+                    source: None,
+                    source_time: None,
+                })
+                .await?;
             Ok(())
         })
     }
@@ -310,7 +319,10 @@ fn nonzero(value: usize) -> NonZeroUsize {
 }
 
 fn limits(rows: usize, bytes: usize) -> ReadLimits {
-    ReadLimits { rows: nonzero(rows), bytes: nonzero(bytes) }
+    ReadLimits {
+        rows: nonzero(rows),
+        bytes: nonzero(bytes),
+    }
 }
 
 fn schema() -> SchemaKey {
@@ -322,13 +334,32 @@ fn schema() -> SchemaKey {
 }
 
 fn record(schema: &SchemaKey, item: &Identifier, payload: &[u8]) -> RecordInput {
-    RecordInput { schema: schema.clone(), scope: None, item: item.clone(), source: None, source_time: None, payload: payload.to_vec() }
+    RecordInput {
+        schema: schema.clone(),
+        scope: None,
+        item: item.clone(),
+        source: None,
+        source_time: None,
+        payload: payload.to_vec(),
+    }
 }
 
 async fn verify_records(storage: &StorageManager, count: usize, payload: &str) {
-    let selection =
-        harmos::storage::query::RecordSelection { schema: schema(), scope: None, item: None, source_start: None, source_end: None };
-    let mut reader = storage.read_records::<Text>(RecordRead { at: storage.cursor_saved(), selection, after: 0 }).await.unwrap();
+    let selection = harmos::storage::query::RecordSelection {
+        schema: schema(),
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
+    let mut reader = storage
+        .read_records::<Text>(RecordRead {
+            at: storage.cursor_saved(),
+            selection,
+            after: 0,
+        })
+        .await
+        .unwrap();
     let mut checked = 0;
     let mut after = 0;
     while let Some(page) = reader.next().await.unwrap() {
@@ -345,7 +376,10 @@ async fn verify_records(storage: &StorageManager, count: usize, payload: &str) {
 
 async fn verify_recovery(storage: &StorageManager) {
     let through = storage.status().recovery_saved;
-    let mut after = RecoveryPosition { history: through.history.clone(), sequence: 0 };
+    let mut after = RecoveryPosition {
+        history: through.history.clone(),
+        sequence: 0,
+    };
     let mut count = 0;
     while after.sequence < through.sequence {
         let page = storage.read_recovery(&after, &through, limits(4096, 1024 * 1024)).await.unwrap();

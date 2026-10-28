@@ -224,7 +224,12 @@ fn parse_windows_power_scheme(text: &str) -> PowerProfileContext {
     let mode = plan_name.as_deref().map(power_mode_label);
     let performance_bias = plan_name.as_deref().map(power_performance_bias);
 
-    PowerProfileContext { plan_name, plan_guid, mode, performance_bias }
+    PowerProfileContext {
+        plan_name,
+        plan_guid,
+        mode,
+        performance_bias,
+    }
 }
 
 #[cfg(windows)]

@@ -221,7 +221,10 @@ impl TryFrom<&Value> for crate::model::values::Value {
 
 impl From<OffsetDateTime> for Timestamp {
     fn from(value: OffsetDateTime) -> Self {
-        Self { seconds: value.unix_timestamp(), nanos: value.nanosecond() as i32 }
+        Self {
+            seconds: value.unix_timestamp(),
+            nanos: value.nanosecond() as i32,
+        }
     }
 }
 

@@ -101,7 +101,11 @@ fn validate_pattern(pattern: &str, value: &Value, name: &str, issues: &mut Vec<V
         Ok(_) => "text does not match the required pattern",
         Err(_) => "prompt declares an invalid pattern",
     };
-    issues.push(ValidationIssue { path: format!("values.{name}"), message: message.to_owned(), expected: None });
+    issues.push(ValidationIssue {
+        path: format!("values.{name}"),
+        message: message.to_owned(),
+        expected: None,
+    });
 }
 
 /* === Tests === */

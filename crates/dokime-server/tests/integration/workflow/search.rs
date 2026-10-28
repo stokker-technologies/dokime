@@ -54,7 +54,12 @@ fn labelled(identifier: &str, label: &str, description: Option<&str>) -> contrac
 async fn walk(
     client: &mut WireClient, filter: model::execution::wire::CycleFilter, order: model::execution::wire::CycleOrder, limit: u32,
 ) -> Vec<String> {
-    let mut request = contracts::execution::ListCycles { limit, filter: Some(filter), order: Some(order), ..Default::default() };
+    let mut request = contracts::execution::ListCycles {
+        limit,
+        filter: Some(filter),
+        order: Some(order),
+        ..Default::default()
+    };
     let mut walked = Vec::new();
     loop {
         let page = client.unary::<contracts::execution::ListCycles>(request.clone()).await.unwrap().into_inner();
@@ -86,27 +91,60 @@ async fn cycle_search_once() {
     ] {
         client.unary::<contracts::execution::CreateCycle>(labelled(identifier, label, description)).await.unwrap();
     }
-    let by_label = model::execution::wire::CycleOrder { key: model::execution::wire::CycleOrderKey::Label, descending: false };
+    let by_label = model::execution::wire::CycleOrder {
+        key: model::execution::wire::CycleOrderKey::Label,
+        descending: false,
+    };
 
     // Text narrows on the server, and one cycle per page still yields the
     // whole match set once, in the declared order.
-    let walked =
-        walk(&mut client, model::execution::wire::CycleFilter { text: "BURN in".into(), ..Default::default() }, by_label.clone(), 1).await;
+    let walked = walk(
+        &mut client,
+        model::execution::wire::CycleFilter {
+            text: "BURN in".into(),
+            ..Default::default()
+        },
+        by_label.clone(),
+        1,
+    )
+    .await;
     assert_eq!(walked, ["Burn In Alpha", "Burn In Beta", "Burn In Gamma"]);
 
     // The same matches, in one page, are the same sequence.
-    let single =
-        walk(&mut client, model::execution::wire::CycleFilter { text: "burn in".into(), ..Default::default() }, by_label.clone(), 50).await;
+    let single = walk(
+        &mut client,
+        model::execution::wire::CycleFilter {
+            text: "burn in".into(),
+            ..Default::default()
+        },
+        by_label.clone(),
+        50,
+    )
+    .await;
     assert_eq!(single, walked);
 
     // Text also matches the description, and the identifier.
-    let by_description =
-        walk(&mut client, model::execution::wire::CycleFilter { text: "thermal SOAK".into(), ..Default::default() }, by_label.clone(), 1)
-            .await;
+    let by_description = walk(
+        &mut client,
+        model::execution::wire::CycleFilter {
+            text: "thermal SOAK".into(),
+            ..Default::default()
+        },
+        by_label.clone(),
+        1,
+    )
+    .await;
     assert_eq!(by_description, ["Burn In Alpha", "Calibration Sweep"]);
-    let by_identifier =
-        walk(&mut client, model::execution::wire::CycleFilter { text: "grpc.burn-b".into(), ..Default::default() }, by_label.clone(), 2)
-            .await;
+    let by_identifier = walk(
+        &mut client,
+        model::execution::wire::CycleFilter {
+            text: "grpc.burn-b".into(),
+            ..Default::default()
+        },
+        by_label.clone(),
+        2,
+    )
+    .await;
     assert_eq!(by_identifier, ["Burn In Beta"]);
 
     // A status the runtime has not reached selects nothing; the one it has
@@ -114,7 +152,10 @@ async fn cycle_search_once() {
     assert!(
         walk(
             &mut client,
-            model::execution::wire::CycleFilter { statuses: vec![model::execution::wire::CycleStatus::Completed], ..Default::default() },
+            model::execution::wire::CycleFilter {
+                statuses: vec![model::execution::wire::CycleStatus::Completed],
+                ..Default::default()
+            },
             by_label.clone(),
             10,
         )
@@ -124,7 +165,10 @@ async fn cycle_search_once() {
     assert_eq!(
         walk(
             &mut client,
-            model::execution::wire::CycleFilter { statuses: vec![model::execution::wire::CycleStatus::Ready], ..Default::default() },
+            model::execution::wire::CycleFilter {
+                statuses: vec![model::execution::wire::CycleStatus::Ready],
+                ..Default::default()
+            },
             by_label.clone(),
             10,
         )
@@ -143,7 +187,10 @@ async fn cycle_search_once() {
             .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                 after_cycle_id: outsider,
                 cursor: excluded.cursor.clone(),
-                filter: Some(model::execution::wire::CycleFilter { text: "burn in".into(), ..Default::default() }),
+                filter: Some(model::execution::wire::CycleFilter {
+                    text: "burn in".into(),
+                    ..Default::default()
+                }),
                 order: Some(by_label),
                 ..Default::default()
             })

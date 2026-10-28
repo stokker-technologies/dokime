@@ -101,7 +101,10 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
                                     assert_eq!(reference.sha256, expected);
                                     let hash = fixture
                                         .storage
-                                        .hash_file(HashFile { source: FileSource::Stored(reference), range: range() })
+                                        .hash_file(HashFile {
+                                            source: FileSource::Stored(reference),
+                                            range: range(),
+                                        })
                                         .await
                                         .unwrap();
                                     assert_eq!(hash.sha256, expected);
@@ -128,7 +131,10 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
                                     let started = Instant::now();
                                     let mut reader = fixture
                                         .storage
-                                        .follow_file(FollowFile { source: input, start: FollowStart::Beginning })
+                                        .follow_file(FollowFile {
+                                            source: input,
+                                            start: FollowStart::Beginning,
+                                        })
                                         .await
                                         .unwrap();
                                     elapsed += started.elapsed();

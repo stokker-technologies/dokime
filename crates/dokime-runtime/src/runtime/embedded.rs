@@ -169,7 +169,13 @@ impl Instance {
         &mut self, handle: &RuntimeHandle, router: &harmos::plugin::Router, authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let instance = router.enter(&self.owner).map_err(operation)?;
-        self.running = Some(Running { instance, publisher: None, templates: Vec::new(), provider_started: false, operations: None });
+        self.running = Some(Running {
+            instance,
+            publisher: None,
+            templates: Vec::new(),
+            provider_started: false,
+            operations: None,
+        });
 
         let scope = self
             .running
@@ -193,9 +199,10 @@ impl Instance {
 
         let registration = handle.operations.stage_plugin(&scope, |bindings| {
             for template in &templates {
-                let [run, signal] =
-                    crate::execution::contracts_with_settings(template.template_identifier(), handle.schema_settings()).map_err(|_| {
-                        harmos::Error::InvalidInput { field: "embedded template", reason: "the template id is not an operation identity" }
+                let [run, signal] = crate::execution::contracts_with_settings(template.template_identifier(), handle.schema_settings())
+                    .map_err(|_| harmos::Error::InvalidInput {
+                        field: "embedded template",
+                        reason: "the template id is not an operation identity",
                     })?;
                 let served = Arc::new(Served {
                     template: Arc::clone(template),
@@ -354,7 +361,10 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Regis
         catalog: catalog.settings.clone(),
         discoveries: catalog.settings_discoveries.clone(),
     };
-    let appearance = AppearanceRegistration { customizations: catalog.app_customizations.clone(), themes: catalog.app_themes.clone() };
+    let appearance = AppearanceRegistration {
+        customizations: catalog.app_customizations.clone(),
+        themes: catalog.app_themes.clone(),
+    };
     let values = [
         (SUITES_NAMESPACE, serde_json::to_vec(&catalog.suites)),
         (SETTINGS_NAMESPACE, serde_json::to_vec(&settings)),

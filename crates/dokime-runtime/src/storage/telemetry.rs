@@ -15,10 +15,10 @@ mod typed;
 /* === Re-Exports === */
 
 pub use sample::Sample;
-pub use typed::{CodecCache, TypedCodec, codec, decode_positioned, decode_stream_values, decode_values, stored_codecs_where};
-pub(crate) use typed::{index_metadata, selected_schema};
 #[cfg(test)]
 pub(crate) use typed::PAYLOAD_PASSES;
+pub use typed::{CodecCache, TypedCodec, codec, decode_positioned, decode_stream_values, decode_values, stored_codecs_where};
+pub(crate) use typed::{index_metadata, selected_schema};
 
 /* === Imports === */
 

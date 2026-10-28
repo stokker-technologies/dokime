@@ -86,7 +86,10 @@ async fn on_change<T>(changes: &mut Changes, boundary: &str, mut probe: impl Asy
 async fn wait_prompt(changes: &mut Changes, prompts: &mut Client, cycle_id: &str) -> model::prompts::wire::PendingPromptIdentity {
     on_change(changes, "a pending prompt", async || {
         let page = prompts
-            .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.to_owned()), ..Default::default() })
+            .prompts_list_pending(contracts::prompts::ListPending {
+                cycle_id: Some(cycle_id.to_owned()),
+                ..Default::default()
+            })
             .await
             .unwrap();
         page.prompts.into_iter().next()
@@ -114,7 +117,10 @@ fn passed(cycle: &model::execution::wire::CycleSummary) -> bool {
 async fn execution_id(changes: &mut Changes, execution: &mut Client, cycle_id: &str) -> String {
     on_change(changes, "the first execution", async || {
         let page = execution
-            .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() })
+            .execution_list_executions(contracts::execution::ListExecutions {
+                cycle_id: cycle_id.to_owned(),
+                ..Default::default()
+            })
             .await
             .unwrap();
         page.executions.into_iter().next().map(|item| item.execution_id)
@@ -206,7 +212,10 @@ async fn create_cycle(
     let executions = registered
         .cases
         .into_iter()
-        .map(|case| contracts::execution::ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: case.case_id })
+        .map(|case| contracts::execution::ExecutionBinding {
+            execution_id: uuid::Uuid::now_v7().to_string(),
+            case_id: case.case_id,
+        })
         .collect();
     execution.execution_append_executions(contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions }).await.unwrap();
     cycle_id
@@ -214,7 +223,10 @@ async fn create_cycle(
 
 async fn run_cycle(execution: &mut Client, cycle_id: &str) {
     let members = execution
-        .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() })
+        .execution_list_executions(contracts::execution::ListExecutions {
+            cycle_id: cycle_id.to_owned(),
+            ..Default::default()
+        })
         .await
         .unwrap();
     let reply = execution
@@ -274,7 +286,10 @@ async fn report_bytes(report: ResponseStream<model::reports::wire::ReportHtmlFra
 }
 
 async fn cycle_report(client: &Client, cycle_id: &str) -> Vec<u8> {
-    let request = contracts::reports::DownloadCycleReport { cycle_id: cycle_id.to_owned(), identifier: "cycle.summary".into() };
+    let request = contracts::reports::DownloadCycleReport {
+        cycle_id: cycle_id.to_owned(),
+        identifier: "cycle.summary".into(),
+    };
     report_bytes(client.reports_download_cycle_report(request).await.unwrap()).await
 }
 
@@ -414,7 +429,10 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
     execution.cycle(id).seal().await.unwrap();
     let summary = execution
-        .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
+        .execution_list_executions(contracts::execution::ListExecutions {
+            cycle_id: cycle_id.clone(),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .executions
@@ -589,7 +607,10 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let documents = client.clone();
     let stream = documents
         .documents_capture_current_document(contracts::documents::CaptureCurrentDocument {
-            scope: Some(model::documents::wire::DocumentScope { cycle_id: cycle_id.clone(), execution_id: execution_id.clone() }),
+            scope: Some(model::documents::wire::DocumentScope {
+                cycle_id: cycle_id.clone(),
+                execution_id: execution_id.clone(),
+            }),
             document_id: "default".into(),
         })
         .await
@@ -634,7 +655,10 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let evidence = client.clone();
     let records = evidence
         .evidence_list_records(contracts::evidence::ListRecords {
-            selection: Some(model::evidence::wire::CapturedRecordSelection { scope: Some(execution_scope.clone()), ..Default::default() }),
+            selection: Some(model::evidence::wire::CapturedRecordSelection {
+                scope: Some(execution_scope.clone()),
+                ..Default::default()
+            }),
             ..Default::default()
         })
         .await
@@ -737,7 +761,10 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
     let prompts = client.clone();
     on_change(changes, "steady report sweep completion", async || {
         let pending = prompts
-            .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
+            .prompts_list_pending(contracts::prompts::ListPending {
+                cycle_id: Some(cycle_id.clone()),
+                ..Default::default()
+            })
             .await
             .unwrap();
         for prompt in pending.prompts {
@@ -767,7 +794,10 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
     let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
     execution.cycle(id).seal().await.unwrap();
     let executions = execution
-        .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
+        .execution_list_executions(contracts::execution::ListExecutions {
+            cycle_id: cycle_id.clone(),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .executions;
@@ -815,11 +845,17 @@ async fn open_report_while_cycle_runs() {
     let executions = registered
         .cases
         .into_iter()
-        .map(|case| contracts::execution::ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: case.case_id })
+        .map(|case| contracts::execution::ExecutionBinding {
+            execution_id: uuid::Uuid::now_v7().to_string(),
+            case_id: case.case_id,
+        })
         .collect();
     execution.execution_append_executions(contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions }).await.unwrap();
     let members = execution
-        .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
+        .execution_list_executions(contracts::execution::ListExecutions {
+            cycle_id: cycle_id.clone(),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .executions;
@@ -837,7 +873,10 @@ async fn open_report_while_cycle_runs() {
     // Back-To-Back Requests Cover The Measuring Member's Seal, The Next Admission And The Question
     on_change(&mut changes, "the measuring member to pass", async || {
         let page = execution
-            .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
+            .execution_list_executions(contracts::execution::ListExecutions {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            })
             .await
             .unwrap();
         let measuring = page.executions.iter().find(|member| member.execution_id == members[0].execution_id)?;
@@ -853,7 +892,10 @@ async fn open_report_while_cycle_runs() {
         assert!(!html.is_empty());
         opened += 1;
         let page = prompts
-            .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
+            .prompts_list_pending(contracts::prompts::ListPending {
+                cycle_id: Some(cycle_id.clone()),
+                ..Default::default()
+            })
             .await
             .unwrap();
         if let Some(pending) = page.prompts.into_iter().next() {
@@ -873,7 +915,10 @@ async fn open_report_while_cycle_runs() {
     let execution_html = tokio::time::timeout(BOUND, execution_report).await.expect("the execution report opens while the prompt waits");
     assert!(!execution_html.is_empty());
     let still = prompts
-        .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
+        .prompts_list_pending(contracts::prompts::ListPending {
+            cycle_id: Some(cycle_id.clone()),
+            ..Default::default()
+        })
         .await
         .unwrap();
     assert!(still.prompts.iter().any(|prompt| prompt.prompt_id == pending.prompt_id), "opening a report leaves the prompt pending");
@@ -1055,7 +1100,10 @@ async fn plugin_host_walkthrough() {
     })
     .await;
     let report = client
-        .reports_download_cycle_report(contracts::reports::DownloadCycleReport { cycle_id: cycle_id.clone(), identifier: String::new() })
+        .reports_download_cycle_report(contracts::reports::DownloadCycleReport {
+            cycle_id: cycle_id.clone(),
+            identifier: String::new(),
+        })
         .await
         .unwrap();
     let mut metadata = None;
@@ -1111,7 +1159,9 @@ async fn plugin_host_walkthrough() {
 
     // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
     let removed = client
-        .plugins_remove(contracts::plugins::Remove { install_id: installation.install_id.clone() })
+        .plugins_remove(contracts::plugins::Remove {
+            install_id: installation.install_id.clone(),
+        })
         .await
         .unwrap()
         .installation

@@ -134,7 +134,12 @@ impl Sections {
 fn sections(values: Vec<dokime::domain::model::history::wire::EvidenceSection>) -> Result<Sections, Status> {
     use dokime::domain::model::history::wire::EvidenceSection;
     let all = values.is_empty();
-    let mut selected = Sections { outputs: all, artifacts: all, record_schemas: all, telemetry_tables: all };
+    let mut selected = Sections {
+        outputs: all,
+        artifacts: all,
+        record_schemas: all,
+        telemetry_tables: all,
+    };
     for section in values {
         match section {
             EvidenceSection::Outputs => selected.outputs = true,
@@ -282,7 +287,9 @@ fn original_error(source: Status) -> dokime::harmos::Error {
 }
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint evidence" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical checkpoint evidence",
+    }
 }
 
 /* === Tests === */

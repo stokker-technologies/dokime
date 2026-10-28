@@ -56,7 +56,12 @@ impl Fixture {
             .runtime_with_storage(&storage)
             .await
             .unwrap();
-        Self { settings, _directory: directory, storage, runtime }
+        Self {
+            settings,
+            _directory: directory,
+            storage,
+            runtime,
+        }
     }
 
     pub async fn finish(self) {

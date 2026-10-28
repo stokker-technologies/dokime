@@ -186,8 +186,15 @@ impl Gate {
         use dokime::domain::operations::execution::ListCycles;
 
         // Locate The Script's Cycle Without Depending On Its Pending Reply.
-        let filter = CycleFilter { text: self.label.clone(), ..Default::default() };
-        let request = ListCycles { limit: 100, filter: Some(filter), ..Default::default() };
+        let filter = CycleFilter {
+            text: self.label.clone(),
+            ..Default::default()
+        };
+        let request = ListCycles {
+            limit: 100,
+            filter: Some(filter),
+            ..Default::default()
+        };
         let reply = self.client.execution_list_cycles(request).await.map_err(|error| std::io::Error::other(error.to_string()))?;
         let cycle = reply.cycles.into_iter().find(|cycle| cycle.metadata.as_ref().is_some_and(|metadata| metadata.label == self.label));
         let Some(cycle) = cycle else {
@@ -270,10 +277,17 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
     let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
     let parameters = vec![RegisteredSelectionParametersEntry {
         key: "require_confirmation".into(),
-        value: Some(SelectionValues { values: vec![Value::Bool(true).try_into().unwrap()] }),
+        value: Some(SelectionValues {
+            values: vec![Value::Bool(true).try_into().unwrap()],
+        }),
     }];
     let (_, template) = client.template("obc.checks.pulse").await.unwrap();
-    let selection = RegisteredSelection { suite_id: "obc.checks".into(), template_id: template.template_id, parameters, files: Vec::new() };
+    let selection = RegisteredSelection {
+        suite_id: "obc.checks".into(),
+        template_id: template.template_id,
+        parameters,
+        files: Vec::new(),
+    };
     let materialized = client.materialize_template(MaterializeTemplate { selection: Some(selection) }).await.unwrap();
     assert_eq!(materialized.cases.len(), 1);
     let metadata = Metadata {
@@ -285,9 +299,16 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
         created_at: None,
         updated_at: None,
     };
-    let request = CreateCycle { metadata: Some(metadata), continue_automatically: false, context: None };
+    let request = CreateCycle {
+        metadata: Some(metadata),
+        continue_automatically: false,
+        context: None,
+    };
     let cycle = client.create_cycle(request).await.unwrap();
-    let binding = ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: materialized.cases[0].case_id.clone() };
+    let binding = ExecutionBinding {
+        execution_id: uuid::Uuid::now_v7().to_string(),
+        case_id: materialized.cases[0].case_id.clone(),
+    };
     cycle.append(vec![binding]).await.unwrap();
     let mut members = cycle.executions().await.unwrap();
     let execution = members.pop().unwrap();
@@ -511,7 +532,12 @@ fn terminal_command(command: &Command, batch: bool) -> CommandBuilder {
 
 fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     let runtime = tokio::runtime::Handle::current();
-    let size = PtySize { rows: 40, cols: 240, pixel_width: 0, pixel_height: 0 };
+    let size = PtySize {
+        rows: 40,
+        cols: 240,
+        pixel_width: 0,
+        pixel_height: 0,
+    };
     let pair = native_pty_system().openpty(size).unwrap();
     let child = pair.slave.spawn_command(command).unwrap();
     let mut process = Process { child, reaped: false };
@@ -554,9 +580,16 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
         Ok(joined) => joined.unwrap().unwrap(),
         Err(_) => panic!("the remote script exceeded {SCRIPT_DEADLINE:?} and its terminal stayed open after the process tree was killed"),
     };
-    assert!(!expired, "the remote script exceeded {SCRIPT_DEADLINE:?} and its process tree was killed:
-{text}");
-    Outcome { success: status.success(), triggered, text }
+    assert!(
+        !expired,
+        "the remote script exceeded {SCRIPT_DEADLINE:?} and its process tree was killed:
+{text}"
+    );
+    Outcome {
+        success: status.success(),
+        triggered,
+        text,
+    }
 }
 
 // Kill The Script And Every Descendant, Such As Waiting CLI Processes.

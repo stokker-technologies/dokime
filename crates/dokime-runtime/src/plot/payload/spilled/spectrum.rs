@@ -119,7 +119,11 @@ pub(super) fn transform(series: &mut Series, request: &PlotPayloadRequest) -> Re
             FrequencyLevelUnit::Dbu => 20.0 * (rms / 0.775).max(f64::MIN_POSITIVE).log10(),
             FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
         };
-        points.push(PlotPoint { x: frequency.into(), y: Some(level), z: None })?;
+        points.push(PlotPoint {
+            x: frequency.into(),
+            y: Some(level),
+            z: None,
+        })?;
     }
     let mut metadata = series.metadata.clone();
     metadata.unit = match options.level_unit {

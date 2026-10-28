@@ -118,7 +118,10 @@ pub(super) fn stream_frame(
 ) -> Result<dokime::harmos::storage::ReadBatch<dokime::domain::model::plots::wire::PlotStreamFrame>, FrameError> {
     value.try_map(|value| {
         let envelope = plot_envelope(value, epoch, selection)?;
-        let mut frame = dokime::domain::model::plots::wire::PlotStreamFrame { kind: plot_stream_kind(kind), envelope: Some(envelope) };
+        let mut frame = dokime::domain::model::plots::wire::PlotStreamFrame {
+            kind: plot_stream_kind(kind),
+            envelope: Some(envelope),
+        };
         fit_message(&mut frame, |value| value.envelope.as_mut().expect("constructed plot frame has envelope"), limit, true)?;
         Ok(frame)
     })
@@ -502,7 +505,11 @@ fn plot_analysis(value: dokime::runtime::query::PlotAnalysis) -> Result<dokime::
                         })
                         .transpose()?,
                     bins: mapped(series.bins, |bin| {
-                        Ok(wire::PlotHistogramBin { lower: number(bin.lower)?, upper: number(bin.upper)?, count: count(bin.count)? })
+                        Ok(wire::PlotHistogramBin {
+                            lower: number(bin.lower)?,
+                            upper: number(bin.upper)?,
+                            count: count(bin.count)?,
+                        })
                     })?,
                 })
             })?,
@@ -542,9 +549,12 @@ fn plot_analysis(value: dokime::runtime::query::PlotAnalysis) -> Result<dokime::
                 })
             })?,
         }),
-        PlotAnalysis::WifiOccupancy { channels, occupied_channels, bands, scans } => {
-            Analysis::WifiOccupancy(wifi_occupancy(channels, occupied_channels, bands, scans)?)
-        }
+        PlotAnalysis::WifiOccupancy {
+            channels,
+            occupied_channels,
+            bands,
+            scans,
+        } => Analysis::WifiOccupancy(wifi_occupancy(channels, occupied_channels, bands, scans)?),
     };
     Ok(wire::PlotAnalysis { result: Some(result) })
 }
@@ -558,12 +568,20 @@ fn wifi_occupancy(
     Ok(wire::PlotWifiOccupancyAnalysis {
         channels,
         occupied_channels,
-        bands: mapped(bands, |band| Ok(wire::PlotWifiBandWindow { band: band.band, occupied_channels: count(band.occupied_channels)? }))?,
+        bands: mapped(bands, |band| {
+            Ok(wire::PlotWifiBandWindow {
+                band: band.band,
+                occupied_channels: count(band.occupied_channels)?,
+            })
+        })?,
         scans: mapped(scans, |scan| {
             Ok(wire::PlotWifiScan {
                 time: scan.time,
                 channels: mapped(scan.channels, |channel| {
-                    Ok(wire::PlotWifiChannelCount { channel: channel.channel, count: count(channel.count)? })
+                    Ok(wire::PlotWifiChannelCount {
+                        channel: channel.channel,
+                        count: count(channel.count)?,
+                    })
                 })?,
                 bands: mapped(scan.bands, |band| {
                     Ok(wire::PlotWifiBandScan {

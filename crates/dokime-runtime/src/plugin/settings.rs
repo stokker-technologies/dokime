@@ -122,7 +122,9 @@ where
 
 impl Discovered {
     pub fn of(value: impl Into<Value>) -> Self {
-        Self { value_json: serde_json::to_string(&value.into()).expect("a settings value serializes") }
+        Self {
+            value_json: serde_json::to_string(&value.into()).expect("a settings value serializes"),
+        }
     }
 
     pub fn value(&self) -> Result<Value, serde_json::Error> {
@@ -137,7 +139,9 @@ pub fn option_provider(operation: &str) -> OptionProviderContribution {
         metadata: crate::domains::authoring::metadata(operation, &titled(operation), "Offered by this plugin while it is running."),
         input_schema: None,
         permissions: Vec::new(),
-        source: OptionProviderSource::Runtime { entrypoint: PluginEntrypoint { name: operation.to_owned() } },
+        source: OptionProviderSource::Runtime {
+            entrypoint: PluginEntrypoint { name: operation.to_owned() },
+        },
     }
 }
 
@@ -148,14 +152,20 @@ pub fn operation_of<R: harmos::operations::Declares>() -> &'static str {
 }
 
 pub fn discovery(field: &str, operation: &str) -> Discovery {
-    Discovery { field: field.to_owned(), operation: operation.to_owned() }
+    Discovery {
+        field: field.to_owned(),
+        operation: operation.to_owned(),
+    }
 }
 
 pub fn choices<T: ParameterValue>() -> Vec<Choice> {
     <T as ParameterValue>::choices()
         .unwrap_or_default()
         .into_iter()
-        .map(|choice| Choice { value: text(choice.value), title: choice.label })
+        .map(|choice| Choice {
+            value: text(choice.value),
+            title: choice.label,
+        })
         .collect()
 }
 

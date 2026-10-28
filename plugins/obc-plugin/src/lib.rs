@@ -127,7 +127,11 @@ impl dokime::Plugin for ObcPlugin {
         let settings = dokime::plugin::refusal(config.settings::<BenchSettings>())?;
         Ok(Self {
             runtime: None,
-            resources: Arc::new(Resources { app: OnceLock::new(), connections: Mutex::default(), settings }),
+            resources: Arc::new(Resources {
+                app: OnceLock::new(),
+                connections: Mutex::default(),
+                settings,
+            }),
             observers: None,
         })
     }

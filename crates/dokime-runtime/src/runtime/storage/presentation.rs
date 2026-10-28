@@ -96,7 +96,11 @@ pub(super) fn capture(
         appearance_policy,
         scope: execution.scope.clone(),
         session_id: cycle.session_id.clone().unwrap_or_else(|| state.session_id.clone()),
-        cycle: ExecutionCycleContext { cycle: grouping, cases: cases.clone_values()?, execution_order },
+        cycle: ExecutionCycleContext {
+            cycle: grouping,
+            cases: cases.clone_values()?,
+            execution_order,
+        },
         execution_documents,
         traceability: {
             let mut snapshots = crate::traceability::snapshots_from_execution_parameters(

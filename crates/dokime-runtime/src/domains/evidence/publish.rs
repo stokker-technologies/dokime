@@ -121,7 +121,11 @@ pub(crate) fn validation_rejection(message: impl Into<String>, path: impl Into<S
     Error::validation(
         "validation_failed",
         message,
-        vec![ValidationIssue { path: path.into(), message: "producer payload failed validation".to_owned(), expected }],
+        vec![ValidationIssue {
+            path: path.into(),
+            message: "producer payload failed validation".to_owned(),
+            expected,
+        }],
     )
 }
 

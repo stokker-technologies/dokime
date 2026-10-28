@@ -44,7 +44,12 @@ use dokime_runtime::config::ApplicationOptions;
 #[test]
 fn explicit_root_local() {
     let root = tempfile::tempdir().unwrap();
-    let config = ApplicationOptions { application_root: Some(root.path().to_owned()), ..Default::default() }.resolve().unwrap();
+    let config = ApplicationOptions {
+        application_root: Some(root.path().to_owned()),
+        ..Default::default()
+    }
+    .resolve()
+    .unwrap();
     assert_eq!(config.output_root, root.path().join("data"));
     assert_eq!(config.application_root.as_deref(), Some(root.path()));
     assert_eq!(config.plugin_lookup, None);
@@ -65,7 +70,10 @@ fn explicit_root_local() {
 #[tokio::test]
 async fn data_root_reopens() {
     let root = tempfile::tempdir().unwrap();
-    let options = ApplicationOptions { application_root: Some(root.path().to_owned()), ..Default::default() };
+    let options = ApplicationOptions {
+        application_root: Some(root.path().to_owned()),
+        ..Default::default()
+    };
     let first = options.clone().resolve().unwrap().output_root;
     assert!(!first.exists(), "the first launch creates the data root");
     for launch in 0..3 {

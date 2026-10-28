@@ -100,7 +100,11 @@ impl harmos_domain::MemorySize for StructuredErrorDetail {
 
 impl ErrorCause {
     pub fn new(message: impl Into<String>) -> Self {
-        Self { message: message.into(), code: None, source: None }
+        Self {
+            message: message.into(),
+            code: None,
+            source: None,
+        }
     }
 }
 

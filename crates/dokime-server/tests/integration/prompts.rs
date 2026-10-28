@@ -77,7 +77,10 @@ async fn execution_prompt_identity() {
     let sibling = uuid::Uuid::now_v7().to_string();
     let bindings = [&first, &sibling]
         .into_iter()
-        .map(|id| contracts::execution::ExecutionBinding { execution_id: id.clone(), case_id: cases.cases[0].case_id.clone() })
+        .map(|id| contracts::execution::ExecutionBinding {
+            execution_id: id.clone(),
+            case_id: cases.cases[0].case_id.clone(),
+        })
         .collect();
     cycle.append(bindings).await.unwrap();
     assert_ne!(first, sibling);
@@ -262,8 +265,10 @@ async fn prompt_answers_identity() {
             validation: Default::default(),
         })
         .definition();
-    definition.rules =
-        vec![Rule { predicate: BooleanExpression::selector("counter").eq(i64::MAX), message: "Keep the exact counter".into() }];
+    definition.rules = vec![Rule {
+        predicate: BooleanExpression::selector("counter").eq(i64::MAX),
+        message: "Keep the exact counter".into(),
+    }];
     let mut owner = prompt_runtime(root.path(), definition).await;
     let handle = owner.handle();
     let ids = [dokime::model::identity::new_id::<PromptId>(), dokime::model::identity::new_id::<PromptId>()];
@@ -441,7 +446,12 @@ async fn prompt_condition_commit() {
         condition.match_fields.unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("resource_id") == Some(&Value::Text("fixture-device".into()))
     ));
-    let answer = contracts::prompts::Respond { prompt_id: id.to_string(), action: "submit".into(), accepted: true, ..Default::default() };
+    let answer = contracts::prompts::Respond {
+        prompt_id: id.to_string(),
+        action: "submit".into(),
+        accepted: true,
+        ..Default::default()
+    };
     let rejected = client.unary::<contracts::prompts::Respond>(authenticated(answer.clone())).await.unwrap_err();
     assert_eq!(rejected.code(), Code::FailedPrecondition);
     let envelope = tonic_types::Status::decode(rejected.details()).unwrap();
@@ -550,7 +560,10 @@ async fn settled_prompt_refused() {
         .unwrap();
     let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let pending = |cycle: &TestCycleId| contracts::prompts::ListPending { cycle_id: Some(cycle.to_string()), ..Default::default() };
+    let pending = |cycle: &TestCycleId| contracts::prompts::ListPending {
+        cycle_id: Some(cycle.to_string()),
+        ..Default::default()
+    };
     let waiting = client.unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle))).await.unwrap().into_inner();
     assert_eq!(waiting.prompts.len(), 1);
 

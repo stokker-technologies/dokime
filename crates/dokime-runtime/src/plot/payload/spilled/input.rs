@@ -89,7 +89,11 @@ impl Input {
              BEGIN;",
             )
             .map_err(failure)?;
-        let owner = Owner { connection, _directory: directory, reverse_records: false };
+        let owner = Owner {
+            connection,
+            _directory: directory,
+            reverse_records: false,
+        };
         let owner = Arc::new(Mutex::new(owner));
         Ok(Self { owner })
     }
@@ -163,7 +167,10 @@ impl Input {
 
     pub(super) fn read<T>(&self, read: impl FnOnce(Read<'_>) -> Result<T>) -> Result<T> {
         let owner = self.owner.lock().map_err(failure)?;
-        read(Read { connection: &owner.connection, reverse_records: owner.reverse_records })
+        read(Read {
+            connection: &owner.connection,
+            reverse_records: owner.reverse_records,
+        })
     }
 }
 

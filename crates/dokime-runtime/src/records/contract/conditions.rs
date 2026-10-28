@@ -49,7 +49,11 @@ pub fn evaluate_record_condition(condition: &RecordCondition, records: &[RecordE
             continue;
         }
 
-        return RecordConditionEvaluation { satisfied: true, matched_sequence: Some(record.sequence), reason: None };
+        return RecordConditionEvaluation {
+            satisfied: true,
+            matched_sequence: Some(record.sequence),
+            reason: None,
+        };
     }
 
     RecordConditionEvaluation {

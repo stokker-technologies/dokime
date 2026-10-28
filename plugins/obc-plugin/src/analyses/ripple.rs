@@ -59,13 +59,21 @@ impl Analysis for Ripple {
         let minimum = values.clone().fold(f64::INFINITY, f64::min);
         let maximum = values.fold(f64::NEG_INFINITY, f64::max);
 
-        Ok(Amplitude { value: maximum - minimum, unit: samples.unit.clone() })
+        Ok(Amplitude {
+            value: maximum - minimum,
+            unit: samples.unit.clone(),
+        })
     }
 }
 
 impl ResultData for Amplitude {
     fn outputs() -> Vec<Output> {
-        vec![Output { key: "ripple".into(), label: "Ripple".into(), unit: None, axis: None }]
+        vec![Output {
+            key: "ripple".into(),
+            label: "Ripple".into(),
+            unit: None,
+            axis: None,
+        }]
     }
 
     fn into_response(self) -> Response {

@@ -94,12 +94,19 @@ pub(in crate::grpc) fn metadata(value: &Metadata) -> Result<common::Metadata, St
 }
 
 pub(in crate::grpc) fn cursor(snapshot: &dokime::runtime::query::RuntimeStateSnapshot) -> Cursor {
-    Cursor { epoch: snapshot.state().process_epoch().to_string(), stream: "runtime.state".into(), position: snapshot.revision() }
+    Cursor {
+        epoch: snapshot.state().process_epoch().to_string(),
+        stream: "runtime.state".into(),
+        position: snapshot.revision(),
+    }
 }
 
 pub(in crate::grpc) fn timestamp(value: &dokime::domain::model::time::Timestamp) -> Result<common::Timestamp, Status> {
     let at = value.to_datetime().map_err(|_| Status::internal("invalid native timestamp"))?;
-    Ok(common::Timestamp { seconds: at.unix_timestamp(), nanos: at.nanosecond() as i32 })
+    Ok(common::Timestamp {
+        seconds: at.unix_timestamp(),
+        nanos: at.nanosecond() as i32,
+    })
 }
 
 pub(in crate::grpc) fn decoded_timestamp(value: common::Timestamp) -> Result<dokime::domain::model::time::Timestamp, Status> {
@@ -146,9 +153,9 @@ pub(in crate::grpc) fn decoded_scope(scope: &common::EvidenceScope) -> Result<do
         None | Some(common::EvidenceOriginKind::Default(true)) => EvidenceOrigin::Default,
         Some(common::EvidenceOriginKind::Initialization(true)) => EvidenceOrigin::Initialization,
         Some(common::EvidenceOriginKind::Cleanup(true)) => EvidenceOrigin::Cleanup,
-        Some(common::EvidenceOriginKind::StepAttemptId(id)) => {
-            EvidenceOrigin::Step { attempt_id: StepAttemptId::from_uuid(id).map_err(|error| Status::invalid_argument(error.to_string()))? }
-        }
+        Some(common::EvidenceOriginKind::StepAttemptId(id)) => EvidenceOrigin::Step {
+            attempt_id: StepAttemptId::from_uuid(id).map_err(|error| Status::invalid_argument(error.to_string()))?,
+        },
         _ => return Err(Status::invalid_argument("invalid evidence origin")),
     };
     if origin != EvidenceOrigin::Default && scope.execution_id.is_none() {
@@ -182,7 +189,11 @@ pub(in crate::grpc) fn execution_plugin(
         ExecutionImplementation::Bundle { content_digest } => Implementation::ContentDigest(content_digest.clone()),
         ExecutionImplementation::Embedded { generation } => Implementation::Generation(generation.clone()),
     };
-    Ok(ExecutionPluginIdentity { source: value.source.clone(), version: value.version.clone(), implementation: Some(implementation) })
+    Ok(ExecutionPluginIdentity {
+        source: value.source.clone(),
+        version: value.version.clone(),
+        implementation: Some(implementation),
+    })
 }
 
 pub(in crate::grpc) fn encode_json(
@@ -218,19 +229,19 @@ pub(in crate::grpc) fn value_format(value: &dokime::domain::model::values::Value
     use schema::ValueFormatKind as Kind;
     schema::ValueFormat {
         kind: Some(match value {
-            ValueFormat::Normal { max_fraction_digits } => {
-                Kind::Normal(schema::NormalFormat { max_fraction_digits: max_fraction_digits.map(u32::from) })
-            }
+            ValueFormat::Normal { max_fraction_digits } => Kind::Normal(schema::NormalFormat {
+                max_fraction_digits: max_fraction_digits.map(u32::from),
+            }),
             ValueFormat::Fixed { decimals } => Kind::Fixed(schema::FixedFormat { decimals: u32::from(*decimals) }),
-            ValueFormat::Scientific { significant_digits } => {
-                Kind::Scientific(schema::ScientificFormat { significant_digits: u32::from(*significant_digits) })
-            }
-            ValueFormat::Engineering { significant_digits } => {
-                Kind::Engineering(schema::EngineeringFormat { significant_digits: u32::from(*significant_digits) })
-            }
-            ValueFormat::SiPrefix { significant_digits } => {
-                Kind::SiPrefix(schema::SiPrefixFormat { significant_digits: u32::from(*significant_digits) })
-            }
+            ValueFormat::Scientific { significant_digits } => Kind::Scientific(schema::ScientificFormat {
+                significant_digits: u32::from(*significant_digits),
+            }),
+            ValueFormat::Engineering { significant_digits } => Kind::Engineering(schema::EngineeringFormat {
+                significant_digits: u32::from(*significant_digits),
+            }),
+            ValueFormat::SiPrefix { significant_digits } => Kind::SiPrefix(schema::SiPrefixFormat {
+                significant_digits: u32::from(*significant_digits),
+            }),
             ValueFormat::AbsoluteTime { pattern } => Kind::AbsoluteTime(schema::AbsoluteTimeFormat { pattern: pattern.clone() }),
             ValueFormat::ElapsedSinceRun { unit } => Kind::ElapsedSinceRun(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
             ValueFormat::ElapsedSinceCycle { unit } => Kind::ElapsedSinceCycle(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
@@ -254,19 +265,19 @@ pub(in crate::grpc) fn format(value: &ValueFormat) -> schema::ValueFormat {
     use schema::ValueFormatKind as Kind;
     schema::ValueFormat {
         kind: Some(match value {
-            ValueFormat::Normal { max_fraction_digits } => {
-                Kind::Normal(schema::NormalFormat { max_fraction_digits: max_fraction_digits.map(u32::from) })
-            }
+            ValueFormat::Normal { max_fraction_digits } => Kind::Normal(schema::NormalFormat {
+                max_fraction_digits: max_fraction_digits.map(u32::from),
+            }),
             ValueFormat::Fixed { decimals } => Kind::Fixed(schema::FixedFormat { decimals: u32::from(*decimals) }),
-            ValueFormat::Scientific { significant_digits } => {
-                Kind::Scientific(schema::ScientificFormat { significant_digits: u32::from(*significant_digits) })
-            }
-            ValueFormat::Engineering { significant_digits } => {
-                Kind::Engineering(schema::EngineeringFormat { significant_digits: u32::from(*significant_digits) })
-            }
-            ValueFormat::SiPrefix { significant_digits } => {
-                Kind::SiPrefix(schema::SiPrefixFormat { significant_digits: u32::from(*significant_digits) })
-            }
+            ValueFormat::Scientific { significant_digits } => Kind::Scientific(schema::ScientificFormat {
+                significant_digits: u32::from(*significant_digits),
+            }),
+            ValueFormat::Engineering { significant_digits } => Kind::Engineering(schema::EngineeringFormat {
+                significant_digits: u32::from(*significant_digits),
+            }),
+            ValueFormat::SiPrefix { significant_digits } => Kind::SiPrefix(schema::SiPrefixFormat {
+                significant_digits: u32::from(*significant_digits),
+            }),
             ValueFormat::AbsoluteTime { pattern } => Kind::AbsoluteTime(schema::AbsoluteTimeFormat { pattern: pattern.clone() }),
             ValueFormat::ElapsedSinceRun { unit } => Kind::ElapsedSinceRun(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
             ValueFormat::ElapsedSinceCycle { unit } => Kind::ElapsedSinceCycle(schema::ElapsedFormat { unit: elapsed_unit(unit) }),

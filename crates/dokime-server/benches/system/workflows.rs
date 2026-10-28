@@ -82,14 +82,20 @@ impl Session {
     }
 
     async fn executions(&self, cycle_id: &str) -> Vec<model::execution::wire::ExecutionSummary> {
-        let request = contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() };
+        let request = contracts::execution::ListExecutions {
+            cycle_id: cycle_id.to_owned(),
+            ..Default::default()
+        };
         self.client.execution_list_executions(request).await.unwrap().executions
     }
 
     // The Prompt Of One Member Once It Waits, Answering Every Earlier Member's.
     async fn prompt_of(&mut self, cycle_id: &str, execution_id: &str) -> String {
         self.on_change(async |client| {
-            let request = contracts::prompts::ListPending { cycle_id: Some(cycle_id.to_owned()), ..Default::default() };
+            let request = contracts::prompts::ListPending {
+                cycle_id: Some(cycle_id.to_owned()),
+                ..Default::default()
+            };
             for prompt in client.prompts_list_pending(request).await.unwrap().prompts {
                 let owner = prompt.scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
                 if owner == Some(execution_id) {
@@ -105,11 +111,17 @@ impl Session {
     // Answers Every Prompt Until The Cycle Completes.
     async fn complete(&mut self, cycle_id: &str) {
         self.on_change(async |client| {
-            let request = contracts::prompts::ListPending { cycle_id: Some(cycle_id.to_owned()), ..Default::default() };
+            let request = contracts::prompts::ListPending {
+                cycle_id: Some(cycle_id.to_owned()),
+                ..Default::default()
+            };
             for prompt in client.prompts_list_pending(request).await.unwrap().prompts {
                 respond(client, prompt.prompt_id).await;
             }
-            let request = contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() };
+            let request = contracts::execution::ListExecutions {
+                cycle_id: cycle_id.to_owned(),
+                ..Default::default()
+            };
             let members = client.execution_list_executions(request).await.unwrap().executions;
             assert!(!members.is_empty(), "the benchmark cycle has planned executions");
             use model::execution::wire::ExecutionStatus;
@@ -124,7 +136,10 @@ impl Session {
 
     async fn sealed(&mut self, cycle_id: &str, execution_id: &str) {
         self.on_change(async |client| {
-            let request = contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() };
+            let request = contracts::execution::ListExecutions {
+                cycle_id: cycle_id.to_owned(),
+                ..Default::default()
+            };
             let page = client.execution_list_executions(request).await.unwrap();
             page.executions.iter().any(|member| member.execution_id == execution_id && member.sealed).then_some(())
         })
@@ -149,11 +164,21 @@ impl Session {
 
     // One Cycle Of The Given Plans, Run In Order Without Further Input.
     async fn cycle(&self, label: &str, plans: Vec<model::planning::wire::SelectionPlan>) -> (String, Vec<String>) {
-        let metadata = model::identity::wire::Metadata { identifier: label.to_owned(), label: label.to_owned(), ..Default::default() };
-        let created = contracts::execution::CreateCycle { metadata: Some(metadata), ..Default::default() };
+        let metadata = model::identity::wire::Metadata {
+            identifier: label.to_owned(),
+            label: label.to_owned(),
+            ..Default::default()
+        };
+        let created = contracts::execution::CreateCycle {
+            metadata: Some(metadata),
+            ..Default::default()
+        };
         let cycle_id = self.client.execution_create_cycle(created).await.unwrap().cycle_id;
         for plan in plans {
-            let register = contracts::planning::RegisterSelection { plan: Some(plan), idempotency_key: uuid::Uuid::now_v7().to_string() };
+            let register = contracts::planning::RegisterSelection {
+                plan: Some(plan),
+                idempotency_key: uuid::Uuid::now_v7().to_string(),
+            };
             let cases = self.client.planning_register_selection(register).await.unwrap().cases;
             let executions = cases
                 .into_iter()
@@ -165,8 +190,11 @@ impl Session {
             let append = contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions };
             self.client.execution_append_executions(append).await.unwrap();
         }
-        let policy =
-            contracts::execution::UpdateCyclePolicy { cycle_id: cycle_id.clone(), continue_automatically: true, ..Default::default() };
+        let policy = contracts::execution::UpdateCyclePolicy {
+            cycle_id: cycle_id.clone(),
+            continue_automatically: true,
+            ..Default::default()
+        };
         self.client.execution_update_cycle_policy(policy).await.unwrap();
         let members = self.executions(&cycle_id).await.into_iter().map(|member| member.execution_id).collect::<Vec<_>>();
         let start = contracts::execution::StartExecution {
@@ -186,8 +214,10 @@ impl Session {
 
     async fn note(&self, cycle_id: &str, execution_id: &str) -> (Duration, usize) {
         use model::notes::wire::{AnnotationOwner, AnnotationOwnerOwner, ExecutionNoteOwner};
-        let owner =
-            AnnotationOwnerOwner::Execution(ExecutionNoteOwner { cycle_id: cycle_id.to_owned(), execution_id: execution_id.to_owned() });
+        let owner = AnnotationOwnerOwner::Execution(ExecutionNoteOwner {
+            cycle_id: cycle_id.to_owned(),
+            execution_id: execution_id.to_owned(),
+        });
         let request = contracts::notes::CreateNote {
             epoch: self.epoch.clone(),
             mutation_id: uuid::Uuid::now_v7().to_string(),
@@ -223,9 +253,15 @@ pub fn benchmark(criterion: &mut Criterion) {
 /* === Private Functions === */
 
 async fn execution_failure(client: &Client, member: &model::execution::wire::ExecutionSummary) -> ! {
-    let request = contracts::execution::ListExecutionSteps { execution_id: member.execution_id.clone(), ..Default::default() };
+    let request = contracts::execution::ListExecutionSteps {
+        execution_id: member.execution_id.clone(),
+        ..Default::default()
+    };
     let steps = client.execution_list_execution_steps(request).await.unwrap();
-    let request = contracts::content::ListExecutionFiles { execution_id: member.execution_id.clone(), ..Default::default() };
+    let request = contracts::content::ListExecutionFiles {
+        execution_id: member.execution_id.clone(),
+        ..Default::default()
+    };
     let files = client.content_list_execution_files(request).await.unwrap();
 
     let logs = files.files.iter().filter(|file| file.relative_path.ends_with("stream.000000.log"));
@@ -519,7 +555,9 @@ fn export(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session
 
     // The ZIP Stores Payload Bytes Without Compression; Verification Is Part Of Delivery.
     let destination = root.path().join("evidence.zip");
-    let request = contracts::content::DownloadEvidence { subject: Some(model::exports::EvidenceSubject::Cycle(cycle_id)) };
+    let request = contracts::content::DownloadEvidence {
+        subject: Some(model::exports::EvidenceSubject::Cycle(cycle_id)),
+    };
     let mut group = criterion.benchmark_group("workflow_exports_evidence");
     group.sampling_mode(SamplingMode::Flat).sample_size(SAMPLES).throughput(Throughput::Bytes(BYTES));
     group.bench_function("200MB", |bencher| {
@@ -549,10 +587,16 @@ fn export(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session
 async fn install_bundle(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
     use {model::plugins::wire::InstallPluginFrame, model::plugins::wire::InstallPluginFrameFrame as Frame};
     let sha256 = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-    let header = model::plugins::wire::InstallPluginHeader { size_bytes: bytes.len() as u64, sha256: sha256.clone() };
+    let header = model::plugins::wire::InstallPluginHeader {
+        size_bytes: bytes.len() as u64,
+        sha256: sha256.clone(),
+    };
     let mut frames = vec![InstallPluginFrame { frame: Some(Frame::Header(header)) }];
     for (index, chunk) in bytes.chunks(64 * 1024).enumerate() {
-        let chunk = model::plugins::wire::InstallPluginChunk { offset: (index * 64 * 1024) as u64, data: chunk.to_vec() };
+        let chunk = model::plugins::wire::InstallPluginChunk {
+            offset: (index * 64 * 1024) as u64,
+            data: chunk.to_vec(),
+        };
         frames.push(InstallPluginFrame { frame: Some(Frame::Chunk(chunk)) });
     }
     client.plugins_install(tokio_stream::iter(frames)).await.unwrap()
@@ -560,8 +604,13 @@ async fn install_bundle(client: &Client, bytes: &[u8]) -> model::plugins::wire::
 
 async fn respond(client: &Client, prompt_id: String) -> usize {
     let values = object([("operator_note", text("bench")), ("accepted", Value::Bool(true))]);
-    let request =
-        contracts::prompts::Respond { prompt_id, action: "submit".into(), values: Some(values), accepted: true, ..Default::default() };
+    let request = contracts::prompts::Respond {
+        prompt_id,
+        action: "submit".into(),
+        values: Some(values),
+        accepted: true,
+        ..Default::default()
+    };
     let request_bytes = encoded_size(&request);
     let reply = client.prompts_respond(request).await.unwrap();
     request_bytes + encoded_size(&reply)
@@ -601,7 +650,10 @@ async fn execution_report(client: &Client, execution_id: &str) -> Vec<u8> {
 }
 
 async fn download_cycle_report(client: &Client, cycle_id: &str) -> Vec<u8> {
-    let request = contracts::reports::DownloadCycleReport { cycle_id: cycle_id.to_owned(), identifier: "cycle.summary".into() };
+    let request = contracts::reports::DownloadCycleReport {
+        cycle_id: cycle_id.to_owned(),
+        identifier: "cycle.summary".into(),
+    };
     report_bytes(client.reports_download_cycle_report(request).await.unwrap()).await
 }
 
@@ -719,9 +771,17 @@ fn padded_bundle(path: &Path, size: usize) -> Vec<u8> {
             .manifest()
             .files
             .iter()
-            .map(|file| Source { path: &file.path, bytes: bundle.file(&file.path).unwrap(), executable: file.executable.clone() })
+            .map(|file| Source {
+                path: &file.path,
+                bytes: bundle.file(&file.path).unwrap(),
+                executable: file.executable.clone(),
+            })
             .collect::<Vec<_>>();
-        sources.push(Source { path: "assets/benchmark-padding.bin", bytes: &padding, executable: None });
+        sources.push(Source {
+            path: "assets/benchmark-padding.bin",
+            bytes: &padding,
+            executable: None,
+        });
         let padded = Bundle::build(bundle.manifest().identity.clone(), &sources, Limits::default()).unwrap();
         let length = padded.bytes().len();
         if length == size {

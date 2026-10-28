@@ -151,8 +151,17 @@ async fn filtered_record_view() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let selected = RecordScope { session_id: Some(SessionId::from_seed("record-view.selected")), ..RecordScope::default() };
-    for scope in [selected.clone(), RecordScope { session_id: Some(SessionId::from_seed("record-view.other")), ..RecordScope::default() }] {
+    let selected = RecordScope {
+        session_id: Some(SessionId::from_seed("record-view.selected")),
+        ..RecordScope::default()
+    };
+    for scope in [
+        selected.clone(),
+        RecordScope {
+            session_id: Some(SessionId::from_seed("record-view.other")),
+            ..RecordScope::default()
+        },
+    ] {
         let mut draft = ProductCalibrationDetails::new("fixture.tool", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
             .into_draft("fixture.product");
         draft.scope = Some(scope);
@@ -318,7 +327,11 @@ async fn captured_records_failure() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let note = |message: &str| OperatorNoteRequest { scope: None, author: None, message: message.into() };
+    let note = |message: &str| OperatorNoteRequest {
+        scope: None,
+        author: None,
+        message: message.into(),
+    };
     handle.add_operator_note(note("first")).await.unwrap();
     let captured = handle.captured_records();
     let through = captured.frontier();

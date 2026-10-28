@@ -477,7 +477,10 @@ impl Sidecar {
 fn lifecycle_error(error: Error) -> harmos::Error {
     match error {
         Error::Harmos(error) => error,
-        error => harmos::Error::TaskFailed { domain: "dokime plugin lifecycle", source: Arc::new(error) },
+        error => harmos::Error::TaskFailed {
+            domain: "dokime plugin lifecycle",
+            source: Arc::new(error),
+        },
     }
 }
 

@@ -66,7 +66,10 @@ impl Collector<'_> {
                 Readiness::Degraded => dokime::domain::model::backend::wire::Readiness::Degraded,
                 Readiness::Stopping => dokime::domain::model::backend::wire::Readiness::Stopping,
             },
-            observed_at: Some(Timestamp { seconds: health.observed_at_seconds, nanos: health.observed_at_nanoseconds as i32 }),
+            observed_at: Some(Timestamp {
+                seconds: health.observed_at_seconds,
+                nanos: health.observed_at_nanoseconds as i32,
+            }),
             message: health.message.clone(),
         })
     }

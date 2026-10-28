@@ -90,7 +90,13 @@ impl Client {
         loop {
             let request = self.unary::<Catalog>(
                 CATALOG_PATH,
-                Catalog { kind: CatalogKind::Operations, schema: None, after, rows: Some(page_rows), bytes: Some(page_bytes) },
+                Catalog {
+                    kind: CatalogKind::Operations,
+                    schema: None,
+                    after,
+                    rows: Some(page_rows),
+                    bytes: Some(page_bytes),
+                },
             );
             let page = match deadline {
                 Some(deadline) => tokio::time::timeout_at(deadline, request)

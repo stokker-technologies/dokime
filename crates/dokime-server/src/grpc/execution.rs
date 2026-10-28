@@ -297,7 +297,11 @@ impl Resources {
         }
         inspection_reply(
             self,
-            dokime::domain::model::execution::wire::ListCyclesReply { cycles, next_after_cycle_id, cursor: Some(cursor) },
+            dokime::domain::model::execution::wire::ListCyclesReply {
+                cycles,
+                next_after_cycle_id,
+                cursor: Some(cursor),
+            },
         )
     }
 
@@ -334,7 +338,10 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            max_message_bytes,
+        }),
     )?;
     Ok(())
 }
@@ -365,7 +372,10 @@ pub(super) fn status(error: Error) -> Status {
         // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
         details: crate::grpc::transcode::Transcode::wire_bytes(&detail)
             .ok()
-            .map(|value| prost_types::Any { type_url: "type.googleapis.com/dokime.v1.Rejection".into(), value })
+            .map(|value| prost_types::Any {
+                type_url: "type.googleapis.com/dokime.v1.Rejection".into(),
+                value,
+            })
             .into_iter()
             .collect(),
     };
@@ -578,7 +588,11 @@ fn case_page(
     } else {
         None
     };
-    Ok(dokime::domain::model::execution::wire::ListCasesReply { cases, next_after_case_id, cursor: Some(cursor) })
+    Ok(dokime::domain::model::execution::wire::ListCasesReply {
+        cases,
+        next_after_case_id,
+        cursor: Some(cursor),
+    })
 }
 
 fn execution_page<'a>(
@@ -599,7 +613,11 @@ fn execution_page<'a>(
     } else {
         None
     };
-    Ok(dokime::domain::model::execution::wire::ListExecutionsReply { executions, next_after_execution_id, cursor: Some(cursor) })
+    Ok(dokime::domain::model::execution::wire::ListExecutionsReply {
+        executions,
+        next_after_execution_id,
+        cursor: Some(cursor),
+    })
 }
 
 /* === Tests === */

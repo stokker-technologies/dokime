@@ -228,7 +228,14 @@ fn workspace(target: &Path) -> Result<(Option<Workspace>, bool), Error> {
             }
             table["members"].as_array_mut().ok_or_else(|| Error::Invalid("workspace.members must be an array".into()))?.push(&relative);
         }
-        return Ok((Some(Workspace { manifest, updated: document.to_string(), original }), false));
+        return Ok((
+            Some(Workspace {
+                manifest,
+                updated: document.to_string(),
+                original,
+            }),
+            false,
+        ));
     }
     Ok((None, false))
 }
@@ -242,7 +249,13 @@ fn matches(item: Option<&toml_edit::Item>, relative: &str) -> Result<bool, Error
         let pattern = entry.as_str().ok_or_else(|| Error::Invalid("workspace member must be a string".into()))?;
         let pattern = glob::Pattern::new(pattern.trim_start_matches("./").trim_end_matches('/'))
             .map_err(|error| Error::Invalid(error.to_string()))?;
-        if pattern.matches_with(relative, glob::MatchOptions { require_literal_separator: true, ..Default::default() }) {
+        if pattern.matches_with(
+            relative,
+            glob::MatchOptions {
+                require_literal_separator: true,
+                ..Default::default()
+            },
+        ) {
             return Ok(true);
         }
     }

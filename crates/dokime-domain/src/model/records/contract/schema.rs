@@ -236,7 +236,16 @@ impl RecordDisplay {
 
 impl RecordField {
     pub fn new(metadata: Metadata, value_type: ValueType) -> Self {
-        Self { metadata, value_type, required: true, nullable: false, unit: None, choices: Vec::new(), default: None, format: None }
+        Self {
+            metadata,
+            value_type,
+            required: true,
+            nullable: false,
+            unit: None,
+            choices: Vec::new(),
+            default: None,
+            format: None,
+        }
     }
 
     pub fn optional(mut self) -> Self {

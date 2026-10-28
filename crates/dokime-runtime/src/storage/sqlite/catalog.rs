@@ -143,7 +143,14 @@ fn invalid(message: &str) -> Error {
 fn sources(connection: &Connection) -> rusqlite::Result<Vec<Source>> {
     connection
         .prepare("SELECT identifier, adapter, priority, enabled FROM storage_sources ORDER BY priority")?
-        .query_map([], |row| Ok(Source { identifier: row.get(0)?, adapter: row.get(1)?, priority: row.get(2)?, enabled: row.get(3)? }))?
+        .query_map([], |row| {
+            Ok(Source {
+                identifier: row.get(0)?,
+                adapter: row.get(1)?,
+                priority: row.get(2)?,
+                enabled: row.get(3)?,
+            })
+        })?
         .collect()
 }
 

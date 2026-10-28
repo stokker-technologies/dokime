@@ -86,8 +86,11 @@ impl Snapshot {
                 let view = view.snapshot().await?;
                 let source = view.revision()?;
                 let execution = &source.value;
-                let selected =
-                    ExecutionRevision { execution_id: id.clone(), position: source.position.clone(), version: source.version.clone() };
+                let selected = ExecutionRevision {
+                    execution_id: id.clone(),
+                    position: source.position.clone(),
+                    version: source.version.clone(),
+                };
                 Ok(Self {
                     subject: EvidenceSubject::Execution(id.to_string()),
                     node_id: view.source_snapshot()?.owner_node_id.clone(),
@@ -130,7 +133,10 @@ impl Snapshot {
     pub async fn execution(&self, selected: &ExecutionRevision) -> Result<ExecutionView> {
         let view = ExecutionView::open(&self.storage, &selected.execution_id, ObjectVersion::Exact(selected.version.clone()))
             .await?
-            .ok_or_else(|| Error::Missing { kind: "execution revision", id: selected.execution_id.to_string() })?;
+            .ok_or_else(|| Error::Missing {
+                kind: "execution revision",
+                id: selected.execution_id.to_string(),
+            })?;
         let revision = view.revision()?;
         if revision.position != selected.position
             || revision.version != selected.version

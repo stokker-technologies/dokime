@@ -175,7 +175,11 @@ fn route_context() -> RouteContext {
     let default_gateway =
         getifs::gateway_addrs().ok().and_then(|addresses| addresses.first().copied()).map(|address| address.addr().to_string());
 
-    RouteContext { default_interface, default_gateway, local_addresses }
+    RouteContext {
+        default_interface,
+        default_gateway,
+        local_addresses,
+    }
 }
 
 /* === Tests === */

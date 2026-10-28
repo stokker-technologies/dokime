@@ -82,7 +82,12 @@ impl SuiteRegistry {
         suites: BTreeMap<String, SuiteSnapshot>, cases: BTreeMap<CaseId, TestCase>, registrations: BTreeMap<CommandId, Vec<CaseId>>,
         case_revisions: BTreeMap<CaseId, String>,
     ) -> Self {
-        Self { suites, cases, registrations, case_revisions }
+        Self {
+            suites,
+            cases,
+            registrations,
+            case_revisions,
+        }
     }
 
     pub fn case(&self, id: &CaseId) -> Option<&TestCase> {

@@ -153,8 +153,10 @@ impl Operation for Read {
                     return Err(exhausted());
                 }
                 let content = window::project(content, maximum)?;
-                let response =
-                    dokime::domain::model::history::wire::CheckpointFileWindow { checkpoint: Some(checkpoint), content: Some(content) };
+                let response = dokime::domain::model::history::wire::CheckpointFileWindow {
+                    checkpoint: Some(checkpoint),
+                    content: Some(content),
+                };
                 if response.wire_len()? > maximum {
                     return Err(exhausted());
                 }
@@ -179,7 +181,9 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint file window" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical checkpoint file window",
+    }
 }
 
 /* === Tests === */

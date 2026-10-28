@@ -187,7 +187,12 @@ fn plan<'a>(
     } else {
         let selected = scoped.filter(|record| record.record_type.as_str() == expression.record_type && filters.matches(record));
         let selected = selected.filter_map(|record| {
-            let mut candidate = Candidate { start: axis.map(|_| record), end: record, value: None, sample: None };
+            let mut candidate = Candidate {
+                start: axis.map(|_| record),
+                end: record,
+                value: None,
+                sample: None,
+            };
             if !contextual {
                 let (sample, value) = telemetry_value(&candidate, expression, y.as_ref()?)?;
                 candidate.sample = Some(sample);
@@ -212,7 +217,13 @@ fn plan<'a>(
             rows.push(Row { x: input.x, y: input.y, group, ordinal });
         }
         rows.sort_unstable_by(|left, right| left.group.cmp(&right.group).then(left.ordinal.cmp(&right.ordinal)));
-        Ok::<_, Error>(Plan { expression, rows, groups: Vec::new(), grouped: group.is_some(), aggregate })
+        Ok::<_, Error>(Plan {
+            expression,
+            rows,
+            groups: Vec::new(),
+            grouped: group.is_some(),
+            aggregate,
+        })
     })?;
     let count = usize::from(!rows.rows.is_empty()) + rows.rows.windows(2).filter(|pair| pair[0].group != pair[1].group).count();
     rows.try_map(|mut plan| {
@@ -284,7 +295,12 @@ fn input<'a>(
             Source::Timing { .. } => candidate.end,
             Source::Telemetry { .. } => candidate.start?,
         };
-        let candidate = Candidate { start: None, end: record, value: None, sample: None };
+        let candidate = Candidate {
+            start: None,
+            end: record,
+            value: None,
+            sample: None,
+        };
         X::Number(telemetry_value(&candidate, axis, x_lookup?)?.1)
     } else {
         X::Timestamp(candidate.end.timestamp.as_str())
@@ -323,7 +339,11 @@ fn build(plans: &[ReadBatch<Plan<'_>>], request: &PlotPayloadRequest) -> Result<
                 values.extend(plan.rows[group.clone()].iter().map(|row| row.y));
                 let y = Series::from(values).aggregate(method);
                 let label = plan.rows[group.start].group.as_deref().unwrap_or("");
-                points.push(PlotPoint { x: JsonValue::String(text(label)?), y, z: None });
+                points.push(PlotPoint {
+                    x: JsonValue::String(text(label)?),
+                    y,
+                    z: None,
+                });
             }
             series.push(series_entry(
                 groups::join(&plan.expression.label())?,
@@ -367,7 +387,11 @@ fn timing_expression(expression: &DataExpression) -> Option<Expression<'_>> {
     let DataSource::Record { record_type } = &expression.source else { return None };
     expression.transforms.iter().find_map(|transform| {
         let DataTransform::TimeBetween { previous_record_type } = transform else { return None };
-        Some(Expression { record_type, source: Source::Timing { previous: previous_record_type }, expression })
+        Some(Expression {
+            record_type,
+            source: Source::Timing { previous: previous_record_type },
+            expression,
+        })
     })
 }
 
@@ -375,7 +399,11 @@ fn telemetry_expression(expression: &DataExpression) -> Option<Expression<'_>> {
     let DataSource::Record { record_type } = &expression.source else { return None };
     expression.transforms.iter().find_map(|transform| {
         let DataTransform::TelemetryAtOrBefore { stream, field } = transform else { return None };
-        Some(Expression { record_type, source: Source::Telemetry { stream, field }, expression })
+        Some(Expression {
+            record_type,
+            source: Source::Telemetry { stream, field },
+            expression,
+        })
     })
 }
 

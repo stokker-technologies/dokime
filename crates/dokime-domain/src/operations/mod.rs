@@ -189,8 +189,12 @@ where
     O: Endpoint,
     O::Response: Described,
 {
-    const ENTRY: Declaration =
-        Declaration { path: O::PATH, local_only: O::LOCAL_ONLY, wire: WireDeclaration::of::<O>(), rust_type: std::any::type_name::<O> };
+    const ENTRY: Declaration = Declaration {
+        path: O::PATH,
+        local_only: O::LOCAL_ONLY,
+        wire: WireDeclaration::of::<O>(),
+        rust_type: std::any::type_name::<O>,
+    };
 }
 
 /* === Public Functions === */
@@ -198,7 +202,12 @@ where
 /* === Private Functions === */
 
 const fn policy(timeout: Duration) -> OperationPolicy {
-    OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
+    OperationPolicy {
+        timeout,
+        attempt_timeout: timeout,
+        retries: RetryPolicy::Never,
+        restart: RestartPolicy::Never,
+    }
 }
 
 /* === Tests === */

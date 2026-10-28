@@ -190,7 +190,12 @@ pub enum Streams {
 impl PowerLoss {
     async fn initialize(supply: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         readiness::ready(ctx).await?;
-        Ok(Self { device: Device::initialize(supply.supply()).map_err(Error::Device)?, recovered: false, cycles: 0, published: 0 })
+        Ok(Self {
+            device: Device::initialize(supply.supply()).map_err(Error::Device)?,
+            recovered: false,
+            cycles: 0,
+            published: 0,
+        })
     }
     fn document() -> Document {
         let mut document = measurement::document(<Samples as dokime::StreamSpec>::ID, "Power Recovery");
@@ -235,7 +240,10 @@ impl PowerLoss {
             self.device.clear();
             ctx.publish(Cleared {}).await;
             self.device.start().map_err(Error::Device)?;
-            ctx.publish(Started { note: format!("Charger restarted under control within {limit_s} s.") }).await;
+            ctx.publish(Started {
+                note: format!("Charger restarted under control within {limit_s} s."),
+            })
+            .await;
             elapsed_s += limit_s;
             let restored = self.device.sample(elapsed_s);
             let recovered = restored.current_rms_a > 0.0 && self.device.power == Power::Running;
@@ -254,7 +262,11 @@ impl PowerLoss {
     )]
     async fn stop(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         self.device.stop();
-        ctx.publish(Stopped { accepted: self.recovered && self.cycles > 0 && self.device.fault.is_none(), cycles: self.cycles }).await;
+        ctx.publish(Stopped {
+            accepted: self.recovered && self.cycles > 0 && self.device.fault.is_none(),
+            cycles: self.cycles,
+        })
+        .await;
         Ok(())
     }
 

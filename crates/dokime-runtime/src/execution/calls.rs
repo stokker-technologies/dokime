@@ -85,7 +85,12 @@ impl Caller {
     }
 
     pub(super) fn step_host(&self, stage: &str, binding: Binding) -> StepHost {
-        StepHost { caller: self.clone(), stage: stage.to_owned(), context: CallContext::default(), binding }
+        StepHost {
+            caller: self.clone(),
+            stage: stage.to_owned(),
+            context: CallContext::default(),
+            binding,
+        }
     }
 
     fn hosted(&self) -> bool {
@@ -173,11 +178,14 @@ impl Host for StepHost {
                     code: STEP_REFUSAL,
                     failure: refusal_failure("the harness registered no answer for this operation"),
                 })?;
-                let bytes = answer(Message::encode_to_vec(&request))
-                    .await
-                    .map_err(|message| CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) })?;
-                let response = O::Response::decode(bytes.as_slice())
-                    .map_err(|error| CallError::Malformed { method: O::ID, message: error.to_string() })?;
+                let bytes = answer(Message::encode_to_vec(&request)).await.map_err(|message| CallError::Refused {
+                    code: STEP_REFUSAL,
+                    failure: refusal_failure(message),
+                })?;
+                let response = O::Response::decode(bytes.as_slice()).map_err(|error| CallError::Malformed {
+                    method: O::ID,
+                    message: error.to_string(),
+                })?;
 
                 Ok(Response::new(response))
             }
@@ -214,7 +222,10 @@ fn routed(host: &Supervisor, stage: &str, operation: &str) -> Result<Supervisor,
 }
 
 fn refusal(error: ContextError) -> CallError {
-    CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(error.to_string()) }
+    CallError::Refused {
+        code: STEP_REFUSAL,
+        failure: refusal_failure(error.to_string()),
+    }
 }
 
 /* === Tests === */

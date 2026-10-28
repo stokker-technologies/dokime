@@ -180,7 +180,13 @@ impl ProviderCycleOutcome {
 
 impl ProviderExecutionFailure {
     pub fn new(stage: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { stage: stage.into(), template_identifier: None, module: None, message: message.into(), detail: None }
+        Self {
+            stage: stage.into(),
+            template_identifier: None,
+            module: None,
+            message: message.into(),
+            detail: None,
+        }
     }
 
     #[must_use]

@@ -69,7 +69,12 @@ impl crate::RuntimeHandle {
             }
             let ids = cases.iter().map(|case| case.test_case_id.clone()).collect::<Vec<_>>();
             runtime
-                .commit(crate::transactions::RegisterCases { registration_id, cases, definition_revisions, max_cases: 100_000 })
+                .commit(crate::transactions::RegisterCases {
+                    registration_id,
+                    cases,
+                    definition_revisions,
+                    max_cases: 100_000,
+                })
                 .await
                 .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
 

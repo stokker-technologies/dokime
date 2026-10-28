@@ -120,25 +120,45 @@ impl<T> Reduced<T> {
 
 impl From<Reduced<ResourceRecord>> for RuntimeResourceFrame {
     fn from(reduced: Reduced<ResourceRecord>) -> Self {
-        Self { truncated: reduced.truncated(), records: reduced.items, total_records: reduced.total, returned_records: reduced.returned }
+        Self {
+            truncated: reduced.truncated(),
+            records: reduced.items,
+            total_records: reduced.total,
+            returned_records: reduced.returned,
+        }
     }
 }
 
 impl From<Reduced<PromptInstance>> for RuntimePromptFrame {
     fn from(reduced: Reduced<PromptInstance>) -> Self {
-        Self { truncated: reduced.truncated(), prompts: reduced.items, total_prompts: reduced.total, returned_prompts: reduced.returned }
+        Self {
+            truncated: reduced.truncated(),
+            prompts: reduced.items,
+            total_prompts: reduced.total,
+            returned_prompts: reduced.returned,
+        }
     }
 }
 
 impl From<Reduced<HealthItem>> for RuntimeHealthFrame {
     fn from(reduced: Reduced<HealthItem>) -> Self {
-        Self { truncated: reduced.truncated(), items: reduced.items, total_items: reduced.total, returned_items: reduced.returned }
+        Self {
+            truncated: reduced.truncated(),
+            items: reduced.items,
+            total_items: reduced.total,
+            returned_items: reduced.returned,
+        }
     }
 }
 
 impl From<Reduced<OperatorNote>> for RuntimeNoteFrame {
     fn from(reduced: Reduced<OperatorNote>) -> Self {
-        Self { truncated: reduced.truncated(), notes: reduced.items, total_notes: reduced.total, returned_notes: reduced.returned }
+        Self {
+            truncated: reduced.truncated(),
+            notes: reduced.items,
+            total_notes: reduced.total,
+            returned_notes: reduced.returned,
+        }
     }
 }
 
@@ -204,7 +224,11 @@ fn windowed<'a, T: Clone + 'a>(
     let reduced = reduce_timestamped_items(items, window, resolution, timestamp, |_| None);
     let returned = reduced.returned.len();
 
-    Reduced { items: reduced.returned, total: reduced.total, returned }
+    Reduced {
+        items: reduced.returned,
+        total: reduced.total,
+        returned,
+    }
 }
 
 /* === Tests === */

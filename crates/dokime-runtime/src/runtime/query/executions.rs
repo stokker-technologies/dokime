@@ -118,7 +118,13 @@ pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<
         return None;
     }
     let accepts = |action| {
-        ControlExecution { test_execution_id: id.clone(), action, occurred_at: crate::model::time::now_utc() }.request(state).is_ok()
+        ControlExecution {
+            test_execution_id: id.clone(),
+            action,
+            occurred_at: crate::model::time::now_utc(),
+        }
+        .request(state)
+        .is_ok()
     };
 
     Some(ExecutionControls {

@@ -86,7 +86,10 @@ impl RuntimeHandle {
         let telemetry = self
             .collect_telemetry_at_in(
                 &session,
-                &crate::evidence_runtime::TelemetrySelection { scope: selection.evidence_scope(), ..Default::default() },
+                &crate::evidence_runtime::TelemetrySelection {
+                    scope: selection.evidence_scope(),
+                    ..Default::default()
+                },
                 None,
                 None,
                 &at,

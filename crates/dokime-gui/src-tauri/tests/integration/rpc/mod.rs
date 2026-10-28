@@ -124,7 +124,11 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
                     registrations: vec![],
                 }),
             },
-            harmos_packaging::bundle::Source { path: "resources/payload.bin", bytes: &resource, executable: None },
+            harmos_packaging::bundle::Source {
+                path: "resources/payload.bin",
+                bytes: &resource,
+                executable: None,
+            },
         ],
         harmos_packaging::bundle::Limits::default(),
     )
@@ -200,11 +204,9 @@ async fn refuses_invalid_dispatch() {
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     for command in ["rpc", "rpc_stream_open"] {
-        for (bytes, kind) in [
-            (vec![], "invalid_request"),
-            (vec![0; 40], "incompatible_descriptor"),
-            (vec![0; 4_194_304_usize + 40 + 1], "limit_exceeded"),
-        ] {
+        for (bytes, kind) in
+            [(vec![], "invalid_request"), (vec![0; 40], "incompatible_descriptor"), (vec![0; 4_194_304_usize + 40 + 1], "limit_exceeded")]
+        {
             assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
         }
         for path in [None, Some("dokime.v1.Backend/GetHealth"), Some("/a/b/c")] {
@@ -380,8 +382,14 @@ async fn client_close_drops() {
     let (entered, ready) = tokio::sync::oneshot::channel();
     let (dropped, released) = tokio::sync::oneshot::channel();
     let uploading = client.clone();
-    let task =
-        tokio::spawn(async move { uploading.plugins_install(InstallInput { entered: Some(entered), dropped: Some(dropped) }).await });
+    let task = tokio::spawn(async move {
+        uploading
+            .plugins_install(InstallInput {
+                entered: Some(entered),
+                dropped: Some(dropped),
+            })
+            .await
+    });
     ready.await.unwrap();
 
     client.close();

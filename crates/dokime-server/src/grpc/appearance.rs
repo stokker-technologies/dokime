@@ -152,7 +152,10 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            max_message_bytes,
+        }),
     )?;
     Ok(())
 }
@@ -184,7 +187,10 @@ fn failure(kind: dokime::domain::model::appearance::wire::AppearanceFailureKind)
         // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
         details: crate::grpc::transcode::Transcode::wire_bytes(&dokime::domain::model::appearance::wire::AppearanceFailure { kind })
             .ok()
-            .map(|value| prost_types::Any { type_url: "type.googleapis.com/dokime.v1.AppearanceFailure".into(), value })
+            .map(|value| prost_types::Any {
+                type_url: "type.googleapis.com/dokime.v1.AppearanceFailure".into(),
+                value,
+            })
             .into_iter()
             .collect(),
     };

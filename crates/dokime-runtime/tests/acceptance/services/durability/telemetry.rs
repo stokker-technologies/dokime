@@ -145,7 +145,10 @@ async fn run_telemetry_kill_child(published: usize) {
     wait_for_record_type(&handle, "provider.execution.completed").await;
     let selection = TelemetrySelection {
         streams: vec![Identifier::new("tracking").unwrap().into()],
-        scope: ScopeSelection { test_cycle_id: Some(test_cycle_id), ..ScopeSelection::default() },
+        scope: ScopeSelection {
+            test_cycle_id: Some(test_cycle_id),
+            ..ScopeSelection::default()
+        },
         ..TelemetrySelection::default()
     };
     let before = wait_for_telemetry(&handle, &selection, published).await;

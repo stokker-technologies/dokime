@@ -77,14 +77,17 @@ pub(super) fn page(
                 PluginOwner::Embedded { generation } => {
                     plugins_model::AdmittedPluginOwner::Embedded(plugins_model::AdmittedEmbeddedOwner { generation: generation.clone() })
                 }
-                PluginOwner::Bundle { package, path, installation, content_digest } => {
-                    plugins_model::AdmittedPluginOwner::Bundle(plugins_model::AdmittedBundleOwner {
-                        package: package.clone(),
-                        path: local_only.then(|| path.clone()),
-                        installation_id: installation.clone(),
-                        content_digest: content_digest.clone(),
-                    })
-                }
+                PluginOwner::Bundle {
+                    package,
+                    path,
+                    installation,
+                    content_digest,
+                } => plugins_model::AdmittedPluginOwner::Bundle(plugins_model::AdmittedBundleOwner {
+                    package: package.clone(),
+                    path: local_only.then(|| path.clone()),
+                    installation_id: installation.clone(),
+                    content_digest: content_digest.clone(),
+                }),
             }),
         });
     }

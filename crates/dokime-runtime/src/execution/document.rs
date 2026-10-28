@@ -49,7 +49,9 @@ pub struct DocumentHandle<'a> {
 
 impl DocumentIndex {
     pub(crate) fn new(declared: Option<DocumentDefinition>) -> Self {
-        Self { document: declared.unwrap_or_else(|| DocumentDefinition::new("default", "Document")) }
+        Self {
+            document: declared.unwrap_or_else(|| DocumentDefinition::new("default", "Document")),
+        }
     }
 }
 

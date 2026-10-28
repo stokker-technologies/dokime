@@ -93,7 +93,12 @@ impl Operation for Watching {
             entries.insert(context.id().value(), Ready { execution, signal: ready.clone() });
         }
         resources.changed.notify_waiters();
-        Ok(Self { resources, watch: None, ready, id: context.id().value() })
+        Ok(Self {
+            resources,
+            watch: None,
+            ready,
+            id: context.id().value(),
+        })
     }
 
     async fn run<'a>(
@@ -147,7 +152,10 @@ impl Operation for Watching {
         let artifacts = watch
             .sealed()
             .iter()
-            .map(|record| WatchedArtifact { artifact: record.filename.clone(), size_bytes: record.size_bytes })
+            .map(|record| WatchedArtifact {
+                artifact: record.filename.clone(),
+                size_bytes: record.size_bytes,
+            })
             .collect();
         self.watch = None;
         Ok(WatchFileOutcome { artifacts, gaps }.into())
@@ -240,8 +248,11 @@ impl Resources {
 // before any plugin that requires them attaches.
 pub fn register(operations: &OperationManager) -> harmos::Result<Arc<Resources>> {
     harmos::builtin::Catalog::register(operations, OWNER, crate::app::Lanes::Open)?;
-    let resources =
-        Arc::new(Resources { runtime: OnceLock::new(), readiness: Mutex::new(BTreeMap::new()), changed: tokio::sync::Notify::new() });
+    let resources = Arc::new(Resources {
+        runtime: OnceLock::new(),
+        readiness: Mutex::new(BTreeMap::new()),
+        changed: tokio::sync::Notify::new(),
+    });
     operations.register_wire_operation::<Watching>(OWNER, crate::app::Lanes::Open, Arc::clone(&resources))?;
     operations.register_wire_operation::<Awaiting>(OWNER, crate::app::Lanes::Open, Arc::clone(&resources))?;
     Ok(resources)
@@ -265,14 +276,26 @@ mod tests {
 
     #[test]
     fn settling_releases_registration_and_preserves_the_subscribed_outcome() {
-        let state = Resources { runtime: OnceLock::new(), readiness: Mutex::new(BTreeMap::new()), changed: tokio::sync::Notify::new() };
+        let state = Resources {
+            runtime: OnceLock::new(),
+            readiness: Mutex::new(BTreeMap::new()),
+            changed: tokio::sync::Notify::new(),
+        };
         let resources = Arc::new(state);
         let outcomes = [None, Some(Ok(FileWatchArmed { baseline: Vec::new() })), Some(Err("source refused".to_owned()))];
         for outcome in outcomes {
             let (ready, signal) = tokio::sync::watch::channel(outcome.clone());
-            let entry = Ready { execution: Some("execution".to_owned()), signal: ready.clone() };
+            let entry = Ready {
+                execution: Some("execution".to_owned()),
+                signal: ready.clone(),
+            };
             resources.readiness.lock().unwrap().insert(1, entry);
-            let watching = Watching { resources: resources.clone(), watch: None, ready, id: 1 };
+            let watching = Watching {
+                resources: resources.clone(),
+                watch: None,
+                ready,
+                id: 1,
+            };
 
             drop(watching);
 

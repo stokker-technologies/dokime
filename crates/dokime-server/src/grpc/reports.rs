@@ -152,7 +152,10 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            max_message_bytes,
+        }),
     )?;
     Ok(())
 }
@@ -163,7 +166,15 @@ async fn deliver(
     resources: &Resources, report: OpenedReport, identifier: &Identifier,
     output: &mut StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>,
 ) -> Result<Response<()>, Status> {
-    let OpenedReport { test_cycle_id, test_execution_id, metadata, generated_at, origin, file, reader } = report;
+    let OpenedReport {
+        test_cycle_id,
+        test_execution_id,
+        metadata,
+        generated_at,
+        origin,
+        file,
+        reader,
+    } = report;
     let frame = dokime::domain::model::reports::wire::ReportHtmlFrame {
         payload: Some(dokime::domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
             dokime::domain::model::reports::wire::ReportMetadata {
@@ -250,8 +261,11 @@ mod tests {
         use dokime::domain::model::reports::wire::ReportHtmlFramePayload;
         use dokime::harmos::operations::{StreamSettings, stream};
         use std::num::NonZeroUsize;
-        let (mut output, mut input) =
-            stream(StreamSettings { items: NonZeroUsize::new(4).unwrap(), bytes: NonZeroUsize::new(4 * 1_048_576).unwrap() }).unwrap();
+        let (mut output, mut input) = stream(StreamSettings {
+            items: NonZeroUsize::new(4).unwrap(),
+            bytes: NonZeroUsize::new(4 * 1_048_576).unwrap(),
+        })
+        .unwrap();
         let length = 2 * 1_048_576 + 13;
         let digest = "ab".repeat(32);
         let expected = digest.clone();

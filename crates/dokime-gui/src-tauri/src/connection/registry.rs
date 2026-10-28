@@ -66,7 +66,9 @@ pub async fn desktop_backend_add(registry: State<'_, Registry>, profile: Profile
         || profile.expected_backend_id.is_some()
         || profile.secret != dokime::client::profiles::Secret::None
     {
-        return Err(ConnectionError::InvalidTarget { message: "Secure backends require a pairing file".into() });
+        return Err(ConnectionError::InvalidTarget {
+            message: "Secure backends require a pairing file".into(),
+        });
     }
     tokio::task::spawn_blocking(move || {
         let store = Store::discover(None).map_err(persistence)?;

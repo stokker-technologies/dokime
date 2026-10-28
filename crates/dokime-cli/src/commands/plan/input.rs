@@ -97,7 +97,12 @@ impl Args {
         if selections.is_empty() && self.case_ids.is_empty() {
             return Err(crate::Error::Input("a request file, template, selection or case ID is required".into()));
         }
-        Planned::canonical(Some(SelectionPlan { selections, max_cases: self.max_cases, case_ids: self.case_ids, cycle_id: String::new() }))
+        Planned::canonical(Some(SelectionPlan {
+            selections,
+            max_cases: self.max_cases,
+            case_ids: self.case_ids,
+            cycle_id: String::new(),
+        }))
     }
 }
 

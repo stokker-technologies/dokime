@@ -243,7 +243,13 @@ pub(crate) fn prepare_finish_telemetry(state: &RuntimeState, finish: &FinishProv
 }
 
 pub(super) fn summarize<'a>(executions: impl IntoIterator<Item = &'a TestExecution>) -> ResultSummary {
-    let mut summary = ResultSummary { status: ResultStatus::Pending, passed: 0, failed: 0, blocked: 0, skipped: 0 };
+    let mut summary = ResultSummary {
+        status: ResultStatus::Pending,
+        passed: 0,
+        failed: 0,
+        blocked: 0,
+        skipped: 0,
+    };
     for execution in executions {
         if execution.status == ExecutionStatus::Interrupted {
             summary.blocked += 1;

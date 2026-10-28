@@ -187,7 +187,11 @@ impl Pending {
         let buffered = self.streams.entry(stream.clone()).or_default();
         let stamp = unix_micros().max(buffered.latest);
         buffered.latest = stamp;
-        buffered.rows.push(crate::execution::StampedRow { values, storage_payload, published_unix_micros: stamp });
+        buffered.rows.push(crate::execution::StampedRow {
+            values,
+            storage_payload,
+            published_unix_micros: stamp,
+        });
         buffered.rows.len()
     }
 
@@ -320,7 +324,10 @@ impl ExecutionTransport for FrameTransport {
     }
 
     fn progress(&self) -> Arc<dyn ProgressSink> {
-        Arc::new(FrameProgressSink { executions: Arc::clone(&self.executions), token: self.token.clone() })
+        Arc::new(FrameProgressSink {
+            executions: Arc::clone(&self.executions),
+            token: self.token.clone(),
+        })
     }
 
     fn prompt<'a>(&'a mut self, request: PromptRequest) -> TransportFuture<'a, crate::Result<PromptResponse>> {
@@ -398,8 +405,14 @@ impl ExecutionTransport for FrameTransport {
                 },
             )
             .await?;
-            let release = Arc::new(FrameLeaseRelease { executions: Arc::clone(&executions), token: token.clone() });
-            Ok(LeaseHold { lease_token, release: release as Arc<dyn LeaseRelease> })
+            let release = Arc::new(FrameLeaseRelease {
+                executions: Arc::clone(&executions),
+                token: token.clone(),
+            });
+            Ok(LeaseHold {
+                lease_token,
+                release: release as Arc<dyn LeaseRelease>,
+            })
         })
     }
 
@@ -423,7 +436,10 @@ impl ExecutionTransport for FrameTransport {
     }
 
     fn journal(&self) -> Arc<dyn Journal> {
-        Arc::new(FrameJournal { executions: Arc::clone(&self.executions), token: self.token.clone() })
+        Arc::new(FrameJournal {
+            executions: Arc::clone(&self.executions),
+            token: self.token.clone(),
+        })
     }
 
     fn traceability(&mut self, sections: Vec<dokime_domain::model::traceability::TraceabilitySection>) {
@@ -561,7 +577,11 @@ mod tests {
         let (cancel, _) = tokio::sync::watch::channel(false);
         let state = ExecutionState::new(request.clone(), cancel);
         let executions: Executions = Arc::new(std::sync::Mutex::new(BTreeMap::from([("fixture".to_owned(), state)])));
-        let mut transport = FrameTransport { executions: Arc::clone(&executions), token: "fixture".into(), prompts: 0 };
+        let mut transport = FrameTransport {
+            executions: Arc::clone(&executions),
+            token: "fixture".into(),
+            prompts: 0,
+        };
         let question = || PromptRequest {
             prompt_id: PromptId::from_seed("unused"),
             prompt_type: Identifier::new("fixture.confirm").unwrap(),
@@ -600,7 +620,11 @@ mod tests {
         // Cancellation Settles Both A Prompt And Step Admission Without A Timer.
         let (cancel, _) = tokio::sync::watch::channel(false);
         lock(&executions).insert("fixture".into(), ExecutionState::new(request, cancel));
-        let mut transport = FrameTransport { executions: Arc::clone(&executions), token: "fixture".into(), prompts: 0 };
+        let mut transport = FrameTransport {
+            executions: Arc::clone(&executions),
+            token: "fixture".into(),
+            prompts: 0,
+        };
         let waiting = tokio::spawn(async move { transport.prompt(question()).await });
         raised(&executions, 1).await;
         let step = dokime_domain::model::execution::result::StepAttemptStart {

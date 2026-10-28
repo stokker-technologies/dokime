@@ -109,7 +109,11 @@ async fn run_child(root: PathBuf) {
     let receipt = handle
         .start_next_execution(
             cycle,
-            CommandContext { submitted_by: Some("operator".into()), idempotency_key: Some("crash-receipt".into()), ..Default::default() },
+            CommandContext {
+                submitted_by: Some("operator".into()),
+                idempotency_key: Some("crash-receipt".into()),
+                ..Default::default()
+            },
         )
         .await;
     assert_eq!(receipt.status, CommandStatus::Accepted);

@@ -55,7 +55,11 @@ impl harmos::operations::ContextValue for ExecutionScope {
 
 impl ExecutionScope {
     pub fn execution(execution: impl Into<String>) -> Self {
-        Self { execution: execution.into(), stage: String::new(), route: String::new() }
+        Self {
+            execution: execution.into(),
+            stage: String::new(),
+            route: String::new(),
+        }
     }
 
     #[must_use]

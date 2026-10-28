@@ -41,7 +41,11 @@ impl Client {
         let client = self.clone();
         ResponseStream::spawn(self, move |sender| async move {
             let read = async {
-                let mut request = catalog::ListSuites { limit: 100, after_suite_id: String::new(), cursor: None };
+                let mut request = catalog::ListSuites {
+                    limit: 100,
+                    after_suite_id: String::new(),
+                    cursor: None,
+                };
                 loop {
                     let page = client.suite_page(&request).await?;
                     for identity in page.suites {
@@ -92,7 +96,11 @@ impl Client {
             Err(Error::Rpc(status)) if status.code() == tonic::Code::NotFound => {}
             Err(error) => return Err(error),
         }
-        let mut request = catalog::ListSuites { limit: 100, after_suite_id: String::new(), cursor: None };
+        let mut request = catalog::ListSuites {
+            limit: 100,
+            after_suite_id: String::new(),
+            cursor: None,
+        };
         let mut matched = None;
         loop {
             let page = self.suite_page(&request).await?;

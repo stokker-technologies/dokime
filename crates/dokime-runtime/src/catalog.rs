@@ -400,7 +400,10 @@ impl Visitor for Listeners {
 
 #[cfg(feature = "native")]
 impl<T: crate::plugin::Listener> Member<T> for Listeners {
-    const ENTRY: Self::Entry = ListenerEntry { operation: T::ID, record: <T::Record as DeclaredRecord>::RECORD_TYPE };
+    const ENTRY: Self::Entry = ListenerEntry {
+        operation: T::ID,
+        record: <T::Record as DeclaredRecord>::RECORD_TYPE,
+    };
 }
 
 /* === Public Functions === */

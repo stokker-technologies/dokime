@@ -97,9 +97,14 @@ async fn subscriptions_deliver_selection() {
     let mut prefixed = runtime.subscribe_records();
     let mut open = runtime.subscribe_records();
     let mut pinned = runtime.subscribe_records();
-    let prefix_selection = RecordSelection { record_type_prefixes: vec!["calibration.".to_owned()], ..RecordSelection::default() };
-    let pinned_selection =
-        RecordSelection { record_types: vec![Identifier::new("calibration.field.completed").unwrap()], ..RecordSelection::default() };
+    let prefix_selection = RecordSelection {
+        record_type_prefixes: vec!["calibration.".to_owned()],
+        ..RecordSelection::default()
+    };
+    let pinned_selection = RecordSelection {
+        record_types: vec![Identifier::new("calibration.field.completed").unwrap()],
+        ..RecordSelection::default()
+    };
 
     runtime.publish_product_record(product_connection(ProductConnectionState::Connected)).await.unwrap();
     runtime.publish_product_record(product_calibration(ProductCalibrationPhase::Completed)).await.unwrap();

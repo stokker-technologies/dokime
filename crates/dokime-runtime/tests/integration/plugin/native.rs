@@ -169,7 +169,14 @@ impl<A: Attach> Native<A> {
         let mut plugins = PluginManager::new(definitions).unwrap();
         plugins.initialize(&mut host).await.unwrap();
         let demands = host.demands.as_ref().unwrap().clone();
-        Self { runtime, demands, host: log, plugins, lifecycle: host, retired: false }
+        Self {
+            runtime,
+            demands,
+            host: log,
+            plugins,
+            lifecycle: host,
+            retired: false,
+        }
     }
 
     pub(super) async fn retire(&mut self) {
@@ -216,7 +223,10 @@ impl<A: Attach> PluginLifecycle for Host<A> {
         self.publications.insert(&definition.id, resident.clone());
         self.demands = Some(resident.demands());
         self.operations.register_service(
-            harmos::services::ServiceDefinition { id: definition.id.clone(), policy: harmos::services::POLICY },
+            harmos::services::ServiceDefinition {
+                id: definition.id.clone(),
+                policy: harmos::services::POLICY,
+            },
             {
                 let resident = resident.clone();
                 move |_: Arc<()>| resident.clone()
@@ -369,18 +379,16 @@ impl harmos::operations::Operation for PublicationInvocation {
     async fn run<'ctx>(
         &mut self, context: Self::Context<'ctx>, request: &mut harmos::operations::streams::Publish, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
-        let scope = context
-            .caller_scope()
-            .ok_or(harmos::Error::InvalidInput { field: "fixture publication", reason: "original caller is required" })?;
+        let scope = context.caller_scope().ok_or(harmos::Error::InvalidInput {
+            field: "fixture publication",
+            reason: "original caller is required",
+        })?;
         if self.call.is_none() {
-            let resident = self
-                .owner
-                .residents
-                .read()
-                .unwrap()
-                .get(scope.owner())
-                .cloned()
-                .ok_or_else(|| harmos::Error::NotRegistered { domain: "fixture publication owner", name: scope.owner().to_owned() })?;
+            let resident =
+                self.owner.residents.read().unwrap().get(scope.owner()).cloned().ok_or_else(|| harmos::Error::NotRegistered {
+                    domain: "fixture publication owner",
+                    name: scope.owner().to_owned(),
+                })?;
             self.call = Some(resident.prepare(context.clone()).await?);
         }
         self.call.as_mut().unwrap().run(context, request).await.map(harmos::operations::Response::new)
@@ -475,7 +483,11 @@ impl harmos::operations::Operation for Evidence {
                 .iter()
                 .map(|encoded| {
                     let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-                    StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() }
+                    StepAdmission {
+                        attempt_id: start.attempt_id.to_string(),
+                        accepted: true,
+                        message: String::new(),
+                    }
                 })
                 .collect(),
             settled: batch.record_subscriptions_settling,
@@ -503,7 +515,10 @@ impl harmos::operations::Operation for Question {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut OperatorQuestion, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<OperatorAnswer>> {
-        Err(harmos::Error::InvalidInput { field: "operator question", reason: "the fixture host has no operator" })
+        Err(harmos::Error::InvalidInput {
+            field: "operator question",
+            reason: "the fixture host has no operator",
+        })
     }
 }
 
@@ -525,7 +540,10 @@ impl harmos::operations::Operation for Lease {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut LeaseAsk, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<LeaseResolution>> {
-        Ok(harmos::operations::Response::new(LeaseResolution { granted: false, message: "the fixture host measures no streams".into() }))
+        Ok(harmos::operations::Response::new(LeaseResolution {
+            granted: false,
+            message: "the fixture host measures no streams".into(),
+        }))
     }
 }
 
@@ -543,7 +561,10 @@ impl harmos::operations::Operation for Watching {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut dokime_runtime::operations::files::WatchFile, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<model::files::wire::WatchFileOutcome>> {
-        Err(harmos::Error::InvalidInput { field: "file watch", reason: "the fixture host watches no files" })
+        Err(harmos::Error::InvalidInput {
+            field: "file watch",
+            reason: "the fixture host watches no files",
+        })
     }
 }
 
@@ -561,7 +582,10 @@ impl harmos::operations::Operation for AwaitingWatch {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut Self::Declaration, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<model::files::wire::FileWatchArmed>> {
-        Err(harmos::Error::InvalidInput { field: "file watch", reason: "the fixture host watches no files" })
+        Err(harmos::Error::InvalidInput {
+            field: "file watch",
+            reason: "the fixture host watches no files",
+        })
     }
 }
 
@@ -621,7 +645,14 @@ pub(super) async fn settled<T: dokime_runtime::execution::SidecarTemplate>(
         let batch = workflow.next(token, cursor).await.unwrap();
         for encoded in &batch.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+            workflow.admit(
+                token,
+                &StepAdmission {
+                    attempt_id: start.attempt_id.to_string(),
+                    accepted: true,
+                    message: String::new(),
+                },
+            );
         }
         cursor = batch.cursor;
         if let Some(outcome) = batch.outcome {

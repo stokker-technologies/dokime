@@ -124,7 +124,10 @@ pub(in crate::grpc) fn register(runtime: &RuntimeHandle, max_message_bytes: usiz
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            max_message_bytes,
+        }),
     )?;
     Ok(())
 }
@@ -145,7 +148,9 @@ pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> dokime::h
 /* === Private Functions === */
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "historical checkpoint response" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "historical checkpoint response",
+    }
 }
 
 /* === Tests === */

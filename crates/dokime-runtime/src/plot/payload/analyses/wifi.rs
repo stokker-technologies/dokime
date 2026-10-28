@@ -78,7 +78,12 @@ pub(super) fn analyze(series: &[PlotSeries]) -> Result<PlotAnalysis, &'static st
     for (_, (time, counts)) in scans {
         output.push(scan(time, counts)?);
     }
-    Ok(PlotAnalysis::WifiOccupancy { channels: all_channels, occupied_channels, bands, scans: output })
+    Ok(PlotAnalysis::WifiOccupancy {
+        channels: all_channels,
+        occupied_channels,
+        bands,
+        scans: output,
+    })
 }
 
 /* === Private Functions === */
@@ -124,13 +129,25 @@ pub(in crate::plot::payload) fn scan(time: String, counts: Counts) -> Result<Wif
             continue;
         }
         let (occupied_channels, total_networks, peak_count) = occupancy(in_band)?;
-        bands.push(WifiBandScan { band: text(name)?, occupied_channels, total_networks, peak_count });
+        bands.push(WifiBandScan {
+            band: text(name)?,
+            occupied_channels,
+            total_networks,
+            peak_count,
+        });
     }
     let mut channels = slots(counts.len())?;
     for (channel, count) in counts {
         channels.push(WifiChannelCount { channel, count });
     }
-    Ok(WifiScan { time, channels, bands, occupied_channels, total_networks, peak_count })
+    Ok(WifiScan {
+        time,
+        channels,
+        bands,
+        occupied_channels,
+        total_networks,
+        peak_count,
+    })
 }
 
 fn occupancy<'a>(mut counts: impl Iterator<Item = &'a usize>) -> Result<(usize, usize, usize), &'static str> {
@@ -219,7 +236,13 @@ mod tests {
             series("36", vec![point("1.0", Some(0.0))]),
             series("1005", Vec::new()),
         ];
-        let PlotAnalysis::WifiOccupancy { channels, occupied_channels, bands, scans } = analyze(&input).unwrap() else {
+        let PlotAnalysis::WifiOccupancy {
+            channels,
+            occupied_channels,
+            bands,
+            scans,
+        } = analyze(&input).unwrap()
+        else {
             panic!("wifi");
         };
         assert_eq!(channels, [6, 36, 1005]);

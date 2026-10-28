@@ -47,8 +47,22 @@ fn replacement_keeps_parameters() {
     let values = [(
         "template".into(),
         [
-            ("parameter".into(), parameters::Value { raw: "12".into(), value_type: "int".into(), unit: None }),
-            ("defined".into(), parameters::Value { raw: "115".into(), value_type: "int".into(), unit: Some("V".into()) }),
+            (
+                "parameter".into(),
+                parameters::Value {
+                    raw: "12".into(),
+                    value_type: "int".into(),
+                    unit: None,
+                },
+            ),
+            (
+                "defined".into(),
+                parameters::Value {
+                    raw: "115".into(),
+                    value_type: "int".into(),
+                    unit: Some("V".into()),
+                },
+            ),
         ]
         .into(),
     )]
@@ -58,7 +72,15 @@ fn replacement_keeps_parameters() {
     let saved = fs::read(&path).unwrap();
     let invalid = [(
         "template".into(),
-        [("parameter".into(), parameters::Value { raw: "x".repeat(8193), value_type: "str".into(), unit: None })].into(),
+        [(
+            "parameter".into(),
+            parameters::Value {
+                raw: "x".repeat(8193),
+                value_type: "str".into(),
+                unit: None,
+            },
+        )]
+        .into(),
     )]
     .into();
     assert!(parameters::save(&path, &invalid).is_err());

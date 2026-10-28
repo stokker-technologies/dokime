@@ -127,7 +127,11 @@ impl ExecutionStorage {
 
     pub(crate) async fn append_output(self: &Arc<Self>, execution: &TestExecutionId, path: &str, bytes: Vec<u8>) -> Result<()> {
         validate_producer_path(path)?;
-        let ingress = Append { execution: execution.clone(), path: path.to_owned(), bytes };
+        let ingress = Append {
+            execution: execution.clone(),
+            path: path.to_owned(),
+            bytes,
+        };
         let storage = self.clone();
         tokio::spawn(async move {
             let owner = storage.acquisition(&ingress.execution).await;
@@ -210,7 +214,11 @@ impl ExecutionStorage {
 
     pub(crate) async fn close_output(self: &Arc<Self>, execution: &TestExecutionId, path: &str, interrupted: bool) -> Result<()> {
         validate_producer_path(path)?;
-        let close = Close { execution: execution.clone(), path: path.to_owned(), interrupted };
+        let close = Close {
+            execution: execution.clone(),
+            path: path.to_owned(),
+            interrupted,
+        };
         let storage = self.clone();
         tokio::spawn(async move {
             let owner = storage.acquisition(&close.execution).await;

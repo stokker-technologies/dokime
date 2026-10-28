@@ -123,7 +123,9 @@ impl TypedCodec {
             Field {
                 name: Cow::Borrowed("values"),
                 tag: 2,
-                kind: Kind::Message { definition: payload.root + payload_offset },
+                kind: Kind::Message {
+                    definition: payload.root + payload_offset,
+                },
                 cardinality: Cardinality::Required,
             },
         ]];
@@ -137,8 +139,16 @@ impl TypedCodec {
         let invalid_composition = Error::Invalid("composed telemetry graph exceeds schema limits");
         prepared.map_err(|_| invalid_composition)?;
         let identifier = format!("dokime.telemetry.{}", stream.as_str());
-        let schema = SchemaKey { id: Identifier::new(identifier)?, version, payload_encoding: PayloadEncoding::PostcardV1 };
-        Ok(Self { schema, graph: Arc::new(graph), validator })
+        let schema = SchemaKey {
+            id: Identifier::new(identifier)?,
+            version,
+            payload_encoding: PayloadEncoding::PostcardV1,
+        };
+        Ok(Self {
+            schema,
+            graph: Arc::new(graph),
+            validator,
+        })
     }
 
     pub fn schema(&self) -> &SchemaKey {
@@ -181,7 +191,8 @@ impl TypedCodec {
 
     // The One Payload Pass For A Row Whose Values Are Projected From Its Bytes.
     pub(crate) fn decode_payload(&self, payload: &[u8]) -> Result<BTreeMap<String, Value>> {
-        let stream = self.schema.id.as_str().strip_prefix("dokime.telemetry.").ok_or(Error::Invalid("typed telemetry schema is unnamed"))?;
+        let stream =
+            self.schema.id.as_str().strip_prefix("dokime.telemetry.").ok_or(Error::Invalid("typed telemetry schema is unnamed"))?;
         payload_pass();
         decode_stream_values(stream, &self.validator, payload)
     }
@@ -294,7 +305,11 @@ impl TypedCodec {
         let mut sample = sample.into_sample()?;
         sample.values = decoded;
         sample.storage_payload = Some(payload.to_vec());
-        Ok(TelemetryEntry { epoch: SessionId::from_uuid(metadata.epoch)?, ordinal: metadata.ordinal, sample })
+        Ok(TelemetryEntry {
+            epoch: SessionId::from_uuid(metadata.epoch)?,
+            ordinal: metadata.ordinal,
+            sample,
+        })
     }
 }
 
@@ -344,7 +359,11 @@ impl CodecCache {
         if entries.get(&key).is_none_or(|entry| &entry.payload != payload) {
             let payload = payload.clone();
             let codec = codec(contract, settings)?;
-            let entry = CachedCodec { payload, codec: Arc::new(codec), registered: false };
+            let entry = CachedCodec {
+                payload,
+                codec: Arc::new(codec),
+                registered: false,
+            };
             entries.insert(key.clone(), entry);
         }
         let entry = entries.get_mut(&key).expect("codec entry inserted");

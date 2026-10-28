@@ -216,12 +216,17 @@ impl DataExpression {
     }
 
     pub fn time_between(mut self, previous_record_type: impl Into<String>) -> Self {
-        self.transforms.push(DataTransform::TimeBetween { previous_record_type: previous_record_type.into() });
+        self.transforms.push(DataTransform::TimeBetween {
+            previous_record_type: previous_record_type.into(),
+        });
         self
     }
 
     pub fn telemetry_at_or_before(mut self, stream: impl Into<String>, field: impl Into<String>) -> Self {
-        self.transforms.push(DataTransform::TelemetryAtOrBefore { stream: stream.into(), field: field.into() });
+        self.transforms.push(DataTransform::TelemetryAtOrBefore {
+            stream: stream.into(),
+            field: field.into(),
+        });
         self
     }
 
@@ -259,23 +264,46 @@ impl TryFrom<Expression> for DataExpression {
 /* === Public Functions === */
 
 pub fn telemetry(stream: impl Into<String>, field: impl Into<String>) -> DataExpression {
-    DataExpression { label: None, source: DataSource::Telemetry { stream: stream.into(), field: field.into() }, transforms: Vec::new() }
+    DataExpression {
+        label: None,
+        source: DataSource::Telemetry {
+            stream: stream.into(),
+            field: field.into(),
+        },
+        transforms: Vec::new(),
+    }
 }
 
 pub fn parameter(name: impl Into<String>) -> DataExpression {
-    DataExpression { label: None, source: DataSource::Parameter { name: name.into() }, transforms: Vec::new() }
+    DataExpression {
+        label: None,
+        source: DataSource::Parameter { name: name.into() },
+        transforms: Vec::new(),
+    }
 }
 
 pub fn dimension(name: impl Into<String>) -> DataExpression {
-    DataExpression { label: None, source: DataSource::Dimension { name: name.into() }, transforms: Vec::new() }
+    DataExpression {
+        label: None,
+        source: DataSource::Dimension { name: name.into() },
+        transforms: Vec::new(),
+    }
 }
 
 pub fn record(record_type: impl Into<String>) -> DataExpression {
-    DataExpression { label: None, source: DataSource::Record { record_type: record_type.into() }, transforms: Vec::new() }
+    DataExpression {
+        label: None,
+        source: DataSource::Record { record_type: record_type.into() },
+        transforms: Vec::new(),
+    }
 }
 
 pub fn artifact(artifact: impl Into<String>) -> DataExpression {
-    DataExpression { label: None, source: DataSource::Artifact { artifact: artifact.into() }, transforms: Vec::new() }
+    DataExpression {
+        label: None,
+        source: DataSource::Artifact { artifact: artifact.into() },
+        transforms: Vec::new(),
+    }
 }
 
 pub fn per_case(expression: impl Into<DataExpression>) -> DataExpression {
@@ -321,7 +349,13 @@ fn parse_data_expression(expression: &Expression) -> Result<(DataSource, Vec<Dat
                 return Err(DataExpressionError::UnsupportedExpression);
             };
 
-            Ok((DataSource::Telemetry { stream: text_literal(stream)?, field: text_literal(field)? }, Vec::new()))
+            Ok((
+                DataSource::Telemetry {
+                    stream: text_literal(stream)?,
+                    field: text_literal(field)?,
+                },
+                Vec::new(),
+            ))
         }
         FN_DATA_PARAMETER => {
             let [name] = args.as_slice() else {
@@ -356,7 +390,9 @@ fn parse_data_expression(expression: &Expression) -> Result<(DataSource, Vec<Dat
                 return Err(DataExpressionError::UnsupportedExpression);
             };
             let (source, mut transforms) = parse_data_expression(inner)?;
-            transforms.push(DataTransform::TimeBetween { previous_record_type: text_literal(previous_record_type)? });
+            transforms.push(DataTransform::TimeBetween {
+                previous_record_type: text_literal(previous_record_type)?,
+            });
 
             Ok((source, transforms))
         }
@@ -365,7 +401,10 @@ fn parse_data_expression(expression: &Expression) -> Result<(DataSource, Vec<Dat
                 return Err(DataExpressionError::UnsupportedExpression);
             };
             let (source, mut transforms) = parse_data_expression(inner)?;
-            transforms.push(DataTransform::TelemetryAtOrBefore { stream: text_literal(stream)?, field: text_literal(field)? });
+            transforms.push(DataTransform::TelemetryAtOrBefore {
+                stream: text_literal(stream)?,
+                field: text_literal(field)?,
+            });
 
             Ok((source, transforms))
         }

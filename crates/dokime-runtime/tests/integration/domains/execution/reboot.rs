@@ -88,7 +88,10 @@ async fn stored_telemetry_reboot() {
     assert_eq!(before.stream_cursors.values().copied().next(), Some(FIRST));
     handle.storage().flush().await.unwrap();
 
-    let selection = TelemetrySelection { streams: vec![Identifier::new("tracking").unwrap().into()], ..TelemetrySelection::default() };
+    let selection = TelemetrySelection {
+        streams: vec![Identifier::new("tracking").unwrap().into()],
+        ..TelemetrySelection::default()
+    };
 
     let first_positions =
         handle.selected_telemetry(selection.clone()).await.unwrap().iter().map(|sample| sample.sequence).collect::<Vec<_>>();

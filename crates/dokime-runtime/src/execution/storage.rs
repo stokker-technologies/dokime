@@ -151,7 +151,10 @@ impl ExecutionDocument {
             return Err(crate::runtime::Error::Operation("execution document belongs to another cycle".into()));
         }
         Ok(Self {
-            cycle: ExecutionCycle { cycle_id: cycle.test_cycle_id.clone(), metadata: cycle.metadata.clone() },
+            cycle: ExecutionCycle {
+                cycle_id: cycle.test_cycle_id.clone(),
+                metadata: cycle.metadata.clone(),
+            },
             execution: execution.clone(),
         })
     }

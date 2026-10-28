@@ -71,7 +71,10 @@ impl Suite {
             let mut id = String::new();
             id.try_reserve_exact(suite_id.len()).map_err(|_| Error::Invalid("suite ID allocation failed"))?;
             id.push_str(suite_id);
-            Ok(Self { suite_id: id, definition: Some(templates::Definition::try_from(source)?) })
+            Ok(Self {
+                suite_id: id,
+                definition: Some(templates::Definition::try_from(source)?),
+            })
         })
     }
 

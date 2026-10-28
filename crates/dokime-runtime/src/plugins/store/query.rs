@@ -91,7 +91,12 @@ impl PluginStore {
             entries.push(Self::entry_from_verification(id, &plugin, verified));
         }
         let next = selected.next().and_then(|_| entries.last().map(|entry| entry.installation.install_id));
-        Ok(PluginPage { entries, manifest_sha256: identity, total, next })
+        Ok(PluginPage {
+            entries,
+            manifest_sha256: identity,
+            total,
+            next,
+        })
     }
 }
 

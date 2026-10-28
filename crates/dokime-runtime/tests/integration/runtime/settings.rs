@@ -160,7 +160,9 @@ async fn live_status_answered() {
 async fn dispatcher_alone_probe() {
     let mut module = fixture_module();
     module.settings_status = None;
-    let dispatcher = FixtureStatusDispatcher { status: Err(ActionDispatcherError::Unavailable) };
+    let dispatcher = FixtureStatusDispatcher {
+        status: Err(ActionDispatcherError::Unavailable),
+    };
     let (_root, mut owner, runtime) = fixture_runtime_with_dispatcher(Some(module), Some(Arc::new(dispatcher))).await;
 
     let frame = runtime.settings_frame().await;
@@ -252,7 +254,11 @@ async fn resolves_one_record() {
     assert_eq!(resolved.values["workspace"], Value::from("team-prod"));
     assert_eq!(
         resolved.secret_bindings.bindings["access_token"],
-        RedactedSecretBinding { secret_id: "fabric.access_token".to_owned(), backend: SecretBackendKind::OsKeyring, configured: true }
+        RedactedSecretBinding {
+            secret_id: "fabric.access_token".to_owned(),
+            backend: SecretBackendKind::OsKeyring,
+            configured: true
+        }
     );
     assert!(resolved.secret_bindings.missing_required.is_empty());
     runtime.shutdown().await.unwrap();
@@ -284,7 +290,16 @@ async fn secret_references_file() {
     let mut artifact = installed_plugin("fixture");
     artifact.settings = catalog;
     let (_root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
-    handle.save_plugin_secret(&id, "token", PluginSecretUpdate { secret: "never-persist-plaintext-here".into() }).await.unwrap();
+    handle
+        .save_plugin_secret(
+            &id,
+            "token",
+            PluginSecretUpdate {
+                secret: "never-persist-plaintext-here".into(),
+            },
+        )
+        .await
+        .unwrap();
     let resolved = handle.plugin_settings(&id).await.unwrap();
     assert_eq!(resolved.values["name"], "default-name".into());
     assert!(resolved.secret_bindings.missing_required.is_empty());
@@ -297,13 +312,18 @@ async fn secret_references_file() {
     assert_eq!(handle.plugin_settings(&id).await.unwrap().values, saved.values);
     let environment = SettingValues::from([(
         "token".into(),
-        SecretReference::Environment { variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into() }.into(),
+        SecretReference::Environment {
+            variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into(),
+        }
+        .into(),
     )]);
     handle.save_plugin_settings(&id, PluginSettingsUpdate { values: environment }).await.unwrap();
     let resolved = handle.plugin_settings(&id).await.unwrap();
     assert_eq!(
         SecretReference::try_from(&resolved.values["token"]).unwrap(),
-        SecretReference::Environment { variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into() }
+        SecretReference::Environment {
+            variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into()
+        }
     );
     assert!(!saved_metadata(&handle).contains("never-persist-plaintext-here"));
     runtime.shutdown().await.unwrap();
@@ -331,7 +351,11 @@ async fn stored_secret_bindings() {
     let snapshot = handle
         .operations()
         .call(secrets::Put {
-            metadata: catalog::Metadata { identifier: "zephyr.api_token".into(), label: "API Token".into(), description: None },
+            metadata: catalog::Metadata {
+                identifier: "zephyr.api_token".into(),
+                label: "API Token".into(),
+                description: None,
+            },
             value: Some("secret-token".into()),
             generation: 0,
         })
@@ -346,8 +370,11 @@ async fn stored_secret_bindings() {
     handle.save_plugin_settings(&id, PluginSettingsUpdate { values }).await.unwrap();
     assert!(handle.plugin_settings(&id).await.unwrap().secret_bindings.missing_required.is_empty());
 
-    let replacement =
-        secrets::Put { metadata: snapshot.entries[0].metadata.clone(), value: Some("replacement-token".into()), generation: 1 };
+    let replacement = secrets::Put {
+        metadata: snapshot.entries[0].metadata.clone(),
+        value: Some("replacement-token".into()),
+        generation: 1,
+    };
     handle.operations().call(replacement.clone()).await.unwrap();
     assert!(handle.operations().call(replacement).await.is_err());
     let fresh = handle.operations().call(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.unwrap();
@@ -363,7 +390,14 @@ async fn stored_secret_bindings() {
         handle.operations().call(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.unwrap().value.as_deref(),
         Some("replacement-token")
     );
-    handle.operations().call(secrets::Remove { identifiers: vec!["zephyr.api_token".into()], generation: 2 }).await.unwrap();
+    handle
+        .operations()
+        .call(secrets::Remove {
+            identifiers: vec!["zephyr.api_token".into()],
+            generation: 2,
+        })
+        .await
+        .unwrap();
     assert!(handle.operations().call(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.is_err());
     assert_eq!(handle.plugin_settings(&id).await.unwrap().secret_bindings.missing_required, vec!["api_token"]);
     drop(handle);
@@ -439,14 +473,25 @@ async fn application_preferences_reopen_and_reject_stale_or_invalid_updates() {
     settings.listener.tls_enabled = false;
     settings.listener.authentication_enabled = false;
     settings.listener.certificate_names = vec!["fixture.local".into()];
-    let update = UpdateSettings { expected_revision: original.revision, settings: settings.clone() };
+    let update = UpdateSettings {
+        expected_revision: original.revision,
+        settings: settings.clone(),
+    };
     let saved = handle.update_application_settings(update.clone()).await.unwrap();
     assert_eq!(saved.revision, original.revision + 1);
     assert_eq!(saved.settings, settings);
     assert!(handle.update_application_settings(update).await.is_err());
     let mut invalid = settings;
     invalid.client.request_timeout_ms = 0;
-    assert!(handle.update_application_settings(UpdateSettings { expected_revision: saved.revision, settings: invalid }).await.is_err());
+    assert!(
+        handle
+            .update_application_settings(UpdateSettings {
+                expected_revision: saved.revision,
+                settings: invalid
+            })
+            .await
+            .is_err()
+    );
     assert_eq!(handle.read_application_settings().await.unwrap(), saved);
     assert!(!config.application_root.join("settings.json").exists());
     assert!(!config.application_root.join("config.toml").exists());

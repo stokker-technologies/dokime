@@ -198,7 +198,10 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            max_message_bytes,
+        }),
     )?;
     Ok(())
 }
@@ -249,7 +252,11 @@ async fn list_suites(
     } else {
         None
     };
-    Ok(dokime::domain::model::catalog::wire::ListSuitesReply { suites, next_after_suite_id, cursor: Some(canonical::cursor(&snapshot)) })
+    Ok(dokime::domain::model::catalog::wire::ListSuitesReply {
+        suites,
+        next_after_suite_id,
+        cursor: Some(canonical::cursor(&snapshot)),
+    })
 }
 
 async fn get_suite(

@@ -94,7 +94,10 @@ impl<A: Analysis, R: Send + Sync + 'static> harmos::operations::Operation for Se
 
 impl<A: Analysis> Handler<A> {
     fn fresh() -> Self {
-        Self { state: State { consumed: false, worker: None }, analysis: std::marker::PhantomData }
+        Self {
+            state: State { consumed: false, worker: None },
+            analysis: std::marker::PhantomData,
+        }
     }
 }
 

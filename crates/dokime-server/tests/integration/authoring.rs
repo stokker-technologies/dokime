@@ -75,7 +75,9 @@ impl dokime::telemetry::TelemetryRow for HomedRow {
     }
 
     fn from_row(values: &BTreeMap<String, dokime::Value>) -> Result<Self, dokime::telemetry::FieldError> {
-        Ok(Self { value: dokime::telemetry::field(values, "value")? })
+        Ok(Self {
+            value: dokime::telemetry::field(values, "value")?,
+        })
     }
 }
 

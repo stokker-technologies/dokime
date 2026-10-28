@@ -122,7 +122,10 @@ pub async fn desktop_storage_backup_destination(
     if !choose {
         return Ok(Some(default.display().to_string()));
     }
-    let failed = |message: String| DesktopSessionError::StorageReset { reason: StorageResetReason::Failed, message };
+    let failed = |message: String| DesktopSessionError::StorageReset {
+        reason: StorageResetReason::Failed,
+        message,
+    };
     // The dialog blocks until the operator answers; keep it off the async workers.
     let selected = tauri::async_runtime::spawn_blocking(move || {
         let mut dialog = app.dialog().file().add_filter("Zip Archive", &["zip"]);
@@ -192,14 +195,20 @@ fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageR
     use tauri::Manager;
 
     // Trust Only The Main Application Window
-    let unavailable = |message: String| DesktopSessionError::StorageReset { reason: StorageResetReason::OutsideRoot, message };
+    let unavailable = |message: String| DesktopSessionError::StorageReset {
+        reason: StorageResetReason::OutsideRoot,
+        message,
+    };
     let url = window.url().map_err(|error| unavailable(error.to_string()))?;
     if window.label() != "main" || !trusted_application_url(&url, window.app_handle().config()) {
         return Err(unavailable("Only the main application window may manage local storage.".to_owned()));
     }
 
     // Resolve The Data Root The Owned Backend Opens
-    let failed = |message: String| DesktopSessionError::StorageReset { reason: StorageResetReason::Failed, message };
+    let failed = |message: String| DesktopSessionError::StorageReset {
+        reason: StorageResetReason::Failed,
+        message,
+    };
     let application =
         crate::app::settings::application_root(&window.app_handle().config().identifier).map_err(|error| failed(error.to_string()))?;
     storage::StorageRoot::resolve(application, DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES).map_err(failed)

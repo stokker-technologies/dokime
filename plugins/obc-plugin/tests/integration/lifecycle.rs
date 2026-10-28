@@ -79,7 +79,14 @@ fn drain(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch 
     let reply = workflow.drain(token, cursor).expect("the execution remains drainable");
     for encoded in &reply.step_begins {
         let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+        workflow.admit(
+            token,
+            &StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            },
+        );
     }
     reply
 }
@@ -88,7 +95,14 @@ async fn next(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceB
     let reply = workflow.next(token, cursor).await.expect("the execution remains drainable");
     for encoded in &reply.step_begins {
         let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+        workflow.admit(
+            token,
+            &StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            },
+        );
     }
     reply
 }

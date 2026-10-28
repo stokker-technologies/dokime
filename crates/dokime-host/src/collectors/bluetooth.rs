@@ -60,7 +60,13 @@ pub struct BluetoothCollector {
 impl BluetoothCollector {
     pub fn new(options: HostOptions) -> Self {
         let deep_refresh_interval = Duration::from_millis(BLUETOOTH_DEEP_SCAN_INTERVAL_MS);
-        Self { sample_index: 0, options, deep_refresh_interval, last_deep_refresh: None, cached_values: None }
+        Self {
+            sample_index: 0,
+            options,
+            deep_refresh_interval,
+            last_deep_refresh: None,
+            cached_values: None,
+        }
     }
 
     pub fn collect(&mut self) -> Result<HostStreamSample> {

@@ -148,7 +148,10 @@ fn project(
     let reply = dokime::domain::model::content::wire::ListArtifactsReply {
         artifacts: selected,
         next_after_artifact_id,
-        cursor: Some(dokime::domain::model::content::wire::ArtifactCursor { epoch: epoch.to_owned(), metadata_sha256: fingerprint }),
+        cursor: Some(dokime::domain::model::content::wire::ArtifactCursor {
+            epoch: epoch.to_owned(),
+            metadata_sha256: fingerprint,
+        }),
     };
     if reply.wire_len()? > maximum {
         return Err(Status::resource_exhausted("artifact page exceeds configured message limit"));

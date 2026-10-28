@@ -189,7 +189,10 @@ impl Operation for ProviderState {
     type Error = crate::runtime::Error;
 
     async fn initialize<'ctx>(_: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(ProviderState { invocation: None, work: ProviderWork::new() })
+        Ok(ProviderState {
+            invocation: None,
+            work: ProviderWork::new(),
+        })
     }
 
     async fn run<'ctx>(
@@ -342,7 +345,15 @@ impl ProviderCycleRequest {
                 (Err(error), None) => finish_interrupted_provider_job(&runtime, &self, error).await,
             }
         });
-        tasks.push(ProviderTask { request_id, settled, source, cycle, task, started, cancel });
+        tasks.push(ProviderTask {
+            request_id,
+            settled,
+            source,
+            cycle,
+            task,
+            started,
+            cancel,
+        });
     }
 }
 
@@ -487,13 +498,20 @@ async fn prepare_attempts(
             .update(request_id, |receipt| {
                 receipt.summary = summary.clone();
                 receipt.claimed = ordinal + 1;
-                receipt.last_claim =
-                    Some(crate::runtime::storage::requests::AttemptClaim { ordinal, case_id, execution_id: execution_id.clone() });
+                receipt.last_claim = Some(crate::runtime::storage::requests::AttemptClaim {
+                    ordinal,
+                    case_id,
+                    execution_id: execution_id.clone(),
+                });
             })
             .await
             .map_err(|error| ProviderExecutionFailure::new("request_checkpoint", error.to_string()))?;
         let result = runtime
-            .commit(crate::transactions::PrepareAttempt { request_id: request_id.clone(), ordinal, at: crate::model::time::now_utc() })
+            .commit(crate::transactions::PrepareAttempt {
+                request_id: request_id.clone(),
+                ordinal,
+                at: crate::model::time::now_utc(),
+            })
             .await;
         if let Err(error) = result {
             let state = runtime.state_read();

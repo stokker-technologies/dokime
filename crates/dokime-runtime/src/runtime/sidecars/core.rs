@@ -70,7 +70,10 @@ impl Publications {
     pub(crate) fn insert(&self, owner: &str, resident: InstalledSidecar) -> harmos::Result<()> {
         let mut residents = self.residents.write().expect("publication registry is healthy");
         if residents.contains_key(owner) {
-            return Err(harmos::Error::InvalidInput { field: "native publication owner", reason: "previous resident has not retired" });
+            return Err(harmos::Error::InvalidInput {
+                field: "native publication owner",
+                reason: "previous resident has not retired",
+            });
         }
         residents.insert(owner.to_owned(), resident);
         Ok(())
@@ -99,18 +102,18 @@ impl Operation for Invocation {
     async fn run<'ctx>(
         &mut self, context: Self::Context<'ctx>, request: &mut streams::Publish, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
-        let scope = context
-            .caller_scope()
-            .ok_or(harmos::Error::InvalidInput { field: "native publication", reason: "original plugin caller is required" })?;
+        let scope = context.caller_scope().ok_or(harmos::Error::InvalidInput {
+            field: "native publication",
+            reason: "original plugin caller is required",
+        })?;
         if self.native.is_none() {
-            let resident = self
-                .owner
-                .residents
-                .read()
-                .expect("publication registry is healthy")
-                .get(scope.owner())
-                .cloned()
-                .ok_or_else(|| harmos::Error::NotRegistered { domain: "native publication owner", name: scope.owner().to_owned() })?;
+            let resident =
+                self.owner.residents.read().expect("publication registry is healthy").get(scope.owner()).cloned().ok_or_else(|| {
+                    harmos::Error::NotRegistered {
+                        domain: "native publication owner",
+                        name: scope.owner().to_owned(),
+                    }
+                })?;
             self.native = Some(NativePublication::initialize(Arc::new(resident), context.clone()).await?);
         }
         // The Original Connection Validates Authority And Retains Receipts.
@@ -170,9 +173,10 @@ impl Operation for Filing {
     async fn run<'ctx>(
         &mut self, context: Self::Context<'ctx>, publication: &mut crate::records::RecordPublication, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
-        let scope = context
-            .caller_scope()
-            .ok_or(harmos::Error::InvalidInput { field: "record publication", reason: "the original plugin caller is required" })?;
+        let scope = context.caller_scope().ok_or(harmos::Error::InvalidInput {
+            field: "record publication",
+            reason: "the original plugin caller is required",
+        })?;
         let owner = scope.owner().to_owned();
         let runtime = self.ingress.runtime()?;
         let Some((request, produced_at)) = super::record_publication(&owner, std::mem::take(publication)) else {

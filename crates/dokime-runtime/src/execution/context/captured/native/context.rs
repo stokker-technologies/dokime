@@ -95,7 +95,10 @@ impl TryFrom<&ExecutionContext> for Context {
     fn try_from(value: &ExecutionContext) -> Result<Self> {
         let mut execution_documents = slots(value.execution_documents.len())?;
         for (key, definition) in &value.execution_documents {
-            execution_documents.push(Document { key: key.as_str().to_owned(), definition: Some(definition.try_into()?) });
+            execution_documents.push(Document {
+                key: key.as_str().to_owned(),
+                definition: Some(definition.try_into()?),
+            });
         }
         Ok(Self {
             appearance_logo_bytes: value.appearance_policy.logo_bytes,

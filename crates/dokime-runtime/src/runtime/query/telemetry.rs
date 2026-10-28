@@ -134,11 +134,23 @@ pub(crate) fn telemetry_view_frame(
                 streams.push(RuntimeTelemetryStreamFrame { stream, samples: reduced.returned });
             }
         }
-        Ok((RuntimeTelemetryFrame { streams, total_samples, returned_samples, downsampled }, high_water))
+        Ok((
+            RuntimeTelemetryFrame {
+                streams,
+                total_samples,
+                returned_samples,
+                downsampled,
+            },
+            high_water,
+        ))
     })?;
     let cursor = RuntimeCursor(request_cursor.map_or(0, |cursor| cursor.0).max(projected.1.unwrap_or(0)));
     let frame = projected.try_map(|(frame, _)| -> crate::runtime::Result<_> { Ok(frame) })?;
-    Ok(RuntimeViewFrame { cursor, window: window.clone(), payload: RuntimeViewPayload::Telemetry { frame: RuntimeTelemetryRead(frame) } })
+    Ok(RuntimeViewFrame {
+        cursor,
+        window: window.clone(),
+        payload: RuntimeViewPayload::Telemetry { frame: RuntimeTelemetryRead(frame) },
+    })
 }
 /* === Private Functions === */
 

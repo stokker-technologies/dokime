@@ -193,7 +193,10 @@ impl OrganizationState {
 
     /// The script every main window runs before the frontend loads.
     pub(crate) fn initialization_script(&self) -> String {
-        let boot = BootScript { pack: self.boot.pack.as_ref(), error: self.boot.error.as_deref() };
+        let boot = BootScript {
+            pack: self.boot.pack.as_ref(),
+            error: self.boot.error.as_deref(),
+        };
         let json = serde_json::to_string(&boot).unwrap_or_else(|_| "{}".to_owned());
         format!("window.__DOKIME_ORGANIZATION_PACK__ = {json};")
     }
@@ -201,7 +204,10 @@ impl OrganizationState {
 
 impl LoadedPack {
     fn summary(&self) -> PackSummary {
-        PackSummary { label: self.label.clone(), organization: self.organization.as_ref().map(|organization| organization.name.clone()) }
+        PackSummary {
+            label: self.label.clone(),
+            organization: self.organization.as_ref().map(|organization| organization.name.clone()),
+        }
     }
 }
 
@@ -228,7 +234,11 @@ pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
         let tray = tauri::tray::TrayIconBuilder::with_id("organization").icon(icon).tooltip(&pack.label).menu(&menu).build(app)?;
         app.manage(tray);
     }
-    app.manage(OrganizationState { root, boot, session: Mutex::new(Session { pending, removed: false }) });
+    app.manage(OrganizationState {
+        root,
+        boot,
+        session: Mutex::new(Session { pending, removed: false }),
+    });
     Ok(())
 }
 
@@ -287,7 +297,13 @@ fn boot(root: &Path) -> Boot {
             Ok(pack)
         });
         match promoted {
-            Ok(pack) => return Boot { pack: Some(pack), error: None, active: true },
+            Ok(pack) => {
+                return Boot {
+                    pack: Some(pack),
+                    error: None,
+                    active: true,
+                };
+            }
             Err(error) => {
                 promotion_error = Some(format!("the pending organization pack could not be activated: {error}"));
             }
@@ -297,7 +313,11 @@ fn boot(root: &Path) -> Boot {
         return base_boot(promotion_error);
     }
     match load(&active) {
-        Ok(pack) => Boot { pack: Some(pack), error: promotion_error, active: true },
+        Ok(pack) => Boot {
+            pack: Some(pack),
+            error: promotion_error,
+            active: true,
+        },
         Err(error) => {
             let error = match promotion_error {
                 Some(pending) => format!("{pending}; the active pack also failed: {error}"),
@@ -314,7 +334,11 @@ fn base_boot(error: Option<String>) -> Boot {
         Err(base) => {
             let base = format!("the bundled organization could not be loaded: {base}");
             let error = error.map_or_else(|| base.clone(), |error| format!("{error}; {base}"));
-            Boot { pack: None, error: Some(error), active: false }
+            Boot {
+                pack: None,
+                error: Some(error),
+                active: false,
+            }
         }
     }
 }
@@ -769,7 +793,11 @@ mod tests {
         std::fs::write(&archive_path, archive(&[(MANIFEST, invalid.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
         assert!(stage(&store, &archive_path).unwrap_err().contains("does not exist"));
         let booted = boot(&store);
-        let script = serde_json::to_value(BootScript { pack: booted.pack.as_ref(), error: booted.error.as_deref() }).unwrap();
+        let script = serde_json::to_value(BootScript {
+            pack: booted.pack.as_ref(),
+            error: booted.error.as_deref(),
+        })
+        .unwrap();
         assert_eq!(script["pack"]["updates"]["mode"], "disabled");
         let updates = booted.pack.unwrap().updates.unwrap();
         assert_eq!(updates.mode, policy::Mode::Disabled);

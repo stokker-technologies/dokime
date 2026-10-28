@@ -45,7 +45,10 @@ pub(super) struct Admission {
 
 impl Admission {
     pub(super) fn new() -> Self {
-        Self { reads: Arc::new(Semaphore::new(1)), mutations: Arc::new(Semaphore::new(1)) }
+        Self {
+            reads: Arc::new(Semaphore::new(1)),
+            mutations: Arc::new(Semaphore::new(1)),
+        }
     }
 
     pub(super) fn read(&self) -> Result<OwnedSemaphorePermit, Status> {

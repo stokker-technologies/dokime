@@ -103,8 +103,13 @@ impl RuntimeHandle {
         let archived = self.state_read().archived_cycles.clone();
         let session = self.storage().clone();
         let at = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(at))?;
-        let mut reader =
-            session.read_objects::<Cycle>(ObjectRead { at: (*at).clone(), key: None, versions: ObjectVersions::Latest }).await?;
+        let mut reader = session
+            .read_objects::<Cycle>(ObjectRead {
+                at: (*at).clone(),
+                key: None,
+                versions: ObjectVersions::Latest,
+            })
+            .await?;
         let mut entries = harmos::storage::ReadBatch::new(Vec::new());
         let mut count = 0usize;
         let mut bytes = slots;
@@ -159,7 +164,13 @@ impl RuntimeHandle {
                 entries = crate::storage::projection::push(entries, selected)?;
             }
             if more {
-                return at.try_map(|at| Ok::<_, Error>(CycleBrowsePage { entries: entries.into(), at, next: Some(last) }));
+                return at.try_map(|at| {
+                    Ok::<_, Error>(CycleBrowsePage {
+                        entries: entries.into(),
+                        at,
+                        next: Some(last),
+                    })
+                });
             }
         }
         at.try_map(|at| Ok::<_, Error>(CycleBrowsePage { entries: entries.into(), at, next: None }))

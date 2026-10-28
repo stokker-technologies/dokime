@@ -282,7 +282,11 @@ async fn build(
         let report = &view.execution().saved.as_ref().ok_or(Error::Unsealed("execution"))?.report;
         let reader = view.read_file(report, ByteRange { offset: 0, limit: None }).await?;
         archive.stored_file(&format!("reports/execution-{id}.html"), None, report.clone(), reader, &mut budget).await?;
-        let inventory = ExecutionInventory { revision: view.checkpoint()?, captured_at: view.captured_at()?.clone(), counts };
+        let inventory = ExecutionInventory {
+            revision: view.checkpoint()?,
+            captured_at: view.captured_at()?.clone(),
+            counts,
+        };
         budget.reserve(&inventory)?;
         executions.push(inventory);
     }
@@ -298,7 +302,12 @@ async fn build(
         archive.stored_file(&format!("reports/cycle-{}.html", snapshot.cycle_id), None, report.clone(), reader, &mut budget).await?;
     }
     let streams = database.finish()?;
-    let reader = storage.read_file(ReadFile { source: FileSource::Local(path), range: ByteRange { offset: 0, limit: None } }).await?;
+    let reader = storage
+        .read_file(ReadFile {
+            source: FileSource::Local(path),
+            range: ByteRange { offset: 0, limit: None },
+        })
+        .await?;
     archive.database(reader, &mut budget).await?;
     let manifest = Manifest {
         schema_version: EVIDENCE_EXPORT_SCHEMA_VERSION,
@@ -325,8 +334,21 @@ async fn build(
         sha256,
     };
     let reader = session.read_opened_file(file, ByteRange { offset: 0, limit: Some(size_bytes) }).await?;
-    let source = Source { metadata, _directory: directory, _permit: permit, _work: work };
-    Ok(Bundle { source: Arc::new(source), session, reader: Some(reader), batch: None, batch_offset: 0, offset: 0, pending: None })
+    let source = Source {
+        metadata,
+        _directory: directory,
+        _permit: permit,
+        _work: work,
+    };
+    Ok(Bundle {
+        source: Arc::new(source),
+        session,
+        reader: Some(reader),
+        batch: None,
+        batch_offset: 0,
+        offset: 0,
+        pending: None,
+    })
 }
 
 /* === Tests === */

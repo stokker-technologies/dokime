@@ -91,7 +91,12 @@ pub fn plot_input_for_definition(
 }
 
 pub fn plot_descriptor_for_definition(input: PlotInput, metadata: Metadata) -> PlotDescriptor {
-    PlotDescriptor { plot_id: input.plot_id.clone(), metadata, plot_type: input.plot_type.clone(), input }
+    PlotDescriptor {
+        plot_id: input.plot_id.clone(),
+        metadata,
+        plot_type: input.plot_type.clone(),
+        input,
+    }
 }
 
 pub(crate) fn stream_matches_alias(actual: &str, declared: &str) -> bool {

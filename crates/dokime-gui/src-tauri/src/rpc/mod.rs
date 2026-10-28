@@ -215,7 +215,13 @@ impl Bridge {
         }
         let lease = session.lease(&generation.to_string())?;
         let owner_cancel = self.owners.lock().expect("RPC owners poisoned").entry(owner.into()).or_default().clone();
-        Ok(Context { generation, owner: owner.into(), owner_cancel, lease, _permit: permit })
+        Ok(Context {
+            generation,
+            owner: owner.into(),
+            owner_cancel,
+            lease,
+            _permit: permit,
+        })
     }
 
     fn admit(&self, budget: &Arc<Semaphore>) -> Result<OwnedSemaphorePermit, RpcError> {
@@ -256,7 +262,11 @@ pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + 
 /* === Private Functions === */
 
 fn rpc_error(status: tonic::Status) -> RpcError {
-    RpcError::Grpc { code: status.code() as i32, message: status.message().into(), details: status.details().to_vec() }
+    RpcError::Grpc {
+        code: status.code() as i32,
+        message: status.message().into(),
+        details: status.details().to_vec(),
+    }
 }
 
 fn request(body: &tauri::ipc::InvokeBody, maximum: usize) -> Result<(u64, &[u8]), RpcError> {

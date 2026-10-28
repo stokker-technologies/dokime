@@ -111,12 +111,26 @@ async fn portable_records_identity() {
     let reader = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     assert_eq!(reader.history(), &history);
     let snapshot = reader.open_snapshot(&saved).await.unwrap();
-    let selection = RecordSelection { schema, scope: None, item: None, source_start: None, source_end: None };
+    let selection = RecordSelection {
+        schema,
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
     let mut after = 0;
     let mut actual = Vec::new();
     for stored in &stored {
         let page = reader
-            .read_records(&snapshot, &selection, ScanPage { after, rows: 1.try_into().unwrap(), bytes: FRAME_BYTES.try_into().unwrap() })
+            .read_records(
+                &snapshot,
+                &selection,
+                ScanPage {
+                    after,
+                    rows: 1.try_into().unwrap(),
+                    bytes: FRAME_BYTES.try_into().unwrap(),
+                },
+            )
             .await
             .unwrap();
         assert_eq!(page.as_slice(), std::slice::from_ref(stored));
@@ -125,7 +139,15 @@ async fn portable_records_identity() {
     }
     assert!(
         reader
-            .read_records(&snapshot, &selection, ScanPage { after, rows: 1.try_into().unwrap(), bytes: FRAME_BYTES.try_into().unwrap() })
+            .read_records(
+                &snapshot,
+                &selection,
+                ScanPage {
+                    after,
+                    rows: 1.try_into().unwrap(),
+                    bytes: FRAME_BYTES.try_into().unwrap()
+                }
+            )
             .await
             .unwrap()
             .is_empty()

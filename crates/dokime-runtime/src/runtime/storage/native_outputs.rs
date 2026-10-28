@@ -154,7 +154,12 @@ impl ExecutionStorage {
             let output = NativeOutput::new(&relative_path)?;
             let absolute_path = output.file.path().to_string_lossy().into_owned();
             acquisition.native_outputs.insert(relative_path.clone(), output);
-            Ok(ExecutionFileTarget { relative_path, absolute_path, text_hint, streamed })
+            Ok(ExecutionFileTarget {
+                relative_path,
+                absolute_path,
+                text_hint,
+                streamed,
+            })
         })
         .await
         .map_err(error)?
@@ -294,7 +299,14 @@ impl FrozenFile {
     }
 
     fn with_state(file: FrozenSource, metadata: FileMetadata, stream_state: Option<SavedStreamState>) -> Self {
-        Self { file, metadata, stream_state, creating: tokio::sync::Mutex::new(None), capture: None, session: None }
+        Self {
+            file,
+            metadata,
+            stream_state,
+            creating: tokio::sync::Mutex::new(None),
+            capture: None,
+            session: None,
+        }
     }
 
     pub(super) async fn finish(&mut self, storage: &Manager) -> Result<FileReference> {

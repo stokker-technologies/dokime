@@ -537,7 +537,11 @@ impl CyclePhase {
 
 impl TestStepAttempt {
     pub fn start(&self) -> StepAttemptStart {
-        StepAttemptStart { attempt_id: self.attempt_id.clone(), step_id: self.step_id.clone(), started_at: self.started_at.clone() }
+        StepAttemptStart {
+            attempt_id: self.attempt_id.clone(),
+            step_id: self.step_id.clone(),
+            started_at: self.started_at.clone(),
+        }
     }
 }
 

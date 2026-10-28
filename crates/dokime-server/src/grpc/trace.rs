@@ -132,7 +132,12 @@ impl Watch {
             match tokio::time::timeout(WATCH_HEARTBEAT, changes.changed()).await {
                 Ok(changed) => changed.map_err(|_| Status::unavailable("trace journal closed"))?,
                 Err(_) => {
-                    let keepalive = TraceBatch { epoch: epoch.clone(), events: Vec::new(), dropped, next_sequence: after };
+                    let keepalive = TraceBatch {
+                        epoch: epoch.clone(),
+                        events: Vec::new(),
+                        dropped,
+                        next_sequence: after,
+                    };
                     output.send_owned(keepalive.into()).await.map_err(failure)?;
                 }
             }
@@ -146,7 +151,11 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize, journal: Arc<Jou
     runtime.operations().register_wire_operation::<Watch>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum, journal }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            maximum,
+            journal,
+        }),
     )?;
     Ok(())
 }
@@ -192,7 +201,12 @@ fn batch(epoch: &str, page: Page, dropped: u64, maximum: usize) -> Result<TraceB
         events.push(event_wire(*sequence, event)?);
     }
     let next_sequence = if count == page.events.len() { page.next } else { events.last().expect("nonempty bounded prefix").sequence };
-    let mut batch = TraceBatch { epoch: epoch.to_owned(), events, dropped, next_sequence };
+    let mut batch = TraceBatch {
+        epoch: epoch.to_owned(),
+        events,
+        dropped,
+        next_sequence,
+    };
     while super::content::output_frame_len(&batch)? > maximum {
         batch.events.pop();
         batch.next_sequence = batch.events.last().ok_or_else(budget_failure)?.sequence;
@@ -209,7 +223,10 @@ fn event_wire(sequence: u64, event: &Event) -> Result<TraceEvent, Status> {
     }
     Ok(TraceEvent {
         sequence,
-        time: Some(Timestamp { seconds: event.time.unix_timestamp(), nanos: event.time.nanosecond() as i32 }),
+        time: Some(Timestamp {
+            seconds: event.time.unix_timestamp(),
+            nanos: event.time.nanosecond() as i32,
+        }),
         level: level(event.level),
         target: event.target.clone(),
         message: event.message.clone(),
@@ -251,15 +268,28 @@ mod tests {
     #[test]
     fn split_batch_preserves_resume_position() {
         let event = event(&"x".repeat(1024));
-        let one = TraceBatch { epoch: "epoch".into(), events: vec![event_wire(1, &event).unwrap()], dropped: 0, next_sequence: 1 };
+        let one = TraceBatch {
+            epoch: "epoch".into(),
+            events: vec![event_wire(1, &event).unwrap()],
+            dropped: 0,
+            next_sequence: 1,
+        };
         let maximum = super::super::content::output_frame_len(&one).unwrap();
-        let page = Page { events: vec![(1, Arc::clone(&event)), (2, Arc::clone(&event))], missed: 0, next: 3 };
+        let page = Page {
+            events: vec![(1, Arc::clone(&event)), (2, Arc::clone(&event))],
+            missed: 0,
+            next: 3,
+        };
         let first = batch("epoch", page, 0, maximum).unwrap();
         assert_eq!(first.events.iter().map(|event| event.sequence).collect::<Vec<_>>(), [1]);
         assert_eq!(first.next_sequence, 1);
         assert!(super::super::content::output_frame_len(&first).unwrap() <= maximum);
 
-        let page = Page { events: vec![(2, event)], missed: 0, next: 3 };
+        let page = Page {
+            events: vec![(2, event)],
+            missed: 0,
+            next: 3,
+        };
         let second = batch("epoch", page, 0, maximum).unwrap();
         assert_eq!(second.events.iter().map(|event| event.sequence).collect::<Vec<_>>(), [2]);
         assert_eq!(second.next_sequence, 3);

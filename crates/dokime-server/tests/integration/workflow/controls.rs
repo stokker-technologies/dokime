@@ -41,7 +41,15 @@ use dokime::domain::model;
 
 #[tokio::test]
 async fn cycle_edits_state() {
-    let Gated { root: _root, gate, mut owner, service: _service, server, execution: mut client, cycle: id } = Gated::open().await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service: _service,
+        server,
+        execution: mut client,
+        cycle: id,
+    } = Gated::open().await;
     let cases = client
         .unary::<contracts::execution::ListCases>(authenticated(contracts::execution::ListCases {
             cycle_id: id.clone(),
@@ -51,7 +59,11 @@ async fn cycle_edits_state() {
         .unwrap()
         .into_inner()
         .cases;
-    let case = contracts::execution::DeleteCase { cycle_id: id.clone(), case_id: cases[0].case_id.clone(), context: None };
+    let case = contracts::execution::DeleteCase {
+        cycle_id: id.clone(),
+        case_id: cases[0].case_id.clone(),
+        context: None,
+    };
     assert_eq!(client.unary::<contracts::execution::DeleteCase>(case.clone()).await.unwrap_err().code(), Code::Unauthenticated);
     client
         .unary::<contracts::execution::UpdateCyclePolicy>(authenticated(contracts::execution::UpdateCyclePolicy {
@@ -70,7 +82,11 @@ async fn cycle_edits_state() {
             .continue_automatically
     );
     client
-        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: case.case_id.clone(), context: None }))
+        .start_case(authenticated(support::wire::CaseSelection {
+            cycle_id: id.clone(),
+            case_id: case.case_id.clone(),
+            context: None,
+        }))
         .await
         .unwrap();
     gate.started.notified().await;
@@ -102,7 +118,11 @@ async fn cycle_edits_state() {
     assert_ne!(planned[1].execution_id, first[0].execution_id);
     assert_eq!(planned[1].status, model::execution::wire::ExecutionStatus::Skipped);
     client
-        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: case.case_id.clone(), context: None }))
+        .start_case(authenticated(support::wire::CaseSelection {
+            cycle_id: id.clone(),
+            case_id: case.case_id.clone(),
+            context: None,
+        }))
         .await
         .unwrap();
     gate.started.notified().await;
@@ -136,7 +156,11 @@ async fn cycle_edits_state() {
         Code::FailedPrecondition
     );
     client
-        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: cases[0].case_id.clone(), context: None }))
+        .start_case(authenticated(support::wire::CaseSelection {
+            cycle_id: id.clone(),
+            case_id: cases[0].case_id.clone(),
+            context: None,
+        }))
         .await
         .unwrap();
     gate.started.notified().await;
@@ -182,7 +206,15 @@ async fn cycle_edits_state() {
 
 #[tokio::test]
 async fn labels_rename_state() {
-    let Gated { root: _root, gate, mut owner, service: _service, server, execution: mut client, cycle: id } = Gated::open().await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service: _service,
+        server,
+        execution: mut client,
+        cycle: id,
+    } = Gated::open().await;
     let cases = client
         .unary::<contracts::execution::ListCases>(authenticated(contracts::execution::ListCases {
             cycle_id: id.clone(),
@@ -193,7 +225,11 @@ async fn labels_rename_state() {
         .into_inner()
         .cases;
     let case_id = cases[0].case_id.clone();
-    let rename = contracts::execution::RenameCycle { cycle_id: id.clone(), label: "  Charger Burn-In ".into(), context: None };
+    let rename = contracts::execution::RenameCycle {
+        cycle_id: id.clone(),
+        label: "  Charger Burn-In ".into(),
+        context: None,
+    };
     assert_eq!(client.unary::<contracts::execution::RenameCycle>(rename.clone()).await.unwrap_err().code(), Code::Unauthenticated);
 
     // A Blank Or Oversized Label Is A Bad Argument
@@ -212,7 +248,11 @@ async fn labels_rename_state() {
     let reply = client.unary::<contracts::execution::RenameCycle>(authenticated(rename)).await.unwrap().into_inner();
     assert_eq!(reply.label, "Charger Burn-In");
     let execution_id = attempts(&mut client, &id).await[0].execution_id.clone();
-    let execution = contracts::execution::RenameExecution { execution_id, label: "Charger Soak".into(), context: None };
+    let execution = contracts::execution::RenameExecution {
+        execution_id,
+        label: "Charger Soak".into(),
+        context: None,
+    };
     let reply = client.unary::<contracts::execution::RenameExecution>(authenticated(execution.clone())).await.unwrap().into_inner();
     assert_eq!(reply.label, "Charger Soak");
     let cycle = client
@@ -235,7 +275,11 @@ async fn labels_rename_state() {
 
     // Complete The Execution, Then Seal Its Cycle Explicitly.
     client
-        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: case_id.clone(), context: None }))
+        .start_case(authenticated(support::wire::CaseSelection {
+            cycle_id: id.clone(),
+            case_id: case_id.clone(),
+            context: None,
+        }))
         .await
         .unwrap();
     gate.started.notified().await;
@@ -283,7 +327,11 @@ async fn labels_rename_state() {
 }
 
 fn archive(id: &str, archived: bool) -> contracts::execution::SetCycleArchived {
-    contracts::execution::SetCycleArchived { cycle_id: id.into(), archived, context: None }
+    contracts::execution::SetCycleArchived {
+        cycle_id: id.into(),
+        archived,
+        context: None,
+    }
 }
 
 async fn listed(client: &mut WireClient, id: &str, archive: Option<model::execution::wire::ArchiveScope>) -> bool {

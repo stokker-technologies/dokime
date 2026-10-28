@@ -79,7 +79,14 @@ async fn cleanup_drains_input() {
         let reply = workflow.next("finalize", cursor).await.unwrap();
         for encoded in &reply.step_begins {
             let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            workflow.admit("finalize", &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+            workflow.admit(
+                "finalize",
+                &StepAdmission {
+                    attempt_id: start.attempt_id.to_string(),
+                    accepted: true,
+                    message: String::new(),
+                },
+            );
         }
         cursor = reply.cursor;
         if !reply.prompt_requests.is_empty() {

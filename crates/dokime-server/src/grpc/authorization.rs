@@ -57,7 +57,10 @@ impl Policy {
     fn new(settings: &dokime::harmos::config::SchemaSettings) -> Result<Self, Error> {
         let mut requirements = Vec::new();
         <Operations as Catalog<Endpoints>>::ENTRIES.try_for_each(|entry| {
-            requirements.push(Requirement { local_only: entry.local_only, contract: entry.wire.contract_with_settings(settings)? });
+            requirements.push(Requirement {
+                local_only: entry.local_only,
+                contract: entry.wire.contract_with_settings(settings)?,
+            });
             Ok::<_, Error>(())
         })?;
         requirements.sort_unstable_by(|left, right| left.contract.operation().id.cmp(&right.contract.operation().id));

@@ -796,7 +796,11 @@ mod tests {
     fn analysis_fields_normalize_without_a_second_output_limit() {
         let fields = (0..33).map(|index| format!("field_{index}")).collect::<Vec<_>>();
         let request = PlotPayloadRequest {
-            analysis: Some(crate::analysis::Selection { id: "fixture.analysis".into(), version: 1, parameters: BTreeMap::new() }),
+            analysis: Some(crate::analysis::Selection {
+                id: "fixture.analysis".into(),
+                version: 1,
+                parameters: BTreeMap::new(),
+            }),
             stream: "fixture.stream".into(),
             y_expressions: fields.iter().map(|field| telemetry("fixture.stream", field)).collect(),
             ..Default::default()

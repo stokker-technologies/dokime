@@ -154,7 +154,12 @@ fn wide_schema() -> harmos::schema::graph::Schema {
         Cardinality,
         graph::{Field, Kind, Schema},
     };
-    let mut fields = vec![Field { name: "timestamp".into(), tag: 1, kind: Kind::String, cardinality: Cardinality::Required }];
+    let mut fields = vec![Field {
+        name: "timestamp".into(),
+        tag: 1,
+        kind: Kind::String,
+        cardinality: Cardinality::Required,
+    }];
     fields.extend((0..COLUMNS).map(|index| Field {
         name: format!("value_{index:02}").into(),
         tag: index as u32 + 2,

@@ -164,7 +164,10 @@ fn register<T: serde::Serialize>(registrar: &mut Registrar, namespace: &str, val
 }
 
 fn invalid(namespace: &str, error: impl std::fmt::Display) -> RegistrationError {
-    RegistrationError::Encode { namespace: namespace.into(), source: <serde_json::Error as serde::ser::Error>::custom(error.to_string()) }
+    RegistrationError::Encode {
+        namespace: namespace.into(),
+        source: <serde_json::Error as serde::ser::Error>::custom(error.to_string()),
+    }
 }
 
 /* === Tests === */

@@ -49,7 +49,11 @@ pub fn evaluate_telemetry_condition(condition: &TelemetryCondition, samples: &[T
             continue;
         }
 
-        return TelemetryConditionEvaluation { satisfied: true, matched_sequence: Some(sample.sequence), reason: None };
+        return TelemetryConditionEvaluation {
+            satisfied: true,
+            matched_sequence: Some(sample.sequence),
+            reason: None,
+        };
     }
 
     TelemetryConditionEvaluation {

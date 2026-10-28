@@ -123,7 +123,10 @@ fn project(
     }
     let digest = hash.finalize();
     if request.cursor.as_ref().is_some_and(|cursor| cursor.metadata_sha256.as_slice() != digest.as_slice()) {
-        return Err(dokime::harmos::Error::InvalidInput { field: "execution files cursor", reason: "metadata fingerprint differs" });
+        return Err(dokime::harmos::Error::InvalidInput {
+            field: "execution files cursor",
+            reason: "metadata fingerprint differs",
+        });
     }
     let next_after_path =
         if counted.more { Some(projection::text(&selected.last().ok_or_else(invalid_wire)?.relative_path)?) } else { None };
@@ -151,11 +154,12 @@ fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles, lim
     let after = if request.after_path.is_empty() {
         0
     } else {
-        entries
-            .iter()
-            .position(|entry| entry.relative_path == request.after_path)
-            .map(|index| index + 1)
-            .ok_or(dokime::harmos::Error::InvalidInput { field: "execution files after path", reason: "after path not found" })?
+        entries.iter().position(|entry| entry.relative_path == request.after_path).map(|index| index + 1).ok_or(
+            dokime::harmos::Error::InvalidInput {
+                field: "execution files after path",
+                reason: "after path not found",
+            },
+        )?
     };
     let returned = entries.len().saturating_sub(after).min(limit);
     let more = entries.len().saturating_sub(after) > returned;
@@ -177,15 +181,23 @@ fn timestamp(entry: &ExecutionFileEntry) -> dokime::harmos::Result<dokime::domai
     let at = time::OffsetDateTime::parse(entry.updated_at.as_str(), &time::format_description::well_known::Rfc3339).map_err(|source| {
         dokime::harmos::Error::backend("parse original output creation time", dokime::harmos::BackendFailure::Corrupt, source)
     })?;
-    Ok(dokime::domain::model::identity::wire::Timestamp { seconds: at.unix_timestamp(), nanos: at.nanosecond() as i32 })
+    Ok(dokime::domain::model::identity::wire::Timestamp {
+        seconds: at.unix_timestamp(),
+        nanos: at.nanosecond() as i32,
+    })
 }
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical execution inventory" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical execution inventory",
+    }
 }
 
 fn invalid_wire() -> dokime::harmos::Error {
-    dokime::harmos::Error::InvalidInput { field: "canonical execution inventory", reason: "original order or encoded length differs" }
+    dokime::harmos::Error::InvalidInput {
+        field: "canonical execution inventory",
+        reason: "original order or encoded length differs",
+    }
 }
 
 /* === Tests === */

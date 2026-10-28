@@ -70,9 +70,11 @@ pub async fn run(command: Command, name: &str, timeout: Option<Duration>, stdout
     };
     match result {
         Ok((status, stdout, stderr)) if status.success() => Ok(Output { status, stdout, stderr }),
-        Ok((status, _, stderr)) => {
-            Err(Error::Process { program: name.to_owned(), status, stderr: String::from_utf8_lossy(&stderr).into_owned() })
-        }
+        Ok((status, _, stderr)) => Err(Error::Process {
+            program: name.to_owned(),
+            status,
+            stderr: String::from_utf8_lossy(&stderr).into_owned(),
+        }),
         Err(error) => {
             let _ = child.kill().await;
             let _ = child.wait().await;
@@ -117,7 +119,11 @@ pub(crate) async fn cargo(command: Command, name: &str, timeout: Option<Duration
         }
         Ok((status, _, _)) => {
             progress.fail(format!("{name} failed after {:.1}s", started.elapsed().as_secs_f64()));
-            Err(Error::Process { program: name.to_owned(), status, stderr: "see compiler diagnostics above".into() })
+            Err(Error::Process {
+                program: name.to_owned(),
+                status,
+                stderr: "see compiler diagnostics above".into(),
+            })
         }
         Err(error) => {
             // The wrapper kills the entire Unix group / Windows Job Object and awaits exit.

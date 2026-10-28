@@ -108,7 +108,13 @@ impl Harness {
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .unwrap();
         let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
-        Self { app, window, writer, frames, channels: AtomicU32::new(1) }
+        Self {
+            app,
+            window,
+            writer,
+            frames,
+            channels: AtomicU32::new(1),
+        }
     }
 
     pub fn open(&self, generation: u64, path: &str, opening: &[u8], keep_input: bool) -> Result<(u64, u32), Value> {

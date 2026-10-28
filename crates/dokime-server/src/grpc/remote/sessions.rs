@@ -115,7 +115,14 @@ impl SessionLog {
             let mut state = self.lock();
             let Some(path) = state.path.clone().filter(|_| state.dirty) else { return };
             state.dirty = false;
-            (path, Document { version: 1, next: state.next, sessions: state.sessions.clone() })
+            (
+                path,
+                Document {
+                    version: 1,
+                    next: state.next,
+                    sessions: state.sessions.clone(),
+                },
+            )
         };
         if let Err(error) = write(&path, &document) {
             tracing::warn!(%error, "remote session log could not be written");

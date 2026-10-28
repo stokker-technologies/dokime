@@ -104,8 +104,15 @@ fn receipt(receipt: CommandReceipt, epoch: String) -> Result<dokime::domain::mod
             dokime::domain::model::execution::wire::RunReplyOutcome::Accepted(dokime::domain::model::execution::wire::Admission {
                 command_id: receipt.command_id.to_string(),
                 job_id: receipt.job_id.map(|id| id.to_string()),
-                cursor: Some(Cursor { epoch, stream: crate::grpc::observation::STREAM.into(), position: receipt.runtime_revision }),
-                accepted_at: Some(common::Timestamp { seconds: at.unix_timestamp(), nanos: at.nanosecond() as i32 }),
+                cursor: Some(Cursor {
+                    epoch,
+                    stream: crate::grpc::observation::STREAM.into(),
+                    position: receipt.runtime_revision,
+                }),
+                accepted_at: Some(common::Timestamp {
+                    seconds: at.unix_timestamp(),
+                    nanos: at.nanosecond() as i32,
+                }),
             })
         }
     };

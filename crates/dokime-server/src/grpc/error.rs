@@ -59,7 +59,10 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
         // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
         details: crate::grpc::transcode::Transcode::wire_bytes(&captured(&diagnostic))
             .ok()
-            .map(|value| prost_types::Any { type_url: DETAIL_TYPE_URL.to_owned(), value })
+            .map(|value| prost_types::Any {
+                type_url: DETAIL_TYPE_URL.to_owned(),
+                value,
+            })
             .into_iter()
             .collect(),
     };
@@ -77,7 +80,11 @@ fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::C
         cause_chain: diagnostic
             .chain
             .iter()
-            .map(|cause| dokime::domain::model::evidence::wire::CapturedErrorCause { message: cause.clone(), code: None, source: None })
+            .map(|cause| dokime::domain::model::evidence::wire::CapturedErrorCause {
+                message: cause.clone(),
+                code: None,
+                source: None,
+            })
             .collect(),
         stacktrace_attachment: None,
         trace_id: None,

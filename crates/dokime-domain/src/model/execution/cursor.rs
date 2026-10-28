@@ -150,7 +150,10 @@ fn identity(checkpoint: &ExecutionCheckpoint, kind: &str, source: &str) -> [u8; 
 }
 
 fn invalid(message: &'static str) -> Error {
-    Error::InvalidInput { field: "checkpoint evidence cursor", reason: message }
+    Error::InvalidInput {
+        field: "checkpoint evidence cursor",
+        reason: message,
+    }
 }
 
 fn exhausted() -> Error {

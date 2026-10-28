@@ -62,7 +62,11 @@ async fn frozen_catalog_multiply() {
         registration.payload = serde_json::to_vec(&payload).unwrap();
         let forged = Bundle::build(
             bundle.manifest().identity.clone(),
-            &[Source { path: &file.path, bytes: bundle.file(&file.path).unwrap(), executable: Some(executable) }],
+            &[Source {
+                path: &file.path,
+                bytes: bundle.file(&file.path).unwrap(),
+                executable: Some(executable),
+            }],
             Limits::default(),
         )
         .unwrap();
@@ -97,7 +101,11 @@ async fn unsupported_schema_refused() {
             registration.schema = schema;
             let forged = Bundle::build(
                 bundle.manifest().identity.clone(),
-                &[Source { path: &file.path, bytes: bundle.file(&file.path).unwrap(), executable: Some(executable) }],
+                &[Source {
+                    path: &file.path,
+                    bytes: bundle.file(&file.path).unwrap(),
+                    executable: Some(executable),
+                }],
                 Limits::default(),
             )
             .unwrap();

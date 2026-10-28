@@ -192,8 +192,12 @@ where
     };
     let mut after = None;
     if let Some(completion) = completion {
-        let reader =
-            client.evidence_watch_records(contracts::evidence::WatchRecords { selection: Some(selection.clone()), after: None }).await?;
+        let reader = client
+            .evidence_watch_records(contracts::evidence::WatchRecords {
+                selection: Some(selection.clone()),
+                after: None,
+            })
+            .await?;
         tokio::pin!(completion);
         let result: Result<bool> = async {
             loop {
@@ -223,7 +227,12 @@ where
 
     // Freeze The Final Live Frontier; Saved Storage Positions Are Separate.
     client.verify(true).await?;
-    let mut request = contracts::evidence::ListRecords { selection: Some(selection), after: None, through: None, latest: 0 };
+    let mut request = contracts::evidence::ListRecords {
+        selection: Some(selection),
+        after: None,
+        through: None,
+        latest: 0,
+    };
     let mut page = client.evidence_list_records(request.clone()).await?;
     validate_records(&scope, &patterns, &client.backend().epoch, &page, None)?;
     let frontier = page.through.clone();

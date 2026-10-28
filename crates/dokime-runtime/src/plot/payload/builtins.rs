@@ -91,16 +91,33 @@ enum FourierOperations {
 
 impl ResultData for Scalar {
     fn outputs() -> Vec<Output> {
-        vec![Output { key: "value".into(), label: "Value".into(), unit: None, axis: None }]
+        vec![Output {
+            key: "value".into(),
+            label: "Value".into(),
+            unit: None,
+            axis: None,
+        }]
     }
     fn into_response(self) -> Response {
-        Response { outputs: vec![Values { key: "value".into(), unit: self.unit, values: vec![self.value], ..Default::default() }] }
+        Response {
+            outputs: vec![Values {
+                key: "value".into(),
+                unit: self.unit,
+                values: vec![self.value],
+                ..Default::default()
+            }],
+        }
     }
 }
 
 impl ResultData for Curve {
     fn outputs() -> Vec<Output> {
-        vec![Output { key: "signal".into(), label: "Signal".into(), unit: None, axis: Some(Axis { key: "source".into(), unit: None }) }]
+        vec![Output {
+            key: "signal".into(),
+            label: "Signal".into(),
+            unit: None,
+            axis: Some(Axis { key: "source".into(), unit: None }),
+        }]
     }
     fn into_response(self) -> Response {
         Response { outputs: vec![self.0] }
@@ -114,7 +131,10 @@ impl ResultData for Spectrum {
             key: "spectrum".into(),
             label: "Spectrum".into(),
             unit: None,
-            axis: Some(Axis { key: "frequency".into(), unit: Some("Hz".into()) }),
+            axis: Some(Axis {
+                key: "frequency".into(),
+                unit: Some("Hz".into()),
+            }),
         }]
     }
     fn into_response(self) -> Response {
@@ -131,7 +151,10 @@ impl Analysis for Mean {
     const LABEL: &'static str = "Mean";
     const DESCRIPTION: &'static str = "Arithmetic Mean Of Original Samples";
     const TIMEOUT: Duration = Duration::from_secs(10);
-    const LIMITS: Limits = Limits { max_samples: MAX_SAMPLES, max_output_values: 1 };
+    const LIMITS: Limits = Limits {
+        max_samples: MAX_SAMPLES,
+        max_output_values: 1,
+    };
     fn evaluate(samples: &Samples, _: &()) -> Result<Scalar, Error> {
         // Divide Before Summation To Avoid Overflow Of Finite Same-Sign Inputs.
         let count = samples.values.len() as f64;
@@ -149,7 +172,10 @@ impl Analysis for Lttb {
     const LABEL: &'static str = "LTTB Downsampling";
     const DESCRIPTION: &'static str = "Select Original Samples Preserving Line Shape";
     const TIMEOUT: Duration = Duration::from_secs(10);
-    const LIMITS: Limits = Limits { max_samples: MAX_SAMPLES, max_output_values: MAX_SAMPLES };
+    const LIMITS: Limits = Limits {
+        max_samples: MAX_SAMPLES,
+        max_output_values: MAX_SAMPLES,
+    };
     fn evaluate(samples: &Samples, parameters: &Reduction) -> Result<Curve, Error> {
         let indexes = harmos::signal::lttb(&samples.axis, &samples.values, parameters.points as usize);
         Ok(selected(samples, indexes))

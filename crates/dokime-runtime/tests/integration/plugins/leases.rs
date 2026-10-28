@@ -281,7 +281,11 @@ async fn admitted_execution(handle: &RuntimeHandle, index: usize) -> TestExecuti
 }
 
 fn scope_of(execution: &TestExecutionId) -> SamplingScope {
-    SamplingScope { test_cycle_id: None, test_case_id: None, test_execution_id: Some(execution.to_string()) }
+    SamplingScope {
+        test_cycle_id: None,
+        test_case_id: None,
+        test_execution_id: Some(execution.to_string()),
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -376,7 +380,11 @@ async fn two_holds_reading() {
     let root = tempdir().expect("a temporary root");
     let (mut runtime, reads) = runtime(root.path()).await;
     let handle = runtime.handle();
-    let unscoped = || SamplingScope { test_cycle_id: None, test_case_id: None, test_execution_id: None };
+    let unscoped = || SamplingScope {
+        test_cycle_id: None,
+        test_case_id: None,
+        test_execution_id: None,
+    };
 
     let first = handle.lease_streams(unscoped(), &[stream()], "fixture.a").await.expect("the first execution leases the host stream");
     wait_for_reads(&reads, 1).await;

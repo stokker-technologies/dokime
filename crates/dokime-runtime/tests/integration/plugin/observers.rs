@@ -242,7 +242,9 @@ impl GetCountHandler {
         Self(shared)
     }
     async fn run(&mut self, _: &Supervisor, _: &mut GetCount) -> Result<GetCountResponse, Refusal> {
-        Ok(GetCountResponse { checks: self.0.probe.checks.load(Ordering::SeqCst) as u64 })
+        Ok(GetCountResponse {
+            checks: self.0.probe.checks.load(Ordering::SeqCst) as u64,
+        })
     }
 }
 #[dokime_runtime::message]
@@ -255,7 +257,10 @@ impl GetProbeHandler {
         Self(shared)
     }
     async fn run(&mut self, _: &Supervisor, _: &mut GetProbe) -> Result<GetProbeResponse, Refusal> {
-        Ok(GetProbeResponse { token: self.0.token.clone(), secrets: self.0.secrets })
+        Ok(GetProbeResponse {
+            token: self.0.token.clone(),
+            secrets: self.0.secrets,
+        })
     }
 }
 
@@ -591,8 +596,10 @@ fn answered(token: String) -> impl Fn(GetProbe) -> GetProbeResponse + Send + Syn
 #[tokio::test]
 async fn activation_starts_execution() {
     let probe = Arc::new(Probe::default());
-    let configuration =
-        Configuration { settings: BTreeMap::from([("token".to_owned(), Value::Text(registered(&probe)))]), ..Configuration::default() };
+    let configuration = Configuration {
+        settings: BTreeMap::from([("token".to_owned(), Value::Text(registered(&probe)))]),
+        ..Configuration::default()
+    };
     let native = super::native::Native::initialize(
         super::native::attach::<Owner>(),
         <Owner as Declared>::VERSION,
@@ -629,7 +636,9 @@ async fn template_events_criterion() {
     let probe = Arc::new(Probe::default());
     let checks = Arc::clone(&probe);
     let report = Harness::template("observer.checks.await")
-        .answering::<GetCount, _>(move |_| GetCountResponse { checks: checks.checks.load(Ordering::SeqCst) as u64 })
+        .answering::<GetCount, _>(move |_| GetCountResponse {
+            checks: checks.checks.load(Ordering::SeqCst) as u64,
+        })
         .run::<OwnerSuites>()
         .await
         .unwrap();

@@ -345,7 +345,11 @@ fn dynamic_definition(replacement: bool) -> PluginDefinitions {
         artifact: PluginArtifact::Embedded { revision: revision.into() },
         requires: vec![],
         configuration: b"null".to_vec(),
-        contributions: PluginContributions { operations, wire_contracts, ..Default::default() },
+        contributions: PluginContributions {
+            operations,
+            wire_contracts,
+            ..Default::default()
+        },
     };
     PluginDefinitions::new([definition], []).unwrap()
 }
@@ -424,7 +428,10 @@ fn frames(bytes: &[u8]) -> Vec<model::plugins::wire::InstallPluginFrame> {
     }];
     for (index, chunk) in bytes.chunks(37).enumerate() {
         frames.push(model::plugins::wire::InstallPluginFrame {
-            frame: Some(Frame::Chunk(model::plugins::wire::InstallPluginChunk { offset: (index * 37) as u64, data: chunk.to_vec() })),
+            frame: Some(Frame::Chunk(model::plugins::wire::InstallPluginChunk {
+                offset: (index * 37) as u64,
+                data: chunk.to_vec(),
+            })),
         });
     }
     frames
@@ -504,7 +511,10 @@ async fn full_control_plugin_operations() {
     runtime.operations().unregister_from(DYNAMIC_OWNER, DynamicUnary::ID).await.unwrap();
 
     // Activate A Real Plugin After Connecting; Discovery Uses Its Live Scope.
-    let mut host = DynamicHost { operations: runtime.operations().clone(), calls: calls.clone() };
+    let mut host = DynamicHost {
+        operations: runtime.operations().clone(),
+        calls: calls.clone(),
+    };
     let mut plugins = PluginManager::new(dynamic_definition(false)).unwrap();
     plugins.initialize(&mut host).await.unwrap();
     let catalog = allowed.operations().await.unwrap();

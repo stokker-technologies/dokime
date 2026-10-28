@@ -186,11 +186,18 @@ impl Observations {
 
 impl Device {
     fn open(token: &str) -> Arc<Self> {
-        Arc::new(Self { observations: double(token), runs: Mutex::new(0), token: token.to_owned() })
+        Arc::new(Self {
+            observations: double(token),
+            runs: Mutex::new(0),
+            token: token.to_owned(),
+        })
     }
 
     fn describe(self: &Arc<Self>) -> GetDeviceResponse {
-        GetDeviceResponse { identity: Arc::as_ptr(self) as u64, token: self.token.clone() }
+        GetDeviceResponse {
+            identity: Arc::as_ptr(self) as u64,
+            token: self.token.clone(),
+        }
     }
 
     fn start_run(&self) -> StartRunResponse {

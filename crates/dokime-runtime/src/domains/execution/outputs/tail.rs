@@ -110,7 +110,10 @@ impl RuntimeHandle {
             let storage = runtime.execution_storage.clone();
             let poll_interval = runtime.storage().settings().filesystem.poll_interval;
             let read_bytes = 64 * 1024;
-            let definition = harmos::services::ServiceDefinition { id: name.clone(), policy: harmos::services::POLICY };
+            let definition = harmos::services::ServiceDefinition {
+                id: name.clone(),
+                policy: harmos::services::POLICY,
+            };
             let factory = move |_: Arc<()>| LogTail {
                 poll_interval,
                 storage: Arc::clone(&storage),

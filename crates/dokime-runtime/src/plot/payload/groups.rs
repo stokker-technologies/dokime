@@ -327,7 +327,11 @@ fn build_series(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request: &P
                 if matches!(input, Input::Expression(_)) && y.is_none() {
                     continue;
                 }
-                points.push(PlotPoint { x: x_value(point_input(row.sample, input, request))?, y, z: z.resolve(row.sample) });
+                points.push(PlotPoint {
+                    x: x_value(point_input(row.sample, input, request))?,
+                    y,
+                    z: z.resolve(row.sample),
+                });
             }
             let (key, label) = labels(input, &plan.rows[group.start].key, request.y_keys.len());
             series.push(series_entry(join(&key)?, join(&label)?, request.unit.as_deref(), points)?);
@@ -351,7 +355,11 @@ fn build_aggregates(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request
             values.extend(plan.rows[group.clone()].iter().filter_map(|row| super::expression_numeric_value(row.sample, expression)));
             let y = Series::from(values).aggregate(method);
             let last = &plan.rows[group.end - 1];
-            points.push(PlotPoint { x: serde_json::Value::String(text(&last.key)?), y, z: z.resolve(last.sample) });
+            points.push(PlotPoint {
+                x: serde_json::Value::String(text(&last.key)?),
+                y,
+                z: z.resolve(last.sample),
+            });
         }
         let label = super::expression_field_name(expression).unwrap_or("value");
         series.push(series_entry(text(label)?, text(label)?, request.unit.as_deref(), points)?);

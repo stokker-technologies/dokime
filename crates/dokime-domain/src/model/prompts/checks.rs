@@ -237,15 +237,27 @@ fn validate_item(field: &PromptField, value: &Value, name: &str, issues: &mut Ve
 }
 
 fn issue(issues: &mut Vec<ValidationIssue>, name: &str, message: &str) {
-    issues.push(ValidationIssue { path: format!("values.{name}"), message: message.to_owned(), expected: None });
+    issues.push(ValidationIssue {
+        path: format!("values.{name}"),
+        message: message.to_owned(),
+        expected: None,
+    });
 }
 
 fn declaration_issue(issues: &mut Vec<ValidationIssue>, path: &str, message: &str) {
-    issues.push(ValidationIssue { path: path.into(), message: message.into(), expected: None });
+    issues.push(ValidationIssue {
+        path: path.into(),
+        message: message.into(),
+        expected: None,
+    });
 }
 
 fn rule_issue(index: usize, message: &str) -> ValidationIssue {
-    ValidationIssue { path: format!("rules.{index}"), message: message.into(), expected: None }
+    ValidationIssue {
+        path: format!("rules.{index}"),
+        message: message.into(),
+        expected: None,
+    }
 }
 
 /* === Tests === */

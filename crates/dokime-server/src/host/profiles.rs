@@ -69,7 +69,10 @@ pub(crate) fn dev_profile_layers(root: &Path) -> Result<Option<(Vec<BoxedLayer>,
         .map_err(|error| Error::Setup(format!("failed to start flame profiling: {error}")))?;
 
     let layers: Vec<BoxedLayer> = vec![chrome_layer.boxed(), flame_layer.boxed()];
-    let guards = DevProfileGuards { _chrome: chrome_guard, _flame: flame_guard };
+    let guards = DevProfileGuards {
+        _chrome: chrome_guard,
+        _flame: flame_guard,
+    };
     Ok(Some((layers, guards)))
 }
 

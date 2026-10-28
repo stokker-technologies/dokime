@@ -296,7 +296,12 @@ impl State {
             && let Some(baseline) = &self.baseline
         {
             self.armed_at = Some(tokio::time::Instant::now());
-            events.insert(beginning, WatchEvent::Armed { baseline: baseline.iter().cloned().collect() });
+            events.insert(
+                beginning,
+                WatchEvent::Armed {
+                    baseline: baseline.iter().cloned().collect(),
+                },
+            );
         }
         self.failed |= polled.is_err();
         polled
@@ -360,7 +365,11 @@ impl State {
         let vanished = self.tracked.keys().filter(|path| !listing.contains_key(*path)).cloned().collect::<Vec<_>>();
         for path in vanished {
             let offset = self.tracked[&path].written;
-            events.push(WatchEvent::Gap { path: path.clone(), offset, reason: GapReason::Vanished });
+            events.push(WatchEvent::Gap {
+                path: path.clone(),
+                offset,
+                reason: GapReason::Vanished,
+            });
             self.seal_file(&path, events).await?;
         }
 
@@ -375,7 +384,11 @@ impl State {
                 let truncated = entry.size < tracked.offset || (tracked.mirrored && entry.size < tracked.entry.size);
                 if replaced || truncated {
                     let reason = if replaced { GapReason::Replaced } else { GapReason::Truncated };
-                    events.push(WatchEvent::Gap { path: path.clone(), offset: tracked.written, reason });
+                    events.push(WatchEvent::Gap {
+                        path: path.clone(),
+                        offset: tracked.written,
+                        reason,
+                    });
                     self.seal_file(path, events).await?;
                 }
             }
@@ -468,7 +481,11 @@ impl State {
                 sealable: self.policy == Policy::Stream,
             },
         );
-        events.push(WatchEvent::Progress { path: path.to_owned(), offset: 0, phase: Phase::Baseline });
+        events.push(WatchEvent::Progress {
+            path: path.to_owned(),
+            offset: 0,
+            phase: Phase::Baseline,
+        });
         Ok(())
     }
 
@@ -497,7 +514,11 @@ impl State {
                 if copied == 0 {
                     return Ok(());
                 }
-                events.push(WatchEvent::Progress { path: path.to_owned(), offset: tracked.written, phase: Phase::Capturing });
+                events.push(WatchEvent::Progress {
+                    path: path.to_owned(),
+                    offset: tracked.written,
+                    phase: Phase::Capturing,
+                });
                 drop(spool);
                 if self.lines.is_empty() {
                     return Ok(());
@@ -510,7 +531,11 @@ impl State {
             }
             // A Source That Cannot Resume Mirrors This File From Now On
             Err(ReadFailure::ResumeUnsupported) => {
-                events.push(WatchEvent::Gap { path: path.to_owned(), offset: tracked.written, reason: GapReason::ResumeUnsupported });
+                events.push(WatchEvent::Gap {
+                    path: path.to_owned(),
+                    offset: tracked.written,
+                    reason: GapReason::ResumeUnsupported,
+                });
                 if !self.lines.is_empty() {
                     return Err(Error::conflict(
                         super::UNSUPPORTED,
@@ -558,7 +583,11 @@ impl State {
         tracked.synced = true;
         tracked.sealable = true;
         self.captured = held + copied;
-        events.push(WatchEvent::Progress { path: path.to_owned(), offset: copied, phase: Phase::Synced });
+        events.push(WatchEvent::Progress {
+            path: path.to_owned(),
+            offset: copied,
+            phase: Phase::Synced,
+        });
         Ok(())
     }
 
@@ -596,7 +625,10 @@ impl State {
             .await?;
         self.sealed.push(record.clone());
         *self.segments.entry(path.to_owned()).or_default() += 1;
-        events.push(WatchEvent::Sealed { path: path.to_owned(), record: Box::new(record) });
+        events.push(WatchEvent::Sealed {
+            path: path.to_owned(),
+            record: Box::new(record),
+        });
         Ok(())
     }
 

@@ -318,8 +318,14 @@ impl Runtime {
             if removed.contains(&index) {
                 self.pending_plugins.extend(vec![package]);
             } else {
-                self.plugins
-                    .insert(package.catalog.package.clone(), ActivePackage { package, running: Vec::new(), telemetry: BTreeMap::new() });
+                self.plugins.insert(
+                    package.catalog.package.clone(),
+                    ActivePackage {
+                        package,
+                        running: Vec::new(),
+                        telemetry: BTreeMap::new(),
+                    },
+                );
             }
         }
         let candidate = graph(self.plugins.values().flat_map(|active| &active.package.programs), self.embedded.values(), [])?;
@@ -633,7 +639,11 @@ impl Runtime {
         let definitions = graph(programs.iter().copied(), self.embedded.values(), rebuilt)?;
         let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
-        let mut desired = ActivePackage { package: candidate, running: Vec::new(), telemetry: BTreeMap::new() };
+        let mut desired = ActivePackage {
+            package: candidate,
+            running: Vec::new(),
+            telemetry: BTreeMap::new(),
+        };
         if let Some(previous) = self.plugins.remove(&name) {
             // Manager backends retain old physical generations and their files.
             // These entries are only the domain projections for exposure.
@@ -655,7 +665,13 @@ impl Runtime {
             }
             return Err(error.into());
         }
-        self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: name.clone() }).await.map_err(operation)?;
+        self.handle
+            .commit(ReloadProviderCatalog {
+                providers: catalogs,
+                provider: name.clone(),
+            })
+            .await
+            .map_err(operation)?;
         self.capture_ready_catalogs().await?;
         self.expose_plugins()?;
         std::mem::take(&mut self.pending_plugins).close().await.map_err(operation)?;
@@ -689,7 +705,11 @@ impl Runtime {
             let current = self.handle.state_read().execution_identity(&previous.source);
             if current.as_ref() != Some(&previous) {
                 self.handle
-                    .commit(crate::transactions::InvalidateExecutions { previous, current, invalidated_at: crate::model::time::now_utc() })
+                    .commit(crate::transactions::InvalidateExecutions {
+                        previous,
+                        current,
+                        invalidated_at: crate::model::time::now_utc(),
+                    })
                     .await
                     .map_err(operation)?;
             }
@@ -891,7 +911,13 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
             },
         };
 
-        programs.push(Program { plugin, executable: Executable(executable), definition, bindings, configured });
+        programs.push(Program {
+            plugin,
+            executable: Executable(executable),
+            definition,
+            bindings,
+            configured,
+        });
     }
     let installation = match &input.provenance {
         PluginProvenance::Configured => None,
@@ -900,7 +926,13 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
     let path = input.path.to_string_lossy().into_owned();
     Ok(Package {
         input,
-        catalog: BundleCatalog { package: metadata.identity.name, path, content_digest, installation, plugins },
+        catalog: BundleCatalog {
+            package: metadata.identity.name,
+            path,
+            content_digest,
+            installation,
+            plugins,
+        },
         programs,
         _directory: Arc::new(directory),
     })
@@ -937,7 +969,11 @@ fn persist_extraction(
     }
     std::fs::rename(staged.path(), target)?;
     let stat = std::fs::metadata(bundle_path)?;
-    let marker = ExtractionMarker { sha256: content_digest.to_owned(), size: stat.len(), mtime_unix_ms: mtime_unix_ms(&stat).unwrap_or(0) };
+    let marker = ExtractionMarker {
+        sha256: content_digest.to_owned(),
+        size: stat.len(),
+        mtime_unix_ms: mtime_unix_ms(&stat).unwrap_or(0),
+    };
     harmos::filesystem::publication::write(
         &target.join(EXTRACTION_MARKER_FILE),
         &serde_json::to_vec(&marker).map_err(std::io::Error::other)?,

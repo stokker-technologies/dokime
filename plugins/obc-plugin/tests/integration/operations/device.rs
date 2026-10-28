@@ -83,7 +83,12 @@ async fn stopped_mutations_refused() {
 async fn latched_fault_preserved() {
     let mut device = Device::default();
     device.inject(Fault::Overcurrent);
-    let runtime = app::launch(Testbench { device: device.clone(), ..Default::default() }).await.unwrap();
+    let runtime = app::launch(Testbench {
+        device: device.clone(),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
     let client = Client::new(runtime.handle());
 
     assert!(matches!(client.set_power(true).await, Err(dokime::harmos::Error::Rejected(Error::FaultLatched))));

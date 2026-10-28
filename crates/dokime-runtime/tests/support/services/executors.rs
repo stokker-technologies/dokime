@@ -78,11 +78,17 @@ pub struct TrackingTransitionExecutor;
 /* === Implementations === */
 impl FakePythonExecutor {
     pub fn fixed(status: &str) -> Self {
-        Self { status: status.to_owned(), case_parameter_status: false }
+        Self {
+            status: status.to_owned(),
+            case_parameter_status: false,
+        }
     }
 
     pub fn case_parameter() -> Self {
-        Self { status: "passed".to_owned(), case_parameter_status: true }
+        Self {
+            status: "passed".to_owned(),
+            case_parameter_status: true,
+        }
     }
 }
 

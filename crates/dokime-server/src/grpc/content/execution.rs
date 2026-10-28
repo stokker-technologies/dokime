@@ -83,7 +83,10 @@ impl Operation for Download {
             let cap = super::download_chunk_bytes(runtime, message_limit)?;
             let template = dokime::domain::model::content::wire::ExecutionFileDownloadFrame {
                 payload: Some(dokime::domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
-                    dokime::domain::model::content::wire::ArtifactChunk { offset: source.metadata().size_bytes, data: Vec::new() },
+                    dokime::domain::model::content::wire::ArtifactChunk {
+                        offset: source.metadata().size_bytes,
+                        data: Vec::new(),
+                    },
                 )),
             };
             let bytes = super::output_chunk_bytes(&template, cap, message_limit)?;

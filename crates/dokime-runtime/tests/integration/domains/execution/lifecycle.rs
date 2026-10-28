@@ -429,7 +429,10 @@ async fn pause_blocks_boundaries() {
     wait_for_record_type(&runtime, "test.cycle.started").await;
     wait_for_record_type(&runtime, "test.execution.started").await;
 
-    let pause_context = CommandContext { idempotency_key: Some("pause-active-request".into()), ..Default::default() };
+    let pause_context = CommandContext {
+        idempotency_key: Some("pause-active-request".into()),
+        ..Default::default()
+    };
     let pause = runtime.pause_cycle(test_cycle_id.clone(), pause_context.clone()).await;
     let paused = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Paused).await;
     let paused_wait = runtime.wait_if_paused(&test_cycle_id);
@@ -510,8 +513,14 @@ async fn queued_execution_identity() {
     let queued = start_cycle(&runtime, suite).await;
     let members = cycle_snapshot(&runtime, &queued).await.test_executions;
     let id = members[0].test_execution_id.clone();
-    let first = CommandContext { submitted_by: Some("native-listener".into()), ..Default::default() };
-    let other = CommandContext { submitted_by: Some("remote-listener".into()), ..Default::default() };
+    let first = CommandContext {
+        submitted_by: Some("native-listener".into()),
+        ..Default::default()
+    };
+    let other = CommandContext {
+        submitted_by: Some("remote-listener".into()),
+        ..Default::default()
+    };
     let (first, duplicate) = tokio::join!(
         runtime.start_execution(id.clone(), ExecutionMode::Automatic, first),
         runtime.start_execution(id.clone(), ExecutionMode::Automatic, other),

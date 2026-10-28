@@ -60,7 +60,11 @@ pub enum PermissionError {
 
 impl Permission {
     pub fn new(family: impl Into<String>, action: impl Into<String>, target: impl Into<String>) -> crate::Result<Self> {
-        let permission = Self { family: family.into(), action: action.into(), target: target.into() };
+        let permission = Self {
+            family: family.into(),
+            action: action.into(),
+            target: target.into(),
+        };
         permission.validate()?;
         Ok(permission)
     }

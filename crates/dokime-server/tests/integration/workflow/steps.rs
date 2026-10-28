@@ -78,7 +78,11 @@ async fn step_pages_selections() {
         .executions[0]
         .execution_id
         .clone();
-    let mut request = contracts::execution::ListExecutionSteps { execution_id: execution_id.clone(), limit: 31, cursor: None };
+    let mut request = contracts::execution::ListExecutionSteps {
+        execution_id: execution_id.clone(),
+        limit: 31,
+        cursor: None,
+    };
     assert_eq!(client.unary::<contracts::execution::ListExecutionSteps>(request.clone()).await.unwrap_err().code(), Code::Unauthenticated);
     let first = client.unary::<contracts::execution::ListExecutionSteps>(authenticated(request.clone())).await.unwrap().into_inner();
     let initial_cursor = first.next_cursor.clone();

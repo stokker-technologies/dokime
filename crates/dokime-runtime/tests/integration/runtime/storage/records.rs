@@ -59,7 +59,10 @@ async fn managed_records_spool() {
         })
         .await
         .unwrap();
-    let selection = RecordSelection { record_types: vec![Identifier::new("operator.note_added").unwrap()], ..RecordSelection::default() };
+    let selection = RecordSelection {
+        record_types: vec![Identifier::new("operator.note_added").unwrap()],
+        ..RecordSelection::default()
+    };
     let records = handle.selected_records(selection.clone()).await.unwrap();
     assert_eq!(records.len(), 1);
     drop(handle);

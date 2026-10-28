@@ -131,7 +131,11 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher, scan_entries: usize) -
         std::fs::File::open(entry.path()).map_err(|source| source_error(&relative, source))?;
         listing.insert(
             relative,
-            Entry { size: metadata.len(), modified: metadata.modified().ok(), identity: identity(entry.path(), &metadata) },
+            Entry {
+                size: metadata.len(),
+                modified: metadata.modified().ok(),
+                identity: identity(entry.path(), &metadata),
+            },
         );
     }
     Ok(listing)

@@ -87,7 +87,11 @@ impl FtpSource {
         if !endpoint.secure && !trusted {
             return Err(Error::conflict(UNTRUSTED, "plain FTP is accepted only on a bench the runtime profile marks trusted; use ftps://"));
         }
-        let mut source = Self { endpoint, connection: None, listing: ListingCommand::Mlsd };
+        let mut source = Self {
+            endpoint,
+            connection: None,
+            listing: ListingCommand::Mlsd,
+        };
 
         // Fail Fast On An Unreachable Server Or Refused Login
         let connection = source.connection().await?;
@@ -119,7 +123,14 @@ impl FtpSource {
                 if listed.is_directory() {
                     directories.push_back(relative);
                 } else if listed.is_file() && matcher.matches(&relative) {
-                    listing.insert(relative, Entry { size: listed.size() as u64, modified: Some(listed.modified()), identity: None });
+                    listing.insert(
+                        relative,
+                        Entry {
+                            size: listed.size() as u64,
+                            modified: Some(listed.modified()),
+                            identity: None,
+                        },
+                    );
                 }
             }
         }

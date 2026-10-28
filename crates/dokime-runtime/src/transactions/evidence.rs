@@ -127,15 +127,30 @@ impl Transaction<RuntimeState> for CloseRecordSubscriptions {
 
 impl PublishRecord {
     pub fn host(request: RecordPublishRequest, occurred_at: Timestamp) -> Self {
-        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Host }
+        Self {
+            request,
+            received_at: occurred_at.clone(),
+            occurred_at,
+            source: PublicationSource::Host,
+        }
     }
 
     pub fn undeclared(request: RecordPublishRequest, occurred_at: Timestamp) -> Self {
-        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Undeclared }
+        Self {
+            request,
+            received_at: occurred_at.clone(),
+            occurred_at,
+            source: PublicationSource::Undeclared,
+        }
     }
 
     pub fn sidecar(request: RecordPublishRequest, owner: String, occurred_at: Timestamp) -> Self {
-        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Sidecar { owner } }
+        Self {
+            request,
+            received_at: occurred_at.clone(),
+            occurred_at,
+            source: PublicationSource::Sidecar { owner },
+        }
     }
 }
 
@@ -220,7 +235,11 @@ fn validation_rejection(message: impl Into<String>, path: impl Into<String>, exp
     Error::validation(
         "validation_failed",
         message,
-        vec![ValidationIssue { path: path.into(), message: "producer payload failed validation".to_owned(), expected }],
+        vec![ValidationIssue {
+            path: path.into(),
+            message: "producer payload failed validation".to_owned(),
+            expected,
+        }],
     )
 }
 

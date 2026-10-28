@@ -241,14 +241,20 @@ impl TryFrom<&ThemeVariant> for Variant {
     fn try_from(variant: &ThemeVariant) -> Result<Self> {
         let mut palette = slots(variant.plot_palette.len())?;
         palette.extend(variant.plot_palette.iter().cloned());
-        Ok(Self { variables: properties(&variant.variables)?, plot_palette: palette })
+        Ok(Self {
+            variables: properties(&variant.variables)?,
+            plot_palette: palette,
+        })
     }
 }
 
 impl TryFrom<Variant> for ThemeVariant {
     type Error = Error;
     fn try_from(variant: Variant) -> Result<Self> {
-        Ok(Self { variables: property_map(variant.variables)?, plot_palette: variant.plot_palette })
+        Ok(Self {
+            variables: property_map(variant.variables)?,
+            plot_palette: variant.plot_palette,
+        })
     }
 }
 

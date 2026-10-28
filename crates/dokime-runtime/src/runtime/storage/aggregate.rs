@@ -84,7 +84,13 @@ pub(crate) async fn native_aggregate(storage: &Manager, query: &AggregateQuery) 
             let entries = storage
                 .read_records::<RecordRow>(RecordRead {
                     at: storage.cursor_saved(),
-                    selection: RecordSelection { schema: records::schema(), scope: None, item: None, source_start: None, source_end: None },
+                    selection: RecordSelection {
+                        schema: records::schema(),
+                        scope: None,
+                        item: None,
+                        source_start: None,
+                        source_end: None,
+                    },
                     after: 0,
                 })
                 .await?
@@ -106,7 +112,11 @@ where
     crate::storage::objects::Objects: harmos::catalog::Contains<T>,
 {
     let rows = storage
-        .read_objects::<T>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest })
+        .read_objects::<T>(ObjectRead {
+            at: storage.cursor_saved(),
+            key: None,
+            versions: ObjectVersions::Latest,
+        })
         .await?
         .collect()
         .await?;
