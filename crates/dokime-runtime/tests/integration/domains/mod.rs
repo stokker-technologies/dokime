@@ -11,7 +11,6 @@
 
 pub(crate) mod documents;
 pub(crate) mod evidence;
-pub(crate) mod execution;
 pub(crate) mod files;
 pub(crate) mod telemetry;
 
