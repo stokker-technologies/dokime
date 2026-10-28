@@ -398,6 +398,12 @@ impl Session {
         for encoded in &batch.capture_phases {
             let phase = serde_json::from_str(encoded)
                 .map_err(|error| failure("sidecar_capture_phase", format!("invalid capture phase: {error}")))?;
+            // A stop can cancel the run while its next step admission is in flight: the run
+            // abandons the attempt it was never told was admitted, so the stop closes it.
+            if phase == dokime_domain::model::execution::CapturePhase::Cleanup && (context.is_cancelled() || self.cancelling.is_cancelled())
+            {
+                super::close_stopped_attempt(context, execution).await?;
+            }
             context
                 .capture_phase(execution.scope.clone(), phase)
                 .await

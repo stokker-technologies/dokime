@@ -62,6 +62,7 @@ enum Settlement {
     Deferred,
     Refused,
     RefusedPage,
+    AbandonedAdmission,
     Ignored,
     IgnoredSignal,
     Failure,
@@ -126,6 +127,26 @@ impl Runnable for Probe {
                 termination: TerminationReason::Cancelled,
                 detail: None,
             };
+            if self.mode == Settlement::AbandonedAdmission {
+                // Like A Sidecar Run Cancelled During Step Admission, Cleanup Begins Without Closing The Attempt.
+                let cleanup = dokime_domain::model::execution::CapturePhase::Cleanup;
+                host.push(EvidenceBatch {
+                    cursor: 2,
+                    capture_phases: vec![serde_json::to_string(&cleanup).unwrap()],
+                    ..Default::default()
+                })
+                .await
+                .map_err(Refusal::of)?;
+                host.push(EvidenceBatch {
+                    cursor: 3,
+                    diagnostics: cancellation_log(),
+                    cleanup_settled: true,
+                    ..Default::default()
+                })
+                .await
+                .map_err(Refusal::of)?;
+                return Ok(SidecarExecutionOutcome::default());
+            }
             if self.mode == Settlement::RefusedPage {
                 // Like A Sidecar Run, The Settling Page Waits For Its Input Receipt Before Concluding.
                 let receipt = host
@@ -434,6 +455,32 @@ async fn refused_settlement_winds_down() {
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     let log = std::str::from_utf8(&log.bytes).unwrap().to_owned();
     assert!(log.contains("invalid step attempt"), "{log}");
+    assert!(!log.contains("did not answer its stop"), "the run settled itself rather than the host settling it: {log}");
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Stop That Lands While The Next Step Admission Is In Flight Closes The Attempt The Run Abandoned.
+#[tokio::test]
+async fn abandoned_admission_closes() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::AbandonedAdmission));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let cycle_id = start_cases(&handle, metadata("session.abandoned", "Abandoned Admission"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Stopped).await;
+    let execution = &cycle.test_executions[0];
+    assert_eq!(execution.status, ExecutionStatus::Cancelled);
+    let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
+    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
+    let log = std::str::from_utf8(&log.bytes).unwrap().to_owned();
+    assert!(log.contains("fixture cancellation settled"), "the run's cleanup page is admitted: {log}");
     assert!(!log.contains("did not answer its stop"), "the run settled itself rather than the host settling it: {log}");
     drop(handle);
     owner.shutdown().await.unwrap();
