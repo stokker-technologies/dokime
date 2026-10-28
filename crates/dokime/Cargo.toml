@@ -36,7 +36,7 @@ fault-injection = ["dokime-runtime/fault-injection"]
 fft = ["dokime-runtime/fft"]
 media-native = ["dokime-runtime/media-native"]
 simulation = ["dokime-runtime/simulation"]
-client = ["dep:dokime-client", "dep:dotenv", "dep:tokio", "dep:zeroize"]
+client = ["dep:dokime-client", "dep:tokio"]
 terminal = ["diagnostics", "dep:anstream", "dep:anstyle", "dep:indicatif"]
 
 # === Dependencies === #
@@ -56,19 +56,14 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-harmos = { workspace = true, features = ["plugin"] }
-zeroize = { workspace = true, optional = true }
 
 # Serialization
-serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
-dotenv = { workspace = true, optional = true }
 
 # Filesystem
-tempfile = { workspace = true }
 
 # Parsing
 
@@ -108,7 +103,6 @@ indicatif = { workspace = true, optional = true }
 # Configuration
 
 # Filesystem
-tempfile = { workspace = true }
 
 # Parsing
 

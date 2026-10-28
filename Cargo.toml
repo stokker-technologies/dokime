@@ -43,10 +43,8 @@ repository = "https://github.com/stokker-technologies/dokime"
 [workspace.dependencies]
 # Local
 dokime = { version = "0.1.0", path = "crates/dokime" }
-dokime-cli = { version = "0.1.0", path = "crates/dokime-cli" }
 dokime-client = { version = "0.1.0", path = "crates/dokime-client" }
 dokime-domain = { version = "0.1.0", path = "crates/dokime-domain" }
-dokime-operations = { version = "0.1.0", path = "crates/dokime-operations" }
 dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-features = false }
 dokime-server = { version = "0.1.0", path = "crates/dokime-server" }
 
@@ -65,7 +63,6 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-blake2 = { version = "0.11.0" }
 harmos = "0.1.8"
 harmos-domain = "0.1.8"
 harmos-packaging = "0.1.8"
@@ -76,7 +73,6 @@ libc = { version = "0.2.190" }
 process-wrap = { version = "10.0.1" }
 rand = { version = "0.10.3" }
 regex = { version = "1.13.1" }
-ring = { version = "0.17.14" }
 semver = { version = "1.0.28" }
 sha2 = { version = "0.11.1" }
 starship-battery = { version = "0.12.0" }
@@ -91,17 +87,13 @@ zeroize = { version = "=1.9.1" }
 
 # Serialization
 arrow-array = { version = "=60.0.0" }
-arrow-ipc = { version = "=60.0.0" }
 arrow-schema = { version = "=60.0.0" }
 base64 = { version = "0.23.1" }
 hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
 image = { version = "0.25.10", default-features = false }
 prost = { version = "0.14.4" }
-prost-build = { version = "=0.14.4" }
 prost-types = { version = "=0.14.4" }
-protoc-bin-vendored = { version = "=3.3.0" }
-schemars = { version = "1.2.2" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154" }
 toml = { version = "1.1.8" }
@@ -115,7 +107,6 @@ dotenv = { package = "dotenvy", version = "0.15.7" }
 file-id = { version = "0.2.3" }
 glob = { version = "0.3.4" }
 globset = { version = "0.4.20" }
-tar = { version = "=0.4.46" }
 tempfile = { version = "3.27.0" }
 walkdir = { version = "2.5.0" }
 # Excludes every default compression and encryption backend; Dokime writes stored archives only.
@@ -151,10 +142,7 @@ rustls = { version = "0.23.46", default-features = false }
 rustls-platform-verifier = { version = "0.7.1" }
 suppaftp = { version = "12.0.0" }
 tonic = { version = "=0.14.7" }
-tonic-prost = { version = "=0.14.7" }
-tonic-prost-build = { version = "=0.14.7" }
 tonic-types = { version = "=0.14.7" }
-tower = { version = "0.5.3", features = ["util"] }
 unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }

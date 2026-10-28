@@ -40,7 +40,7 @@ native = [
 derive = ["dep:dokime-macros"]
 # Activates the Harmos operation resource bindings for operations this package declares.
 runtime = []
-configuration = ["dep:base64", "dep:cssparser", "dep:sysinfo", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
+configuration = ["dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [
   "configuration",
@@ -97,7 +97,6 @@ harmos-packaging = { workspace = true }
 keyring = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
 regex = { workspace = true }
-ring = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 time = { workspace = true }
 uuid = { workspace = true, features = ["js"] }
@@ -112,7 +111,6 @@ image = { workspace = true, optional = true, features = ["jpeg", "png"] }
 prost = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
-sysinfo = { workspace = true, optional = true }
 toml = { workspace = true, optional = true }
 
 # Configuration

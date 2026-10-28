@@ -2441,16 +2441,11 @@ dependencies = [
  "dokime-client",
  "dokime-domain",
  "dokime-runtime",
- "dotenvy",
- "harmos",
  "indicatif",
- "serde",
  "serde_json",
- "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
- "zeroize",
 ]
 
 [[package]]
@@ -2525,7 +2520,6 @@ dependencies = [
  "harmos-packaging",
  "harmos-sdk",
  "interprocess",
- "keyring",
  "rand 0.10.3",
  "rcgen",
  "reqwest",
@@ -2594,15 +2588,10 @@ dependencies = [
 name = "dokime-operations"
 version = "0.1.0"
 dependencies = [
- "base64 0.23.1",
  "dokime-domain",
  "harmos",
  "harmos-domain",
  "serde",
- "serde_json",
- "sha2 0.11.1",
- "thiserror 2.0.21",
- "time",
  "tonic",
 ]
 
@@ -2666,14 +2655,12 @@ dependencies = [
  "nokhwa",
  "prost",
  "regex",
- "ring",
  "rusqlite",
  "rustls-platform-verifier",
  "serde",
  "serde_json",
  "sha2 0.11.1",
  "suppaftp",
- "sysinfo",
  "tempfile",
  "thiserror 2.0.21",
  "time",
