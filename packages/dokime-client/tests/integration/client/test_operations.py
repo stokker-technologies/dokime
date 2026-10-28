@@ -162,7 +162,8 @@ def test_external_operation(mode: str) -> None:
                 assert reply.wide == 2**63
                 assert (await client.call(selected.id, {"wide": str(2**63)})).wide == 2**63
                 stale = copy.deepcopy(contract)
-                stale["version"] = 2
+                stale["fingerprint"] = "02" * 32
+                stale["operation"]["fingerprint"] = stale["fingerprint"]
                 before = list(transmitted)
                 with pytest.raises(ProtocolError):
                     await client.call(from_contract(stale), from_contract(stale).request(wide=1))
@@ -200,6 +201,7 @@ def _contract(mode: str) -> dict:
     return {
         "operation": {
             "id": "external.fixture.invoke",
+            "fingerprint": "01" * 32,
             "description": "External Fixture",
             "policy": {
                 "timeout": {"secs": 30, "nanos": 0},
@@ -210,7 +212,7 @@ def _contract(mode: str) -> dict:
             "visibility": "shared",
             "replay": "idempotent",
         },
-        "version": 1,
+        "fingerprint": "01" * 32,
         "codec": "postcard",
         "grpc": {"package": "external.v1", "service": "Plugin", "method": "Invoke"},
         "schema": {
