@@ -60,14 +60,8 @@ pub fn export_application_settings(directory: &std::path::Path) -> Result<(), Er
 
 // Parse The Domain Owners So Native JSON Bindings Cannot Drift Into Handwritten Mirrors.
 fn preference_models() -> Result<serde_json::Value, Error> {
-    let sources = [
-        include_str!("../../dokime-domain/src/model/settings/application.rs"),
-        include_str!("../../dokime-domain/src/model/remote.rs"),
-        include_str!("../../dokime-domain/src/model/document/definition.rs"),
-        include_str!("../../dokime-domain/src/model/backends.rs"),
-    ];
     let mut items = std::collections::BTreeMap::new();
-    for source in sources {
+    for source in dokime::domain::model::settings::APPLICATION_SETTINGS_SOURCES {
         let file = syn::parse_file(source).map_err(|error| Error::Invalid(error.to_string()))?;
         for item in file.items {
             let name = match &item {

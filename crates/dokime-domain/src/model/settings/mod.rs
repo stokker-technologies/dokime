@@ -49,6 +49,14 @@ use crate::model::values::Value;
 
 /* === Constants === */
 
+/// Rust Sources Declaring The Application Settings Models, For Binding Generators That Parse Them.
+pub const APPLICATION_SETTINGS_SOURCES: [&str; 4] = [
+    include_str!("application.rs"),
+    include_str!("../remote.rs"),
+    include_str!("../document/definition.rs"),
+    include_str!("../backends.rs"),
+];
+
 /* === Macros === */
 
 /* === Type Aliases === */
