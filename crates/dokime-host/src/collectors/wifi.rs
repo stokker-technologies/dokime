@@ -174,8 +174,7 @@ impl WifiCollector {
                     maybe_insert(&mut values, "wifi_band", link.channel.and_then(wifi_channel_band).map(Value::from));
                     maybe_insert(&mut values, "wifi_signal_percent", link.signal_percent.map(Value::from));
                     // The Kernel Link: Received Signal And Negotiated PHY Rates
-                    let wireless =
-                        adapter.as_deref().and_then(|adapter| crate::platform::linux::wifi::wireless_link(adapter)).unwrap_or_default();
+                    let wireless = adapter.as_deref().and_then(crate::platform::linux::wifi::wireless_link).unwrap_or_default();
                     maybe_insert(&mut values, "wifi_rssi_dbm", wireless.rssi_dbm.map(Value::from));
                     maybe_insert(&mut values, "wifi_rx_phy_mbps", wireless.rx_phy_mbps.map(Value::from));
                     maybe_insert(&mut values, "wifi_tx_phy_mbps", wireless.tx_phy_mbps.map(Value::from));
