@@ -1369,7 +1369,7 @@ async function setDensity(session, variant) {
 }
 
 async function selectDensity(session, density) {
-  const control = await until("local density preference", () => session.find("css selector", "select#local-appearance-density"));
+  const control = await until("local density preference", () => session.find("css selector", 'select[id="local-appearance.density"]'));
   await session.execute(
     `
     const select = arguments[0], value = arguments[1];
@@ -2655,7 +2655,7 @@ async function containersJourney(session, cycleId) {
   );
   await session.click(select);
   const executionId = await until("a finished execution selected", async () => (await session.location()).searchParams.get("executionId"));
-  await exportAvailability(session, true);
+  await exportAvailability(session, true, "execution");
 
   // A Second Container Does Not Replace The First.
   await session.goto("/cycles");
@@ -2691,7 +2691,7 @@ async function containersJourney(session, cycleId) {
   assert.ok(!(await session.exists("button", "Start Cycle")), "A sealed cycle must not offer new run admission");
   assert.ok(!(await session.exists("button", "Seal Cycle")), "A sealed cycle must show its final state rather than another seal command");
   await session.goto(`/cycles/${cycleId}?executionId=${executionId}`);
-  await exportAvailability(session, true);
+  await exportAvailability(session, true, "execution");
   assert.equal(
     (await session.location()).searchParams.get("executionId"),
     executionId,
@@ -2711,8 +2711,8 @@ async function cyclePhase(session, phase) {
   await until(`cycle phase ${phase}`, async () => hasText(await session.text(), phase === "Active" ? "Active ·" : phase));
 }
 
-async function exportAvailability(session, enabled) {
-  await openMenu(session, "Cycle Actions");
+async function exportAvailability(session, enabled, kind = "cycle") {
+  await openMenu(session, kind === "execution" ? "Execution Actions" : "Cycle Actions");
   const state = await until(`evidence export ${enabled ? "enabled" : "disabled"}`, () =>
     session.execute(
       `
@@ -2777,7 +2777,7 @@ async function cyclesHomeJourney(session, cycleTitle) {
   );
   assert.ok(updated.length > 0, "The cycle must have a dated row");
   for (const row of updated) {
-    assert.ok(Number.isFinite(Date.parse(row.text)), "A row must state its absolute update time");
+    assert.match(row.text, /\d{1,4}\D+\d{1,2}\D+\d{1,4}.*\d{1,2}:\d{2}/, "A row must state its localized absolute update time");
     assert.ok(
       row.detail?.includes(`Updated ${row.text}`) && /Created [^\n]+/.test(row.detail),
       "The time tooltip preserves update and creation instants",
@@ -2903,7 +2903,7 @@ async function remoteAccessJourney() {
   const commitField = async (label, value) => {
     await settled();
     await session.type(await input(label), value);
-    await session.key("Enter");
+    await session.key("Tab");
     await settled();
   };
   /* A notice still on screen from an earlier change cannot stand in for this one. */
@@ -2971,6 +2971,7 @@ async function remoteAccessJourney() {
   await openMenu(session, "Page Actions");
   await toggle("Show advanced", true);
   await session.key("Escape");
+  await until("settings actions closed", () => session.execute("return document.querySelectorAll('[role=menu]').length === 0;"));
   const reservation = net.createServer();
   reservation.listen(0, "127.0.0.1");
   await once(reservation, "listening");
