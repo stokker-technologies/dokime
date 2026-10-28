@@ -91,7 +91,6 @@ export async function openHarness() {
     });
   }
   globalThis.__DOKIME_UI_MODE__ = "live";
-  globalThis.__DOKIME_TRANSPORT__ = "ipc";
   globalThis.window = {
     __TAURI_INTERNALS__: {
       invoke,

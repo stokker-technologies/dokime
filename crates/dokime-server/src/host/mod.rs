@@ -361,8 +361,6 @@ mod tests {
                 host: std::net::Ipv4Addr::LOCALHOST.into(),
                 port: Some(0),
                 message_limit_mib: Some(2),
-                grpc_web: false,
-                allowed_origins: Vec::new(),
             },
             title: None,
             label: None,
