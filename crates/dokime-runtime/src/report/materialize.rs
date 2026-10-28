@@ -71,7 +71,8 @@ pub(crate) async fn sealed_member(
 pub(crate) async fn execution(
     ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
-    off_workers(materialize_execution(ctx, inspection, final_report, operation)).await
+    let span = tracing::info_span!("report.materialize", final_report);
+    off_workers(tracing::Instrument::instrument(materialize_execution(ctx, inspection, final_report, operation), span)).await
 }
 
 async fn off_workers<F: std::future::Future>(work: F) -> F::Output {
@@ -93,7 +94,7 @@ async fn materialize_execution(
         return Err(invalid("report capture differs from the requested durable boundary"));
     }
     let execution = inspection.execution();
-    let records = context_records(inspection).await?;
+    let records = tracing::Instrument::instrument(context_records(inspection), tracing::info_span!("report.materialize.records")).await?;
     let selection = harmos::storage::ReadBatch::new(())
         .try_map(|_| Ok::<_, Error>(crate::document::DocumentSelection { scope: execution.scope.clone() }))?;
     let context = crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
@@ -102,7 +103,11 @@ async fn materialize_execution(
             || definition.cards.iter().any(|card| matches!(card.body, crate::document::DocumentCardBody::Plot { .. }))
     });
     let maximum = usize::try_from(captured.report_defaults.plot_points).map_err(|_| invalid("plot point policy exceeds native size"))?;
-    let (telemetry, exact_telemetry) = context_telemetry(ctx, inspection.session(), captured, execution, needs_rows).await?;
+    let (telemetry, exact_telemetry) = tracing::Instrument::instrument(
+        context_telemetry(ctx, inspection.session(), captured, execution, needs_rows),
+        tracing::info_span!("report.materialize.telemetry", needs_rows),
+    )
+    .await?;
     let limits = crate::document::bounded::DocumentLimits {
         source_bytes: 64 * 1024 * 1024,
         materialized_bytes: 64 * 1024 * 1024,
@@ -164,7 +169,7 @@ async fn materialize_execution(
             *rows,
         );
         let _permit = operation.report_work().await;
-        let document = bindings.capture(definition)?;
+        let document = tracing::info_span!("report.materialize.document", document = %id).in_scope(|| bindings.capture(definition))?;
         documents = documents.try_map(|mut documents| {
             documents.insert(id.clone(), document);
             Ok::<_, Error>(documents)
@@ -172,7 +177,11 @@ async fn materialize_execution(
     }
     drop(cached);
     operation.phase("Querying Report Plots");
-    let plots = plots(ctx, captured, execution, &records, &exact_telemetry, &documents, operation).await?;
+    let plots = tracing::Instrument::instrument(
+        plots(ctx, captured, execution, &records, &exact_telemetry, &documents, operation),
+        tracing::info_span!("report.materialize.plots"),
+    )
+    .await?;
     let selected = super::render::cycle::selection(telemetry.len(), maximum);
     let count = selected.clone().count();
     let preview = telemetry.try_map(|telemetry| {
@@ -191,6 +200,7 @@ async fn materialize_execution(
     operation.phase("Assembling Report");
 
     let defaults = captured.report_defaults;
+    let _assemble = tracing::info_span!("report.materialize.assemble").entered();
     documents
         .try_map_with(plots, |documents, plots| assemble(final_report, captured, execution, documents, plots, (records, preview), defaults))
 }
@@ -295,7 +305,7 @@ async fn plots(
     if groups.is_empty() {
         return Ok(ReadBatch::new(BTreeMap::new()));
     }
-    let input = plot_inputs(telemetry, records)?;
+    let input = tracing::info_span!("report.materialize.plot_inputs").in_scope(|| plot_inputs(telemetry, records))?;
     let input = &input;
     let mut pending_groups = futures_util::stream::iter(groups.into_iter().map(|(plan, requests)| async move {
         let _group = operation.report_group().await;
@@ -305,7 +315,11 @@ async fn plots(
             let shared = &shared;
             async move {
                 let _permit = operation.report_work().await;
-                let payload = super::query::materialize(ctx, captured, execution, request, input, telemetry, shared).await?;
+                let payload = tracing::Instrument::instrument(
+                    super::query::materialize(ctx, captured, execution, request, input, telemetry, shared),
+                    tracing::info_span!("report.materialize.plot", plot = %id),
+                )
+                .await?;
                 Ok::<_, Error>((current, payload.try_map(|payload| Ok::<_, Error>((id, payload)))?))
             }
         }))

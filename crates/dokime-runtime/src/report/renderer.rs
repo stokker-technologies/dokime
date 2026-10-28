@@ -53,10 +53,12 @@ impl Renderer {
         &self, captured: harmos::storage::ReadBatch<CapturedExecutionReportInput>,
         outputs: std::sync::Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>, saved: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<PreparedExecutionReport> {
-        let source =
-            harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::runtime::Error>(captured.source(outputs.as_slice())))?;
-        let html = HtmlReport::from_capture(captured, source)?;
-        PreparedExecutionReport::prepare_html(html, outputs, saved)
+        let _span = tracing::info_span!("report.render.execution").entered();
+        let source = tracing::info_span!("report.render.source").in_scope(|| {
+            harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::runtime::Error>(captured.source(outputs.as_slice())))
+        })?;
+        let html = tracing::info_span!("report.render.index").in_scope(|| HtmlReport::from_capture(captured, source))?;
+        tracing::info_span!("report.render.html").in_scope(|| PreparedExecutionReport::prepare_html(html, outputs, saved))
     }
 }
 
