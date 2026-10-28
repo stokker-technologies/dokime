@@ -306,10 +306,8 @@ fn bundle_description(description: &str) -> Vec<u8> {
         attempt_timeout: std::time::Duration::from_secs(120),
         retries: dokime::harmos::operations::RetryPolicy::Never,
     };
-    let lifecycle = [
-        dokime::harmos::builtins::lifecycle::Descriptor::new(dokime::harmos::builtins::lifecycle::Action::Initialize, policy).unwrap(),
-        dokime::harmos::builtins::lifecycle::Descriptor::new(dokime::harmos::builtins::lifecycle::Action::Shutdown, policy).unwrap(),
-    ];
+    let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
+        .map(|action| serde_json::json!({"action":action,"identity":"harmos.operation.v1","policy":policy}));
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
     let contributions = serde_json::json!({"kind":"contributions","facility":"sidecar","owner":owner,"sections":[]});

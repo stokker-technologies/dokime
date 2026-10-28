@@ -92,10 +92,8 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
         attempt_timeout: std::time::Duration::from_secs(120),
         retries: dokime::harmos::operations::RetryPolicy::Never,
     };
-    let lifecycle = [
-        dokime::harmos::builtins::lifecycle::Descriptor::new(dokime::harmos::builtins::lifecycle::Action::Initialize, policy).unwrap(),
-        dokime::harmos::builtins::lifecycle::Descriptor::new(dokime::harmos::builtins::lifecycle::Action::Shutdown, policy).unwrap(),
-    ];
+    let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
+        .map(|action| serde_json::json!({"action":action,"identity":"harmos.operation.v1","policy":policy}));
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
     let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
