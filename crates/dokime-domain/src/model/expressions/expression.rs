@@ -155,23 +155,37 @@ impl ExpressionContext {
 
 impl Expression {
     pub fn literal(value: impl Into<Value>) -> Self {
-        Self { kind: ExpressionKind::Literal { value: value.into() } }
+        Self {
+            kind: ExpressionKind::Literal { value: value.into() },
+        }
     }
 
     pub fn selector(path: impl Into<String>) -> Self {
-        Self { kind: ExpressionKind::Selector { path: path.into() } }
+        Self {
+            kind: ExpressionKind::Selector { path: path.into() },
+        }
     }
 
     pub fn unary(op: ExpressionUnaryOp, value: Expression) -> Self {
-        Self { kind: ExpressionKind::Unary { op, value: Box::new(value) } }
+        Self {
+            kind: ExpressionKind::Unary { op, value: Box::new(value) },
+        }
     }
 
     pub fn binary(op: ExpressionBinaryOp, left: Expression, right: Expression) -> Self {
-        Self { kind: ExpressionKind::Binary { op, left: Box::new(left), right: Box::new(right) } }
+        Self {
+            kind: ExpressionKind::Binary {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+        }
     }
 
     pub fn call(function: impl Into<String>, args: Vec<Expression>) -> Self {
-        Self { kind: ExpressionKind::Call { function: function.into(), args } }
+        Self {
+            kind: ExpressionKind::Call { function: function.into(), args },
+        }
     }
 
     pub fn evaluate(&self, context: &ExpressionContext) -> crate::Result<Value> {

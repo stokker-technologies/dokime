@@ -52,8 +52,13 @@ pub(super) async fn read(storage: &Manager, session: &crate::storage::Manager, i
     if receipt.summary.request_id != *id {
         return Err(error("request key differs from payload identity"));
     }
-    let mut commands =
-        session.read_objects::<Command>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest }).await?;
+    let mut commands = session
+        .read_objects::<Command>(ObjectRead {
+            at: storage.cursor_saved(),
+            key: None,
+            versions: ObjectVersions::Latest,
+        })
+        .await?;
     while let Some(page) = commands.next().await? {
         let count = page.iter().filter(|row| row.value.request_id() == id.as_str()).count();
         if count == 0 {
@@ -78,8 +83,13 @@ pub(super) async fn read(storage: &Manager, session: &crate::storage::Manager, i
 pub(super) async fn pending(storage: &Manager, session: &crate::storage::Manager, node: &NodeId) -> Result<ReadBatch<Vec<CommandId>>> {
     let seed = harmos::storage::ReadBatch::new(());
     let mut ids = seed.try_map(|_| -> Result<_> { Ok(Vec::<CommandId>::new()) })?;
-    let mut requests =
-        session.read_objects::<Request>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest }).await?;
+    let mut requests = session
+        .read_objects::<Request>(ObjectRead {
+            at: storage.cursor_saved(),
+            key: None,
+            versions: ObjectVersions::Latest,
+        })
+        .await?;
     while let Some(page) = requests.next().await? {
         let count = page.iter().filter(|row| row.value.pending_on(node.as_str())).count();
         if count == 0 {

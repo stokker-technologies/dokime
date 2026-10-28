@@ -92,7 +92,14 @@ pub(crate) async fn read(
     }
     header.try_map(|(checkpoint, cursor, table)| -> Result<_> {
         let next = more.then(|| cursor.encode(last)).transpose()?;
-        Ok(ExecutionTelemetryPage { table, checkpoint, rows: pages.into(), next, issues: Vec::new(), issues_truncated: false })
+        Ok(ExecutionTelemetryPage {
+            table,
+            checkpoint,
+            rows: pages.into(),
+            next,
+            issues: Vec::new(),
+            issues_truncated: false,
+        })
     })
 }
 

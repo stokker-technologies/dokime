@@ -144,14 +144,20 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move {
             let history = self.history.clone();
             let cut = self.state.data_open(Some(history)).await.map_err(|error| failure("open SQLite", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
     fn cursor_saved(&self) -> StorageFuture<'_, StorageCursor> {
         Box::pin(async move {
             let cut = self.state.data_saved().await.map_err(|error| failure("read SQLite saved frontier", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
@@ -163,7 +169,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move {
             let root = self.root.clone();
             let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite schemas", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
@@ -171,7 +180,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move {
             let root = self.root.clone();
             let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite objects", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
@@ -179,7 +191,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move {
             let root = self.root.clone();
             let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite records", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
@@ -187,7 +202,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move {
             let root = self.root.clone();
             let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite stream", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
@@ -195,7 +213,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move {
             let root = self.root.clone();
             let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite files", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
@@ -399,7 +420,13 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                     if files.len() == 4 {
                         files.pop_first();
                     }
-                    files.insert(file.metadata.id.clone(), OpenedFile { reference: file.clone(), handle: handle.clone() });
+                    files.insert(
+                        file.metadata.id.clone(),
+                        OpenedFile {
+                            reference: file.clone(),
+                            handle: handle.clone(),
+                        },
+                    );
                     handle
                 }
             };

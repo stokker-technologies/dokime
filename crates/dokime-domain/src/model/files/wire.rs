@@ -293,7 +293,10 @@ impl LineMatcher {
                         ValueType::Boolean => LineFieldKind::Boolean,
                         _ => return None,
                     };
-                    Some(LineField { name: column.metadata.identifier.to_string(), kind })
+                    Some(LineField {
+                        name: column.metadata.identifier.to_string(),
+                        kind,
+                    })
                 })
                 .collect(),
         }
@@ -302,7 +305,10 @@ impl LineMatcher {
 
 impl LineMarker {
     pub fn new(pattern: impl Into<String>, record_type: impl Into<String>) -> Self {
-        Self { pattern: pattern.into(), record_type: record_type.into() }
+        Self {
+            pattern: pattern.into(),
+            record_type: record_type.into(),
+        }
     }
 }
 

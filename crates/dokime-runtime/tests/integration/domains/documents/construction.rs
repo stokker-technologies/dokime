@@ -96,7 +96,9 @@ async fn default_document_order() {
         .resolve_cycle_document(
             &test_cycle_id,
             &default_document_id,
-            dokime_runtime::document::DocumentSelection { scope: RecordScope::default().with_cycle(test_cycle_id.clone()) },
+            dokime_runtime::document::DocumentSelection {
+                scope: RecordScope::default().with_cycle(test_cycle_id.clone()),
+            },
         )
         .await;
     assert!(unselected.is_err());
@@ -453,8 +455,10 @@ async fn document_routes_samples() {
     }
 
     runtime.storage().flush_until(&runtime.storage().cursor_accepted()).await.unwrap();
-    let monitoring =
-        TelemetrySelection { streams: vec![Identifier::new("host.wifi.channel_occupancy").unwrap().into()], ..Default::default() };
+    let monitoring = TelemetrySelection {
+        streams: vec![Identifier::new("host.wifi.channel_occupancy").unwrap().into()],
+        ..Default::default()
+    };
     assert_eq!(runtime.collect_telemetry(&monitoring).await.unwrap().len(), 14);
     for test_cycle_id in [None, Some(cycle_id.clone())] {
         let captured = runtime
@@ -623,7 +627,9 @@ fn suite_with_authored_document() -> TestSuite {
         metadata: metadata("custom.signals.text", "Custom Signals"),
         layout: Default::default(),
         filters: Vec::new(),
-        body: dokime_runtime::document::DocumentCardBody::Text { markdown: "Authored by the template.".to_owned() },
+        body: dokime_runtime::document::DocumentCardBody::Text {
+            markdown: "Authored by the template.".to_owned(),
+        },
     });
 
     let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Custom Template");
@@ -647,8 +653,11 @@ async fn saved_report_evidence() {
     plot.stream = Some("tracking".into());
     plot.x = Some("timestamp".into());
     plot.y = vec!["distance_m".into()];
-    plot.analysis =
-        Some(dokime_runtime::analysis::Selection { id: "dokime.analysis.mean".into(), version: 1, parameters: Default::default() });
+    plot.analysis = Some(dokime_runtime::analysis::Selection {
+        id: "dokime.analysis.mean".into(),
+        version: 1,
+        parameters: Default::default(),
+    });
     section.plot(plot);
     document.section(section);
     suite.test_case_templates[0].document = Some(document);

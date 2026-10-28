@@ -145,7 +145,10 @@ async fn telemetry_reads_stream() {
     assert_eq!(summaries[0].stream, stream);
     assert_eq!(summaries[0].total, 3);
     let selected = runtime
-        .selected_telemetry(TelemetrySelection { streams: vec![stream.clone().into()], ..TelemetrySelection::default() })
+        .selected_telemetry(TelemetrySelection {
+            streams: vec![stream.clone().into()],
+            ..TelemetrySelection::default()
+        })
         .await
         .unwrap();
     assert_eq!(selected.len(), 3);
@@ -222,7 +225,13 @@ async fn telemetry_batch_receipts_and_order() {
     assert_eq!(receipt.dropped, 0);
     assert_eq!(receipt.stream_cursors.values().copied().collect::<Vec<_>>(), [(ROWS + 1) as u64]);
     runtime.storage().flush().await.unwrap();
-    let rows = runtime.collect_telemetry(&TelemetrySelection { streams: vec![stream.into()], ..Default::default() }).await.unwrap();
+    let rows = runtime
+        .collect_telemetry(&TelemetrySelection {
+            streams: vec![stream.into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     assert_eq!(rows.len(), ROWS + 1);
     assert!(rows.windows(2).all(|rows| rows[0].sequence < rows[1].sequence));
     for (index, row) in rows.iter().enumerate() {

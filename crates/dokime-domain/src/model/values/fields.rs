@@ -71,7 +71,11 @@ impl FieldError {
     }
 
     fn of(declared: ValueType, found: Option<&Value>) -> Self {
-        Self { field: String::new(), declared, found: found.map(described) }
+        Self {
+            field: String::new(),
+            declared,
+            found: found.map(described),
+        }
     }
 }
 

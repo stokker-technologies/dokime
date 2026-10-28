@@ -123,7 +123,9 @@ impl Receipt {
     }
 
     fn new(receipt: RunReceipt) -> Result<Self> {
-        Ok(Self { value: harmos::storage::ReadBatch::new(receipt) })
+        Ok(Self {
+            value: harmos::storage::ReadBatch::new(receipt),
+        })
     }
 }
 
@@ -133,7 +135,11 @@ impl<R: Clone + std::ops::Deref<Target = RunReceipt>> Pending<R> {
     }
 
     fn changed(receipt: R, previous: &R) -> Self {
-        Self { receipt, previous: Some(previous.clone()), position: None }
+        Self {
+            receipt,
+            previous: Some(previous.clone()),
+            position: None,
+        }
     }
 
     fn changed_commands(&self) -> impl Iterator<Item = (&CommandId, &StepCommandReceipt)> {
@@ -165,7 +171,13 @@ impl ActiveRequests {
 impl RequestStorage {
     pub(crate) fn new(storage: crate::storage::Manager, node: &NodeId) -> Result<Self> {
         let reads = storage.clone();
-        Ok(Self { storage, reads, node: node.clone(), now: crate::model::time::now_utc, active: Mutex::new(ActiveRequests::new()) })
+        Ok(Self {
+            storage,
+            reads,
+            node: node.clone(),
+            now: crate::model::time::now_utc,
+            active: Mutex::new(ActiveRequests::new()),
+        })
     }
 
     pub(crate) async fn recover<'a>(&self, completed: impl Fn(&CommandId) -> Option<&'a RunSummary>) -> Result<()> {
@@ -216,7 +228,14 @@ impl RequestStorage {
                 }
                 Ok(())
             })?;
-            active.insert(id, Active { pending: Some(Pending::changed(recovered, &receipt)), receipt, admitted: false })?;
+            active.insert(
+                id,
+                Active {
+                    pending: Some(Pending::changed(recovered, &receipt)),
+                    receipt,
+                    admitted: false,
+                },
+            )?;
         }
         let owner = active.entries.get_mut(id).expect("request owner exists");
         self.publish(owner).await?;
@@ -270,7 +289,14 @@ impl RequestStorage {
         if stored.is_none_or(|stored| stored.is_some()) {
             return Err(error("request identity already exists"));
         }
-        active.insert(id, Active { pending: Some(Pending::new(receipt.clone())), receipt: receipt.clone(), admitted: false })?;
+        active.insert(
+            id,
+            Active {
+                pending: Some(Pending::new(receipt.clone())),
+                receipt: receipt.clone(),
+                admitted: false,
+            },
+        )?;
         let owner = active.entries.get_mut(id).expect("request owner inserted");
         self.publish(owner).await?;
         owner.admitted = true;

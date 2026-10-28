@@ -142,7 +142,14 @@ impl From<ProductRecordDraft> for RecordPublishRequest {
 
 impl PublishReceipt {
     pub fn accepted(accepted: u64, stream_cursors: BTreeMap<String, u64>, revision: u64) -> Self {
-        Self { status: PublishStatus::Accepted, accepted, dropped: 0, stream_cursors, revision, message: None }
+        Self {
+            status: PublishStatus::Accepted,
+            accepted,
+            dropped: 0,
+            stream_cursors,
+            revision,
+            message: None,
+        }
     }
 
     pub fn dropped(dropped: u64, revision: u64, message: impl Into<String>) -> Self {

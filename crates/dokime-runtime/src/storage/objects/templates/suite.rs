@@ -37,7 +37,12 @@ use crate::storage::{Error, Result};
 
 impl Definition {
     pub(in crate::storage::objects) fn encoding_memory(source: &crate::definition::TestSuite) -> Result<usize> {
-        let crate::definition::TestSuite { metadata, tags, parameter_groups, test_case_templates } = source;
+        let crate::definition::TestSuite {
+            metadata,
+            tags,
+            parameter_groups,
+            test_case_templates,
+        } = source;
         let mut bytes = std::mem::size_of::<Self>();
         bytes = bytes.saturating_add(metadata::Row::encoding_memory(metadata)?);
         bytes = bytes.saturating_add(tags.len().saturating_mul(std::mem::size_of::<String>()));
@@ -55,7 +60,12 @@ impl Definition {
 
     pub(in crate::storage::objects) fn projection_memory(&self) -> Result<usize> {
         use harmos::MemorySize;
-        let Self { metadata, tags, parameter_groups, test_case_templates } = self;
+        let Self {
+            metadata,
+            tags,
+            parameter_groups,
+            test_case_templates,
+        } = self;
         let metadata = metadata.as_ref().ok_or(Error::Invalid("suite metadata is missing"))?;
         let mut bytes = std::mem::size_of::<crate::definition::TestSuite>();
         bytes = bytes.saturating_add(metadata.projection_memory()?);
@@ -77,7 +87,12 @@ impl TryFrom<&crate::definition::TestSuite> for Definition {
         if Self::encoding_memory(source)? == usize::MAX {
             return Err(Error::Invalid("suite encoding memory overflows"));
         }
-        let crate::definition::TestSuite { metadata, tags, parameter_groups, test_case_templates } = source;
+        let crate::definition::TestSuite {
+            metadata,
+            tags,
+            parameter_groups,
+            test_case_templates,
+        } = source;
         let mut groups = exact_slots(parameter_groups.len())?;
         for group in parameter_groups {
             groups.push(Group::try_from(group)?);
@@ -102,7 +117,12 @@ impl TryFrom<Definition> for crate::definition::TestSuite {
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("suite projection memory overflows"));
         }
-        let Definition { metadata, tags, parameter_groups, test_case_templates } = row;
+        let Definition {
+            metadata,
+            tags,
+            parameter_groups,
+            test_case_templates,
+        } = row;
         let mut groups = exact_slots(parameter_groups.len())?;
         for group in parameter_groups {
             groups.push(group.try_into()?);

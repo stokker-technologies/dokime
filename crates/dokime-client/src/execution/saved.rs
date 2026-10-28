@@ -85,7 +85,11 @@ impl TestExecutionHandle {
         let original = validate_checkpoint(&self.id, &checkpoint)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
-            let mut pages = Pages { checkpoint: original, position: 0, after: String::new() };
+            let mut pages = Pages {
+                checkpoint: original,
+                position: 0,
+                after: String::new(),
+            };
             loop {
                 let result = async {
                     handle.client.verify(false).await?;
@@ -141,7 +145,11 @@ impl TestExecutionHandle {
                     return Err(invalid("saved telemetry inventory has empty or duplicate streams"));
                 }
                 for table in tables {
-                    let mut pages = Pages { checkpoint: original.clone(), position: 0, after: String::new() };
+                    let mut pages = Pages {
+                        checkpoint: original.clone(),
+                        position: 0,
+                        after: String::new(),
+                    };
                     loop {
                         handle.client.verify(false).await?;
                         let page = handle

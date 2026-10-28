@@ -91,7 +91,10 @@ async fn fixed_pages_gap() {
         publish(&handle).await;
     }
     let first = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords { selection: Some(selection()), ..Default::default() })
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(selection()),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .into_inner();
@@ -172,7 +175,10 @@ async fn tail_then_follow() {
         publish(&handle).await;
     }
     let full = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords { selection: Some(selection()), ..Default::default() })
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(selection()),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .into_inner();
@@ -240,7 +246,10 @@ async fn filtered_scans_resync() {
     for _ in 0..1005 {
         publish(&handle).await;
     }
-    let selection = model::evidence::wire::CapturedRecordSelection { sources: vec!["absent".into()], ..Default::default() };
+    let selection = model::evidence::wire::CapturedRecordSelection {
+        sources: vec!["absent".into()],
+        ..Default::default()
+    };
     let first = client
         .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection.clone()),
@@ -344,7 +353,10 @@ async fn capture_cursors_restarts() {
     assert_eq!(owner.handle().process_epoch().to_string(), identity.epoch);
     publish(&owner.handle()).await;
     let old = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords { selection: Some(selection()), ..Default::default() })
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(selection()),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .into_inner();
@@ -384,7 +396,10 @@ async fn capture_cursors_restarts() {
         .unwrap_err();
     assert_eq!(error.code(), Code::FailedPrecondition);
     let fresh = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords { selection: Some(selection()), ..Default::default() })
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(selection()),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .into_inner();
@@ -426,7 +441,10 @@ async fn capture_cursors_restarts() {
 
     publish(&owner.handle()).await;
     let current = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords { selection: Some(selection()), ..Default::default() })
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(selection()),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .into_inner();
@@ -483,7 +501,10 @@ async fn oversized_delivery_evidence() {
     handle.publish_product_record(draft.clone()).await.unwrap();
     publish(&handle).await;
     let page = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords { selection: Some(selection()), ..Default::default() })
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(selection()),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .into_inner();

@@ -92,7 +92,11 @@ fn plain_series(samples: &[&TelemetrySample], telemetry: &[TelemetrySample], req
         let mut points = vector(selected.clone().count())?;
         for sample in selected {
             let x = super::expression_x_input(sample, request.x_expression.as_ref(), x_key);
-            points.push(PlotPoint { x: x_value(x)?, y: super::expression_numeric_value(sample, expression), z: z.resolve(sample) });
+            points.push(PlotPoint {
+                x: x_value(x)?,
+                y: super::expression_numeric_value(sample, expression),
+                z: z.resolve(sample),
+            });
         }
         let label = super::expression_field_name(expression).unwrap_or("value");
         series.push(series_entry(text(label)?, text(label)?, request.unit.as_deref(), points)?);
@@ -102,7 +106,15 @@ fn plain_series(samples: &[&TelemetrySample], telemetry: &[TelemetrySample], req
 
 pub(super) fn series_entry(key: String, label: String, unit: Option<&str>, points: Vec<PlotPoint>) -> Result<PlotSeries> {
     let raw_points = points.len();
-    Ok(PlotSeries { key, label, unit: unit.map(text).transpose()?, points, raw_points, downsampled: false, format: None })
+    Ok(PlotSeries {
+        key,
+        label,
+        unit: unit.map(text).transpose()?,
+        points,
+        raw_points,
+        downsampled: false,
+        format: None,
+    })
 }
 
 pub(super) fn x_value(input: super::XInput<'_>) -> Result<JsonValue> {

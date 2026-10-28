@@ -38,7 +38,13 @@ use harmos::storage::{ScanPage, SchemaKey, StorageBackend, StorageCursor, Stored
 /* === Public Functions === */
 
 pub async fn for_each_record(backend: &impl StorageBackend, at: &StorageCursor, schema: SchemaKey, mut read: impl FnMut(&StoredRecord)) {
-    let selection = RecordSelection { schema, scope: None, item: None, source_start: None, source_end: None };
+    let selection = RecordSelection {
+        schema,
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
 
     let snapshot = backend.open_snapshot(at).await.unwrap();
     let mut after = 0;
@@ -47,7 +53,11 @@ pub async fn for_each_record(backend: &impl StorageBackend, at: &StorageCursor, 
             .read_records(
                 &snapshot,
                 &selection,
-                ScanPage { after, rows: NonZeroUsize::new(16).unwrap(), bytes: NonZeroUsize::new(1024 * 1024).unwrap() },
+                ScanPage {
+                    after,
+                    rows: NonZeroUsize::new(16).unwrap(),
+                    bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
+                },
             )
             .await
             .unwrap();

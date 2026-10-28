@@ -147,11 +147,16 @@ async fn secrets_endpoint_bound() {
     let first = Listener::start(service.clone(), false, Ipv4Addr::LOCALHOST).await;
     let second = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
     let mut request = first.local();
-    request.secrets = ConnectionSecrets::Bearer { token: "private-token".into(), remember: true };
+    request.secrets = ConnectionSecrets::Bearer {
+        token: "private-token".into(),
+        remember: true,
+    };
     let connected = session.connect(request).await.unwrap();
     assert!(!serde_json::to_string(&connected).unwrap().contains("private-token"));
     let mut request = first.local();
-    request.target = ConnectionTarget::Local { endpoint: first.endpoint.trim_end_matches('/').into() };
+    request.target = ConnectionTarget::Local {
+        endpoint: first.endpoint.trim_end_matches('/').into(),
+    };
     request.secrets = ConnectionSecrets::Saved;
     session.connect(request).await.unwrap();
     let mut request = second.local();

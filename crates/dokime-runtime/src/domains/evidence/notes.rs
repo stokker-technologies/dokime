@@ -201,7 +201,11 @@ impl RuntimeHandle {
             tracing::warn!(%error, note_id=%id, "committed note checkpoint publication failed");
         }
         let publication = self.note_publication(&admission).await;
-        Ok(NoteCreation { epoch: request.epoch, admission, publication })
+        Ok(NoteCreation {
+            epoch: request.epoch,
+            admission,
+            publication,
+        })
     }
 
     pub async fn edit_current_note(&self, request: EditNote) -> Result<OperatorNote, NoteError> {
@@ -256,7 +260,11 @@ impl RuntimeHandle {
             return Ok(None);
         };
         let publication = self.note_publication(&admission).await;
-        Ok(Some(NoteCreation { epoch: epoch.clone(), admission, publication }))
+        Ok(Some(NoteCreation {
+            epoch: epoch.clone(),
+            admission,
+            publication,
+        }))
     }
 
     async fn read_note_admission(&self, epoch: &SessionId, id: &NoteId) -> Result<Option<NoteAdmission>, NoteError> {

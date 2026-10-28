@@ -54,7 +54,14 @@ pub(crate) struct ScopedParameterUpdate {
 
 impl ScopedParameterUpdate {
     pub(crate) fn new(key: impl Into<String>, value: impl Into<Value>, source: ParameterSource) -> Self {
-        Self { key: key.into(), value: value.into(), source, metadata: None, group_id: None, unit: None }
+        Self {
+            key: key.into(),
+            value: value.into(),
+            source,
+            metadata: None,
+            group_id: None,
+            unit: None,
+        }
     }
 
     pub(crate) fn with_group_id(mut self, group_id: Option<Identifier>) -> Self {

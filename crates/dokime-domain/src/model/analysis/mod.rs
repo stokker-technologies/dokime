@@ -234,7 +234,10 @@ mod tests {
                 key: "scaled".into(),
                 label: "Scaled Signal".into(),
                 unit: Some("V".into()),
-                axis: Some(Axis { key: "time".into(), unit: Some("s".into()) }),
+                axis: Some(Axis {
+                    key: "time".into(),
+                    unit: Some("s".into()),
+                }),
             }],
             limits: Limits { max_samples: 64, max_output_values: 64 },
         };

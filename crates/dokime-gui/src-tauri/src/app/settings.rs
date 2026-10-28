@@ -59,7 +59,10 @@ impl From<String> for DesktopSettingsError {
 
 pub fn setup(app: &tauri::App) {
     let parameters = application_root(&app.config().identifier).map(|root| root.join("parameters.json")).map_err(|error| error.to_string());
-    app.manage(DesktopSettingsState { parameters, serial: Arc::new(tokio::sync::Mutex::new(())) });
+    app.manage(DesktopSettingsState {
+        parameters,
+        serial: Arc::new(tokio::sync::Mutex::new(())),
+    });
 }
 
 pub fn application_root(identifier: &str) -> std::io::Result<PathBuf> {

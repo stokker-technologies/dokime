@@ -58,7 +58,11 @@ impl<'a> From<&'a ObjectEntry> for Header<'a> {
         Self {
             position: &value.position,
             version: &value.version,
-            value: Value { schema: &value.value.schema, item: &value.value.item, payload: &[] },
+            value: Value {
+                schema: &value.value.schema,
+                item: &value.value.item,
+                payload: &[],
+            },
         }
     }
 }

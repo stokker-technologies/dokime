@@ -144,7 +144,15 @@ impl<'a> StreamLogWriter<'a> {
         let capacity = 64 * 1024;
 
         let path = segment_path(workflow, log.segment);
-        Ok(Self { storage, execution: &execution.test_execution_id, path, capacity, buffer: None, log, workflow })
+        Ok(Self {
+            storage,
+            execution: &execution.test_execution_id,
+            path,
+            capacity,
+            buffer: None,
+            log,
+            workflow,
+        })
     }
 
     async fn entry(&mut self, entry: &crate::execution::log::Entry) -> crate::runtime::Result<()> {

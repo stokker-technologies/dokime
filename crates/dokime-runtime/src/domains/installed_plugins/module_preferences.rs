@@ -63,7 +63,11 @@ pub(crate) struct ResolvedPluginPreferences {
 
 impl PluginPreferences {
     pub(crate) fn new(settings: ApplicationSettings) -> Self {
-        Self { settings, installs: RwLock::default(), transient: Mutex::default() }
+        Self {
+            settings,
+            installs: RwLock::default(),
+            transient: Mutex::default(),
+        }
     }
 
     pub(crate) fn bind_installs(&self, installs: BTreeMap<String, Uuid>) {
@@ -82,7 +86,12 @@ impl PluginPreferences {
         // longer declares is dropped rather than shown.
         let discovered = stored.values.into_iter().filter(|(id, _)| settings.get(id).is_some() && !stored.saved.contains(id)).collect();
 
-        Ok(ResolvedPluginPreferences { saved: stored.saved, values, discovered, redacted_secrets })
+        Ok(ResolvedPluginPreferences {
+            saved: stored.saved,
+            values,
+            discovered,
+            redacted_secrets,
+        })
     }
 
     pub(crate) async fn record_discovered(

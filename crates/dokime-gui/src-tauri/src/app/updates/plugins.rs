@@ -146,7 +146,13 @@ pub async fn desktop_plugin_release_check(
     if inner.generation != policy_generation {
         return Err("The plugin release source changed while checking".into());
     }
-    inner.plugin = Some(Candidate { id, generation: policy_generation, connection: generation, manifest, asset });
+    inner.plugin = Some(Candidate {
+        id,
+        generation: policy_generation,
+        connection: generation,
+        manifest,
+        asset,
+    });
     Ok(release)
 }
 
@@ -215,7 +221,11 @@ mod tests {
                 description: String::new(),
                 package: Default::default(),
             },
-            &[Source { path: "resource.txt", bytes: b"verified resource", executable: None }],
+            &[Source {
+                path: "resource.txt",
+                bytes: b"verified resource",
+                executable: None,
+            }],
             Limits::default(),
         )
         .unwrap();
@@ -238,8 +248,11 @@ mod tests {
 
     #[test]
     fn release_selection_requires_compatible_host_unique_target_and_digest() {
-        let asset =
-            Asset { target: "x86_64-pc-windows-msvc".into(), url: "https://example.test/plugin.dokime".into(), sha256: "a".repeat(64) };
+        let asset = Asset {
+            target: "x86_64-pc-windows-msvc".into(),
+            url: "https://example.test/plugin.dokime".into(),
+            sha256: "a".repeat(64),
+        };
         let mut manifest = Manifest {
             format_version: 1,
             package: "instruments".into(),

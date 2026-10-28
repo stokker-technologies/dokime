@@ -127,11 +127,17 @@ pub enum TelemetryFailure {
 
 impl Error {
     pub fn record_mismatched(wanted: &'static str, found: &Identifier) -> Self {
-        Self::RecordDecode { record: found.to_string(), reason: format!("is not a {wanted:?}") }
+        Self::RecordDecode {
+            record: found.to_string(),
+            reason: format!("is not a {wanted:?}"),
+        }
     }
 
     pub fn record_field(record_type: &'static str, field: FieldError) -> Self {
-        Self::RecordDecode { record: record_type.to_owned(), reason: field.to_string() }
+        Self::RecordDecode {
+            record: record_type.to_owned(),
+            reason: field.to_string(),
+        }
     }
 }
 

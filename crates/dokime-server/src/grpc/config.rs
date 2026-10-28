@@ -80,7 +80,10 @@ impl std::fmt::Debug for TlsIdentity {
 
 impl TlsIdentity {
     pub fn from_pem(certificate: Vec<u8>, private_key: Vec<u8>) -> Self {
-        Self { certificate, private_key: Zeroizing::new(private_key) }
+        Self {
+            certificate,
+            private_key: Zeroizing::new(private_key),
+        }
     }
 
     pub(crate) fn into_tonic(self) -> tonic::transport::Identity {
@@ -116,7 +119,15 @@ impl Config {
     }
 
     pub(super) fn managed_remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, policy: Policy, maximum: usize) -> Self {
-        Self { bind_addr, policy, tls, max_message_bytes: maximum, remote: true, web: None, trace_journal: None }
+        Self {
+            bind_addr,
+            policy,
+            tls,
+            max_message_bytes: maximum,
+            remote: true,
+            web: None,
+            trace_journal: None,
+        }
     }
 
     pub fn with_bind_addr(mut self, address: SocketAddr) -> Self {

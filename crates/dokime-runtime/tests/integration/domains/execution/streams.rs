@@ -92,8 +92,15 @@ impl Pulse {
 
     #[dokime_runtime::step(label = "Measure")]
     async fn measure(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
-        ctx.publish(Reading { value: 7.0, signed: -2, optional: Some(3), unsigned: 9, samples: vec![1.5, 2.0], label: "live".into() })
-            .await;
+        ctx.publish(Reading {
+            value: 7.0,
+            signed: -2,
+            optional: Some(3),
+            unsigned: 9,
+            samples: vec![1.5, 2.0],
+            label: "live".into(),
+        })
+        .await;
         signalled().entered.notify_one();
         signalled().release.notified().await;
         Ok(())
@@ -178,10 +185,20 @@ async fn live_rows_paths() {
         Metadata::new(Identifier::new("fixture.live.host").unwrap(), "Embedded Host", None),
     );
     let events = Arc::new(Mutex::new(Vec::new()));
-    let signals = Signals { events: Arc::clone(&events), ..Default::default() };
+    let signals = Signals {
+        events: Arc::clone(&events),
+        ..Default::default()
+    };
     *SIGNALLED.lock().unwrap() = Some(signals.clone());
-    let provider =
-        |label| Arc::new(Probe { label, fail: false, block_start: false, events: Arc::clone(&events), signals: signals.clone() });
+    let provider = |label| {
+        Arc::new(Probe {
+            label,
+            fail: false,
+            block_start: false,
+            events: Arc::clone(&events),
+            signals: signals.clone(),
+        })
+    };
     let mut runtime = dokime_runtime::Runtime::start(config.register(provider("first"))).await.unwrap();
     let handle = runtime.handle();
     let cycle = crate::service_support::suites::start_cases(
@@ -207,7 +224,10 @@ async fn live_rows_paths() {
         let rows = handle
             .collect_telemetry(&dokime_runtime::domains::evidence::TelemetrySelection {
                 streams: vec![Identifier::new(Reading::ID).unwrap().into()],
-                scope: dokime_runtime::domains::evidence::ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
+                scope: dokime_runtime::domains::evidence::ScopeSelection {
+                    test_cycle_id: Some(cycle.clone()),
+                    ..Default::default()
+                },
                 ..Default::default()
             })
             .await

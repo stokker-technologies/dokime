@@ -76,7 +76,14 @@ impl TestSuiteDefinition {
             return Err(SuiteContractError::EmptySuiteId.into());
         }
 
-        Ok(Self { suite_id, tags: Vec::new(), workflow: None, suite, record_contracts: Vec::new(), telemetry_contracts: Vec::new() })
+        Ok(Self {
+            suite_id,
+            tags: Vec::new(),
+            workflow: None,
+            suite,
+            record_contracts: Vec::new(),
+            telemetry_contracts: Vec::new(),
+        })
     }
 }
 

@@ -124,7 +124,11 @@ impl<'a> SharedBindings<'a> {
 
     pub(crate) fn capture(&self, definition: &'a DocumentDefinition) -> crate::Result<crate::document::capture::Capture> {
         self.validate(definition)?;
-        let input = BorrowedInput { definition, selection: self.selection, data: self.data };
+        let input = BorrowedInput {
+            definition,
+            selection: self.selection,
+            data: self.data,
+        };
         let captured = super::resolve::capture_borrowed(input, self.limits)?;
         document_size(&captured, self.limits.materialized_bytes, self.limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
         Ok(captured)
@@ -180,7 +184,14 @@ pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_dep
     fn refusal() -> std::io::Error {
         std::io::Error::other(DocumentLimit)
     }
-    let mut counter = Counter { bytes: 0, depth: 0, max_bytes, max_depth, quoted: false, escaped: false };
+    let mut counter = Counter {
+        bytes: 0,
+        depth: 0,
+        max_bytes,
+        max_depth,
+        quoted: false,
+        escaped: false,
+    };
     serde_json::to_writer(&mut counter, value).map_err(|_| DocumentLimit)?;
     Ok(counter.bytes)
 }

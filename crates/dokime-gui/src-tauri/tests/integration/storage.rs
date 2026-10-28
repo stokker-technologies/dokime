@@ -82,7 +82,10 @@ fn backup_archives_store() {
     assert_eq!(destination, root.path().join("store-backup-19700101T000000Z.zip"));
     assert!(matches!(
         storage.archive(&destination, |_| {}),
-        Err(DesktopSessionError::StorageReset { reason: StorageResetReason::BackendRunning, .. })
+        Err(DesktopSessionError::StorageReset {
+            reason: StorageResetReason::BackendRunning,
+            ..
+        })
     ));
     assert!(!destination.exists());
     drop(lease);
@@ -90,7 +93,10 @@ fn backup_archives_store() {
     // A Destination Inside The Root Is Refused
     assert!(matches!(
         storage.archive(&store.join("inside.zip"), |_| {}),
-        Err(DesktopSessionError::StorageReset { reason: StorageResetReason::OutsideRoot, .. })
+        Err(DesktopSessionError::StorageReset {
+            reason: StorageResetReason::OutsideRoot,
+            ..
+        })
     ));
 
     // The Archive Holds Every Nested File, The WAL Included, But The Lease

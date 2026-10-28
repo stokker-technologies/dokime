@@ -243,7 +243,11 @@ impl Journal {
             if after != 0 {
                 return Err(Stale { after, head: 0 });
             }
-            return Ok(Page { events: Vec::new(), missed: 0, next: after });
+            return Ok(Page {
+                events: Vec::new(),
+                missed: 0,
+                next: after,
+            });
         };
 
         let tail = ring.end().saturating_sub(1);
@@ -301,7 +305,13 @@ impl State {
 
 impl Ring {
     fn new(base: u64) -> Self {
-        Self { base, front: base + 1, entries: VecDeque::new(), bytes: 0, written: base }
+        Self {
+            base,
+            front: base + 1,
+            entries: VecDeque::new(),
+            bytes: 0,
+            written: base,
+        }
     }
 
     fn end(&self) -> u64 {
@@ -331,7 +341,10 @@ impl Ring {
 
 impl Rings {
     fn new(capacity: usize) -> Self {
-        Self { capacity: capacity.max(1), rings: HashMap::new() }
+        Self {
+            capacity: capacity.max(1),
+            rings: HashMap::new(),
+        }
     }
 
     fn ring(&mut self, id: &str, sequence: u64) -> &mut Ring {
@@ -350,7 +363,11 @@ impl Rings {
 
 impl Lineage {
     fn new(capacity: usize) -> Self {
-        Self { capacity: capacity.max(1), cycles: HashMap::new(), order: VecDeque::new() }
+        Self {
+            capacity: capacity.max(1),
+            cycles: HashMap::new(),
+            order: VecDeque::new(),
+        }
     }
 
     fn learn(&mut self, execution: &str, cycle: &str) {
@@ -406,7 +423,13 @@ mod tests {
     }
     #[test]
     fn journal_bounds_retention() {
-        let journal = Journal::new(Limits { instance_events: 2, scope_events: 2, cycles: 1, executions: 1, ..Limits::default() });
+        let journal = Journal::new(Limits {
+            instance_events: 2,
+            scope_events: 2,
+            cycles: 1,
+            executions: 1,
+            ..Limits::default()
+        });
         let scope = Scope::Cycle("cycle-a".into());
         journal.record(event(Some("cycle-a"), Some("execution-a"), "one"));
         journal.record(event(None, Some("execution-a"), "two"));
@@ -429,7 +452,11 @@ mod tests {
         assert!(journal.read(&scope, 3, |_| true, 2, 4096).is_err());
         assert_eq!(journal.read(&scope, 0, |_| true, 2, 4096).unwrap().events[0].0, 5);
 
-        let bounded = Journal::new(Limits { instance_bytes: 128, scope_bytes: 128, ..Limits::default() });
+        let bounded = Journal::new(Limits {
+            instance_bytes: 128,
+            scope_bytes: 128,
+            ..Limits::default()
+        });
         bounded.record(event(Some("cycle-a"), None, &"large".repeat(100)));
         let page = bounded.read(&Scope::Instance, 0, |_| true, 1, 128).unwrap();
         assert!(page.events.is_empty());

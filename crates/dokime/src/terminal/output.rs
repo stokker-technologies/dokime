@@ -78,7 +78,9 @@ impl FromStr for ColorMode {
 
 impl Terminal {
     pub fn new(mode: ColorMode) -> Self {
-        Self { mode: if mode == ColorMode::Auto { color_mode() } else { mode } }
+        Self {
+            mode: if mode == ColorMode::Auto { color_mode() } else { mode },
+        }
     }
     pub fn color_enabled(&self) -> bool {
         let choice = match self.mode {

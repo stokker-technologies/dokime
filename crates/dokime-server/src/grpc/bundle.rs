@@ -167,7 +167,13 @@ impl Part {
         };
 
         dokime::harmos::storage::ReadBatch::new(())
-            .try_map(|_| Ok(Prepared { path: path.clone(), input, note: note.clone() }))
+            .try_map(|_| {
+                Ok(Prepared {
+                    path: path.clone(),
+                    input,
+                    note: note.clone(),
+                })
+            })
             .map_err(native_failure)
     }
 }
@@ -267,8 +273,12 @@ async fn assemble(
         let archive = CappedFile { file, maximum: maximum as u64 };
         let mut writer = ZipWriter::new(archive);
         writer.start_file(MANIFEST_PATH, file_options()).map_err(zip_failure)?;
-        let manifest =
-            Manifest { filename: &held.filename, generated_at: held.generated_at.as_str(), backend: &context, entries: &held.entries };
+        let manifest = Manifest {
+            filename: &held.filename,
+            generated_at: held.generated_at.as_str(),
+            backend: &context,
+            entries: &held.entries,
+        };
         serde_json::to_writer_pretty(&mut writer, &manifest).map_err(|error| {
             let kind = error.io_error_kind().unwrap_or(std::io::ErrorKind::Other);
             std::io::Error::new(kind, error)
@@ -315,7 +325,13 @@ async fn assemble(
 
 async fn prepare_json(path: String, mut value: Value) -> Result<ReadBatch<Prepared>, Status> {
     let prepared = dokime::harmos::storage::ReadBatch::new(())
-        .try_map(|_| Ok(Prepared { path: path.clone(), input: None, note: None }))
+        .try_map(|_| {
+            Ok(Prepared {
+                path: path.clone(),
+                input: None,
+                note: None,
+            })
+        })
         .map_err(native_failure)?;
     let prepared = tokio::task::spawn_blocking(move || {
         prepared.try_map(|mut prepared| {
@@ -324,7 +340,10 @@ async fn prepare_json(path: String, mut value: Value) -> Result<ReadBatch<Prepar
                 let mut file = tempfile::NamedTempFile::new().map_err(|error| redaction::text(&error.to_string()))?.into_file();
                 serde_json::to_writer_pretty(&mut file, &value).map_err(|error| redaction::text(&error.to_string()))?;
                 let length = file.metadata().map_err(|error| redaction::text(&error.to_string()))?.len();
-                Ok::<_, String>(Input::Opened { file, range: ByteRange { offset: 0, limit: Some(length) } })
+                Ok::<_, String>(Input::Opened {
+                    file,
+                    range: ByteRange { offset: 0, limit: Some(length) },
+                })
             })();
             let note = match source {
                 Ok(input) => {
@@ -362,7 +381,10 @@ async fn freeze_input(session: &dokime::storage::Manager, source: PathBuf, max_b
     };
     let length = metadata.len();
     let start = length.saturating_sub(max_bytes);
-    let range = ByteRange { offset: start, limit: Some(length - start) };
+    let range = ByteRange {
+        offset: start,
+        limit: Some(length - start),
+    };
     let file = match session.freeze_opened_file(file.into_std().await, range).await {
         Ok(file) => file,
         Err(error @ dokime::harmos::storage::Error::ResourceExhausted { .. }) => return Err(native_failure(error)),
@@ -383,7 +405,10 @@ async fn freeze_input(session: &dokime::storage::Manager, source: PathBuf, max_b
             reader.completion().map_err(native_failure)?;
         }
     }
-    let range = ByteRange { offset, limit: Some(file.length() - offset) };
+    let range = ByteRange {
+        offset,
+        limit: Some(file.length() - offset),
+    };
     Ok(Ok(Input::Frozen { file, range }))
 }
 

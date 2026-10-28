@@ -232,7 +232,10 @@ impl RuntimeHandle {
     }
 
     pub fn watch_state(&self) -> RuntimeStateWatch {
-        RuntimeStateWatch { receiver: self.state_watch.subscribe(), operations: self.operation_progress.watch() }
+        RuntimeStateWatch {
+            receiver: self.state_watch.subscribe(),
+            operations: self.operation_progress.watch(),
+        }
     }
 }
 

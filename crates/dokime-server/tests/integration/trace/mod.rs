@@ -102,7 +102,10 @@ async fn trace_watch_replays() {
         [(None, first.next_sequence), (Some(uuid::Uuid::now_v7().to_string()), first.next_sequence), (Some(first.epoch.clone()), u64::MAX)]
     {
         let mut invalid = client
-            .download::<contracts::backend::WatchTrace>(contracts::backend::WatchTrace { epoch, ..request(&execution, after, false) })
+            .download::<contracts::backend::WatchTrace>(contracts::backend::WatchTrace {
+                epoch,
+                ..request(&execution, after, false)
+            })
             .await
             .unwrap()
             .into_inner();

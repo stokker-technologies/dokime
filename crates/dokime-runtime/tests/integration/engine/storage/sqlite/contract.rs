@@ -83,7 +83,13 @@ async fn paged_records_ascend() {
     let (store, records) = seeded(root.path(), 7).await;
     let backend = &store.backend;
     let snapshot = backend.open_snapshot(&store.at(7)).await.unwrap();
-    let selection = query::RecordSelection { schema: key(), scope: None, item: None, source_start: None, source_end: None };
+    let selection = query::RecordSelection {
+        schema: key(),
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
     let first = backend.read_records(&snapshot, &selection, page(0, rows(2))).await.unwrap();
     assert_eq!(first, records[..2]);
     let oversized = backend.read_records(&snapshot, &selection, ScanPage { after: 0, rows: rows(64), bytes: rows(1) }).await.unwrap();
@@ -114,7 +120,12 @@ async fn records_share_item_with_exact_retries() {
     let schemas = [store.schema()];
     store.backend.write_schemas(store.batch(schemas.to_vec())).await.unwrap();
 
-    let records = (2..=3).map(|sequence| StoredRecord { item: id("shared-item"), ..store.record(sequence) }).collect::<Vec<_>>();
+    let records = (2..=3)
+        .map(|sequence| StoredRecord {
+            item: id("shared-item"),
+            ..store.record(sequence)
+        })
+        .collect::<Vec<_>>();
     for record in &records {
         store.backend.write_records(store.batch(vec![record.clone()])).await.unwrap();
     }
@@ -122,8 +133,13 @@ async fn records_share_item_with_exact_retries() {
     assert_eq!(saved, store.at(3));
 
     let snapshot = store.backend.open_snapshot(&store.at(3)).await.unwrap();
-    let selection =
-        query::RecordSelection { schema: key(), scope: None, item: Some(id("shared-item")), source_start: None, source_end: None };
+    let selection = query::RecordSelection {
+        schema: key(),
+        scope: None,
+        item: Some(id("shared-item")),
+        source_start: None,
+        source_end: None,
+    };
     assert_eq!(store.backend.read_records(&snapshot, &selection, page(0, rows(2))).await.unwrap(), records);
     store.backend.release_snapshot(&snapshot).await.unwrap();
 
@@ -379,7 +395,13 @@ async fn cancelled_read_isolated() {
     let (store, records) = seeded(root.path(), 401).await;
     let backend = &store.backend;
     let snapshot = backend.open_snapshot(&store.at(401)).await.unwrap();
-    let selection = query::RecordSelection { schema: key(), scope: None, item: None, source_start: None, source_end: None };
+    let selection = query::RecordSelection {
+        schema: key(),
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
     for _ in 0..8 {
         let mut cancelled = Box::pin(backend.read_records(&snapshot, &selection, page(0, rows(400))));
         std::future::poll_fn(|context| {

@@ -164,7 +164,15 @@ impl State {
 
 impl Scan {
     pub(super) fn new(kind: &'static str, at: u64, generation: u64, page: ScanPage) -> Self {
-        Self { kind, at, generation, filters: Vec::new(), source_window: None, latest_objects: false, page }
+        Self {
+            kind,
+            at,
+            generation,
+            filters: Vec::new(),
+            source_window: None,
+            latest_objects: false,
+            page,
+        }
     }
 
     pub(super) fn filter(mut self, column: &'static str, value: Option<String>) -> Self {
@@ -582,7 +590,11 @@ mod tests {
             .unwrap();
 
         for scope in [None, Some("execution".to_owned())] {
-            let page = ScanPage { after: 0, rows: NonZeroUsize::new(1024).unwrap(), bytes: NonZeroUsize::new(1024 * 1024).unwrap() };
+            let page = ScanPage {
+                after: 0,
+                rows: NonZeroUsize::new(1024).unwrap(),
+                bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
+            };
             let scan = Scan::new("stream", 4096, 0, page).filter("schema_key", Some("absent".to_owned())).filter("scope", scope);
             let (sql, arguments) = scan_query(&scan).unwrap();
             let mut statement = connection.prepare(&sql).unwrap();

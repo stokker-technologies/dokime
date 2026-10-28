@@ -141,8 +141,12 @@ pub(super) async fn records_at_in(
     drop(owners);
     let saved = at.clone();
     let history = super::history::executions(session, saved.clone()).await?;
-    let mut records = harmos::storage::ReadBatch::new(())
-        .try_map(|_| -> Result<_> { Ok(RetainedRecords { records: Vec::new(), seen: BTreeMap::new() }) })?;
+    let mut records = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
+        Ok(RetainedRecords {
+            records: Vec::new(),
+            seen: BTreeMap::new(),
+        })
+    })?;
     for row in history.iter().flat_map(|page| page.iter()) {
         let Some(seal) = &row.value.saved else { continue };
         for output in &seal.source.outputs {

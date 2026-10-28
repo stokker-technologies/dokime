@@ -189,7 +189,11 @@ impl LineMatchers {
                 }
             }
             if readable && !values.is_empty() {
-                found.push(LineMatch::Row { storage_schema: row.storage_schema.clone(), stream: row.stream.clone(), values });
+                found.push(LineMatch::Row {
+                    storage_schema: row.storage_schema.clone(),
+                    stream: row.stream.clone(),
+                    values,
+                });
             }
         }
         for (pattern, record_type) in &self.markers {
@@ -201,7 +205,11 @@ impl LineMatchers {
                 .flatten()
                 .filter_map(|name| captures.name(name).map(|capture| (name.to_owned(), Value::Text(capture.as_str().to_owned()))))
                 .collect();
-            found.push(LineMatch::Marker { record_type: record_type.clone(), details, line: line.to_owned() });
+            found.push(LineMatch::Marker {
+                record_type: record_type.clone(),
+                details,
+                line: line.to_owned(),
+            });
         }
         found
     }
@@ -304,8 +312,14 @@ mod tests {
                 pattern: r"temperature=(?P<temperature_c>[-\d.]+) state=(?P<state>\w+)".into(),
                 stream: "bench.charger.log".into(),
                 fields: vec![
-                    LineField { name: "temperature_c".into(), kind: LineFieldKind::Number },
-                    LineField { name: "state".into(), kind: LineFieldKind::Text },
+                    LineField {
+                        name: "temperature_c".into(),
+                        kind: LineFieldKind::Number,
+                    },
+                    LineField {
+                        name: "state".into(),
+                        kind: LineFieldKind::Text,
+                    },
                 ],
             }],
             &[LineMarker::new(r"FAULT (?P<code>\w+)", "bench.charger.fault")],
@@ -348,7 +362,10 @@ mod tests {
                 storage_schema: row_schema(),
                 pattern: r"(\d+)".into(),
                 stream: "s".into(),
-                fields: vec![LineField { name: "value".into(), kind: LineFieldKind::Integer }],
+                fields: vec![LineField {
+                    name: "value".into(),
+                    kind: LineFieldKind::Integer,
+                }],
             }],
             &[],
         )
@@ -363,11 +380,20 @@ mod tests {
             pattern: r"temperature=(?P<temperature_c>[-\d.]+) state=(?P<state>\w+)".into(),
             stream: "fixture".into(),
             fields: vec![
-                LineField { name: "temperature_c".into(), kind: LineFieldKind::Number },
-                LineField { name: "state".into(), kind: LineFieldKind::Text },
+                LineField {
+                    name: "temperature_c".into(),
+                    kind: LineFieldKind::Number,
+                },
+                LineField {
+                    name: "state".into(),
+                    kind: LineFieldKind::Text,
+                },
             ],
         };
-        let settings = harmos::config::SchemaSettings { preparation_bytes: NonZeroUsize::new(1).unwrap(), ..Default::default() };
+        let settings = harmos::config::SchemaSettings {
+            preparation_bytes: NonZeroUsize::new(1).unwrap(),
+            ..Default::default()
+        };
         let result = LineMatchers::compile(&[matcher], &[], 1, 1024, 65536, &settings);
         assert_eq!(result.unwrap_err(), InvalidLineMatcher::Schema { index: 0 });
     }

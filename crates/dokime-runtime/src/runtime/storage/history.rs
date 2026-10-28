@@ -43,9 +43,21 @@ use dokime_domain::model::execution::result::TestExecution;
 pub(crate) async fn executions(
     session: &crate::storage::Manager, at: harmos::storage::StorageCursor,
 ) -> Result<crate::storage::projection::Pages<ObjectRevision<TestExecution>>> {
-    let rows = session.read_objects::<Execution>(ObjectRead { at, key: None, versions: ObjectVersions::Latest }).await?.collect().await?;
+    let rows = session
+        .read_objects::<Execution>(ObjectRead {
+            at,
+            key: None,
+            versions: ObjectVersions::Latest,
+        })
+        .await?
+        .collect()
+        .await?;
     let selected = crate::storage::projection::pages(rows, |row| {
-        Ok(ObjectRevision { value: row.value.into_execution()?, position: row.position, version: row.version })
+        Ok(ObjectRevision {
+            value: row.value.into_execution()?,
+            position: row.position,
+            version: row.version,
+        })
     })?;
     for page in selected.iter() {
         for row in page.iter() {

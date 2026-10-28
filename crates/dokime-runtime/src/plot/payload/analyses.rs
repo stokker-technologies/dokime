@@ -143,7 +143,9 @@ pub enum PlotAnalysis {
 
 pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -> Option<PlotAnalysis> {
     if request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
-        return Some(PlotAnalysis::Error { message: "Z expressions must select a scalar field without transforms".into() });
+        return Some(PlotAnalysis::Error {
+            message: "Z expressions must select a scalar field without transforms".into(),
+        });
     }
     match request.plot_type.as_ref()? {
         PlotType::FrequencySeries => {
@@ -156,14 +158,18 @@ pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -
         }
         PlotType::Histogram => {
             if request.y_keys.is_empty() && request.y_expressions.is_empty() {
-                return Some(PlotAnalysis::Error { message: "histogram plots bin one x field or x expression; none was declared".into() });
+                return Some(PlotAnalysis::Error {
+                    message: "histogram plots bin one x field or x expression; none was declared".into(),
+                });
             }
             if let Some(unit) = &request.histogram.unit {
                 for entry in series.iter_mut() {
                     entry.unit = Some(unit.clone());
                 }
             }
-            Some(PlotAnalysis::Histogram { series: series.iter().map(|entry| histogram(entry, request.histogram.bins)).collect() })
+            Some(PlotAnalysis::Histogram {
+                series: series.iter().map(|entry| histogram(entry, request.histogram.bins)).collect(),
+            })
         }
         PlotType::BoxSummary => {
             let boxes: Vec<BoxSummary> = series.iter().flat_map(|entry| grouped_boxes(entry, request)).collect();
@@ -292,7 +298,11 @@ pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Resul
             // Voltage amplitude into the conventional 50-ohm reference load.
             FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
         };
-        points.push(PlotPoint { x: frequency.into(), y: Some(level), z: None });
+        points.push(PlotPoint {
+            x: frequency.into(),
+            y: Some(level),
+            z: None,
+        });
     }
     entry.points = points;
     entry.unit = match options.level_unit {
@@ -391,12 +401,21 @@ fn histogram(entry: &PlotSeries, bins: usize) -> HistogramSeries {
     let bins = bins.max(1);
     let width = if min == max { 1.0 } else { (max - min) / bins as f64 };
     let mut result = (0..bins)
-        .map(|i| HistogramBin { lower: min + i as f64 * width, upper: min + (i + 1) as f64 * width, count: 0 })
+        .map(|i| HistogramBin {
+            lower: min + i as f64 * width,
+            upper: min + (i + 1) as f64 * width,
+            count: 0,
+        })
         .collect::<Vec<_>>();
     for value in &values {
         result[(((value - min) / width).floor() as usize).min(bins - 1)].count += 1;
     }
-    HistogramSeries { key: entry.key.clone(), bins: result, count: values.len(), statistics: histogram_statistics(values) }
+    HistogramSeries {
+        key: entry.key.clone(),
+        bins: result,
+        count: values.len(),
+        statistics: histogram_statistics(values),
+    }
 }
 
 fn histogram_statistics(values: Vec<f64>) -> Option<HistogramStatistics> {
@@ -486,7 +505,13 @@ fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> Result<SigmaSer
             lower = lower.max(summary.min().unwrap_or(mean));
             upper = upper.min(summary.max().unwrap_or(mean));
         }
-        bins.push(SigmaBin { x: (index as f64 + 0.5) * options.bin_width, count, mean, lower, upper });
+        bins.push(SigmaBin {
+            x: (index as f64 + 0.5) * options.bin_width,
+            count,
+            mean,
+            lower,
+            upper,
+        });
     }
     let mut key = String::new();
     key.try_reserve_exact(entry.key.len()).map_err(|_| "interval allocation failed")?;
@@ -622,7 +647,11 @@ mod interval_tests {
                 PlotPoint { x: 0.0.into(), y: Some(2.0), z: None },
                 PlotPoint { x: 0.9.into(), y: Some(4.0), z: None },
                 PlotPoint { x: 1.0.into(), y: Some(10.0), z: None },
-                PlotPoint { x: 2.0.into(), y: Some(f64::INFINITY), z: None },
+                PlotPoint {
+                    x: 2.0.into(),
+                    y: Some(f64::INFINITY),
+                    z: None,
+                },
                 PlotPoint { x: 3.0.into(), y: None, z: None },
             ],
             raw_points: 6,

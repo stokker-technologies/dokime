@@ -120,8 +120,10 @@ impl RuntimeHandle {
                         .collect_telemetry_at_in(
                             &session,
                             &crate::evidence_runtime::TelemetrySelection {
-                                scope: crate::document::DocumentSelection { scope: query.scope.clone().unwrap_or_default() }
-                                    .evidence_scope(),
+                                scope: crate::document::DocumentSelection {
+                                    scope: query.scope.clone().unwrap_or_default(),
+                                }
+                                .evidence_scope(),
                                 ..crate::evidence_runtime::TelemetrySelection::default()
                             },
                             None,
@@ -133,7 +135,9 @@ impl RuntimeHandle {
                     let artifacts = self.artifacts_at_in(&session, &at).await?;
                     let state = snapshot.state();
                     let data = crate::documents::RuntimeDocumentData { records, telemetry, artifacts };
-                    let selection = crate::document::DocumentSelection { scope: query.scope.clone().unwrap_or_default() };
+                    let selection = crate::document::DocumentSelection {
+                        scope: query.scope.clone().unwrap_or_default(),
+                    };
 
                     RuntimeViewPayload::Document {
                         frame: crate::queries::documents::resolved_document_frame(
@@ -163,7 +167,11 @@ impl RuntimeHandle {
             }
         };
 
-        Ok(RuntimeViewFrame { cursor: RuntimeCursor(snapshot.revision()), window: query.window.clone(), payload })
+        Ok(RuntimeViewFrame {
+            cursor: RuntimeCursor(snapshot.revision()),
+            window: query.window.clone(),
+            payload,
+        })
     }
 }
 
@@ -189,9 +197,9 @@ fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> c
         RuntimeViewTopic::Suites => RuntimeViewPayload::Suites {
             frame: list_frame(snapshot.state().suites.suites().map(|snapshot| snapshot.suite.metadata.identifier.to_string())),
         },
-        RuntimeViewTopic::Cycle => {
-            RuntimeViewPayload::Cycles { frame: list_frame(snapshot.state().cycles.keys().map(|cycle_id| cycle_id.to_string())) }
-        }
+        RuntimeViewTopic::Cycle => RuntimeViewPayload::Cycles {
+            frame: list_frame(snapshot.state().cycles.keys().map(|cycle_id| cycle_id.to_string())),
+        },
         RuntimeViewTopic::Execution => RuntimeViewPayload::Execution {
             frame: list_frame(
                 snapshot
@@ -218,7 +226,9 @@ fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> c
         RuntimeViewTopic::Documents => {
             let cycles = snapshot.state().cycle_views().map(crate::definition::TestCycleInstance::new).collect::<Vec<_>>();
 
-            RuntimeViewPayload::Documents { frame: Box::new(crate::queries::documents::document_frame(cycles.iter(), scope)) }
+            RuntimeViewPayload::Documents {
+                frame: Box::new(crate::queries::documents::document_frame(cycles.iter(), scope)),
+            }
         }
         RuntimeViewTopic::Resources => RuntimeViewPayload::Resources {
             frame: Box::new(crate::queries::projections::resource_frame(

@@ -58,9 +58,10 @@ enum Command {
 
 pub(super) fn configuration(args: &Args) -> crate::Result<dokime::config::Config> {
     let loaded = load_environment(args.runtime.env_file.as_deref());
-    loaded
-        .and_then(|()| args.runtime.configuration())
-        .map_err(|error| crate::Error::Process { exit_code: error.exit_code(), source: Box::new(error) })
+    loaded.and_then(|()| args.runtime.configuration()).map_err(|error| crate::Error::Process {
+        exit_code: error.exit_code(),
+        source: Box::new(error),
+    })
 }
 
 pub async fn run(args: Args, configuration: dokime::config::Config) -> crate::Result<()> {
@@ -68,9 +69,10 @@ pub async fn run(args: Args, configuration: dokime::config::Config) -> crate::Re
         host::version::run(args);
         return Ok(());
     }
-    run_server(args.runtime, configuration)
-        .await
-        .map_err(|error| crate::Error::Process { exit_code: error.exit_code(), source: Box::new(error) })
+    run_server(args.runtime, configuration).await.map_err(|error| crate::Error::Process {
+        exit_code: error.exit_code(),
+        source: Box::new(error),
+    })
 }
 
 /* === Private Functions === */

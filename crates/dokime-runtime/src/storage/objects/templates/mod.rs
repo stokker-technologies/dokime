@@ -630,7 +630,10 @@ impl TryFrom<&crate::definition::Subscription> for Subscription {
             Subscription::Stream(id) => ("stream", id),
             Subscription::Record(id) => ("record", id),
         };
-        Ok(Self { kind: kind.to_owned(), identifier: identifier.as_str().to_owned() })
+        Ok(Self {
+            kind: kind.to_owned(),
+            identifier: identifier.as_str().to_owned(),
+        })
     }
 }
 
@@ -798,7 +801,9 @@ impl TryFrom<Expansion> for crate::definition::ParameterExpansion {
         match row.kind.as_str() {
             "single" => Ok(Self::Single),
             "cartesian" => Ok(Self::Cartesian),
-            "zip" => Ok(Self::Zip { group: dokime_domain::model::identity::Identifier::new(row.group.unwrap())? }),
+            "zip" => Ok(Self::Zip {
+                group: dokime_domain::model::identity::Identifier::new(row.group.unwrap())?,
+            }),
             _ => Err(Error::Invalid("invalid parameter expansion")),
         }
     }
@@ -927,7 +932,10 @@ impl TryFrom<&crate::definition::ParameterGroup> for Group {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("parameter group encoding memory overflows"));
         }
-        Ok(Self { group_id: value.group_id.as_str().to_owned(), metadata: Some(metadata::Row::try_from(&value.metadata)?) })
+        Ok(Self {
+            group_id: value.group_id.as_str().to_owned(),
+            metadata: Some(metadata::Row::try_from(&value.metadata)?),
+        })
     }
 }
 
@@ -1003,7 +1011,11 @@ impl TryFrom<Unit> for dokime_domain::model::values::MeasurementUnit {
             "custom" => UnitFamily::Custom,
             _ => return Err(Error::Invalid("invalid unit family")),
         };
-        Ok(Self { metadata: row.metadata.ok_or(Error::Invalid("unit metadata is missing"))?.try_into()?, family, symbol: row.symbol })
+        Ok(Self {
+            metadata: row.metadata.ok_or(Error::Invalid("unit metadata is missing"))?.try_into()?,
+            family,
+            symbol: row.symbol,
+        })
     }
 }
 

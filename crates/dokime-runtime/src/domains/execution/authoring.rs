@@ -286,7 +286,13 @@ impl<T> RuntimeResource<T> {
         resource_id: impl Into<String>, resource_kind: impl Into<String>, resource_name: impl Into<String>, value: T,
         details: BTreeMap<String, Value>,
     ) -> Self {
-        Self { resource_id: resource_id.into(), resource_kind: resource_kind.into(), resource_name: resource_name.into(), value, details }
+        Self {
+            resource_id: resource_id.into(),
+            resource_kind: resource_kind.into(),
+            resource_name: resource_name.into(),
+            value,
+            details,
+        }
     }
 
     fn into_parts(self) -> (RuntimeResourceMetadata, T) {
@@ -304,7 +310,12 @@ impl<T> RuntimeResource<T> {
 
 impl RuntimeResourceStore {
     fn new(runtime: RuntimeHandle, scope: RecordScope, source: impl Into<String>) -> Self {
-        Self { runtime, scope, source: source.into(), entries: BTreeMap::new() }
+        Self {
+            runtime,
+            scope,
+            source: source.into(),
+            entries: BTreeMap::new(),
+        }
     }
 
     pub fn source(&self) -> &str {
@@ -406,7 +417,10 @@ impl RuntimeResourceStore {
             return Ok(None);
         };
         if !existing.handle.is::<T>() {
-            return Err(StepContextError::ResourceTypeMismatch { resource_id: resource_id.to_owned(), expected_type: type_name::<T>() });
+            return Err(StepContextError::ResourceTypeMismatch {
+                resource_id: resource_id.to_owned(),
+                expected_type: type_name::<T>(),
+            });
         }
         let mut metadata = existing.metadata.clone();
         merge_details(&mut metadata.details, details);
@@ -459,7 +473,11 @@ impl RuntimeResourceStore {
 
 impl StepContextError {
     fn record_rejected(operation: &'static str, error: crate::runtime::Error) -> Self {
-        Self::RecordRejected { operation, code: error.code().unwrap_or("internal").to_owned(), message: error.to_string() }
+        Self::RecordRejected {
+            operation,
+            code: error.code().unwrap_or("internal").to_owned(),
+            message: error.to_string(),
+        }
     }
 }
 

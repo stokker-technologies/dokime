@@ -77,12 +77,19 @@ impl RuntimeHandle {
         if scopes > limits.source_bytes {
             return Err(DocumentAcquisitionFailure::Limit.into());
         }
-        let mut selection = DocumentSelection { scope: RecordScope::default().with_cycle(cycle_id.clone()) };
+        let mut selection = DocumentSelection {
+            scope: RecordScope::default().with_cycle(cycle_id.clone()),
+        };
         selection.scope.session_id = cycle.session_id.clone();
         crate::document::input::Context::ordered(&cycle.execution_ids, &snapshot.state().executions, &selection.scope)
             .ok_or(DocumentAcquisitionFailure::IncompleteCapture)?;
         let definition = super::cycle_document(cycle.metadata.label.clone());
-        Ok(PreparedCurrentDocument { runtime: self.clone(), snapshot, definition, selection })
+        Ok(PreparedCurrentDocument {
+            runtime: self.clone(),
+            snapshot,
+            definition,
+            selection,
+        })
     }
 
     pub fn prepare_current_document(
@@ -127,7 +134,12 @@ impl RuntimeHandle {
         let definition =
             super::captured_authored_document(&state.suites, execution, document_id).ok_or(DocumentAcquisitionFailure::Missing)?;
         let selection = DocumentSelection { scope: execution.scope.clone() };
-        Ok(PreparedCurrentDocument { runtime: self.clone(), snapshot, definition, selection })
+        Ok(PreparedCurrentDocument {
+            runtime: self.clone(),
+            snapshot,
+            definition,
+            selection,
+        })
     }
 }
 
@@ -154,13 +166,19 @@ impl PreparedCurrentDocument {
         artifacts |= crate::document::binding::artifacts_needed(&self.definition);
         let records = crate::document::binding::records_needed(&self.definition);
         let acquired = acquire(&self.runtime, &self.selection, &self.snapshot, records, telemetry, artifacts).await?;
-        let input = DocumentResolveInput { definition: self.definition, selection: self.selection, data: acquired.data };
+        let input = DocumentResolveInput {
+            definition: self.definition,
+            selection: self.selection,
+            data: acquired.data,
+        };
         let mut borrowed = input.borrowed();
         borrowed.data.context = binding_context(&self.snapshot, &input.definition, &input.selection, limits.source_bytes)?;
         if let Some(id) = &input.selection.scope.test_execution_id {
             let execution = self.snapshot.state().executions.get(id).ok_or(DocumentAcquisitionFailure::Missing)?;
-            borrowed.data.records =
-                crate::document::input::Records::Subscribed { rows: (&acquired.records).into(), captures: &execution.records };
+            borrowed.data.records = crate::document::input::Records::Subscribed {
+                rows: (&acquired.records).into(),
+                captures: &execution.records,
+            };
         }
         borrowed.data.telemetry = acquired.telemetry.as_deref().map_or(&[], Vec::as_slice);
         borrowed.data.artifacts = crate::document::input::Artifacts::Native(acquired.artifacts.as_deref().unwrap_or(&[]));

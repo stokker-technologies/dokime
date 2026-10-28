@@ -97,10 +97,14 @@ impl RuntimeState {
 
     pub fn canonical_note_scope(&self, given: &RecordScope) -> Result<RecordScope, String> {
         let owner = match (&given.test_cycle_id, &given.test_case_id, &given.test_execution_id) {
-            (Some(cycle_id), _, Some(execution_id)) => {
-                Some(NoteOwner::Execution { cycle_id: cycle_id.clone(), execution_id: execution_id.clone() })
-            }
-            (Some(cycle_id), Some(case_id), None) => Some(NoteOwner::Case { cycle_id: cycle_id.clone(), case_id: case_id.clone() }),
+            (Some(cycle_id), _, Some(execution_id)) => Some(NoteOwner::Execution {
+                cycle_id: cycle_id.clone(),
+                execution_id: execution_id.clone(),
+            }),
+            (Some(cycle_id), Some(case_id), None) => Some(NoteOwner::Case {
+                cycle_id: cycle_id.clone(),
+                case_id: case_id.clone(),
+            }),
             (Some(cycle_id), None, None) => Some(NoteOwner::Cycle { cycle_id: cycle_id.clone() }),
             (None, None, None) => None,
             _ => return Err("note owner requires its cycle identity".into()),
@@ -391,7 +395,9 @@ mod tests {
         retry.admission.note.message.push('!');
         assert!(retry.check(&state).is_err());
         retry = create.clone();
-        retry.admission.owner = NoteOwner::Cycle { cycle_id: TestCycleId::from_seed("notes-missing-owner") };
+        retry.admission.owner = NoteOwner::Cycle {
+            cycle_id: TestCycleId::from_seed("notes-missing-owner"),
+        };
         assert!(retry.check(&state).is_err());
         let old_id = create.admission.note.note_id;
         assert_ne!(old_id, note_identity(&SessionId::from_seed("notes-other-epoch"), "operator", &admission.mutation_id));

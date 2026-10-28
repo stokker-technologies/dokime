@@ -49,9 +49,9 @@ use dokime::domains::evidence::notes::{NoteCreation, NotePublication};
 pub(super) fn owner(value: Option<dokime::domain::model::notes::wire::AnnotationOwner>) -> Result<NoteOwner, Status> {
     use dokime::domain::model::notes::wire::AnnotationOwnerOwner as Owner;
     match value.and_then(|value| value.owner).ok_or_else(|| Status::invalid_argument("explicit annotation owner required"))? {
-        Owner::CycleId(id) => {
-            Ok(NoteOwner::Cycle { cycle_id: TestCycleId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))? })
-        }
+        Owner::CycleId(id) => Ok(NoteOwner::Cycle {
+            cycle_id: TestCycleId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?,
+        }),
         Owner::PlannedCase(value) => Ok(NoteOwner::Case {
             cycle_id: TestCycleId::from_uuid(value.cycle_id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?,
             case_id: CaseId::from_wire(value.case_id).map_err(|_| Status::invalid_argument("invalid case identity"))?,

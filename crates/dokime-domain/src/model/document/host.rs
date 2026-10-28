@@ -231,7 +231,11 @@ fn system_section() -> DocumentSection {
 }
 
 fn section(identifier_value: &str, label: &str, cards: Vec<DocumentCard>) -> DocumentSection {
-    DocumentSection { metadata: simple_metadata(identifier_value, label), cards, repeat: None }
+    DocumentSection {
+        metadata: simple_metadata(identifier_value, label),
+        cards,
+        repeat: None,
+    }
 }
 
 fn plot_card(plot: PlotDefinition) -> DocumentCard {

@@ -108,7 +108,10 @@ impl Session {
         if let Err(error) = verify_plugins(&runtime.handle(), if args.dev_control { &[] } else { &session.expected }).await {
             return match session.shutdown().await {
                 Ok(()) => Err(error),
-                Err(cleanup) => Err(Error::StartupCleanup { source: Box::new(error), cleanup: Box::new(cleanup) }),
+                Err(cleanup) => Err(Error::StartupCleanup {
+                    source: Box::new(error),
+                    cleanup: Box::new(cleanup),
+                }),
             };
         }
         on_phase("requests");
@@ -122,7 +125,10 @@ impl Session {
                 let cleanup = session.shutdown().await;
                 match cleanup {
                     Ok(()) => Err(error.into()),
-                    Err(cleanup) => Err(Error::StartupCleanup { source: Box::new(error.into()), cleanup: Box::new(cleanup) }),
+                    Err(cleanup) => Err(Error::StartupCleanup {
+                        source: Box::new(error.into()),
+                        cleanup: Box::new(cleanup),
+                    }),
                 }
             }
         }

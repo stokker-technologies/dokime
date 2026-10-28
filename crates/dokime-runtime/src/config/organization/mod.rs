@@ -244,9 +244,17 @@ impl BrandManifest {
             theme_policy,
         };
 
-        let identity = BrandIdentity { label: self.app.label, title_template: self.app.title_template };
+        let identity = BrandIdentity {
+            label: self.app.label,
+            title_template: self.app.title_template,
+        };
 
-        Ok(ResolvedBrand { identity, customization, theme, logos: Vec::new() })
+        Ok(ResolvedBrand {
+            identity,
+            customization,
+            theme,
+            logos: Vec::new(),
+        })
     }
 }
 
@@ -262,7 +270,10 @@ pub fn compiled_brand() -> Option<ResolvedBrand> {
                 Ok(EmbeddedLogo {
                     variant,
                     bytes: Bundled::file(&file)
-                        .ok_or_else(|| BrandLoadError::Read { path: file.into(), source: std::io::ErrorKind::NotFound.into() })?
+                        .ok_or_else(|| BrandLoadError::Read {
+                            path: file.into(),
+                            source: std::io::ErrorKind::NotFound.into(),
+                        })?
                         .to_vec(),
                     file: name,
                     mime_type,
@@ -298,7 +309,10 @@ pub fn load_brand(dir: &Path) -> Result<ResolvedBrand, BrandLoadError> {
                 alt: Some(brand.identity.label.clone()),
             });
         } else {
-            return Err(BrandLoadError::Read { path, source: std::io::ErrorKind::NotFound.into() });
+            return Err(BrandLoadError::Read {
+                path,
+                source: std::io::ErrorKind::NotFound.into(),
+            });
         }
     }
     Ok(brand)
@@ -312,7 +326,13 @@ pub(crate) fn resolved_pack_brand(pack: &crate::config::organization::ResolvedPa
     for (variant, file) in logos {
         let bytes = pack.read(&file).map_err(|source| BrandLoadError::Read { path: file.clone().into(), source })?;
         let mime_type = logo_mime(&file).to_owned();
-        brand.logos.push(EmbeddedLogo { variant, file, bytes, mime_type, alt: Some(brand.identity.label.clone()) });
+        brand.logos.push(EmbeddedLogo {
+            variant,
+            file,
+            bytes,
+            mime_type,
+            alt: Some(brand.identity.label.clone()),
+        });
     }
     Ok(brand)
 }
@@ -338,8 +358,10 @@ fn parse(text: &str, source: &impl Source) -> Result<(ResolvedBrand, Vec<(LogoVa
         }
         if file.ends_with(".png") {
             let bytes = source.read(file).map_err(|source| BrandLoadError::Read { path: file.into(), source })?;
-            image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
-                .map_err(|_| BrandLoadError::Read { path: file.into(), source: std::io::ErrorKind::InvalidData.into() })?;
+            image::load_from_memory_with_format(&bytes, image::ImageFormat::Png).map_err(|_| BrandLoadError::Read {
+                path: file.into(),
+                source: std::io::ErrorKind::InvalidData.into(),
+            })?;
         }
     }
     Ok((manifest.into_resolved(source)?, logos))
@@ -368,7 +390,10 @@ fn theme_activation_policy(theme: Option<&ThemeSection>, theme_id: &Identifier) 
         Some(theme) => match theme.policy {
             BrandThemePolicy::RegisterOnly => ThemeActivationPolicy::RegisterOnly,
             BrandThemePolicy::Default => ThemeActivationPolicy::Default { theme: theme_id.clone() },
-            BrandThemePolicy::Required => ThemeActivationPolicy::Required { theme: theme_id.clone(), mode: theme.default_mode },
+            BrandThemePolicy::Required => ThemeActivationPolicy::Required {
+                theme: theme_id.clone(),
+                mode: theme.default_mode,
+            },
         },
         None => ThemeActivationPolicy::RegisterOnly,
     }

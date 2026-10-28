@@ -97,7 +97,10 @@ impl State {
                         }
                         MutationValue::Producer(producer) => {
                             history.check(&producer.session.history)?;
-                            let file = StagedFile { history: producer.session.history.clone(), id: producer.session.id.clone() };
+                            let file = StagedFile {
+                                history: producer.session.history.clone(),
+                                id: producer.session.id.clone(),
+                            };
                             let (generation, _, checkpoint) = super::production::stored_checkpoint(&transaction, &file)?
                                 .ok_or(Error::Data("producer receipt precedes durable ownership"))?;
                             let finished_length = super::files::stored_metadata(&transaction, &file.id)?

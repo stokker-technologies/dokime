@@ -52,7 +52,11 @@ impl RuntimeHandle {
     // Retain the admission through publication if the requesting UI disconnects.
     async fn reset_cycle_owned(&self, test_cycle_id: TestCycleId, action: Action, context: CommandContext) -> Result<(), Error> {
         let _admission = self.evidence_admission.lock().await;
-        let transaction = Reset { test_cycle_id: test_cycle_id.clone(), action, occurred_at: crate::model::time::now_utc() };
+        let transaction = Reset {
+            test_cycle_id: test_cycle_id.clone(),
+            action,
+            occurred_at: crate::model::time::now_utc(),
+        };
         let (_, execution_ids) = plan_cycle_reset(&self.state_read(), &transaction)?;
         self.commit_with_key(context.idempotency_key, transaction).await?;
         for execution_id in execution_ids {

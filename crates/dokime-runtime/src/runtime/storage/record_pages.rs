@@ -88,7 +88,13 @@ pub(crate) async fn read(view: &ExecutionView, query: ExecutionRecordQuery) -> R
     }
     header.try_map(|(checkpoint, cursor)| -> Result<_> {
         let next = more.then(|| cursor.encode(last)).transpose()?;
-        Ok(ExecutionRecordPage { checkpoint, records: records.into(), next, issues: Vec::new(), issues_truncated: false })
+        Ok(ExecutionRecordPage {
+            checkpoint,
+            records: records.into(),
+            next,
+            issues: Vec::new(),
+            issues_truncated: false,
+        })
     })
 }
 

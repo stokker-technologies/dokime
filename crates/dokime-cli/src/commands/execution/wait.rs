@@ -99,7 +99,10 @@ pub(super) async fn execute(
                 }
                 Ok(())
             };
-            let callbacks = dokime::client::RunCallbacks { records: Some(&mut records), samples: Some(&mut samples) };
+            let callbacks = dokime::client::RunCallbacks {
+                records: Some(&mut records),
+                samples: Some(&mut samples),
+            };
             let outcome = execution.run(options, callbacks).await?;
             eprintln!(
                 "Drained Evidence: {}",

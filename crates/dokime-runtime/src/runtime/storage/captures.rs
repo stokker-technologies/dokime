@@ -59,7 +59,11 @@ pub(crate) struct Captures {
 
 impl Captures {
     pub(crate) fn new() -> Self {
-        Self { open: Mutex::new(BTreeMap::new()), next: AtomicU64::new(0), seal_timeout: Duration::from_secs(60) }
+        Self {
+            open: Mutex::new(BTreeMap::new()),
+            next: AtomicU64::new(0),
+            seal_timeout: Duration::from_secs(60),
+        }
     }
 
     pub(crate) fn register(&self, execution: &TestExecutionId, seal: SealRequest) -> u64 {

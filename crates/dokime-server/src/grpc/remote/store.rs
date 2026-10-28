@@ -93,7 +93,11 @@ impl Identity {
         }
         let generated = rcgen::generate_simple_self_signed(names.clone())
             .map_err(|_| super::Error::Configuration("cannot generate remote TLS identity"))?;
-        Ok(Self { certificate: generated.cert.pem(), private_key: generated.signing_key.serialize_pem(), names })
+        Ok(Self {
+            certificate: generated.cert.pem(),
+            private_key: generated.signing_key.serialize_pem(),
+            names,
+        })
     }
 }
 
@@ -122,7 +126,12 @@ pub(super) fn read(path: &Path, settings: RemoteListenerSettings) -> Result<Docu
     );
     let security: Security = serde_json::from_slice(&bytes)
         .map_err(|_| super::Error::Configuration("incompatible remote security document; use a fresh application root"))?;
-    let document = Document { version: security.version, settings, clients: security.clients, identity: security.identity };
+    let document = Document {
+        version: security.version,
+        settings,
+        clients: security.clients,
+        identity: security.identity,
+    };
     if document.version != 1 {
         return Err(super::Error::Configuration("unsupported remote security document version"));
     }
@@ -136,8 +145,12 @@ pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error
     let parent = path.parent().ok_or(super::Error::Configuration("remote security path has no parent"))?;
     private_directory(parent).map_err(super::Error::RemoteStorage)?;
     let bytes = Zeroizing::new(
-        serde_json::to_vec(&Security { version: document.version, clients: document.clients.clone(), identity: document.identity.clone() })
-            .map_err(|_| super::Error::Configuration("cannot encode remote security document"))?,
+        serde_json::to_vec(&Security {
+            version: document.version,
+            clients: document.clients.clone(),
+            identity: document.identity.clone(),
+        })
+        .map_err(|_| super::Error::Configuration("cannot encode remote security document"))?,
     );
     if bytes.len() as u64 > SERVER_REMOTE_STORE_BYTES {
         return Err(super::Error::Configuration("remote security document exceeds its byte limit"));

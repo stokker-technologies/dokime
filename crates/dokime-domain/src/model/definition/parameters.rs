@@ -500,7 +500,11 @@ pub(crate) fn coerce_parameter_value_detail(
                     }),
                 }
             }
-            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
+            value => Err(ParameterResolverError::InvalidType {
+                parameter: parameter.to_owned(),
+                value,
+                value_type: value_type.clone(),
+            }),
         },
         ValueType::Integer => match value {
             Value::Integer(_) | Value::Unsigned(_) | Value::Null => Ok(value),
@@ -515,7 +519,11 @@ pub(crate) fn coerce_parameter_value_detail(
                 value_type: value_type.clone(),
             }),
             Value::Bool(value) => Ok(Value::Integer(if value { 1 } else { 0 })),
-            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
+            value => Err(ParameterResolverError::InvalidType {
+                parameter: parameter.to_owned(),
+                value,
+                value_type: value_type.clone(),
+            }),
         },
         ValueType::Number => match value {
             Value::Number(_) | Value::Null => Ok(value),
@@ -524,7 +532,11 @@ pub(crate) fn coerce_parameter_value_detail(
                 if crate::model::values::numeric_cmp(&value, &Value::Number(number)) == Some(std::cmp::Ordering::Equal) {
                     Ok(Value::Number(number))
                 } else {
-                    Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() })
+                    Err(ParameterResolverError::InvalidType {
+                        parameter: parameter.to_owned(),
+                        value,
+                        value_type: value_type.clone(),
+                    })
                 }
             }
             Value::Text(value) => value.trim().parse::<f64>().ok().filter(|value| value.is_finite()).map(Value::Number).ok_or_else(|| {
@@ -535,7 +547,11 @@ pub(crate) fn coerce_parameter_value_detail(
                 }
             }),
             Value::Bool(value) => Ok(Value::Number(if value { 1.0 } else { 0.0 })),
-            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
+            value => Err(ParameterResolverError::InvalidType {
+                parameter: parameter.to_owned(),
+                value,
+                value_type: value_type.clone(),
+            }),
         },
         ValueType::Text | ValueType::File => Ok(match value {
             Value::Text(_) | Value::Null => value,
@@ -547,11 +563,19 @@ pub(crate) fn coerce_parameter_value_detail(
         }),
         ValueType::Datetime => match value {
             Value::Datetime(_) | Value::Null => Ok(value),
-            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
+            value => Err(ParameterResolverError::InvalidType {
+                parameter: parameter.to_owned(),
+                value,
+                value_type: value_type.clone(),
+            }),
         },
         ValueType::Object => match value {
             Value::Object(_) | Value::Null => Ok(value),
-            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
+            value => Err(ParameterResolverError::InvalidType {
+                parameter: parameter.to_owned(),
+                value,
+                value_type: value_type.clone(),
+            }),
         },
         ValueType::Array => match value {
             Value::Array(_) | Value::Null => Ok(value),
@@ -568,7 +592,9 @@ pub(crate) fn validate_parameter_value(definition: &ParameterDefinition, value: 
     validate_numeric_bounds(definition, value)?;
     if matches!(value, Value::Null) {
         return if definition.required {
-            Err(ParameterResolverError::MissingValue { parameter: parameter_name(definition).to_owned() })
+            Err(ParameterResolverError::MissingValue {
+                parameter: parameter_name(definition).to_owned(),
+            })
         } else {
             Ok(())
         };
@@ -591,7 +617,10 @@ pub(crate) fn validate_parameter_value(definition: &ParameterDefinition, value: 
 
     for value in values {
         if !selection.choices.iter().any(|choice| choice == value) {
-            return Err(ParameterResolverError::InvalidChoice { parameter: name.clone(), value: value.clone() });
+            return Err(ParameterResolverError::InvalidChoice {
+                parameter: name.clone(),
+                value: value.clone(),
+            });
         }
     }
 
@@ -669,7 +698,10 @@ fn topological_order(definitions: &BTreeMap<String, ParameterDefinition>) -> Res
         let definition = definitions.get(name).expect("visited dependency must exist in definitions");
         for dependency in expr_dependencies(&definition.expression) {
             if !definitions.contains_key(&dependency) {
-                return Err(ParameterResolverError::UnknownReference { parameter: name.to_owned(), reference: dependency });
+                return Err(ParameterResolverError::UnknownReference {
+                    parameter: name.to_owned(),
+                    reference: dependency,
+                });
             }
             visit(&dependency, definitions, states, order, stack)?;
         }
@@ -787,10 +819,12 @@ fn evaluate_expr(
             let step = (*stop - *start) / (*count as f64 - 1.0);
             Ok(EvaluatedExpr::Space((0..*count).map(|index| Value::Number(round_number(*start + step * index as f64))).collect()))
         }
-        ParameterExpr::Reference { parameter } => evaluated
-            .get(parameter)
-            .cloned()
-            .ok_or_else(|| ParameterResolverError::UnknownReference { parameter: name, reference: parameter.clone() }),
+        ParameterExpr::Reference { parameter } => {
+            evaluated.get(parameter).cloned().ok_or_else(|| ParameterResolverError::UnknownReference {
+                parameter: name,
+                reference: parameter.clone(),
+            })
+        }
         ParameterExpr::DynamicDefault { key, fallback } => {
             if let Some(value) = dynamic_defaults(key.clone()) {
                 return Ok(EvaluatedExpr::Scalar(value));
@@ -865,7 +899,11 @@ fn map_binary(
                     .map(EvaluatedExpr::Space);
             }
 
-            Err(ParameterResolverError::IncompatibleOperandSizes { parameter, left: lefts.len(), right: rights.len() })
+            Err(ParameterResolverError::IncompatibleOperandSizes {
+                parameter,
+                left: lefts.len(),
+                right: rights.len(),
+            })
         }
     }
 }
@@ -901,7 +939,11 @@ fn numeric_value(parameter: &str, value: Value) -> Result<f64, ParameterResolver
     match value {
         Value::Number(value) => Ok(value),
         Value::Integer(value) => Ok(value as f64),
-        value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: ValueType::Number }),
+        value => Err(ParameterResolverError::InvalidType {
+            parameter: parameter.to_owned(),
+            value,
+            value_type: ValueType::Number,
+        }),
     }
 }
 
@@ -929,12 +971,20 @@ fn validate_list_bounds(parameter: &str, list: &ParameterList, count: usize) -> 
     if let Some(min_items) = list.min_items
         && count < min_items
     {
-        return Err(ParameterResolverError::TooFewItems { parameter: parameter.to_owned(), count, min_items });
+        return Err(ParameterResolverError::TooFewItems {
+            parameter: parameter.to_owned(),
+            count,
+            min_items,
+        });
     }
     if let Some(max_items) = list.max_items
         && count > max_items
     {
-        return Err(ParameterResolverError::TooManyItems { parameter: parameter.to_owned(), count, max_items });
+        return Err(ParameterResolverError::TooManyItems {
+            parameter: parameter.to_owned(),
+            count,
+            max_items,
+        });
     }
 
     Ok(())
@@ -942,7 +992,9 @@ fn validate_list_bounds(parameter: &str, list: &ParameterList, count: usize) -> 
 
 fn validate_space(definition: &ParameterDefinition, values: &[Value]) -> Result<(), ParameterResolverError> {
     if values.is_empty() && definition.required {
-        return Err(ParameterResolverError::MissingValue { parameter: parameter_name(definition).to_owned() });
+        return Err(ParameterResolverError::MissingValue {
+            parameter: parameter_name(definition).to_owned(),
+        });
     }
 
     for value in values {
@@ -976,7 +1028,12 @@ fn validate_numeric_bounds(definition: &ParameterDefinition, value: &Value) -> R
             _ => continue,
         };
         if !number.is_finite() || definition.min.is_some_and(|min| number < min) || definition.max.is_some_and(|max| number > max) {
-            return Err(ParameterResolverError::OutOfBounds { parameter: name, value: number, min: definition.min, max: definition.max });
+            return Err(ParameterResolverError::OutOfBounds {
+                parameter: name,
+                value: number,
+                min: definition.min,
+                max: definition.max,
+            });
         }
     }
     Ok(())

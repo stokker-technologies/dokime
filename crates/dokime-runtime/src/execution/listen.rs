@@ -91,7 +91,10 @@ pub trait Listenable: Sized {
 
 impl<C: TelemetryStream> ListeningRows<C> {
     pub fn new(streams: &Streams) -> Self {
-        Self { values: ListeningValues::new(streams, C::stream_id()), stream_type: PhantomData }
+        Self {
+            values: ListeningValues::new(streams, C::stream_id()),
+            stream_type: PhantomData,
+        }
     }
 
     pub fn missed(&self) -> u64 {
@@ -109,7 +112,10 @@ impl<C: TelemetryStream> ListeningRows<C> {
 
 impl<R: DeclaredRecord> ListeningRecords<R> {
     pub fn new(deliveries: &Deliveries) -> Self {
-        Self { records: ListeningEvidence::new(deliveries, R::RECORD_TYPE.to_owned()), record: PhantomData }
+        Self {
+            records: ListeningEvidence::new(deliveries, R::RECORD_TYPE.to_owned()),
+            record: PhantomData,
+        }
     }
 
     pub fn timeout(self, within: Duration) -> Deadlined<R>
@@ -122,7 +128,11 @@ impl<R: DeclaredRecord> ListeningRecords<R> {
 
 impl ListeningValues {
     pub fn new(streams: &Streams, stream: Identifier) -> Self {
-        Self { stream, rows: BroadcastStream::new(streams.subscribe()), missed: Arc::new(AtomicU64::new(0)) }
+        Self {
+            stream,
+            rows: BroadcastStream::new(streams.subscribe()),
+            missed: Arc::new(AtomicU64::new(0)),
+        }
     }
 
     pub fn missed(&self) -> u64 {
@@ -134,7 +144,13 @@ impl ListeningEvidence {
     pub fn new(deliveries: &Deliveries, record_type: String) -> Self {
         let source = deliveries.source();
         let changed = source.changed();
-        Self { record_type, source, cursor: 0, changed, waiting: None }
+        Self {
+            record_type,
+            source,
+            cursor: 0,
+            changed,
+            waiting: None,
+        }
     }
 }
 
@@ -281,7 +297,11 @@ mod tests {
             dokime_domain::model::time::Timestamp::new("2000-01-01T00:00:00Z"),
             "fixture",
         );
-        let source = Arc::new(ClosingSource { published: AtomicBool::new(false), changed: Arc::default(), record: record.clone() });
+        let source = Arc::new(ClosingSource {
+            published: AtomicBool::new(false),
+            changed: Arc::default(),
+            record: record.clone(),
+        });
         let deliveries = Deliveries::new(source);
         let mut listening = ListeningEvidence::new(&deliveries, "fixture.final".into());
         let mut context = TaskContext::from_waker(std::task::Waker::noop());

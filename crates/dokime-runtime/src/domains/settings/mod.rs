@@ -143,7 +143,13 @@ impl RuntimeHandle {
                 ),
                 None => None,
             };
-            SettingsSource { plugin_id, sections, cards, state, live_status }
+            SettingsSource {
+                plugin_id,
+                sections,
+                cards,
+                state,
+                live_status,
+            }
         }));
         let sources = sources.await;
         drop(state);
@@ -283,8 +289,11 @@ fn apply_live_status(
         }
         Some(Ok(status)) => {
             let (state, label, tone) = live_state(&status.state);
-            if let Some(HostCardBlock::Status { label: card_label, tone: card_tone, detail }) =
-                body.blocks.iter_mut().find(|block| matches!(block, HostCardBlock::Status { .. }))
+            if let Some(HostCardBlock::Status {
+                label: card_label,
+                tone: card_tone,
+                detail,
+            }) = body.blocks.iter_mut().find(|block| matches!(block, HostCardBlock::Status { .. }))
             {
                 *card_label = label.to_owned();
                 *card_tone = tone;

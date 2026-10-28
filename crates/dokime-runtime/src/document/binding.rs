@@ -70,7 +70,10 @@ impl<'a> Evidence<'a> {
     }
 
     pub(super) fn sample(self, sample: &'a TelemetrySample) -> Row<'a> {
-        Row::Sample { sample, context: self.context.for_scope(sample.scope.as_ref()) }
+        Row::Sample {
+            sample,
+            context: self.context.for_scope(sample.scope.as_ref()),
+        }
     }
 
     pub(super) fn rows(self, expression: &DataExpression) -> impl DoubleEndedIterator<Item = Row<'a>> {
@@ -92,7 +95,10 @@ impl<'a> Evidence<'a> {
             .filter(move |sample| {
                 !contextual && !uses_facts && self.selected(sample) && case.is_none_or(|case| case.covers(sample.scope.as_ref()))
             })
-            .map(move |sample| Row::Sample { sample, context: case.or_else(|| self.context.for_scope(sample.scope.as_ref())) });
+            .map(move |sample| Row::Sample {
+                sample,
+                context: case.or_else(|| self.context.for_scope(sample.scope.as_ref())),
+            });
         let records = self
             .records
             .iter()
@@ -104,7 +110,10 @@ impl<'a> Evidence<'a> {
                     && self.selection.is_none_or(|selection| selection.matches_scope(record.scope))
                     && case.is_none_or(|case| case.covers(record.scope))
             })
-            .map(move |record| Row::Record { record, context: case.or_else(|| self.context.for_scope(record.scope)) });
+            .map(move |record| Row::Record {
+                record,
+                context: case.or_else(|| self.context.for_scope(record.scope)),
+            });
         let contexts = self
             .context
             .entries()
@@ -121,14 +130,23 @@ impl<'a> Evidence<'a> {
                     && self.selection.is_none_or(|selection| selection.matches_scope(Some(&record.scope)))
                     && case.is_none_or(|case| case.covers(Some(&record.scope)))
             })
-            .map(move |artifact| Row::Artifact { artifact, context: case.or_else(|| self.context.for_scope(Some(&artifact.scope))) });
+            .map(move |artifact| Row::Artifact {
+                artifact,
+                context: case.or_else(|| self.context.for_scope(Some(&artifact.scope))),
+            });
         samples.chain(records).chain(contexts).chain(artifacts)
     }
 }
 
 impl<'a> From<&'a [TelemetrySample]> for Evidence<'a> {
     fn from(telemetry: &'a [TelemetrySample]) -> Self {
-        Self { records: Records::default(), artifacts: Artifacts::default(), telemetry, context: Context::default(), selection: None }
+        Self {
+            records: Records::default(),
+            artifacts: Artifacts::default(),
+            telemetry,
+            context: Context::default(),
+            selection: None,
+        }
     }
 }
 

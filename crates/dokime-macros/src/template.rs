@@ -264,12 +264,20 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let calls = requires(&template, &required);
     let engine = match runnable {
         true => {
-            let grant = Grant { template: (*template).clone(), own: own_resources(&block)?, parameters: parameters.clone() };
+            let grant = Grant {
+                template: (*template).clone(),
+                own: own_resources(&block)?,
+                parameters: parameters.clone(),
+            };
             let operations = operation_ids(&identifier)?;
             let generated = engine(
                 &block,
                 &grant,
-                Stages { steps: &steps, criteria: &criteria, observers: &observers },
+                Stages {
+                    steps: &steps,
+                    criteria: &criteria,
+                    observers: &observers,
+                },
                 &streams,
                 graceful_stop,
                 &operations,

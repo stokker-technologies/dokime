@@ -48,7 +48,11 @@ impl RuntimeHandle {
         let evidence_at = self.storage().cursor_saved();
         self.commit(crate::transactions::RequestReportFinalization {
             executions: ids,
-            intent: crate::transactions::ReportFinalization { evidence_at, requested_at: crate::model::time::now_utc(), lifecycle: None },
+            intent: crate::transactions::ReportFinalization {
+                evidence_at,
+                requested_at: crate::model::time::now_utc(),
+                lifecycle: None,
+            },
         })
         .await
         .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
@@ -67,7 +71,10 @@ impl RuntimeHandle {
         }
         let revision = self.execution_storage.freeze_revision(execution).await?;
         self.commit(crate::transactions::CaptureReportLifecycle {
-            lifecycle: crate::transactions::ReportLifecycle { id: uuid::Uuid::now_v7(), execution: (*revision).clone() },
+            lifecycle: crate::transactions::ReportLifecycle {
+                id: uuid::Uuid::now_v7(),
+                execution: (*revision).clone(),
+            },
         })
         .await
         .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
@@ -166,9 +173,13 @@ impl RuntimeHandle {
                 .completion_at
                 .clone()
                 .ok_or_else(|| Error::Operation("queued stop has no completion timestamp".into()))?;
-            self.commit(crate::transactions::CompleteRun { request_id: request.summary.request_id.clone(), at, unsealed: None })
-                .await
-                .map_err(|error| Error::Operation(error.to_string()))?;
+            self.commit(crate::transactions::CompleteRun {
+                request_id: request.summary.request_id.clone(),
+                at,
+                unsealed: None,
+            })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
             let summary = self.state_read().run_requests[&request.summary.request_id].summary.clone();
 
             self.request_storage.update(&request.summary.request_id, |receipt| receipt.summary = summary).await?;
@@ -202,8 +213,10 @@ impl RuntimeHandle {
             return if cancelled { Ok(()) } else { Err(Error::conflict("cycle_closed", "historical execution cannot be cancelled")) };
         }
         let cycle_id = execution.test_cycle_id.clone();
-        let transaction =
-            crate::transactions::CancelExecution { test_execution_id: id.clone(), occurred_at: crate::model::time::now_utc() };
+        let transaction = crate::transactions::CancelExecution {
+            test_execution_id: id.clone(),
+            occurred_at: crate::model::time::now_utc(),
+        };
         let admitted = transaction.admit(&self.state_read()).map_err(|refusal| Error::conflict(refusal.code, refusal.message))?;
         if admitted == CancelAdmission::Cancelled && execution.saved.is_some() {
             return Ok(());
@@ -261,9 +274,13 @@ impl RuntimeHandle {
             .completion_at
             .clone()
             .ok_or_else(|| Error::Operation("queued cancellation has no completion timestamp".into()))?;
-        self.commit(crate::transactions::CompleteRun { request_id: request_id.clone(), at, unsealed: None })
-            .await
-            .map_err(|error| Error::Operation(error.to_string()))?;
+        self.commit(crate::transactions::CompleteRun {
+            request_id: request_id.clone(),
+            at,
+            unsealed: None,
+        })
+        .await
+        .map_err(|error| Error::Operation(error.to_string()))?;
         let summary = self.state_read().run_requests[request_id].summary.clone();
 
         self.request_storage.update(request_id, |receipt| receipt.summary = summary).await?;
@@ -289,8 +306,11 @@ impl RuntimeHandle {
             return Err(Error::ShuttingDown);
         }
         let _admission = admit_control(&action, &self.evidence_admission).await;
-        let transaction =
-            crate::transactions::ControlExecution { test_execution_id: id.clone(), action, occurred_at: crate::model::time::now_utc() };
+        let transaction = crate::transactions::ControlExecution {
+            test_execution_id: id.clone(),
+            action,
+            occurred_at: crate::model::time::now_utc(),
+        };
         let (request_id, cycle_id) = {
             let state = self.state_read();
             let request = transaction.request(&state).map_err(|error| Error::conflict("execution_control_refused", error))?;
@@ -374,7 +394,10 @@ impl RuntimeHandle {
         let at = crate::model::time::now_utc();
         self.commit_with_key(
             context.idempotency_key,
-            crate::transactions::BeginCycleSeal { test_cycle_id: test_cycle_id.clone(), at: at.clone() },
+            crate::transactions::BeginCycleSeal {
+                test_cycle_id: test_cycle_id.clone(),
+                at: at.clone(),
+            },
         )
         .await?;
         let running = self
@@ -434,9 +457,13 @@ impl RuntimeHandle {
             .collect::<Vec<_>>();
         for (request_id, at) in finishing {
             let at = at.ok_or_else(|| Error::Operation("provider work did not settle; cycle remains sealing".into()))?;
-            self.commit(crate::transactions::CompleteRun { request_id: request_id.clone(), at, unsealed: None })
-                .await
-                .map_err(|error| Error::Operation(error.to_string()))?;
+            self.commit(crate::transactions::CompleteRun {
+                request_id: request_id.clone(),
+                at,
+                unsealed: None,
+            })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
             let summary = self.state_read().run_requests[&request_id].summary.clone();
 
             self.request_storage.update(&request_id, |receipt| receipt.summary = summary).await?;
@@ -461,7 +488,11 @@ impl RuntimeHandle {
         // the terminal receipt still waits for the final evidence checkpoint.
         let _admission = admit_control(&action, &self.evidence_admission).await;
         let occurred_at = crate::model::time::now_utc();
-        let transaction = Control { test_cycle_id: test_cycle_id.clone(), action, occurred_at: occurred_at.clone() };
+        let transaction = Control {
+            test_cycle_id: test_cycle_id.clone(),
+            action,
+            occurred_at: occurred_at.clone(),
+        };
         if matches!(action, Action::Stop) {
             harmos::state::Transaction::check(&transaction, &*self.state_read())
                 .map_err(|reason| Error::conflict("cycle_control_refused", reason))?;

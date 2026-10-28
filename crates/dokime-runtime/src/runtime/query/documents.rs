@@ -114,7 +114,12 @@ impl RuntimeDocumentRecord {
 pub(crate) fn document_frame<'a>(cycles: impl Iterator<Item = &'a TestCycleInstance>, scope: Option<&RecordScope>) -> RuntimeDocumentFrame {
     let documents = cycles.flat_map(|cycle| cycle_document_records(cycle, scope)).collect::<Vec<_>>();
 
-    RuntimeDocumentFrame { total_documents: documents.len(), returned_documents: documents.len(), documents, truncated: false }
+    RuntimeDocumentFrame {
+        total_documents: documents.len(),
+        returned_documents: documents.len(),
+        documents,
+        truncated: false,
+    }
 }
 
 pub(crate) fn resolved_document_frame(
@@ -137,7 +142,10 @@ pub(crate) fn resolved_document_frame(
     let frame = resolved.try_map(|result| -> crate::runtime::Result<_> {
         Ok(match result {
             Ok(document) => RuntimeResolvedDocumentFrame { document, error: None },
-            Err(error) => RuntimeResolvedDocumentFrame { document: None, error: Some(formatted(format_args!("{error}"), message)) },
+            Err(error) => RuntimeResolvedDocumentFrame {
+                document: None,
+                error: Some(formatted(format_args!("{error}"), message)),
+            },
         })
     })?;
     Ok(RuntimeResolvedDocumentRead(frame))
@@ -148,7 +156,10 @@ pub(crate) fn resolved_document_frame(
 fn failure(data: RuntimeDocumentData, arguments: std::fmt::Arguments<'_>) -> crate::runtime::Result<RuntimeResolvedDocumentRead> {
     let bytes = formatted_size(arguments)?;
     let frame = data.into_owner()?.try_map(|_| -> crate::runtime::Result<_> {
-        Ok(RuntimeResolvedDocumentFrame { document: None, error: Some(formatted(arguments, bytes)) })
+        Ok(RuntimeResolvedDocumentFrame {
+            document: None,
+            error: Some(formatted(arguments, bytes)),
+        })
     })?;
     Ok(RuntimeResolvedDocumentRead(frame))
 }

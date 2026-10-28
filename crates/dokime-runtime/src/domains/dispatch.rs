@@ -78,7 +78,10 @@ impl StatusResponse {
     }
 
     pub fn new(state: impl Into<String>) -> Self {
-        Self { state: state.into(), fields: BTreeMap::new() }
+        Self {
+            state: state.into(),
+            fields: BTreeMap::new(),
+        }
     }
 
     pub fn field(mut self, name: impl Into<String>, value: impl Into<Value>) -> Self {
@@ -109,7 +112,10 @@ impl FromIterator<OptionProviderOption> for OptionsResponse {
 
 impl From<crate::Error> for ActionDispatcherError {
     fn from(error: crate::Error) -> Self {
-        Self::Refused { code: -32000, message: crate::diagnostics::redacted(&error.to_string()) }
+        Self::Refused {
+            code: -32000,
+            message: crate::diagnostics::redacted(&error.to_string()),
+        }
     }
 }
 

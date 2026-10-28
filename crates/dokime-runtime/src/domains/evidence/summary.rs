@@ -107,7 +107,10 @@ impl EvidenceSummaries {
             sample_count = sample_count.checked_add(1).ok_or_else(summary_memory)?;
         }
         harmos::storage::ReadBatch::new(()).try_map(|_| {
-            let mut result = Self { records: summary_slots(record_count)?, telemetry_streams: summary_slots(sample_count)? };
+            let mut result = Self {
+                records: summary_slots(record_count)?,
+                telemetry_streams: summary_slots(sample_count)?,
+            };
             let mut count = 0u64;
             for (index, (_, record)) in record_rows.iter().enumerate() {
                 count = count.checked_add(1).ok_or_else(summary_memory)?;
@@ -214,7 +217,10 @@ impl EvidenceSummaries {
 /* === Private Functions === */
 
 fn summary_memory() -> crate::runtime::Error {
-    harmos::Error::ResourceExhausted { resource: "evidence summary construction" }.into()
+    harmos::Error::ResourceExhausted {
+        resource: "evidence summary construction",
+    }
+    .into()
 }
 
 fn summary_slots<T>(count: usize) -> crate::runtime::Result<Vec<T>> {

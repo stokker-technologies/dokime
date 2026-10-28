@@ -1117,19 +1117,32 @@ impl Default for DocumentCardLayout {
 
 impl Default for ResponsiveSpan {
     fn default() -> Self {
-        Self { base: default_base_span(), sm: None, md: None, lg: None, xl: None }
+        Self {
+            base: default_base_span(),
+            sm: None,
+            md: None,
+            lg: None,
+            xl: None,
+        }
     }
 }
 
 impl Default for SigmaIntervalOptions {
     fn default() -> Self {
-        Self { bin_width: default_interval_bin_width(), sigma: default_interval_sigma(), clip_to_observed: true }
+        Self {
+            bin_width: default_interval_bin_width(),
+            sigma: default_interval_sigma(),
+            clip_to_observed: true,
+        }
     }
 }
 
 impl Default for HistogramOptions {
     fn default() -> Self {
-        Self { bins: default_histogram_bins(), unit: None }
+        Self {
+            bins: default_histogram_bins(),
+            unit: None,
+        }
     }
 }
 
@@ -1158,8 +1171,10 @@ impl DocumentDefinition {
 
     pub fn upsert_card(&mut self, section_id: &Identifier, section_label: impl Into<String>, card: DocumentCard) {
         self.upsert_card_definition(DocumentCardDefinition::from(card.clone()));
-        let placement =
-            DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier.clone(), layout: card.layout.clone() });
+        let placement = DocumentNode::Card(DocumentCardPlacement {
+            card_id: card.metadata.identifier.clone(),
+            layout: card.layout.clone(),
+        });
         let section = self.layout.nodes.iter_mut().find_map(|node| section_node_mut(node, section_id));
 
         match section {
@@ -1281,8 +1296,10 @@ impl DocumentDefinition {
     }
 
     pub(crate) fn append_card(&mut self, section_id: &Identifier, card: DocumentCard) {
-        let placement =
-            DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier.clone(), layout: card.layout.clone() });
+        let placement = DocumentNode::Card(DocumentCardPlacement {
+            card_id: card.metadata.identifier.clone(),
+            layout: card.layout.clone(),
+        });
         self.upsert_card_definition(DocumentCardDefinition::from(card));
         if let Some(section) = self.layout.nodes.iter_mut().find_map(|node| section_node_mut(node, section_id)) {
             section.children.push(placement);
@@ -1298,7 +1315,11 @@ impl DocumentLayout {
 
 impl From<DocumentCard> for DocumentCardDefinition {
     fn from(card: DocumentCard) -> Self {
-        Self { metadata: card.metadata, filters: card.filters, body: card.body }
+        Self {
+            metadata: card.metadata,
+            filters: card.filters,
+            body: card.body,
+        }
     }
 }
 
@@ -1311,7 +1332,12 @@ impl From<DocumentSection> for DocumentSectionNode {
             children: section
                 .cards
                 .into_iter()
-                .map(|card| DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier, layout: card.layout }))
+                .map(|card| {
+                    DocumentNode::Card(DocumentCardPlacement {
+                        card_id: card.metadata.identifier,
+                        layout: card.layout,
+                    })
+                })
                 .collect(),
         }
     }
@@ -1322,7 +1348,11 @@ impl DocumentSection {
         let label = label.into();
         let identifier = identifier_from_label(&label);
 
-        Self { metadata: Metadata::new(identifier, label, None), cards: Vec::new(), repeat: None }
+        Self {
+            metadata: Metadata::new(identifier, label, None),
+            cards: Vec::new(),
+            repeat: None,
+        }
     }
 
     pub fn id(&mut self, identifier: impl AsRef<str>) {
@@ -1360,7 +1390,12 @@ impl DocumentCard {
             .first()
             .map(|group| group.metadata.clone())
             .unwrap_or_else(|| metadata("telemetry.summary", "Telemetry Summary".to_owned(), None));
-        Self { metadata, layout: DocumentCardLayout::default(), filters: Vec::new(), body: DocumentCardBody::TelemetrySummary { summary } }
+        Self {
+            metadata,
+            layout: DocumentCardLayout::default(),
+            filters: Vec::new(),
+            body: DocumentCardBody::TelemetrySummary { summary },
+        }
     }
 
     pub fn plot(mut plot: PlotDefinition) -> Self {
@@ -1410,7 +1445,13 @@ impl DocumentCardBody {
 
 impl DocumentSectionRepeat {
     fn new(value: impl Into<DataExpression>, label_template: impl Into<String>) -> Self {
-        Self { value: value.into(), label_template: label_template.into(), id_template: None, order_by: None, filters: Vec::new() }
+        Self {
+            value: value.into(),
+            label_template: label_template.into(),
+            id_template: None,
+            order_by: None,
+            filters: Vec::new(),
+        }
     }
 
     pub fn id(&mut self, template: impl Into<String>) -> &mut Self {
@@ -1460,13 +1501,21 @@ impl DataExpression {
     }
 
     pub fn exists(self) -> DocumentFilter {
-        DocumentFilter { expression: self, operator: FilterOperator::Exists, value: None }
+        DocumentFilter {
+            expression: self,
+            operator: FilterOperator::Exists,
+            value: None,
+        }
     }
 }
 
 impl DocumentFilter {
     fn compared(expression: DataExpression, operator: FilterOperator, value: impl Into<Value>) -> Self {
-        Self { expression, operator, value: Some(value.into()) }
+        Self {
+            expression,
+            operator,
+            value: Some(value.into()),
+        }
     }
 }
 
@@ -1488,7 +1537,10 @@ impl Default for TelemetrySummaryDefinition {
 
 impl TelemetrySummaryGroupDefinition {
     pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
-        Self { metadata: metadata(identifier.as_ref(), label.into(), None), tiles: Vec::new() }
+        Self {
+            metadata: metadata(identifier.as_ref(), label.into(), None),
+            tiles: Vec::new(),
+        }
     }
 
     pub fn tile(&mut self, tile: TelemetrySummaryTileDefinition) {
@@ -1813,7 +1865,12 @@ impl Plot {
 
 impl Band {
     pub fn between(min: f64, max: f64) -> Self {
-        Self { min: Some(min), max: Some(max), center: None, tolerance: None }
+        Self {
+            min: Some(min),
+            max: Some(max),
+            center: None,
+            tolerance: None,
+        }
     }
 
     pub fn parameters(center: impl Into<String>, tolerance: impl Into<String>) -> Self {
@@ -1821,13 +1878,22 @@ impl Band {
     }
 
     pub fn around(center: impl Into<DataExpression>, tolerance: impl Into<DataExpression>) -> Self {
-        Self { min: None, max: None, center: Some(center.into()), tolerance: Some(tolerance.into()) }
+        Self {
+            min: None,
+            max: None,
+            center: Some(center.into()),
+            tolerance: Some(tolerance.into()),
+        }
     }
 }
 
 impl Line {
     pub fn at(value: f64) -> Self {
-        Self { value: Some(value), source: None, scale: default_reference_source_scale() }
+        Self {
+            value: Some(value),
+            source: None,
+            scale: default_reference_source_scale(),
+        }
     }
 
     pub fn parameter(name: impl Into<String>) -> Self {
@@ -1835,7 +1901,11 @@ impl Line {
     }
 
     pub fn expression(source: impl Into<DataExpression>) -> Self {
-        Self { value: None, source: Some(source.into()), scale: default_reference_source_scale() }
+        Self {
+            value: None,
+            source: Some(source.into()),
+            scale: default_reference_source_scale(),
+        }
     }
 }
 

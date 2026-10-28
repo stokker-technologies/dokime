@@ -61,7 +61,10 @@ async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
 async fn start_receipt_identity() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = provider_runtime(root.path()).await;
-    let context = CommandContext { idempotency_key: Some("client-key-1".to_owned()), ..CommandContext::default() };
+    let context = CommandContext {
+        idempotency_key: Some("client-key-1".to_owned()),
+        ..CommandContext::default()
+    };
     let test_cycle_id = provider_cycle(&runtime, "idempotent").await;
     let execution_id = cycle_snapshot(&runtime, &test_cycle_id).await.test_executions[0].test_execution_id.clone();
     let mode = dokime_domain::model::execution::ExecutionMode::Automatic;
@@ -120,8 +123,14 @@ async fn refusals_refuses_processor() {
 #[tokio::test]
 async fn idempotency_survives_restart() {
     let root = tempdir().unwrap();
-    let context = CommandContext { idempotency_key: Some("restart-key-1".to_owned()), ..CommandContext::default() };
-    let definition = CycleDefinition { metadata: metadata("fixture.cycle", "Fixture Cycle"), continue_automatically: false };
+    let context = CommandContext {
+        idempotency_key: Some("restart-key-1".to_owned()),
+        ..CommandContext::default()
+    };
+    let definition = CycleDefinition {
+        metadata: metadata("fixture.cycle", "Fixture Cycle"),
+        continue_automatically: false,
+    };
 
     let cycle_id = {
         let (mut runtime, handle) = booted(root.path()).await;

@@ -51,7 +51,11 @@ impl From<dokime::client::Error> for ConnectionError {
                 issues: rejection
                     .issues
                     .into_iter()
-                    .map(|issue| AdmissionIssue { path: issue.path, message: issue.message, expected: issue.expected })
+                    .map(|issue| AdmissionIssue {
+                        path: issue.path,
+                        message: issue.message,
+                        expected: issue.expected,
+                    })
                     .collect(),
             },
             dokime::client::Error::WaitTimedOut { .. } => Self::WaitTimedOut,

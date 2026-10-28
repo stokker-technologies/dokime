@@ -314,7 +314,10 @@ fn inline_local_font_urls(source: &impl Source, css: &str) -> Result<String, Err
                     .components()
                     .any(|component| matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_)))
             {
-                return Err(Error::UnsafeUrl { file: TYPOGRAPHY_CSS_FILE, url: url.to_owned() });
+                return Err(Error::UnsafeUrl {
+                    file: TYPOGRAPHY_CSS_FILE,
+                    url: url.to_owned(),
+                });
             }
             let mime = match relative.extension().and_then(|extension| extension.to_str()) {
                 Some("woff2") => "font/woff2",
@@ -322,14 +325,23 @@ fn inline_local_font_urls(source: &impl Source, css: &str) -> Result<String, Err
                 Some("ttf") => "font/ttf",
                 Some("otf") => "font/otf",
                 _ => {
-                    return Err(Error::UnsupportedFont { file: TYPOGRAPHY_CSS_FILE, url: url.to_owned() });
+                    return Err(Error::UnsupportedFont {
+                        file: TYPOGRAPHY_CSS_FILE,
+                        url: url.to_owned(),
+                    });
                 }
             };
             let bytes = source.read(url).map_err(|error| {
                 if error.kind() == std::io::ErrorKind::PermissionDenied {
-                    Error::UnsafeUrl { file: TYPOGRAPHY_CSS_FILE, url: url.to_owned() }
+                    Error::UnsafeUrl {
+                        file: TYPOGRAPHY_CSS_FILE,
+                        url: url.to_owned(),
+                    }
                 } else {
-                    Error::FontRead { path: relative.to_path_buf(), source: error }
+                    Error::FontRead {
+                        path: relative.to_path_buf(),
+                        source: error,
+                    }
                 }
             })?;
             write!(output, "url(\"data:{mime};base64,{}\")", BASE64.encode(bytes)).expect("writing to a String cannot fail");
@@ -433,7 +445,11 @@ fn parse_stylesheet(file: &'static str, source: &str) -> Result<Vec<ParsedRule>,
     let mut rule_parser = StylesheetRuleParser;
     StyleSheetParser::new(&mut parser, &mut rule_parser)
         .map(|result| {
-            result.map_err(|(error, near, _)| Error::Parse { file, near: near.chars().take(120).collect(), message: error.to_string() })
+            result.map_err(|(error, near, _)| Error::Parse {
+                file,
+                near: near.chars().take(120).collect(),
+                message: error.to_string(),
+            })
         })
         .collect()
 }
@@ -454,7 +470,11 @@ fn required_rule_variables(
     let variables = matches[0].clone();
     for property in required {
         if !variables.contains_key(*property) {
-            return Err(Error::MissingProperty { file, selector, property: (*property).to_owned() });
+            return Err(Error::MissingProperty {
+                file,
+                selector,
+                property: (*property).to_owned(),
+            });
         }
     }
     Ok(variables)

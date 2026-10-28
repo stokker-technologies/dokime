@@ -24,10 +24,10 @@ use {
 
 // Local Imports
 use crate::service_support::suites::ExecutionFixtureStart;
+use dokime_domain::model;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
-use dokime_domain::model;
 
 /* === Constants === */
 

@@ -105,11 +105,17 @@ mod tests {
     use dokime_domain::model::files::wire::{FileRule, FileRuleAction};
 
     fn include(glob: &str) -> FileRule {
-        FileRule { glob: glob.into(), action: FileRuleAction::Include }
+        FileRule {
+            glob: glob.into(),
+            action: FileRuleAction::Include,
+        }
     }
 
     fn exclude(glob: &str) -> FileRule {
-        FileRule { glob: glob.into(), action: FileRuleAction::Exclude }
+        FileRule {
+            glob: glob.into(),
+            action: FileRuleAction::Exclude,
+        }
     }
 
     fn matcher(rules: &[FileRule]) -> FileMatcher {
@@ -163,7 +169,14 @@ mod tests {
         assert_eq!(compile(&[]).unwrap_err(), InvalidRule::Count);
         assert_eq!(compile(&[exclude("**/*.log")]).unwrap_err(), InvalidRule::Count);
         assert_eq!(
-            compile(&[include("**"), FileRule { glob: "*.log".into(), action: FileRuleAction::Unspecified },]).unwrap_err(),
+            compile(&[
+                include("**"),
+                FileRule {
+                    glob: "*.log".into(),
+                    action: FileRuleAction::Unspecified
+                },
+            ])
+            .unwrap_err(),
             InvalidRule::Action { index: 1 }
         );
         for shape in ["", "/var/log/*.log", "logs\\*.log"] {

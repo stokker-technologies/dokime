@@ -70,7 +70,11 @@ pub enum InstallProgress {
 
 impl DroppedFiles {
     pub fn record(&self, window: &str, paths: &[PathBuf]) {
-        let drop = FileDrop { window: window.to_owned(), paths: paths.to_vec(), at: Instant::now() };
+        let drop = FileDrop {
+            window: window.to_owned(),
+            paths: paths.to_vec(),
+            at: Instant::now(),
+        };
         *self.0.lock().expect("dropped files poisoned") = Some(drop);
     }
 

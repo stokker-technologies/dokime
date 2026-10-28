@@ -229,7 +229,11 @@ fn cancellation_log() -> Vec<Entry> {
         Entry::new(Level::Warn, "warning\ncontinued"),
         Entry::new(Level::Error, "error detail"),
         Entry::new(Level::Info, ""),
-        Entry { level: 99, message: "unknown detail".into(), timestamp: dokime_runtime::execution::log::timestamp() },
+        Entry {
+            level: 99,
+            message: "unknown detail".into(),
+            timestamp: dokime_runtime::execution::log::timestamp(),
+        },
     ]
 }
 

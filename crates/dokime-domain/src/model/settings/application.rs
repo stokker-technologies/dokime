@@ -131,19 +131,29 @@ pub enum Density {
 
 impl Default for Appearance {
     fn default() -> Self {
-        Self { theme_mode: ThemeMode::System, theme_family: None, density: Density::Comfortable }
+        Self {
+            theme_mode: ThemeMode::System,
+            theme_family: None,
+            density: Density::Comfortable,
+        }
     }
 }
 
 impl Default for ReportDefaults {
     fn default() -> Self {
-        Self { plot_points: 2_000, plot_downsample: DownsampleTechnique::Auto }
+        Self {
+            plot_points: 2_000,
+            plot_downsample: DownsampleTechnique::Auto,
+        }
     }
 }
 
 impl Default for ClientPreferences {
     fn default() -> Self {
-        Self { connect_timeout_ms: 10_000, request_timeout_ms: 30_000 }
+        Self {
+            connect_timeout_ms: 10_000,
+            request_timeout_ms: 30_000,
+        }
     }
 }
 

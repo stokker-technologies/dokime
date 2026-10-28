@@ -92,7 +92,9 @@ impl ExecutionPublisher {
         // backend directly, so a record type nothing declared has to be refused
         // here rather than assumed away by whoever called.
         let Some(&version) = self.schemas.get(request.record_type.as_str()) else {
-            return Err(crate::Error::Publish(PublishFailure::Undeclared { declared_as: request.record_type.to_string() }));
+            return Err(crate::Error::Publish(PublishFailure::Undeclared {
+                declared_as: request.record_type.to_string(),
+            }));
         };
         let accepted =
             lock(&self.executions).get_mut(&self.token).is_some_and(|state| state.observer_record(request, &self.source, version));

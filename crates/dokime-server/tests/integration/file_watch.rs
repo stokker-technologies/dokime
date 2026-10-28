@@ -70,9 +70,14 @@ async fn file_watch_artifacts() {
     let request = |output: &str, maximum_seconds: Option<u32>| FileWatch {
         execution_id: Some(execution.clone()),
         source: Some(FileWatchSource {
-            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: tree.path().to_str().unwrap().to_owned() })),
+            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+                root: tree.path().to_str().unwrap().to_owned(),
+            })),
         }),
-        rules: vec![FileRule { glob: "**/*.log".into(), action: FileRuleAction::Include }],
+        rules: vec![FileRule {
+            glob: "**/*.log".into(),
+            action: FileRuleAction::Include,
+        }],
         output: output.to_owned(),
         policy: FileWatchPolicy::Stream,
         selection: dokime::domain::model::files::wire::FileWatchSelection::All,
@@ -84,13 +89,29 @@ async fn file_watch_artifacts() {
     };
 
     // A Watch Without An Execution Is Refused Before Any Source Opens
-    let unscoped = watch(&client, FileWatch { execution_id: None, ..request("capture", Some(1)) }).await.unwrap_err();
+    let unscoped = watch(
+        &client,
+        FileWatch {
+            execution_id: None,
+            ..request("capture", Some(1))
+        },
+    )
+    .await
+    .unwrap_err();
     assert_eq!(unscoped.code(), Code::InvalidArgument, "{unscoped:?}");
 
     // Refused Initial Admission Must Not Advertise Armed Readiness
     let extra = tree.path().join("logs/second.log");
     std::fs::write(&extra, b"second\n").unwrap();
-    let mut refused = watch(&client, FileWatch { maximum_files: Some(1), ..request("refused", Some(1)) }).await.unwrap();
+    let mut refused = watch(
+        &client,
+        FileWatch {
+            maximum_files: Some(1),
+            ..request("refused", Some(1))
+        },
+    )
+    .await
+    .unwrap();
     let failure = loop {
         match refused.message().await {
             Ok(Some(frame)) => assert!(!matches!(frame.payload, Some(FileWatchFramePayload::Armed(_)))),

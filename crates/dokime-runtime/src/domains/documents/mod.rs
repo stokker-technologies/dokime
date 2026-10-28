@@ -242,7 +242,11 @@ fn built_in_execution_evidence_sections() -> Vec<DocumentSection> {
 fn built_in_card(identifier: &str, label: &str, order: i32, body: DocumentCardBody) -> DocumentCard {
     DocumentCard {
         metadata: metadata(identifier, label, None),
-        layout: DocumentCardLayout { order, rail: DocumentCardRail::Main, ..DocumentCardLayout::default() },
+        layout: DocumentCardLayout {
+            order,
+            rail: DocumentCardRail::Main,
+            ..DocumentCardLayout::default()
+        },
         filters: Vec::new(),
         body,
     }

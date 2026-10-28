@@ -70,7 +70,11 @@ impl RuntimeHandle {
     }
 
     async fn commit_label(&self, subject: LabelSubject, label: String, context: CommandContext) -> Result<(), Error> {
-        let transaction = RenameLabel { subject, label, edited_at: crate::model::time::now_utc() };
+        let transaction = RenameLabel {
+            subject,
+            label,
+            edited_at: crate::model::time::now_utc(),
+        };
         harmos::state::Transaction::check(&transaction, &self.state_read()).map_err(|message| Error::conflict("conflict", message))?;
         match context.idempotency_key.as_deref().filter(|key| !key.is_empty()) {
             Some(key) => self.commit_keyed(harmos::state::RequestKey::new(key), transaction).await,

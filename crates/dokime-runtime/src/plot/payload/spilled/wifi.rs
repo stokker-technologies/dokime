@@ -123,7 +123,12 @@ pub(super) fn finish(read: &Read<'_>) -> Result<PlotAnalysis> {
             Err(message) => return Ok(PlotAnalysis::Error { message: message.into() }),
         }
     }
-    Ok(PlotAnalysis::WifiOccupancy { channels, occupied_channels, bands, scans })
+    Ok(PlotAnalysis::WifiOccupancy {
+        channels,
+        occupied_channels,
+        bands,
+        scans,
+    })
 }
 
 /* === Private Functions === */

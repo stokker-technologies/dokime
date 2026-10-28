@@ -97,7 +97,10 @@ impl TryFrom<&Declarations> for Contracts {
             for contract in versions.values() {
                 contracts.push(contract.try_into()?);
             }
-            types.push(Type { key: text(key.as_str())?, versions: contracts });
+            types.push(Type {
+                key: text(key.as_str())?,
+                versions: contracts,
+            });
         }
         Ok(Self { types })
     }
@@ -157,7 +160,10 @@ impl TryFrom<Contract> for RecordContract {
             template_id: value.template_id.map(TemplateId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
             owner: value.owner.map(SuiteId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
             default_severity: severity(value.default_severity)?,
-            display: RecordDisplay { icon: icon(value.icon)?, tone: tone(value.tone)? },
+            display: RecordDisplay {
+                icon: icon(value.icon)?,
+                tone: tone(value.tone)?,
+            },
             fields,
             validation_mode: value.validation_mode.map(validation_mode).transpose()?,
             allow_extra_fields: value.allow_extra_fields,

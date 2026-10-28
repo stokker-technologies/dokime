@@ -45,7 +45,13 @@ use super::storage::id;
 
 /* === Private Functions === */
 fn metadata(name: &str) -> FileMetadata {
-    FileMetadata { id: id(name), scope: None, media_type: "text/plain".into(), expected_length: None, expected_sha256: None }
+    FileMetadata {
+        id: id(name),
+        scope: None,
+        media_type: "text/plain".into(),
+        expected_length: None,
+        expected_sha256: None,
+    }
 }
 
 fn bound(value: usize) -> NonZeroUsize {
@@ -55,7 +61,11 @@ fn checkpoint(metadata: FileMetadata, file: &StagedFile, generation: u64, bytes:
     let hash = Sha256::new().chain_update(bytes);
     FileCheckpoint {
         metadata,
-        session: FileSession { history: file.history.clone(), id: file.id.clone(), generation },
+        session: FileSession {
+            history: file.history.clone(),
+            id: file.id.clone(),
+            generation,
+        },
         length: bytes.len() as u64,
         hash_format: 1,
         hash_state: hash.serialize().to_vec(),
@@ -85,7 +95,10 @@ async fn file_retry_checks_entire_overlap_before_append() {
     let first = backend
         .finish_file(
             &conflicting,
-            &StorageCursor { history: conflicting.history.clone(), sequence: 1 },
+            &StorageCursor {
+                history: conflicting.history.clone(),
+                sequence: 1,
+            },
             original.len() as u64,
             Sha256::digest(&original).into(),
         )
@@ -102,7 +115,10 @@ async fn file_retry_checks_entire_overlap_before_append() {
     let second = backend
         .finish_file(
             &matching,
-            &StorageCursor { history: matching.history.clone(), sequence: 2 },
+            &StorageCursor {
+                history: matching.history.clone(),
+                sequence: 2,
+            },
             appended.len() as u64,
             Sha256::digest(&appended).into(),
         )
@@ -176,13 +192,23 @@ async fn shared_sha_identity() {
     let mut refs = Vec::new();
     for (index, file) in [&a, &b].into_iter().enumerate() {
         backend.write_file(file, 0, store.batch(b"same".to_vec())).await.unwrap();
-        let position = StorageCursor { history: file.history.clone(), sequence: index as u64 + 1 };
+        let position = StorageCursor {
+            history: file.history.clone(),
+            sequence: index as u64 + 1,
+        };
         let append = MutationReceipt {
-            mutation: MutationId { window: id("append"), key: file.id.clone() },
+            mutation: MutationId {
+                window: id("append"),
+                key: file.id.clone(),
+            },
             fingerprint: [index as u8; 32],
             expires_at: SystemTime::now() + Duration::from_secs(3600),
             value: MutationValue::Producer(FileProducer {
-                session: FileSession { history: file.history.clone(), id: file.id.clone(), generation: 1 },
+                session: FileSession {
+                    history: file.history.clone(),
+                    id: file.id.clone(),
+                    generation: 1,
+                },
                 length: 4,
             }),
         };
@@ -198,7 +224,10 @@ async fn shared_sha_identity() {
             assert!(backend.save_mutations(store.batch(vec![invalid])).await.is_err());
         }
         let receipt = MutationReceipt {
-            mutation: MutationId { window: id("capture"), key: file.id.clone() },
+            mutation: MutationId {
+                window: id("capture"),
+                key: file.id.clone(),
+            },
             fingerprint: [index as u8; 32],
             expires_at: SystemTime::now() + Duration::from_secs(3600),
             value: MutationValue::Reference(Box::new(reference.clone())),
@@ -222,7 +251,11 @@ async fn shared_sha_identity() {
         .read_files(
             &fixed,
             &query::FileSelection { scope: None, item: None },
-            ScanPage { after: 0, rows: bound(8), bytes: bound(32 * 1024) },
+            ScanPage {
+                after: 0,
+                rows: bound(8),
+                bytes: bound(32 * 1024),
+            },
         )
         .await
         .unwrap();
@@ -285,7 +318,10 @@ async fn mutation_receipts_admit_large_values_and_preserve_atomicity() {
     let mut metadata = metadata("large.receipt");
     metadata.media_type = "x".repeat(32 * 1024);
     let file = backend.create_production(&metadata).await.unwrap();
-    let position = StorageCursor { history: file.history.clone(), sequence: 1 };
+    let position = StorageCursor {
+        history: file.history.clone(),
+        sequence: 1,
+    };
     let reference = backend.finish_file(&file, &position, 0, Sha256::digest([]).into()).await.unwrap();
     backend.write_files(store.batch(vec![reference.clone()])).await.unwrap();
     let large = MutationReceipt {
@@ -298,7 +334,10 @@ async fn mutation_receipts_admit_large_values_and_preserve_atomicity() {
     backend.save_mutations(store.batch(vec![large.clone()])).await.unwrap();
 
     // A Later Conflict Rolls Back The Earlier New Receipt In The Same Batch.
-    let pending = MutationReceipt { mutation: MutationId { window: id("window"), key: id("pending") }, ..saved.clone() };
+    let pending = MutationReceipt {
+        mutation: MutationId { window: id("window"), key: id("pending") },
+        ..saved.clone()
+    };
     let mut conflict = large.clone();
     conflict.fingerprint[0] ^= 1;
     assert!(backend.save_mutations(store.batch(vec![pending, conflict])).await.is_err());
@@ -357,7 +396,10 @@ async fn late_checkpoints_settle() {
     let finished = backend.create_production(&finished_metadata).await.unwrap();
     backend.write_file(&finished, 0, store.batch(bytes.to_vec())).await.unwrap();
     let staged = checkpoint(finished_metadata.clone(), &finished, 1, &bytes[..3]);
-    let position = StorageCursor { history: finished.history.clone(), sequence: 1 };
+    let position = StorageCursor {
+        history: finished.history.clone(),
+        sequence: 1,
+    };
     backend.finish_file(&finished, &position, 6, Sha256::digest(bytes).into()).await.unwrap();
     backend.save_production(store.batch(vec![staged.clone()])).await.unwrap();
     backend.save_production(store.batch(vec![checkpoint(finished_metadata.clone(), &finished, 1, bytes)])).await.unwrap();

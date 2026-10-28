@@ -124,7 +124,10 @@ impl From<CapturePhase> for EvidenceOrigin {
 
 impl RecordScope {
     pub fn session(session_id: SessionId) -> Self {
-        Self { session_id: Some(session_id), ..Self::default() }
+        Self {
+            session_id: Some(session_id),
+            ..Self::default()
+        }
     }
 
     pub fn with_cycle(mut self, test_cycle_id: TestCycleId) -> Self {

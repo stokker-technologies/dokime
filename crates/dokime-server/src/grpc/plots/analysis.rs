@@ -51,7 +51,11 @@ pub(super) fn selection(value: dokime::domain::model::plots::wire::AnalysisSelec
             return Err(Status::invalid_argument("analysis parameters must be an object"));
         }
     };
-    let selection = dokime::analysis::Selection { id: value.id, version: value.version, parameters };
+    let selection = dokime::analysis::Selection {
+        id: value.id,
+        version: value.version,
+        parameters,
+    };
     Ok(selection)
 }
 
@@ -85,10 +89,10 @@ fn definition_checked(definition: &dokime::analysis::Definition) -> Result<dokim
                 key: output.key.clone(),
                 label: output.label.clone(),
                 unit: output.unit.clone(),
-                axis: output
-                    .axis
-                    .as_ref()
-                    .map(|axis| dokime::domain::model::plots::wire::AnalysisAxis { key: axis.key.clone(), unit: axis.unit.clone() }),
+                axis: output.axis.as_ref().map(|axis| dokime::domain::model::plots::wire::AnalysisAxis {
+                    key: axis.key.clone(),
+                    unit: axis.unit.clone(),
+                }),
             })
         })?,
         max_samples: definition.limits.max_samples,

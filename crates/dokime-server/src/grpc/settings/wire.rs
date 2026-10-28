@@ -78,7 +78,11 @@ pub(super) fn encode_frame(
     let mut budget = Budget::new()?;
     let sections = frame.sections.into_iter().map(encode_section).collect::<Result<_, _>>()?;
     let cards = frame.cards.into_iter().map(|card| encode_card(card, &mut budget)).collect::<Result<_, _>>()?;
-    let frame = dokime::domain::model::settings::wire::SettingsFrame { bootstrap_paths: frame.bootstrap_paths, sections, cards };
+    let frame = dokime::domain::model::settings::wire::SettingsFrame {
+        bootstrap_paths: frame.bootstrap_paths,
+        sections,
+        cards,
+    };
     ensure_size(&frame, max_message_bytes, "settings frame")?;
     Ok(frame)
 }
@@ -153,7 +157,9 @@ fn encode_card(card: RuntimeSettingsCard, budget: &mut Budget) -> Result<dokime:
 }
 
 fn encode_body(body: HostCardBody, _budget: &mut Budget) -> Result<dokime::domain::model::settings::wire::HostCardBody, TonicStatus> {
-    Ok(dokime::domain::model::settings::wire::HostCardBody { blocks: body.blocks.into_iter().map(encode_block).collect::<Result<_, _>>()? })
+    Ok(dokime::domain::model::settings::wire::HostCardBody {
+        blocks: body.blocks.into_iter().map(encode_block).collect::<Result<_, _>>()?,
+    })
 }
 
 fn encode_block(block: HostCardBlock) -> Result<dokime::domain::model::settings::wire::HostCardBlock, TonicStatus> {
@@ -175,11 +181,20 @@ fn encode_block(block: HostCardBlock) -> Result<dokime::domain::model::settings:
 }
 
 fn encode_key_value(item: HostCardKeyValue) -> Result<dokime::domain::model::settings::wire::HostCardKeyValue, TonicStatus> {
-    Ok(dokime::domain::model::settings::wire::HostCardKeyValue { label: item.label, value: item.value, detail: item.detail })
+    Ok(dokime::domain::model::settings::wire::HostCardKeyValue {
+        label: item.label,
+        value: item.value,
+        detail: item.detail,
+    })
 }
 
 fn encode_metric(item: HostCardMetric) -> Result<dokime::domain::model::settings::wire::HostCardMetric, TonicStatus> {
-    Ok(dokime::domain::model::settings::wire::HostCardMetric { label: item.label, value: item.value, unit: item.unit, trend: item.trend })
+    Ok(dokime::domain::model::settings::wire::HostCardMetric {
+        label: item.label,
+        value: item.value,
+        unit: item.unit,
+        trend: item.trend,
+    })
 }
 
 fn encode_refresh(refresh: SettingsCardRefreshPolicy) -> dokime::domain::model::settings::wire::SettingsCardRefreshPolicy {
@@ -240,17 +255,34 @@ fn setting_texts(id: String, title: String, description: Option<String>) -> Resu
 
 fn encode_boolean(value: Boolean) -> Result<dokime::domain::model::settings::wire::BooleanSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
-    Ok(dokime::domain::model::settings::wire::BooleanSetting { id, title, description, default: value.default })
+    Ok(dokime::domain::model::settings::wire::BooleanSetting {
+        id,
+        title,
+        description,
+        default: value.default,
+    })
 }
 
 fn encode_text_area(value: TextArea) -> Result<dokime::domain::model::settings::wire::TextAreaSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
-    Ok(dokime::domain::model::settings::wire::TextAreaSetting { id, title, description, default: value.default, required: value.required })
+    Ok(dokime::domain::model::settings::wire::TextAreaSetting {
+        id,
+        title,
+        description,
+        default: value.default,
+        required: value.required,
+    })
 }
 
 fn encode_path(value: Path) -> Result<dokime::domain::model::settings::wire::PathSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
-    Ok(dokime::domain::model::settings::wire::PathSetting { id, title, description, default: value.default, required: value.required })
+    Ok(dokime::domain::model::settings::wire::PathSetting {
+        id,
+        title,
+        description,
+        default: value.default,
+        required: value.required,
+    })
 }
 
 fn encode_number(value: Number) -> Result<dokime::domain::model::settings::wire::NumberSetting, TonicStatus> {

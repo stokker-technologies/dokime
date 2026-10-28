@@ -399,7 +399,12 @@ impl TryFrom<Action> for PromptAction {
     type Error = Error;
 
     fn try_from(row: Action) -> Result<Self> {
-        Ok(Self { id: row.id, label: row.label, emphasis: emphasis(&row.emphasis)?, requires_condition: row.requires_condition })
+        Ok(Self {
+            id: row.id,
+            label: row.label,
+            emphasis: emphasis(&row.emphasis)?,
+            requires_condition: row.requires_condition,
+        })
     }
 }
 
@@ -426,7 +431,10 @@ impl TryFrom<&PromptRule> for Rule {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("prompt rule encoding memory overflows"));
         }
-        Ok(Self { predicate: expressions::Boolean::try_from(&value.predicate)?, message: value.message.as_str().to_owned() })
+        Ok(Self {
+            predicate: expressions::Boolean::try_from(&value.predicate)?,
+            message: value.message.as_str().to_owned(),
+        })
     }
 }
 
@@ -434,7 +442,10 @@ impl TryFrom<Rule> for PromptRule {
     type Error = Error;
 
     fn try_from(row: Rule) -> Result<Self> {
-        Ok(Self { predicate: row.predicate.try_into()?, message: row.message })
+        Ok(Self {
+            predicate: row.predicate.try_into()?,
+            message: row.message,
+        })
     }
 }
 

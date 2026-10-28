@@ -125,7 +125,10 @@ async fn stream_close_releases() {
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
         let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
         let stream = client
-            .backend_watch_logs(backend::WatchLogs { min_level: model::backend::wire::LogLevel::Unspecified, replay_lines: 0 })
+            .backend_watch_logs(backend::WatchLogs {
+                min_level: model::backend::wire::LogLevel::Unspecified,
+                replay_lines: 0,
+            })
             .await
             .unwrap();
         assert!(stream.message().await.unwrap().is_some());
@@ -156,7 +159,10 @@ async fn stream_clones_close() {
     let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
     let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
     let stream = client
-        .backend_watch_logs(backend::WatchLogs { min_level: model::backend::wire::LogLevel::Unspecified, replay_lines: 0 })
+        .backend_watch_logs(backend::WatchLogs {
+            min_level: model::backend::wire::LogLevel::Unspecified,
+            replay_lines: 0,
+        })
         .await
         .unwrap();
     let other = stream.clone();

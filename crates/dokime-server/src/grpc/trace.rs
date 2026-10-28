@@ -122,7 +122,12 @@ impl Resources {
             match tokio::time::timeout(WATCH_HEARTBEAT, changes.changed()).await {
                 Ok(changed) => changed.map_err(|_| Status::unavailable("trace journal closed"))?,
                 Err(_) => {
-                    let keepalive = TraceBatch { epoch: epoch.clone(), events: Vec::new(), dropped, next_sequence: after };
+                    let keepalive = TraceBatch {
+                        epoch: epoch.clone(),
+                        events: Vec::new(),
+                        dropped,
+                        next_sequence: after,
+                    };
                     output.send_owned(keepalive.into()).await.map_err(crate::grpc::chunked::output_failure)?;
                 }
             }

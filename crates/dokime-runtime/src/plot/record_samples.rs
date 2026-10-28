@@ -128,7 +128,12 @@ fn lookup_memory() -> crate::runtime::Error {
 }
 
 fn side(scope: Option<&RecordScope>, time: OffsetDateTime) -> Side<'_> {
-    Side { ordinal: 0, scope, time: Some(time.unix_timestamp_nanos()), present: true }
+    Side {
+        ordinal: 0,
+        scope,
+        time: Some(time.unix_timestamp_nanos()),
+        present: true,
+    }
 }
 
 fn indexed_samples<'a>(

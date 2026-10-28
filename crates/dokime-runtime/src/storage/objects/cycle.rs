@@ -395,7 +395,13 @@ impl TryFrom<Summary> for ResultSummary {
             "cancelled" => ResultStatus::Cancelled,
             _ => return Err(Error::Invalid("invalid cycle result status")),
         };
-        Ok(Self { status, passed: row.passed, failed: row.failed, blocked: row.blocked, skipped: row.skipped })
+        Ok(Self {
+            status,
+            passed: row.passed,
+            failed: row.failed,
+            blocked: row.blocked,
+            skipped: row.skipped,
+        })
     }
 }
 
@@ -529,7 +535,11 @@ pub async fn read(
         return Ok(None);
     };
     Ok(Some(stored.try_map(|stored| -> Result<_> {
-        Ok(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version })
+        Ok(ObjectRevision {
+            value: stored.value.try_into()?,
+            position: stored.position,
+            version: stored.version,
+        })
     })?))
 }
 

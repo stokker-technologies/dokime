@@ -190,7 +190,9 @@ mod tests {
             ValueFormat::AbsoluteTime { pattern: String::new() },
             ValueFormat::AbsoluteTime { pattern: "%".into() },
             ValueFormat::AbsoluteTime { pattern: "%🦀".into() },
-            ValueFormat::AbsoluteTime { pattern: "%Y-%m-%d %% %H:%M:%S.%L".into() },
+            ValueFormat::AbsoluteTime {
+                pattern: "%Y-%m-%d %% %H:%M:%S.%L".into(),
+            },
             ValueFormat::ElapsedSinceRun { unit: ElapsedUnit::Seconds },
         ];
         for format in formats {

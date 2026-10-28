@@ -101,8 +101,12 @@ pub(crate) fn checkpoint(
     if canonical != value.version {
         return Err(Status::invalid_argument("checkpoint version token is noncanonical"));
     }
-    let checkpoint =
-        ExecutionCheckpoint { execution_id, position: cursor(value.position)?, version, evidence_through: cursor(value.evidence_through)? };
+    let checkpoint = ExecutionCheckpoint {
+        execution_id,
+        position: cursor(value.position)?,
+        version,
+        evidence_through: cursor(value.evidence_through)?,
+    };
     checkpoint.validate().map_err(|_| Status::invalid_argument("checkpoint revision or evidence cut differs"))?;
     Ok(checkpoint)
 }
@@ -239,7 +243,10 @@ pub(super) fn cursor(value: Option<dokime::domain::model::execution::wire_checkp
         .map_err(|_| Status::invalid_argument("invalid checkpoint store identifier"))?;
     let epoch = dokime::domain::model::identity::Identifier::new(history.epoch)
         .map_err(|_| Status::invalid_argument("invalid checkpoint history epoch"))?;
-    Ok(StorageCursor { history: StoreHistory { store, epoch }, sequence: value.sequence })
+    Ok(StorageCursor {
+        history: StoreHistory { store, epoch },
+        sequence: value.sequence,
+    })
 }
 
 pub(super) fn cursor_wire_ref(value: &StorageCursor) -> dokime::domain::model::execution::wire_checkpoint::StorageCursor {

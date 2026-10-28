@@ -164,7 +164,12 @@ impl Writer {
         let phase =
             snapshot.cycle.get("phase").and_then(serde_json::Value::as_str).ok_or(Error::Invalid("captured cycle phase is missing"))?;
         connection.execute("INSERT INTO cycles VALUES(?1,?2,?3)", params![snapshot.cycle_id.as_str(), phase, json(&snapshot.cycle)?])?;
-        Ok(Self { connection, streams: Vec::new(), next_table: 0, maximum_inventory_entries: super::MAX_INVENTORY_ENTRIES })
+        Ok(Self {
+            connection,
+            streams: Vec::new(),
+            next_table: 0,
+            maximum_inventory_entries: super::MAX_INVENTORY_ENTRIES,
+        })
     }
 
     pub async fn execution(
@@ -177,7 +182,11 @@ impl Writer {
         self.outcomes(view)?;
         self.annotations(view)?;
         let id = view.execution().test_execution_id.to_string();
-        let mut counts = Counts { execution_id: id.clone(), records: 0, samples: 0 };
+        let mut counts = Counts {
+            execution_id: id.clone(),
+            records: 0,
+            samples: 0,
+        };
         let mut reader = view.context_records().await?;
         while let Some(records) = tokio::select! {
             biased;

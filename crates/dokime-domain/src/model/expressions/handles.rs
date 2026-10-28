@@ -81,7 +81,10 @@ impl From<&String> for RecordMarker {
 
 impl RecordField {
     pub fn new(record_type: impl Into<String>, detail: impl Into<String>) -> Self {
-        Self { record_type: record_type.into(), detail: detail.into() }
+        Self {
+            record_type: record_type.into(),
+            detail: detail.into(),
+        }
     }
 
     pub fn record_type(&self) -> &str {

@@ -57,7 +57,12 @@ pub struct CapturedRecords {
 
 impl RecordSubscription {
     pub(crate) fn new(source: &Arc<Source>, state_manager: &crate::app::StateManager, after: harmos::state::Position) -> Self {
-        Self { source: source.clone(), state_manager: state_manager.clone(), delivered: after.0, reader: source.process() }
+        Self {
+            source: source.clone(),
+            state_manager: state_manager.clone(),
+            delivered: after.0,
+            reader: source.process(),
+        }
     }
 
     pub async fn next(&mut self) -> Option<Result<CapturedRecord>> {

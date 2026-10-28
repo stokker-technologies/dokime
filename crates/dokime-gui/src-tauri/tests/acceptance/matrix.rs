@@ -136,7 +136,10 @@ impl Probe {
         trace(&root, "open");
         let mut writer = ctx.artifacts().create("matrix.txt")?;
         writer.write_all(b"open\n")?;
-        let shared = Resources { root, writer: std::sync::Mutex::new(writer) };
+        let shared = Resources {
+            root,
+            writer: std::sync::Mutex::new(writer),
+        };
         Ok((template, shared))
     }
 

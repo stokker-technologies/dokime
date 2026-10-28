@@ -72,7 +72,14 @@ async fn scoped_annotation_workflow() {
     let first = cycle(&handle).await;
     let second = cycle(&handle).await;
     let epoch = handle.process_epoch().to_string();
-    handle.add_operator_note(OperatorNoteRequest { scope: None, author: None, message: "session context".into() }).await.unwrap();
+    handle
+        .add_operator_note(OperatorNoteRequest {
+            scope: None,
+            author: None,
+            message: "session context".into(),
+        })
+        .await
+        .unwrap();
     handle
         .add_health_item(
             RecordScope::default().with_cycle(first.clone()),
@@ -200,7 +207,10 @@ async fn scoped_annotation_workflow() {
     assert_eq!(case_receipt.note.as_ref().unwrap().scope.as_ref().unwrap().case_id.as_deref(), Some(case_id.as_str()));
     let case_notes = notes
         .unary::<contracts::notes::ListNotes>(authenticated(contracts::notes::ListNotes {
-            selection: Some(model::notes::wire::AnnotationSelection { owner: Some(case_owner), include_context: false }),
+            selection: Some(model::notes::wire::AnnotationSelection {
+                owner: Some(case_owner),
+                include_context: false,
+            }),
             ..Default::default()
         }))
         .await

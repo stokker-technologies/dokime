@@ -571,7 +571,12 @@ fn snapshot(input: Header<'_>) -> Snapshot<'_> {
             },
             headline: result_status(&result.status),
             warnings: &[],
-            evidence: [SummaryEvidence { passed: result.passed, failed: result.failed, blocked: result.blocked, skipped: result.skipped }],
+            evidence: [SummaryEvidence {
+                passed: result.passed,
+                failed: result.failed,
+                blocked: result.blocked,
+                skipped: result.skipped,
+            }],
             updated_at: input.generated_at,
             scope: empty_report_scope(input),
         }),
@@ -620,7 +625,10 @@ fn record_row<'a>(input: Header<'a>, record: &'a dokime_domain::model::records::
         sequence: record.sequence,
         level: severity,
         source: &record.source,
-        display: RecordDisplay { icon: "clock", tone: record_tone(severity) },
+        display: RecordDisplay {
+            icon: "clock",
+            tone: record_tone(severity),
+        },
         message: record.message.as_deref(),
         error: record.error.as_ref(),
         details: ReportValues(&record.details),
@@ -640,7 +648,9 @@ fn step_with_owner<'a>(
         |criterion| StepResult::Criterion {
             status,
             reason: &criterion.message,
-            details: CriterionDetails { observed: criterion.observed.as_ref().map(ReportValue) },
+            details: CriterionDetails {
+                observed: criterion.observed.as_ref().map(ReportValue),
+            },
         },
     );
     let scope = owner.scope;
@@ -681,13 +691,24 @@ fn case_session<'a>(input: &'a CycleReportInput, test_case: &'a TestCase) -> Cas
     );
     let document = case_document_for_case(input, &test_case.test_case_id, execution);
     let traceability = Traceability { input, scope: Some(scope) };
-    CaseRun { test_case, execution, document, traceability }
+    CaseRun {
+        test_case,
+        execution,
+        document,
+        traceability,
+    }
 }
 
 fn report_document_title<'a>(input: Header<'a>, document: Option<&'a DocumentDefinition>) -> ReportTitle<'a> {
     match document.filter(|document| document.metadata.identifier.as_str() != "cycle.default") {
-        Some(document) => ReportTitle { label: &document.metadata.label, cycle: false },
-        None => ReportTitle { label: &input.cycle.metadata.label, cycle: true },
+        Some(document) => ReportTitle {
+            label: &document.metadata.label,
+            cycle: false,
+        },
+        None => ReportTitle {
+            label: &input.cycle.metadata.label,
+            cycle: true,
+        },
     }
 }
 
@@ -723,7 +744,10 @@ fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordSco
             let entries = std::slice::from_ref(&entry);
             let title = traceability_group_title(item, entries);
             let group = groups.entry((rank, title)).or_insert_with(|| TraceabilityGroup {
-                group_id: TraceabilityKey { identifier: item.traceability_id.as_str(), label: title },
+                group_id: TraceabilityKey {
+                    identifier: item.traceability_id.as_str(),
+                    label: title,
+                },
                 title,
                 sources: BTreeSet::new(),
                 items: BTreeMap::new(),
@@ -733,7 +757,10 @@ fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordSco
                 group.sources.insert(source);
             }
             group.updated_at = &item.created_at;
-            let key = TraceabilityKey { identifier: entry.metadata.identifier.as_str(), label: &entry.metadata.label };
+            let key = TraceabilityKey {
+                identifier: entry.metadata.identifier.as_str(),
+                label: &entry.metadata.label,
+            };
             group.items.insert(
                 key,
                 TraceabilityItem {
@@ -741,7 +768,10 @@ fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordSco
                     value: ReportValue(&entry.value),
                     unit: entry.unit.as_deref(),
                     level: "info",
-                    details: TraceabilityDetails { source: entry.source.as_deref(), identifier: entry.metadata.identifier.as_str() },
+                    details: TraceabilityDetails {
+                        source: entry.source.as_deref(),
+                        identifier: entry.metadata.identifier.as_str(),
+                    },
                     scope: report_scope(input.into(), &item.scope),
                 },
             );

@@ -53,7 +53,10 @@ async fn notes_until_seal() {
     let request = CreateNote {
         epoch: handle.process_epoch(),
         mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
-        owner: NoteOwner::Execution { cycle_id: id.clone(), execution_id: execution.test_execution_id.clone() },
+        owner: NoteOwner::Execution {
+            cycle_id: id.clone(),
+            execution_id: execution.test_execution_id.clone(),
+        },
         actor: "operator".into(),
         message: "Fan **audible** at start.".into(),
     };
@@ -66,7 +69,15 @@ async fn notes_until_seal() {
         actor: "operator".into(),
         message: "Fan **audible** at start; quiet after warm-up.".into(),
     };
-    assert!(matches!(handle.edit_current_note(EditNote { actor: "someone-else".into(), ..edit.clone() }).await, Err(NoteError::NotAuthor)));
+    assert!(matches!(
+        handle
+            .edit_current_note(EditNote {
+                actor: "someone-else".into(),
+                ..edit.clone()
+            })
+            .await,
+        Err(NoteError::NotAuthor)
+    ));
     let edited = handle.edit_current_note(edit.clone()).await.unwrap();
     assert_eq!(edited.note_id, filed.note_id);
     assert_eq!(edited.created_at, filed.created_at);
@@ -106,11 +117,22 @@ async fn notes_until_seal() {
     };
     assert!(matches!(handle.create_current_note(late.clone()).await, Err(NoteError::Sealed)));
     assert!(matches!(
-        handle.create_current_note(CreateNote { owner: NoteOwner::Cycle { cycle_id: id.clone() }, ..late }).await,
+        handle
+            .create_current_note(CreateNote {
+                owner: NoteOwner::Cycle { cycle_id: id.clone() },
+                ..late
+            })
+            .await,
         Err(NoteError::Sealed)
     ));
     assert!(matches!(
-        handle.edit_current_note(EditNote { note_id: cycle_note.note_id, message: "Bench ambient 24 °C.".into(), ..edit.clone() }).await,
+        handle
+            .edit_current_note(EditNote {
+                note_id: cycle_note.note_id,
+                message: "Bench ambient 24 °C.".into(),
+                ..edit.clone()
+            })
+            .await,
         Err(NoteError::Sealed)
     ));
     assert!(matches!(handle.edit_current_note(edit).await, Err(NoteError::Sealed)));

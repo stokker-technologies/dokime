@@ -84,7 +84,10 @@ impl State {
             let result = (|| -> Result<SettingsSnapshot, Error> {
                 let current = read_snapshot(&transaction)?;
                 if current.revision != update.expected_revision {
-                    return Err(Error::SettingsConflict { expected: update.expected_revision, actual: current.revision });
+                    return Err(Error::SettingsConflict {
+                        expected: update.expected_revision,
+                        actual: current.revision,
+                    });
                 }
                 let revision = current
                     .revision
@@ -175,10 +178,19 @@ mod tests {
         let original = database.read_application_settings().await.unwrap();
         let mut settings = original.settings.clone();
         settings.report.plot_points = 321;
-        let saved = database.update_application_settings(UpdateSettings { expected_revision: original.revision, settings }).await.unwrap();
+        let saved = database
+            .update_application_settings(UpdateSettings {
+                expected_revision: original.revision,
+                settings,
+            })
+            .await
+            .unwrap();
         assert_eq!(saved.revision, original.revision + 1);
         let conflict = database
-            .update_application_settings(UpdateSettings { expected_revision: original.revision, settings: original.settings })
+            .update_application_settings(UpdateSettings {
+                expected_revision: original.revision,
+                settings: original.settings,
+            })
             .await
             .unwrap_err();
         assert!(matches!(conflict, Error::SettingsConflict { expected, actual }
@@ -186,7 +198,12 @@ mod tests {
 
         let mut invalid = saved.settings.clone();
         invalid.telemetry.interval_ms = 0;
-        let invalid = database.update_application_settings(UpdateSettings { expected_revision: saved.revision, settings: invalid }).await;
+        let invalid = database
+            .update_application_settings(UpdateSettings {
+                expected_revision: saved.revision,
+                settings: invalid,
+            })
+            .await;
         assert!(matches!(invalid, Err(Error::InvalidSettings(_))));
         assert_eq!(database.read_application_settings().await.unwrap(), saved);
 
@@ -200,7 +217,15 @@ mod tests {
             .unwrap();
         let mut next = saved.settings.clone();
         next.report.plot_points = 456;
-        assert!(database.update_application_settings(UpdateSettings { expected_revision: saved.revision, settings: next }).await.is_err());
+        assert!(
+            database
+                .update_application_settings(UpdateSettings {
+                    expected_revision: saved.revision,
+                    settings: next
+                })
+                .await
+                .is_err()
+        );
         assert_eq!(database.read_application_settings().await.unwrap(), saved);
         database.close().await.unwrap();
         let reopened = State::open(root.path()).await.unwrap();

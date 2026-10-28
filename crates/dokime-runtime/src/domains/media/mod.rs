@@ -128,12 +128,18 @@ fn capture_name(folder: &str, extension: &str) -> String {
 
 #[cfg_attr(not(feature = "media-native"), allow(dead_code))]
 fn unavailable(message: impl std::fmt::Display) -> Error {
-    Error::Admission(AdmissionFailure::Unavailable { code: UNAVAILABLE.into(), message: message.to_string() })
+    Error::Admission(AdmissionFailure::Unavailable {
+        code: UNAVAILABLE.into(),
+        message: message.to_string(),
+    })
 }
 
 #[cfg_attr(feature = "media-native", allow(dead_code))]
 fn not_compiled() -> Error {
-    Error::Admission(AdmissionFailure::Unavailable { code: NOT_COMPILED.into(), message: "capture not available in this build".into() })
+    Error::Admission(AdmissionFailure::Unavailable {
+        code: NOT_COMPILED.into(),
+        message: "capture not available in this build".into(),
+    })
 }
 
 /* === Tests === */

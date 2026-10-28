@@ -114,7 +114,10 @@ impl Error {
     }
     pub(crate) fn shutdown(server: std::result::Result<(), crate::grpc::Error>, runtime: dokime::runtime::Result<()>) -> Result<()> {
         match (server, runtime) {
-            (Err(server), Err(runtime)) => Err(Self::Cleanup { server: Box::new(server), runtime: Box::new(runtime) }),
+            (Err(server), Err(runtime)) => Err(Self::Cleanup {
+                server: Box::new(server),
+                runtime: Box::new(runtime),
+            }),
             (Err(server), _) => Err(server.into()),
             (_, Err(runtime)) => Err(runtime.into()),
             _ => Ok(()),

@@ -120,7 +120,10 @@ impl SecretStore for MemorySecrets {
 
 impl Gate {
     pub fn new() -> Self {
-        Self { entered: Notify::new(), release: Semaphore::new(0) }
+        Self {
+            entered: Notify::new(),
+            release: Semaphore::new(0),
+        }
     }
 }
 
@@ -476,8 +479,14 @@ where
 {
     let bytes = NonZeroUsize::new(1024 * 1024).unwrap();
     dokime::harmos::grpc::Codec::new(
-        dokime::harmos::grpc::DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
-        dokime::harmos::grpc::EncodeSettings { message_bytes: bytes, buffer_bytes: NonZeroUsize::new(8192).unwrap() },
+        dokime::harmos::grpc::DecodeSettings {
+            message_bytes: bytes,
+            retained_bytes: bytes,
+        },
+        dokime::harmos::grpc::EncodeSettings {
+            message_bytes: bytes,
+            buffer_bytes: NonZeroUsize::new(8192).unwrap(),
+        },
     )
     .unwrap()
 }
@@ -490,7 +499,13 @@ where
 {
     wire_codec::<O, dokime::harmos::operations::Response<O::Response>>()
         .server()
-        .unary(Unary::<O> { service, operation: std::marker::PhantomData }, request)
+        .unary(
+            Unary::<O> {
+                service,
+                operation: std::marker::PhantomData,
+            },
+            request,
+        )
         .await
 }
 
@@ -558,7 +573,10 @@ impl Listener {
     }
     pub fn remote(&self, trust: bool, token: Option<&str>) -> ConnectRequest {
         ConnectRequest {
-            target: ConnectionTarget::Remote { endpoint: self.endpoint.clone(), ca_certificate_pem: trust.then(|| IDENTITY.0.clone()) },
+            target: ConnectionTarget::Remote {
+                endpoint: self.endpoint.clone(),
+                ca_certificate_pem: trust.then(|| IDENTITY.0.clone()),
+            },
             secrets: token.map_or(ConnectionSecrets::None, |token| ConnectionSecrets::Bearer { token: token.into(), remember: false }),
             expected_backend_id: None,
         }

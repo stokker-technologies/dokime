@@ -76,8 +76,11 @@ impl RuntimeHandle {
 
     pub async fn request_prompt(&self, prompt: PromptRequest) -> std::result::Result<PromptInstance, Error> {
         let prompt_id = prompt.prompt_id.clone();
-        let transaction =
-            Request { prompt, command_id: crate::model::identity::new_id::<CommandId>(), accepted_at: crate::model::time::now_utc() };
+        let transaction = Request {
+            prompt,
+            command_id: crate::model::identity::new_id::<CommandId>(),
+            accepted_at: crate::model::time::now_utc(),
+        };
         validate_request(&self.state_read(), &transaction)?;
         self.commit(transaction).await.map_err(|error| unavailable_rejection(error.to_string()))?;
         // Read the durable request projection, not the pending set: a fast

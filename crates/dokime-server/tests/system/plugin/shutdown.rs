@@ -125,7 +125,10 @@ async fn stop_while_prompt_waits() {
     let html = String::from_utf8(report_bytes(report).await).unwrap();
     assert!(html.contains("\"stopped\"") && !html.contains("\"interrupted\""), "the report records an operator stop");
     let pending = client
-        .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
+        .prompts_list_pending(contracts::prompts::ListPending {
+            cycle_id: Some(cycle_id.clone()),
+            ..Default::default()
+        })
         .await
         .unwrap();
     assert!(pending.prompts.is_empty(), "the stop settled the unanswered question: {:?}", pending.prompts);

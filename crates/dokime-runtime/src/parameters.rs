@@ -208,8 +208,10 @@ mod tests {
             assert!([Value::from(12.0), Value::from(24.0)].contains(&case.parameters["copy"]));
         }
         for bad in [Value::Null, Value::from("invalid")] {
-            let selection =
-                CaseMaterializationSelection { case_overrides: BTreeMap::from([("voltage".into(), vec![bad])]), ..Default::default() };
+            let selection = CaseMaterializationSelection {
+                case_overrides: BTreeMap::from([("voltage".into(), vec![bad])]),
+                ..Default::default()
+            };
             assert!(
                 materialize_template_cases(
                     "fixture.registration",
@@ -247,11 +249,14 @@ mod tests {
                 max_items: None,
             });
             parameter.value_type = if multiple { ValueType::Array } else { ValueType::Text };
-            parameter.expression =
-                ParameterExpr::Literal { value: if multiple { Value::Array(vec![Value::from("fast")]) } else { Value::from("fast") } };
+            parameter.expression = ParameterExpr::Literal {
+                value: if multiple { Value::Array(vec![Value::from("fast")]) } else { Value::from("fast") },
+            };
             let template = template(vec![parameter.clone()]);
-            let filter =
-                CaseMaterializationSelection { case_filter: BTreeMap::from([("mode".into(), vec![Value::Null])]), ..Default::default() };
+            let filter = CaseMaterializationSelection {
+                case_filter: BTreeMap::from([("mode".into(), vec![Value::Null])]),
+                ..Default::default()
+            };
             assert!(
                 materialize_template_cases(
                     "fixture.registration",
@@ -266,8 +271,10 @@ mod tests {
                 )
                 .is_err()
             );
-            let selection =
-                CaseMaterializationSelection { case_overrides: BTreeMap::from([("mode".into(), vec![Value::Null])]), ..Default::default() };
+            let selection = CaseMaterializationSelection {
+                case_overrides: BTreeMap::from([("mode".into(), vec![Value::Null])]),
+                ..Default::default()
+            };
             assert_eq!(
                 materialize_template_cases(
                     "fixture.registration",
@@ -298,7 +305,14 @@ mod tests {
             .unwrap();
 
         assert_eq!(definition.value_type, ValueType::Array);
-        assert_eq!(definition.list, Some(ParameterList { element_type: ValueType::Integer, min_items: Some(1), max_items: Some(8) }));
+        assert_eq!(
+            definition.list,
+            Some(ParameterList {
+                element_type: ValueType::Integer,
+                min_items: Some(1),
+                max_items: Some(8)
+            })
+        );
 
         let template = template(vec![definition]);
         let output = materialize_template_cases(
@@ -323,7 +337,11 @@ mod tests {
         // not a second one.
         assert_eq!(
             HoldTimes::declaration().into_iter().map(|parameter| parameter.try_into_definition().unwrap().list).collect::<Vec<_>>(),
-            vec![Some(ParameterList { element_type: ValueType::Integer, min_items: Some(1), max_items: Some(8) })]
+            vec![Some(ParameterList {
+                element_type: ValueType::Integer,
+                min_items: Some(1),
+                max_items: Some(8)
+            })]
         );
         assert_eq!(HoldTimes::from_parameters(&parameters).unwrap().hold_times, vec![30, 60, 120]);
     }
@@ -450,7 +468,14 @@ mod tests {
         // A list of a choice is the same closed set, more than one of it: the list
         // is what says "more than one", and the resolver restricts every element by
         // the choices beside it.
-        assert_eq!(declared[0].list, Some(ParameterList { element_type: ValueType::Text, min_items: Some(1), max_items: None }));
+        assert_eq!(
+            declared[0].list,
+            Some(ParameterList {
+                element_type: ValueType::Text,
+                min_items: Some(1),
+                max_items: None
+            })
+        );
         let selection = declared[0].selection.as_ref().expect("a closed set");
         assert_eq!(selection.choices, vec![Value::from("fast"), Value::from("slow")]);
         // The optional single choice is the same set, one of it, and may be null.
@@ -727,7 +752,10 @@ pub fn optional_list<T: ParameterValue>(values: &BTreeMap<String, Value>, name: 
 /* === Private Functions === */
 
 fn refused(parameter: impl Into<String>, reason: impl Into<String>) -> crate::Error {
-    crate::Error::Parameter { name: parameter.into(), reason: reason.into() }
+    crate::Error::Parameter {
+        name: parameter.into(),
+        reason: reason.into(),
+    }
 }
 
 fn optionality(declared: Parameter, required: bool) -> Parameter {

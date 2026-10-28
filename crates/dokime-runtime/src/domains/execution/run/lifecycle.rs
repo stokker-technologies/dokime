@@ -134,7 +134,12 @@ impl StepLeaseBridge {
         let answer = context.runtime.lease_streams(sampling_scope(execution), std::slice::from_ref(&request.stream), source).await;
         let leases = match answer {
             Ok(leases) => leases,
-            Err(error) => return crate::transport::LeaseResolution { granted: false, message: error.to_string() },
+            Err(error) => {
+                return crate::transport::LeaseResolution {
+                    granted: false,
+                    message: error.to_string(),
+                };
+            }
         };
         let Some(lease_id) = leases.first() else {
             let message = format!("the host took no hold on {}", request.stream);

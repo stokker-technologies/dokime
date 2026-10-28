@@ -350,7 +350,12 @@ async fn receive_with<T, M, F: std::future::Future<Output = super::Result<Option
     cleanup.0 = None;
     let target = destination.clone();
     tokio::task::spawn_blocking(move || publish(&partial, &target, policy.overwrite)).await??;
-    Ok(Download { path: destination, size_bytes: offset, sha256, metadata })
+    Ok(Download {
+        path: destination,
+        size_bytes: offset,
+        sha256,
+        metadata,
+    })
 }
 
 async fn consume<T, M, F: std::future::Future<Output = super::Result<Option<T>>>>(

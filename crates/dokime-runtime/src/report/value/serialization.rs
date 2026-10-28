@@ -214,14 +214,26 @@ impl<'a> Serializer for Encoder<'a> {
         self, _: &'static str, _: u32, variant: &'static str, value: &T,
     ) -> std::result::Result<Node, EncodingError> {
         self.enter()?;
-        let node = value.serialize(Encoder { budget: self.budget, depth: self.depth + 1 })?;
-        Ok(Node { value: Some(Value::Object(BTreeMap::from([(copy_text(variant)?, node.value.unwrap())]))), string: false })
+        let node = value.serialize(Encoder {
+            budget: self.budget,
+            depth: self.depth + 1,
+        })?;
+        Ok(Node {
+            value: Some(Value::Object(BTreeMap::from([(copy_text(variant)?, node.value.unwrap())]))),
+            string: false,
+        })
     }
     fn serialize_seq(self, len: Option<usize>) -> std::result::Result<Sequence<'a>, EncodingError> {
         self.enter()?;
         let expected = len.ok_or_else(|| error("report sequence requires its exact field count"))?;
         let values = Some(slots(expected)?);
-        Ok(Sequence { encoder: self, expected, seen: 0, values, tag: None })
+        Ok(Sequence {
+            encoder: self,
+            expected,
+            seen: 0,
+            values,
+            tag: None,
+        })
     }
     fn serialize_tuple(self, len: usize) -> std::result::Result<Sequence<'a>, EncodingError> {
         self.serialize_seq(Some(len))
@@ -242,7 +254,15 @@ impl<'a> Serializer for Encoder<'a> {
         self.enter()?;
         let expected = len.ok_or_else(|| error("report object requires its exact field count"))?;
         let values = Some(BTreeMap::new());
-        Ok(Object { encoder: self, expected, seen: 0, values, key: None, pending: false, tag: None })
+        Ok(Object {
+            encoder: self,
+            expected,
+            seen: 0,
+            values,
+            key: None,
+            pending: false,
+            tag: None,
+        })
     }
     fn serialize_struct(self, _: &'static str, len: usize) -> std::result::Result<Object<'a>, EncodingError> {
         self.serialize_map(Some(len))
@@ -276,7 +296,10 @@ impl Sequence<'_> {
         if self.seen == self.expected {
             return Err(error("report sequence exceeds declared count"));
         }
-        let node = value.serialize(Encoder { budget: self.encoder.budget, depth: self.encoder.depth + 1 })?;
+        let node = value.serialize(Encoder {
+            budget: self.encoder.budget,
+            depth: self.encoder.depth + 1,
+        })?;
         if let Some(values) = &mut self.values {
             values.push(node.value.unwrap());
         }
@@ -297,7 +320,10 @@ impl Object<'_> {
         if self.pending || self.seen == self.expected {
             return Err(error("report object key count differs"));
         }
-        let node = key.serialize(Encoder { budget: self.encoder.budget, depth: self.encoder.depth + 1 })?;
+        let node = key.serialize(Encoder {
+            budget: self.encoder.budget,
+            depth: self.encoder.depth + 1,
+        })?;
         if !node.string {
             return Err(error("report object keys must be strings"));
         }
@@ -312,7 +338,10 @@ impl Object<'_> {
         if !self.pending {
             return Err(error("report object value has no key"));
         }
-        let node = value.serialize(Encoder { budget: self.encoder.budget, depth: self.encoder.depth + 1 })?;
+        let node = value.serialize(Encoder {
+            budget: self.encoder.budget,
+            depth: self.encoder.depth + 1,
+        })?;
         if let Some(values) = &mut self.values
             && values.insert(self.key.take().unwrap(), node.value.unwrap()).is_some()
         {

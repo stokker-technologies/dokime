@@ -54,7 +54,10 @@ pub fn storage_defaults() -> StorageSettings {
             max_pending_write_batches: nonzero(256),
             max_pending_write_bytes: nonzero(64 * 1024 * 1024),
         },
-        response: StorageResponseSettings { batch_rows: nonzero(65_536), batch_bytes: nonzero(8 * 1024 * 1024) },
+        response: StorageResponseSettings {
+            batch_rows: nonzero(65_536),
+            batch_bytes: nonzero(8 * 1024 * 1024),
+        },
     }
 }
 

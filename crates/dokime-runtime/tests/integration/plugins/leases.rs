@@ -109,7 +109,7 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
 macro_rules! delivery_fixture {
     ($operation:ident, $id:literal) => {
         #[harmos::operation(id = $id, response = SignalReply, policy = <Signal<()> as harmos::OperationDeclaration>::POLICY,
-                    visibility = Host, resources = [RecordingSidecar])]
+                            visibility = Host, resources = [RecordingSidecar])]
         #[derive(Clone, PartialEq)]
         struct $operation {
             signal: ExecutionSignal,

@@ -91,7 +91,13 @@ pub enum Fault {
 
 impl Default for Supply {
     fn default() -> Self {
-        Self { voltage_rms_v: 230.0, load_ohm: 100.0, frequency_hz: 50.0, phase_deg: 15.0, current_limit_a: 5.0 }
+        Self {
+            voltage_rms_v: 230.0,
+            load_ohm: 100.0,
+            frequency_hz: 50.0,
+            phase_deg: 15.0,
+            current_limit_a: 5.0,
+        }
     }
 }
 

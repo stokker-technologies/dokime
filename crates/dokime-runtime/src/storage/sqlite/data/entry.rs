@@ -235,7 +235,20 @@ impl<'a> Encoded<'a> {
             None => None,
         };
 
-        Ok(Self { position, kind, identity, schema_id, schema_key, item, scope, stream, source_time, object_version, body, digest })
+        Ok(Self {
+            position,
+            kind,
+            identity,
+            schema_id,
+            schema_key,
+            item,
+            scope,
+            stream,
+            source_time,
+            object_version,
+            body,
+            digest,
+        })
     }
 }
 

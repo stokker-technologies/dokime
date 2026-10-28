@@ -191,18 +191,33 @@ fn report_document(document: DocumentPayload) -> Capture {
                 (body, CardBindingResult::Static)
             }
         };
-        definitions.push(DocumentCardDefinition { metadata: card.metadata.clone(), filters: Vec::new(), body });
-        bindings.push(CardBinding { source_id: card.metadata.identifier.clone(), metadata: card.metadata, result });
+        definitions.push(DocumentCardDefinition {
+            metadata: card.metadata.clone(),
+            filters: Vec::new(),
+            body,
+        });
+        bindings.push(CardBinding {
+            source_id: card.metadata.identifier.clone(),
+            metadata: card.metadata,
+            result,
+        });
     }
     fn layout(nodes: Vec<DocumentNodePayload>, sections: &mut BTreeMap<Identifier, SectionBinding>) -> Vec<DocumentNode> {
         nodes
             .into_iter()
             .map(|node| match node {
-                DocumentNodePayload::Card(card) => {
-                    DocumentNode::Card(dokime_runtime::document::DocumentCardPlacement { card_id: card.card_id, layout: card.layout })
-                }
+                DocumentNodePayload::Card(card) => DocumentNode::Card(dokime_runtime::document::DocumentCardPlacement {
+                    card_id: card.card_id,
+                    layout: card.layout,
+                }),
                 DocumentNodePayload::Section(section) => {
-                    sections.insert(section.node_id.clone(), SectionBinding { metadata: section.metadata.clone(), unavailable: None });
+                    sections.insert(
+                        section.node_id.clone(),
+                        SectionBinding {
+                            metadata: section.metadata.clone(),
+                            unavailable: None,
+                        },
+                    );
                     DocumentNode::Section(Box::new(DocumentSectionNode {
                         node_id: section.node_id,
                         metadata: section.metadata,
@@ -214,7 +229,9 @@ fn report_document(document: DocumentPayload) -> Capture {
             .collect()
     }
     let mut sections = BTreeMap::new();
-    let layout = DocumentLayout { nodes: layout(document.layout.nodes, &mut sections) };
+    let layout = DocumentLayout {
+        nodes: layout(document.layout.nodes, &mut sections),
+    };
     Capture {
         definition: DocumentDefinition {
             document_id: document.document_id,
@@ -372,7 +389,11 @@ fn fixture_plot_document(
 fn fixture_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPayload {
     let scope = RecordScope::default().with_cycle(test_cycle_id);
     let plot_id = Identifier::new("cycle.telemetry").unwrap();
-    let artifact_descriptor = ArtifactListDescriptor { scope: scope.clone(), artifact_count: 3, completed_count: 2 };
+    let artifact_descriptor = ArtifactListDescriptor {
+        scope: scope.clone(),
+        artifact_count: 3,
+        completed_count: 2,
+    };
     let cards = vec![
         document_card("summary.text", "Summary", DocumentCardBodyPayload::Text { markdown: "Cycle summary".to_owned() }),
         document_card(
@@ -414,7 +435,13 @@ fn fixture_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPaylo
                 }),
             },
         ),
-        document_card("artifacts", "Artifacts", DocumentCardBodyPayload::Artifacts { descriptor: Box::new(artifact_descriptor.clone()) }),
+        document_card(
+            "artifacts",
+            "Artifacts",
+            DocumentCardBodyPayload::Artifacts {
+                descriptor: Box::new(artifact_descriptor.clone()),
+            },
+        ),
     ];
 
     DocumentPayload {
@@ -491,7 +518,11 @@ fn fixture_evidence_case_document(scope: RecordScope) -> DocumentPayload {
         "traceability.media",
         "Media",
         DocumentCardBodyPayload::Media {
-            descriptor: Box::new(ArtifactListDescriptor { scope: scope.clone(), artifact_count: 1, completed_count: 1 }),
+            descriptor: Box::new(ArtifactListDescriptor {
+                scope: scope.clone(),
+                artifact_count: 1,
+                completed_count: 1,
+            }),
         },
     );
 
@@ -519,11 +550,16 @@ fn metadata(identifier: &str, label: &str) -> Metadata {
 }
 
 fn document_card(identifier: &str, label: &str, body: DocumentCardBodyPayload) -> DocumentCardPayload {
-    DocumentCardPayload { metadata: metadata(identifier, label), body }
+    DocumentCardPayload {
+        metadata: metadata(identifier, label),
+        body,
+    }
 }
 
 fn document_layout(section_identifier: &str, section_label: &str, cards: &[DocumentCardPayload]) -> DocumentLayoutPayload {
-    DocumentLayoutPayload { nodes: vec![document_section_node(section_identifier, section_label, cards)] }
+    DocumentLayoutPayload {
+        nodes: vec![document_section_node(section_identifier, section_label, cards)],
+    }
 }
 
 fn document_section_node(section_identifier: &str, section_label: &str, cards: &[DocumentCardPayload]) -> DocumentNodePayload {
@@ -1282,7 +1318,11 @@ async fn template_parameter_units() {
     voltage.parameter_id = dokime_runtime::model::identity::new_id();
     voltage.metadata = metadata("ac_voltage_v", "AC Voltage");
     voltage.value_type = ValueType::Number;
-    voltage.unit = Some(MeasurementUnit { metadata: metadata("volt", "Volt"), family: UnitFamily::Voltage, symbol: "V".into() });
+    voltage.unit = Some(MeasurementUnit {
+        metadata: metadata("volt", "Volt"),
+        family: UnitFamily::Voltage,
+        symbol: "V".into(),
+    });
     voltage.expression = dokime_runtime::definition::ParameterExpr::Literal { value: Value::from(230.0) };
     template.parameters.push(voltage.clone());
     let execution = &mut input.cycle.test_executions[0];

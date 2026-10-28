@@ -69,7 +69,11 @@ struct Counted<W, F> {
 
 impl StorageRoot {
     pub fn new(data: PathBuf, application: PathBuf) -> Self {
-        Self { data, application, progress_step: DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES }
+        Self {
+            data,
+            application,
+            progress_step: DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES,
+        }
     }
 
     pub fn resolve(application: PathBuf, progress_step: u64) -> Result<Self, String> {

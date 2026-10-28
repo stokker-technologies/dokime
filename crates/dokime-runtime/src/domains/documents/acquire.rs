@@ -157,7 +157,10 @@ pub(super) async fn acquire(
         let samples = runtime
             .collect_telemetry_at_in(
                 &session,
-                &crate::evidence_runtime::TelemetrySelection { scope: selection.evidence_scope(), ..Default::default() },
+                &crate::evidence_runtime::TelemetrySelection {
+                    scope: selection.evidence_scope(),
+                    ..Default::default()
+                },
                 Some(source_rows),
                 None,
                 &at,
@@ -259,11 +262,16 @@ fn validate_cycle_artifacts(
 }
 
 fn cycle_artifact_scope() -> harmos::Error {
-    harmos::Error::InvalidInput { field: "document artifact scope", reason: "artifact descriptor differs from the captured cycle members" }
+    harmos::Error::InvalidInput {
+        field: "document artifact scope",
+        reason: "artifact descriptor differs from the captured cycle members",
+    }
 }
 
 fn artifact_limit(_: impl std::fmt::Display) -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "document artifact source budget" }
+    harmos::Error::ResourceExhausted {
+        resource: "document artifact source budget",
+    }
 }
 
 fn source(error: impl std::fmt::Display) -> DocumentAcquisitionFailure {

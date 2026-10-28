@@ -87,7 +87,13 @@ impl Controls {
     pub fn new(interactive: bool, maximum: u64) -> Self {
         Self {
             maximum,
-            state: Mutex::new(State { interactive, closed: false, pending: None, active: None, receipts: BTreeMap::new() }),
+            state: Mutex::new(State {
+                interactive,
+                closed: false,
+                pending: None,
+                active: None,
+                receipts: BTreeMap::new(),
+            }),
             changed: Notify::new(),
         }
     }
@@ -117,7 +123,11 @@ impl Controls {
         if state.receipts.len() as u64 >= self.maximum && command.action != Action::Finish {
             return Err(Refusal::of("execution command receipts are at capacity; finish this execution"));
         }
-        let receipt = CommandExecutionReply { state: "accepted".into(), attempt_id: String::new(), message: String::new() };
+        let receipt = CommandExecutionReply {
+            state: "accepted".into(),
+            attempt_id: String::new(),
+            message: String::new(),
+        };
         state.receipts.insert(command.id.clone(), (command.action.clone(), receipt.clone()));
         state.pending = Some(command);
         drop(state);

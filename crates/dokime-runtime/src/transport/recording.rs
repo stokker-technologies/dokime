@@ -96,7 +96,10 @@ impl RecordingTransport {
     }
 
     pub fn answering(responses: impl IntoIterator<Item = PromptResponse>) -> Self {
-        Self { answers: responses.into_iter().collect(), ..Self::default() }
+        Self {
+            answers: responses.into_iter().collect(),
+            ..Self::default()
+        }
     }
 
     pub fn answer(&mut self, response: PromptResponse) {
@@ -136,7 +139,10 @@ impl RecordingTransport {
     }
 
     pub fn leasing(streams: impl IntoIterator<Item = Identifier>) -> Self {
-        Self { leasable: streams.into_iter().collect(), ..Self::default() }
+        Self {
+            leasable: streams.into_iter().collect(),
+            ..Self::default()
+        }
     }
 
     pub fn interrupt(&mut self, gap: LeaseGap) {
@@ -203,7 +209,10 @@ impl ExecutionTransport for RecordingTransport {
     }
 
     fn journal(&self) -> Arc<dyn Journal> {
-        Arc::new(RecordingJournal { records: Arc::clone(&self.records), diagnostics: Arc::clone(&self.diagnostics) })
+        Arc::new(RecordingJournal {
+            records: Arc::clone(&self.records),
+            diagnostics: Arc::clone(&self.diagnostics),
+        })
     }
 
     fn log(&self, level: Level, message: String) {

@@ -285,7 +285,13 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
     let encoded = entry::encode(&metadata)?;
     super::production::check_writable(connection, metadata.id.as_str())?;
     let head = saved(connection)?;
-    let active = super::production::checkpoint(connection, &StagedFile { history: head.history.clone(), id: metadata.id.clone() })?;
+    let active = super::production::checkpoint(
+        connection,
+        &StagedFile {
+            history: head.history.clone(),
+            id: metadata.id.clone(),
+        },
+    )?;
     if production {
         if let Some((_, phase, value)) = &active {
             if *phase != FilePhase::Producing || value.metadata != metadata {
@@ -295,7 +301,10 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
             return Err(Error::Conflict("private staging cannot become public production"));
         }
     }
-    let staging = StagedFile { history: head.history, id: metadata.id.clone() };
+    let staging = StagedFile {
+        history: head.history,
+        id: metadata.id.clone(),
+    };
     let transaction = connection.transaction()?;
     if let Some((existing, _)) = metadata_for(&transaction, &staging.id)? {
         if existing != metadata {
@@ -307,7 +316,11 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
     if production && active.is_none() {
         let checkpoint = FileCheckpoint {
             metadata: metadata.clone(),
-            session: FileSession { history: staging.history.clone(), id: staging.id.clone(), generation: 1 },
+            session: FileSession {
+                history: staging.history.clone(),
+                id: staging.id.clone(),
+                generation: 1,
+            },
             length: 0,
             hash_format: 1,
             hash_state: Sha256::new().serialize().to_vec(),

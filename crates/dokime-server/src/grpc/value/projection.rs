@@ -55,7 +55,9 @@ pub(in crate::grpc) fn slots<T>(length: usize) -> dokime::harmos::Result<Vec<T>>
 /* === Private Functions === */
 
 fn exhausted() -> dokime::harmos::Error {
-    dokime::harmos::Error::ResourceExhausted { resource: "canonical projection allocation" }
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical projection allocation",
+    }
 }
 
 /* === Tests === */

@@ -65,7 +65,9 @@ pub fn check_telemetry_sample(
         if default_mode == ValidationMode::Prototype {
             return Ok(());
         }
-        return Err(crate::Error::Telemetry(TelemetryFailure::UnknownStream { stream: sample.stream.as_str().to_owned() }));
+        return Err(crate::Error::Telemetry(TelemetryFailure::UnknownStream {
+            stream: sample.stream.as_str().to_owned(),
+        }));
     };
     check_sample(contract, sample, default_mode, true)
 }
@@ -160,7 +162,10 @@ fn check_sample(
             if rule.default().is_some() || !rule.required() {
                 continue;
             }
-            return Err(crate::Error::Telemetry(TelemetryFailure::MissingColumn { stream: stream.to_owned(), column: (*name).to_owned() }));
+            return Err(crate::Error::Telemetry(TelemetryFailure::MissingColumn {
+                stream: stream.to_owned(),
+                column: (*name).to_owned(),
+            }));
         };
         if matches!(value, Value::Null) {
             if rule.nullable() || !rule.required() {
@@ -169,7 +174,10 @@ fn check_sample(
         } else if value_matches_type(value, rule.value_type()) {
             continue;
         }
-        return Err(crate::Error::Telemetry(TelemetryFailure::InvalidColumn { stream: stream.to_owned(), column: (*name).to_owned() }));
+        return Err(crate::Error::Telemetry(TelemetryFailure::InvalidColumn {
+            stream: stream.to_owned(),
+            column: (*name).to_owned(),
+        }));
     }
     if !contract.allow_extra_fields {
         let count = sample.values.keys().filter(|name| !declared.contains_key(name.as_str())).count();
@@ -178,7 +186,10 @@ fn check_sample(
             for name in sample.values.keys().filter(|name| !declared.contains_key(name.as_str())) {
                 extra.push(name.to_owned());
             }
-            return Err(crate::Error::Telemetry(TelemetryFailure::UnexpectedColumns { stream: stream.to_owned(), columns: extra }));
+            return Err(crate::Error::Telemetry(TelemetryFailure::UnexpectedColumns {
+                stream: stream.to_owned(),
+                columns: extra,
+            }));
         }
     }
     Ok(())

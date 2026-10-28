@@ -156,7 +156,10 @@ pub(crate) fn captured_logo_asset(
     if plugin_id != logo.plugin_id.as_str() || asset.asset_id != logo.asset_id {
         return None;
     }
-    Some(RuntimeInstalledPluginAsset { path: PathBuf::from(&asset.path), mime_type: asset.mime_type.clone() })
+    Some(RuntimeInstalledPluginAsset {
+        path: PathBuf::from(&asset.path),
+        mime_type: asset.mime_type.clone(),
+    })
 }
 
 pub(crate) fn capture_appearance_state(
@@ -189,7 +192,10 @@ fn appearance_asset(
         .iter()
         .flat_map(|customization| customization.logo_assets.iter())
         .find(|asset| &asset.asset_id == asset_id)
-        .map(|asset| RuntimeInstalledPluginAsset { path: PathBuf::from(&asset.path), mime_type: asset.mime_type.clone() })
+        .map(|asset| RuntimeInstalledPluginAsset {
+            path: PathBuf::from(&asset.path),
+            mime_type: asset.mime_type.clone(),
+        })
 }
 
 fn appearance_frame(themes: Vec<RuntimeThemeFamily>, selected: Option<(&str, &AppCustomizationContribution)>) -> RuntimeAppearanceFrame {
@@ -269,12 +275,10 @@ fn neutral_frame(themes: Vec<RuntimeThemeFamily>) -> RuntimeAppearanceFrame {
 }
 
 fn brand_appearance_asset(brand: &ResolvedBrand, asset_id: &Identifier) -> Option<RuntimeInstalledPluginAsset> {
-    brand
-        .customization
-        .logo_assets
-        .iter()
-        .find(|asset| &asset.asset_id == asset_id)
-        .map(|asset| RuntimeInstalledPluginAsset { path: PathBuf::from(&asset.path), mime_type: asset.mime_type.clone() })
+    brand.customization.logo_assets.iter().find(|asset| &asset.asset_id == asset_id).map(|asset| RuntimeInstalledPluginAsset {
+        path: PathBuf::from(&asset.path),
+        mime_type: asset.mime_type.clone(),
+    })
 }
 
 fn sort_themes(themes: &mut [RuntimeThemeFamily]) {

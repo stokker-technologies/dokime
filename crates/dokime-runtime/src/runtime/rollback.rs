@@ -54,13 +54,17 @@ enum Owner {
 
 impl Receipt {
     pub(super) fn new(runtime: Runtime) -> Self {
-        Self { owner: Arc::new(Mutex::new(Some(Owner::Runtime(Box::new(runtime))))) }
+        Self {
+            owner: Arc::new(Mutex::new(Some(Owner::Runtime(Box::new(runtime))))),
+        }
     }
 
     pub(super) fn boot(
         runtime: Option<crate::app::HarmosRuntime>, storage: crate::storage::Manager, local: crate::storage::sqlite::State,
     ) -> Self {
-        Self { owner: Arc::new(Mutex::new(Some(Owner::Boot(Box::new(Boot { runtime, storage, local }))))) }
+        Self {
+            owner: Arc::new(Mutex::new(Some(Owner::Boot(Box::new(Boot { runtime, storage, local }))))),
+        }
     }
 
     pub async fn retry(&self) -> crate::runtime::Result<()> {

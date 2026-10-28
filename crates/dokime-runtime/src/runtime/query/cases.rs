@@ -73,7 +73,10 @@ pub struct CaseActions {
 pub fn case_projection(_state: &RuntimeState, cycle: &CycleView, test_case_id: &CaseId) -> CaseProjection {
     let attempts = attempts(cycle, test_case_id);
     let latest = attempts.last().copied();
-    let mut actions = CaseActions { delete: true, unavailable_reasons: Vec::new() };
+    let mut actions = CaseActions {
+        delete: true,
+        unavailable_reasons: Vec::new(),
+    };
     admit(&mut actions.delete, &mut actions.unavailable_reasons, ensure_case_deletable(cycle, test_case_id));
 
     CaseProjection {
@@ -109,7 +112,10 @@ pub fn historical_case_projection(cycle: &CycleView, test_case_id: &CaseId) -> C
         latest_execution_id: latest.map(|execution| execution.test_execution_id.clone()),
         latest_execution_status: latest.map(|execution| execution.status.clone()),
         attempt_count,
-        actions: CaseActions { unavailable_reasons: vec![HISTORICAL.to_owned()], ..Default::default() },
+        actions: CaseActions {
+            unavailable_reasons: vec![HISTORICAL.to_owned()],
+            ..Default::default()
+        },
     }
 }
 

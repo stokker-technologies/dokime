@@ -98,7 +98,10 @@ impl Config {
     }
 
     pub(crate) fn into_runtime_config(self) -> (RuntimeConfig, ShellStartup) {
-        let startup = ShellStartup { brand: self.brand, native_host_telemetry: self.seed_plugins };
+        let startup = ShellStartup {
+            brand: self.brand,
+            native_host_telemetry: self.seed_plugins,
+        };
         let metadata = Metadata::new(Identifier::new(HUB_IDENTIFIER).expect("valid application identifier"), self.title, self.label);
         let mut config = RuntimeConfig::new(&self.output_root, metadata);
         config.schema = self.schema;

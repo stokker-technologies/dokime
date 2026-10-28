@@ -72,7 +72,13 @@ impl RecordReader {
             .session()
             .read_records::<RecordRow>(RecordRead {
                 at: through.clone(),
-                selection: RecordSelection { schema: records::schema(), scope: None, item: None, source_start: None, source_end: None },
+                selection: RecordSelection {
+                    schema: records::schema(),
+                    scope: None,
+                    item: None,
+                    source_start: None,
+                    source_end: None,
+                },
                 after,
             })
             .await?;

@@ -137,7 +137,10 @@ pub(crate) async fn project_saved(
                 for (statistic, accumulator) in statistics.into_iter().zip(accumulators) {
                     let value = accumulator.finish(&mut || {
                         if cancelled.load(std::sync::atomic::Ordering::Acquire) {
-                            return Err(harmos::storage::Error::InvalidInput { field: "telemetry aggregate", reason: "cancelled" });
+                            return Err(harmos::storage::Error::InvalidInput {
+                                field: "telemetry aggregate",
+                                reason: "cancelled",
+                            });
                         }
                         Ok(())
                     })?;

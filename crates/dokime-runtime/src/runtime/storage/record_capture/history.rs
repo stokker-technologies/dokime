@@ -106,7 +106,13 @@ impl Source {
         let mut rows = session
             .read_records::<RecordRow>(RecordRead {
                 at: at.clone(),
-                selection: RecordSelection { schema: self.schema.clone(), scope: None, item: None, source_start: None, source_end: None },
+                selection: RecordSelection {
+                    schema: self.schema.clone(),
+                    scope: None,
+                    item: None,
+                    source_start: None,
+                    source_end: None,
+                },
                 after: 0,
             })
             .await?;
@@ -169,7 +175,13 @@ impl Source {
         Ok(session
             .read_records::<RecordRow>(RecordRead {
                 at,
-                selection: RecordSelection { schema: self.schema.clone(), scope, item: None, source_start: None, source_end: None },
+                selection: RecordSelection {
+                    schema: self.schema.clone(),
+                    scope,
+                    item: None,
+                    source_start: None,
+                    source_end: None,
+                },
                 after,
             })
             .await?)
@@ -193,7 +205,10 @@ impl History {
                     return Err(error("record storage position did not advance"));
                 }
                 self.after = row.position;
-                let record = CapturedRecord { page: page.clone(), index: self.pending_index };
+                let record = CapturedRecord {
+                    page: page.clone(),
+                    index: self.pending_index,
+                };
                 self.pending_index += 1;
                 return Ok(Some(record));
             }

@@ -103,14 +103,20 @@ async fn deletion_validates_unsupported() {
     gate.release.notify_one();
     support::wait_for_cycle_outcome(&handle, &cycle_id, dokime::domain::model::execution::result::ResultStatus::Passed).await;
     let checkpoint = checkpoint_for(&handle, &mut history, &live).await;
-    let request = DeleteExecution { checkpoint: Some(checkpoint.clone()), request_identifier: "delete-request-1".into() };
+    let request = DeleteExecution {
+        checkpoint: Some(checkpoint.clone()),
+        request_identifier: "delete-request-1".into(),
+    };
 
     assert_eq!(history.unary::<contracts::history::DeleteExecution>(request.clone()).await.unwrap_err().code(), Code::Unauthenticated);
     for request_identifier in [String::new(), "x".repeat(257)] {
         assert_eq!(
             history
                 .unary::<contracts::history::DeleteExecution>(auth(
-                    DeleteExecution { checkpoint: Some(checkpoint.clone()), request_identifier },
+                    DeleteExecution {
+                        checkpoint: Some(checkpoint.clone()),
+                        request_identifier
+                    },
                     TOKEN,
                 ))
                 .await
@@ -132,11 +138,17 @@ async fn deletion_validates_unsupported() {
     );
 
     let sealed = checkpoint_for(&handle, &mut history, &live).await;
-    let deletion = DeleteExecution { checkpoint: Some(sealed.clone()), request_identifier: "delete-request-1".into() };
+    let deletion = DeleteExecution {
+        checkpoint: Some(sealed.clone()),
+        request_identifier: "delete-request-1".into(),
+    };
     for request_identifier in ["delete-request-1", "delete-request-2"] {
         let refusal = history
             .unary::<contracts::history::DeleteExecution>(auth(
-                DeleteExecution { request_identifier: request_identifier.into(), ..deletion.clone() },
+                DeleteExecution {
+                    request_identifier: request_identifier.into(),
+                    ..deletion.clone()
+                },
                 TOKEN,
             ))
             .await
@@ -165,8 +177,15 @@ async fn empty_cycles_retain_history() {
     let handle = owner.handle();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = connect(&server).await;
-    let all = CycleFilter { archive: Some(ArchiveScope::All), ..Default::default() };
-    let request = BrowseCycles { limit: 1, filter: Some(all.clone()), ..Default::default() };
+    let all = CycleFilter {
+        archive: Some(ArchiveScope::All),
+        ..Default::default()
+    };
+    let request = BrowseCycles {
+        limit: 1,
+        filter: Some(all.clone()),
+        ..Default::default()
+    };
     let empty = client.unary::<BrowseCycles>(request.clone()).await.unwrap().into_inner();
     assert!(empty.entries.is_empty());
     assert!(empty.at.is_some());
@@ -176,8 +195,10 @@ async fn empty_cycles_retain_history() {
     let mut ids = BTreeSet::new();
     let mut archived_id = None;
     for label in ["Empty Alpha", "Empty Beta", "Empty Gamma"] {
-        let definition =
-            dokime::transactions::CycleDefinition { metadata: support::metadata("history.empty", label), continue_automatically: false };
+        let definition = dokime::transactions::CycleDefinition {
+            metadata: support::metadata("history.empty", label),
+            continue_automatically: false,
+        };
         let id = handle.create_cycle(definition, Default::default()).await.unwrap();
         handle.seal_cycle(id.clone(), Default::default()).await.unwrap();
         if archived_id.is_none() {
@@ -211,7 +232,11 @@ async fn empty_cycles_retain_history() {
         assert!(entry.updated_at.is_some());
         let Some(after_sequence) = page.next_after_sequence else { break };
         page = client
-            .unary::<BrowseCycles>(BrowseCycles { at: Some(snapshot.clone()), after_sequence, ..request.clone() })
+            .unary::<BrowseCycles>(BrowseCycles {
+                at: Some(snapshot.clone()),
+                after_sequence,
+                ..request.clone()
+            })
             .await
             .unwrap()
             .into_inner();
@@ -226,7 +251,11 @@ async fn empty_cycles_retain_history() {
     let invalid = [
         BrowseCycles { limit: 1001, ..request.clone() },
         BrowseCycles { after_sequence: 1, ..request.clone() },
-        BrowseCycles { at: Some(snapshot.clone()), after_sequence: snapshot.sequence + 1, ..request.clone() },
+        BrowseCycles {
+            at: Some(snapshot.clone()),
+            after_sequence: snapshot.sequence + 1,
+            ..request.clone()
+        },
         BrowseCycles { at: Some(foreign), ..request.clone() },
     ];
     for invalid in invalid {
@@ -264,7 +293,10 @@ async fn empty_cycles_retain_history() {
     assert!(saved.entries.iter().any(|entry| entry.cycle_id == later.as_str()));
     let archived = client
         .unary::<BrowseCycles>(BrowseCycles {
-            filter: Some(CycleFilter { archive: Some(ArchiveScope::Archived), ..Default::default() }),
+            filter: Some(CycleFilter {
+                archive: Some(ArchiveScope::Archived),
+                ..Default::default()
+            }),
             ..request.clone()
         })
         .await
@@ -274,7 +306,10 @@ async fn empty_cycles_retain_history() {
     assert_eq!(archived.entries[0].cycle_id, archived_id.unwrap().as_str());
     assert!(archived.entries[0].archived);
     let filtered = client
-        .unary::<BrowseCycles>(BrowseCycles { filter: Some(CycleFilter { text: "empty beta".into(), ..all }), ..request })
+        .unary::<BrowseCycles>(BrowseCycles {
+            filter: Some(CycleFilter { text: "empty beta".into(), ..all }),
+            ..request
+        })
         .await
         .unwrap()
         .into_inner();

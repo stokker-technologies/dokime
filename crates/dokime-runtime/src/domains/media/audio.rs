@@ -277,11 +277,27 @@ impl AudioRecording {
         let (command_sender, command) = oneshot::channel();
         let (outcome_sender, outcome) = oneshot::channel();
         tokio::spawn(
-            Supervisor { runtime, scope, filename: filename.clone(), recorder, file, command, seal, outcome: outcome_sender, registration }
-                .run(),
+            Supervisor {
+                runtime,
+                scope,
+                filename: filename.clone(),
+                recorder,
+                file,
+                command,
+                seal,
+                outcome: outcome_sender,
+                registration,
+            }
+            .run(),
         );
 
-        Ok(Self { filename, started: Instant::now(), samples, command: Some(command_sender), outcome: Some(outcome) })
+        Ok(Self {
+            filename,
+            started: Instant::now(),
+            samples,
+            command: Some(command_sender),
+            outcome: Some(outcome),
+        })
     }
 
     pub fn filename(&self) -> &str {

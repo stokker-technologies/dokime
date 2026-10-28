@@ -61,7 +61,12 @@ pub struct FileResume {
 
 impl FileResume {
     pub fn new(path: PathBuf) -> Self {
-        Self { path, identity: None, offset: 0, sha256: hash(&Sha256::new()) }
+        Self {
+            path,
+            identity: None,
+            offset: 0,
+            sha256: hash(&Sha256::new()),
+        }
     }
 
     pub fn path(&self) -> &Path {
@@ -300,7 +305,12 @@ mod tests {
 
         let mut digest = Sha256::new();
         digest.update(b"prefix");
-        let resume = FileResume { path: path.clone(), identity: Some(Default::default()), offset: 6, sha256: hash(&digest) };
+        let resume = FileResume {
+            path: path.clone(),
+            identity: Some(Default::default()),
+            offset: 6,
+            sha256: hash(&digest),
+        };
 
         let (file, verified) = open(&resume).await.unwrap();
         assert_eq!(hash(&verified), resume.sha256);

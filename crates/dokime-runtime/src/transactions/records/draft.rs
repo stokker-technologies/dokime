@@ -160,7 +160,11 @@ impl Drafts {
             })
             .map(|(_, _, scope)| scope.clone())
             .collect();
-        dokime_domain::state::records::CapturedRecord { record: record.clone(), ordinal: self.first + index as u64 + 1, scopes }
+        dokime_domain::state::records::CapturedRecord {
+            record: record.clone(),
+            ordinal: self.first + index as u64 + 1,
+            scopes,
+        }
     }
 
     pub(crate) fn apply(self, state: &mut RuntimeState) {

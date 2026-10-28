@@ -346,7 +346,14 @@ impl ProductCalibrationDetails {
 
 impl ProductRecordDraft {
     pub fn new(record_type: Identifier, source: impl Into<String>, message: Option<String>, details: BTreeMap<String, Value>) -> Self {
-        Self { record_type, source: source.into(), severity: RecordSeverity::Info, message, details, scope: None }
+        Self {
+            record_type,
+            source: source.into(),
+            severity: RecordSeverity::Info,
+            message,
+            details,
+            scope: None,
+        }
     }
 
     pub fn with_scope(mut self, scope: RecordScope) -> Self {

@@ -251,7 +251,10 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
 /* === Public Functions === */
 
 pub(super) fn parameter<C: DeserializeOwned>(values: &BTreeMap<String, Value>, id: &str) -> crate::Result<C> {
-    let failure = |reason: &str| crate::Error::Parameter { name: id.to_owned(), reason: reason.to_owned() };
+    let failure = |reason: &str| crate::Error::Parameter {
+        name: id.to_owned(),
+        reason: reason.to_owned(),
+    };
     let value = values.get(id).ok_or_else(|| failure("unknown parameter"))?;
     let json = value.to_plain_json().map_err(|_| failure("parameter cannot be represented as JSON"))?;
     serde_json::from_value(json).map_err(|_| failure("parameter has the wrong type"))

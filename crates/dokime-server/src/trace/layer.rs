@@ -212,7 +212,14 @@ impl SpanScope {
 
 impl Fields {
     fn new(limits: FieldLimits) -> Self {
-        Self { limits, message: None, line: None, time: None, scope: SpanScope::default(), fields: Vec::new() }
+        Self {
+            limits,
+            message: None,
+            line: None,
+            time: None,
+            scope: SpanScope::default(),
+            fields: Vec::new(),
+        }
     }
 
     fn put(&mut self, field: &Field, value: String) {

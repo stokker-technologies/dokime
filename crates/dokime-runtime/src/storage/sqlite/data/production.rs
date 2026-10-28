@@ -239,7 +239,10 @@ impl State {
 
 fn save_checkpoint(connection: &Connection, root: &Path, requested: &FileCheckpoint) -> Result<(), Error> {
     requested.sha256()?;
-    let file = StagedFile { history: requested.session.history.clone(), id: requested.session.id.clone() };
+    let file = StagedFile {
+        history: requested.session.history.clone(),
+        id: requested.session.id.clone(),
+    };
     // A Snapshot Captured While Producing Can Persist After A Longer
     // Save, Completion, Abandonment Or Deletion. Durable State Already
     // Covers That Prefix, So The Late Checkpoint Is A No-Op.
@@ -397,7 +400,10 @@ fn progress(connection: &Connection, root: &Path, file: &StagedFile) -> Result<F
     saved(connection)?.history.check(&file.history)?;
     check_available(connection, file.id.as_str())?;
     if let Some((_, Some(reference))) = files::metadata_for(connection, &file.id)? {
-        return Ok(FileProgress { length: reference.length, phase: FilePhase::Finished });
+        return Ok(FileProgress {
+            length: reference.length,
+            phase: FilePhase::Finished,
+        });
     }
     let (_, phase, _) = checkpoint(connection, file)?.ok_or(Error::Data("unknown production"))?;
     let path = files::staging_path(connection, root, &file.id)?;

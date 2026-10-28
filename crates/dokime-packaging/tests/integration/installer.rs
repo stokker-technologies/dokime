@@ -73,8 +73,13 @@ async fn tampered_payload() {
     let format = if cfg!(windows) { "nsis" } else { "deb" };
     std::fs::write(&manifest, format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'"))
         .unwrap();
-    let options =
-        PackageOptions { artifacts: Some(artifacts), output: root.path().join("output"), sign: false, formats: vec![], target: None };
+    let options = PackageOptions {
+        artifacts: Some(artifacts),
+        output: root.path().join("output"),
+        sign: false,
+        formats: vec![],
+        target: None,
+    };
     let error = package(&manifest, &options).await.unwrap_err();
     assert!(error.to_string().contains("digest mismatch"));
     assert!(!options.output.exists());
@@ -97,7 +102,13 @@ async fn missing_signing() {
     let format = if cfg!(windows) { "nsis" } else { "deb" };
     std::fs::write(&manifest, format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'"))
         .unwrap();
-    let options = PackageOptions { artifacts: None, output: root.path().join("output"), sign: true, formats: vec![], target: None };
+    let options = PackageOptions {
+        artifacts: None,
+        output: root.path().join("output"),
+        sign: true,
+        formats: vec![],
+        target: None,
+    };
     let error = package(&manifest, &options).await.unwrap_err();
     assert!(error.to_string().contains("explicit signing configuration"));
     assert!(!options.output.exists());
@@ -123,7 +134,13 @@ async fn download_initializes_tls() {
         "[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'\nrelease_url='{url}'\nsha256='{}'\n",
         "00".repeat(32)
     )).unwrap();
-    let options = PackageOptions { artifacts: None, output: root.path().join("output"), sign: false, formats: vec![], target: None };
+    let options = PackageOptions {
+        artifacts: None,
+        output: root.path().join("output"),
+        sign: false,
+        formats: vec![],
+        target: None,
+    };
     let result = package(&manifest, &options).await;
     assert!(result.is_err());
     assert_eq!(serving.join_next().await.unwrap().unwrap(), 0x16);

@@ -498,7 +498,10 @@ fn consume_boolean(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result
     let kind = match node.kind.as_str() {
         "literal" => ExpressionKind::Literal { value: node.literal.unwrap().try_into()? },
         "selector" => ExpressionKind::Selector { path: node.path.unwrap() },
-        "unary" => ExpressionKind::Unary { op: ExpressionUnaryOp::Not, value: Box::new(consume_boolean(nodes, depth + 1)?) },
+        "unary" => ExpressionKind::Unary {
+            op: ExpressionUnaryOp::Not,
+            value: Box::new(consume_boolean(nodes, depth + 1)?),
+        },
         "binary" => {
             let op = boolean_binary(node.op.as_deref().unwrap())?;
             let left = Box::new(consume_boolean(nodes, depth + 1)?);
@@ -632,19 +635,26 @@ fn consume_parameter(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Resu
             let fallback = if node.children == 0 { None } else { Some(Box::new(consume_parameter(nodes, depth + 1)?)) };
             ParameterExpr::DynamicDefault { key, fallback }
         }
-        "unary" => ParameterExpr::Unary { op: ParameterUnaryOp::Negate, value: Box::new(consume_parameter(nodes, depth + 1)?) },
+        "unary" => ParameterExpr::Unary {
+            op: ParameterUnaryOp::Negate,
+            value: Box::new(consume_parameter(nodes, depth + 1)?),
+        },
         "binary" => {
             let op = parameter_binary(node.op.as_deref().unwrap())?;
             let left = Box::new(consume_parameter(nodes, depth + 1)?);
             let right = Box::new(consume_parameter(nodes, depth + 1)?);
             ParameterExpr::Binary { op, left, right }
         }
-        "range" => {
-            ParameterExpr::Range { start: node.integer_start.unwrap(), stop: node.integer_stop.unwrap(), step: node.integer_step.unwrap() }
-        }
-        "arange" => {
-            ParameterExpr::Arange { start: node.number_start.unwrap(), stop: node.number_stop.unwrap(), step: node.number_step.unwrap() }
-        }
+        "range" => ParameterExpr::Range {
+            start: node.integer_start.unwrap(),
+            stop: node.integer_stop.unwrap(),
+            step: node.integer_step.unwrap(),
+        },
+        "arange" => ParameterExpr::Arange {
+            start: node.number_start.unwrap(),
+            stop: node.number_stop.unwrap(),
+            step: node.number_step.unwrap(),
+        },
         "linspace" => ParameterExpr::Linspace {
             start: node.number_start.unwrap(),
             stop: node.number_stop.unwrap(),
@@ -681,7 +691,9 @@ mod tests {
 
     fn boolean_tree(leaves: usize) -> Expression {
         if leaves == 1 {
-            return Expression { kind: ExpressionKind::Selector { path: "value".into() } };
+            return Expression {
+                kind: ExpressionKind::Selector { path: "value".into() },
+            };
         }
         let left_leaves = leaves / 2;
         Expression {

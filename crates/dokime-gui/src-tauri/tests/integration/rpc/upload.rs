@@ -218,7 +218,11 @@ impl ScopedFixture {
             server,
             runtime,
             _root: root,
-            scope: model::content::wire::ArtifactScope { cycle_id: Some(cycle_id), case_id: None, execution_id: Some(execution_id) },
+            scope: model::content::wire::ArtifactScope {
+                cycle_id: Some(cycle_id),
+                case_id: None,
+                execution_id: Some(execution_id),
+            },
             execution,
         }
     }

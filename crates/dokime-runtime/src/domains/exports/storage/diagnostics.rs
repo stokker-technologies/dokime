@@ -80,7 +80,12 @@ pub fn path_conventions(application_root: &Path) -> Vec<DiagnosticPathConvention
 fn root_path_convention(
     key: DiagnosticPathKey, format: DiagnosticFileFormat, root: &Path, relative_path: String,
 ) -> DiagnosticPathConvention {
-    DiagnosticPathConvention { key, format, absolute_path: Some(path_to_string(&join_relative(root, &relative_path))), relative_path }
+    DiagnosticPathConvention {
+        key,
+        format,
+        absolute_path: Some(path_to_string(&join_relative(root, &relative_path))),
+        relative_path,
+    }
 }
 
 fn join_relative(root: &Path, relative_path: &str) -> PathBuf {

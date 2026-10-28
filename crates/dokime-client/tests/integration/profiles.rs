@@ -258,7 +258,10 @@ fn pairing_import_rolls_back_key_on_profile_publication_failure() {
     let pairing = serde_json::from_str(&cases[0].document).unwrap();
     let root = tempfile::tempdir().unwrap();
     let destination = root.path().join("backends.json");
-    let secrets = PublicationFailure { secrets: Secrets::default(), destination: destination.clone() };
+    let secrets = PublicationFailure {
+        secrets: Secrets::default(),
+        destination: destination.clone(),
+    };
     let store = Store::new(destination);
     assert!(store.import_pairing(&pairing, "lab", &secrets).is_err());
     assert!(secrets.secrets.values.lock().unwrap().is_empty());

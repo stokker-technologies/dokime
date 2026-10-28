@@ -90,7 +90,12 @@ pub trait ExecutionFixture: Send + Sync + 'static {
 
 impl ExecutionFixtureContext {
     pub(crate) fn new(runtime: RuntimeHandle) -> Self {
-        Self { runtime, request_id: None, cancellation: None, finalization: Default::default() }
+        Self {
+            runtime,
+            request_id: None,
+            cancellation: None,
+            finalization: Default::default(),
+        }
     }
 
     pub(crate) fn with_request(mut self, request_id: dokime_domain::model::identity::CommandId) -> Self {
@@ -193,7 +198,11 @@ impl ExecutionFixtureContext {
     ) -> crate::runtime::Result<()> {
         let _order = self.runtime.telemetry_admission.lock().await;
         self.runtime
-            .commit(crate::transactions::SetCapturePhase { scope, phase, occurred_at: crate::model::time::now_utc() })
+            .commit(crate::transactions::SetCapturePhase {
+                scope,
+                phase,
+                occurred_at: crate::model::time::now_utc(),
+            })
             .await
             .map(|_| ())
             .map_err(|error| crate::unavailable_rejection(error.to_string()))
@@ -272,7 +281,10 @@ impl ExecutionFixtureContext {
 
 impl ProviderExecutorRegistry {
     pub(crate) fn new(fixtures: BTreeMap<String, Arc<dyn ExecutionFixture>>) -> Self {
-        Self { fixtures, sidecar: Arc::new(super::run::TemplateRunExecutor) }
+        Self {
+            fixtures,
+            sidecar: Arc::new(super::run::TemplateRunExecutor),
+        }
     }
 
     pub(crate) fn get(&self, target: &ExecutionProviderTarget) -> Option<Arc<dyn ExecutionFixture>> {

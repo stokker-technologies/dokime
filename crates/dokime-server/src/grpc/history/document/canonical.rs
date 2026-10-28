@@ -77,7 +77,12 @@ pub(in crate::grpc) fn wire(
         }
         cards.push(historical_card(card, scope)?);
     }
-    Ok(dokime::domain::model::history::wire::HistoricalDocument { presentation: Some(presentation), layout_nodes, cards, table_rows })
+    Ok(dokime::domain::model::history::wire::HistoricalDocument {
+        presentation: Some(presentation),
+        layout_nodes,
+        cards,
+        table_rows,
+    })
 }
 
 pub(in crate::grpc) fn historical_plot(
@@ -387,7 +392,10 @@ fn histogram_options(
     if value.bins > u64::MAX as usize {
         return Err(Status::data_loss("stored histogram bin count overflows wire"));
     }
-    Ok(dokime::domain::model::plots::wire::PlotHistogramOptions { bins: value.bins as u64, unit: value.unit.clone() })
+    Ok(dokime::domain::model::plots::wire::PlotHistogramOptions {
+        bins: value.bins as u64,
+        unit: value.unit.clone(),
+    })
 }
 
 fn reference_line(value: &dokime::document::ReferenceLine) -> Result<dokime::domain::model::documents::wire::PlotReferenceLine, Status> {

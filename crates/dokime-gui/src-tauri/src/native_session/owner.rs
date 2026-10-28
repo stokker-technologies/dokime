@@ -418,8 +418,10 @@ impl DesktopSession {
             resources.shutdown(&self.0.abandon).await?;
             return Err(error);
         }
-        let local = self.local_preferences(resources).await?;
-        self.0.connection.set_preferences(local);
+        if matches!(&self.0.local, Some(Ok(_))) {
+            let local = self.local_preferences(resources).await?;
+            self.0.connection.set_preferences(local);
+        }
         let connected = self.0.connection.connect(request).await;
         if let Err(error) = self.current(revision) {
             self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;

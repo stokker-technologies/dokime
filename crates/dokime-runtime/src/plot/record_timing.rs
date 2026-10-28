@@ -95,7 +95,12 @@ impl<'a> RecordPairLookup<'a> {
         });
         let starts = Lookup::try_new(
             ordered.iter().enumerate().filter(|(_, (_, record))| record.record_type.as_str() == previous).map(|(ordinal, (_, record))| {
-                Side { ordinal, scope: record.scope.as_ref(), time: nanos(&record.timestamp), present: true }
+                Side {
+                    ordinal,
+                    scope: record.scope.as_ref(),
+                    time: nanos(&record.timestamp),
+                    present: true,
+                }
             }),
             Strategy::Previous,
         )?;
@@ -107,7 +112,12 @@ impl<'a> RecordPairLookup<'a> {
             if record.record_type.as_str() != end {
                 return None;
             }
-            let side = Side { ordinal, scope: record.scope.as_ref(), time: nanos(&record.timestamp), present: true };
+            let side = Side {
+                ordinal,
+                scope: record.scope.as_ref(),
+                time: nanos(&record.timestamp),
+                present: true,
+            };
             let start = self.records.get(self.starts.find(&side)?)?.1;
             let seconds = start.timestamp.millis_until(&record.timestamp)?.0 as f64 / 1_000.0;
             Some(RecordPair { start, end: record, seconds })

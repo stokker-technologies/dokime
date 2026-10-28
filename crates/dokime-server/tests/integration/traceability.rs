@@ -191,7 +191,10 @@ async fn get_traceability_cursor() {
 
     let scoped = client
         .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
-            scope: Some(model::identity::wire::EvidenceScope { cycle_id: Some(cycle_id.to_string()), ..Default::default() }),
+            scope: Some(model::identity::wire::EvidenceScope {
+                cycle_id: Some(cycle_id.to_string()),
+                ..Default::default()
+            }),
             limit: 100,
             ..Default::default()
         }))

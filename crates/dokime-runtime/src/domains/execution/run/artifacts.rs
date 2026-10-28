@@ -119,7 +119,9 @@ trait SpillStorage {
 
 impl ArtifactBridge {
     pub(super) fn new(spill_root: PathBuf) -> Self {
-        Self { state: Arc::new(Mutex::new(Transfers::new(spill_root))) }
+        Self {
+            state: Arc::new(Mutex::new(Transfers::new(spill_root))),
+        }
     }
 
     pub(super) async fn accept(
@@ -344,7 +346,11 @@ impl<S: SpillStorage> Transfers<S> {
         let transfer = self.transfers.get(transfer_id).expect("an aborting chunk belongs to a transfer this bridge accepted");
         let received = transfer.received;
         self.received_bytes = self.received_bytes.saturating_sub(received);
-        DiscardedArtifact { transfer_id: transfer_id.to_owned(), name: transfer.name.clone(), received }
+        DiscardedArtifact {
+            transfer_id: transfer_id.to_owned(),
+            name: transfer.name.clone(),
+            received,
+        }
     }
 
     fn reserve_new_transfer(&mut self, chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {

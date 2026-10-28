@@ -118,7 +118,10 @@ fn push(wire: &mut Value, value: &Core) -> Result<u32, ValueError> {
 fn fields(wire: &mut Value, values: &BTreeMap<String, Core>) -> Result<Vec<ValueField>, ValueError> {
     let mut fields = slots(values.len())?;
     for (key, value) in values {
-        fields.push(ValueField { key: text(key)?, value: push(wire, value)? });
+        fields.push(ValueField {
+            key: text(key)?,
+            value: push(wire, value)?,
+        });
     }
     Ok(fields)
 }

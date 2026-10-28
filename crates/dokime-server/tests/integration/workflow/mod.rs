@@ -117,7 +117,15 @@ impl Gated {
         let server = service.listen().await.unwrap();
         let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
         let cycle = support::planned_cycle(&execution, authenticated(create()), selection_plan(&owner)).await.unwrap();
-        Self { root, gate, owner, service, server, execution, cycle }
+        Self {
+            root,
+            gate,
+            owner,
+            service,
+            server,
+            execution,
+            cycle,
+        }
     }
 }
 
@@ -142,7 +150,9 @@ async fn registered_create_definitions() {
         .into_inner();
     assert_eq!(suites.suites.len(), 1);
     let suite = catalog
-        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuite { suite_id: suites.suites[0].suite_id.clone() }))
+        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuite {
+            suite_id: suites.suites[0].suite_id.clone(),
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -179,7 +189,11 @@ async fn registered_create_definitions() {
         .cases;
     assert_eq!(cases[0].template_id, suite.templates[0].template_id);
     let admitted = execution
-        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: cases[0].case_id.clone(), context: None }))
+        .start_case(authenticated(support::wire::CaseSelection {
+            cycle_id: id.clone(),
+            case_id: cases[0].case_id.clone(),
+            context: None,
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -372,7 +386,10 @@ async fn runtime_shell_cursor() {
     assert!(second.cycle_summaries[0].cycle_id == first_cycle || second.cycle_summaries[0].cycle_id == second_cycle);
     assert!(second.next_after_cycle_id.is_none());
 
-    let future_cursor = model::execution::wire_cursor::Cursor { position: cursor.position + 1, ..cursor.clone() };
+    let future_cursor = model::execution::wire_cursor::Cursor {
+        position: cursor.position + 1,
+        ..cursor.clone()
+    };
     assert_eq!(
         observation
             .unary::<contracts::observation::GetRuntimeShell>(authenticated(contracts::observation::GetRuntimeShell {
@@ -519,7 +536,14 @@ async fn historical_checkpoint_content() {
         .find(|case| case.test_case_id.as_str() == case_id)
         .unwrap()
         .clone();
-    execution.start_case(authenticated(support::wire::CaseSelection { cycle_id: cycle_id.clone(), case_id, context: None })).await.unwrap();
+    execution
+        .start_case(authenticated(support::wire::CaseSelection {
+            cycle_id: cycle_id.clone(),
+            case_id,
+            context: None,
+        }))
+        .await
+        .unwrap();
     gate.started.notified().await;
     gate.release.notify_one();
     support::on_state_change(&owner.handle(), async || {
@@ -742,7 +766,11 @@ async fn invalid_admission_values() {
     blank.metadata.as_mut().unwrap().label = "  ".into();
     assert_eq!(client.unary::<contracts::execution::CreateCycle>(blank).await.unwrap_err().code(), Code::InvalidArgument);
     let cycle_id = client.unary::<contracts::execution::CreateCycle>(create()).await.unwrap().into_inner().cycle_id;
-    let append = |plan| support::wire::SelectionAppend { cycle_id: cycle_id.clone(), plan: Some(plan), context: None };
+    let append = |plan| support::wire::SelectionAppend {
+        cycle_id: cycle_id.clone(),
+        plan: Some(plan),
+        context: None,
+    };
     // A malformed wire value is refused while the plan is decoded, before any
     // suite lookup. What the removed global parameter object also caught —
     // a value that decodes but does not fit its declaration — is now the
@@ -776,7 +804,10 @@ async fn invalid_admission_values() {
     assert_eq!(rejection.message, failure.message());
     assert!(
         client
-            .unary::<contracts::execution::ListCases>(contracts::execution::ListCases { cycle_id: cycle_id.clone(), ..Default::default() })
+            .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            })
             .await
             .unwrap()
             .into_inner()
@@ -798,7 +829,11 @@ async fn invalid_admission_values() {
     assert_eq!(
         observation
             .download::<contracts::observation::WatchRuntime>(contracts::observation::WatchRuntime {
-                cursor: Some(model::execution::wire_cursor::Cursor { epoch: "other".into(), stream: "runtime.state".into(), position: 0 })
+                cursor: Some(model::execution::wire_cursor::Cursor {
+                    epoch: "other".into(),
+                    stream: "runtime.state".into(),
+                    position: 0
+                })
             })
             .await
             .unwrap()

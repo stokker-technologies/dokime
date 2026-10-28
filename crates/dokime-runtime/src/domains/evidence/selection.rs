@@ -120,7 +120,11 @@ impl RecordSelection {
     ) -> Vec<RecordEntry> {
         let mut unscoped = self.clone();
         unscoped.scope = ScopeSelection::default();
-        let window = RecordFilter { start: self.start.clone(), end: self.end.clone(), ..RecordFilter::default() };
+        let window = RecordFilter {
+            start: self.start.clone(),
+            end: self.end.clone(),
+            ..RecordFilter::default()
+        };
 
         let mut matches = records
             .iter()

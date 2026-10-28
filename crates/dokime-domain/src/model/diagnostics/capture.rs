@@ -122,7 +122,13 @@ impl Diagnostic {
             source = cause.source();
         }
 
-        Self { message: error.to_string(), chain, location: located(location), span_trace: spans(), backtrace: backtrace() }
+        Self {
+            message: error.to_string(),
+            chain,
+            location: located(location),
+            span_trace: spans(),
+            backtrace: backtrace(),
+        }
     }
 
     #[cfg(feature = "diagnostics")]
@@ -182,7 +188,11 @@ impl Redaction {
             .filter(|user| !user.is_empty())
             .or_else(|| home.as_deref().and_then(|home| home.rsplit(['/', '\\']).next()).map(str::to_owned));
 
-        Self { root: std::env::current_dir().ok().map(|root| root.display().to_string()), home, user }
+        Self {
+            root: std::env::current_dir().ok().map(|root| root.display().to_string()),
+            home,
+            user,
+        }
     }
 
     fn apply(&self, text: &str) -> String {

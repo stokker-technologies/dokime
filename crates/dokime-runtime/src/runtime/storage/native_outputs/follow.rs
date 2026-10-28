@@ -117,10 +117,18 @@ impl ExecutionStorage {
             let metadata = file_metadata(execution, path, None, None)?;
             let producer = self.storage.produce_file(metadata).await?;
             let token = producer.session().ok_or_else(|| error("original production has no resumable session"))?;
-            let staged = StagedFile { history: token.history.clone(), id: token.id.clone() };
+            let staged = StagedFile {
+                history: token.history.clone(),
+                id: token.id.clone(),
+            };
             let file = open_file(output).await?.into_std().await;
             let capture = session.capture_opened_file(file, producer, ByteRange { offset: 0, limit: None }, CaptureConsistency::Stable);
-            output.production = Some(Production { staged, capture, reference: None, interrupted: false });
+            output.production = Some(Production {
+                staged,
+                capture,
+                reference: None,
+                interrupted: false,
+            });
         }
         if expected.is_some_and(|identity| output.production.as_ref().is_none_or(|production| &production.staged != identity)) {
             return Err(error("resume identity differs from registered output production"));
@@ -146,7 +154,16 @@ impl ExecutionStorage {
         let abandoned = production.interrupted;
         let path = Arc::new(path.to_owned());
         drop(acquisition);
-        Ok(Some(NativeAdmission::Live(Box::new((follower, LiveOutput { owner, session: session.clone(), path, identity }, abandoned)))))
+        Ok(Some(NativeAdmission::Live(Box::new((
+            follower,
+            LiveOutput {
+                owner,
+                session: session.clone(),
+                path,
+                identity,
+            },
+            abandoned,
+        )))))
     }
 }
 
@@ -283,7 +300,10 @@ async fn synchronize(session: &Manager, output: &mut NativeOutput) -> Result<boo
 fn capture_error(failure: harmos::storage::Error) -> crate::runtime::Error {
     match failure {
         harmos::storage::Error::InvalidInput { reason, .. } => error(reason),
-        source @ harmos::storage::Error::Backend { operation: "local filesystem" | "local filesystem task", .. } => error(source),
+        source @ harmos::storage::Error::Backend {
+            operation: "local filesystem" | "local filesystem task",
+            ..
+        } => error(source),
         other => other.into(),
     }
 }

@@ -75,7 +75,12 @@ impl RuntimePlotEnvelopeContext {
         let captured_at = time::OffsetDateTime::now_utc();
         let clock = harmos::storage::ReadBatch::new(());
         let generated_at = clock.try_map(|_| crate::storage::encode_datetime(captured_at))?;
-        Ok(Self { generated_at, snapshot, cycle_context: needs_cycles, traceability })
+        Ok(Self {
+            generated_at,
+            snapshot,
+            cycle_context: needs_cycles,
+            traceability,
+        })
     }
 
     pub(super) fn enrich_sample(&self, sample: &mut TelemetrySample, request: &PlotPayloadRequest) {

@@ -162,7 +162,11 @@ fn connection(resource: &str) -> model::records::publication::RecordPublishReque
 #[tokio::test]
 async fn step_awaits_record() {
     let root = tempfile::tempdir().unwrap();
-    let expectation = Arc::new(Expectation { budget: Duration::from_secs(120), listening: Notify::new(), heard: Default::default() });
+    let expectation = Arc::new(Expectation {
+        budget: Duration::from_secs(120),
+        listening: Notify::new(),
+        heard: Default::default(),
+    });
     let (mut owner, cycle) = waiting_cycle(root.path(), Arc::clone(&expectation)).await;
     let handle = owner.handle();
 
@@ -182,7 +186,11 @@ async fn step_awaits_record() {
 #[tokio::test]
 async fn record_wait_expires() {
     let root = tempfile::tempdir().unwrap();
-    let expectation = Arc::new(Expectation { budget: Duration::from_millis(250), listening: Notify::new(), heard: Default::default() });
+    let expectation = Arc::new(Expectation {
+        budget: Duration::from_millis(250),
+        listening: Notify::new(),
+        heard: Default::default(),
+    });
     let (mut owner, cycle) = waiting_cycle(root.path(), Arc::clone(&expectation)).await;
     let handle = owner.handle();
 

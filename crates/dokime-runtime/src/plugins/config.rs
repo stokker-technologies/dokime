@@ -61,7 +61,11 @@ pub enum PluginProvenance {
 
 impl PluginBundle {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into(), programs: BTreeMap::new(), provenance: PluginProvenance::Configured }
+        Self {
+            path: path.into(),
+            programs: BTreeMap::new(),
+            provenance: PluginProvenance::Configured,
+        }
     }
 
     pub(crate) fn all(paths: &[PathBuf]) -> Vec<Self> {

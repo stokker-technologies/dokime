@@ -112,7 +112,12 @@ impl Target {
         if !remote && !loopback {
             return Err(invalid_target("Local endpoints require a literal loopback IP address."));
         }
-        Ok(Self { endpoint: url.to_string(), remote, ca, settings: ClientPreferences::default() })
+        Ok(Self {
+            endpoint: url.to_string(),
+            remote,
+            ca,
+            settings: ClientPreferences::default(),
+        })
     }
 
     pub(super) async fn connect(&self) -> Result<tonic::transport::Channel> {

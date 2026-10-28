@@ -526,7 +526,10 @@ impl TryFrom<&BTreeMap<dokime_domain::model::identity::DocumentId, crate::docume
         let mut entries = Vec::new();
         entries.try_reserve_exact(value.len()).map_err(|_| Error::Invalid("document entries allocation failed"))?;
         for (key, document) in value {
-            entries.push(DocumentEntry { key: key.as_str().to_owned(), value: Some(templates::documents::Document::try_from(document)?) });
+            entries.push(DocumentEntry {
+                key: key.as_str().to_owned(),
+                value: Some(templates::documents::Document::try_from(document)?),
+            });
         }
         Ok(Self { entries })
     }
@@ -901,7 +904,11 @@ impl TryFrom<&dokime_domain::model::traceability::TraceabilitySection> for Trace
         for row in &value.rows {
             rows.push(TraceabilityRow::try_from(row)?);
         }
-        Ok(Self { identifier: value.identifier.as_str().to_owned(), label: value.label.as_str().to_owned(), rows })
+        Ok(Self {
+            identifier: value.identifier.as_str().to_owned(),
+            label: value.label.as_str().to_owned(),
+            rows,
+        })
     }
 }
 
@@ -915,7 +922,11 @@ impl TryFrom<Traceability> for dokime_domain::model::traceability::TraceabilityS
         for row in row.rows {
             rows.push(row.try_into()?);
         }
-        Ok(Self { identifier: dokime_domain::model::identity::Identifier::new(row.identifier)?, label: row.label, rows })
+        Ok(Self {
+            identifier: dokime_domain::model::identity::Identifier::new(row.identifier)?,
+            label: row.label,
+            rows,
+        })
     }
 }
 
@@ -960,7 +971,10 @@ impl TryFrom<&BTreeMap<String, crate::definition::MaterializedParameter>> for Pa
         let mut entries = Vec::new();
         entries.try_reserve_exact(value.len()).map_err(|_| Error::Invalid("parameter entries allocation failed"))?;
         for (key, parameter) in value {
-            entries.push(ParameterEntry { key: key.as_str().to_owned(), value: Some(Parameter::try_from(parameter)?) });
+            entries.push(ParameterEntry {
+                key: key.as_str().to_owned(),
+                value: Some(Parameter::try_from(parameter)?),
+            });
         }
         Ok(Self { entries })
     }
@@ -1001,12 +1015,16 @@ impl TryFrom<&dokime_domain::model::execution::snapshot::ExecutionImplementation
             return Err(Error::Invalid("implementation encoding memory overflows"));
         }
         Ok(match value {
-            ExecutionImplementation::Bundle { content_digest } => {
-                Self { kind: "bundle".into(), content_digest: Some(content_digest.as_str().to_owned()), generation: None }
-            }
-            ExecutionImplementation::Embedded { generation } => {
-                Self { kind: "embedded".into(), content_digest: None, generation: Some(generation.as_str().to_owned()) }
-            }
+            ExecutionImplementation::Bundle { content_digest } => Self {
+                kind: "bundle".into(),
+                content_digest: Some(content_digest.as_str().to_owned()),
+                generation: None,
+            },
+            ExecutionImplementation::Embedded { generation } => Self {
+                kind: "embedded".into(),
+                content_digest: None,
+                generation: Some(generation.as_str().to_owned()),
+            },
         })
     }
 }
@@ -1108,7 +1126,10 @@ impl TryFrom<&dokime_domain::model::execution::result::ExecutionInvalidation> fo
         if Self::encoding_memory(value) == usize::MAX {
             return Err(Error::Invalid("invalidation encoding memory overflows"));
         }
-        Ok(Self { previous: Some(Plugin::try_from(&value.previous)?), current: value.current.as_ref().map(Plugin::try_from).transpose()? })
+        Ok(Self {
+            previous: Some(Plugin::try_from(&value.previous)?),
+            current: value.current.as_ref().map(Plugin::try_from).transpose()?,
+        })
     }
 }
 
@@ -1163,7 +1184,13 @@ impl TryFrom<&crate::diagnostics::Diagnostic> for Diagnostic {
 
 impl From<Diagnostic> for crate::diagnostics::Diagnostic {
     fn from(row: Diagnostic) -> Self {
-        Self { message: row.message, chain: row.chain, location: row.location, span_trace: row.span_trace, backtrace: row.backtrace }
+        Self {
+            message: row.message,
+            chain: row.chain,
+            location: row.location,
+            span_trace: row.span_trace,
+            backtrace: row.backtrace,
+        }
     }
 }
 
@@ -1928,7 +1955,11 @@ pub async fn read(
         return Ok(None);
     };
     Ok(Some(stored.try_map(|stored| -> Result<_> {
-        Ok(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version })
+        Ok(ObjectRevision {
+            value: stored.value.try_into()?,
+            position: stored.position,
+            version: stored.version,
+        })
     })?))
 }
 

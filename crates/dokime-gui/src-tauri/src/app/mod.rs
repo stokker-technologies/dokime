@@ -199,7 +199,10 @@ fn start_tauri_app() -> tauri::Result<()> {
     drop(retained);
     let closing = closing::Closing::default();
     app.run(move |app, event| match event {
-        tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::CloseRequested { api, .. }, .. } if !closing.complete() => {
+        tauri::RunEvent::WindowEvent {
+            event: tauri::WindowEvent::CloseRequested { api, .. },
+            ..
+        } if !closing.complete() => {
             api.prevent_close();
             closing.request(app, 0);
         }

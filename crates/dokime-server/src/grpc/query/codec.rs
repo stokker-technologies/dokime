@@ -54,7 +54,11 @@ pub(super) fn project(
         }
         rows.push(dokime::domain::model::query::wire::QueryRow { values });
     }
-    let result = dokime::domain::model::query::wire::AggregateReply { columns, rows, complete: outcome.complete };
+    let result = dokime::domain::model::query::wire::AggregateReply {
+        columns,
+        rows,
+        complete: outcome.complete,
+    };
     if result.wire_len()? > maximum {
         return Err(exhausted());
     }

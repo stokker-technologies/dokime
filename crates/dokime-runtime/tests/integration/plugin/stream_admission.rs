@@ -125,7 +125,14 @@ async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>(
         let frame = engine.next(&token, cursor).await.unwrap();
         for encoded in &frame.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            engine.admit(&token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+            engine.admit(
+                &token,
+                &StepAdmission {
+                    attempt_id: start.attempt_id.to_string(),
+                    accepted: true,
+                    message: String::new(),
+                },
+            );
         }
         cursor = frame.cursor;
         let complete = frame.outcome.is_some();

@@ -72,7 +72,13 @@ impl Reader {
                 bytes: Vec::new(),
             })
         })?;
-        Ok(Self { session, file, metadata, offset: 0, pending: None })
+        Ok(Self {
+            session,
+            file,
+            metadata,
+            offset: 0,
+            pending: None,
+        })
     }
 
     pub(crate) fn session(&self) -> &Manager {
@@ -92,7 +98,11 @@ impl Reader {
     pub(crate) async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<ReadBatch<ExecutionFileContent>>> {
         if let Some(pending) = &self.pending {
             if pending.maximum != maximum {
-                return Err(harmos::Error::InvalidInput { field: "native stream chunk", reason: "pending read has another maximum" }.into());
+                return Err(harmos::Error::InvalidInput {
+                    field: "native stream chunk",
+                    reason: "pending read has another maximum",
+                }
+                .into());
             }
         } else {
             if self.offset == self.metadata.size_bytes {
@@ -101,7 +111,10 @@ impl Reader {
             let length = (self.metadata.size_bytes - self.offset).min(maximum.get() as u64) as usize;
             let metadata = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::runtime::Error>((*self.metadata).clone()))?;
             let future = read(self.session.clone(), self.file.try_clone().map_err(error)?, metadata, self.offset, length);
-            self.pending = Some(Pending { maximum, future: tokio::sync::Mutex::new(Box::pin(future)) });
+            self.pending = Some(Pending {
+                maximum,
+                future: tokio::sync::Mutex::new(Box::pin(future)),
+            });
         }
         let result = self.pending.as_mut().expect("accepted native read retained").future.get_mut().as_mut().await;
         self.pending = None;

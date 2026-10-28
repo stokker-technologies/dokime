@@ -63,7 +63,12 @@ impl CaseSelection<'_> {
 
 impl Budget {
     fn new(remaining: usize) -> Self {
-        Self { remaining, depth: 0, quoted: false, escaped: false }
+        Self {
+            remaining,
+            depth: 0,
+            quoted: false,
+            escaped: false,
+        }
     }
     fn source(&mut self, value: &impl serde::Serialize) -> Result<()> {
         serde_json::to_writer(self, value).map_err(error)

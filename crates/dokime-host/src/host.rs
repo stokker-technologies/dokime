@@ -90,7 +90,10 @@ impl Host {
     }
 
     pub fn fixture() -> Self {
-        Self::new(HostTelemetryConfig { source: HostTelemetrySourceKind::Fixture, options: HostOptions::default() })
+        Self::new(HostTelemetryConfig {
+            source: HostTelemetrySourceKind::Fixture,
+            options: HostOptions::default(),
+        })
     }
 
     pub fn collect_stream(&self, stream: HostTelemetryStream) -> crate::Result<Option<TelemetryBatch>> {

@@ -30,8 +30,13 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
-static EMPTY: RuntimeExecutionFileFrame =
-    RuntimeExecutionFileFrame { files: Vec::new(), total_files: 0, returned_files: 0, truncated: false, error: None };
+static EMPTY: RuntimeExecutionFileFrame = RuntimeExecutionFileFrame {
+    files: Vec::new(),
+    total_files: 0,
+    returned_files: 0,
+    truncated: false,
+    error: None,
+};
 
 /* === Macros === */
 
@@ -113,7 +118,13 @@ pub(crate) fn execution_file_frame(
             updated_at: file.updated_at.clone(),
         });
     }
-    RuntimeExecutionFileFrame { files: records, total_files: total, returned_files: returned, truncated: returned < total, error: None }
+    RuntimeExecutionFileFrame {
+        files: records,
+        total_files: total,
+        returned_files: returned,
+        truncated: returned < total,
+        error: None,
+    }
 }
 
 /* === Private Functions === */

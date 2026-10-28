@@ -92,7 +92,10 @@ struct Opening {
 
 impl Streams {
     pub(super) fn new(capacity: usize) -> Self {
-        Self { budget: Arc::new(Semaphore::new(capacity)), registry: Arc::default() }
+        Self {
+            budget: Arc::new(Semaphore::new(capacity)),
+            registry: Arc::default(),
+        }
     }
 
     pub(super) fn cancel_owner(&self, owner: &str) {

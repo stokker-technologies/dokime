@@ -121,7 +121,10 @@ impl OperationSnapshot {
 impl OperationRegistry {
     pub fn new() -> Arc<Self> {
         let (sender, _) = tokio::sync::watch::channel(OperationSnapshot::default());
-        Arc::new(Self { state: Mutex::new(Entries::default()), sender })
+        Arc::new(Self {
+            state: Mutex::new(Entries::default()),
+            sender,
+        })
     }
 
     pub fn begin(self: &Arc<Self>, label: impl Into<String>) -> Operation {
@@ -223,7 +226,10 @@ impl Entries {
         shown.truncate(usize::try_from(maximum).expect("validated progress operation limit"));
         // Identifiers are time-ordered, so this restores start order.
         shown.sort_by(|left, right| left.operation.operation_id.cmp(&right.operation.operation_id));
-        OperationSnapshot { revision: self.revision, operations: shown.into_iter().map(|entry| entry.operation.clone()).collect() }
+        OperationSnapshot {
+            revision: self.revision,
+            operations: shown.into_iter().map(|entry| entry.operation.clone()).collect(),
+        }
     }
 }
 

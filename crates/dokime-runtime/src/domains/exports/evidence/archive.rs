@@ -86,8 +86,16 @@ struct Document<'a, T> {
 impl Writer {
     pub fn open(path: &Path, cancellation: &CancellationToken) -> Result<Self> {
         let file = File::create_new(path)?;
-        let bounded = BoundedFile { file, cancellation: cancellation.clone(), maximum_bytes: super::MAX_EXPORT_BYTES };
-        Ok(Self { zip: ZipWriter::new(bounded), entries: Vec::new(), cancellation: cancellation.clone() })
+        let bounded = BoundedFile {
+            file,
+            cancellation: cancellation.clone(),
+            maximum_bytes: super::MAX_EXPORT_BYTES,
+        };
+        Ok(Self {
+            zip: ZipWriter::new(bounded),
+            entries: Vec::new(),
+            cancellation: cancellation.clone(),
+        })
     }
 
     fn start(&mut self, path: &str) -> Result<()> {
@@ -141,7 +149,13 @@ impl Writer {
     pub async fn database(&mut self, reader: FileReader, budget: &mut InventoryBudget) -> Result<()> {
         self.start("evidence.sqlite")?;
         let (size_bytes, sha256) = copy(reader, &mut self.zip, &self.cancellation, super::MAX_EXPORT_BYTES).await?;
-        let entry = Entry { path: "evidence.sqlite".into(), size_bytes, sha256, source: None, relative_path: None };
+        let entry = Entry {
+            path: "evidence.sqlite".into(),
+            size_bytes,
+            sha256,
+            source: None,
+            relative_path: None,
+        };
         budget.reserve(&entry)?;
         self.entries.push(entry);
         Ok(())
@@ -150,7 +164,10 @@ impl Writer {
     pub fn finish(mut self, manifest: &impl Serialize) -> Result<File> {
         // Payload Checksums Exclude The Manifest Itself.
         let document = Document { manifest, payloads: &self.entries };
-        let mut bytes = LimitedBytes { bytes: Vec::new(), maximum: super::MAX_MANIFEST_BYTES };
+        let mut bytes = LimitedBytes {
+            bytes: Vec::new(),
+            maximum: super::MAX_MANIFEST_BYTES,
+        };
         serde_json::to_writer(&mut bytes, &document)?;
         self.start("manifest.json")?;
         self.zip.write_all(&bytes.bytes)?;

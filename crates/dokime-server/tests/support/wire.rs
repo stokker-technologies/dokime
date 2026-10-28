@@ -133,7 +133,10 @@ impl WireClient {
         &self, request: impl tonic::IntoRequest<contracts::execution::GetCycle>,
     ) -> Result<tonic::Response<model::execution::wire::RunReply>, tonic::Status> {
         let (metadata, _, request) = request.into_request().into_parts();
-        let list = contracts::execution::ListExecutions { cycle_id: request.cycle_id, ..Default::default() };
+        let list = contracts::execution::ListExecutions {
+            cycle_id: request.cycle_id,
+            ..Default::default()
+        };
         let response =
             self.unary::<contracts::execution::ListExecutions>(Request::from_parts(metadata.clone(), Default::default(), list)).await?;
         let executions = response.into_inner().executions;
@@ -149,7 +152,10 @@ impl WireClient {
         &self, request: impl tonic::IntoRequest<CaseSelection>,
     ) -> Result<tonic::Response<model::execution::wire::RunReply>, tonic::Status> {
         let (metadata, _, request) = request.into_request().into_parts();
-        let list = contracts::execution::ListExecutions { cycle_id: request.cycle_id, ..Default::default() };
+        let list = contracts::execution::ListExecutions {
+            cycle_id: request.cycle_id,
+            ..Default::default()
+        };
         let response =
             self.unary::<contracts::execution::ListExecutions>(Request::from_parts(metadata.clone(), Default::default(), list)).await?;
         let executions = response.into_inner().executions;
@@ -178,7 +184,10 @@ impl WireClient {
             }
         }
         let preview = if plan.case_ids.is_empty() {
-            let register = contracts::planning::RegisterSelection { plan: Some(plan), idempotency_key: uuid::Uuid::now_v7().to_string() };
+            let register = contracts::planning::RegisterSelection {
+                plan: Some(plan),
+                idempotency_key: uuid::Uuid::now_v7().to_string(),
+            };
             let request = Request::from_parts(metadata.clone(), Default::default(), register);
             let response = self.unary::<contracts::planning::RegisterSelection>(request).await?;
             response.into_inner()
@@ -191,14 +200,21 @@ impl WireClient {
         let executions = preview
             .cases
             .into_iter()
-            .map(|case| contracts::execution::ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: case.case_id })
+            .map(|case| contracts::execution::ExecutionBinding {
+                execution_id: uuid::Uuid::now_v7().to_string(),
+                case_id: case.case_id,
+            })
             .collect();
         let append = contracts::execution::AppendExecutions { cycle_id: request.cycle_id, executions };
         self.unary::<contracts::execution::AppendExecutions>(Request::from_parts(metadata, Default::default(), append)).await
     }
 
     pub fn new(channel: Channel) -> Self {
-        Self { channel, decoding: 4 * 1024 * 1024, encoding: u32::MAX as usize }
+        Self {
+            channel,
+            decoding: 4 * 1024 * 1024,
+            encoding: u32::MAX as usize,
+        }
     }
 
     pub async fn connect(endpoint: String) -> Result<Self, tonic::transport::Error> {
@@ -419,7 +435,13 @@ impl Default for Gate {
 
 impl Gate {
     pub fn reporting(outcome: fn(&CycleView) -> ProviderCycleOutcome) -> Self {
-        Self { calls: AtomicUsize::new(0), started: Notify::new(), release: Notify::new(), returned: AtomicBool::new(false), outcome }
+        Self {
+            calls: AtomicUsize::new(0),
+            started: Notify::new(),
+            release: Notify::new(),
+            returned: AtomicBool::new(false),
+            outcome,
+        }
     }
 }
 
