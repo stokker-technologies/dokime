@@ -22,7 +22,6 @@
 // Local Imports
 use super::prelude::*;
 use dokime_runtime::runtime::query::{DownsampleTechnique, PlotPayloadRequest, RuntimePlotQueryMode};
-use dokime_runtime::storage::sqlite::counters;
 
 /* === Constants === */
 
@@ -105,12 +104,13 @@ pub async fn sample_plot(samples: usize, display_points: usize) {
     let mut request = wifi_request(None, Some(display_points));
     // Markers And Samples Read The Same Saved Storage Cut.
     request.marker_record_types = vec!["test.cycle.started".to_owned()];
-    let before = counters().data_scan_rows;
+    // This runtime's own storage counts its scan, apart from any other runtime in the process.
+    let before = runtime.storage_read_counters().data_scan_rows;
     let envelopes = runtime
         .query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot)
         .await
         .expect("a large sample set plots within its display points");
-    let scanned = counters().data_scan_rows - before;
+    let scanned = runtime.storage_read_counters().data_scan_rows - before;
     let series = &envelopes[0].payload.series[0];
     assert_eq!(series.raw_points, samples);
     assert!(series.downsampled);
