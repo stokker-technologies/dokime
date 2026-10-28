@@ -7,6 +7,8 @@
  * ***
  */
 
+/* === Modules === */
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -53,7 +55,6 @@ fn position_selection() -> RecordSelection {
     RecordSelection { record_types: vec![Identifier::new("calibration.field.completed").unwrap()], ..Default::default() }
 }
 
-/* === Tests === */
 #[tokio::test]
 async fn managed_records_kill() {
     if let Some(root) = std::env::var_os("DOKIME_RECORD_POSITION_KILL_ROOT") {
@@ -141,3 +142,5 @@ async fn record_position_writer(root: PathBuf) {
     crate::service_support::children::announce_ready();
     std::future::pending::<()>().await;
 }
+
+/* === Tests === */

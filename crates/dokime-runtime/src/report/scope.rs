@@ -10,10 +10,24 @@
 // What Report Materialization Reads Of The Application, Held By The Host
 // Because An Authored Operation Context Carries No Runtime Scope.
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
 
 // Local Imports
 use crate::app::{Dokime, Resources};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
 
 /* === Structs === */
 
@@ -22,6 +36,10 @@ pub(crate) struct Scope {
     state: harmos::state::StateManager<Dokime>,
     resources: Resources,
 }
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -38,3 +56,9 @@ impl Scope {
         &self.resources
     }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

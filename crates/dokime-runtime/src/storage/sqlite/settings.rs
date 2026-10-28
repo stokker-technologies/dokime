@@ -13,11 +13,17 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+use rusqlite::OptionalExtension;
+
+// Local Imports
 use super::{Error, State};
+
 #[cfg(feature = "host")]
 use crate::config::ApplicationMetadata;
 use dokime_domain::model::settings::{ApplicationSettings, SettingsSnapshot, UpdateSettings};
-use rusqlite::OptionalExtension;
 
 /* === Constants === */
 

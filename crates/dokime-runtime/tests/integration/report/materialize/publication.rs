@@ -9,15 +9,17 @@
 
 // Report Dependency Retry Story
 
+/* === Modules === */
+
 /* === Re-Exports === */
 
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::{Mutex, atomic::AtomicBool};
 
 // Third Party Imports
 use harmos::storage::{StorageBackend, StorageBackends};
-use std::sync::{Mutex, atomic::AtomicBool};
 
 // Local Imports
 use crate::service_support::prelude::*;
@@ -41,6 +43,9 @@ use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
 /* === Implementations === */
 
 /* === Public Functions === */
+
+/* === Private Functions === */
+
 #[tokio::test]
 async fn dependency_publication_retry() {
     let source_root = tempdir().unwrap();
@@ -239,10 +244,6 @@ async fn dependency_publication_retry() {
     owner.stop().await.unwrap();
 }
 
-/* === Private Functions === */
-
-/* === Tests === */
-
 #[tokio::test]
 async fn admitted_create_window() {
     use harmos::storage::{FileMetadata, MutationId};
@@ -302,3 +303,5 @@ async fn admitted_create_window() {
     manager.close().await.unwrap();
     assert!(result.is_ok(), "an admitted create lost its outcome after only two seconds: {}", result.err().unwrap());
 }
+
+/* === Tests === */

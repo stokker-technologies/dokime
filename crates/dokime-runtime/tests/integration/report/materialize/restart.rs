@@ -9,6 +9,8 @@
 
 // Persisted Report Restart Story
 
+/* === Modules === */
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -31,6 +33,7 @@ use {dokime_runtime::operations::reports::MaterializeReport, model::reports::wir
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /* === Enums === */
 
 /* === Traits === */
@@ -38,6 +41,9 @@ use {dokime_runtime::operations::reports::MaterializeReport, model::reports::wir
 /* === Implementations === */
 
 /* === Public Functions === */
+
+/* === Private Functions === */
+
 #[tokio::test]
 async fn persisted_cycle_restart() {
     let root = tempdir().unwrap();
@@ -167,7 +173,5 @@ async fn persisted_cycle_restart() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
-
-/* === Private Functions === */
 
 /* === Tests === */

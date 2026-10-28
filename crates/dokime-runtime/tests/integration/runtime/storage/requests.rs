@@ -7,6 +7,8 @@
  * ***
  */
 
+/* === Modules === */
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -41,8 +43,6 @@ use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::e
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn prepared_start_refusal() {
@@ -301,3 +301,5 @@ async fn queued_execution_request() {
     assert_eq!(receipt.claimed, 0);
     runtime.shutdown().await.unwrap();
 }
+
+/* === Tests === */

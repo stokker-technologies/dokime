@@ -7,10 +7,25 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
 use harmos::storage::ReadBatch;
 use serde::{Deserialize, Serialize, ser::SerializeSeq};
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
 
 /* === Structs === */
 
@@ -31,6 +46,8 @@ enum Rows<T> {
     Owned(Vec<T>),
     Native(super::projection::Pages<T>),
 }
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -178,6 +195,12 @@ impl<T: harmos::MemorySize> harmos::MemorySize for ReadRows<T> {
         std::mem::size_of::<Self>().saturating_add(heap)
     }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -15,10 +15,15 @@
 
 /* === Imports === */
 
-use super::{Entry, blob, check_digest, position, saved};
-use crate::storage::{Error, records::RecordRow};
+// Standard Library Imports
+
+// Third Party Imports
 use harmos::storage::{StorageCursor, StoredRecord};
 use rusqlite::{Connection, params};
+
+// Local Imports
+use super::{Entry, blob, check_digest, position, saved};
+use crate::storage::{Error, records::RecordRow};
 
 /* === Constants === */
 
@@ -37,7 +42,6 @@ CREATE INDEX IF NOT EXISTS storage_capture_ordinal ON storage_record_captures(ex
 CREATE INDEX IF NOT EXISTS storage_record_cycle ON storage_record_visibility(cycle,position);
 CREATE INDEX IF NOT EXISTS storage_record_execution ON storage_record_visibility(execution,position);
 ";
-
 const CAPTURE_PAGE_SQL: &str = "SELECT e.body,e.digest FROM storage_record_captures c
     JOIN storage_data_entries e ON e.position=c.position
     WHERE c.execution=?1 AND c.ordinal>?2 AND c.position<=?3 ORDER BY c.ordinal LIMIT 512";

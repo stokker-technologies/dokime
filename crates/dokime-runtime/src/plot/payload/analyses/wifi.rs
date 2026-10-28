@@ -7,10 +7,19 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
-use super::{PlotAnalysis, PlotPoint, PlotSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan, point_x};
+// Standard Library Imports
 use std::collections::{BTreeMap, btree_map::Entry};
+
+// Third Party Imports
+
+// Local Imports
+use super::{PlotAnalysis, PlotPoint, PlotSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan, point_x};
 
 /* === Constants === */
 
@@ -18,6 +27,8 @@ const BANDS: [&str; 3] = ["2.4 GHz", "5 GHz", "6 GHz"];
 const ALLOCATION: &str = "WiFi occupancy allocation failed";
 const OVERFLOW: &str = "WiFi occupancy count or size overflows";
 const ENCODING: &str = "WiFi occupancy time encoding failed";
+
+/* === Macros === */
 
 /* === Type Aliases === */
 
@@ -28,6 +39,10 @@ type Scans = BTreeMap<i64, (String, Counts)>;
 /* === Structs === */
 
 struct Count(usize);
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -81,21 +96,6 @@ pub(super) fn analyze(series: &[PlotSeries]) -> Result<PlotAnalysis, &'static st
     Ok(PlotAnalysis::WifiOccupancy { channels: all_channels, occupied_channels, bands, scans: output })
 }
 
-/* === Private Functions === */
-
-fn channel_slots(series: &[PlotSeries]) -> Result<Vec<Channel>, &'static str> {
-    let count = series.iter().filter(|entry| series_channel(entry).is_some()).count();
-    let mut channels = slots(count)?;
-    for entry in series {
-        if let Some(channel) = series_channel(entry) {
-            channels.push((channel, false));
-        }
-    }
-    channels.sort_unstable_by_key(|&(channel, _)| channel);
-    channels.dedup_by_key(|entry| entry.0);
-    Ok(channels)
-}
-
 pub(in crate::plot::payload) fn reading(point: &PlotPoint) -> Option<(i64, usize)> {
     let second = point_x(point)?.floor() as i64;
     let count = point.y.filter(|value| value.is_finite()).map_or(0, |value| value.round().max(0.0) as usize);
@@ -133,6 +133,36 @@ pub(in crate::plot::payload) fn scan(time: String, counts: Counts) -> Result<Wif
     Ok(WifiScan { time, channels, bands, occupied_channels, total_networks, peak_count })
 }
 
+pub(in crate::plot::payload) fn time(point: &PlotPoint) -> Result<String, &'static str> {
+    if let Some(value) = point.x.as_str() {
+        return text(value);
+    }
+    let mut output = slots(time_length(point)?)?;
+    serde_json::to_writer(&mut output, &point.x).map_err(|_| ENCODING)?;
+    String::from_utf8(output).map_err(|_| ENCODING)
+}
+
+pub(in crate::plot::payload) fn series_channel(entry: &PlotSeries) -> Option<i64> {
+    let channel =
+        |text: &str| text.trim().parse::<f64>().ok().filter(|value| value.is_finite() && value.fract() == 0.0).map(|value| value as i64);
+    channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))
+}
+
+/* === Private Functions === */
+
+fn channel_slots(series: &[PlotSeries]) -> Result<Vec<Channel>, &'static str> {
+    let count = series.iter().filter(|entry| series_channel(entry).is_some()).count();
+    let mut channels = slots(count)?;
+    for entry in series {
+        if let Some(channel) = series_channel(entry) {
+            channels.push((channel, false));
+        }
+    }
+    channels.sort_unstable_by_key(|&(channel, _)| channel);
+    channels.dedup_by_key(|entry| entry.0);
+    Ok(channels)
+}
+
 fn occupancy<'a>(mut counts: impl Iterator<Item = &'a usize>) -> Result<(usize, usize, usize), &'static str> {
     counts.try_fold((0usize, 0usize, 0usize), |(occupied, total, peak), &count| {
         let occupied = occupied.checked_add(usize::from(count > 0)).ok_or(OVERFLOW)?;
@@ -150,15 +180,6 @@ fn time_length(point: &PlotPoint) -> Result<usize, &'static str> {
     Ok(output.0)
 }
 
-pub(in crate::plot::payload) fn time(point: &PlotPoint) -> Result<String, &'static str> {
-    if let Some(value) = point.x.as_str() {
-        return text(value);
-    }
-    let mut output = slots(time_length(point)?)?;
-    serde_json::to_writer(&mut output, &point.x).map_err(|_| ENCODING)?;
-    String::from_utf8(output).map_err(|_| ENCODING)
-}
-
 fn text(value: &str) -> Result<String, &'static str> {
     let mut output = String::new();
     output.try_reserve_exact(value.len()).map_err(|_| ALLOCATION)?;
@@ -172,12 +193,6 @@ fn slots<T>(count: usize) -> Result<Vec<T>, &'static str> {
     Ok(output)
 }
 
-pub(in crate::plot::payload) fn series_channel(entry: &PlotSeries) -> Option<i64> {
-    let channel =
-        |text: &str| text.trim().parse::<f64>().ok().filter(|value| value.is_finite() && value.fract() == 0.0).map(|value| value as i64);
-    channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))
-}
-
 fn band_index(channel: i64) -> Option<usize> {
     match channel {
         1..=14 => Some(0),
@@ -187,11 +202,16 @@ fn band_index(channel: i64) -> Option<usize> {
     }
 }
 
-#[cfg(feature = "storage")]
-#[cfg(feature = "storage")]
-#[cfg(feature = "storage")]
-#[cfg(feature = "storage")]
 /* === Tests === */
+
+#[cfg(feature = "storage")]
+
+#[cfg(feature = "storage")]
+
+#[cfg(feature = "storage")]
+
+#[cfg(feature = "storage")]
+
 #[cfg(test)]
 mod tests {
     use super::*;

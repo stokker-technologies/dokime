@@ -17,8 +17,6 @@ mod wire;
 
 /* === Imports === */
 
-use crate::grpc::transcode::Transcode;
-
 // Standard Library Imports
 use std::{
     sync::Arc,
@@ -27,15 +25,16 @@ use std::{
 
 // Third Party Imports
 use contract as v1;
-use dokime::harmos::domain::Portable;
-use dokime::harmos::operations::{StreamInput, StreamItem};
-use dokime::harmos::{Context, RegistrationExt, Response};
 use sha2::{Digest, Sha256};
 use tokio::sync::OwnedSemaphorePermit;
 use tonic::Status;
 use uuid::Uuid;
 
 // Local Imports
+use crate::grpc::transcode::Transcode;
+use dokime::harmos::domain::Portable;
+use dokime::harmos::operations::{StreamInput, StreamItem};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use dokime::domain::model::plugins::wire as plugins_model;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::plugins as contract;
@@ -63,6 +62,10 @@ struct Resources {
 }
 
 /* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 impl Resources {
     async fn submit<T: Send + 'static, F: std::future::Future<Output = Result<T, PluginError>> + Send + 'static>(

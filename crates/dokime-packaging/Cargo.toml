@@ -48,8 +48,8 @@ tempfile = { workspace = true }
 zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Parsing
-syn = { workspace = true }
 cargo_metadata = { workspace = true }
+syn = { workspace = true }
 
 # Concurrency
 
@@ -74,7 +74,36 @@ tauri-bundler = { workspace = true }
 # === Target Dependencies === #
 
 [target.'cfg(unix)'.dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
 libc = { workspace = true }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 [target.'cfg(windows)'.dependencies]
 # Local

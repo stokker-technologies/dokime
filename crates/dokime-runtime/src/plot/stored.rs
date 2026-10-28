@@ -15,11 +15,9 @@
 
 /* === Imports === */
 
-use super::{DownsampleTechnique, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotSeriesSummary, PlotWindow};
-use crate::{
-    runtime::{Error, Result},
-    storage::{Manager, telemetry::TypedCodec},
-};
+// Standard Library Imports
+
+// Third Party Imports
 use harmos::{
     Aggregate,
     storage::{
@@ -36,6 +34,13 @@ use harmos::{
             },
         },
     },
+};
+
+// Local Imports
+use super::{DownsampleTechnique, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotSeriesSummary, PlotWindow};
+use crate::{
+    runtime::{Error, Result},
+    storage::{Manager, telemetry::TypedCodec},
 };
 
 /* === Constants === */
@@ -304,13 +309,14 @@ pub(crate) fn path(field: &str) -> FieldPath {
         fields: field.split('.').map(str::to_owned).collect(),
     }
 }
+
+/* === Private Functions === */
+
 fn value(field: &str) -> FieldPath {
     FieldPath {
         fields: vec!["payload".into(), "values".into(), field.into()],
     }
 }
-
-/* === Private Functions === */
 
 // Float Series Stage Only Their Numeric Columns And Original Timestamps.
 // Integer Schemas Keep Their Native Exact Scalar Representation In The General Path.

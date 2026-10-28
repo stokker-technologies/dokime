@@ -7,10 +7,31 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 use super::{Definition, Group, Template, copied_strings, exact_slots, metadata};
 use crate::storage::{Error, Result};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -98,3 +119,9 @@ impl TryFrom<Definition> for crate::definition::TestSuite {
         })
     }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

@@ -1,6 +1,9 @@
 /* ***
+ *
  * Dokime
+ *
  * SPDX-License-Identifier: Apache-2.0
+ *
  * ***
  */
 
@@ -8,8 +11,12 @@
 
 #[path = "payload/context.rs"]
 mod context;
+
 #[path = "payload/portable.rs"]
 mod portable;
+
+/* === Re-Exports === */
+
 pub(super) use context::host_override_bytes;
 pub(super) use portable::{
     execution_snapshots, host_snapshot, lease_snapshot, parameter_entry, resource_entries, section_snapshot, source_group,
@@ -17,8 +24,13 @@ pub(super) use portable::{
 
 /* === Imports === */
 
-use context::{LeaseSource, visit_host, visit_leases};
+// Standard Library Imports
+use std::fmt::{self, Write};
 
+// Third Party Imports
+
+// Local Imports
+use context::{LeaseSource, visit_host, visit_leases};
 use crate::{
     runtime::{Error, Result},
     state::RuntimeState,
@@ -33,29 +45,21 @@ use dokime_domain::model::{
     traceability::{TraceabilityEntry, TraceabilitySnapshot},
     values::Value,
 };
-use std::fmt::{self, Write};
 
-/* === Types === */
+/* === Constants === */
 
-#[derive(Clone, Copy)]
-enum Scope<'a> {
-    Borrowed(&'a RecordScope),
-    Cycle(&'a TestCycleId),
-    Empty,
-}
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
 struct ScopeSeed<'a>(Scope<'a>);
+
 struct Sanitized<'a>(&'a str);
+
 struct ParameterLabel<'a>(&'a str);
 
-enum EntryValue<'a> {
-    Borrowed(&'a Value),
-    Text(fmt::Arguments<'a>),
-    Integer(i64),
-}
-enum EntryMetadata<'a> {
-    Borrowed(&'a Metadata),
-    New { identifier: fmt::Arguments<'a>, label: fmt::Arguments<'a> },
-}
 struct Entry<'a> {
     metadata: EntryMetadata<'a>,
     value: EntryValue<'a>,
@@ -63,33 +67,104 @@ struct Entry<'a> {
     unit: Option<&'a str>,
 }
 
+#[derive(Default)]
+struct EntryPlan {
+    count: usize,
+}
+
+#[derive(Default)]
+struct Plan {
+    count: usize,
+}
+
+struct EntryBuild {
+    rows: Vec<TraceabilityEntry>,
+}
+
+struct Build {
+    rows: Vec<TraceabilitySnapshot>,
+}
+
+#[derive(Default)]
+struct TextSize {
+    bytes: usize,
+    visible: bool,
+}
+
+#[derive(Clone, Copy)]
+struct Cycle<'a> {
+    state: &'a RuntimeState,
+    cycle: &'a TestCycle,
+    cases: &'a [(&'a dokime_domain::model::identity::CaseId, usize)],
+}
+
+#[derive(Clone, Copy)]
+struct ParameterRow<'a> {
+    scope: Scope<'a>,
+    source: &'a str,
+    parameter: &'a crate::definition::MaterializedParameter,
+    ordinal: usize,
+}
+
+struct ParameterGroup<'a> {
+    scope: Scope<'a>,
+    source: &'a str,
+    start: usize,
+    length: usize,
+    ordinal: usize,
+}
+
+struct StatedSource<'a>(Option<&'a str>);
+
+#[derive(Default)]
+struct CountGroups {
+    count: usize,
+}
+
+#[derive(Default)]
+struct CountEntries {
+    count: usize,
+}
+
+#[derive(Clone, Copy)]
+struct CycleFields<'a> {
+    created_at: &'a Timestamp,
+    updated_at: &'a Timestamp,
+    label: &'a str,
+    case_count: usize,
+}
+
+/* === Enums === */
+
+#[derive(Clone, Copy)]
+enum Scope<'a> {
+    Borrowed(&'a RecordScope),
+    Cycle(&'a TestCycleId),
+    Empty,
+}
+
+enum EntryValue<'a> {
+    Borrowed(&'a Value),
+    Text(fmt::Arguments<'a>),
+    Integer(i64),
+}
+
+enum EntryMetadata<'a> {
+    Borrowed(&'a Metadata),
+    New { identifier: fmt::Arguments<'a>, label: fmt::Arguments<'a> },
+}
+
+/* === Traits === */
+
 trait Entries {
     fn push(&mut self, entry: Entry<'_>) -> Result<()>;
 }
+
 trait Groups {
     fn group(
         &mut self, scope: Scope<'_>, at: Option<&Timestamp>, metadata: Option<EntryMetadata<'_>>, seed: fmt::Arguments<'_>,
         keep_empty: bool, visit: &mut dyn FnMut(&mut dyn Entries) -> Result<()>,
     ) -> Result<()>;
-}
-#[derive(Default)]
-struct EntryPlan {
-    count: usize,
-}
-#[derive(Default)]
-struct Plan {
-    count: usize,
-}
-struct EntryBuild {
-    rows: Vec<TraceabilityEntry>,
-}
-struct Build {
-    rows: Vec<TraceabilitySnapshot>,
-}
-#[derive(Default)]
-struct TextSize {
-    bytes: usize,
-    visible: bool,
 }
 
 /* === Implementations === */
@@ -101,6 +176,7 @@ impl Write for TextSize {
         Ok(())
     }
 }
+
 impl<'a> Scope<'a> {
     fn values(self) -> [Option<&'a str>; 8] {
         match self {
@@ -133,6 +209,7 @@ impl<'a> Scope<'a> {
         }
     }
 }
+
 impl fmt::Display for ScopeSeed<'_> {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (index, value) in self.0.values().into_iter().enumerate() {
@@ -146,6 +223,7 @@ impl fmt::Display for ScopeSeed<'_> {
         Ok(())
     }
 }
+
 impl fmt::Display for Sanitized<'_> {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         for character in self.0.chars() {
@@ -154,6 +232,7 @@ impl fmt::Display for Sanitized<'_> {
         Ok(())
     }
 }
+
 impl fmt::Display for ParameterLabel<'_> {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (index, part) in self.0.split(['.', '_', '-']).filter(|part| !part.is_empty()).enumerate() {
@@ -171,6 +250,7 @@ impl fmt::Display for ParameterLabel<'_> {
         Ok(())
     }
 }
+
 impl EntryValue<'_> {
     fn visible(&self) -> Result<bool> {
         match self {
@@ -187,6 +267,7 @@ impl EntryValue<'_> {
         })
     }
 }
+
 impl EntryMetadata<'_> {
     fn owned(self) -> Result<Metadata> {
         match self {
@@ -198,18 +279,21 @@ impl EntryMetadata<'_> {
         }
     }
 }
+
 impl Entries for EntryPlan {
     fn push(&mut self, _entry: Entry<'_>) -> Result<()> {
         self.count = add(self.count, 1)?;
         Ok(())
     }
 }
+
 impl Entries for EntryBuild {
     fn push(&mut self, entry: Entry<'_>) -> Result<()> {
         self.rows.push(owned_entry(entry)?);
         Ok(())
     }
 }
+
 impl Groups for Plan {
     fn group(
         &mut self, _scope: Scope<'_>, _at: Option<&Timestamp>, _metadata: Option<EntryMetadata<'_>>, _seed: fmt::Arguments<'_>,
@@ -224,6 +308,7 @@ impl Groups for Plan {
         Ok(())
     }
 }
+
 impl Groups for Build {
     fn group(
         &mut self, scope: Scope<'_>, at: Option<&Timestamp>, metadata: Option<EntryMetadata<'_>>, seed: fmt::Arguments<'_>,
@@ -235,36 +320,60 @@ impl Groups for Build {
         Ok(())
     }
 }
-/* === Functions === */
 
-fn exhausted() -> Error {
-    harmos::Error::ResourceExhausted { resource: "traceability construction" }.into()
+impl<'a> Cycle<'a> {
+    fn executions(self) -> impl DoubleEndedIterator<Item = &'a TestExecution> {
+        self.cycle.execution_ids.iter().filter_map(|id| self.state.executions.get(id))
+    }
+    fn case_index(self, id: &dokime_domain::model::identity::CaseId) -> Option<usize> {
+        self.cases.binary_search_by(|(case, _)| (*case).cmp(id)).ok().map(|index| self.cases[index].1)
+    }
+    fn case_count(self) -> usize {
+        self.cases.len()
+    }
+    fn selected(self, scope: Scope<'a>) -> Option<&'a TestExecution> {
+        let Scope::Borrowed(scope) = scope else { return None };
+        let execution = match &scope.test_execution_id {
+            Some(id) => self.executions().find(|execution| &execution.test_execution_id == id),
+            None => self.executions().rev().find(|execution| scope.test_case_id.as_ref().is_none_or(|id| id == &execution.test_case_id)),
+        };
+        execution.filter(|execution| scope.test_case_id.as_ref().is_none_or(|id| id == &execution.test_case_id))
+    }
 }
-fn add(left: usize, right: usize) -> Result<usize> {
-    left.checked_add(right).ok_or_else(exhausted)
+
+impl fmt::Display for StatedSource<'_> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output.write_str("traceability.template")?;
+        if let Some(source) = self.0.filter(|source| !source.is_empty()) {
+            output.write_char('.')?;
+            write!(output, "{}", Sanitized(source))?;
+        }
+        Ok(())
+    }
 }
-fn reserved<T>(count: usize) -> Result<Vec<T>> {
-    let mut rows = Vec::new();
-    rows.try_reserve_exact(count).map_err(|_| exhausted())?;
-    Ok(rows)
+
+impl Entries for CountEntries {
+    fn push(&mut self, _entry: Entry<'_>) -> Result<()> {
+        self.count = add(self.count, 1)?;
+        Ok(())
+    }
 }
-fn text_size(value: fmt::Arguments<'_>) -> Result<TextSize> {
-    let mut size = TextSize::default();
-    size.write_fmt(value).map_err(|_| exhausted())?;
-    Ok(size)
+
+impl Groups for CountGroups {
+    fn group(
+        &mut self, _scope: Scope<'_>, _at: Option<&Timestamp>, _metadata: Option<EntryMetadata<'_>>, _seed: fmt::Arguments<'_>,
+        keep_empty: bool, visit: &mut dyn FnMut(&mut dyn Entries) -> Result<()>,
+    ) -> Result<()> {
+        let mut entries = CountEntries::default();
+        visit(&mut entries)?;
+        if keep_empty || entries.count != 0 {
+            self.count = add(self.count, 1)?;
+        }
+        Ok(())
+    }
 }
-fn text(value: fmt::Arguments<'_>) -> Result<String> {
-    let length = text_size(value)?.bytes;
-    let mut result = String::new();
-    result.try_reserve_exact(length).map_err(|_| exhausted())?;
-    result.write_fmt(value).map_err(|_| exhausted())?;
-    Ok(result)
-}
-fn entry(
-    sink: &mut dyn Entries, identifier: fmt::Arguments<'_>, label: fmt::Arguments<'_>, value: EntryValue<'_>, source: fmt::Arguments<'_>,
-) -> Result<()> {
-    sink.push(Entry { metadata: EntryMetadata::New { identifier, label }, value, source, unit: None })
-}
+
+/* === Public Functions === */
 
 pub(crate) fn retained_state(
     state: &RuntimeState, selected: Option<&RecordScope>, at: &Timestamp,
@@ -295,16 +404,6 @@ pub(crate) fn retained_leases(
     collect_batch(&mut |groups| visit_leases(LeaseSource::Ledger(facts), scope, Some(at), groups)).map(Some)
 }
 
-fn collect_batch(visit: &mut dyn FnMut(&mut dyn Groups) -> Result<()>) -> Result<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>> {
-    let mut plan = Plan::default();
-    visit(&mut plan)?;
-    harmos::storage::ReadBatch::new(()).try_map(|_| {
-        let mut build = Build { rows: reserved(plan.count)? };
-        visit(&mut build)?;
-        Ok(build.rows)
-    })
-}
-
 pub(crate) fn replace_source(
     left: harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>, right: harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>, source: &str,
 ) -> Result<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>> {
@@ -332,35 +431,61 @@ pub(crate) fn replace_source(
     })
 }
 
+pub(crate) fn count(state: &RuntimeState) -> Result<usize> {
+    let mut count = CountGroups::default();
+    visit_state(state, None, None, &mut count)?;
+    Ok(count.count)
+}
+
+/* === Private Functions === */
+
+fn exhausted() -> Error {
+    harmos::Error::ResourceExhausted { resource: "traceability construction" }.into()
+}
+
+fn add(left: usize, right: usize) -> Result<usize> {
+    left.checked_add(right).ok_or_else(exhausted)
+}
+
+fn reserved<T>(count: usize) -> Result<Vec<T>> {
+    let mut rows = Vec::new();
+    rows.try_reserve_exact(count).map_err(|_| exhausted())?;
+    Ok(rows)
+}
+
+fn text_size(value: fmt::Arguments<'_>) -> Result<TextSize> {
+    let mut size = TextSize::default();
+    size.write_fmt(value).map_err(|_| exhausted())?;
+    Ok(size)
+}
+
+fn text(value: fmt::Arguments<'_>) -> Result<String> {
+    let length = text_size(value)?.bytes;
+    let mut result = String::new();
+    result.try_reserve_exact(length).map_err(|_| exhausted())?;
+    result.write_fmt(value).map_err(|_| exhausted())?;
+    Ok(result)
+}
+
+fn entry(
+    sink: &mut dyn Entries, identifier: fmt::Arguments<'_>, label: fmt::Arguments<'_>, value: EntryValue<'_>, source: fmt::Arguments<'_>,
+) -> Result<()> {
+    sink.push(Entry { metadata: EntryMetadata::New { identifier, label }, value, source, unit: None })
+}
+
+fn collect_batch(visit: &mut dyn FnMut(&mut dyn Groups) -> Result<()>) -> Result<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>> {
+    let mut plan = Plan::default();
+    visit(&mut plan)?;
+    harmos::storage::ReadBatch::new(()).try_map(|_| {
+        let mut build = Build { rows: reserved(plan.count)? };
+        visit(&mut build)?;
+        Ok(build.rows)
+    })
+}
+
 fn visit_state(state: &RuntimeState, selected: Option<&RecordScope>, at: Option<&Timestamp>, groups: &mut dyn Groups) -> Result<()> {
     visit_derived(state, selected, at, groups)?;
     visit_parameters(state, selected, at, groups)
-}
-
-#[derive(Clone, Copy)]
-struct Cycle<'a> {
-    state: &'a RuntimeState,
-    cycle: &'a TestCycle,
-    cases: &'a [(&'a dokime_domain::model::identity::CaseId, usize)],
-}
-impl<'a> Cycle<'a> {
-    fn executions(self) -> impl DoubleEndedIterator<Item = &'a TestExecution> {
-        self.cycle.execution_ids.iter().filter_map(|id| self.state.executions.get(id))
-    }
-    fn case_index(self, id: &dokime_domain::model::identity::CaseId) -> Option<usize> {
-        self.cases.binary_search_by(|(case, _)| (*case).cmp(id)).ok().map(|index| self.cases[index].1)
-    }
-    fn case_count(self) -> usize {
-        self.cases.len()
-    }
-    fn selected(self, scope: Scope<'a>) -> Option<&'a TestExecution> {
-        let Scope::Borrowed(scope) = scope else { return None };
-        let execution = match &scope.test_execution_id {
-            Some(id) => self.executions().find(|execution| &execution.test_execution_id == id),
-            None => self.executions().rev().find(|execution| scope.test_case_id.as_ref().is_none_or(|id| id == &execution.test_case_id)),
-        };
-        execution.filter(|execution| scope.test_case_id.as_ref().is_none_or(|id| id == &execution.test_case_id))
-    }
 }
 
 fn visit_derived(state: &RuntimeState, selected: Option<&RecordScope>, at: Option<&Timestamp>, groups: &mut dyn Groups) -> Result<()> {
@@ -581,9 +706,11 @@ fn visible_entry(
 fn resource_id(record: &dokime_domain::model::records::resources::ResourceRecord) -> &str {
     record.details.get("resource_instance_id").and_then(value_text).unwrap_or(record.resource_id.as_str())
 }
+
 fn value_text(value: &Value) -> Option<&str> {
     if let Value::Text(value) = value { Some(value) } else { None }
 }
+
 fn resource_records<'a>(
     cycle: Cycle<'a>, scope: Scope<'a>,
 ) -> impl Iterator<Item = &'a dokime_domain::model::records::resources::ResourceRecord> {
@@ -598,6 +725,7 @@ fn resource_records<'a>(
         record.scope.as_ref().is_some_and(|scope| scope.is_visible_in(selected) && scope.test_execution_id.as_ref() == Some(owner))
     })
 }
+
 fn visit_resources<'a>(cycle: Cycle<'a>, scope: Scope<'a>, at: Option<&Timestamp>, groups: &mut dyn Groups) -> Result<()> {
     let count = resource_records(cycle, scope).count();
     let mut resources = reserved(count)?;
@@ -636,6 +764,7 @@ fn visit_resources<'a>(cycle: Cycle<'a>, scope: Scope<'a>, at: Option<&Timestamp
     }
     Ok(())
 }
+
 fn visit_resource_entries(
     id: &str, label: &str, details: &std::collections::BTreeMap<String, Value>, index: usize, kind: usize, sink: &mut dyn Entries,
 ) -> Result<()> {
@@ -719,21 +848,6 @@ fn visit_resource_entries(
     Ok(())
 }
 
-#[derive(Clone, Copy)]
-struct ParameterRow<'a> {
-    scope: Scope<'a>,
-    source: &'a str,
-    parameter: &'a crate::definition::MaterializedParameter,
-    ordinal: usize,
-}
-struct ParameterGroup<'a> {
-    scope: Scope<'a>,
-    source: &'a str,
-    start: usize,
-    length: usize,
-    ordinal: usize,
-}
-
 fn parameter_rows<'a>(state: &'a RuntimeState, selected: Option<&'a RecordScope>) -> impl Iterator<Item = ParameterRow<'a>> {
     let run = state.run_parameters.values().map(|parameter| (Scope::Empty, parameter));
     let executions = state.executions.values().flat_map(|execution| {
@@ -750,6 +864,7 @@ fn parameter_rows<'a>(state: &'a RuntimeState, selected: Option<&'a RecordScope>
         .enumerate()
         .map(|(ordinal, (scope, source, parameter))| ParameterRow { scope, source, parameter, ordinal })
 }
+
 fn visit_parameters(state: &RuntimeState, selected: Option<&RecordScope>, at: Option<&Timestamp>, groups: &mut dyn Groups) -> Result<()> {
     let count = parameter_rows(state, selected).count();
     let mut rows = reserved(count)?;
@@ -795,50 +910,6 @@ fn visit_parameters(state: &RuntimeState, selected: Option<&RecordScope>, at: Op
     }
     Ok(())
 }
-struct StatedSource<'a>(Option<&'a str>);
-impl fmt::Display for StatedSource<'_> {
-    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
-        output.write_str("traceability.template")?;
-        if let Some(source) = self.0.filter(|source| !source.is_empty()) {
-            output.write_char('.')?;
-            write!(output, "{}", Sanitized(source))?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Default)]
-struct CountGroups {
-    count: usize,
-}
-#[derive(Default)]
-struct CountEntries {
-    count: usize,
-}
-impl Entries for CountEntries {
-    fn push(&mut self, _entry: Entry<'_>) -> Result<()> {
-        self.count = add(self.count, 1)?;
-        Ok(())
-    }
-}
-impl Groups for CountGroups {
-    fn group(
-        &mut self, _scope: Scope<'_>, _at: Option<&Timestamp>, _metadata: Option<EntryMetadata<'_>>, _seed: fmt::Arguments<'_>,
-        keep_empty: bool, visit: &mut dyn FnMut(&mut dyn Entries) -> Result<()>,
-    ) -> Result<()> {
-        let mut entries = CountEntries::default();
-        visit(&mut entries)?;
-        if keep_empty || entries.count != 0 {
-            self.count = add(self.count, 1)?;
-        }
-        Ok(())
-    }
-}
-pub(crate) fn count(state: &RuntimeState) -> Result<usize> {
-    let mut count = CountGroups::default();
-    visit_state(state, None, None, &mut count)?;
-    Ok(count.count)
-}
 
 fn owned_entry(entry: Entry<'_>) -> Result<TraceabilityEntry> {
     Ok(TraceabilityEntry {
@@ -848,6 +919,7 @@ fn owned_entry(entry: Entry<'_>) -> Result<TraceabilityEntry> {
         unit: entry.unit.map(|unit| text(format_args!("{unit}"))).transpose()?,
     })
 }
+
 fn build_snapshot(
     scope: Scope<'_>, at: Option<&Timestamp>, metadata: Option<EntryMetadata<'_>>, seed: fmt::Arguments<'_>, keep_empty: bool,
     visit: &mut dyn FnMut(&mut dyn Entries) -> Result<()>,
@@ -868,6 +940,7 @@ fn build_snapshot(
         entries: entries.rows,
     }))
 }
+
 fn collect_groups(visit: &mut dyn FnMut(&mut dyn Groups) -> Result<()>) -> Result<Vec<TraceabilitySnapshot>> {
     let mut plan = Plan::default();
     visit(&mut plan)?;
@@ -875,6 +948,7 @@ fn collect_groups(visit: &mut dyn FnMut(&mut dyn Groups) -> Result<()>) -> Resul
     visit(&mut build)?;
     Ok(build.rows)
 }
+
 fn collect_entries(visit: &mut dyn FnMut(&mut dyn Entries) -> Result<()>) -> Result<Vec<TraceabilityEntry>> {
     let mut plan = EntryPlan::default();
     visit(&mut plan)?;
@@ -882,6 +956,7 @@ fn collect_entries(visit: &mut dyn FnMut(&mut dyn Entries) -> Result<()>) -> Res
     visit(&mut build)?;
     Ok(build.rows)
 }
+
 fn emit_parameter(parameter: &crate::definition::MaterializedParameter, source: &str, sink: &mut dyn Entries) -> Result<()> {
     sink.push(Entry {
         metadata: EntryMetadata::Borrowed(&parameter.metadata),
@@ -890,6 +965,7 @@ fn emit_parameter(parameter: &crate::definition::MaterializedParameter, source: 
         unit: parameter.unit.as_ref().map(|unit| unit.symbol.as_str()).filter(|unit| !unit.is_empty()),
     })
 }
+
 fn visit_section(
     scope: Scope<'_>, section: &dokime_domain::model::traceability::TraceabilitySection, at: Option<&Timestamp>, groups: &mut dyn Groups,
 ) -> Result<()> {
@@ -915,13 +991,7 @@ fn visit_section(
         },
     )
 }
-#[derive(Clone, Copy)]
-struct CycleFields<'a> {
-    created_at: &'a Timestamp,
-    updated_at: &'a Timestamp,
-    label: &'a str,
-    case_count: usize,
-}
+
 fn visit_test_groups(
     fields: CycleFields<'_>, execution: Option<&TestExecution>, case_index: Option<usize>, scope: Scope<'_>, at: Option<&Timestamp>,
     groups: &mut dyn Groups,
@@ -936,3 +1006,5 @@ fn visit_test_groups(
     }
     Ok(())
 }
+
+/* === Tests === */

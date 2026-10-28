@@ -9,6 +9,8 @@
 
 // Shared Fixtures For SQLite Backend And Storage Manager Scenarios
 
+/* === Modules === */
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -40,6 +42,7 @@ use dokime_runtime::storage::sqlite::Backend;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct Store<C: ObjectCatalog = ()> {
     pub backend: Arc<Backend<C>>,
     pub history: StoreHistory,
@@ -50,6 +53,7 @@ pub(crate) struct Store<C: ObjectCatalog = ()> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<C: ObjectCatalog> Store<C> {
     pub(crate) async fn open(root: &Path) -> Self {
         let backend = Arc::new(Backend::<C>::primary(root.to_path_buf()).await.unwrap());
@@ -100,6 +104,7 @@ impl<C: ObjectCatalog> Store<C> {
 }
 
 /* === Public Functions === */
+
 pub fn storage_settings() -> StorageSettings {
     StorageSettings {
         filesystem: dokime_runtime::config::storage_defaults().filesystem,
@@ -171,6 +176,7 @@ pub(crate) fn declared<T: harmos::schema::Described>() -> Schema {
 }
 
 /* === Private Functions === */
+
 fn nonzero(value: usize) -> NonZeroUsize {
     NonZeroUsize::new(value).unwrap()
 }

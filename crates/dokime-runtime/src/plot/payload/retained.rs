@@ -7,12 +7,35 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+use harmos::storage::ReadBatch;
+
+// Local Imports
 use super::{DownsampleTechnique, PlotPayload, PlotPayloadRequest, PlotPoint, analyses, cartesian};
 use crate::document::PlotType;
 use crate::runtime::Result;
-use harmos::storage::ReadBatch;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 /* === Public Functions === */
 
@@ -143,3 +166,5 @@ fn indexes(points: &[PlotPoint], maximum: usize, technique: DownsampleTechnique,
 fn memory() -> crate::runtime::Error {
     harmos::Error::ResourceExhausted { resource: "plot construction" }.into()
 }
+
+/* === Tests === */

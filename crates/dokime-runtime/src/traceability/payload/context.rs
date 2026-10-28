@@ -1,19 +1,64 @@
 /* ***
+ *
  * Dokime
+ *
  * SPDX-License-Identifier: Apache-2.0
+ *
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::fmt::{self, Write};
+
+// Third Party Imports
+
+// Local Imports
 use super::super::projection;
 use super::{EntryValue, Groups, Scope, ScopeSeed, entry};
 use crate::runtime::Result;
 use dokime_domain::model::{time::Timestamp, values::Value};
-use std::fmt::{self, Write};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 struct HostSeed<'a> {
     scope: Scope<'a>,
     values: &'a std::collections::BTreeMap<String, Value>,
 }
+
+struct DurationText(f64);
+
+struct SharedWith<'a>(LeaseRow<'a>);
+
+/* === Enums === */
+
+#[derive(Clone, Copy)]
+pub(super) enum LeaseSource<'a> {
+    Facts(&'a [crate::telemetry_runtime::LeaseFact]),
+    Ledger(crate::telemetry_runtime::leases::LeaseFacts<'a>),
+}
+
+#[derive(Clone, Copy)]
+enum LeaseRow<'a> {
+    Fact(&'a crate::telemetry_runtime::LeaseFact),
+    Ledger(crate::telemetry_runtime::leases::LeaseFactRef<'a>),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
 impl fmt::Display for HostSeed<'_> {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(output, "{}|", ScopeSeed(self.scope))?;
@@ -37,7 +82,7 @@ impl fmt::Display for HostSeed<'_> {
         Ok(())
     }
 }
-struct DurationText(f64);
+
 impl fmt::Display for DurationText {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         let total_minutes = (self.0.max(0.0) / 60.0).round() as u64;
@@ -50,50 +95,6 @@ impl fmt::Display for DurationText {
     }
 }
 
-fn with_host_value<T>(key: &str, value: &Value, read: impl for<'a> FnOnce(EntryValue<'a>) -> Result<T>) -> Result<T> {
-    match (key, value) {
-        ("memory_total_bytes" | "memory_used_bytes", Value::Integer(bytes)) => {
-            read(EntryValue::Text(format_args!("{:.2} GB", *bytes as f64 / 1_000_000_000.0)))
-        }
-        ("system_uptime_s", Value::Number(seconds)) => read(EntryValue::Text(format_args!("{}", DurationText(*seconds)))),
-        ("system_uptime_s", Value::Integer(seconds)) => read(EntryValue::Text(format_args!("{}", DurationText(*seconds as f64)))),
-        _ => read(EntryValue::Borrowed(value)),
-    }
-}
-pub(in crate::traceability) fn host_override_bytes(key: &str, value: &Value) -> Result<Option<usize>> {
-    with_host_value(key, value, |value| match value {
-        EntryValue::Text(value) => Ok(Some(super::text_size(value)?.bytes)),
-        _ => Ok(None),
-    })
-}
-pub(super) fn host_entries(values: &std::collections::BTreeMap<String, Value>, entries: &mut dyn super::Entries) -> Result<()> {
-    for (key, identifier, label, source) in projection::HOST_TRACEABILITY_FIELDS {
-        let Some(value) = values.get(*key) else { continue };
-        if !projection::resource_traceability_value_visible(value) {
-            continue;
-        }
-        with_host_value(key, value, |value| {
-            entry(entries, format_args!("{identifier}"), format_args!("{label}"), value, format_args!("{source}"))
-        })?;
-    }
-    Ok(())
-}
-pub(super) fn visit_host(
-    values: &std::collections::BTreeMap<String, Value>, scope: Scope<'_>, at: Option<&Timestamp>, groups: &mut dyn Groups,
-) -> Result<()> {
-    groups.group(scope, at, None, format_args!("{}", HostSeed { scope, values }), false, &mut |entries| host_entries(values, entries))
-}
-
-#[derive(Clone, Copy)]
-pub(super) enum LeaseSource<'a> {
-    Facts(&'a [crate::telemetry_runtime::LeaseFact]),
-    Ledger(crate::telemetry_runtime::leases::LeaseFacts<'a>),
-}
-#[derive(Clone, Copy)]
-enum LeaseRow<'a> {
-    Fact(&'a crate::telemetry_runtime::LeaseFact),
-    Ledger(crate::telemetry_runtime::leases::LeaseFactRef<'a>),
-}
 impl<'a> LeaseSource<'a> {
     fn iter(self) -> impl Iterator<Item = LeaseRow<'a>> {
         let (facts, ledger): (&'a [crate::telemetry_runtime::LeaseFact], _) = match self {
@@ -103,6 +104,7 @@ impl<'a> LeaseSource<'a> {
         facts.iter().map(LeaseRow::Fact).chain(ledger.into_iter().flat_map(|ledger| ledger.iter()).map(LeaseRow::Ledger))
     }
 }
+
 impl<'a> LeaseRow<'a> {
     fn stream(self) -> &'a dokime_domain::model::identity::Identifier {
         match self {
@@ -142,7 +144,7 @@ impl<'a> LeaseRow<'a> {
         facts.iter().map(String::as_str).chain(ledger.into_iter().flat_map(|ledger| ledger.shared_with()))
     }
 }
-struct SharedWith<'a>(LeaseRow<'a>);
+
 impl fmt::Display for SharedWith<'_> {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (index, execution) in self.0.shared_with().enumerate() {
@@ -154,6 +156,35 @@ impl fmt::Display for SharedWith<'_> {
         Ok(())
     }
 }
+
+/* === Public Functions === */
+
+pub(in crate::traceability) fn host_override_bytes(key: &str, value: &Value) -> Result<Option<usize>> {
+    with_host_value(key, value, |value| match value {
+        EntryValue::Text(value) => Ok(Some(super::text_size(value)?.bytes)),
+        _ => Ok(None),
+    })
+}
+
+pub(super) fn host_entries(values: &std::collections::BTreeMap<String, Value>, entries: &mut dyn super::Entries) -> Result<()> {
+    for (key, identifier, label, source) in projection::HOST_TRACEABILITY_FIELDS {
+        let Some(value) = values.get(*key) else { continue };
+        if !projection::resource_traceability_value_visible(value) {
+            continue;
+        }
+        with_host_value(key, value, |value| {
+            entry(entries, format_args!("{identifier}"), format_args!("{label}"), value, format_args!("{source}"))
+        })?;
+    }
+    Ok(())
+}
+
+pub(super) fn visit_host(
+    values: &std::collections::BTreeMap<String, Value>, scope: Scope<'_>, at: Option<&Timestamp>, groups: &mut dyn Groups,
+) -> Result<()> {
+    groups.group(scope, at, None, format_args!("{}", HostSeed { scope, values }), false, &mut |entries| host_entries(values, entries))
+}
+
 pub(super) fn visit_leases(facts: LeaseSource<'_>, scope: Scope<'_>, at: Option<&Timestamp>, groups: &mut dyn Groups) -> Result<()> {
     groups.group(scope, at, None, format_args!("{}|traceability.leases", ScopeSeed(scope)), false, &mut |entries| {
         for lease in facts.iter() {
@@ -212,3 +243,18 @@ pub(super) fn visit_leases(facts: LeaseSource<'_>, scope: Scope<'_>, at: Option<
         Ok(())
     })
 }
+
+/* === Private Functions === */
+
+fn with_host_value<T>(key: &str, value: &Value, read: impl for<'a> FnOnce(EntryValue<'a>) -> Result<T>) -> Result<T> {
+    match (key, value) {
+        ("memory_total_bytes" | "memory_used_bytes", Value::Integer(bytes)) => {
+            read(EntryValue::Text(format_args!("{:.2} GB", *bytes as f64 / 1_000_000_000.0)))
+        }
+        ("system_uptime_s", Value::Number(seconds)) => read(EntryValue::Text(format_args!("{}", DurationText(*seconds)))),
+        ("system_uptime_s", Value::Integer(seconds)) => read(EntryValue::Text(format_args!("{}", DurationText(*seconds as f64)))),
+        _ => read(EntryValue::Borrowed(value)),
+    }
+}
+
+/* === Tests === */

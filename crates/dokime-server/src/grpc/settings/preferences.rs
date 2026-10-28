@@ -13,16 +13,20 @@
 
 /* === Imports === */
 
-use crate::grpc::transcode::Transcode;
+// Standard Library Imports
+use std::sync::Arc;
 
+// Third Party Imports
+use tonic::Status;
+
+// Local Imports
+use crate::grpc::transcode::Transcode;
 use dokime::RuntimeHandle;
 use dokime::domain::model::settings::wire::SettingsSnapshot;
 use dokime::harmos::domain::Portable;
 use dokime::harmos::{Context, RegistrationExt, Response};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
-use std::sync::Arc;
-use tonic::Status;
 
 /* === Constants === */
 

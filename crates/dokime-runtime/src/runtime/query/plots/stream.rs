@@ -65,4 +65,6 @@ pub fn matching_plot_payload_request<'a>(requests: &'a [PlotPayloadRequest], plo
     requests.iter().find(|request| request.plot_id.as_deref().unwrap_or(&request.stream) == plot_id)
 }
 
+/* === Private Functions === */
+
 /* === Tests === */

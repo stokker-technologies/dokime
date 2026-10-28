@@ -9,17 +9,39 @@
 
 //! Owned Telemetry Fan-Out And Its Native Transient Admission.
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
+
+// Third Party Imports
+use harmos::storage::ReadBatch;
+
+// Local Imports
 use super::{CapturedPublication, PublishReceipt, lease_accepts_sample, telemetry_stream_id, validation_rejection};
 use crate::runtime::handle::RuntimeHandle;
 use crate::runtime::{Error, Result};
 use crate::telemetry::{TelemetrySample, ValidationMode, check_normalized_telemetry_sample};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
-use harmos::storage::ReadBatch;
-use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+
+/* === Constants === */
 
 const PARTIAL_ACCEPTANCE: &str = "telemetry was partially accepted; unaccepted samples were dropped";
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+pub(crate) type SampleIdentity<'a> =
+    (Option<&'a dokime_domain::model::identity::TestExecutionId>, &'a dokime_domain::model::identity::TelemetrySampleId);
+
+/* === Structs === */
 
 // One Admitted Row In One Capture Scope. Every Lease Scope Shares The Original's Sample, So A
 // Row Costs One Payload And One Value Map However Many Executions Capture It.
@@ -28,14 +50,6 @@ pub(crate) struct PreparedSample {
     pub(crate) lease: Option<RecordScope>,
     pub(crate) contract: usize,
     pub(crate) ordinal: u64,
-}
-
-// How The Payloads Of One Admission Were Already Read.
-pub(crate) enum Payloads {
-    // Values Arrived Beside The Bytes; Admission Checks Each Original Payload Once.
-    Unchecked,
-    // Values Were Projected From The Bytes With This Registered Codec; No Further Pass Is Needed.
-    Decoded(Arc<crate::storage::telemetry::TypedCodec>),
 }
 
 #[derive(Default)]
@@ -52,6 +66,20 @@ pub(crate) struct PreparedPublication {
     delivery: ReadBatch<crate::domains::telemetry::leases::LeasedRows>,
     observes_closure: bool,
 }
+
+/* === Enums === */
+
+// How The Payloads Of One Admission Were Already Read.
+pub(crate) enum Payloads {
+    // Values Arrived Beside The Bytes; Admission Checks Each Original Payload Once.
+    Unchecked,
+    // Values Were Projected From The Bytes With This Registered Codec; No Further Pass Is Needed.
+    Decoded(Arc<crate::storage::telemetry::TypedCodec>),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
 
 impl PreparedSample {
     pub(crate) fn scope(&self) -> Option<&RecordScope> {
@@ -251,20 +279,11 @@ impl RuntimeHandle {
     }
 }
 
-fn prepared_receipt() -> Result<ReadBatch<PublishReceipt>> {
-    harmos::storage::ReadBatch::new(()).try_map(|_| {
-        let mut receipt = PublishReceipt::accepted(0, BTreeMap::new(), 0);
-        receipt.message = Some(PARTIAL_ACCEPTANCE.to_owned());
-        Ok::<_, Error>(receipt)
-    })
-}
+/* === Public Functions === */
 
 pub(super) fn dropped_receipt(dropped: u64, revision: u64, message: &'static str) -> Result<ReadBatch<PublishReceipt>> {
     harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(PublishReceipt::dropped(dropped, revision, message)))
 }
-
-pub(crate) type SampleIdentity<'a> =
-    (Option<&'a dokime_domain::model::identity::TestExecutionId>, &'a dokime_domain::model::identity::TelemetrySampleId);
 
 pub(crate) fn identity_index(samples: &[PreparedSample]) -> Result<Vec<SampleIdentity<'_>>> {
     let mut identities = slots(samples.len())?;
@@ -312,6 +331,22 @@ pub(crate) fn share_scopes(
     Ok(rows)
 }
 
+pub(crate) fn slots<T>(length: usize) -> Result<Vec<T>> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(length).map_err(|_| invalid("telemetry staging allocation failed"))?;
+    Ok(values)
+}
+
+/* === Private Functions === */
+
+fn prepared_receipt() -> Result<ReadBatch<PublishReceipt>> {
+    harmos::storage::ReadBatch::new(()).try_map(|_| {
+        let mut receipt = PublishReceipt::accepted(0, BTreeMap::new(), 0);
+        receipt.message = Some(PARTIAL_ACCEPTANCE.to_owned());
+        Ok::<_, Error>(receipt)
+    })
+}
+
 // The Lease Scopes That Capture An Unowned Sample; A Sample Owned By An Execution Captures Only There.
 fn accepting<'a>(leased: &'a BTreeMap<Identifier, Vec<RecordScope>>, sample: &'a TelemetrySample) -> impl Iterator<Item = &'a RecordScope> {
     let unowned = sample.scope.as_ref().is_none_or(|scope| scope.test_execution_id.is_none());
@@ -319,14 +354,10 @@ fn accepting<'a>(leased: &'a BTreeMap<Identifier, Vec<RecordScope>>, sample: &'a
     scopes.filter(move |scope| unowned && lease_accepts_sample(sample.scope.as_ref(), scope))
 }
 
-pub(crate) fn slots<T>(length: usize) -> Result<Vec<T>> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(length).map_err(|_| invalid("telemetry staging allocation failed"))?;
-    Ok(values)
-}
 fn overflow() -> Error {
     invalid("telemetry staging memory overflows")
 }
+
 fn invalid(reason: &str) -> Error {
     Error::Operation(reason.to_owned())
 }

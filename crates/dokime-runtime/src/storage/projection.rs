@@ -7,15 +7,35 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
 use harmos::storage::ReadBatch;
 
+// Local Imports
 use super::{Error, Result};
+
+/* === Constants === */
+
+/* === Macros === */
 
 /* === Type Aliases === */
 
 pub(crate) type Pages<T> = ReadBatch<Vec<ReadBatch<Vec<T>>>>;
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 /* === Public Functions === */
 
@@ -48,3 +68,7 @@ pub(crate) fn pages<T, U>(source: Pages<T>, map: impl Fn(T) -> Result<U>) -> Res
         Ok(target)
     })
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

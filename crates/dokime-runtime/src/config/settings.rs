@@ -13,6 +13,14 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+use std::{collections::BTreeMap, path::PathBuf};
+
+// Third Party Imports
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+// Local Imports
 use super::ApplicationPaths;
 use crate::{
     plugins::PluginSettings,
@@ -22,9 +30,6 @@ use dokime_domain::model::{
     identity::{DokimeNodeIdentity, NodeId},
     secrets::catalog::Catalog,
 };
-use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::PathBuf};
-use uuid::Uuid;
 
 /* === Constants === */
 

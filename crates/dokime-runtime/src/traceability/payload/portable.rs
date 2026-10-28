@@ -1,9 +1,24 @@
 /* ***
+ *
  * Dokime
+ *
  * SPDX-License-Identifier: Apache-2.0
+ *
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::collections::BTreeMap;
+
+// Third Party Imports
+
+// Local Imports
 use super::{
     CycleFields, Entries, Entry, EntryMetadata, Groups, Scope, build_snapshot, collect_entries, collect_groups, emit_parameter, exhausted,
     owned_entry, reserved, visit_resource_entries, visit_section, visit_test_groups,
@@ -18,12 +33,28 @@ use dokime_domain::model::{
     traceability::{TraceabilityEntry, TraceabilitySection, TraceabilitySnapshot},
     values::Value,
 };
-use std::collections::BTreeMap;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 struct OneGroup {
     seen: bool,
     value: Option<TraceabilitySnapshot>,
 }
+
+struct OneEntry(Option<TraceabilityEntry>);
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
 impl Groups for OneGroup {
     fn group(
         &mut self, scope: Scope<'_>, at: Option<&Timestamp>, metadata: Option<EntryMetadata<'_>>, seed: std::fmt::Arguments<'_>,
@@ -37,7 +68,7 @@ impl Groups for OneGroup {
         Ok(())
     }
 }
-struct OneEntry(Option<TraceabilityEntry>);
+
 impl Entries for OneEntry {
     fn push(&mut self, entry: Entry<'_>) -> Result<()> {
         if self.0.is_some() {
@@ -47,11 +78,9 @@ impl Entries for OneEntry {
         Ok(())
     }
 }
-fn collect_one(visit: &mut dyn FnMut(&mut dyn Groups) -> Result<()>) -> Result<Option<TraceabilitySnapshot>> {
-    let mut group = OneGroup { seen: false, value: None };
-    visit(&mut group)?;
-    Ok(group.value)
-}
+
+/* === Public Functions === */
+
 pub(in crate::traceability) fn execution_snapshots(
     cycle: &CycleView, scope: &RecordScope, admitted: Option<&TestExecution>, at: &Timestamp,
 ) -> Result<Vec<TraceabilitySnapshot>> {
@@ -73,6 +102,7 @@ pub(in crate::traceability) fn execution_snapshots(
     let index = execution.and_then(|execution| cycle.cases().position(|case| case.test_case_id == execution.test_case_id));
     collect_groups(&mut |groups| visit_test_groups(fields, execution, index, Scope::Borrowed(scope), Some(at), groups))
 }
+
 pub(in crate::traceability) fn resource_entries(
     id: &str, label: &str, details: &BTreeMap<String, Value>, index: usize,
 ) -> Result<Vec<Vec<TraceabilityEntry>>> {
@@ -85,6 +115,7 @@ pub(in crate::traceability) fn resource_entries(
     }
     Ok(groups)
 }
+
 pub(in crate::traceability) fn parameter_entry(
     parameter: &crate::definition::MaterializedParameter, source: &str,
 ) -> Result<TraceabilityEntry> {
@@ -92,16 +123,19 @@ pub(in crate::traceability) fn parameter_entry(
     emit_parameter(parameter, source, &mut entry)?;
     entry.0.ok_or_else(exhausted)
 }
+
 pub(in crate::traceability) fn section_snapshot(
     scope: &RecordScope, section: &TraceabilitySection, at: &Timestamp,
 ) -> Result<TraceabilitySnapshot> {
     collect_one(&mut |groups| visit_section(Scope::Borrowed(scope), section, Some(at), groups))?.ok_or_else(exhausted)
 }
+
 pub(in crate::traceability) fn host_snapshot(
     values: &BTreeMap<String, Value>, scope: &RecordScope, at: &Timestamp,
 ) -> Result<Option<TraceabilitySnapshot>> {
     collect_one(&mut |groups| super::context::visit_host(values, Scope::Borrowed(scope), Some(at), groups))
 }
+
 pub(in crate::traceability) fn lease_snapshot(
     leases: &[crate::telemetry_runtime::LeaseFact], scope: &RecordScope, at: &Timestamp,
 ) -> Result<Option<TraceabilitySnapshot>> {
@@ -130,3 +164,13 @@ pub(in crate::traceability) fn source_group(
         entries,
     })
 }
+
+/* === Private Functions === */
+
+fn collect_one(visit: &mut dyn FnMut(&mut dyn Groups) -> Result<()>) -> Result<Option<TraceabilitySnapshot>> {
+    let mut group = OneGroup { seen: false, value: None };
+    visit(&mut group)?;
+    Ok(group.value)
+}
+
+/* === Tests === */

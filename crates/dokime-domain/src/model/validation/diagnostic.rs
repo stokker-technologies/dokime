@@ -7,13 +7,32 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
 use std::fmt::{Arguments, Write};
+
+// Third Party Imports
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
 
 /* === Structs === */
 
 struct Count(usize);
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -37,3 +56,7 @@ pub(crate) fn text(arguments: Arguments<'_>) -> String {
     text.write_fmt(arguments).expect("diagnostic writes into a reserved String");
     text
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

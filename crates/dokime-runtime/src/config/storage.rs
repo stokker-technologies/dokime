@@ -17,9 +17,14 @@ pub use defaults::storage_defaults;
 
 /* === Imports === */
 
+// Standard Library Imports
+use std::num::{NonZeroU64, NonZeroUsize};
+
+// Third Party Imports
 use harmos::config::{ManagedStorageSettings, StorageStateSettings};
 use harmos::storage::{ReadLimits, SchemaKey};
-use std::num::{NonZeroU64, NonZeroUsize};
+
+// Local Imports
 
 /* === Constants === */
 

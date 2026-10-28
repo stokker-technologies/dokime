@@ -42,6 +42,8 @@ const UNSCOPED_STREAM_SEGMENT: &str = "-";
 
 /* === Type Aliases === */
 
+/* === Structs === */
+
 pub(crate) struct CapturedPublication {
     pub receipt: harmos::storage::ReadBatch<PublishReceipt>,
     pub failure: Option<crate::runtime::Error>,
@@ -325,6 +327,7 @@ pub fn telemetry_stream_id(scope: Option<&RecordScope>, stream: &Identifier) -> 
     }
     id
 }
+
 pub(super) fn lease_accepts_sample(source: Option<&RecordScope>, target: &RecordScope) -> bool {
     source.is_none_or(|source| {
         source.test_execution_id.as_ref().is_none_or(|id| Some(id) == target.test_execution_id.as_ref())

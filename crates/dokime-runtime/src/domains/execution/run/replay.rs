@@ -9,12 +9,52 @@
 
 //! Replays Saved Execution Samples With Retained Decode And Signal Staging.
 
-use super::{ExecutionFixtureContext, ExecutionSignal, ProviderExecutionFailure, Target, TestExecution, failure};
-use harmos::storage::Query;
-use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
 use std::num::NonZeroU32;
 
+// Third Party Imports
+use harmos::storage::Query;
+use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
+
+// Local Imports
+use super::{ExecutionFixtureContext, ExecutionSignal, ProviderExecutionFailure, Target, TestExecution, failure};
+
+/* === Constants === */
+
 const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+#[derive(Default)]
+struct JsonCount(usize);
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl std::io::Write for JsonCount {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0 = self.0.checked_add(bytes.len()).ok_or_else(|| std::io::Error::other("replay JSON length overflows"))?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/* === Public Functions === */
 
 pub(super) async fn replay_sample_inputs(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution,
@@ -46,6 +86,8 @@ pub(super) async fn replay_sample_inputs(
     }
     Ok(())
 }
+
+/* === Private Functions === */
 
 async fn replay_stream(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, at: &harmos::storage::StorageCursor,
@@ -179,19 +221,6 @@ async fn replay_stream(
     Ok(())
 }
 
-#[derive(Default)]
-struct JsonCount(usize);
-
-impl std::io::Write for JsonCount {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0 = self.0.checked_add(bytes.len()).ok_or_else(|| std::io::Error::other("replay JSON length overflows"))?;
-        Ok(bytes.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 fn json_len(value: &impl serde::Serialize) -> Result<usize, ProviderExecutionFailure> {
     let mut count = JsonCount::default();
     serde_json::to_writer(&mut count, value).map_err(failed)?;
@@ -208,6 +237,9 @@ fn json(value: &impl serde::Serialize) -> Result<String, ProviderExecutionFailur
 fn failed(error: impl std::fmt::Display) -> ProviderExecutionFailure {
     failure("sidecar_samples", error.to_string())
 }
+
 fn overflow() -> ProviderExecutionFailure {
     failed("replay staging memory overflows")
 }
+
+/* === Tests === */

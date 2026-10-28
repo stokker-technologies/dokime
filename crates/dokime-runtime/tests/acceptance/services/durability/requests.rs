@@ -7,6 +7,8 @@
  * ***
  */
 
+/* === Modules === */
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -40,7 +42,6 @@ use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::e
 
 /* === Private Functions === */
 
-/* === Tests === */
 #[tokio::test]
 async fn durable_requests_reopens() {
     if let Some(root) = std::env::var_os("DOKIME_RECEIPT_KILL_ROOT") {
@@ -126,3 +127,5 @@ async fn run_child(root: PathBuf) {
     crate::service_support::children::announce_ready();
     std::future::pending::<()>().await;
 }
+
+/* === Tests === */

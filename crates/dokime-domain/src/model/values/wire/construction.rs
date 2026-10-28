@@ -7,10 +7,33 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
-use super::{Core, Value, ValueError, ValueField, ValueFields, ValueItems, ValueKind, ValueNode};
+// Standard Library Imports
 use std::collections::BTreeMap;
+
+// Third Party Imports
+
+// Local Imports
+use super::{Core, Value, ValueError, ValueField, ValueFields, ValueItems, ValueKind, ValueNode};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 /* === Public Functions === */
 
@@ -99,3 +122,5 @@ fn fields(wire: &mut Value, values: &BTreeMap<String, Core>) -> Result<Vec<Value
     }
     Ok(fields)
 }
+
+/* === Tests === */

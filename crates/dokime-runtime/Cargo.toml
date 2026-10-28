@@ -76,9 +76,9 @@ simulation = ["host", "harmos/simulation"]
 [dependencies]
 # Local
 dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
-dokime-operations = { version = "0.1.0", path = "../dokime-operations", features = ["runtime"] }
 dokime-host = { version = "0.1.0", path = "../dokime-host", optional = true }
 dokime-macros = { version = "0.1.0", path = "../dokime-macros", optional = true }
+dokime-operations = { version = "0.1.0", path = "../dokime-operations", features = ["runtime"] }
 
 # Git
 
