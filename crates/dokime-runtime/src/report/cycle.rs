@@ -56,7 +56,7 @@ pub(crate) struct CapturedMember {
 
 // One Cycle Member In Cycle Order: Captured Evidence, Or A Planned Row Nobody Started.
 pub(crate) enum CycleMember {
-    Captured(CapturedMember),
+    Captured(std::sync::Arc<CapturedMember>),
     Planned(Box<TestExecution>),
 }
 
@@ -66,20 +66,25 @@ pub(crate) enum CycleMember {
 
 impl CycleMember {
     pub(crate) fn capture(input: harmos::storage::ReadBatch<super::CapturedExecutionReportInput>) -> Result<Self> {
-        let spool = tempfile::tempfile()?;
-        let mut output = BufWriter::with_capacity(1024 * 1024, spool);
-        serde_json::to_writer(&mut output, &*input).map_err(crate::storage::Error::from)?;
-        output.flush()?;
-        let spool = output.into_inner().map_err(|error| error.into_error())?;
-        Ok(Self::Captured(CapturedMember {
-            spool: std::sync::Mutex::new(spool),
-            #[cfg(test)]
-            decodes: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
-        }))
+        Ok(Self::Captured(std::sync::Arc::new(CapturedMember::spool(&input)?)))
     }
 }
 
 impl CapturedMember {
+    // Spools One Materialized Member So Every Cycle Report Reuses It Instead Of Materializing It Again.
+    pub(crate) fn spool(input: &super::CapturedExecutionReportInput) -> Result<Self> {
+        let spool = tempfile::tempfile()?;
+        let mut output = BufWriter::with_capacity(1024 * 1024, spool);
+        serde_json::to_writer(&mut output, input).map_err(crate::storage::Error::from)?;
+        output.flush()?;
+        let spool = output.into_inner().map_err(|error| error.into_error())?;
+        Ok(Self {
+            spool: std::sync::Mutex::new(spool),
+            #[cfg(test)]
+            decodes: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        })
+    }
+
     pub(crate) fn read(&self) -> Result<harmos::storage::ReadBatch<super::CapturedExecutionReportInput>> {
         let mut spool =
             self.spool.lock().map_err(|_| crate::runtime::Error::InvalidReportInputs("member spool lock is poisoned".into()))?;

@@ -26,13 +26,11 @@ use harmos::{operations::Context, storage::StorageCursor};
 use super::Resources;
 use crate::{
     app::Dokime,
-    report::CapturedExecutionReportInput,
     report::cycle::CycleMember,
     runtime::Error,
     runtime::Result,
     runtime::progress::Operation,
     runtime::storage::{cycle::CycleSnapshot, cycle_finalization},
-    storage::Manager,
 };
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
@@ -97,12 +95,12 @@ async fn sealed(
         if pending.len() == 4
             && let Some(member) = pending.next().await
         {
-            members.push(CycleMember::capture(member?)?);
+            members.push(member?);
         }
-        pending.push_back(sealed_member(ctx, storage, execution, at, progress));
+        pending.push_back(sealed_member(ctx, resources, execution, at, progress));
     }
     while let Some(member) = pending.next().await {
-        members.push(CycleMember::capture(member?)?);
+        members.push(member?);
     }
     drop(pending);
     progress.phase("Rendering");
@@ -217,7 +215,7 @@ async fn current(
         pending.push_back(async move {
             Ok::<_, Error>(match plan {
                 Member::Planned(execution) => CycleMember::Planned(execution),
-                Member::Sealed(seal) => CycleMember::capture(sealed_member(ctx, storage, &seal, at, progress).await?)?,
+                Member::Sealed(seal) => sealed_member(ctx, resources, &seal, at, progress).await?,
                 Member::Captured(inspection, _guard) => {
                     CycleMember::capture(crate::report::materialize::execution(ctx, &inspection, false, progress).await?)?
                 }
@@ -252,14 +250,19 @@ async fn current(
     Ok(MaterializedReport { report })
 }
 
-// Every Sealed Member Re-Queries Its Durable Context And Evidence In The Cycle Session.
+// A Sealed Member Reuses The Input Its Final Report Materialized; Only A Member
+// Sealed Before This Process Re-Queries Its Durable Context And Evidence.
 async fn sealed_member(
-    ctx: &Context<'_>, storage: &Manager, seal: &ExecutionSeal, at: &StorageCursor, progress: &Operation,
-) -> Result<harmos::storage::ReadBatch<CapturedExecutionReportInput>> {
+    ctx: &Context<'_>, resources: &Resources, seal: &ExecutionSeal, at: &StorageCursor, progress: &Operation,
+) -> Result<CycleMember> {
     if !at.covers(&seal.source.evidence_through)? {
         return Err(invalid("sealed member evidence exceeds cycle report boundary"));
     }
-    crate::report::materialize::sealed_member(ctx, storage, seal, progress).await
+    if let Some(member) = resources.execution_storage.sealed_cycle_member(seal).await {
+        return Ok(CycleMember::Captured(member));
+    }
+    let storage = &resources.execution_storage.storage;
+    CycleMember::capture(crate::report::materialize::sealed_member(ctx, storage, seal, progress).await?)
 }
 
 // Nothing Dispatched It: Queued, Or Planned As The Runtime Spells It (An Unsealed Skip Never Started).

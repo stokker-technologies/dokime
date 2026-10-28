@@ -104,6 +104,8 @@ pub(crate) struct Acquisition {
     finalizing: Option<Arc<TestExecution>>,
     published: Option<PublishedReport>,
     pub(super) cycle_context: Option<Arc<CycleMemberContext>>,
+    // The Final Report's Materialized Input, Reused By Cycle Reports Until The Cycle Retires.
+    pub(super) cycle_member: Option<(FileReference, Arc<crate::report::cycle::CapturedMember>)>,
 }
 
 pub(super) struct CycleMemberContext {
@@ -295,6 +297,13 @@ impl ExecutionStorage {
             return Err(invalid("original cycle member differs from saved producer proof"));
         }
         Ok(Some((context.clone(), revision, acquisition.execution.clone())))
+    }
+
+    // The Materialized Input Of This Exact Sealed Report, When This Process Published It.
+    pub(crate) async fn sealed_cycle_member(&self, seal: &ExecutionSeal) -> Option<Arc<crate::report::cycle::CapturedMember>> {
+        let owner = self.acquisition(&seal.source.execution.execution_id).await?;
+        let acquisition = owner.lock().await;
+        acquisition.cycle_member.as_ref().filter(|(report, _)| *report == seal.report).map(|(_, member)| member.clone())
     }
 
     pub(crate) async fn published_report_view(&self, id: &TestExecutionId) -> Result<Option<super::execution::ExecutionView>> {
@@ -551,6 +560,11 @@ impl ExecutionStorage {
     ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         inspection.captured_source().ok_or_else(|| invalid("report requires an original captured source"))?;
         let storage = self.clone();
+        // Spooled Before The Owner Lock; A Failed Spool Only Costs A Later Cycle Report Its Reuse.
+        let member = crate::report::cycle::CapturedMember::spool(prepared.captured_input())
+            .inspect_err(|error| tracing::debug!(%error, "final report input was not spooled for cycle reuse"))
+            .ok()
+            .map(Arc::new);
         let work = async move {
             let owner = storage
                 .acquisition(&prepared.captured_input().execution_id)
@@ -564,7 +578,9 @@ impl ExecutionStorage {
             if acquisition.published.is_some() {
                 return Err(invalid("final report is already published"));
             }
-            publish_final(ctx, &mut acquisition, prepared, inspection, &sealed_at).await
+            let published = publish_final(ctx, &mut acquisition, prepared, inspection, &sealed_at).await?;
+            acquisition.cycle_member = member.map(|member| (published.report.clone(), member));
+            Ok(published)
         };
         work.await
     }
@@ -694,6 +710,7 @@ impl ExecutionStorage {
             finalizing: None,
             published: None,
             cycle_context: None,
+            cycle_member: None,
         }));
         let existing = {
             let mut active = self.active.lock().await;
