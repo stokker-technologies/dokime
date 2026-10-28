@@ -726,6 +726,11 @@ impl Sampling {
     }
 
     pub(crate) async fn measurement_closed(&self, execution: &str) -> bool {
+        self.measurement_closed_now(execution)
+    }
+
+    // A Delivery Queue Reads The Fence Under Its Own Lock, So It Cannot Await.
+    pub(crate) fn measurement_closed_now(&self, execution: &str) -> bool {
         self.state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)

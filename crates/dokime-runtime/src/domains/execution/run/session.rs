@@ -455,6 +455,10 @@ impl Session {
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement subscriptions closed");
         self.deliver_records().await?;
         if close {
+            // Close Live Measurement Before The Replay Cut: No Row Reaches The Run After It, So The
+            // Receipt Names Exactly The Last Replayed Row.
+            context.runtime.sampling().fence_executions(std::slice::from_ref(&execution.test_execution_id)).await;
+            context.runtime.settle_leaseholder_deliveries(&execution.test_execution_id).await;
             tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");
             super::replay_sample_inputs(context, &self.target, execution).await?;
         }

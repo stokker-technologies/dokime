@@ -115,7 +115,8 @@ pub(crate) struct LeasedRows {
 
 struct Delivery {
     requester: String,
-    request: DeliverSamplesRequest,
+    // `None` Is A Barrier: It Signals Nothing And Settles After Every Earlier Delivery.
+    request: Option<DeliverSamplesRequest>,
     delivered: tokio::sync::oneshot::Sender<()>,
 }
 
@@ -685,16 +686,32 @@ impl RuntimeHandle {
         // scope covers, and a scope naming nothing covers all of them — every
         // live run in that process would take a viewer's rows as its own.
         let execution = holder.scope.test_execution_id.clone()?;
+        let rows = !request.samples.is_empty();
+        self.enqueue_delivery(execution, holder.requester.clone(), Some(request), rows)
+    }
+
+    // Settles Once Every Delivery Queued Before It Reached Its Run.
+    pub(crate) async fn settle_leaseholder_deliveries(&self, execution: &dokime_domain::model::identity::TestExecutionId) {
+        if let Some(settled) = self.enqueue_delivery(execution.clone(), String::new(), None, false) {
+            let _ = settled.await;
+        }
+    }
+
+    fn enqueue_delivery(
+        &self, execution: dokime_domain::model::identity::TestExecutionId, requester: String, request: Option<DeliverSamplesRequest>,
+        rows: bool,
+    ) -> Option<tokio::sync::oneshot::Receiver<()>> {
         let (delivered, receipt) = tokio::sync::oneshot::channel();
-        let delivery = Delivery {
-            requester: holder.requester.clone(),
-            request,
-            delivered,
-        };
+        let delivery = Delivery { requester, request, delivered };
 
         // A Live Queue Takes It In Order; Otherwise This Delivery Starts The Run's Queue.
         let leases = self.stream_leases();
         let mut queues = leases.deliveries.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Rows Read The Measurement Fence Under The Queue Lock: A Settlement Barrier Queued After
+        // The Fence Therefore Follows Every Row That Could Still Reach The Run.
+        if rows && self.sampling().measurement_closed_now(execution.as_str()) {
+            return None;
+        }
         let delivery = match queues.get(execution.as_str()) {
             Some(queue) => match queue.send(delivery) {
                 Ok(()) => return Some(receipt),
@@ -716,7 +733,9 @@ impl RuntimeHandle {
         &self, execution: dokime_domain::model::identity::TestExecutionId, mut pending: tokio::sync::mpsc::UnboundedReceiver<Delivery>,
     ) {
         while let Some(delivery) = self.next_delivery(execution.as_str(), &mut pending) {
-            self.signal_leaseholder(&execution, &delivery.requester, delivery.request).await;
+            if let Some(request) = delivery.request {
+                self.signal_leaseholder(&execution, &delivery.requester, request).await;
+            }
             let _ = delivery.delivered.send(());
         }
     }

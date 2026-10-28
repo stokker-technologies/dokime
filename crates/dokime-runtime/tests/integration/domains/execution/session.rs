@@ -51,9 +51,20 @@ struct Probe {
     released: tokio::sync::watch::Sender<bool>,
     cancellation: tokio::sync::watch::Sender<bool>,
     token: Mutex<String>,
+    // Like A Sidecar Receiver: Rows In Arrival Order, And Whether Settlement Began.
+    arrivals: Mutex<Vec<(String, String)>>,
+    settling: std::sync::atomic::AtomicBool,
+    settlement_signals: std::sync::atomic::AtomicUsize,
+    reads: Arc<tokio::sync::watch::Sender<usize>>,
 }
 
 struct Provider(Arc<Probe>);
+
+// Host Telemetry Whose Collection Ticks The Test Can Count.
+struct CountingCollector {
+    inner: Arc<dyn dokime_host::HostTelemetryCollector>,
+    reads: Arc<tokio::sync::watch::Sender<usize>>,
+}
 
 /* === Enums === */
 #[derive(Clone, Copy, PartialEq)]
@@ -63,6 +74,7 @@ enum Settlement {
     Refused,
     RefusedPage,
     AbandonedAdmission,
+    LiveReplay,
     Ignored,
     IgnoredSignal,
     Failure,
@@ -80,7 +92,49 @@ impl Probe {
             released: tokio::sync::watch::Sender::new(false),
             cancellation: tokio::sync::watch::Sender::new(false),
             token: Mutex::new(String::new()),
+            arrivals: Mutex::new(Vec::new()),
+            settling: std::sync::atomic::AtomicBool::new(false),
+            settlement_signals: std::sync::atomic::AtomicUsize::new(0),
+            reads: Arc::new(tokio::sync::watch::Sender::new(0)),
         }
+    }
+
+    fn receive(&self, encoded: &[String]) {
+        let mut arrivals = self.arrivals.lock().unwrap();
+        for sample in encoded {
+            let sample: dokime_runtime::telemetry::TelemetrySample = serde_json::from_str(sample).unwrap();
+            let (stream, id) = (sample.stream.to_string(), sample.sample_id.to_string());
+            if arrivals.iter().any(|(known, sample)| known == &stream && sample == &id) {
+                continue;
+            }
+            arrivals.push((stream, id));
+        }
+    }
+
+    // The Receipt Names The Row That Arrived Last On Each Stream, As A Sidecar Receiver Does.
+    fn receipts(&self) -> Vec<dokime_runtime::transport::protocol::SampleReceipt> {
+        let arrivals = self.arrivals.lock().unwrap();
+        let mut receipts: Vec<dokime_runtime::transport::protocol::SampleReceipt> = Vec::new();
+        for (stream, sample_id) in arrivals.iter() {
+            receipts.retain(|receipt| &receipt.stream != stream);
+            receipts.push(dokime_runtime::transport::protocol::SampleReceipt {
+                stream: stream.clone(),
+                sample_id: sample_id.clone(),
+            });
+        }
+        receipts
+    }
+}
+
+impl dokime_host::HostTelemetryCollector for CountingCollector {
+    fn interval(&self, stream: &str) -> std::time::Duration {
+        self.inner.interval(stream)
+    }
+
+    fn collect(&self, stream: &str) -> Result<Option<dokime_runtime::telemetry::TelemetryBatch>, String> {
+        let collected = self.inner.collect(stream);
+        self.reads.send_modify(|reads| *reads += 1);
+        collected
     }
 }
 
@@ -108,6 +162,48 @@ impl Runnable for Probe {
             .await
             .map_err(Refusal::of)?;
             self.entered.notify_one();
+            if self.mode == Settlement::LiveReplay {
+                let ended = TestStepAttempt {
+                    attempt_id: start.attempt_id,
+                    step_id: start.step_id,
+                    started_at: start.started_at,
+                    finished_at: Some(dokime_runtime::model::time::now_utc()),
+                    termination: TerminationReason::Completed,
+                    detail: None,
+                };
+                let finished = EvidenceBatch {
+                    cursor: 2,
+                    step_attempts: vec![serde_json::to_string(&ended).unwrap()],
+                    ..Default::default()
+                };
+                host.push(finished).await.map_err(Refusal::of)?;
+                self.settling.store(true, std::sync::atomic::Ordering::SeqCst);
+                let settling = EvidenceBatch {
+                    cursor: 3,
+                    record_subscriptions_settling: true,
+                    ..Default::default()
+                };
+                let receipt = host.push(settling).await.map_err(Refusal::of)?;
+                assert!(receipt.settled, "the settling page settles the run's inputs");
+                let passed = SidecarExecutionOutcome {
+                    passed: true,
+                    criteria: vec![SidecarCriterionOutcome {
+                        identifier: "fixture.criterion".into(),
+                        label: "Fixture Criterion".into(),
+                        status: SidecarCriterionStatus::Passed as i32,
+                        message: None,
+                    }],
+                    ..Default::default()
+                };
+                let concluded = EvidenceBatch {
+                    cursor: 4,
+                    cleanup_settled: true,
+                    outcome: Some(passed.clone()),
+                    ..Default::default()
+                };
+                host.push(concluded).await.map_err(Refusal::of)?;
+                return Ok(passed);
+            }
             if self.mode == Settlement::Failure {
                 self.released.subscribe().wait_for(|released| *released).await.unwrap();
                 return Err(Refusal::of("fixture run failure"));
@@ -201,6 +297,22 @@ impl Runnable for Probe {
 
     fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>> {
         Box::pin(async move {
+            if self.mode == Settlement::LiveReplay {
+                let settling = self.settling.load(std::sync::atomic::Ordering::SeqCst);
+                match &signal.samples {
+                    Some(delivery) => self.receive(&delivery.samples),
+                    // The Second Settlement Signal Asks For The Receipt After The Replay Cut; Collection Keeps Ticking.
+                    None if settling && self.settlement_signals.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 => {
+                        let from = *self.reads.borrow();
+                        self.reads.subscribe().wait_for(|reads| *reads >= from + 3).await.unwrap();
+                    }
+                    None => {}
+                }
+                return Ok(SignalReply {
+                    samples: self.receipts(),
+                    ..Default::default()
+                });
+            }
             if signal.cancel {
                 if *self.token.lock().unwrap() != signal.execution_token {
                     return Err(Refusal::of("cancellation token does not own execution"));
@@ -239,7 +351,7 @@ impl EmbeddedProvider for Provider {
         template.phases[0].step_id = dokime_runtime::StepId::from_seed(PHASE);
         // The failing provider samples host telemetry, so its run holds a stream
         // lease the failure cleanup has to close.
-        if self.0.mode == Settlement::Failure {
+        if matches!(self.0.mode, Settlement::Failure | Settlement::LiveReplay) {
             template.subscriptions = vec![dokime_runtime::definition::Subscription::Stream(identifier("host.system"))];
         }
         let mut definition = TestSuiteDefinition::new(SOURCE, suite).unwrap();
@@ -482,6 +594,49 @@ async fn abandoned_admission_closes() {
     let log = std::str::from_utf8(&log.bytes).unwrap().to_owned();
     assert!(log.contains("fixture cancellation settled"), "the run's cleanup page is admitted: {log}");
     assert!(!log.contains("did not answer its stop"), "the run settled itself rather than the host settling it: {log}");
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// Live Rows Keep Arriving While Settlement Replays: The Fence Keeps The Final Receipt Exact.
+#[tokio::test(flavor = "multi_thread")]
+async fn live_replay_settles() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::LiveReplay));
+    let configuration =
+        config(root.path()).with_installed_plugins([dokime_host::installed_plugin()]).register(Arc::new(Provider(probe.clone())));
+    let (mut owner, handle) = started(configuration).await;
+    let fixture = dokime_host::HostTelemetryConfig::default().with_source(dokime_host::HostTelemetrySourceKind::Fixture);
+    handle.bind_host_telemetry_source(Arc::new(CountingCollector {
+        inner: dokime_host::host_telemetry_collector(fixture),
+        reads: Arc::clone(&probe.reads),
+    }));
+    // A Viewer Keeps Host Collection Ticking After The Run's Own Measurement Closes.
+    let viewer = dokime_runtime::telemetry::SamplingScope {
+        test_cycle_id: None,
+        test_case_id: None,
+        test_execution_id: None,
+    };
+    let viewing = handle.lease_streams(viewer, &[identifier("host.system")], "viewer").await.unwrap();
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let cycle_id = start_cases(&handle, metadata("session.replay", "Live Replay"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+
+    let cycle = cycle_snapshot(&handle, &cycle_id).await;
+    let execution = &cycle.test_executions[0];
+    let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
+    let mut log = String::new();
+    if let Some(file) = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")) {
+        let path = file.relative_path.clone();
+        let content = handle.execution_file_content(&execution.test_execution_id, path, 0, 4096).await.unwrap().unwrap();
+        log = String::from_utf8(content.bytes.to_vec()).unwrap();
+    }
+    assert!(!log.contains("did not acknowledge its final row"), "{log}");
+    assert_eq!(execution.status, ExecutionStatus::Passed, "{log}");
+    assert!(*probe.reads.borrow() > 0, "host collection ran while the run held its lease");
+    handle.release_stream_leases(viewing).await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();
 }
