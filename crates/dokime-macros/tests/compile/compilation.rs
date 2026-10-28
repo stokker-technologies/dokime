@@ -436,7 +436,19 @@ fn invalid_identity_refused() {
     let diagnostics = String::from_utf8_lossy(&built.stderr);
     // The plugin's identity is checked on the line it was written, because it is
     // the one every operation and stream it serves is scoped under.
-    assert_eq!(diagnostics.matches("an artifact id is lowercase ASCII").count(), 1, "{diagnostics}");
+    assert_eq!(diagnostics.matches("a plugin id is one owner segment").count(), 1, "{diagnostics}");
+    assert!(diagnostics.contains("aborting due to 1 previous error"), "{diagnostics}");
+    assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
+}
+
+#[test]
+fn hyphenated_identity_refused() {
+    let (built, _) = compile("fixtures/hyphenated_identity.rs");
+    assert!(!built.status.success());
+    let diagnostics = String::from_utf8_lossy(&built.stderr);
+    // Harmos qualifies served operations as `<plugin id>.<operation>`, so a
+    // hyphen that an artifact id would allow is refused as an owner segment.
+    assert_eq!(diagnostics.matches("a plugin id is one owner segment").count(), 1, "{diagnostics}");
     assert!(diagnostics.contains("aborting due to 1 previous error"), "{diagnostics}");
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }

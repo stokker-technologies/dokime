@@ -92,6 +92,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         .map(|segment| segment.ident.clone())
         .ok_or_else(|| Error::new(block.self_ty.span(), "a plugin is a named type"))?;
     let arguments = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute)?;
+    owner_segment(&arguments)?;
     let contributed = contributed(&arguments)?;
     let mut generated = Vec::new();
     if let Some(suites) = &contributed.suites {
@@ -206,6 +207,29 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         #[#sdk::__harmos::plugin(harmos_path = #sdk::__harmos, #(#forwarded),*)]
         #block
     })
+}
+
+// Harmos qualifies every operation the plugin serves as `<plugin id>.<operation>`,
+// so the id is one owner segment; refusing it here names the line it was written on.
+fn owner_segment(arguments: &Punctuated<Meta, Token![,]>) -> Result<(), Error> {
+    for argument in arguments {
+        let Meta::NameValue(named) = argument else { continue };
+        if !named.path.is_ident("id") {
+            continue;
+        }
+        let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(value), .. }) = &named.value else { continue };
+        let text = value.value();
+        let mut bytes = text.bytes();
+        let valid = bytes.next().is_some_and(|byte| byte.is_ascii_lowercase())
+            && bytes.all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_');
+        if !valid {
+            return Err(Error::new_spanned(
+                value,
+                "a plugin id is one owner segment: a lowercase ASCII letter, then lowercase letters, digits or `_` (no `-` or `.`)",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn contributed(arguments: &Punctuated<Meta, Token![,]>) -> Result<Contributed, Error> {
