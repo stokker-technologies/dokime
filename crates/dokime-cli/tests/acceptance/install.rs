@@ -306,7 +306,7 @@ async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
         },
     };
     let runtime = dokime::harmos::Runtime::<Fixture>::builder((), ()).register(Lanes::catalog()).runtime().await.unwrap();
-    let catalog = dokime::harmos::builtin::catalog_registration(None).unwrap();
+    let catalog = dokime::harmos::builtin::catalog_registration::<()>(None).unwrap();
     runtime.register(catalog.lane(Lanes::Open)).await.unwrap();
     let host = Arc::new(host);
     let mut dependencies = dokime::harmos::Dependencies::new();
