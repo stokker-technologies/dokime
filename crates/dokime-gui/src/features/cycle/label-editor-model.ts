@@ -12,9 +12,9 @@
  *
  * The cycle and execution headers each name their node with an operator label.
  * The pencil beside it opens a draft of that label in place: Enter saves the
- * trimmed text, Escape drops the draft, and a refusal keeps the draft open with
- * the reason beside it. Saving an unchanged label closes the draft without a
- * call. The module has no imports, so a node test can load it directly.
+ * trimmed text, Escape drops the draft, and a refusal keeps the draft open
+ * while reporting the reason through notifications. Saving an unchanged label
+ * closes the draft without a call. The module has no imports, so a node test can load it directly.
  */
 
 /* === Types === */

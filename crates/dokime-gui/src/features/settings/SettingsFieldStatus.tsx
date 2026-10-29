@@ -13,6 +13,7 @@
 
 /* === Local Imports === */
 
+import { NotificationMessage } from "@/components/NotificationMessage";
 import type { AutosaveState } from "@/features/settings/settings-autosave";
 
 /* === Types === */
@@ -25,24 +26,26 @@ type SettingsFieldStatusProps = {
 /* === Components === */
 
 export function SettingsFieldStatus({ onRetry, state }: SettingsFieldStatusProps) {
-  if (state.kind === "idle") return null;
-
-  if (state.kind === "error") {
-    return (
-      <span className="flex items-center gap-2 text-xs text-destructive" role="alert">
-        <span className="max-w-60 truncate" title={state.message}>
-          {state.message}
-        </span>
+  return (
+    <span className="inline-flex min-h-5 items-center gap-2 text-xs">
+      <NotificationMessage
+        source="Settings"
+        title={state.kind === "error" ? "Settings Could Not Save" : "Settings Updated"}
+        tone={state.kind === "error" ? "error" : state.kind === "saved" ? "success" : "info"}
+      >
+        {state.kind === "idle"
+          ? ""
+          : state.kind === "error"
+            ? state.message
+            : state.kind === "saving"
+              ? "Saving settings."
+              : "Settings saved."}
+      </NotificationMessage>
+      {state.kind === "error" && (
         <button className="underline underline-offset-2" onClick={onRetry} type="button">
           Retry
         </button>
-      </span>
-    );
-  }
-
-  return (
-    <span className="text-xs text-muted-foreground" role="status">
-      {state.kind === "saving" ? "Saving" : "Saved"}
+      )}
     </span>
   );
 }

@@ -138,7 +138,7 @@ export function StepFailure({ detail }: { detail: StepFailureDetail }) {
                   {detail.chain.map((cause) => `caused by: ${cause}`).join("\n")}
                 </span>
               ) : null}
-              {detail.location ? <span className="text-muted-foreground [overflow-wrap:anywhere]">at {detail.location}</span> : null}
+              {detail.location ? <span className="text-muted-foreground [overflow-wrap:anywhere]">At {detail.location}</span> : null}
               {detail.span_trace.length ? (
                 <span className="text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-line">
                   {detail.span_trace.map((span) => `in ${span}`).join("\n")}

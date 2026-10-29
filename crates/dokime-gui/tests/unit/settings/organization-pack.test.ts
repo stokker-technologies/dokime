@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 
 // Local Imports
 import { OrganizationPackView } from "@/features/settings/sections/OrganizationPackRow";
@@ -25,6 +25,14 @@ import type { OrganizationStatus } from "@/lib/desktop/organization";
 /* === Re-Exports === */
 
 /* === Constants === */
+
+const notice = vi.hoisted(() => vi.fn());
+vi.mock("@/components/NotificationMessage", () => ({
+  NotificationMessage: (props: unknown) => {
+    notice(props);
+    return null;
+  },
+}));
 
 const NONE: OrganizationStatus = { active: null, pending: null, removed: false, error: null };
 const CUSTOM = { label: "Stokker Technologies Test Hub", organization: "Stokker Technologies" };
@@ -42,7 +50,7 @@ test("the brand card names the pack, what happens next and the actions that appl
 
   const pending = row({ ...NONE, pending: CUSTOM });
   assert.match(pending, />Stokker Technologies Test Hub · Stokker Technologies</);
-  assert.ok(pending.includes("Applies on next start."));
+  assert.equal(organizationPackPresentation({ ...NONE, pending: CUSTOM }).restart, true);
   assert.deepEqual(buttons(pending), ["Choose File…", "Restart", "Remove"]);
 
   const active = row({ ...NONE, active: CUSTOM });
@@ -50,33 +58,39 @@ test("the brand card names the pack, what happens next and the actions that appl
   assert.deepEqual(buttons(active), ["Choose File…", "Remove"]);
 
   const removed = row({ ...NONE, active: null, removed: true });
-  assert.ok(removed.includes("Bundled organization applies on next start."));
+  assert.equal(organizationPackPresentation({ ...NONE, removed: true }).state, "removed");
   assert.deepEqual(buttons(removed), ["Choose File…", "Restart"]);
 });
 
-test("an invalid pack and a refused archive show as the field error", () => {
+test("Invalid Packs Notify", () => {
   const invalid = row({ ...NONE, error: "organization.toml does not parse" });
   assert.match(invalid, /data-state="invalid"/);
-  assert.match(invalid, /role="alert"[^>]*>Not applied: organization.toml does not parse. The bundled organization applies./);
+  assert.equal(notice.mock.calls.length, 1);
+  assert.doesNotMatch(invalid, /role="alert"/);
   assert.deepEqual(buttons(invalid), ["Choose File…", "Remove"]);
 
   const refused = row(NONE, "unsafe path in the organization pack: ../organization.toml");
-  assert.match(refused, /role="alert"[^>]*>unsafe path in the organization pack: ..\/organization.toml</);
+  assert.equal(notice.mock.calls.length, 1);
+  assert.doesNotMatch(refused, /role="alert"/);
   assert.match(refused, /data-state="none"/, "a refused archive changes nothing");
 });
 
-test("a refused pending pack reports that the last valid pack remains active", () => {
+test("Failed Activation Retains Pack", () => {
   const retained = row({ ...NONE, active: CUSTOM, error: "pending pack does not parse" });
 
   assert.match(retained, /data-state="active"/);
   assert.match(retained, />Stokker Technologies Test Hub · Stokker Technologies</);
-  assert.match(retained, /The last valid pack remains active/);
-  assert.doesNotMatch(retained, /The bundled organization applies/);
+  assert.equal(notice.mock.calls.length, 1);
+  const presentation = organizationPackPresentation({ ...NONE, active: CUSTOM, error: "fixture" });
+  assert.equal(presentation.state, "active");
+  assert.equal(presentation.remove, true);
+  assert.equal(presentation.restart, false);
 });
 
 /* === Private Functions === */
 
 function row(status: OrganizationStatus, choiceError: string | null = null): string {
+  notice.mockClear();
   return renderToStaticMarkup(
     createElement(OrganizationPackView, {
       presentation: organizationPackPresentation(status),

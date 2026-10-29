@@ -17,7 +17,8 @@
 
 import { Clipboard, RotateCcw } from "lucide-react";
 import type { CSSProperties } from "react";
-import { toast } from "sonner";
+import { NotificationMessage } from "@/components/NotificationMessage";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -159,11 +160,7 @@ export function ParameterEditor({
                       </div>
                       <span className="size-6" />
                     </div>
-                    {row.error ? (
-                      <p className="text-xs text-destructive" role="alert">
-                        {row.error}
-                      </p>
-                    ) : null}
+                    {row.error ? <NotificationMessage>{row.error}</NotificationMessage> : null}
                   </div>
                   <div className="justify-self-center">
                     {row.path !== (definition.default ?? "") || row.error ? (
@@ -256,9 +253,7 @@ function ParameterEditorRow({
           {acceptsExpressions(row) ? <ExpressionReferencePopover /> : <span className="size-6 [[data-density=touch]_&]:size-11" />}
         </div>
         {error ? (
-          <p className="text-xs text-destructive" role="alert">
-            {error}
-          </p>
+          <NotificationMessage>{error}</NotificationMessage>
         ) : expansion ? (
           <p className="flex flex-wrap items-center gap-2 text-xs leading-snug text-muted-foreground">
             {expansion.badge ? (
@@ -316,9 +311,9 @@ function ParameterLabelCell({ description, inputId, label }: { description: stri
 async function copyParameterId(parameterId: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(parameterId);
-    toast.success("Parameter ID copied");
+    toast.success("Parameter ID Copied");
   } catch {
-    toast.error("Could not copy parameter ID");
+    toast.error("Could Not Copy Parameter ID");
   }
 }
 

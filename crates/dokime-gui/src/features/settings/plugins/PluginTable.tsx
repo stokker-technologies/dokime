@@ -115,7 +115,7 @@ export function PluginTable({ label, rows, actions }: { label: string; rows: Plu
       aria-label={label}
       columns={COLUMNS}
       data={rows}
-      emptyText="No plugins."
+      emptyText="No Plugins"
       getRowId={rowKey}
       onRowClick={(row) => row.onOpenSettings?.()}
     />

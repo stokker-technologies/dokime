@@ -16,20 +16,21 @@
 // Third Party Imports
 
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
+import { Bell, History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 // Local Imports
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
 import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
 import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
 import { cycleRows } from "@/features/cycles-home/cycles-model";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
+import { useNotificationSummary } from "@/lib/notifications";
 import { recordLevelVariant } from "@/lib/record-display";
 import { cycleIdOfPathname } from "@/shell/route-scope";
 import { sidebarCycles } from "@/shell/sidebar-cycles";
@@ -45,6 +46,7 @@ const DESTINATIONS: Destination[] = [
   { icon: ListChecks, label: "Cycles", prefix: "/cycles", to: "/cycles" },
   { icon: Library, label: "Library", prefix: "/library", to: "/library" },
   { icon: HistoryIcon, label: "History", prefix: "/history", to: "/history" },
+  { icon: Bell, label: "Notifications", prefix: "/notifications", to: "/notifications" },
   { icon: Settings, label: "Settings", prefix: "/settings", to: "/settings" },
 ];
 
@@ -69,7 +71,7 @@ type Destination = {
   label: string;
   /** Every path under this prefix marks the destination current. */
   prefix: string;
-  to: "/cycles" | "/history" | "/library" | "/settings";
+  to: "/cycles" | "/history" | "/library" | "/notifications" | "/settings";
 };
 
 /* === Components === */
@@ -81,7 +83,7 @@ export function Sidebar(props: SidebarProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   if (props.live !== false && mode === "phone")
     return (
-      <nav aria-label="Navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background">
+      <nav aria-label="Navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background">
         {DESTINATIONS.map(({ icon: Icon, ...destination }) => (
           <button
             key={destination.to}
@@ -92,6 +94,7 @@ export function Sidebar(props: SidebarProps) {
           >
             <Icon className="size-5" />
             {destination.label}
+            {destination.to === "/notifications" && <UnreadNotifications />}
           </button>
         ))}
       </nav>
@@ -182,6 +185,7 @@ function DestinationTree({ expanded = false }: { expanded?: boolean }) {
         onSelect={() => void navigate({ to: destination.to })}
         title={destination.label}
       >
+        {destination.to === "/notifications" && <UnreadNotifications />}
         {destination.to === "/cycles" && promptLevel ? (
           <Badge
             aria-label={pendingPromptCountLabel(pendingPrompts.length)}
@@ -296,4 +300,13 @@ function ChildRegion({
 
 function isCurrent(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function UnreadNotifications() {
+  const { unread } = useNotificationSummary();
+  return unread ? (
+    <Badge aria-label={`${unread} Unread Notifications`} variant="secondary">
+      {unread}
+    </Badge>
+  ) : null;
 }

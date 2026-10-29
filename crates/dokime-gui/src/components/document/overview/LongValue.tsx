@@ -66,9 +66,9 @@ export function LongValue({ alwaysCopy = false, label = "", value }: { alwaysCop
       </span>
       {alwaysCopy || isTruncated || value.length > 24 ? (
         <button
-          aria-label="Copy full value"
+          aria-label="Copy Full Value"
           className="grid size-5 shrink-0 place-items-center rounded border text-muted-foreground hover:bg-muted"
-          title="Copy full value"
+          title="Copy Full Value"
           type="button"
           onClick={() => void copyValue()}
         >

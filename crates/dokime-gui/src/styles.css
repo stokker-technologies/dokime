@@ -927,3 +927,51 @@
     min-height: var(--control-height);
   }
 }
+
+/* Shared Brand Composition; Organization Themes Override These Variables. */
+.brand {
+  --brand-logo-size: 1.5rem;
+  --brand-flow: row;
+  --brand-align: center;
+  --brand-gap: 0.5rem;
+  display: flex;
+  min-width: 0;
+  flex-direction: var(--brand-flow);
+  align-items: var(--brand-align);
+  gap: var(--brand-gap);
+}
+.brand-row {
+  --brand-flow: row;
+}
+.brand-column {
+  --brand-flow: column;
+}
+.brand-start {
+  --brand-align: flex-start;
+}
+.brand-center {
+  --brand-align: center;
+}
+.brand .logo {
+  height: var(--brand-logo-size);
+  width: auto;
+  max-width: 100%;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.brand .wordmark {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1;
+}
+.connection-brand {
+  --brand-logo-size: 2.5rem;
+  --brand-gap: 1rem;
+  font-size: 1.875rem;
+}
+.sidebar-brand {
+  font-size: 1rem;
+}

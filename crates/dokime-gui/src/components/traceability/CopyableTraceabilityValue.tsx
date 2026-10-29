@@ -37,7 +37,7 @@ export function CopyableTraceabilityValue({ value: rawValue }: CopyableTraceabil
     <Tooltip>
       <TooltipTrigger asChild>
         <button
-          aria-label={`Copy ${value} to clipboard`}
+          aria-label={`Copy ${value} To Clipboard`}
           className="block min-w-0 max-w-full truncate text-right text-xs font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           onClick={() => {
             void copyTraceabilityText(value);
@@ -54,7 +54,7 @@ export function CopyableTraceabilityValue({ value: rawValue }: CopyableTraceabil
         className="max-w-[min(--spacing(128),calc(100vw_-_--spacing(8)))] whitespace-normal break-all text-left"
         side="top"
       >
-        {long ? `Copy: ${value}` : "Copy to clipboard"}
+        {long ? `Copy: ${value}` : "Copy To Clipboard"}
       </TooltipContent>
     </Tooltip>
   );

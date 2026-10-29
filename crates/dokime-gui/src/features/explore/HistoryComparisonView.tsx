@@ -79,7 +79,7 @@ export function HistoryComparisonView({ cycles }: HistoryComparisonViewProps) {
       ) : (
         <>
           <div className="min-w-0">
-            <DataTable columns={columns} data={COMPARISON_ROWS} emptyText="Nothing to compare." getRowId={rowLabel} />
+            <DataTable columns={columns} data={COMPARISON_ROWS} emptyText="Nothing To Compare" getRowId={rowLabel} />
           </div>
           <p className="text-xs text-muted-foreground">Comparison covers the summary metrics above.</p>
         </>

@@ -17,12 +17,12 @@
 
 // Third Party Imports
 
-// Local Imports
-import { test, expect, vi } from "vitest";
 import { Children, isValidElement, type ReactElement } from "react";
+// Local Imports
+import { expect, test, vi } from "vitest";
+import { navigationMode, settingsParent, sidebarWidth } from "@/shell/navigation-model";
 import { Sidebar } from "@/shell/Sidebar";
 import { SidebarFrame } from "@/shell/SidebarFrame";
-import { navigationMode, sidebarWidth, settingsParent } from "@/shell/navigation-model";
 
 /* === Re-Exports === */
 
@@ -65,9 +65,15 @@ test("destination switching", () => {
   const tabs = Children.toArray(phone.props.children as import("react").ReactNode).filter(isValidElement) as ReactElement<{
     onClick: () => void;
   }>[];
-  expect(tabs).toHaveLength(4);
+  expect(tabs).toHaveLength(5);
   for (const tab of tabs) tab.props.onClick();
-  expect(fixture.navigate.mock.calls.map(([target]) => target.to)).toEqual(["/cycles", "/library", "/history", "/settings"]);
+  expect(fixture.navigate.mock.calls.map(([target]) => target.to)).toEqual([
+    "/cycles",
+    "/library",
+    "/history",
+    "/notifications",
+    "/settings",
+  ]);
   for (const width of [600, 1023, 1024]) {
     fixture.width = width;
     const shell = Sidebar({}) as ReactElement<{ children: import("react").ReactNode }>;

@@ -21,6 +21,7 @@
 
 import { AlertTriangle, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -81,7 +82,7 @@ export function PromptPanel({ prompt, submittingAction = null, values, emergency
 
 function StatusPromptDialog({ emergencyAction, prompt }: { emergencyAction?: ReactNode; prompt: PromptRequest }) {
   return (
-    <div aria-live="polite" aria-labelledby="active-prompt-title" className="grid min-w-0 gap-4" role="status">
+    <NotificationMessage tone="info">
       <div className="flex min-w-0 gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <LoaderCircle className="animate-spin" size={18} />
@@ -97,7 +98,7 @@ function StatusPromptDialog({ emergencyAction, prompt }: { emergencyAction?: Rea
         </div>
       </div>
       {emergencyAction ? <div className="flex justify-end border-t pt-3">{emergencyAction}</div> : null}
-    </div>
+    </NotificationMessage>
   );
 }
 
@@ -233,9 +234,7 @@ function PromptDialog({
                 }}
               />
               {fieldErrors[field.name] && (attempted || touched.has(field.name)) ? (
-                <p className="text-xs text-destructive" role="status">
-                  {fieldErrors[field.name]}
-                </p>
+                <NotificationMessage tone="info">{fieldErrors[field.name]}</NotificationMessage>
               ) : null}
             </div>
           ))}
@@ -451,7 +450,7 @@ function MultiplePromptFieldControl({
           {field.kind === "choice" ? (
             <Select value={entry} disabled={field.readonly} onValueChange={(next) => updateEntry(index, next)}>
               <SelectTrigger
-                aria-label={`${field.label} entry ${index + 1}`}
+                aria-label={`${field.label} Entry ${index + 1}`}
                 className="w-full"
                 id={index === 0 ? promptFieldId(field) : undefined}
               >
@@ -467,7 +466,7 @@ function MultiplePromptFieldControl({
             </Select>
           ) : (
             <Input
-              aria-label={`${field.label} entry ${index + 1}`}
+              aria-label={`${field.label} Entry ${index + 1}`}
               id={index === 0 ? promptFieldId(field) : undefined}
               type={field.kind === "text" ? "text" : "number"}
               step={field.kind === "int" ? "1" : "any"}
@@ -478,7 +477,7 @@ function MultiplePromptFieldControl({
             />
           )}
           <Button
-            aria-label={`Remove ${field.label} entry ${index + 1}`}
+            aria-label={`Remove ${field.label} Entry ${index + 1}`}
             disabled={field.readonly || entries.length <= 1}
             size="icon"
             type="button"

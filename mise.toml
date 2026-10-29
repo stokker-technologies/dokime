@@ -421,10 +421,13 @@ env = { CARGO_INCREMENTAL = "0" }
 [tasks."test:typescript:unit"]
 description = "Test Unit TypeScript"
 depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>"
+'''
 run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run tests/unit --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
+  "{% if not usage.select %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
+  "{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/unit{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
 ]
 
 [tasks."test:typescript:integration"]

@@ -15,6 +15,7 @@
 /* === External Imports === */
 
 import { type FormEvent, useEffect, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -82,11 +83,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             titleInvalid={error !== null && !form.title.trim()}
             values={{ continueAutomatically: form.continueAutomatically, description: form.description, title: form.title }}
           />
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
+          {error ? <NotificationMessage>{error}</NotificationMessage> : null}
           <DialogFooter>
             <Button disabled={create.isPending} onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel

@@ -115,7 +115,7 @@ export function ActiveCyclePickerList({ activeId, cycles, loading, onChoose, onN
             aria-label="Search Open Cycles"
             className="h-[var(--bar-control-height)] pl-8"
             onChange={(event) => onSearch(event.target.value)}
-            placeholder="Search by name or identifier"
+            placeholder="Search By Name Or Identifier"
             value={search}
           />
         </span>

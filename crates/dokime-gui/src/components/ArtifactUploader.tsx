@@ -9,10 +9,10 @@
 
 /* === External Imports === */
 
-import { commands } from "@/lib/desktop/commands";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileUp, Image as ImageIcon, Square, Video } from "lucide-react";
 import { type MutableRefObject, useEffect, useId, useRef, useState } from "react";
+import { commands } from "@/lib/desktop/commands";
 
 /* === Local Imports === */
 
@@ -519,7 +519,7 @@ export function ArtifactUploader({
               </Button>
             ) : (
               <Button
-                aria-label={`Stop recording (${formatElapsed(recordingElapsedMs)})`}
+                aria-label={`Stop Recording (${formatElapsed(recordingElapsedMs)})`}
                 className={actionButtonClassName}
                 disabled={stopBusy}
                 size="lg"

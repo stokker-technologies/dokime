@@ -354,7 +354,7 @@ export function reportDownloadState(saving: boolean): ReportDownloadState {
   return {
     disabled: saving,
     label: "Download Report",
-    title: saving ? "Saving the report…" : "Download Report",
+    title: saving ? "Saving The Report…" : "Download Report",
   };
 }
 

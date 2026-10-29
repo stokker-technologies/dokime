@@ -17,10 +17,10 @@
 
 // Third Party Imports
 import { type ReactNode, useEffect, useState } from "react";
-import { toast } from "sonner";
 // Local Imports
 import { useAppearance } from "@/lib/appearance";
 import { applicationSettingsError, useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
+import { toast } from "@/lib/notifications";
 import type { ResolvedTheme, ThemeModePreference } from "@/lib/theme";
 import { useUiStore } from "@/stores/ui-store";
 import { ApplicationThemeProvider } from "./application-theme";
@@ -75,7 +75,7 @@ export function DesktopThemeProvider({ children }: { children: ReactNode }) {
             { themeMode: value as ThemeModePreference },
             {
               onError: (error) =>
-                toast.error("Appearance could not be saved", {
+                toast.error("Appearance Could Not Be Saved", {
                   description: applicationSettingsError(error),
                 }),
             },

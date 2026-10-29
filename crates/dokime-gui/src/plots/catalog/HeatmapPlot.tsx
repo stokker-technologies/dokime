@@ -161,7 +161,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                   const size = sparseCellSize(points.length);
                   return (
                     <rect
-                      aria-label={`Value ${formatScore(point.z)}${plot.unit ?? ""} at ${formatAxis(point.x)}, ${formatAxis(point.y)}`}
+                      aria-label={`Value ${formatScore(point.z)}${plot.unit ?? ""} At ${formatAxis(point.x)}, ${formatAxis(point.y)}`}
                       fill={colorScale(point.z)}
                       height={size}
                       key={`${point.x}-${point.y}-${point.z}`}

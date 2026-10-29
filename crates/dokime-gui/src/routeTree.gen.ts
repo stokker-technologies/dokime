@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CyclesRouteImport } from './routes/cycles'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as CyclesCycleIdRouteImport } from './routes/cycles_.$cycleId'
 import { Route as HistoryCycleIdRouteImport } from './routes/history_.$cycleId'
@@ -39,6 +40,11 @@ const HistoryRoute = HistoryRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/cycles': typeof CyclesRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
+  '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
   '/cycles/$cycleId': typeof CyclesCycleIdRoute
   '/history/$cycleId': typeof HistoryCycleIdRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/cycles': typeof CyclesRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
+  '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
   '/cycles/$cycleId': typeof CyclesCycleIdRoute
   '/history/$cycleId': typeof HistoryCycleIdRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/cycles': typeof CyclesRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
+  '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
   '/cycles_/$cycleId': typeof CyclesCycleIdRoute
   '/history_/$cycleId': typeof HistoryCycleIdRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/cycles'
     | '/history'
     | '/library'
+    | '/notifications'
     | '/settings'
     | '/cycles/$cycleId'
     | '/history/$cycleId'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/cycles'
     | '/history'
     | '/library'
+    | '/notifications'
     | '/settings'
     | '/cycles/$cycleId'
     | '/history/$cycleId'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/cycles'
     | '/history'
     | '/library'
+    | '/notifications'
     | '/settings'
     | '/cycles_/$cycleId'
     | '/history_/$cycleId'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   CyclesRoute: typeof CyclesRoute
   HistoryRoute: typeof HistoryRoute
   LibraryRoute: typeof LibraryRoute
+  NotificationsRoute: typeof NotificationsRoute
   SettingsRoute: typeof SettingsRoute
   CyclesCycleIdRoute: typeof CyclesCycleIdRoute
   HistoryCycleIdRoute: typeof HistoryCycleIdRoute
@@ -202,6 +215,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   CyclesRoute: CyclesRoute,
   HistoryRoute: HistoryRoute,
   LibraryRoute: LibraryRoute,
+  NotificationsRoute: NotificationsRoute,
   SettingsRoute: SettingsRoute,
   CyclesCycleIdRoute: CyclesCycleIdRoute,
   HistoryCycleIdRoute: HistoryCycleIdRoute,

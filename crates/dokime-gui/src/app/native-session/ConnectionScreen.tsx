@@ -11,16 +11,17 @@
 
 /* === External Imports === */
 
-import { Check } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
+import { Check } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /* === Local Imports === */
 
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
-import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { BackendsTable } from "@/features/settings/BackendsTable";
+import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
@@ -105,8 +106,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
     <main className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6">
       <div className="grid w-full max-w-140 min-w-0 gap-6 text-center">
         <header className="grid justify-items-center gap-4">
-          <BrandMark className="h-10" />
-          <h1 className="font-heading text-3xl leading-none font-semibold">{defaultBrand.label}</h1>
+          <BrandMark className="connection-brand brand-column" heading />
 
           <p className="text-sm text-muted-foreground" {...(busy ? { role: "status" } : {})}>
             {stateSentence({ busy, error: Boolean(error), launch, reset })}
@@ -151,7 +151,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
 
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
-                <span>or connect to a saved backend</span>
+                <span>Or Connect To A Saved Backend</span>
                 <span className="h-px flex-1 bg-border" />
               </div>
               <BackendsTable
@@ -185,8 +185,10 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
           )}
         </div>
         {!busy && diagnostics && (
-          <div role="alert" className="grid gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-left text-sm">
-            <p className="whitespace-pre-wrap break-words">{diagnostics.cause || connectionError(error)}</p>
+          <div className="grid gap-3 text-left text-sm">
+            <NotificationMessage source="Startup" title="Backend Could Not Start">
+              {diagnostics.cause || connectionError(error)}
+            </NotificationMessage>
             {diagnostics.log && <PathPill value={diagnostics.log} />}
             <Button variant="outline" onClick={() => void owner.select({ kind: "owned_local" })}>
               Retry

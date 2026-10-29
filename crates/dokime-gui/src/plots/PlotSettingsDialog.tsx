@@ -20,6 +20,7 @@
 
 import { Settings2 } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -55,10 +56,10 @@ export function PlotSettingsButton({ plot, onSubmit }: PlotSettingsButtonProps) 
   return (
     <>
       <Button
-        aria-label={`Plot settings for ${plot.title}`}
+        aria-label={`Plot Settings For ${plot.title}`}
         onClick={() => setOpen(true)}
         size="icon-sm"
-        title="Plot settings"
+        title="Plot Settings"
         type="button"
         variant="ghost"
       >
@@ -146,11 +147,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             ? `Enter between 1 and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, use 0 for every sample, or leave empty for the default.`
             : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} samples per trace.`}
         </p>
-        {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
+        {error ? <NotificationMessage>{error}</NotificationMessage> : null}
 
         <DialogFooter>
           <DialogClose asChild>

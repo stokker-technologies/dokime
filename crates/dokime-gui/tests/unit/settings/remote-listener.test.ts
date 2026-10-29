@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 
 // Local Imports
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -30,6 +30,14 @@ import {
 /* === Re-Exports === */
 
 /* === Constants === */
+
+const notice = vi.hoisted(() => vi.fn());
+vi.mock("@/components/NotificationMessage", () => ({
+  NotificationMessage: (props: unknown) => {
+    notice(props);
+    return null;
+  },
+}));
 
 const SETTINGS: ListenerSettings = {
   enabled: false,
@@ -84,12 +92,13 @@ test("saved intent without a bound address is not running", () => {
   assert.equal(listenerRunning({ ...STOPPED, settings: { ...SETTINGS, enabled: true }, error: "address in use" }), false);
 });
 
-test("TLS without a certificate shows an inline field error", () => {
+test("TLS Certificate Guard", () => {
   const missing: ListenerStatus = { ...STOPPED, certificatePem: undefined };
   const issue = certificateIssue(missing);
   assert.ok(issue);
   assert.equal(certificateIssue(STOPPED), null);
   assert.equal(certificateIssue({ ...missing, settings: { ...SETTINGS, tlsEnabled: false } }), null);
   const html = renderToStaticMarkup(createElement(SettingsRow, { label: "Public Certificate", error: issue }, "Generate Certificate"));
-  assert.match(html, /role="alert"/);
+  assert.equal(notice.mock.calls.length, 1);
+  assert.doesNotMatch(html, /role="alert"/);
 });

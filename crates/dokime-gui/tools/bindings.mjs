@@ -7,6 +7,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Generator, getConfig } from "@tanstack/router-generator";
 
 const gui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(resolve(gui, "package.json"));
@@ -194,3 +195,9 @@ function emit(path, content) {
     throw new Error(`Canonical generated source differs: ${path}`);
   }
 }
+
+// Refresh Routes With Contracts So Source Type Checks See New Pages.
+await new Generator({
+  root: gui,
+  config: getConfig({ target: "react", routesDirectory: "./src/routes", generatedRouteTree: "./src/routeTree.gen.ts" }, gui),
+}).run();

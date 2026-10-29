@@ -92,6 +92,12 @@ settings, with TLS and access-key authentication selected independently;
 browser-origin permission does not grant operation access. A GUI built with
 `DOKIME_TRANSPORT=grpc-web` is such a browser client.
 
+## Notifications
+
+Interface feedback appears in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.
+
+The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
+
 ## Native Remote Access
 
 Settings → Remote Access owns the saved listener settings and explicit restart.
@@ -135,6 +141,8 @@ capabilities. A grant must name the operation being called. Discovery and
 invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
+
+The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
 
 Settings → Backends and the CLI share `backends.json`. Each profile has a
 machine **Identifier** and a human **Label**. Import a pairing file as the primary
@@ -718,7 +726,7 @@ the plot instead of a legend: count, min, max, mean, median, std, and rms of
 each trace over the window shown, computed by the backend over the exact rows
 rather than the reduced points the plot draws. Clicking a row hides or shows its
 trace, a live plot's table also reads the value under the cursor, and the report
-freezes the table with its plot.
+freezes the table with its plot. Compatible time axes within one plot group share cursor movement; trace visibility and zoom remain specific to each chart. Drag a box to zoom. Hold Shift while dragging, or use the middle mouse button, to pan the held viewport; time plots pan horizontally, and XY plots pan both axes. Double-click or use Follow / Reset Zoom to resume the default view. Zoom and pan reselect points from retained input for the new viewport.
 An unavailable plot shows its diagnostic in a centered, tinted overlay. A terminal
 stream error replaces the displayed chart while retaining its last frame for recovery.
 
@@ -1077,16 +1085,18 @@ input payload and compiled application identity. When installer signing is
 requested, it signs the modified executable before recording its final hash,
 then signs the finished installer. Installer artwork supplies the setup icon.
 
-The app's brand mark exposes the `.logo` class on both light and dark artwork,
-including its text fallback. Customize it in the pack's `theme/base.css`, for
-example:
+The connection screen and sidebar share a `.brand` block containing `.logo` artwork and a `.wordmark`. The text fallback also carries `.logo`. Customize this block in the pack's `theme/base.css`, for example:
 
 ```css
-.logo {
-  padding: 0.5rem 1rem;
-  object-fit: contain;
+.brand {
+  --brand-logo-size: 2.5rem;
+  --brand-flow: column;
+  --brand-align: center;
+  --brand-gap: 0.75rem;
 }
 ```
+
+The default classes `brand-row` / `brand-column` select flow and `brand-start` / `brand-center` select alignment. Organization themes can override their variables without changing components. The connection screen keeps its 2.5rem logo and the sidebar its 1.5rem logo by default.
 
 The root element carries `.light` or `.dark` for the active mode, so shared
 styles can target `.light .logo` and `.dark .logo` symmetrically. Alternatively,

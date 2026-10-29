@@ -20,6 +20,8 @@ import type { ReactNode } from "react";
 /* === Local Imports === */
 
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
+import { DataTable } from "@/components/data-table/DataTable";
+import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { DocumentMetricFlow, metricFlowStorageKey } from "@/components/document/DocumentOverviewCards";
 import { FrozenOperatorNotes } from "@/components/document/OperatorNotesView";
@@ -29,8 +31,6 @@ import { StepRecordList } from "@/components/document/StepRecordsCard";
 import { MediaGalleryView } from "@/components/MediaGalleryView";
 import type { MediaGalleryArtifact } from "@/components/media-gallery-model";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
-import { DataTable } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { formatValue } from "@/lib/dashboard";
 import { isStatedGroup } from "@/lib/traceability";
@@ -228,7 +228,7 @@ export function DocumentTableContent({ rows }: { rows: DocumentViewTableRow[] })
   const columns = (names.length ? names : ["Value"]).map((name) =>
     column.accessor((row) => row.cells[name] ?? "-", { id: name, header: name, meta: { filter: "text" } }),
   );
-  return <DataTable columns={columns} data={rows} getRowId={(row) => row.row_id} emptyText="No table rows recorded." />;
+  return <DataTable columns={columns} data={rows} getRowId={(row) => row.row_id} emptyText="No Table Rows Recorded" />;
 }
 
 export function TraceabilityDocumentContent({ traceability }: { traceability: TraceabilitySnapshot | null | undefined }) {
