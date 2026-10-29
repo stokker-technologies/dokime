@@ -10,11 +10,12 @@
 /* === Modules === */
 
 mod artwork;
+mod distribution;
 mod inspect;
 mod manifest;
 mod native;
-mod payload;
 mod plugins;
+pub mod release;
 mod signing;
 
 #[cfg(windows)]
@@ -75,28 +76,43 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     let scratch = tempfile::Builder::new().prefix("dokime-installer-").tempdir_in(std::env::current_dir()?)?;
     #[cfg(not(windows))]
     let scratch = tempfile::tempdir()?;
-    let downloaded = scratch.path().join("payload");
+    let downloaded = scratch.path().join("distribution");
+    let release = if options.artifacts.is_none() || !manifest.dokime.plugins.is_empty() {
+        Some(release::Release::resolve(manifest.dokime.version()).await?)
+    } else {
+        None
+    };
     let source = if let Some(source) = &options.artifacts {
         source.canonicalize()?
     } else {
         std::fs::create_dir_all(&downloaded)?;
-        payload::download(&manifest.dokime, &downloaded).await?;
+        let release = release.as_ref().ok_or_else(|| Error::Invalid("missing resolved release".into()))?;
+        let version = release.distribution(manifest.dokime.version(), &manifest.dokime.target, &downloaded).await?;
+        manifest.dokime.version = Some(version);
         downloaded
     };
-    let payload = payload::validate(&source, &manifest.dokime)?;
+    let distribution = distribution::validate(&source, &manifest.dokime)?;
+    let mut selected = options.plugins.clone();
+    selected.extend(manifest.dokime.external_plugins.iter().map(|plugin| plugin.path.clone()));
+    if let Some(release) = release {
+        let paths = release
+            .plugins(&manifest.dokime.plugins, &distribution.target, &distribution.version, &scratch.path().join("release-plugins"))
+            .await?;
+        selected.extend(paths);
+    }
     let plugins = plugins::stage(
-        &options.plugins,
+        &selected,
         &source.join("organization"),
         manifest.installer.organization.as_deref(),
         scratch.path(),
-        &payload.target,
-        &payload.version,
+        &distribution.target,
+        &distribution.version,
     )?;
     std::fs::create_dir_all(&options.output)?;
     let output = options.output.canonicalize()?;
     let staged = scratch.path().join("installers");
     std::fs::create_dir_all(&staged)?;
-    let outputs = native::assemble(&manifest, &payload, &source, &plugins, scratch.path(), &staged, options.sign)?;
+    let outputs = native::assemble(&manifest, &distribution, &source, &plugins, scratch.path(), &staged, options.sign)?;
     let mut published = Vec::new();
     for path in outputs {
         let destination = output.join(path.file_name().ok_or_else(|| Error::Invalid("invalid installer output".into()))?);

@@ -29,7 +29,7 @@ use nsis::{
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use super::payload::{self, Identity};
+use super::distribution::{self, Identity};
 use crate::Error;
 
 /* === Constants === */
@@ -88,13 +88,13 @@ impl<'a> Members<'a> {
         if name.is_empty() || name == "." {
             return Ok(());
         }
-        std::fs::create_dir_all(self.root.join(payload::relative(name)?))?;
+        std::fs::create_dir_all(self.root.join(distribution::relative(name)?))?;
         Ok(())
     }
 
     fn file(&mut self, name: &str, bytes: &[u8]) -> Result<(), Error> {
         let name = name.strip_prefix("./").unwrap_or(name);
-        let path = self.root.join(payload::relative(name)?);
+        let path = self.root.join(distribution::relative(name)?);
         if !self.files.insert(name.to_owned()) {
             return Err(Error::Invalid(format!("installer contains a duplicate member: {name}")));
         }
@@ -169,10 +169,10 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
         return Err(Error::Invalid("embedded organization label differs from distribution metadata".into()));
     }
     for (name, expected) in &metadata.files {
-        let path = root.join(payload::relative(name)?);
+        let path = root.join(distribution::relative(name)?);
         if !path.is_file()
             || std::fs::symlink_metadata(&path)?.file_type().is_symlink()
-            || payload::digest(&std::fs::read(path)?) != *expected
+            || distribution::digest(&std::fs::read(path)?) != *expected
         {
             return Err(Error::Invalid(format!("finished installer content mismatch: {name}")));
         }
@@ -256,7 +256,7 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
     };
     Ok(Inspection {
         package: package.into(),
-        sha256: payload::digest(&std::fs::read(package)?),
+        sha256: distribution::digest(&std::fs::read(package)?),
         verified_files: metadata.files.len(),
         installer_signature,
         updater_signature,
@@ -453,7 +453,7 @@ fn validate_metadata(metadata: &DistributionMetadata) -> Result<(), Error> {
         return Err(Error::Invalid("invalid embedded distribution manifest".into()));
     }
     dokime::paths::DistributionIdentity::new(metadata.identity.identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
-    if !super::payload::safe_identity(&metadata.identity.slug) {
+    if !super::distribution::safe_identity(&metadata.identity.slug) {
         return Err(Error::Invalid("invalid distribution slug".into()));
     }
     let prefix = match metadata.target.as_str() {
@@ -473,7 +473,7 @@ fn validate_metadata(metadata: &DistributionMetadata) -> Result<(), Error> {
         return Err(Error::Invalid("distribution manifest omits required installed files".into()));
     }
     for (name, digest) in &metadata.files {
-        payload::relative(name)?;
+        distribution::relative(name)?;
         if digest.len() != 64 || !digest.bytes().all(|c| c.is_ascii_hexdigit()) {
             return Err(Error::Invalid("invalid distribution file SHA-256".into()));
         }

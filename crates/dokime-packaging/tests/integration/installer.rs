@@ -18,7 +18,6 @@
 // Third Party Imports
 use dokime_packaging::installer::{PackageOptions, package};
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 // Local Imports
 
@@ -67,7 +66,7 @@ fn hash(bytes: &[u8]) -> String {
 #[tokio::test]
 async fn distribution_identity() {
     let root = tempfile::tempdir().unwrap();
-    let source = root.path().join("payload");
+    let source = root.path().join("distribution");
     std::fs::create_dir_all(source.join("bin")).unwrap();
     let pack = dokime::config::organization::resolve(None).unwrap();
     pack.write_to(&source.join("organization")).unwrap();
@@ -96,7 +95,7 @@ async fn distribution_identity() {
         "identity": { "identifier": "com.stokker.dokime", "slug": "dokime", "updater_public_key": "fixture" },
         "files": files,
     });
-    std::fs::write(source.join("payload.json"), serde_json::to_vec(&metadata).unwrap()).unwrap();
+    std::fs::write(source.join("distribution.json"), serde_json::to_vec(&metadata).unwrap()).unwrap();
     let manifest = root.path().join("installer.toml");
     let formats = if cfg!(windows) { "'nsis'" } else { "'deb','rpm'" };
     let options = PackageOptions {
@@ -148,9 +147,9 @@ async fn distribution_identity() {
 
 #[tokio::test]
 async fn installer() {
-    // Payload Integrity Refusals Preserve The Unpublished Output.
+    // Distribution Integrity Refusals Preserve The Unpublished Output.
     let root = tempfile::tempdir().unwrap();
-    let artifacts = root.path().join("payload");
+    let artifacts = root.path().join("distribution");
     std::fs::create_dir_all(artifacts.join("bin")).unwrap();
     std::fs::create_dir_all(artifacts.join("organization")).unwrap();
     let suffix = if cfg!(windows) { ".exe" } else { "" };
@@ -173,7 +172,7 @@ async fn installer() {
         },
         "files":files,
     });
-    std::fs::write(artifacts.join("payload.json"), serde_json::to_vec(&metadata).unwrap()).unwrap();
+    std::fs::write(artifacts.join("distribution.json"), serde_json::to_vec(&metadata).unwrap()).unwrap();
     let manifest = root.path().join("installer.toml");
     let format = if cfg!(windows) { "nsis" } else { "deb" };
     std::fs::write(&manifest, format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'"))
@@ -187,45 +186,22 @@ async fn installer() {
         target: None,
     };
     let error = package(&manifest, &options).await.unwrap_err();
-    assert!(matches!(error, dokime_packaging::Error::PayloadDigest { member } if metadata["files"].get(&member).is_some()));
+    assert!(matches!(error, dokime_packaging::Error::DistributionDigest { member } if metadata["files"].get(&member).is_some()));
     assert!(!options.output.exists());
     let digest: String = Sha256::digest(b"tampered").iter().map(|byte| format!("{byte:02x}")).collect();
     for value in metadata["files"].as_object_mut().unwrap().values_mut() {
         *value = serde_json::Value::String(digest.clone());
     }
-    std::fs::write(options.artifacts.as_ref().unwrap().join("payload.json"), serde_json::to_vec(&metadata).unwrap()).unwrap();
+    std::fs::write(options.artifacts.as_ref().unwrap().join("distribution.json"), serde_json::to_vec(&metadata).unwrap()).unwrap();
     std::fs::write(options.artifacts.as_ref().unwrap().join("organization/injected.css"), b"unverified injected appearance").unwrap();
     let error = package(&manifest, &options).await.unwrap_err();
-    assert!(matches!(error, dokime_packaging::Error::UnindexedPayload { member } if member == "organization/injected.css"));
+    assert!(matches!(error, dokime_packaging::Error::UnindexedDistribution { member } if member == "organization/injected.css"));
     assert!(!options.output.exists());
 
-    // Signing Refusal Precedes Payload Acquisition.
+    // Signing Refusal Precedes Distribution Acquisition.
     options.sign = true;
     options.artifacts = None;
     let error = package(&manifest, &options).await.unwrap_err();
     assert!(matches!(error, dokime_packaging::Error::SigningConfiguration));
-    assert!(!options.output.exists());
-
-    // The Same Manifest Then Exercises Native TLS Before Any Installer Assembly.
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("https://{}", listener.local_addr().unwrap());
-    let mut serving = tokio::task::JoinSet::new();
-    serving.spawn(async move {
-        let (mut socket, _) = listener.accept().await.unwrap();
-        let mut record = [0];
-        socket.read_exact(&mut record).await.unwrap();
-        socket.shutdown().await.unwrap();
-        record[0]
-    });
-
-    std::fs::write(&manifest, format!(
-        "[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'\nrelease_url='{url}'\nsha256='{}'\n",
-        "00".repeat(32)
-    )).unwrap();
-    options.sign = false;
-    let result = package(&manifest, &options).await;
-    assert!(result.is_err());
-    assert_eq!(serving.join_next().await.unwrap().unwrap(), 0x16);
     assert!(!options.output.exists());
 }

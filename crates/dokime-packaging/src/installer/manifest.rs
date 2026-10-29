@@ -50,10 +50,22 @@ pub struct Distribution {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Artifact {
-    pub version: String,
+    pub version: Option<String>,
+
+    #[serde(default = "native_target")]
     pub target: String,
-    pub release_url: Option<String>,
-    pub sha256: Option<String>,
+
+    #[serde(default)]
+    pub plugins: Vec<String>,
+
+    #[serde(default)]
+    pub external_plugins: Vec<ExternalPlugin>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalPlugin {
+    pub path: PathBuf,
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,8 +107,14 @@ pub enum Format {
 
 /* === Implementations === */
 
+impl Artifact {
+    pub fn version(&self) -> &str {
+        self.version.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"))
+    }
+}
+
 impl Manifest {
-    pub(super) fn identity(&self, compiled: &super::payload::Identity) -> Result<super::payload::Identity, Error> {
+    pub(super) fn identity(&self, compiled: &super::distribution::Identity) -> Result<super::distribution::Identity, Error> {
         let mut identity = compiled.clone();
         if let Some(identifier) = &self.installer.identifier {
             let distribution =
@@ -112,6 +130,9 @@ impl Manifest {
         let mut manifest: Self =
             toml::from_str(&text).map_err(|_| Error::Invalid("invalid installer manifest; check TOML syntax and supported keys".into()))?;
         let base = path.parent().unwrap_or(Path::new("."));
+        for plugin in &mut manifest.dokime.external_plugins {
+            plugin.path = base.join(&plugin.path);
+        }
         if let Some(folder) = &mut manifest.installer.organization {
             *folder = base.join(&*folder);
         }
@@ -129,10 +150,10 @@ impl Manifest {
         if let Some(identifier) = &self.installer.identifier {
             dokime::paths::DistributionIdentity::new(identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
         }
-        for version in [&self.installer.version, &self.dokime.version] {
-            if cargo_metadata::semver::Version::parse(version).is_err() {
-                return Err(Error::Invalid("versions must be exact semantic versions".into()));
-            }
+        let installer_version = cargo_metadata::semver::Version::parse(&self.installer.version);
+        let version = self.dokime.version();
+        if installer_version.is_err() || (version != "dev-channel" && cargo_metadata::semver::Version::parse(version).is_err()) {
+            return Err(Error::Invalid("versions must be exact semantic versions or Dokime dev-channel".into()));
         }
         let windows = self.dokime.target == "x86_64-pc-windows-msvc";
         let linux = self.dokime.target == "x86_64-unknown-linux-gnu";
@@ -158,16 +179,34 @@ impl Manifest {
 
 /* === Private Functions === */
 
+fn native_target() -> String {
+    dokime::plugins::NATIVE_TARGET.into()
+}
+
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_manifest() {
+        let text = "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\nplugins=['opaque-name']\n[[dokime.external_plugins]]\npath='plugin.dokime'";
+        let manifest: Manifest = toml::from_str(text).unwrap();
+        assert_eq!(manifest.dokime.version(), env!("CARGO_PKG_VERSION"));
+        assert_eq!(manifest.dokime.plugins, ["opaque-name"]);
+        assert_eq!(manifest.dokime.external_plugins[0].path, Path::new("plugin.dokime"));
+
+        for retired in ["release_url='https://example.test/archive.zip'", "sha256='digest'"] {
+            let text = format!("[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n{retired}");
+            assert!(toml::from_str::<Manifest>(&text).is_err());
+        }
+    }
     #[test]
     fn distribution_identifier() {
         let text = "[installer]\nversion='1.2.3'\nidentifier='com.hilti.dokime'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
         let mut manifest: Manifest = toml::from_str(text).unwrap();
-        let compiled = super::super::payload::Identity {
+        let compiled = super::super::distribution::Identity {
             identifier: "com.stokker.dokime".into(),
             slug: "dokime".into(),
             updater_public_key: "trust".into(),

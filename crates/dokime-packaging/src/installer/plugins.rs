@@ -51,7 +51,33 @@ pub(super) fn stage(
     if let Some(organization) = organization {
         selected.extend(folder(&organization.join("plugins"))?);
     }
-    for path in paths {
+    let external = scratch.join("external-plugins");
+    let mut bundles = Vec::new();
+    for (index, path) in paths.iter().enumerate() {
+        if path.extension().is_some_and(|extension| extension == "dokime") {
+            bundles.push(path.clone());
+            continue;
+        }
+        let name = path.file_name().and_then(|name| name.to_str()).ok_or_else(|| Error::Invalid("invalid plugin archive name".into()))?;
+        let metadata = std::fs::symlink_metadata(path)?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > dokime::distribution::ARCHIVE_MAX_BYTES as u64 {
+            return Err(Error::Invalid("external plugin archive must be a bounded regular file".into()));
+        }
+        let archive = std::fs::read(path)?;
+        let members = dokime::distribution::member_names(&archive, name).map_err(Error::Invalid)?;
+        let directory = external.join(index.to_string());
+        std::fs::create_dir_all(&directory)?;
+        for member in members {
+            let bytes = dokime::distribution::member_bytes(&archive, name, &member).map_err(Error::Invalid)?;
+            let destination = directory.join(member);
+            if destination.exists() {
+                return Err(Error::Invalid("duplicate external plugin archive member".into()));
+            }
+            std::fs::write(&destination, bytes)?;
+            bundles.push(destination);
+        }
+    }
+    for path in &bundles {
         let name = path
             .file_name()
             .and_then(|name| name.to_str())
@@ -65,7 +91,7 @@ pub(super) fn stage(
     let mut packages = BTreeSet::new();
     let mut verified = Vec::new();
     for (name, path) in selected {
-        super::payload::relative(&name)?;
+        super::distribution::relative(&name)?;
         let folded = name.to_lowercase();
         if !names.insert(folded) {
             return Err(Error::Invalid(format!("duplicate installer plugin filename: {name}")));
@@ -218,13 +244,24 @@ mod tests {
         assert!(!scratch.path().join("plugins").exists());
         let staged = selected(std::slice::from_ref(&host), scratch.path()).unwrap();
         assert_eq!(staged.len(), 1);
-        assert_eq!(std::fs::read(&staged["host.dokime"]).unwrap(), std::fs::read(host).unwrap());
+        assert_eq!(std::fs::read(&staged["host.dokime"]).unwrap(), std::fs::read(&host).unwrap());
         assert!(!scratch.path().join("plugins/bench.dokime").exists());
 
         let repeated = tempfile::tempdir().unwrap();
         let staged = selected(&[bench.clone(), bench.with_file_name("host.dokime")], repeated.path()).unwrap();
         assert_eq!(staged.len(), 2);
         assert_eq!(std::fs::read(&staged["bench.dokime"]).unwrap(), std::fs::read(bench).unwrap());
+
+        use std::io::{Cursor, Write};
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive.start_file("host.dokime", zip::write::SimpleFileOptions::default()).unwrap();
+        archive.write_all(&std::fs::read(&host).unwrap()).unwrap();
+        let bytes = archive.finish().unwrap().into_inner();
+        let path = input.path().join("external-sidecars.zip");
+        std::fs::write(&path, bytes).unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        let staged = selected(&[path], scratch.path()).unwrap();
+        assert_eq!(std::fs::read(&staged["host.dokime"]).unwrap(), std::fs::read(&host).unwrap());
     }
 
     #[test]

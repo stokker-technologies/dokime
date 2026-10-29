@@ -31,7 +31,6 @@ tracing = { workspace = true }
 harmos-packaging = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
 process-wrap = { workspace = true, features = ["tokio1"] }
-sha2 = { workspace = true }
 time = { workspace = true }
 
 # Serialization
@@ -78,6 +77,9 @@ tauri-bundler = { workspace = true }
 # === Dev Dependencies === #
 
 [dev-dependencies]
+# Utilities
+sha2 = { workspace = true }
+
 # Serialization
 handlebars = { workspace = true }
 
