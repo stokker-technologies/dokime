@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 // Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
+use dokime::harmos::operations::OperationDeclaration;
 use dokime::operations::content as v1;
 
 /* === Constants === */
@@ -157,10 +158,10 @@ pub(crate) async fn fetch_verified(
     }
     let frame_limit = std::num::NonZeroUsize::new(frame_bytes).expect("desktop frame limit");
     let client = lease.client().with_frame_limit(frame_limit);
-    let client = if matches!(source, ArtifactSource::CycleReport { .. } | ArtifactSource::ExecutionReport { .. }) {
-        client.with_timeout(std::time::Duration::from_secs(300))
-    } else {
-        client
+    let client = match source {
+        ArtifactSource::CycleReport { .. } => client.with_timeout(dokime::operations::reports::DownloadCycleReport::POLICY.timeout),
+        ArtifactSource::ExecutionReport { .. } => client.with_timeout(dokime::operations::reports::DownloadExecutionReport::POLICY.timeout),
+        _ => client,
     };
     let destination = destination.to_path_buf();
     let result = match source {

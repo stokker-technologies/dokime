@@ -9,6 +9,10 @@
 
 /* === Modules === */
 
+#[cfg(feature = "testing")]
+#[path = "delivery/transport.rs"]
+pub mod delivery;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -84,6 +88,9 @@ pub struct Service {
     pub stream_closed: Arc<Notify>,
     pub upload_gate: Option<Arc<Gate>>,
     pub upload_drain: bool,
+
+    #[cfg(feature = "testing")]
+    pub download: Arc<Mutex<delivery::DownloadConfig>>,
 }
 
 pub struct UploadInput {
@@ -146,12 +153,16 @@ impl Service {
                 "/dokime.v1.Backend/GetAvailability".into(),
                 runtime::GetIdentity::PATH.into(),
                 runtime::GetHealth::PATH.into(),
+                #[cfg(feature = "testing")]
+                dokime::client::contracts::content::DownloadArtifact::PATH.into(),
             ],
             token: None,
             requests: Arc::default(),
             gate: None,
             upload_gate: None,
             upload_drain: false,
+            #[cfg(feature = "testing")]
+            download: Arc::default(),
             stream_closed: Arc::new(Notify::new()),
         }
     }
@@ -554,13 +565,13 @@ impl Listener {
             server = server.tls_config(ServerTlsConfig::new().identity(Identity::from_pem(&IDENTITY.0, &IDENTITY.1))).unwrap();
         }
         let task = tokio::spawn(async move {
-            server
+            let server = server
                 .add_service(RuntimeService(service.clone()))
                 .add_service(PluginsService(service.clone()))
-                .add_service(BackendService(service))
-                .serve_with_incoming(TcpListenerStream::new(listener))
-                .await
-                .unwrap();
+                .add_service(BackendService(service.clone()));
+            #[cfg(feature = "testing")]
+            let server = server.add_service(delivery::Content(service));
+            server.serve_with_incoming(TcpListenerStream::new(listener)).await.unwrap();
         });
         Self { endpoint, task }
     }

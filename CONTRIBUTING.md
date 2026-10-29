@@ -77,7 +77,10 @@ The Tests producer alone enables
 `dokime-runtime/testing`: a Rust fixture surface for private receipt, spool,
 window and log owners, with no extra Harmos visibility. Integration exercises
 small histories; system uses seven days and real segment-sized log volume.
-Product does not enable this feature. Focus one small guard with
+The GUI Tests feature `dokime-gui/testing` exposes the native Save workflow with
+a controlled picker result; its integration story uses real verified streams and
+atomic filesystem publication, including refusal and generation-change cleanup.
+Product enables neither testing feature. Focus one small guard with
 `mise run build:rust:focused -- test --locked -p dokime-runtime --features testing --test integration -- retained_evidence::retained_evidence --exact`.
 
 Product and Tests build independently. Tests use Cargo's unoptimized test

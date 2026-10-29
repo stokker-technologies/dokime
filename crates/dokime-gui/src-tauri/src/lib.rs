@@ -19,6 +19,9 @@ mod error;
 pub mod native_session;
 pub mod parameters;
 pub mod rpc;
+#[cfg(feature = "testing")]
+#[doc(hidden)]
+pub mod testing;
 
 /* === Re-Exports === */
 
