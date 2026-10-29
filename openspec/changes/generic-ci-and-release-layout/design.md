@@ -12,6 +12,8 @@ The owner-approved Hub design at `generic-ci-and-release-layout/design.md` gover
 - `mise.toml`: native task references, package target arguments and credential-free rehearsal description.
 - `crates/dokime-packaging/src/installer/native.rs`: Windows output name includes its Rust target so generated latest.json URLs match staged release names.
 - `crates/cargo-dokime/Cargo.toml`: tgz metadata and Windows ZIP override, root binary path.
+- `tools/python/src/dokime_tools/package/plugins.py`: collect packages selected by release.plugins for the native target alongside the existing OBC fixture, once each; the release declaration owns shipped-package selection.
+- `packages/dokime-client/tests/integration/client/test_plugin_releases.py`: prove collection from existing compiler records without a compiler rerun.
 - `tools/python/src/dokime_tools/package/{payload,installer}.py`: payload naming and signed verification using the signature embedded in latest.json when the standalone sidecar is absent.
 - `packages/dokime-client/tests/integration/client/test_installers.py`: affected payload and published-signature behavior.
 - `.agents/skills/dokime-testing/SKILL.md` and generated provider copies: distinguish test-only OBC from shipped plugins.
