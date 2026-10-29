@@ -32,6 +32,8 @@
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 pub enum Operations {
     Adapters(super::adapters::Adapters),
+    CpuLoad(super::cpu::CpuLoad),
+    GetPlan(super::power::GetPlan),
 }
 
 /* === Traits === */
