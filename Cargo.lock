@@ -2603,6 +2603,7 @@ dependencies = [
  "clap",
  "dokime",
  "flate2",
+ "handlebars",
  "harmos-packaging",
  "image",
  "libc",
