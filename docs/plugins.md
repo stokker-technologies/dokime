@@ -101,6 +101,24 @@ and dropdown sources come off the authored settings aggregate —
 `PluginSettings::status_operation()`, `PluginSettings::option_providers()` — read
 from the admitted catalog; the host has no compiled plugin adapters.
 
+Release staging groups shipping sidecars into one native archive per target:
+`dokime-sidecars-<version>-<target>.zip` on Windows and `.tar.gz` on Unix.
+Members keep their declared unversioned `.dokime` filenames. `plugins.json`
+format 2 lists plugin names, kinds, versions, Dokime requirements and target
+archive/member/hash mappings. The desktop lists every compatible plugin from the
+selected update source, verifies the archive against SHA256SUMS and the requested
+member against the feed, then installs only that member. There is no v1 reader
+or individual-plugin release-asset fallback. See the
+[release feed example](product-guide.md#organization).
+
+Custom installers use top-level `[[plugin]]` entries with exactly one of `name`
+(a release feed name) or `path` (a local bundle relative to the organization
+pack). The pack's `plugins/` folder is storage only; unlisted files never ship
+and plugin files are not overlaid. Repeat `--plugin <path>` for equivalent
+external bundle or sidecars archive inputs relative to the invocation directory.
+Names come from feed and product declarations; they do not depend on crate naming.
+See [Distribution From A Release](product-guide.md#distribution-from-a-release).
+
 Operators install bundles through **Settings → Plugins**. Installation validates
 the complete bundle and frozen registrations without running author code, then
 atomically binds an installation UUID to its SHA-256 in `settings.json`; immutable bytes live at

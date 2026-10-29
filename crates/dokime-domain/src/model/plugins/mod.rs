@@ -16,6 +16,7 @@ pub mod error;
 mod installed;
 mod permission;
 pub mod product;
+pub mod release;
 pub mod wire;
 
 /* === Re-Exports === */

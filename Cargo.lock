@@ -2408,11 +2408,16 @@ dependencies = [
  "dokime-client",
  "dokime-domain",
  "dokime-runtime",
+ "flate2",
+ "harmos-packaging",
  "indicatif",
  "serde_json",
+ "sha2 0.11.1",
+ "tar",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "zip 9.1.0",
 ]
 
 [[package]]
@@ -2467,6 +2472,7 @@ version = "0.1.2"
 dependencies = [
  "base64 0.23.1",
  "harmos",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -2491,7 +2497,6 @@ dependencies = [
  "rcgen",
  "reqwest",
  "rustls",
- "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",

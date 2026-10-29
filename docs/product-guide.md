@@ -4,8 +4,7 @@ Detailed concepts, supported interfaces and existing authoring examples. For ins
 
 ## Install Tools With Mise
 
-Dokime has no published release yet. After publication, select matching CLI and
-authoring-tool archives in your mise configuration. For Windows x86-64:
+Select matching CLI and authoring-tool release archives in your mise configuration. For Windows x86-64:
 
 ```toml
 [tool_alias]
@@ -22,16 +21,21 @@ and `cargo-dokime-*-x86_64-unknown-linux-gnu.tar.gz`. Each archive contains its 
 LICENSE, README and generated CHANGELOG; Unix commands retain executable modes.
 The [mise aliases](https://mise.jdx.dev/dev-tools/aliases.html) give each tool its
 own installation directory. Cargo-binstall metadata selects the same archive names, although this
-unpublished Cargo subcommand is distributed through release assets and mise.
+Cargo subcommand is distributed through release assets and mise.
 
-Release downloads include native installers, tool archives,
-`dokime-payload-<version>-<Rust-target>.zip` distributor inputs, shipped plugin
-`<package>-<version>-<Rust-target>.dokime` bundles and their `plugins.json` feed,
-`latest.json` for the desktop updater, CHANGELOG and SHA256SUMS. Installer
-signatures are embedded in `latest.json`; standalone `.sig` files are not
-downloads. OBC and remote examples remain candidate/source fixtures. Python
-distributions publish to PyPI. CI transports `upload.json` between publication
-and verification jobs; it is not a release download.
+Release downloads include native installers, CLI and authoring-tool archives,
+`dokime-distribution-<version>-<Rust-target>.zip` distributor inputs and
+`dokime-sidecars-<version>-<Rust-target>.zip` (Windows) or `.tar.gz` (Unix).
+Each sidecars archive contains every shipping native plugin as an unversioned
+`.dokime` member. `plugins.json` format 2 maps plugin names and targets to archives,
+members and member SHA-256 hashes. Future target-independent guests use
+`dokime-guests-<version>.zip`; guest execution is not currently admitted.
+`latest.json` is the signed desktop updater feed. CHANGELOG and SHA256SUMS also
+ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
+downloads. The dev-channel uses the same asset names and workspace version,
+omits unsigned `latest.json`, and identifies its source commit in release notes.
+OBC and remote examples remain candidate/source fixtures. Python distributions
+publish to PyPI. CI's `upload.json` is not a release download.
 
 `mise run release:rehearse` consumes existing release-profile packages for every
 configured target and runs staging and registry dry runs with credentials
@@ -845,7 +849,7 @@ replaced by the `sidecar` group.
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
-| `cargo dokime installer package` | Assemble unchanged local or pinned release payloads. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
+| `cargo dokime installer package` | Assemble unchanged local or versioned release distributions. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
 | `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
 
 An installer manifest selects the distribution version, optional installation
@@ -860,20 +864,26 @@ organization = "organization"
 formats = ["nsis"]
 
 [dokime]
-version = "0.1.0"
+version = "0.1.3"
 target = "x86_64-pc-windows-msvc"
+
+[[plugin]]
+name = "dokime-host"
+
+[[plugin]]
+path = "plugins/acme-bench.dokime"
 ```
 
 `organization` resolves relative to that manifest. It may contain a partial
 [organization override](#organization); omitted values and files inherit the
-selected payload's organization defaults. On Linux, use `target = "x86_64-unknown-linux-gnu"` and
+selected distribution's organization defaults. On Linux, use `target = "x86_64-unknown-linux-gnu"` and
 `formats = ["deb", "rpm"]`. Assembly requires the matching native operating
 system. `--format` accepts repeated or comma-separated `nsis`, `deb`, `rpm`
 values; `--target` overrides the manifest target.
 
 `identifier` is a lowercase reverse-DNS identifier, such as `com.hilti.dokime`.
 It fixes the distribution's storage and install identity; omitting it uses the
-payload's compiled identifier. Packaging writes `{ "schema": 1, "identifier":
+distribution's compiled identifier. Packaging writes `{ "schema": 1, "identifier":
 "com.hilti.dokime" }` to `distribution.json` beside the executables and hashes it
 in `installer.json`, the inventory used for inspection and bundled-plugin startup
 reconciliation. A malformed or unreadable identity file fails startup; only an absent file falls back to the compiled identifier.
@@ -892,28 +902,39 @@ pages, shortcut names, the Windows Add/Remove Programs display name, Linux
 package descriptions and desktop entries. It also supplies the desktop's display
 name; changing the distribution identifier does not change this label.
 
-The product build exports `product/installer-payload/` under its matching
-`target/build/<profile>/<target>/` directory. It contains `payload.json`, the
+The product build exports `product/installer-distribution/` under its matching
+`target/build/<profile>/<target>/` directory. It contains `distribution.json`, the
 unchanged CLI and GUI executables, license and the complete authored
 `organization/` default pack. Its manifest records compiled identity, exact
 Dokime version/target and SHA-256 hashes for every input, including every
-organization asset. Assembly resolves these payload defaults with the optional
+organization asset. Assembly resolves these distribution defaults with the optional
 company override, so it retains the selected release's appearance even when the
 authoring tool was built with different defaults.
 Using that directory requires no application compilation:
 
 ```sh
-cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-payload --output dist
+cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-distribution --output dist
 cargo dokime installer inspect dist/com-hilti-dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe --json
 ```
 
-Place downloaded `.dokime` bundles in the organization pack's optional `plugins/`
-folder, or pass repeatable `--plugin path/to/host.dokime` arguments. The Dokime
-packaging task selects `host.dokime` explicitly; OBC remains test-only. Packaging
-verifies every bundle's member digests, native target and declared Dokime version
-requirement against the installer payload before embedding any bundles. A refusal
-names the offending bundle. Organization overrides replace base bundles with the
-same filename; duplicate explicit filenames or package names are refused.
+Use top-level `[[plugin]]` entries to select installer plugins. Each entry sets
+exactly one of `name` or `path`; invalid entries report their one-based index.
+`name` selects a plugin from the release feed and need not match its bundle
+filename. `path` names a local bundle relative to `[installer] organization`,
+or to the distribution's `organization/` when no override is selected. Paths
+must stay inside that pack; a missing override file never falls back to a base
+plugin with the same filename. For this example, the local bundle lives at
+`company/organization/plugins/acme-bench.dokime`.
+
+The pack's `plugins/` folder is storage only. Unlisted files are excluded from
+the installer, and plugin files are never overlaid or discovered automatically.
+Repeatable `--plugin <path>` arguments are the CLI equivalent of path entries,
+with paths relative to the invocation directory. Explicit paths also accept a
+local sidecars ZIP or tar.gz and include its `.dokime` members. Every selected
+bundle receives the same integrity, native-target and `requires_dokime` checks
+before embedding; duplicate filenames or package names fail. The product
+packaging task selects shipping plugins explicitly from `stkr.toml`; OBC is
+test-only.
 `cargo dokime sidecar build` and `package` include integrity-indexed `dokime.json`
 metadata (schema v1) containing `requires_dokime`, taken from the plugin's Cargo
 `dokime` dependency requirement. Rebuild older bundles that lack this metadata
@@ -932,17 +953,32 @@ without host telemetry.
 
 Product `mise run package:rust --profile dev` invokes the matching built
 `cargo-dokime`, packages and inspects those outputs, and publishes a portable
-`dokime-payload-<version>-<Rust-target>.zip` beside the installers. The ZIP
-preserves the payload bytes and executable modes; downstream distributors can
+`dokime-distribution-<version>-<Rust-target>.zip` beside the installers. The ZIP
+preserves the distribution bytes and executable modes; downstream distributors can
 extract it and supply its directory through `--artifacts`.
 
-For a release download, omit `--artifacts` and add `release_url` and `sha256` to
-`[dokime]`. `release_url` must be the HTTPS URL of that exact portable payload
-ZIP; `sha256` must be its trusted 64-digit hexadecimal archive digest. Both are
-required. The tool verifies the download before extraction, then verifies the
-payload's version, target and file hashes. It does not accept an existing native
-installer as a replacement payload. Dokime has no published release yet; use
-matching candidate build artifacts until a payload release is available.
+#### Distribution From A Release
+
+Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
+Use an exact semantic version such as `"0.1.3"`, `"dev-channel"`, or omit the key
+to use the running `cargo-dokime` version. The target defaults to the native
+platform and can be set in the manifest or overridden by `--target`.
+
+The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
+and the archives needed by the selected plugin names. It verifies archive and
+feed hashes against SHA256SUMS, then each requested member against the feed and
+its bundle identity before validating distribution files and plugin compatibility.
+For dev-channel, the distribution metadata supplies the actual Dokime version.
+
+Verified downloads are cached by SHA-256 under
+`%LOCALAPPDATA%/dokime/cache/releases/sha256` on Windows or
+`${XDG_CACHE_HOME:-$HOME/.cache}/dokime/releases/sha256` on Unix. Every cache hit
+is rehashed; corrupted bytes are replaced only by a verified download. Feed v1
+and the old `release_url`/`sha256`, `[dokime] plugins` and
+`[[dokime.external_plugins]]` manifest keys are rejected.
+`--artifacts <dir>` retains build-tree assembly without acquiring a distribution;
+when named release plugins are requested, their release feed is still resolved.
+Native installers are outputs and cannot substitute for a distribution archive.
 
 Native assembly uses Tauri's bundler. The NSIS template at
 `crates/dokime-packaging/src/installer/installer.nsi` is adapted from
@@ -980,7 +1016,7 @@ Runtime windows and the tray use their organization artwork roles; Linux
 launchers use the application artwork. Installer artwork sets the native
 installer icon. Windows packaging replaces the staged GUI executable's PE icon
 with application artwork, which its desktop/Start-menu shortcuts also use. The
-source payload remains unchanged. Organization installer settings select a
+source distribution remains unchanged. Organization installer settings select a
 solid-color sidebar or a custom PNG; see [Organization](#organization).
 
 #### Signing
@@ -1019,7 +1055,7 @@ version is supported for unsigned/manual deployment. Choose exactly one of
 variable naming a file) or `private_key_env` (environment variable containing the
 base64-encoded key). Key files accept a minisign secret key or its base64 encoding.
 `password_env` names the external password variable. No secret is a CLI value or
-manifest value. The tool verifies signatures against the payload's compiled
+manifest value. The tool verifies signatures against the distribution's compiled
 updater public key and emits `.exe.sig` and `latest.json`. A company organization
 override defaults to disabled updates unless it explicitly sets `updates.mode`;
 changing a pack does not replace compiled updater trust.
@@ -1070,7 +1106,7 @@ definitions are available under `dokime::domain` in every feature set.
 | `client` | No | Remote access under `dokime::client` and connection/installation helpers. |
 | `diagnostics` | No | Captured error chains, span traces and backtraces. |
 | `terminal` | No | Shared terminal output used by command-line interfaces and packaging. |
-| `native` | No | Native runtime, storage, gRPC, sidecar SDK and plugin prelude. |
+| `native` | No | Native runtime, storage, gRPC, sidecar SDK, plugin prelude and release archive verification. |
 | `derive` | No | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
 | `fft` | No | Spectrum analyses on top of `native`. |
@@ -1149,7 +1185,7 @@ DEB/RPM packages do not display these sidebar assets.
 
 Windows packaging replaces the staged GUI executable's icon resources with
 `app.artwork.application`, which installed shortcuts also use. It preserves the
-input payload and compiled application identity. When installer signing is
+input distribution and compiled application identity. When installer signing is
 requested, it signs the modified executable before recording its final hash,
 then signs the finished installer. Installer artwork supplies the setup icon.
 
@@ -1176,6 +1212,10 @@ Resolve the installation's default pack with an optional organization override
 before validation. Manifest tables merge recursively; present scalar and array
 values replace defaults. Omitted fields and files inherit, while a supplied file
 replaces the whole file at the same relative path. There are no deletion markers.
+Installer plugin selection is separate: the pack's optional `plugins/` folder
+stores local bundles, and only explicit `[[plugin]] path` entries (or CLI
+`--plugin` paths) include them. Plugin storage is excluded from the installed
+organization pack. See [Native Installers](#native-installers) for the manifest.
 A partial override can therefore contain only this manifest and a replacement
 `theme/light.css`:
 
@@ -1257,38 +1297,35 @@ verification key, which packs cannot replace.
 
 Provider sources discover `latest.json` and `plugins.json` in their latest
 release. A direct source can omit `plugins` when it offers no plugin releases.
-The plugin feed has this shape:
+The plugin feed has this shape (the digest below is illustrative):
 
 ```json
 {
-  "format_version": 1,
-  "package": "instruments",
-  "version": "1.2.3",
-  "requires_dokime": ">=0.1.0, <0.2.0",
-  "assets": [{
-    "target": "x86_64-pc-windows-msvc",
-    "url": "https://updates.example.com/instruments.dokime",
-    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  "format_version": 2,
+  "plugins": [{
+    "name": "instruments",
+    "kind": "sidecar",
+    "version": "1.2.3",
+    "requires_dokime": ">=0.1.3, <0.2.0",
+    "targets": {
+      "x86_64-pc-windows-msvc": {
+        "archive": "dokime-sidecars-0.1.3-x86_64-pc-windows-msvc.zip",
+        "member": "instruments.dokime",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    }
   }]
 }
 ```
 
-Generate a feed from already built bundles using the canonical inspector:
-
-```sh
-uv run --locked --project tools/python python -m dokime_tools.package.plugins \
-  --tool target/build/dev/linux-x86_64/bin/cargo-dokime \
-  --asset instruments.dokime https://updates.example.com/instruments.dokime \
-  --requires-dokime '=0.1.0' --output plugins.json
-```
-
-Repeat `--asset` for other targets of the same package and version, then publish
-the feed and those exact bundles together. Settings › Plugins checks compatibility
-against the connected backend's version and target, verifies the digest and
-inspected package identity, and installs the selected bundle directly. Restart
-the host to activate it. Dropping a bundle or selecting it with the native
-picker uses the same installation path without a review or consent dialog.
-A missing feed or target is reported without substituting a different package.
+Release staging generates this feed from the shipping declarations and inspected
+bundles. Publish the feed, archives and SHA256SUMS together. A direct source
+serves the archives and SHA256SUMS beside its plugins.json URL. Provider sources
+resolve asset URLs from one release snapshot. Settings → Plugins lists all
+compatible plugins, verifies archive and member hashes and inspected identity,
+and installs only the explicitly selected member. Restart the host to activate it.
+Picking or dropping a local bundle uses the ordinary installation path.
+Missing or incompatible entries fail without per-plugin asset fallback.
 
 ## Generated Clients
 

@@ -17,6 +17,7 @@ import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
 import { type InstallPluginProgress, installNativePlugin } from "@/lib/api/native-plugins";
+import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */
 
@@ -108,14 +109,24 @@ test("Picked Bundle Installs In One Native Invoke", async () => {
 });
 
 test("Release Installs Natively", async () => {
+  const releases = ["first", "second"].map((name) => ({
+    candidate: `${name}-candidate`,
+    package: name,
+    version: "1.2.3",
+    target: "native",
+    requiresDokime: "^0.1",
+  }));
+  fixture.invoke.mockResolvedValue(releases);
+  assert.deepEqual(await commands.desktopPluginReleaseCheck(session.generation), releases);
+  fixture.invoke.mockClear();
   fixture.invoke.mockResolvedValue("release-install");
-  const entry = await installNativePlugin(session, { release: "reviewed-candidate" });
+  const entry = await installNativePlugin(session, { release: releases[1].candidate });
 
   assert.equal(entry?.install_id, "release-install");
   assert.equal(fixture.invoke.mock.calls.length, 1);
   const [command, arguments_] = fixture.invoke.mock.calls[0];
   assert.equal(command, "desktop_plugin_release_install");
-  assert.equal(arguments_.candidate, "reviewed-candidate");
+  assert.equal(arguments_.candidate, "second-candidate");
   assert.equal(arguments_.generation, session.generation);
   assert.equal(fixture.getInstallation.mock.calls.length, 1);
 });
