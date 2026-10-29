@@ -12,7 +12,7 @@ The distribution is `dokime-client`; Python imports use `dokime_client`.
 Use CPython `>=3.13,<3.16`. For the beginner host/second-PC workflow, follow the
 [candidate-artifact walkthrough](examples/remote/README.md) and its
 [locked uv setup](examples/remote/python/README.md). That environment uses a
-bundled candidate wheel and makes no published-registry availability claim.
+locally built matching wheel and makes no published-registry availability claim.
 
 Add the published distribution to a uv project with `uv add dokime-client`. For a separately supplied matching wheel:
 
@@ -242,17 +242,11 @@ drains its callbacks and saves `execution.json`.
 runs one attempt and writes `cycle.json` and `summary.json`. Edit their globals,
 then run the file without arguments.
 
-Repository Python Build stages the canonical guides, scripts, locked tutorial
-environment and bundled candidate wheel under
-`target/build/<profile>/any/python/examples/remote/`. Python Package consumes those
-files and produces
-`target/package/<profile>/any/python/dokime-remote-examples-<version>.zip`, alongside
-the client distributions in that same Python subtree, without
-rebuilding. It includes only the explicit public
-example inventory; local `.env`, key files and collected evidence are excluded.
-The archive's shared [beginner guide](examples/remote/README.md) explains the
-candidate installation and its limits. The bundled wheel pin does not establish
-published package availability or a verified release combination.
+Repository Python Build produces client distributions under
+`target/build/<profile>/any/python/`; Python Package copies those distributions to
+`target/package/<profile>/any/python/` without rebuilding. Tutorials remain in the
+[source examples](examples/remote/README.md). They are not packaged or attached to
+releases; follow their setup instructions to prepare a matching local wheel.
 
 ```python
 from dokime_client.client import DokimeClient

@@ -222,7 +222,7 @@ run = [
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."build:python"]
-description = "Build The Python Client Distributions And Tutorial"
+description = "Build The Python Client Distributions"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.python --profile {{usage.profile}}"
@@ -484,12 +484,12 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [{ tasks = ["package:rust --profile {{usage.profile}}", "package:python --profile {{usage.profile}} --target any"] }]
 
 [tasks."package:python"]
-description = "Package The Built Client Distributions And Tutorial"
+description = "Package The Built Client Distributions"
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--target <target>" default="any"
 '''
-run = "{{vars.tools}} dokime_tools.package.examples --profile {{usage.profile}} --target {{usage.target}}"
+run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}"
 
 [tasks."package:rust"]
 description = "Package The Desktop Installer, CLI, Authoring Tool And Plugin Bundle"

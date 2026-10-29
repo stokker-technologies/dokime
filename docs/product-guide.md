@@ -500,7 +500,7 @@ then run without arguments. Their names, grouping and meanings match the
 The scripts require the matching CLI and simulated OBC plugin; a matching
 first-party release combination and native workflow validation remain pending.
 The [candidate walkthrough](../packages/dokime-client/examples/remote/README.md) explains
-how to obtain one matching CI artifact set and use its bundled Python wheel.
+how to obtain matching native CI artifacts and prepare a local Python wheel from the same revision.
 
 `--parameters-json` supplies single template parameter values as a plain
 JSON object. The default pulse has no prompt. To require one confirmation,
