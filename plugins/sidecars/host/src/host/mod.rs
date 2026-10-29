@@ -9,9 +9,14 @@
 
 /* === Modules === */
 
+pub mod adapters;
 pub mod bluetooth;
 mod catalog;
 pub mod network;
+pub mod operations;
+
+#[cfg(feature = "runtime")]
+pub mod observers;
 pub mod system;
 pub mod wifi_latency;
 pub mod wifi_link;

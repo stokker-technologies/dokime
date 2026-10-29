@@ -35,7 +35,7 @@ required-features = ["runtime"]
 # Definitions (requests, responses, ids, policies, stream rows) build with no features;
 # `runtime` adds the operation implementations and their platform dependencies.
 default = []
-runtime = ["dep:getifs", "dep:serde_json", "dep:starship-battery", "dep:sysinfo", "dep:tokio", "dep:tokio-util", "dep:windows"]
+runtime = ["dep:libc", "dep:serde_json", "dep:starship-battery", "dep:sysinfo", "dep:tokio", "dep:tokio-util", "dep:windows"]
 
 # === Dependencies === #
 
@@ -52,6 +52,7 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
+libc = { workspace = true, optional = true }
 starship-battery = { workspace = true, optional = true }
 sysinfo = { workspace = true, optional = true }
 
@@ -72,7 +73,6 @@ tokio = { workspace = true, features = ["process"], optional = true }
 tokio-util = { workspace = true, features = ["rt"], optional = true }
 
 # Networking
-getifs = { workspace = true, optional = true }
 
 # Storage
 

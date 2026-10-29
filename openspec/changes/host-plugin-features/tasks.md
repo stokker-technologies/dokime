@@ -38,11 +38,17 @@ Locked 2026-10-29. One commit per item; targeted proof per item; Linux paths are
 
 ## 4. Adapters (Read)
 
-- [ ] 4.1 `host.network.adapters` query (Windows `GetAdaptersAddresses`, Linux `getifaddrs` plus routes).
-- [ ] 4.2 `host.network` compact form with change events from OS notifications.
+Assigned source inventory: `host/adapters` owns the Public inventory query and native platform reads; `host/network` owns notification lifetime and compact events; telemetry definitions and consumers adopt the compact schema; execution-start capture uses the ordinary plugin boundary. Targeted native Windows query, event decoding/lifetime and snapshot evidence proof close this item; Linux runs in CI. Root README has no adapter claims; update `plugins/README.md`.
+
+- [x] 4.1 `host.network.adapters` query (Windows `GetAdaptersAddresses`, Linux `getifaddrs` plus routes).
+- [x] 4.2 `host.network` compact form with change events from OS notifications.
+  Evidence for 4.1–4.2: `plugins/sidecars/host/src/host/adapters/windows.rs::snapshot` uses IP Helper inventory/routes; `adapters/unix.rs::snapshot` uses getifaddrs/kernel routes and NetworkManager per-device DNS/DHCP. `host/network/notifications` owns bounded native events, visible overflow refusal and lease-bound teardown; the compact schema removes polled inventory and the obsolete getifs dependency. Windows targeted integration `adapters::` passes 2 stories; host lib `host::` passes 9, including native address decoding, compact event encoding and queue ordering/deduplication/overflow. Task-owned Clippy passes before both selections; the no-default-features/all-targets caller check passes. Linux decoder proof remains for CI. Canonical authoring guidance and provider-disabled generated copies describe the split catalogs; plugins README is updated and the root README has no affected claims.
 - [ ] 4.3 Adapters snapshot in execution evidence at run start.
+  Open dependency: a synchronous run-start hook through the ordinary plugin boundary is needed. Existing process-scoped asynchronous record listeners cannot guarantee a run-scoped snapshot before step writes; the generic backend lifecycle decision under 5 applies here too.
 
 ## 5. Radios And Adapters (Write)
+
+Assigned source inventory: host radio/adapter operation definitions, native handlers and focused refusal/inversion tests; generic backend lifecycle/context owners only if agreed. Triage: Harmos `state::Invertible` reverses pure state only; Dokime currently has no durable run-effect journal or trusted remote-connection context in `ExecutionScope`. Owner decision pending on adding that generic lifecycle/context; do not substitute plugin-local recovery or an untrusted request guard.
 
 - [ ] 5.1 `host.network.radio.set` (Windows.Devices.Radios / NM radio switches).
 - [ ] 5.2 `host.network.adapter.set` with the administrator refusal.
@@ -50,6 +56,8 @@ Locked 2026-10-29. One commit per item; targeted proof per item; Linux paths are
 - [ ] 5.4 Active-connection guard with explicit step override.
 
 ## 6. Remaining Host Features
+
+Assigned source inventory: existing Bluetooth presence collectors (reuse), host power and CPU operations, bounded startup calibration, operation documentation and focused proofs. Power-plan set shares the item 5 lifecycle decision. Triage: Bluetooth presence already exists in `platform/windows/bluetooth.rs` and `platform/unix/bluetooth.rs`; native Windows power-plan read already exists in `platform/windows/power.rs`. Also update canonical `dokime-fast-release` guidance and its generated copies: PRs target `dev`, channel builds and consumers use `dev`.
 
 - [ ] 6.1 Bluetooth on/off through the radio operation; device presence.
 - [ ] 6.2 Power plan read and invertible set.

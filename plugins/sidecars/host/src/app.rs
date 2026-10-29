@@ -61,10 +61,10 @@ impl dokime::harmos::builtins::lifecycle::Policy for HostPlugin {
     restart = "never",
     requires(dokime::harmos::builtins::streams::Publish),
     contributions(dokime::Evidence<host::Catalog>, dokime::Settings<crate::Settings>),
-    observers = host::Catalog
+    observers = host::observers::Observers
 )]
 impl dokime::Plugin for HostPlugin {
-    const CATALOGS: &'static [dokime::harmos::Catalog] = &[host::Catalog::CATALOG];
+    const CATALOGS: &'static [dokime::harmos::Catalog] = &[host::Catalog::CATALOG, host::operations::Operations::CATALOG];
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
         let observers = self.observers.as_ref()?.clone();
@@ -117,7 +117,7 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::bluetooth::State>>(state);
 
-        let observers = ObserverAttachment::from_catalog::<host::Catalog>(<Self as Declared>::STREAMS)?;
+        let observers = ObserverAttachment::from_catalog::<host::observers::Observers>(<Self as Declared>::STREAMS)?;
         Ok(Self { workers, observers: Some(observers) })
     }
 

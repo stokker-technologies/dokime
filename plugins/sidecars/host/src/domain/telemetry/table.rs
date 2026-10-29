@@ -85,11 +85,10 @@ macro_rules! host_streams {
                     sample_index: Integer, Counter, "Sample Index", Option<i64>;
                     probe_status: Text, State, "Probe Status", Option<String>;
                     probe_error: Text, State, "Probe Error", Option<String>;
-                    radio_link: Text, State, "Radio Link", Option<String>;
-                    default_interface: Text, State, "Default Interface", Option<String>;
-                    default_gateway: Text, State, "Default Gateway", Option<String>;
-                    local_addresses: Array, State, "Local Addresses", Vec<String>;
-                    local_address_count: Integer, Value, "Local Address Count", Option<i64>;
+                    primary_interface: Text, State, "Primary Interface", Option<String>;
+                    change: Text, State, "Change", Option<String>;
+                    adapter_id: Text, State, "Adapter", Option<String>;
+                    address: Text, State, "Address", Option<String>;
                     network_interface_count: Integer, Value, "Network Interface Count", Option<i64>;
                     network_recv_mb_per_second: Number, Throughput, "Network RX", Option<f64>;
                     network_sent_mb_per_second: Number, Throughput, "Network TX", Option<f64>;
@@ -97,9 +96,6 @@ macro_rules! host_streams {
                     network_total_sent_bytes: Integer, Counter, "Network Total TX", Option<i64>;
                     network_rx_errors: Integer, Counter, "Network RX Errors", Option<i64>;
                     network_tx_errors: Integer, Counter, "Network TX Errors", Option<i64>;
-                    network_mtu: Integer, State, "Network MTU", Option<i64>;
-                    network_mac: Text, State, "Network MAC", Option<String>;
-                    network_operational_state: Text, State, "Network State", Option<String>;
                     internet: Boolean, State, "Internet", Option<bool>;
                 }
             }
