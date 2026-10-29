@@ -79,6 +79,7 @@ impl harmos::Lifecycle for Dokime {
     async fn initialize(&mut self, context: &Self::Context) -> Result<()> {
         let Some(parts) = self.parts.take() else { return Ok(()) };
         let prepared = self.prepared.take().expect("native preparation retains its resources");
+        crate::runtime::storage::initialize(&context.runtime, &parts).await?;
         let handle = crate::RuntimeHandle::initialize(&context.runtime, parts, prepared).await?;
         *self.live.write().await = Some(handle.clone());
         for composition in &self.composition {

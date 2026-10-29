@@ -319,7 +319,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Measured {
     observers = MeasuredObservers,
     restart = "never", description = "Owned stream fixture.")]
 impl dokime_runtime::Plugin for Measured {
-    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[Provided::CATALOG];
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
     fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
         self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
     }
@@ -378,12 +378,6 @@ impl Measured {
     fn resources(&self) -> Arc<Resource> {
         Arc::clone(&self.resource)
     }
-}
-
-#[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
-enum Provided {
-    Noted(Noted),
-    Echoed(Echoed),
 }
 
 #[dokime_runtime::observer(demand_keys(UNIT_NOTED), activation = "demand", interval_ms = 5)]

@@ -38,7 +38,7 @@ pub(crate) mod telemetry_pages;
 
 /* === Re-Exports === */
 
-pub(crate) use assembly::configure;
+pub(crate) use assembly::{configure, initialize};
 
 /* === Imports === */
 
