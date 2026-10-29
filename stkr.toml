@@ -2,11 +2,21 @@
 # Native manifests own package metadata; mise owns executable recipes.
 # Defaults stay implicit. Commented sections do not declare configuration.
 
-# === Project === #
+# === === Project === === #
 
 [project]
 name = "Dokime"
 platforms = ["linux", "windows"]
+
+[tools]
+# Verify Detached Updater Signatures With The Compiled Public Key.
+include = ["minisign"]
+
+[features]
+# The Build Scripts Compile The Operation Contracts With Protoc.
+proto = true
+
+# === === Languages === === #
 
 [languages.rust]
 roots = ["crates", "plugins"]
@@ -16,59 +26,321 @@ targets = ["wasm32-unknown-unknown"]
 exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
 
 [languages.python]
+build_target = "any"
 roots = ["tools/python", "packages"]
-generated = ["packages/dokime/src/dokime/_wire", "packages/dokime/src/dokime/operation.py", "packages/dokime/src/dokime/dynamic.py"]
+generated = [
+  "packages/dokime-client/src/dokime_client/_wire",
+  "packages/dokime-client/src/dokime_client/operation.py",
+  "packages/dokime-client/src/dokime_client/dynamic.py",
+]
 
 [languages.typescript]
 roots = ["crates/dokime-gui"]
 exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
-generated = ["crates/dokime-gui/.generated", "crates/dokime-gui/src/lib/rpc/generated"]
+generated = ["target/generated/typescript", "crates/dokime-gui/src/lib/rpc/generated", "crates/dokime-gui/src/generated/organization"]
 
-[features]
-# The build scripts compile the operation contracts with protoc.
-proto = true
-
-# === Repository === #
+# === === Repository === === #
 
 [housekeeping]
 max_workspaces = 5
 
-# === CI === #
+# === === CI === === #
 
-[ci.runners]
-windows = ["windows-latest"]
+# --- Impact --- #
 
-[ci.budgets]
-# Measured on a hosted runner (run 39101116446): the dev build, the workspace check and clippy, without a warm cache.
-build = 2400
-# User-approved two-hour Rust check job limit: 110 minutes plus the renderer's existing ten-minute margin.
-check = 6600
-# Measured on run 39135263053: the Linux acceptance lane spent about 10 minutes (download, extraction and
-# 58 stories) before the default 10-minute job budget cancelled it.
-"test:acceptance:rust" = 660
-# Successful hosted desktop job 117791229323 (run 39164579251), including setup and artifact handling.
-"test:system:typescript" = 239
+[ci.impact]
+default = "full"
 
-[ci.setup]
-# The desktop shell (Tauri/WebKitGTK) and native media capture compile against these system libraries; the
-# shell's deep-link registration runs update-desktop-database and xdg-mime at startup.
-linux = [
-  "sudo apt-get update",
-  "sudo apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver xvfb desktop-file-utils xdg-utils",
-  # The desktop walkthrough drives the native shell through WebKitWebDriver on a virtual display.
-  "Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &",
-  "echo DISPLAY=:99 >> \"$GITHUB_ENV\"",
+[[ci.impact.rules]]
+name = "guidance"
+include = [
+  "**/skills/**",
+  "**/.skills/**",
+  "**/.agents/**",
+  "**/.codex/**",
+  "**/.claude/**",
+  "**/.cursor/**",
+  "**/.gemini/**",
+  "**/.opencode/**",
+  "**/.github/agents/**",
+  "**/.github/instructions/**",
+  "**/.github/prompts/**",
+  "**/.mcp.json",
+  "**/AGENTS.md",
+  "**/CLAUDE.md",
+  "**/.github/copilot-instructions.md",
+  "**/README.md",
+  "**/readme.md",
+  "**/CONTRIBUTING.md",
+  "**/contributing.md",
+  "**/LICENSE*",
+  "**/LICENCE*",
+  "**/license*",
+  "**/licence*",
+  "**/COPYING*",
+  "**/NOTICE*",
 ]
+jobs = []
 
-# === Agents === #
+[[ci.impact.rules]]
+name = "prose"
+include = ["docs/**/*.md"]
+exclude = [
+  "**/skills/**",
+  "**/.skills/**",
+  "**/.agents/**",
+  "**/.codex/**",
+  "**/.claude/**",
+  "**/.cursor/**",
+  "**/.gemini/**",
+  "**/.opencode/**",
+  "**/.github/agents/**",
+  "**/.github/instructions/**",
+  "**/.github/prompts/**",
+  "**/.mcp.json",
+  "**/AGENTS.md",
+  "**/CLAUDE.md",
+  "**/.github/copilot-instructions.md",
+  "**/README.md",
+  "**/readme.md",
+  "**/CONTRIBUTING.md",
+  "**/contributing.md",
+  "**/LICENSE*",
+  "**/LICENCE*",
+  "**/license*",
+  "**/licence*",
+  "**/COPYING*",
+  "**/NOTICE*",
+]
+jobs = ["check:repository"]
 
-# === Hooks === #
+# --- Stage / Check --- #
+
+[[ci.jobs]]
+id = "check:python:generated"
+inputs = ["build:python#python"]
+
+[[ci.jobs]]
+id = "check:typescript:generated"
+inputs = ["build#clients"]
+
+# --- Stage / Build --- #
+
+[[ci.jobs]]
+id = "build"
+inputs = ["build:python#python"]
+
+[[ci.jobs]]
+id = "build:rust:tests"
+inputs = []
+outputs.tests = ["target/build/{profile}/{target}/tests", "target/build/{profile}/{target}/fixtures"]
+
+[[ci.jobs]]
+id = "build:python"
+inputs = []
+outputs.python = ["target/build/{profile}/any/python"]
+
+[[ci.jobs]]
+id = "build"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+outputs.cli = ["target/build/{profile}/{target}/bin/dokime"]
+outputs.gui = ["target/build/{profile}/{target}/bin/dokime-gui"]
+outputs.generator = ["target/build/{profile}/{target}/bin/cargo-dokime"]
+outputs.plugins = ["target/build/{profile}/{target}/plugins"]
+outputs.clients = ["target/build/{profile}/{target}/generated/typescript"]
+outputs.packaging = ["target/build/{profile}/{target}/product", "target/build/{profile}/{target}/web"]
+
+[[ci.jobs]]
+id = "build"
+platform = "windows"
+outputs.cli = ["target/build/{profile}/{target}/bin/dokime.exe"]
+outputs.gui = ["target/build/{profile}/{target}/bin/dokime-gui.exe"]
+outputs.generator = ["target/build/{profile}/{target}/bin/cargo-dokime.exe"]
+outputs.plugins = ["target/build/{profile}/{target}/plugins"]
+outputs.clients = ["target/build/{profile}/{target}/generated/typescript"]
+outputs.packaging = ["target/build/{profile}/{target}/product", "target/build/{profile}/{target}/web"]
+
+[[ci.jobs]]
+id = "build:rust:tests"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "build:rust:bench"
+outputs.bench = ["target/build/bench/{target}"]
+
+[[ci.jobs]]
+id = "build:rust:bench"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
+
+# --- Stage / Test --- #
+
+[[ci.jobs]]
+id = "test:rust:unit"
+inputs = ["build:rust:tests#tests"]
+
+[[ci.jobs]]
+id = "test:rust:integration"
+inputs = ["build:rust:tests#tests"]
+
+[[ci.jobs]]
+id = "test:rust:acceptance"
+inputs = ["build:rust:tests#tests", "build#cli", "build#generator", "build#plugins", "build#clients", "build:python#python"]
+
+[[ci.jobs]]
+id = "test:rust:system"
+inputs = ["build:rust:tests#tests", "build#cli", "build#plugins", "build:python#python"]
+
+[[ci.jobs]]
+id = "test:rust:starter"
+pipelines = ["nightly"]
+inputs = ["build#generator"]
+
+[[ci.jobs]]
+id = "test:rust:coverage"
+inputs = ["build:rust:tests#tests", "build#cli", "build#gui", "build#generator", "build#plugins", "build#clients", "build:python#python"]
+
+[[ci.jobs]]
+id = "test:typescript:unit"
+inputs = ["build#clients"]
+
+[[ci.jobs]]
+id = "test:typescript:integration"
+inputs = ["build#clients"]
+
+[[ci.jobs]]
+id = "test:typescript:system"
+inputs = ["build#cli", "build#gui", "build#plugins", "build#clients"]
+
+[[ci.jobs]]
+id = "test:python:unit"
+inputs = ["build:python#python"]
+
+[[ci.jobs]]
+id = "test:python:integration"
+inputs = ["build:python#python"]
+
+[[ci.jobs]]
+id = "test:python:acceptance"
+inputs = ["build:python#python", "build#cli", "build#plugins"]
+
+[[ci.jobs]]
+id = "test:python:coverage"
+inputs = ["build:python#python", "build#cli", "build#plugins"]
+
+[[ci.jobs]]
+id = "test:rust:acceptance"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
+
+[[ci.jobs]]
+id = "test:rust:coverage"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "test:rust:integration"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
+
+[[ci.jobs]]
+id = "test:rust:system"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
+
+[[ci.jobs]]
+id = "test:rust:unit"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
+
+[[ci.jobs]]
+id = "test:typescript:system"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]
+
+[[ci.jobs]]
+id = "test:typescript:system"
+platform = "windows"
+bootstrap = ["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]
+
+# --- Stage / Bench --- #
+
+[[ci.jobs]]
+id = "bench:rust:unit"
+inputs = ["build:rust:bench#bench"]
+
+[[ci.jobs]]
+id = "bench:rust:integration"
+inputs = ["build:rust:bench#bench"]
+
+[[ci.jobs]]
+id = "bench:rust:system"
+inputs = ["build:rust:bench#bench"]
+
+# --- Stage / Package --- #
+
+[[ci.jobs]]
+id = "package:rust"
+inputs = ["build#cli", "build#gui", "build#generator", "build#plugins", "build#packaging"]
+outputs.package = ["target/package/{profile}/{target}/rust"]
+
+[[ci.jobs]]
+id = "package:python"
+inputs = ["build:python#python"]
+outputs.package = ["target/package/{profile}/any/python"]
+
+[[ci.jobs]]
+id = "package:rust"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+# --- Stage / Release --- #
+
+[[ci.jobs]]
+id = "release:tag"
+inputs = []
+
+[[ci.jobs]]
+id = "release:publish:dry"
+inputs = ["package:rust#package", "package:python#package"]
+
+[[ci.jobs]]
+id = "release:rehearse"
+inputs = ["package:rust#package", "package:python#package"]
+
+[[ci.jobs]]
+id = "release:publish"
+inputs = ["package:rust#package", "package:python#package"]
+
+[[ci.jobs]]
+id = "release:verify"
+inputs = ["package:rust#package", "package:python#package"]
+
+[[ci.jobs]]
+id = "release:publish:dry"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "release:rehearse"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "release:tag"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+# === === Hooks === === #
 
 [hooks]
 # Workspace repair and checks exceed one minute even with warm Cargo caches.
 step_timeout_seconds = 900
 
-# === Conventions === #
+# === === Conventions === === #
 
 [conventions.testing.limits]
 unit = 512
@@ -77,15 +349,21 @@ acceptance = 128
 system = 64
 
 
+[conventions.testing.deadlines]
+unit = 120
+integration = 120
+acceptance = 900
+system = 900
+
 [conventions.rust.source_roots]
 # Validate the authored source that this compile-only crate renders and includes.
 dokime-starter-check = "crates/cargo-dokime/templates"
 
 [skeletons]
-# Audit native source and the dedicated project policy skeleton.
-include = ["**/*.rs", "**/*.py", "stkr.toml"]
+# Audit Native Sources And Cargo/CI Policy Skeletons.
+include = ["**/*.rs", "**/*.py", "**/Cargo.toml", "mise.toml", "stkr.toml"]
 # Generated RPC output is owned and checked by the binding generators.
-exclude = ["packages/dokime/src/dokime/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
+exclude = ["packages/dokime-client/src/dokime_client/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 
 [barrels]
 # Deliberate public façades, not accidental re-export files: the authoring
@@ -93,9 +371,9 @@ exclude = ["packages/dokime/src/dokime/client/_generated/**", "crates/dokime-gui
 exclude = ["crates/dokime-runtime/src/prelude.rs", "crates/dokime-runtime/src/plugin/sidecar.rs"]
 
 [markdown]
-include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**"]
+include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**"]
 
-# === Templates === #
+# === === Templates === === #
 
 [[templates.scaffolds]]
 path = "crates/cargo-dokime/templates"
@@ -110,12 +388,320 @@ owner = "{{owner}}"
 repository = "{{repository}}"
 selection = "{{selection}}"
 
-# === Release === #
+[[template]]
+name = "header"
+language = "c-header"
+path = "c/header.h"
+default = true
+snippet = "stkr-h"
 
-# === Documentation === #
+[[template]]
+name = "module"
+language = "c"
+path = "c/module.c"
+default = true
+snippet = "stkr-c"
 
-# === Screenshots === #
+[[template]]
+name = "package"
+language = "cargo"
+path = "cargo/package.toml"
+default = true
+snippet = "stkr-cargo"
 
-# === Catalogs === #
+[[template]]
+name = "workspace"
+language = "cargo"
+path = "cargo/workspace.toml"
+default = false
+snippet = "stkr-cargo-workspace"
 
-# === PyO3 === #
+[[template]]
+name = "header"
+language = "cpp-header"
+path = "cpp/header.hpp"
+default = true
+snippet = "stkr-hpp"
+
+[[template]]
+name = "module"
+language = "cpp"
+path = "cpp/module.cpp"
+default = true
+snippet = "stkr-cpp"
+
+[[template]]
+name = "module"
+language = "css"
+path = "css/module.css"
+default = true
+snippet = "stkr-css"
+
+[[template]]
+name = "module"
+language = "javascript"
+path = "javascript/module.js"
+default = true
+snippet = "stkr-js"
+
+[[template]]
+name = "contributing"
+language = "markdown"
+path = "markdown/contributing.md"
+default = false
+snippet = "stkr-md-contributing"
+
+[[template]]
+name = "file"
+language = "markdown"
+path = "markdown/file.md"
+default = true
+snippet = "stkr-md"
+
+[[template]]
+name = "readme"
+language = "markdown"
+path = "markdown/readme.md"
+default = false
+snippet = "stkr-md-readme"
+
+[[template]]
+name = "module"
+language = "python"
+path = "python/module.py"
+default = true
+snippet = "stkr-py"
+
+[[template]]
+name = "module"
+language = "rust"
+path = "rust/module.rs"
+default = true
+snippet = "stkr-rs"
+
+[[template]]
+name = "module"
+language = "scss"
+path = "scss/module.scss"
+default = true
+snippet = "stkr-scss"
+
+[[template]]
+name = "file"
+language = "toml"
+path = "toml/file.toml"
+default = true
+snippet = "stkr-toml"
+
+[[template]]
+name = "stkr"
+language = "stkr"
+path = "toml/stkr.toml"
+default = true
+snippet = "stkr-stkr"
+
+[[template]]
+name = "component"
+language = "typescriptreact"
+path = "typescript/component.tsx"
+default = true
+snippet = "stkr-tsx"
+
+[[template]]
+name = "module"
+language = "typescript"
+path = "typescript/module.ts"
+default = true
+snippet = "stkr-ts"
+
+[[template]]
+name = "module"
+language = "yaml"
+path = "yaml/module.yaml"
+default = true
+snippet = "stkr-yaml"
+
+# === === Release === === #
+
+[release]
+provider = "github"
+repository = "stokker-technologies/dokime"
+product = "dokime"
+crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
+# Prepare The Tutorial From The Same Versioned Client Bytes As The Release.
+lock_commands = [
+  [
+    "cargo",
+    "update",
+    "--workspace",
+  ],
+  [
+    "pnpm",
+    "install",
+    "--lockfile-only",
+    "--ignore-scripts",
+    "--dir",
+    "crates/dokime-gui",
+  ],
+  [
+    "uv",
+    "lock",
+    "--offline",
+  ],
+  [
+    "uv",
+    "sync",
+    "--locked",
+    "--all-groups",
+    "--no-install-package",
+    "dokime-client",
+  ],
+  [
+    "uv",
+    "run",
+    "--locked",
+    "--no-sync",
+    "--package",
+    "dokime-tools",
+    "python",
+    "-m",
+    "dokime_tools.package.examples",
+    "--prepare-release",
+  ],
+]
+targets = ["linux-x86_64", "windows-x86_64"]
+signature_checks = [
+  [
+    "uv",
+    "run",
+    "--locked",
+    "--project",
+    "tools/python",
+    "python",
+    "-m",
+    "dokime_tools.package.installer",
+    "verify",
+    "--release-assets",
+    "--require-signed",
+  ],
+]
+
+[[release.package_signing]]
+language = "rust"
+platform = "windows"
+secrets = ["TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]
+
+[[release.assets]]
+target = "linux-x86_64"
+path = "target/package/{profile}/{target}/rust/installers/dokime_{version}_amd64.deb"
+name = "{product}_{version}_amd64.deb"
+
+[[release.assets]]
+target = "linux-x86_64"
+path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-unknown-linux-gnu-payload.zip"
+name = "{product}-{version}-x86_64-unknown-linux-gnu-payload.zip"
+
+[[release.assets]]
+target = "windows-x86_64"
+path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-pc-windows-msvc-payload.zip"
+name = "{product}-{version}-x86_64-pc-windows-msvc-payload.zip"
+
+[[release.assets]]
+target = "linux-x86_64"
+path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-1.x86_64.rpm"
+name = "{product}-{version}-1.x86_64.rpm"
+
+[[release.assets]]
+target = "windows-x86_64"
+path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-windows-x86_64-setup.exe"
+name = "{product}-{version}-windows-x86_64-setup.exe"
+
+[[release.assets]]
+target = "windows-x86_64"
+path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-windows-x86_64-setup.exe.sig"
+name = "{product}-{version}-windows-x86_64-setup.exe.sig"
+signed_only = true
+
+[[release.assets]]
+target = "windows-x86_64"
+path = "target/package/{profile}/{target}/rust/installers/latest.json"
+name = "latest.json"
+signed_only = true
+
+[[release.assets]]
+target = "linux-x86_64"
+path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime"
+name = "obc-plugin-{version}-{target}.dokime"
+
+[[release.assets]]
+target = "windows-x86_64"
+path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime"
+name = "obc-plugin-{version}-{target}.dokime"
+
+[[release.assets]]
+target = "linux-x86_64"
+path = "target/package/{profile}/any/python/dokime_client-{version}-py3-none-any.whl"
+
+[[release.assets]]
+target = "linux-x86_64"
+path = "target/package/{profile}/any/python/dokime_client-{version}.tar.gz"
+profiles = ["release"]
+
+[version]
+value = "0.1.0"
+files = [
+  "Cargo.toml",
+  "pyproject.toml",
+  "packages/dokime-client/pyproject.toml",
+  "packages/dokime-client/examples/remote/python/pyproject.toml",
+  "crates/dokime-gui/package.json",
+  "crates/dokime-gui/src-tauri/tauri.conf.json",
+]
+
+[[package.executables]]
+package = "dokime-cli"
+command = "dokime"
+name = "dokime-cli"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+release = true
+verify = ["--version"]
+installers = ["mise"]
+
+[[package.executables]]
+package = "cargo-dokime"
+command = "cargo-dokime"
+name = "cargo-dokime"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+release = true
+verify = ["--version"]
+installers = ["mise"]
+
+[[package.bundles]]
+language = "python"
+name = "dokime-remote-examples-{version}.zip"
+profiles = ["dev", "release"]
+targets = ["any"]
+release = true
+inputs = [
+  { path = "target/build/{profile}/{target}/python/examples/remote/LICENSE", destination = "remote/LICENSE" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/README.md", destination = "remote/README.md" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/README.md", destination = "remote/cli/README.md" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/bootstrap.ps1", destination = "remote/cli/bootstrap.ps1" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/bootstrap.bat", destination = "remote/cli/bootstrap.bat" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.sh", destination = "remote/cli/control-device.sh", mode = 0o755 },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.sh", destination = "remote/cli/control-test.sh", mode = 0o755 },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.sh", destination = "remote/cli/control-prompt.sh", mode = 0o755 },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.ps1", destination = "remote/cli/control-device.ps1" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.ps1", destination = "remote/cli/control-test.ps1" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.ps1", destination = "remote/cli/control-prompt.ps1" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.bat", destination = "remote/cli/control-device.bat" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.bat", destination = "remote/cli/control-test.bat" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.bat", destination = "remote/cli/control-prompt.bat" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-device.py", destination = "remote/python/control-device.py" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-test.py", destination = "remote/python/control-test.py" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-prompt.py", destination = "remote/python/control-prompt.py" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/README.md", destination = "remote/python/README.md" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/pyproject.toml", destination = "remote/python/pyproject.toml" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/uv.lock", destination = "remote/python/uv.lock" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/wheels/dokime_client-{version}-py3-none-any.whl", destination = "remote/wheels/dokime_client-{version}-py3-none-any.whl" },
+]

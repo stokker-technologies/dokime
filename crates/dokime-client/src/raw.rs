@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use tonic::Streaming as RawStreaming;
 
 /* === Imports === */
@@ -32,6 +33,7 @@ use super::{Client, Error, Result, stream::Input};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default)]
 struct RawCodec;
 
@@ -46,6 +48,7 @@ struct RawDecoder;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Codec for RawCodec {
     type Encode = Vec<u8>;
     type Decode = Vec<u8>;
@@ -103,11 +106,12 @@ impl Client {
         let input = Input::new(input, self.inner.cancellation.child_token());
         let mut request = self.request(input);
         request.set_timeout(deadline);
-        self.execute(async move {
-            grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-            grpc.streaming(request, path, RawCodec).await.map(tonic::Response::into_inner)
-        })
-        .await
+        self.with_timeout(deadline)
+            .execute(async move {
+                grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                grpc.streaming(request, path, RawCodec).await.map(tonic::Response::into_inner)
+            })
+            .await
     }
 
     pub fn max_request_bytes(&self) -> usize {

@@ -14,36 +14,34 @@
 
 import type { ConnectionSnapshot, ConnectionTarget, ConnectRequest } from "./connection";
 
+/* === Constants === */
+
+export const DESKTOP_SESSION_STATUS_EVENT = "desktop://session-status";
+
 /* === Types === */
 
-export type BackendSelection = { kind: "owned_local" } | { kind: "profile"; name: string } | { kind: "attach"; request: ConnectRequest };
+export type BackendSelection =
+  | { kind: "owned_local" }
+  | { kind: "profile"; identifier: string }
+  | { kind: "attach"; request: ConnectRequest };
 
 export type BackendOwnership = "none" | "owned_local" | "attached";
 
 export type DesktopSessionSnapshot = {
+  /** Monotonic owner status sequence used to reconcile startup events with snapshots. */
+  statusRevision: number;
   ownership: BackendOwnership;
   /** The startup phase an owned local backend last reported while starting
    * (`"storage"`, `"plugins"`, `"requests"`, …, free-form so an older GUI
    * tolerates a name it does not recognize). `null` once connected or
    * disconnected, and throughout an attach selection. */
   phase: string | null;
-  /** The archive bytes a local storage backup has written, while it archives. */
-  archivedBytes: number | null;
   connection: ConnectionSnapshot;
 };
 
-/** What an owned local backend left behind when it failed to start, carried
- * as `diagnostics` on the `{ kind: "startup", message }` session error. Paths
- * are absolute; the tail and the log are redacted of credentials natively. */
+/** A failed embedded-server start and the shared application's diagnostic log. */
 export type BackendDiagnostics = {
-  /** The resolved backend executable, so a wrong discovery is visible. */
-  executable: string;
-  exitCode: number | null;
-  /** The platform's exit description, also set when no code exists (a signal). */
-  exitStatus: string | null;
-  /** The last stderr lines, bounded natively to 200 lines and 64 KiB. */
-  tail: string;
-  /** The complete stderr log of this launch, when a log directory resolved. */
+  cause: string;
   log: string | null;
 };
 

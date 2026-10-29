@@ -12,16 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
-use uuid::Uuid;
+
 // Local Imports
 use super::store::read_bounded;
-use super::{PluginEntry, PluginError, PluginProvenance, PluginStore, inspect};
+use super::{PluginEntry, PluginError, PluginProvenance, PluginStore};
 use crate::RuntimeHandle;
 
 /* === Constants === */
+
 const GENERIC_BOOT_ERROR: &str = "Plugin was not admitted at this application startup.";
 
 /* === Macros === */
@@ -35,6 +38,7 @@ const GENERIC_BOOT_ERROR: &str = "Plugin was not admitted at this application st
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub fn plugin_process_state(&self, entry: &mut PluginEntry) {
         let boot = self.plugin_boot.read().expect("plugin boot lock poisoned");
@@ -43,10 +47,17 @@ impl RuntimeHandle {
     }
 
     pub fn plugin_store(&self) -> PluginStore {
-        PluginStore::new(self.settings().clone())
+        PluginStore::with_archive_limit(
+            self.settings().clone(),
+            *self.schema_settings(),
+            usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
+                .expect("validated server plugin bundle limit fits native address space"),
+        )
     }
 
-    pub async fn consent_plugin(&self, id: Uuid) -> Result<PluginEntry, PluginError> {
+    pub async fn install_plugin(
+        &self, bytes: Vec<u8>, validate: impl FnOnce(&PluginEntry) -> Result<(), PluginError> + Send + 'static,
+    ) -> Result<PluginEntry, PluginError> {
         let store = self.plugin_store();
         let configured = self.config().plugins.clone();
         let host_sources: BTreeSet<_> = self
@@ -55,32 +66,35 @@ impl RuntimeHandle {
             .iter()
             .filter_map(|(source, owner)| matches!(owner, crate::state::PluginOwner::Host).then_some(source.clone()))
             .collect();
-        tokio::task::spawn_blocking(move || {
+        let inspector = store.clone();
+        let configured = tokio::task::spawn_blocking(move || {
             let configured = configured
                 .iter()
                 .filter(|bundle| matches!(bundle.provenance, PluginProvenance::Configured))
                 .map(|bundle| {
-                    let bytes = read_bounded(&bundle.path, harmos_packaging::bundle::Limits::default().archive_bytes)?;
-                    inspect(&bytes).map(|(_, metadata)| metadata)
+                    let bytes = read_bounded(&bundle.path, inspector.archive_bytes())?;
+                    super::catalog::inspect_with_archive_limit(&bytes, &inspector.schema, inspector.archive_bytes())
+                        .map(|(_, metadata)| metadata)
                 })
                 .collect::<Result<Vec<_>, PluginError>>()?;
-            store.consent(id, &configured, &host_sources)
+            Ok::<_, PluginError>(configured)
         })
         .await
-        .map_err(|error| PluginError::Io(std::io::Error::other(error.to_string())))?
+        .map_err(|error| PluginError::Io(std::io::Error::other(error.to_string())))??;
+        store.install_checked(&bytes, &configured, &host_sources, validate).await
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn process_state(entry: &mut PluginEntry, attempted: Option<bool>) {
     entry.active = attempted == Some(true);
     entry.restart_required = match entry.installation.state {
         super::PluginState::Installed => attempted.is_none(),
         super::PluginState::Disabled => entry.active,
-        super::PluginState::RemovalPending => entry.installation.consented_at.is_some(),
-        super::PluginState::Staged => false,
+        super::PluginState::RemovalPending => true,
     };
     // Only an attempt this process itself made and refused ever surfaces a
     // reason. No caller ever observes a `RuntimeHandle` until `install_plugins`

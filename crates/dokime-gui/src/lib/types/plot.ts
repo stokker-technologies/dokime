@@ -21,7 +21,7 @@ import type {
   PlotSeries_Serialize as NativePlotSeries,
 } from "./view-contracts";
 
-export type { PlotPayloadCursor, PlotPayloadDiagnostics } from "./view-contracts";
+export type { PlotPayloadDiagnostics } from "./view-contracts";
 
 import type { PlotPayloadDiagnostics, PlotPayloadStreamKind } from "./view-contracts";
 
@@ -243,11 +243,11 @@ export type EvidenceAnalysisResult = {
   definition: Omit<EvidenceAnalysisDefinition, "parameters"> & { parameters?: unknown[] };
   selection: EvidenceAnalysisSelection;
   source: {
+    store: string;
     epoch: string;
+    position: string;
     stream: string;
     scope: import("../types").RecordScope | null;
-    telemetryStreams: Record<string, string>;
-    recordSequence?: string;
     windowS?: number;
     fields: string[];
     xKey: string;

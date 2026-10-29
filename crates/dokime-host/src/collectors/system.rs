@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, process::Command};
+
 // Third Party Imports
 use starship_battery::{
     Battery, Manager as BatteryManager, State as BatteryState,
@@ -27,6 +29,7 @@ use starship_battery::{
     },
 };
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, System};
+
 // Local Imports
 use crate::{
     HostStreamSample, HostTelemetryStream, Result,
@@ -41,6 +44,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct SystemCollector {
     sample_index: u64,
     system: System,
@@ -61,6 +65,7 @@ struct PowerProfileContext {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for SystemCollector {
     fn default() -> Self {
         Self::new()
@@ -142,14 +147,22 @@ impl SystemCollector {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn git_config_value(key: &str) -> Option<String> {
-    let output = Command::new("git").args(["config", "--get", key]).output().ok()?;
+    let mut command = Command::new("git");
+    command.args(["config", "--get", key]);
+    let output = super::run_command_bounded(command, system_probe_timeout()).ok()?;
     if !output.status.success() {
         return None;
     }
     let value = String::from_utf8(output.stdout).ok()?;
     let value = value.trim();
     (!value.is_empty()).then(|| value.to_owned())
+}
+
+// A System Probe Is Bounded By The Collection It Serves.
+fn system_probe_timeout() -> std::time::Duration {
+    crate::collection_timeout(HostTelemetryStream::System.as_str())
 }
 
 fn first_battery(manager: Option<&BatteryManager>) -> Option<Battery> {
@@ -189,7 +202,9 @@ fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>
 fn power_profile_context() -> PowerProfileContext {
     #[cfg(windows)]
     {
-        let Ok(output) = Command::new("powercfg").arg("/getactivescheme").output() else {
+        let mut command = Command::new("powercfg");
+        command.arg("/getactivescheme");
+        let Ok(output) = super::run_command_bounded(command, system_probe_timeout()) else {
             return PowerProfileContext::default();
         };
         if !output.status.success() {
@@ -218,7 +233,12 @@ fn parse_windows_power_scheme(text: &str) -> PowerProfileContext {
     let mode = plan_name.as_deref().map(power_mode_label);
     let performance_bias = plan_name.as_deref().map(power_performance_bias);
 
-    PowerProfileContext { plan_name, plan_guid, mode, performance_bias }
+    PowerProfileContext {
+        plan_name,
+        plan_guid,
+        mode,
+        performance_bias,
+    }
 }
 
 #[cfg(windows)]

@@ -110,7 +110,7 @@ function FacetOptions<TData extends RowData>({ column, picked }: { column: Colum
         <li key={option.text}>
           <label
             htmlFor={`${idPrefix}-${index}`}
-            className="flex min-h-[var(--control-height)] cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-muted"
+            className="flex min-h-[var(--control-height)] cursor-pointer items-center gap-2 rounded-lg px-2 text-sm hover:bg-muted"
           >
             <Checkbox checked={picked.includes(option.value)} id={`${idPrefix}-${index}`} onCheckedChange={() => toggle(option.value)} />
             <span className="min-w-0 flex-1 truncate" title={option.text}>

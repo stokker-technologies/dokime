@@ -10,26 +10,38 @@
 /* === External Imports === */
 
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 
 /* === Local Imports === */
 
 import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
 import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
 import { fetchNativeArtifacts, fetchNativeExecutionFiles } from "@/lib/api/native-content";
-import { fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
-import { fetchNativeCycleRecords, fetchNativeRecords } from "@/lib/api/native-evidence";
+import { type CompletedDocument, fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
+import {
+  appendRecordTail,
+  fetchNativeRecordTail,
+  type NativeEvidenceSession,
+  openNativeRecordStream,
+  type RecordTail,
+} from "@/lib/api/native-evidence";
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeCycleHistory } from "@/lib/api/native-history";
-import { fetchNativeDiagnostics, fetchNativeTraceability } from "@/lib/api/native-observation";
-import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
-import type { RecordScope } from "@/lib/types";
+import { fetchNativeTraceability } from "@/lib/api/native-observation";
+import { respondNativePrompt } from "@/lib/api/native-prompts";
+import type { DocumentViewPayload, RecordScope } from "@/lib/types";
 import { documentRetry, documentRetryDelay } from "./document-query-model";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
 /* === Constants === */
 
+const GUI_CAPTURED_DOCUMENTS = 16;
+const GUI_EVIDENCE_GC_MS = 30_000;
+const GUI_PAGE_ITEMS = 500;
+const GUI_RECONNECT_MS = 1_000;
+
 /** How long an unobserved evidence read stays cached; records and documents are large. */
-const EVIDENCE_GC_MS = 30_000;
+const EVIDENCE_GC_MS = GUI_EVIDENCE_GC_MS;
 
 /* === Types === */
 
@@ -56,10 +68,8 @@ export const workflowQueryKeys = {
   artifacts: () => [...workflowQueryKeys.all, "artifacts"] as const,
   cycleDetails: () => [...workflowQueryKeys.all, "cycles", "detail"] as const,
   cycleDetail: (cycleId: string | null = null) => [...workflowQueryKeys.all, "cycles", "detail", cycleId ?? "current"] as const,
-  cycleRecords: (cycleId: string | null) => [...workflowQueryKeys.all, "cycles", "records", cycleId ?? ""] as const,
   cycleHistory: () => [...workflowQueryKeys.all, "cycles", "history"] as const,
-  diagnostics: () => [...workflowQueryKeys.all, "diagnostics"] as const,
-  records: (limit = 500) => [...workflowQueryKeys.all, "records", { limit }] as const,
+  records: (limit = GUI_PAGE_ITEMS) => [...workflowQueryKeys.all, "records", { limit }] as const,
   executionDocument: ({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) =>
     [...workflowQueryKeys.all, "documents", "execution", cycleId ?? "", executionId ?? ""] as const,
   executionDetails: () => [...workflowQueryKeys.all, "execution-detail"] as const,
@@ -93,39 +103,40 @@ function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
 
 /* === Query Hooks === */
 
-export function useDiagnosticsQuery() {
-  const session = useNativeSession();
-  // Diagnostics only feeds slow-moving facts (server version, process
-  // stats, startup doctor); live health arrives over the runtime stream.
-  return useQuery({
-    queryFn: () => fetchNativeDiagnostics(session.identity),
-    queryKey: [...workflowQueryKeys.diagnostics(), session.identity.generation],
-    refetchInterval: 30_000,
-    staleTime: 25_000,
-  });
-}
-
+/**
+ * A scope's latest records: the tail read once, then appended from the
+ * scope's record stream.
+ *
+ * The runtime stream no longer invalidates records, so an open cycle never
+ * replays its history on a cursor. Every holder of one scope shares one
+ * record stream (`holdRecordTail`); a stream that fails re-reads the tail and
+ * continues from its new cursor.
+ */
 export function useRecordsQuery(enabled: boolean, scope: RecordScope | null) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
+  const queryClient = useQueryClient();
+  /* Callers build their scope inline, so the key and the stream follow its
+     content rather than its identity. */
+  const scopeKey = JSON.stringify(scope);
+  const generation = generationOf(session);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `scopeKey` is `scope`'s content; the scope follows it, not the object.
+  const stableScope = useMemo(() => scope, [scopeKey]);
+  const queryKey = useMemo(() => [...workflowQueryKeys.records(), generation, stableScope] as const, [generation, stableScope]);
   const query = useQuery({
-    enabled: enabled && session !== null,
-    queryFn: () => fetchNativeRecords(identityOf(session), { scope }),
-    queryKey: [...workflowQueryKeys.records(), generationOf(session), scope],
+    enabled: enabled && session !== null && !snapshot,
+    queryFn: () => fetchNativeRecordTail(identityOf(session), stableScope),
+    queryKey,
     gcTime: EVIDENCE_GC_MS,
-    staleTime: 1_000,
+    select: selectRecords,
+    staleTime: Number.POSITIVE_INFINITY,
   });
+  const loaded = query.isSuccess;
+  useEffect(() => {
+    if (!enabled || !session || snapshot || !loaded) return undefined;
+    return holdRecordTail(queryClient, { ...session.identity, own: session.own }, queryKey, stableScope);
+  }, [enabled, loaded, queryClient, queryKey, session, snapshot, stableScope]);
   return snapshot ? frozenQuery(snapshot.records) : query;
-}
-
-export function usePendingPromptsQuery(enabled: boolean) {
-  const session = useNativeSession();
-  return useQuery({
-    enabled,
-    queryFn: () => fetchNativePendingPrompts(session.identity),
-    queryKey: [...workflowQueryKeys.prompts(), session.identity.generation],
-    staleTime: 500,
-  });
 }
 
 export function useNotesQuery(enabled: boolean, scope: RecordScope) {
@@ -135,7 +146,6 @@ export function useNotesQuery(enabled: boolean, scope: RecordScope) {
     enabled: enabled && session !== null && !!scope.test_cycle_id,
     queryFn: () => fetchNativeNotes(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.notes(), generationOf(session), scope],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.notes) : query;
 }
@@ -147,7 +157,6 @@ export function useHealthQuery(enabled: boolean, scope: RecordScope) {
     enabled: enabled && session !== null && !!scope.test_cycle_id,
     queryFn: () => fetchNativeHealth(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.health(), generationOf(session), scope],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.health) : query;
 }
@@ -159,7 +168,6 @@ export function useArtifactsQuery(enabled: boolean) {
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeArtifacts(identityOf(session)),
     queryKey: [...workflowQueryKeys.artifacts(), generationOf(session)],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.artifacts) : query;
 }
@@ -172,7 +180,6 @@ export function useTraceabilityQuery(enabled: boolean, scope: RecordScope | null
     queryFn: () => fetchNativeTraceability(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.traceability(scope), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.traceability(scope?.test_execution_id ?? null)) : query;
 }
@@ -182,7 +189,6 @@ export function useCycleHistoryQuery() {
   return useQuery({
     queryFn: () => fetchNativeCycleHistory(session.identity),
     queryKey: [...workflowQueryKeys.cycleHistory(), session.identity.generation],
-    staleTime: 15_000,
   });
 }
 
@@ -193,34 +199,19 @@ export function useExecutionDetailQuery(executionId: string | null, enabled: boo
     enabled: Boolean(executionId) && enabled && session !== null,
     queryFn: () => fetchNativeTestExecutionDetail(identityOf(session), executionId ?? ""),
     queryKey: [...workflowQueryKeys.executionDetail(executionId), generationOf(session)],
-    staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.executions.find((item) => item.test_execution_id === executionId) ?? undefined) : query;
-}
-
-export function useCycleRecordsQuery(cycleId: string | null, enabled = true) {
-  const session = useNativeSession();
-  return useQuery({
-    enabled: Boolean(cycleId) && enabled,
-    queryFn: () => fetchNativeCycleRecords(session.identity, cycleId ?? ""),
-    queryKey: [...workflowQueryKeys.cycleRecords(cycleId), session.identity.generation],
-    gcTime: EVIDENCE_GC_MS,
-    staleTime: 30_000,
-  });
 }
 
 export function useExecutionFilesQuery(executionId: string | null, enabled: boolean) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  // The execution_files topic is a hot counter (it ticks with every support
-  // log append), so key on the slow artifacts revision and refresh the file
-  // listing on a gentle interval instead of once per pushed frame.
+  // Runtime Changes Refresh Files Alongside Documents Through The Shared Throttle.
   const query = useQuery({
     enabled: Boolean(executionId) && enabled && session !== null,
     queryFn: () => fetchNativeExecutionFiles(identityOf(session), executionId ?? ""),
     queryKey: [...workflowQueryKeys.executionFiles(executionId), generationOf(session)],
-    refetchInterval: 5_000,
-    staleTime: 4_000,
+    staleTime: Infinity,
   });
   return snapshot ? frozenQuery(snapshot.executionFiles(executionId)) : query;
 }
@@ -230,22 +221,24 @@ export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: s
   const session = useNativeSessionOptional();
   const query = useQuery({
     enabled: Boolean(cycleId && executionId) && session !== null,
-    queryFn: ({ signal }) =>
-      fetchNativeDocument(
-        nativeDocumentSession(requireSession(session)),
-        {
-          cycleId: cycleId ?? "",
-          documentId: "default",
-          executionId: executionId ?? "",
-          epoch: nativeEpoch(requireSession(session)),
-        },
-        signal,
-      ).then((document) => mapNativeDocument(document)),
+    queryFn: ({ queryKey, signal }) =>
+      capturedDocument(queryKey, (previous) =>
+        fetchNativeDocument(
+          nativeDocumentSession(requireSession(session)),
+          {
+            cycleId: cycleId ?? "",
+            documentId: "default",
+            executionId: executionId ?? "",
+            epoch: nativeEpoch(requireSession(session)),
+          },
+          signal,
+          previous,
+        ),
+      ),
     queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId }), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
-    staleTime: 1_000,
   });
   return snapshot && executionId ? frozenQuery(snapshot.document(executionId) ?? undefined) : query;
 }
@@ -260,22 +253,24 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
   const session = useNativeSessionOptional();
   const query = useQuery({
     enabled: Boolean(cycleId) && enabled && session !== null,
-    queryFn: ({ signal }) =>
-      fetchNativeDocument(
-        nativeDocumentSession(requireSession(session)),
-        {
-          cycleId: cycleId ?? "",
-          documentId: "default",
-          executionId: "",
-          epoch: nativeEpoch(requireSession(session)),
-        },
-        signal,
-      ).then((document) => mapNativeDocument(document)),
+    queryFn: ({ queryKey, signal }) =>
+      capturedDocument(queryKey, (previous) =>
+        fetchNativeDocument(
+          nativeDocumentSession(requireSession(session)),
+          {
+            cycleId: cycleId ?? "",
+            documentId: "default",
+            executionId: "",
+            epoch: nativeEpoch(requireSession(session)),
+          },
+          signal,
+          previous,
+        ),
+      ),
     queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId: null }), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
-    staleTime: 1_000,
   });
   return snapshot && enabled ? frozenQuery(snapshot.document(null) ?? undefined) : query;
 }
@@ -287,7 +282,6 @@ export async function invalidateWorkflowResourceQueries(queryClient: QueryClient
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.cycleDetails() }),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.executionDetails() }),
-    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.records() }),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.prompts() }),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.health() }),
@@ -300,8 +294,14 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
   const keepActiveRefetch = { cancelRefetch: false } as const;
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.cycleDetails() }, keepActiveRefetch),
-    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.executionDetails() }, keepActiveRefetch),
-    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.records() }, keepActiveRefetch),
+    // A sealed execution never changes again: its detail is not re-read.
+    queryClient.invalidateQueries(
+      {
+        predicate: (query) => !(query.state.data as { sealed?: boolean } | undefined)?.sealed,
+        queryKey: workflowQueryKeys.executionDetails(),
+      },
+      keepActiveRefetch,
+    ),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.prompts() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.health() }, keepActiveRefetch),
@@ -316,7 +316,10 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
  * rather than on every runtime cursor.
  */
 export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
-  await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false }),
+    queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }, { cancelRefetch: false }),
+  ]);
 }
 
 export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
@@ -379,4 +382,106 @@ function nativeEpoch(session: ReturnType<typeof useNativeSession>): string {
 
 function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
   return { ...session.identity, own: session.own };
+}
+
+/* === Captured Documents === */
+
+/** The documents last captured, by query: a capture whose frontiers are unchanged answers these. */
+const capturedDocuments = new Map<string, { completed: CompletedDocument; mapped: DocumentViewPayload }>();
+
+/** The most open documents remembered at once; the oldest is forgotten first. */
+const CAPTURED_DOCUMENT_LIMIT = GUI_CAPTURED_DOCUMENTS;
+
+/**
+ * Capture a document, handing the capture the one held for this query: an
+ * unchanged capture returns the held document, and the held projection is
+ * answered unmapped, so nothing downstream re-renders.
+ */
+async function capturedDocument(
+  queryKey: readonly unknown[],
+  capture: (previous: CompletedDocument | null) => Promise<CompletedDocument>,
+): Promise<DocumentViewPayload> {
+  const key = JSON.stringify(queryKey);
+  const held = capturedDocuments.get(key);
+  const completed = await capture(held?.completed ?? null);
+  if (held && completed === held.completed) return held.mapped;
+  const mapped = mapNativeDocument(completed);
+  capturedDocuments.delete(key);
+  capturedDocuments.set(key, { completed, mapped });
+  for (const oldest of capturedDocuments.keys()) {
+    if (capturedDocuments.size <= CAPTURED_DOCUMENT_LIMIT) break;
+    capturedDocuments.delete(oldest);
+  }
+  return mapped;
+}
+
+/* === Record Tails === */
+
+/** One live record stream per scope, shared by every holder of that scope. */
+const recordTails = new Map<string, { holders: number; stop: () => void }>();
+
+function selectRecords(tail: RecordTail) {
+  return tail.records;
+}
+
+/**
+ * Keep one scope's tail appended from its record stream while anything holds
+ * it. Returns the release; the last release cancels the stream.
+ */
+function holdRecordTail(
+  queryClient: QueryClient,
+  session: NativeEvidenceSession,
+  queryKey: readonly unknown[],
+  scope: RecordScope | null,
+): () => void {
+  const key = JSON.stringify(queryKey);
+  const held = recordTails.get(key);
+  if (held) {
+    held.holders += 1;
+    return () => releaseRecordTail(key);
+  }
+  let stopped = false;
+  let stream: Awaited<ReturnType<typeof openNativeRecordStream>> | undefined;
+  const follow = async () => {
+    while (!stopped && session.isCurrent()) {
+      const tail = queryClient.getQueryData<RecordTail>(queryKey);
+      try {
+        stream = await openNativeRecordStream(session, scope, tail?.cursor);
+        if (stopped) {
+          await stream.cancel();
+          return;
+        }
+        for await (const page of stream) {
+          if (stopped) break;
+          queryClient.setQueryData<RecordTail>(queryKey, (current) =>
+            current ? appendRecordTail(current, page.records, page.cursor) : current,
+          );
+        }
+      } catch {
+        // The stream failed: the tail is re-read below and followed again.
+      }
+      stream = undefined;
+      if (stopped || !session.isCurrent()) return;
+      await queryClient.invalidateQueries({ queryKey, exact: true });
+      await new Promise((resume) => window.setTimeout(resume, GUI_RECONNECT_MS));
+    }
+  };
+  recordTails.set(key, {
+    holders: 1,
+    stop: () => {
+      stopped = true;
+      void stream?.cancel().catch(() => undefined);
+    },
+  });
+  void follow();
+  return () => releaseRecordTail(key);
+}
+
+function releaseRecordTail(key: string) {
+  const held = recordTails.get(key);
+  if (!held) return;
+  held.holders -= 1;
+  if (held.holders > 0) return;
+  recordTails.delete(key);
+  held.stop();
 }

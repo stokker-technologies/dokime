@@ -166,7 +166,7 @@ pub fn provider_tracking_row(elapsed_s: f64, target_locked: bool) -> dokime_runt
             ("elapsed_s".into(), dokime_runtime::Value::Number(elapsed_s)),
             ("target_locked".into(), dokime_runtime::Value::Bool(target_locked)),
         ]),
-        payload: row.encode_to_vec(),
+        payload: row.encode(),
     }
 }
 
@@ -216,7 +216,6 @@ pub fn fixture_telemetry_contract() -> TelemetryContract {
         columns: vec![TelemetryColumn::new(metadata("value", "Value"), ValueType::Number, TelemetryRole::Value)],
         default_x: Some("timestamp".to_owned()),
         interval: None,
-        plot_window: None,
         allow_extra_fields: false,
         scalar: false,
         validation_mode: None,
@@ -328,7 +327,6 @@ pub fn fixture_host_contract(stream: &str, label: &str, columns: Vec<TelemetryCo
         // A host stream declares its cadence the way the real ones do, so a
         // fixture is leasable on the same terms.
         interval: Some(dokime_runtime::DurationMillis(1_000)),
-        plot_window: None,
         allow_extra_fields: true,
         scalar: false,
         validation_mode: None,
@@ -381,7 +379,6 @@ pub fn tracking_contract() -> TelemetryContract {
         ],
         default_x: Some("timestamp".to_owned()),
         interval: None,
-        plot_window: None,
         allow_extra_fields: false,
         scalar: false,
         validation_mode: None,
@@ -425,7 +422,6 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
         ],
         default_x: Some("sample_index".to_owned()),
         interval: None,
-        plot_window: None,
         allow_extra_fields: false,
         scalar: false,
         validation_mode: None,
@@ -440,7 +436,7 @@ fn host_fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(
 ) -> Vec<u8> {
     let mut values = Value::Object(sample.values.clone()).to_plain_json().unwrap();
     values.as_object_mut().unwrap().insert("timestamp".into(), serde_json::json!({ "value": sample.timestamp.as_str() }));
-    serde_json::from_value::<T>(values).unwrap().encode_to_vec()
+    serde_json::from_value::<T>(values).unwrap().encode()
 }
 
 fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(sample: &dokime_runtime::telemetry::TelemetrySample) -> Vec<u8> {
@@ -451,7 +447,7 @@ fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(sample:
     } else {
         values.as_object_mut().unwrap().remove("timestamp");
     }
-    serde_json::from_value::<T>(values).unwrap().encode_to_vec()
+    serde_json::from_value::<T>(values).unwrap().encode()
 }
 
 /* === Tests === */

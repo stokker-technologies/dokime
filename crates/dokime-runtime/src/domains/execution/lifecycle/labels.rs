@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn rename_cycle(&self, test_cycle_id: TestCycleId, label: String, context: CommandContext) -> Result<String, Error> {
         let label = admitted_label(&label)?;
@@ -68,7 +70,11 @@ impl RuntimeHandle {
     }
 
     async fn commit_label(&self, subject: LabelSubject, label: String, context: CommandContext) -> Result<(), Error> {
-        let transaction = RenameLabel { subject, label, edited_at: crate::model::time::now_utc() };
+        let transaction = RenameLabel {
+            subject,
+            label,
+            edited_at: crate::model::time::now_utc(),
+        };
         harmos::state::Transaction::check(&transaction, &self.state_read()).map_err(|message| Error::conflict("conflict", message))?;
         match context.idempotency_key.as_deref().filter(|key| !key.is_empty()) {
             Some(key) => self.commit_keyed(harmos::state::RequestKey::new(key), transaction).await,
@@ -82,10 +88,11 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn admitted_label(label: &str) -> Result<String, Error> {
     let label = label.trim();
-    if label.is_empty() {
-        return Err(Error::validation("invalid_label", "label must not be empty", vec![]));
+    if label.is_empty() || label.len() > 4096 {
+        return Err(Error::validation("invalid_label", "label must contain 1 to 4096 bytes", vec![]));
     }
     Ok(label.to_owned())
 }

@@ -8,12 +8,14 @@
  */
 
 /* === Modules === */
+
 pub mod data;
 pub mod dataset;
 pub mod expression;
 pub mod handles;
 
 /* === Re-Exports === */
+
 pub use data::DataExpression;
 pub use data::DataExpressionError;
 pub use data::DataSource;
@@ -41,6 +43,7 @@ pub use handles::detail;
 pub use handles::marker;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

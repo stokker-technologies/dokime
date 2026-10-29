@@ -10,13 +10,16 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::telemetry::TelemetryStream;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -25,24 +28,28 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-// The longest a buffered row waits before its sink is flushed.
-#[cfg(feature = "native")]
-const FLUSH_WINDOW: std::time::Duration = std::time::Duration::from_millis(10);
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Streams {
     sink: Arc<dyn SampleSink>,
     #[cfg(feature = "native")]
+    flush_window: std::time::Duration,
+
+    #[cfg(feature = "native")]
     admission: Option<Arc<Admission>>,
+
     #[cfg(feature = "native")]
     failure: tokio::sync::watch::Sender<Option<crate::diagnostics::Diagnostic>>,
+
     #[cfg(feature = "native")]
     listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>,
+
     #[cfg(feature = "native")]
     flushing: Arc<std::sync::atomic::AtomicBool>,
 }
@@ -69,6 +76,7 @@ struct Admission {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait SampleSink: Send + Sync {
     fn publish<'a>(
         &'a self, stream: &'a Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
@@ -90,16 +98,21 @@ pub trait SampleSink: Send + Sync {
 pub trait OwnedStream: TelemetryStream {}
 
 /* === Implementations === */
+
 impl Streams {
     pub fn new(sink: Arc<dyn SampleSink>) -> Self {
+        // Native streams own the flush timer and listener queue; the portable
+        // stream facade delegates publication directly to its supplied sink.
         Self {
             sink,
+            #[cfg(feature = "native")]
+            flush_window: std::time::Duration::from_millis(10),
             #[cfg(feature = "native")]
             admission: None,
             #[cfg(feature = "native")]
             failure: tokio::sync::watch::channel(None).0,
             #[cfg(feature = "native")]
-            listening: crate::execution::listening_rows(),
+            listening: crate::execution::listening_rows(1024),
             #[cfg(feature = "native")]
             flushing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
@@ -113,7 +126,10 @@ impl Streams {
 
     #[cfg(feature = "native")]
     pub(crate) fn restricted(mut self, template: &str, streams: impl IntoIterator<Item = String>) -> Self {
-        self.admission = Some(Arc::new(Admission { template: template.to_owned(), streams: streams.into_iter().collect() }));
+        self.admission = Some(Arc::new(Admission {
+            template: template.to_owned(),
+            streams: streams.into_iter().collect(),
+        }));
         self
     }
 
@@ -135,7 +151,11 @@ impl Streams {
     }
 
     pub(crate) fn selecting<R: TelemetryRow>(&self) -> StreamSelection<'_, R> {
-        StreamSelection { streams: self.clone(), row: PhantomData, borrowed: PhantomData }
+        StreamSelection {
+            streams: self.clone(),
+            row: PhantomData,
+            borrowed: PhantomData,
+        }
     }
 
     pub(crate) fn produced(&self, stream: &str) -> u64 {
@@ -150,6 +170,7 @@ impl Streams {
         }
     }
 
+    #[cfg(feature = "native")]
     pub(crate) async fn published(&self, stream: &Identifier, values: BTreeMap<String, Value>, payload: Vec<u8>) {
         self.published_as(stream, values, Some(payload), stream.as_str()).await;
     }
@@ -225,7 +246,7 @@ impl Streams {
         {
             let streams = self.clone();
             runtime.spawn(async move {
-                tokio::time::sleep(FLUSH_WINDOW).await;
+                tokio::time::sleep(streams.flush_window).await;
                 streams.flushing.store(false, std::sync::atomic::Ordering::Release);
                 streams.flush().await;
             });
@@ -256,7 +277,12 @@ impl<'a, R: TelemetryRow> StreamSelection<'a, R> {
     }
 
     fn pushing(self, stream: Identifier) -> Pushing<'a, R> {
-        Pushing { stream, streams: self.streams, row: PhantomData, borrowed: PhantomData }
+        Pushing {
+            stream,
+            streams: self.streams,
+            row: PhantomData,
+            borrowed: PhantomData,
+        }
     }
 }
 
@@ -268,7 +294,7 @@ impl<R: TelemetryStream<Row = R> + TelemetryRow> StreamSelection<'_, R> {
 
 impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
     pub async fn push(&self, row: R) {
-        let payload = row.encode_to_vec();
+        let payload = row.encode();
         self.streams.published_as(&self.stream, row.into_row(), Some(payload), std::any::type_name::<R>()).await;
     }
 

@@ -12,34 +12,33 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+
 // Third Party Imports
 
 // Local Imports
 use super::RuntimeHandle;
+use crate::domains::telemetry::Payloads;
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use harmos::schema::Validator;
 
 /* === Constants === */
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(super) type Subscriptions =
     Vec<Pin<Box<dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>> + Send>>>;
 
 /* === Structs === */
-#[derive(Default)]
-pub(super) struct Decoder {
-    descriptors: BTreeMap<(String, u32), Validator>,
-}
 
 #[derive(Clone, Default)]
 pub(crate) struct Executions(Arc<Mutex<BTreeMap<String, Execution>>>);
@@ -60,6 +59,7 @@ pub(crate) struct Admission {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Executions {
     pub(crate) fn admit(
         &self, owner: &str, token: &str, scope: RecordScope, streams: impl IntoIterator<Item = Identifier>,
@@ -71,8 +71,18 @@ impl Executions {
         if executions.contains_key(token) {
             return Err("execution publication context is already admitted".into());
         }
-        executions.insert(token.to_owned(), Execution { owner: owner.to_owned(), scope, streams: streams.into_iter().collect() });
-        Ok(Admission { executions: self.clone(), token: token.to_owned() })
+        executions.insert(
+            token.to_owned(),
+            Execution {
+                owner: owner.to_owned(),
+                scope,
+                streams: streams.into_iter().collect(),
+            },
+        );
+        Ok(Admission {
+            executions: self.clone(),
+            token: token.to_owned(),
+        })
     }
 
     pub(super) fn scope(&self, owner: &str, token: &str, stream: &Identifier) -> Result<RecordScope, String> {
@@ -104,139 +114,77 @@ impl Drop for Admission {
     }
 }
 
-impl Decoder {
-    pub(super) async fn ingest_batch(
-        &mut self, handle: &RuntimeHandle, definition: &harmos::streams::Definition,
-        rows: &[(harmos::storage::Cursor, &harmos::streams::PublicationRow)],
-    ) {
-        if rows.len() > 1
-            && let Some(owner) = definition.owner()
-            && let Ok(stream) = Identifier::new(definition.id())
-        {
-            let scope = match rows[0].1.context.as_deref() {
-                Some(token) => handle.native_executions.scope(owner, token, &stream).map(Some),
-                None if handle.streams_owned_by(owner).contains(&stream) => Ok(None),
-                None => Err("stream owner is unavailable".into()),
-            };
-            if let Ok(scope) = scope {
-                let samples = rows
-                    .iter()
-                    .map(|(cursor, row)| {
-                        let mut values = self.decode(definition, &row.payload)?;
-                        let now = publication_time(row.published_unix_micros)?;
-                        values.insert("timestamp".into(), Value::from(now.clone()));
-                        let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), cursor.0, now, owner);
-                        sample.values = values;
-                        sample.storage_payload = Some(row.payload.clone());
-                        sample.scope = scope.clone();
-                        Ok(sample)
-                    })
-                    .collect::<Result<Vec<_>, String>>();
-                if let Ok(samples) = samples
-                    && let Ok(receipt) = handle
-                        .publish_telemetry_to_streams(
-                            TelemetryBatch::new(crate::model::identity::new_id(), stream.clone(), samples),
-                            crate::model::time::now_utc(),
-                        )
-                        .await
-                {
-                    if receipt.dropped > 0 {
-                        refuse(
-                            handle,
-                            owner,
-                            &stream,
-                            scope.as_ref(),
-                            receipt.message.as_deref().unwrap_or("native telemetry was dropped at admission"),
-                        )
-                        .await;
-                    }
-                    return;
-                }
-            }
-        }
-        for (cursor, row) in rows {
-            self.ingest(handle, definition, cursor.0, row).await;
-        }
-    }
+/* === Public Functions === */
 
-    pub(super) async fn ingest(
-        &mut self, handle: &RuntimeHandle, definition: &harmos::streams::Definition, sequence: u64, row: &harmos::streams::PublicationRow,
-    ) {
-        let Some(owner) = definition.owner() else {
+// A Run Of Rows Sharing One Declaration And Context Is Projected Once With The Saved Codec.
+// Refused Rows Record A Gap; Admission Failure Never Replays An Already Decoded Run.
+pub(super) async fn ingest_batch(
+    handle: &RuntimeHandle, definition: &harmos::streams::Definition, rows: &[(harmos::storage::Cursor, &harmos::streams::PublicationRow)],
+) {
+    let Some(owner) = definition.owner() else {
+        return;
+    };
+    let Ok(stream) = Identifier::new(definition.id()) else {
+        return;
+    };
+    let Some((_, first)) = rows.first() else {
+        return;
+    };
+    let scope = match publication_scope(handle, owner, &stream, first) {
+        Ok(scope) => scope,
+        Err(Some(error)) => {
+            tracing::warn!(owner, %stream, %error, "native execution publication was refused");
             return;
-        };
-        let Ok(stream) = Identifier::new(definition.id()) else {
+        }
+        Err(None) => return,
+    };
+    let codec = match saved_codec(handle, &stream) {
+        Ok(codec) => codec,
+        Err(error) => {
+            tracing::warn!(owner, %stream, %error, "native telemetry could not be represented without loss");
+            refuse(handle, owner, &stream, scope.as_ref(), &error).await;
             return;
-        };
-        let scope = match row.context.as_deref() {
-            Some(token) => match handle.native_executions.scope(owner, token, &stream) {
-                Ok(scope) => Some(scope),
-                Err(error) => {
-                    tracing::warn!(owner, %stream, %error, "native execution publication was refused");
-                    return;
-                }
-            },
-            None if handle.streams_owned_by(owner).contains(&stream) => None,
-            None => return,
-        };
-        let result = self
-            .decode(definition, &row.payload)
-            .and_then(|values| publication_time(row.published_unix_micros).map(|timestamp| (values, timestamp)));
-        match result {
-            Ok((mut values, now)) => {
-                values.insert("timestamp".into(), Value::from(now.clone()));
-                let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), sequence, now, owner);
-                sample.values = values;
-                sample.storage_payload = Some(row.payload.clone());
-                sample.scope = scope.clone();
-                // The shared capture reader cannot wait for one paused cycle.
-                // Domain admission still filters paused/closed scopes; expose any
-                // dropped row as a gap instead of holding unrelated streams behind it.
-                match handle
-                    .publish_telemetry_to_streams(
-                        TelemetryBatch::new(crate::model::identity::new_id(), stream.clone(), vec![sample]),
-                        crate::model::time::now_utc(),
-                    )
-                    .await
-                {
-                    Ok(receipt) if receipt.dropped > 0 => {
-                        refuse(
-                            handle,
-                            owner,
-                            &stream,
-                            scope.as_ref(),
-                            receipt.message.as_deref().unwrap_or("native telemetry was dropped at admission"),
-                        )
-                        .await;
-                    }
-                    Ok(_) => {}
-                    Err(error) => {
-                        tracing::warn!(owner, %stream, ?error, "native telemetry was refused at domain admission");
-                        refuse(handle, owner, &stream, scope.as_ref(), &error.to_string()).await;
-                    }
-                }
-            }
+        }
+    };
+    let mut samples = match crate::domains::telemetry::telemetry_slots(rows.len()) {
+        Ok(samples) => samples,
+        Err(error) => {
+            refuse(handle, owner, &stream, scope.as_ref(), &error.to_string()).await;
+            return;
+        }
+    };
+    for (cursor, row) in rows {
+        match decoded_sample(&codec, owner, &stream, scope.as_ref(), cursor.0, row) {
+            Ok(sample) => samples.push(sample),
             Err(error) => {
                 tracing::warn!(owner, %stream, %error, "native telemetry could not be represented without loss");
                 refuse(handle, owner, &stream, scope.as_ref(), &error).await;
             }
         }
     }
-
-    fn decode(&mut self, definition: &harmos::streams::Definition, bytes: &[u8]) -> Result<BTreeMap<String, Value>, String> {
-        let key = (definition.id().to_owned(), definition.version());
-        if !self.descriptors.contains_key(&key) {
-            let schema = definition.schema().ok_or("native stream has no inspected schema")?;
-            let descriptor =
-                Validator::from_schema(schema, &harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
-            self.descriptors.insert(key.clone(), descriptor);
+    if samples.is_empty() {
+        return;
+    }
+    // The shared capture reader cannot wait for one paused cycle.
+    // Domain admission still filters paused/closed scopes; expose any
+    // dropped row as a gap instead of holding unrelated streams behind it.
+    let batch = TelemetryBatch::new(crate::model::identity::new_id(), stream.clone(), samples);
+    match handle.publish_telemetry_to_streams(batch, crate::model::time::now_utc(), Payloads::Decoded(codec)).await {
+        Ok(receipt) if receipt.dropped > 0 => {
+            let reason = receipt.message.as_deref().unwrap_or("native telemetry was dropped at admission");
+            refuse(handle, owner, &stream, scope.as_ref(), reason).await;
         }
-        crate::storage::telemetry::decode_stream_values(definition.id(), &self.descriptors[&key], bytes).map_err(|error| error.to_string())
+        Ok(_) => {}
+        Err(error) => {
+            tracing::warn!(owner, %stream, ?error, "native telemetry was refused at domain admission");
+            refuse(handle, owner, &stream, scope.as_ref(), &error.to_string()).await;
+        }
     }
 }
 
-/* === Public Functions === */
-pub(super) fn validate(artifact: &crate::InstalledPlugin, streams: &[harmos::sidecar::StreamDeclaration]) -> Result<(), String> {
+pub(super) fn validate(
+    artifact: &crate::InstalledPlugin, streams: &[harmos::sidecar::StreamDeclaration], settings: &harmos::config::SchemaSettings,
+) -> Result<(), String> {
     let contracts = artifact.telemetry_contracts.iter().chain(artifact.suites.suites.iter().flat_map(|suite| &suite.telemetry_contracts));
     for contract in contracts.filter(|contract| !contract.foreign) {
         let stream = streams.iter().find(|stream| stream.id == contract.stream.as_str()).ok_or_else(|| {
@@ -251,17 +199,13 @@ pub(super) fn validate(artifact: &crate::InstalledPlugin, streams: &[harmos::sid
             .storage_schema
             .as_ref()
             .ok_or_else(|| format!("telemetry `{}` has no authoritative storage row schema", contract.stream))?;
-        if !stream
-            .row
-            .equivalent(stream.row.root, declared, declared.root, &harmos::config::SchemaSettings::default())
-            .map_err(|error| error.to_string())?
-        {
+        if !stream.row.equivalent(stream.row.root, declared, declared.root, settings).map_err(|error| error.to_string())? {
             return Err(format!("telemetry `{}` storage graph differs from its native stream", contract.stream));
         }
         if stream.schema != contract.schema_version {
             return Err(format!("telemetry `{}` disagrees with its native stream schema version", contract.stream));
         }
-        stream.row.prepare(&harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
+        stream.row.prepare(settings).map_err(|error| error.to_string())?;
         let fields = stream.row.root().map_err(|error| error.to_string())?.fields();
         if !contract.allow_extra_fields
             && fields.iter().any(|field| !contract.columns.iter().any(|column| column.metadata.identifier.as_str() == field.name))
@@ -300,7 +244,9 @@ pub(super) fn validate(artifact: &crate::InstalledPlugin, streams: &[harmos::sid
 }
 
 pub(super) fn observe(handle: &RuntimeHandle, owner: &str) -> Subscriptions {
-    let contracts = handle.installed_plugins().get(owner).map(|artifact| artifact.telemetry_contracts.clone()).unwrap_or_default();
+    let state = handle.state_read();
+    let Some(artifact) = state.installed_plugins.get(owner) else { return Vec::new() };
+    let contracts = &artifact.telemetry_contracts;
     handle
         .streams()
         .definitions()
@@ -329,6 +275,40 @@ pub(super) async fn incomplete(handle: &RuntimeHandle, owner: &str, stream: &Ide
 }
 
 /* === Private Functions === */
+
+// The Execution A Publication Context Names, None For The Owner's Own Stream; An Unknown Context Is
+// Refused With Its Reason And An Unowned Stream Without Context Is Ignored.
+fn publication_scope(
+    handle: &RuntimeHandle, owner: &str, stream: &Identifier, row: &harmos::streams::PublicationRow,
+) -> Result<Option<RecordScope>, Option<String>> {
+    match row.context.as_deref() {
+        Some(token) => handle.native_executions.scope(owner, token, stream).map(Some).map_err(Some),
+        None if handle.streams_owned_by(owner).contains(stream) => Ok(None),
+        None => Err(None),
+    }
+}
+
+fn saved_codec(handle: &RuntimeHandle, stream: &Identifier) -> Result<Arc<crate::storage::telemetry::TypedCodec>, String> {
+    let state = handle.state_read();
+    let contract = state.telemetry_definitions.get(stream).ok_or("native stream has no registered telemetry contract")?;
+    handle.execution_storage.registered_codec(contract).map_err(|error| error.to_string())
+}
+
+// The Row's One Payload Pass: Values Are Projected From The Retained Bytes, Then The Bytes Are Owned Once.
+fn decoded_sample(
+    codec: &crate::storage::telemetry::TypedCodec, owner: &str, stream: &Identifier, scope: Option<&RecordScope>, sequence: u64,
+    row: &harmos::streams::PublicationRow,
+) -> Result<TelemetrySample, String> {
+    let mut values = codec.decode_payload(&row.payload).map_err(|error| error.to_string())?;
+    let now = publication_time(row.published_unix_micros)?;
+    values.insert("timestamp".into(), Value::from(now.clone()));
+    let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), sequence, now, owner);
+    sample.values = values;
+    sample.storage_payload = Some(row.payload.clone());
+    sample.scope = scope.cloned();
+    Ok(sample)
+}
+
 async fn refuse(handle: &RuntimeHandle, owner: &str, stream: &Identifier, scope: Option<&RecordScope>, reason: &str) {
     if let Some(scope) = scope {
         handle.refuse_execution_stream(stream, scope, owner, reason).await;
@@ -351,3 +331,72 @@ fn publication_time(published_unix_micros: Option<i64>) -> Result<Timestamp, Str
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::decoded_sample;
+    use crate::storage::telemetry::{PAYLOAD_PASSES, codec};
+    use crate::telemetry::TelemetryContract;
+    use dokime_domain::model::values::Value;
+    use harmos::Message;
+
+    #[harmos::message]
+    struct Reading {
+        value: String,
+    }
+
+    #[test]
+    fn native_rows_are_projected_in_one_pass() {
+        let contract = TelemetryContract::declared("fixture.native", "Native").typed::<Reading>();
+        let codec = codec(&contract, &harmos::config::SchemaSettings::default()).unwrap();
+        let payload = Reading { value: "7".into() }.encode();
+        let row = harmos::streams::PublicationRow {
+            payload: payload.clone(),
+            published_unix_micros: Some(1_000_000),
+            context: None,
+        };
+        PAYLOAD_PASSES.with(std::cell::Cell::take);
+        let sample = decoded_sample(&codec, "fixture", &contract.stream, None, 3, &row).unwrap();
+        assert_eq!(PAYLOAD_PASSES.with(std::cell::Cell::take), 1);
+        assert_eq!(sample.values.get("value"), Some(&Value::from("7")));
+        assert_eq!(sample.timestamp.as_str(), "1970-01-01T00:00:01Z");
+        assert_eq!(sample.storage_payload.as_deref(), Some(&payload[..]));
+    }
+
+    #[test]
+    fn native_projection_is_reused_by_lease_staging() {
+        use crate::domains::telemetry::{Payloads, share_scopes};
+        use dokime_domain::model::{execution::RecordScope, identity::SessionId};
+        use std::{collections::BTreeMap, sync::Arc};
+
+        let contract = TelemetryContract::declared("fixture.native", "Native").typed::<Reading>();
+        let codec = Arc::new(codec(&contract, &harmos::config::SchemaSettings::default()).unwrap());
+        let payload = Reading { value: "7".repeat(8192) }.encode();
+        let row = harmos::streams::PublicationRow {
+            payload,
+            published_unix_micros: Some(1_000_000),
+            context: None,
+        };
+        let epoch = SessionId::from_seed("native.once");
+
+        for count in [0, 8, 64] {
+            let scopes = (0..count)
+                .map(|_| RecordScope {
+                    test_execution_id: Some(crate::model::identity::new_id()),
+                    ..Default::default()
+                })
+                .collect();
+            let leased = BTreeMap::from([(contract.stream.clone(), scopes)]);
+            PAYLOAD_PASSES.with(std::cell::Cell::take);
+            let sample = decoded_sample(&codec, "fixture", &contract.stream, None, 3, &row).unwrap();
+            let shared = share_scopes(vec![sample], &leased, |scope| Ok(scope.clone())).unwrap();
+
+            let codecs = [Arc::clone(&codec)];
+            let payloads = Payloads::Decoded(Arc::clone(&codec));
+            let staged = crate::runtime::storage::telemetry::stage_rows(&epoch, &shared, &codecs, &payloads).unwrap();
+            assert_eq!(PAYLOAD_PASSES.with(std::cell::Cell::take), 1);
+            assert_eq!(staged.len(), count + 1);
+            assert!(shared.iter().all(|sample| Arc::ptr_eq(&sample.sample, &shared[0].sample)));
+        }
+    }
+}

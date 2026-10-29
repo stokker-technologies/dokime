@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use harmos::grpc::dynamic::Event;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 
@@ -21,11 +23,13 @@ use futures_util::{StreamExt, stream};
 use harmos::grpc::dynamic::Operation;
 
 // Local Imports
-use super::operations::{Error, MAX_INPUT_BYTES, Result};
+use super::operations::{Error, Result};
 use super::{Client, ResponseStream, stream::Input};
 
 /* === Constants === */
-const MAX_INPUT_FRAMES: usize = 4096;
+
+const INPUT_BYTES: u64 = 16_777_216;
+const INPUT_FRAMES: u64 = 4_096;
 
 /* === Macros === */
 
@@ -38,12 +42,13 @@ const MAX_INPUT_FRAMES: usize = 4096;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub async fn call_operation(
         &self, identifier: &str, owner: Option<&str>, request: &[u8], inputs: Vec<Vec<u8>>,
     ) -> Result<ResponseStream<Event>> {
         let bytes = inputs.iter().try_fold(request.len(), |total, frame| total.checked_add(frame.len()).ok_or(Error::InputTooLarge))?;
-        if bytes > MAX_INPUT_BYTES || inputs.len() > MAX_INPUT_FRAMES {
+        if bytes > INPUT_BYTES as usize || inputs.len() > INPUT_FRAMES as usize {
             return Err(Error::InputTooLarge);
         }
         self.verify(true).await?;
@@ -63,6 +68,11 @@ impl Client {
         }
         let limit = NonZeroUsize::new(self.request_limit().min(self.response_limit())).ok_or(super::Error::IncompatibleApi)?;
         let operation = Operation::new(&provider.contract, limit).map_err(super::Error::Rpc)?;
+        let client = if operation.client_streaming() || operation.server_streaming() {
+            self.with_timeout(provider.contract.operation().policy.timeout)
+        } else {
+            self.clone()
+        };
         if !operation.client_streaming() && !inputs.is_empty() {
             return Err(Error::InputStream(identifier.into()));
         }
@@ -82,18 +92,20 @@ impl Client {
         if operation.server_streaming() {
             let incoming = if operation.client_streaming() {
                 let frames = Input::new(stream::iter(payloads), cancellation);
-                self.execute(async {
-                    grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                    grpc.streaming(self.request(frames), path, codec).await.map(tonic::Response::into_inner)
-                })
-                .await?
+                client
+                    .execute(async {
+                        grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                        grpc.streaming(client.request(frames), path, codec).await.map(tonic::Response::into_inner)
+                    })
+                    .await?
             } else {
                 let opening = payloads.pop().expect("the validated opening exists");
-                self.execute(async {
-                    grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                    grpc.server_streaming(self.request(opening), path, codec).await.map(tonic::Response::into_inner)
-                })
-                .await?
+                client
+                    .execute(async {
+                        grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                        grpc.server_streaming(client.request(opening), path, codec).await.map(tonic::Response::into_inner)
+                    })
+                    .await?
             };
             // The Completion Is Published Only After Its Successful Final Status.
             let frames = stream::unfold(Some((incoming, cancel)), |state| async move {
@@ -113,18 +125,20 @@ impl Client {
         } else {
             let completion = if operation.client_streaming() {
                 let frames = Input::new(stream::iter(payloads), cancellation);
-                self.execute(async {
-                    grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                    grpc.client_streaming(self.request(frames), path, codec).await.map(tonic::Response::into_inner)
-                })
-                .await?
+                client
+                    .execute(async {
+                        grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                        grpc.client_streaming(client.request(frames), path, codec).await.map(tonic::Response::into_inner)
+                    })
+                    .await?
             } else {
                 let opening = payloads.pop().expect("the validated opening exists");
-                self.execute(async {
-                    grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                    grpc.unary(self.request(opening), path, codec).await.map(tonic::Response::into_inner)
-                })
-                .await?
+                client
+                    .execute(async {
+                        grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                        grpc.unary(client.request(opening), path, codec).await.map(tonic::Response::into_inner)
+                    })
+                    .await?
             };
             if !matches!(&completion, Event::Completion(_)) {
                 return Err(Error::Catalog);

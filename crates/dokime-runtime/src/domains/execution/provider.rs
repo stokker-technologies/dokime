@@ -8,14 +8,18 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod admission;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::runtime::operations::provider::ProviderCycleRequest;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
+
 // Third Party Imports
 
 // Local Imports
@@ -49,6 +53,7 @@ pub type ExecutionFixtureFuture<'a> =
     Pin<Box<dyn Future<Output = std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure>> + Send + 'a>>;
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct ExecutionFixtureContext {
     pub(crate) runtime: RuntimeHandle,
@@ -82,9 +87,15 @@ pub trait ExecutionFixture: Send + Sync + 'static {
 }
 
 /* === Implementations === */
+
 impl ExecutionFixtureContext {
     pub(crate) fn new(runtime: RuntimeHandle) -> Self {
-        Self { runtime, request_id: None, cancellation: None, finalization: Default::default() }
+        Self {
+            runtime,
+            request_id: None,
+            cancellation: None,
+            finalization: Default::default(),
+        }
     }
 
     pub(crate) fn with_request(mut self, request_id: dokime_domain::model::identity::CommandId) -> Self {
@@ -114,25 +125,27 @@ impl ExecutionFixtureContext {
         let mut cancellation = self.cancellation.clone();
         let mut shutdown = self.runtime.shutdown_requested.subscribe();
         let mut state = self.runtime.watch_state();
-        loop {
-            if self.is_cancelled() {
-                return;
-            }
-            tokio::select! {
-                () = async {
-                    if let Some(cancelled) = cancellation.as_mut() {
-                        let _ = cancelled.wait_for(|cancelled| *cancelled).await;
-                    } else {
-                        std::future::pending::<()>().await;
-                    }
-                } => return,
-                _ = shutdown.wait_for(|shutdown| *shutdown) => return,
-                changed = state.next() => {
-                    if changed.is_none() {
-                        return;
-                    }
+        if self.is_cancelled() {
+            return;
+        }
+        let request_id = self.request_id.as_ref();
+        // Commits Are Filtered On The Committed Payload, So Only A Stop Of This Request Wakes The Waiter.
+        let stopped = |snapshot: &crate::queries::RuntimeStateSnapshot| {
+            let Some(request_id) = request_id else {
+                return false;
+            };
+            snapshot.state().run_requests.get(request_id).is_some_and(|request| request.summary.stop_requested)
+        };
+        tokio::select! {
+            () = async {
+                if let Some(cancelled) = cancellation.as_mut() {
+                    let _ = cancelled.wait_for(|cancelled| *cancelled).await;
+                } else {
+                    std::future::pending::<()>().await;
                 }
-            }
+            } => {},
+            _ = shutdown.wait_for(|shutdown| *shutdown) => {},
+            _ = state.wait_until(stopped) => {},
         }
     }
 
@@ -144,7 +157,7 @@ impl ExecutionFixtureContext {
             .state_read()
             .run_requests
             .get(request_id)
-            .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
+            .is_some_and(|request| request.summary.stop_requested && request.test_execution_id.as_ref() == Some(test_execution_id))
     }
 
     pub async fn execution_stopped(&self, test_execution_id: &TestExecutionId) {
@@ -152,15 +165,14 @@ impl ExecutionFixtureContext {
             return std::future::pending().await;
         };
         let mut state = self.runtime.watch_state();
-        let _ = state
-            .wait_until(|snapshot| {
-                snapshot
-                    .state()
-                    .run_requests
-                    .get(request_id)
-                    .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
-            })
-            .await;
+        let _ =
+            state
+                .wait_until(|snapshot| {
+                    snapshot.state().run_requests.get(request_id).is_some_and(|request| {
+                        request.summary.stop_requested && request.test_execution_id.as_ref() == Some(test_execution_id)
+                    })
+                })
+                .await;
     }
 
     pub async fn cycle_lifecycle(&self, test_cycle_id: &TestCycleId) -> Option<CycleStatus> {
@@ -186,7 +198,11 @@ impl ExecutionFixtureContext {
     ) -> crate::runtime::Result<()> {
         let _order = self.runtime.telemetry_admission.lock().await;
         self.runtime
-            .commit(crate::transactions::SetCapturePhase { scope, phase, occurred_at: crate::model::time::now_utc() })
+            .commit(crate::transactions::SetCapturePhase {
+                scope,
+                phase,
+                occurred_at: crate::model::time::now_utc(),
+            })
             .await
             .map(|_| ())
             .map_err(|error| crate::unavailable_rejection(error.to_string()))
@@ -220,7 +236,9 @@ impl ExecutionFixtureContext {
         self.runtime.update_execution_phase(scope, identifier, label, status).await
     }
 
-    pub async fn publish_telemetry_batch(&self, batch: TelemetryBatch) -> crate::runtime::Result<PublishReceipt> {
+    pub async fn publish_telemetry_batch(
+        &self, batch: TelemetryBatch,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<PublishReceipt>> {
         self.runtime.publish_telemetry_batch(batch).await
     }
 
@@ -263,7 +281,10 @@ impl ExecutionFixtureContext {
 
 impl ProviderExecutorRegistry {
     pub(crate) fn new(fixtures: BTreeMap<String, Arc<dyn ExecutionFixture>>) -> Self {
-        Self { fixtures, sidecar: Arc::new(super::run::TemplateRunExecutor) }
+        Self {
+            fixtures,
+            sidecar: Arc::new(super::run::TemplateRunExecutor),
+        }
     }
 
     pub(crate) fn get(&self, target: &ExecutionProviderTarget) -> Option<Arc<dyn ExecutionFixture>> {
@@ -280,11 +301,6 @@ impl ProviderExecutorRegistry {
 }
 
 /* === Public Functions === */
-pub(crate) fn provider_target_for_cycle(
-    state: &RuntimeState, test_cycle_id: &TestCycleId, selected_execution_id: Option<&TestExecutionId>,
-) -> Option<ExecutionProviderTarget> {
-    provider_targets_for_cycle(state, test_cycle_id, selected_execution_id).into_iter().next()
-}
 
 pub(crate) fn provider_targets_for_cycle(
     state: &RuntimeState, test_cycle_id: &TestCycleId, selected_execution_id: Option<&TestExecutionId>,
@@ -296,9 +312,7 @@ pub(crate) fn provider_targets_for_cycle(
     let resolved = state
         .executions_for_cycle(cycle)
         .filter(|execution| {
-            execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped
-                && execution.started_at.is_none()
-                && execution.finished_at.is_none()
+            crate::transactions::provider::execution_available(state, execution)
                 && selected_execution_id.is_none_or(|id| &execution.test_execution_id == id)
         })
         .filter_map(|execution| state.suites.provider_target_for_case(execution.snapshot.case()));
@@ -312,4 +326,5 @@ pub(crate) fn provider_targets_for_cycle(
 }
 
 /* === Private Functions === */
+
 /* === Tests === */

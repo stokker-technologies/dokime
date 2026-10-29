@@ -8,14 +8,18 @@
  */
 
 /* === Modules === */
+
 mod source;
 
 /* === Re-Exports === */
+
 pub use source::CapturedRecord;
-pub(crate) use source::{Process, Projection, Source, group_limits};
+pub(crate) use source::{Process, Projection, Source};
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 
 // Local Imports
@@ -38,6 +42,7 @@ use crate::runtime::Error;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn error(value: impl std::fmt::Display) -> Error {
     Error::Operation(format!("record capture: {value}"))
 }

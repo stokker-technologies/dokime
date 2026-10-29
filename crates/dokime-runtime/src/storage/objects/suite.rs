@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -32,6 +33,7 @@ use crate::storage::{Error, Manager, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Suite {
@@ -44,11 +46,13 @@ pub struct Suite {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Identified for Suite {
     fn definition() -> (DefinitionId, u32) {
         (DefinitionId::new("dokime.object.suite"), 1)
     }
 }
+
 impl StoredObject for Suite {
     type Key = str;
     const RETENTION: ObjectRetention = ObjectRetention::Latest;
@@ -56,47 +60,76 @@ impl StoredObject for Suite {
         &self.suite_id
     }
 }
+
 impl Suite {
-    pub fn new(suite_id: &str, source: &TestSuite) -> Result<Self> {
+    pub fn new(suite_id: &str, source: &TestSuite) -> Result<harmos::storage::ReadBatch<Self>> {
         if suite_id.trim().is_empty() {
             return Err(Error::Invalid("suite registration ID is required"));
         }
-        let definition: templates::Definition = templates::convert(source)?;
-        let restored: TestSuite = templates::convert(&definition)?;
-        let original = persisted_definition(source);
-        if original != restored {
-            return Err(Error::Invalid("suite definition cannot be represented losslessly"));
-        }
-        Ok(Self { suite_id: suite_id.into(), definition: Some(definition) })
+        let seed = harmos::storage::ReadBatch::new(());
+        seed.try_map(|_| {
+            let mut id = String::new();
+            id.try_reserve_exact(suite_id.len()).map_err(|_| Error::Invalid("suite ID allocation failed"))?;
+            id.push_str(suite_id);
+            Ok(Self {
+                suite_id: id,
+                definition: Some(templates::Definition::try_from(source)?),
+            })
+        })
     }
 
-    pub fn restore(&self) -> Result<TestSuite> {
-        let definition = self.definition.as_ref().ok_or(Error::Invalid("suite definition is missing"))?;
-        let restored: TestSuite = templates::convert(definition)?;
-        let canonical = Self::new(&self.suite_id, &restored)?;
-        if canonical != *self {
-            return Err(Error::Invalid("suite definition contains noncanonical fields"));
+    fn projection_memory(&self) -> Result<usize> {
+        let Self { suite_id, definition } = self;
+        if suite_id.trim().is_empty() {
+            return Err(Error::Invalid("suite registration ID is required"));
         }
-        Ok(restored)
+        let definition = definition.as_ref().ok_or(Error::Invalid("suite definition is missing"))?;
+        let peak = definition.projection_memory()?;
+        if peak == usize::MAX {
+            return Err(Error::Invalid("suite projection memory overflows"));
+        }
+        Ok(peak)
+    }
+
+    fn into_suite(self) -> Result<TestSuite> {
+        self.projection_memory()?;
+        let Self { suite_id, definition } = self;
+        drop(suite_id);
+        definition.ok_or(Error::Invalid("suite definition is missing"))?.try_into()
     }
 }
 
 /* === Public Functions === */
-pub async fn read(storage: &Manager, suite_id: &str) -> Result<Option<TestSuite>> {
-    let saved = storage.read_object::<Suite>(suite_id, ObjectVersion::Latest).await?;
-    saved.map(|saved| saved.value.restore()).transpose()
+
+pub async fn read(storage: &Manager, suite_id: &str) -> Result<Option<harmos::storage::ReadBatch<TestSuite>>> {
+    let session = storage.clone();
+    let saved = session.read_object::<Suite>(suite_id, ObjectVersion::Latest).await?;
+    saved.map(|saved| saved.try_map(|saved| saved.value.into_suite())).transpose()
 }
 
 /* === Private Functions === */
-fn persisted_definition(source: &TestSuite) -> TestSuite {
-    let mut definition = source.clone();
-    for template in &mut definition.test_case_templates {
-        let Some(document) = &mut template.document else {
-            continue;
-        };
-        templates::normalize_document(document);
-    }
-    definition
-}
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime_domain::model::identity::{Identifier, Metadata};
+
+    fn definition() -> TestSuite {
+        TestSuite {
+            metadata: Metadata::new(Identifier::new("fixture.suite").unwrap(), "Fixture", None),
+            tags: vec!["second".into(), "first".into()],
+            parameter_groups: Vec::new(),
+            test_case_templates: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn typed_definition_preserves_authored_order() {
+        let source = definition();
+        let row = templates::Definition::try_from(&source).unwrap();
+        let restored = TestSuite::try_from(row).unwrap();
+        assert_eq!(restored, source);
+    }
+}

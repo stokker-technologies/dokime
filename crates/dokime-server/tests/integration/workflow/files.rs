@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -40,9 +41,17 @@ use dokime_domain::model;
 
 #[tokio::test]
 async fn live_file_rewrites() {
-    let Gated { root: _root, gate, mut owner, service, server, execution, cycle } = Gated::open_bounded(4096).await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service,
+        server,
+        execution,
+        cycle,
+    } = Gated::open_bounded(4096).await;
     let runtime = owner.handle();
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
+    execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -52,14 +61,18 @@ async fn live_file_rewrites() {
         .await
         .unwrap()
         .into_inner();
-    let id = dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
+    let id = dokime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
     let first = runtime.execution_file_target(&id, "files/a.bin".into(), false, true).await.unwrap().unwrap();
     let second = runtime.execution_file_target(&id, "files/b.bin".into(), false, false).await.unwrap().unwrap();
     let bytes = (0..90_000).map(|n| (n % 251) as u8).collect::<Vec<_>>();
     std::fs::write(&first.absolute_path, &bytes).unwrap();
     std::fs::write(&second.absolute_path, []).unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let list = |limit| contracts::content::ListExecutionFiles { execution_id: id.to_string(), limit, ..Default::default() };
+    let list = |limit| contracts::content::ListExecutionFiles {
+        execution_id: id.to_string(),
+        limit,
+        ..Default::default()
+    };
     assert_eq!(content.unary::<contracts::content::ListExecutionFiles>(list(1)).await.unwrap_err().code(), Code::Unauthenticated);
     let page = content.unary::<contracts::content::ListExecutionFiles>(authenticated(list(1))).await.unwrap().into_inner();
     assert_eq!(page.files.len(), 1);
@@ -432,25 +445,30 @@ async fn live_file_rewrites() {
     }
 }
 
-async fn producer_generation_follow(runtime: &dokime_runtime::RuntimeHandle) {
-    use harmos::storage::{FileMetadata, FilePhase, StagedFile};
+async fn producer_generation_follow(runtime: &dokime::RuntimeHandle) {
+    use dokime::harmos::storage::{FileMetadata, FilePhase, StagedFile};
     let storage = runtime.storage();
     let metadata = FileMetadata {
-        id: harmos::Identifier::new(format!("follow-generation-{}", uuid::Uuid::now_v7())).unwrap(),
+        id: dokime::harmos::Identifier::new(format!("follow-generation-{}", uuid::Uuid::now_v7())).unwrap(),
         scope: None,
         media_type: "application/octet-stream".into(),
         expected_length: Some(13),
         expected_sha256: Some(Sha256::digest(b"prefix-suffix").into()),
     };
     let mut producer = storage.produce_file(metadata).await.unwrap();
-    producer.write_all(b"prefix-").await.unwrap();
+    producer.write_all(b"prefix-".to_vec()).await.unwrap();
     let original = producer.session().expect("resumable production").clone();
-    let identity = StagedFile { history: original.history.clone(), id: original.id.clone() };
-    let mut follower = storage.follow_file(&identity, 0).await.unwrap();
+    let identity = StagedFile {
+        history: original.history.clone(),
+        id: original.id.clone(),
+    };
+    let mut follower = storage.follow_production(&identity, 0).await.unwrap();
     let maximum = std::num::NonZeroUsize::new(64).unwrap();
     let prefix = follower.next_batch(maximum).await.unwrap().unwrap();
-    assert_eq!(prefix.bytes, b"prefix-");
-    let mut retained = prefix.bytes.clone();
+    assert_eq!(prefix.bytes(), b"prefix-");
+    let mut hash = Sha256::new();
+    hash.update(prefix.bytes());
+    let mut retained_length = prefix.bytes().len();
     drop(prefix);
     assert_eq!(follower.offset(), 7);
     drop(producer);
@@ -462,27 +480,36 @@ async fn producer_generation_follow(runtime: &dokime_runtime::RuntimeHandle) {
     assert_eq!(generation.id, identity.id);
     assert_eq!(generation.generation, original.generation + 1);
     assert!(storage.resume_file(&original).await.is_err(), "stale producer generation is fenced");
-    resumed.write_all(b"suffix").await.unwrap();
+    resumed.write_all(b"suffix".to_vec()).await.unwrap();
     let sealed = resumed.finish().await.unwrap();
     let suffix = follower.next_batch(maximum).await.unwrap().unwrap();
-    assert_eq!(suffix.bytes, b"suffix");
-    retained.extend_from_slice(&suffix.bytes);
+    assert_eq!(suffix.bytes(), b"suffix");
+    hash.update(suffix.bytes());
+    retained_length += suffix.bytes().len();
     drop(suffix);
     assert!(follower.next_batch(maximum).await.unwrap().is_none());
     assert_eq!(follower.progress().phase, FilePhase::Finished);
     assert_eq!(follower.offset(), 13);
     assert_eq!(sealed.position.history, identity.history);
     assert_eq!(sealed.metadata.id, identity.id);
-    assert_eq!(sealed.length, retained.len() as u64);
-    assert_eq!(sealed.sha256, <[u8; 32]>::from(Sha256::digest(&retained)));
-    assert_eq!(retained, b"prefix-suffix");
+    assert_eq!(sealed.length, retained_length as u64);
+    assert_eq!(sealed.sha256, <[u8; 32]>::from(hash.finalize()));
+    assert_eq!(sealed.sha256, <[u8; 32]>::from(Sha256::digest(b"prefix-suffix")));
 }
 
 async fn live_follow_refusal(change: &str) {
     use {model::content::wire::ExecutionFileFollowFramePayload as Frame, model::content::wire::ExecutionFilePhase};
-    let Gated { root: _root, gate, mut owner, service, server, execution, cycle } = Gated::open().await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service,
+        server,
+        execution,
+        cycle,
+    } = Gated::open().await;
     let runtime = owner.handle();
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
+    execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -492,7 +519,7 @@ async fn live_follow_refusal(change: &str) {
         .await
         .unwrap()
         .into_inner();
-    let id = dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
+    let id = dokime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
     let target = runtime.execution_file_target(&id, "follow.bin".into(), false, true).await.unwrap().unwrap();
     let original = b"original retained prefix";
     std::fs::write(&target.absolute_path, original).unwrap();
@@ -605,16 +632,14 @@ async fn live_follow_refusal(change: &str) {
     server.shutdown().await.unwrap();
     drop(runtime);
     let failure = owner.shutdown().await.unwrap_err();
-    let dokime_runtime::runtime::Error::Harmos(shutdown) = &failure else {
+    let dokime::runtime::Error::Harmos(shutdown) = &failure else {
         panic!("{change}: expected retained service failure, got {failure:?}");
     };
     let mut cause: &(dyn std::error::Error + Send + Sync + 'static) = shutdown;
-    while let Some(harmos::Error::TaskFailed { source, .. }) = cause.downcast_ref::<harmos::Error>() {
+    while let Some(dokime::harmos::Error::TaskFailed { source, .. }) = cause.downcast_ref::<dokime::harmos::Error>() {
         cause = source.as_ref();
     }
-    let Some(harmos::services::Fault::Application(dokime_runtime::runtime::Error::Operation(reason))) =
-        cause.downcast_ref::<harmos::services::Fault<dokime_runtime::runtime::Error>>()
-    else {
+    let Some(dokime::runtime::Error::Operation(reason)) = cause.downcast_ref::<dokime::runtime::Error>() else {
         panic!("{change}: shutdown must retain the injected capture failure: {failure:?}");
     };
     assert_eq!(reason, refusal.message(), "{change}: {failure}");
@@ -626,9 +651,17 @@ async fn execution_file_buffer() {
     // chunks; twice the batch crosses that boundary with margin.
     let size_bytes = 2 * crate::support::budgets::story_settings().response.batch_bytes.get() as u64;
 
-    let Gated { root: _root, gate, mut owner, service: _service, server, execution, cycle } = Gated::open().await;
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service: _service,
+        server,
+        execution,
+        cycle,
+    } = Gated::open().await;
     let runtime = owner.handle();
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
+    execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -638,7 +671,7 @@ async fn execution_file_buffer() {
         .await
         .unwrap()
         .into_inner();
-    let id = dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
+    let id = dokime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
     let target = runtime.execution_file_target(&id, "large.bin".into(), false, true).await.unwrap().unwrap();
     std::fs::OpenOptions::new().write(true).open(&target.absolute_path).unwrap().set_len(size_bytes).unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();

@@ -35,6 +35,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct CycleSnapshot(Arc<State>);
 
@@ -52,6 +53,7 @@ struct State {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl CycleSnapshot {
     pub(crate) fn capture(
         saved: StorageCursor, source: Arc<TestCycle>, revisions: Arc<Vec<ExecutionRevision>>, appearance: Arc<RuntimeAppearanceFrame>,
@@ -64,7 +66,14 @@ impl CycleSnapshot {
         // A Final Report Is Generated At Its Frozen Cycle's Last Update; The
         // Durable Publication Check Refuses Any Other Header Time.
         let captured_at = source.updated_at.clone();
-        Ok(Self(Arc::new(State { saved, source, revisions, appearance, captured_at, owner_node_id: owner_node_id.clone() })))
+        Ok(Self(Arc::new(State {
+            saved,
+            source,
+            revisions,
+            appearance,
+            captured_at,
+            owner_node_id: owner_node_id.clone(),
+        })))
     }
 
     pub(crate) fn current(
@@ -109,6 +118,7 @@ impl CycleSnapshot {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(message))
 }

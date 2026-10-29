@@ -12,18 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-use super::{Buffer, check_size};
-use crate::storage::sqlite::Error;
-use harmos::storage::{ObjectEntry, ObjectKey, ObjectVersionToken, SchemaKey, StorageCursor};
-use serde::Serialize;
 
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::storage::{ObjectEntry, ObjectKey, ObjectVersionToken, SchemaKey, StorageCursor};
+use serde::Serialize;
 
 // Local Imports
+use super::{Buffer, check_size};
+use crate::storage::sqlite::Error;
 
 /* === Constants === */
+
 const PREFIX: usize = std::mem::size_of::<u32>();
 
 /* === Macros === */
@@ -31,12 +32,14 @@ const PREFIX: usize = std::mem::size_of::<u32>();
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Serialize)]
 struct Header<'a> {
     position: &'a StorageCursor,
     version: &'a ObjectVersionToken,
     value: Value<'a>,
 }
+
 #[derive(Serialize)]
 struct Value<'a> {
     schema: &'a SchemaKey,
@@ -49,19 +52,23 @@ struct Value<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> From<&'a ObjectEntry> for Header<'a> {
     fn from(value: &'a ObjectEntry) -> Self {
         Self {
             position: &value.position,
             version: &value.version,
-            value: Value { schema: &value.value.schema, item: &value.value.item, payload: &[] },
+            value: Value {
+                schema: &value.value.schema,
+                item: &value.value.item,
+                payload: &[],
+            },
         }
     }
 }
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(super) fn portable_bytes(bytes: &[u8]) -> Result<usize, Error> {
     let prefix = bytes.get(..PREFIX).ok_or(Error::Corrupt("truncated SQLite object frame"))?;
     let metadata = u32::from_le_bytes(prefix.try_into().expect("fixed prefix")) as usize;
@@ -87,6 +94,7 @@ pub(super) fn portable_bytes(bytes: &[u8]) -> Result<usize, Error> {
 
 pub(super) fn length(value: &ObjectEntry, maximum: usize) -> Result<usize, Error> {
     let metadata = check_size(&Header::from(value), maximum)?;
+    u32::try_from(metadata).map_err(|_| Error::Data("SQLite object metadata length overflows"))?;
     metadata
         .checked_add(PREFIX)
         .and_then(|length| length.checked_add(value.value.payload.len()))
@@ -132,5 +140,7 @@ pub(super) fn decode(bytes: &[u8]) -> Result<ObjectEntry, Error> {
     value.value.payload.extend_from_slice(payload);
     Ok(value)
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

@@ -17,6 +17,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -33,14 +34,12 @@ use crate::host::ProcessExited;
 use crate::records::DeclaredRecord;
 use dokime_domain::model::process::wire::DEFAULT_GRACE_MS;
 use dokime_domain::model::process::wire::ProcessExit;
-use dokime_domain::operations::process::RunProcess;
+use dokime_operations::process::RunProcess;
 
 /* === Constants === */
+
 // How long the output readers may outlast the child, for a grandchild that
 // holds a pipe open.
-const DRAIN: Duration = Duration::from_secs(2);
-
-const READ_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
@@ -55,6 +54,7 @@ const READ_BYTES: usize = 64 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch::Receiver<bool>) -> Result<ProcessExit, String> {
     if request.program.is_empty() {
         return Err("a process needs a program".into());
@@ -104,14 +104,18 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
     let duration = started.elapsed();
     for reader in [stdout, stderr] {
         let mut reader = reader;
-        if tokio::time::timeout(DRAIN, &mut reader).await.is_err() {
+        if tokio::time::timeout(Duration::from_secs(2), &mut reader).await.is_err() {
             reader.abort();
         }
     }
     let status = status.map_err(|error| format!("{} could not be awaited: {error}", request.program))?;
 
     // Record The Exit
-    let exit = ProcessExit { exit_code: status.code(), duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX), cancelled };
+    let exit = ProcessExit {
+        exit_code: status.code(),
+        duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX),
+        cancelled,
+    };
     binding.journal.record(
         ProcessExited {
             program: request.program,
@@ -125,6 +129,7 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
 }
 
 /* === Private Functions === */
+
 // Pumps one output into the execution log line by line, or into a produced
 // artifact byte for byte.
 fn route(
@@ -142,9 +147,10 @@ fn route(
             }
         }));
     };
+    let read_bytes = 64 * 1024;
     let mut writer = binding.artifacts.create(&artifact).map_err(|error| format!("artifact {artifact:?}: {error}"))?;
     Ok(tokio::spawn(async move {
-        let mut buffer = vec![0; READ_BYTES];
+        let mut buffer = vec![0; read_bytes];
         loop {
             match output.read(&mut buffer).await {
                 Ok(0) => break,

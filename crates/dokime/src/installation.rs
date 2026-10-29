@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -19,9 +20,10 @@ use std::process::Command;
 // Third Party Imports
 
 // Local Imports
-use crate::{Error, Result};
+use crate::client_error::{Error, Result};
 
 /* === Constants === */
+
 #[cfg(any(windows, target_os = "macos"))]
 const PRODUCT: &str = "Dokime";
 
@@ -30,7 +32,8 @@ const PRODUCT: &str = "Dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(crate) struct Program {
+
+pub struct Program {
     name: &'static str,
 }
 
@@ -39,22 +42,21 @@ pub(crate) struct Program {
 /* === Traits === */
 
 /* === Implementations === */
-impl Program {
-    pub(crate) const SERVER: Self = Self { name: "dokime-server" };
-    pub(crate) const GUI: Self = Self { name: "dokime-gui" };
 
-    pub(crate) fn resolve(&self, explicit: Option<&Path>) -> Result<PathBuf> {
+impl Program {
+    pub const GUI: Self = Self { name: "dokime-gui" };
+
+    pub fn resolve(&self, explicit: Option<&Path>) -> Result<PathBuf> {
         if let Some(path) = explicit {
             return executable(path).ok_or_else(|| Error::Input(format!("{} {} is not a file", self.name, path.display())));
         }
 
         let file = format!("{}{}", self.name, std::env::consts::EXE_SUFFIX);
         let beside = std::env::current_exe().ok().and_then(|path| path.parent().map(Path::to_owned));
-        let home = std::env::var_os("DOKIME_HOME").map(PathBuf::from);
-        beside
-            .into_iter()
-            .chain(home)
-            .chain(installed_directories())
+        // DOKIME_HOME names the installation, so it replaces the platform's installation directories.
+        let installation = std::env::var_os("DOKIME_HOME").map_or_else(installed_directories, |home| vec![PathBuf::from(home)]);
+        let mut directories = beside.into_iter().chain(installation);
+        directories
             .find_map(|directory| executable(&directory.join(&file)))
             .ok_or_else(|| {
                 Error::Setup(format!(
@@ -66,7 +68,8 @@ impl Program {
 }
 
 /* === Public Functions === */
-pub(crate) fn hand_over(mut command: Command) -> Result<()> {
+
+pub fn hand_over(mut command: Command) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -80,6 +83,7 @@ pub(crate) fn hand_over(mut command: Command) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 fn executable(path: &Path) -> Option<PathBuf> {
     if !path.is_file() {
         return None;

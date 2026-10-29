@@ -21,10 +21,7 @@ export type RuntimeStateFrame = Wire<
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import { traceabilitySnapshotFromItems } from "@/lib/traceability";
 import type { ExecutionResultSummary, HubLiveState, RecordScope, RunStatus, TraceabilitySnapshot } from "@/lib/types";
-import type { DiagnosticsResponse, DiagnosticsSnapshot } from "@/lib/types/view-contracts";
 import {
-  enumTail,
-  mapNativeSeverity,
   NATIVE_MAX_PAGES,
   NATIVE_PAGE_SIZE,
   NativeApiLimitError,
@@ -36,6 +33,8 @@ import {
   timestampIso,
 } from "./native-values";
 
+const GUI_SMALL_PAGE_ITEMS = 100;
+
 /* === Types === */
 
 type RuntimeShellSnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetRuntimeShell>>>;
@@ -45,14 +44,6 @@ type ExecutionProgressFrame = Wire<
 type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetTraceability>>["snapshots"][number]>;
 type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["cursor"]>;
 type EvidenceScope = Wire<NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["scope"]>>;
-type NativeDiagnosticsResponse = Wire<Awaited<ReturnType<typeof rpc.backendGetDiagnostics>>>;
-type DiagnosticRuntime = NonNullable<NativeDiagnosticsResponse["runtime"]>;
-type DiagnosticCheckStatus = NonNullable<DiagnosticRuntime["startupDoctor"]>["status"];
-type StartupDoctorCheckKey = NonNullable<DiagnosticRuntime["startupDoctor"]>["checks"][number]["key"];
-type DiagnosticPathKey = DiagnosticRuntime["pathConventions"][number]["key"];
-type DiagnosticPathScope = DiagnosticRuntime["pathConventions"][number]["scope"];
-type DiagnosticFileFormat = DiagnosticRuntime["pathConventions"][number]["format"];
-type InstalledPluginPhase = DiagnosticRuntime["installedPluginErrors"][number]["phase"];
 type CycleStatus = RuntimeShellSnapshot["cycleSummaries"][number]["status"];
 
 /* === Runtime shell === */
@@ -68,7 +59,7 @@ async function fetchRuntimeShellCycles(session: SessionIdentity): Promise<Runtim
   let cursor: RuntimeShellSnapshot["observedCursor"];
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
     const snapshot = await rpc.observationGetRuntimeShell(session, {
-      limit: 100,
+      limit: GUI_SMALL_PAGE_ITEMS,
       afterCycleId,
       ...(cursor ? { cursor } : {}),
     });
@@ -394,118 +385,6 @@ export async function openNativeExecutionProgressStream(
   };
 }
 
-/* === Diagnostics === */
-
-export async function fetchNativeDiagnostics(session: SessionIdentity): Promise<DiagnosticsResponse> {
-  const response: NativeDiagnosticsResponse = await rpc.backendGetDiagnostics(session, {});
-  if (!response.server || !response.runtime) throw new Error("Native diagnostics are incomplete.");
-  return mapDiagnostics(response);
-}
-
-function mapDiagnostics(response: NativeDiagnosticsResponse): DiagnosticsResponse {
-  const server = response.server;
-  const runtime = response.runtime;
-  if (!server || !runtime) throw new Error("Native diagnostics are incomplete.");
-  const capturedAt = timestampIso(runtime.capturedAt) ?? nowIso();
-  const node = runtime.identity?.node;
-  if (!node?.nodeId) throw new Error("Native diagnostics have no runtime node identity.");
-  const createdAt = timestampIso(node.createdAt) ?? capturedAt;
-  const updatedAt = timestampIso(node.updatedAt) ?? capturedAt;
-  const snapshot: DiagnosticsSnapshot = {
-    captured_at: capturedAt,
-    session_id: runtime.sessionId,
-    identity: {
-      node: {
-        node_id: node.nodeId,
-        hostname_label: node.hostnameLabel ?? null,
-        created_at: createdAt,
-        updated_at: updatedAt,
-      },
-      actor: runtime.identity?.actor
-        ? {
-            actor_id: runtime.identity.actor.actorId,
-            display_name: runtime.identity.actor.displayName,
-          }
-        : null,
-    },
-    revision: safeNumber(runtime.revision, "Backend.Diagnostics revision"),
-    shutting_down: runtime.shuttingDown,
-    storage_root: runtime.storageRoot,
-    hub_metadata: {
-      identifier: runtime.hubMetadata?.identifier ?? "hub",
-      label: runtime.hubMetadata?.label ?? defaultBrand.label,
-      description: runtime.hubMetadata?.description ?? null,
-    },
-    startup_doctor: {
-      checked_at: timestampIso(runtime.startupDoctor?.checkedAt) ?? capturedAt,
-      status: mapDiagnosticStatus(runtime.startupDoctor?.status),
-      checks: (runtime.startupDoctor?.checks ?? []).map((check) => ({
-        key: mapStartupKey(check.key),
-        status: mapDiagnosticStatus(check.status),
-        message: check.message,
-        detail: check.detail ?? null,
-      })),
-    },
-    path_conventions: runtime.pathConventions.map((item) => ({
-      key: mapPathKey(item.key),
-      scope: mapPathScope(item.scope),
-      format: mapPathFormat(item.format),
-      relative_path: item.relativePath,
-      absolute_path: item.absolutePath ?? null,
-    })),
-    counts: {
-      test_suites: safeNumber(runtime.counts?.testSuites ?? 0n, "diagnostic suite count"),
-      cycles: safeNumber(runtime.counts?.cycles ?? 0n, "diagnostic cycle count"),
-      installed_plugin_errors: safeNumber(runtime.counts?.installedPluginErrors ?? 0n, "diagnostic artifact error count"),
-      state_cycles: safeNumber(runtime.counts?.stateCycles ?? 0n, "diagnostic state cycle count"),
-      state_executions_total: safeNumber(runtime.counts?.stateExecutionsTotal ?? 0n, "diagnostic execution count"),
-      state_record_count: safeNumber(runtime.counts?.stateRecordCount ?? 0n, "diagnostic record count"),
-      telemetry_cursor_entries: safeNumber(runtime.counts?.telemetryCursorEntries ?? 0n, "diagnostic telemetry cursor count"),
-    },
-    installed_plugin_errors: runtime.installedPluginErrors.map((item) => ({
-      plugin_id: item.pluginId,
-      contribution_id: item.contributionId ?? null,
-      phase: mapArtifactPhase(item.phase),
-      level: mapNativeSeverity(item.level),
-      message: item.message,
-      code: item.code ?? null,
-      source: item.source ?? null,
-      cause_chain: item.causeChain.map((cause) => ({
-        message: cause.message,
-        code: cause.code ?? null,
-        source: cause.source ?? null,
-      })),
-      stacktrace_attachment: item.stacktraceAttachment ?? null,
-      trace_id: item.traceId ?? null,
-      scope: recordScopeFromNative(item.scope),
-      session_id: item.sessionId ?? null,
-      test_cycle_id: item.testCycleId ?? null,
-      test_execution_id: item.testExecutionId ?? null,
-      recorded_at: timestampIso(item.recordedAt) ?? capturedAt,
-    })),
-  };
-  return {
-    runtime: snapshot,
-    server: {
-      bind_addr: "native",
-      body_limit_bytes: 0,
-      auth: "native",
-      allowed_origins: [],
-      heartbeat_interval_ms: 0,
-      version: server.version,
-      process: {
-        pid: server.process?.pid ?? 0,
-        cpu_percent: server.process?.cpuPercent ?? null,
-        memory_bytes: server.process?.memoryBytes === undefined ? null : safeNumber(server.process.memoryBytes, "diagnostic memory bytes"),
-        virtual_memory_bytes:
-          server.process?.virtualMemoryBytes === undefined
-            ? null
-            : safeNumber(server.process.virtualMemoryBytes, "diagnostic virtual memory bytes"),
-      },
-    },
-  };
-}
-
 /* === Private mapping === */
 
 function mapRunStatus(status?: CycleStatus): RunStatus {
@@ -575,32 +454,4 @@ function revisions(revision: number): HubLiveState["revisions"] {
     contracts: revision,
     telemetry: { __all__: revision },
   };
-}
-
-function mapDiagnosticStatus(value?: DiagnosticCheckStatus): "ok" | "warning" | "failed" {
-  return enumTail(undefined, value, "ok");
-}
-
-function mapStartupKey(value: StartupDoctorCheckKey): "storage_root" | "shutdown_state" {
-  return enumTail(undefined, value, "storage_root");
-}
-
-function mapPathKey(
-  value: DiagnosticPathKey,
-): "hub_log" | "startup_doctor" | "diagnostics_snapshot" | "collect_bundle" | "cycle_log_pattern" | "execution_log_pattern" {
-  return enumTail(undefined, value, "hub_log");
-}
-
-function mapPathScope(value: DiagnosticPathScope): "root" | "cycle_pattern" | "execution_pattern" {
-  return enumTail(undefined, value, "root");
-}
-
-function mapPathFormat(value: DiagnosticFileFormat): "json" | "jsonl" | "zip" {
-  return enumTail(undefined, value, "json");
-}
-
-function mapArtifactPhase(
-  value: InstalledPluginPhase,
-): "entrypoint" | "action" | "sidecar" | "provider" | "initialize" | "run" | "finalize" | "interrupt" {
-  return enumTail(undefined, value, "entrypoint");
 }

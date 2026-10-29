@@ -12,21 +12,24 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 use tracing_appender::non_blocking::{NonBlockingBuilder, WorkerGuard};
 use tracing_subscriber::{EnvFilter, Layer, fmt};
+
 // Local Imports
 use super::logging::BoxedLayer;
 use crate::host::{Error, Result};
 
 /* === Constants === */
-const MAX_HUB_LOG_BYTES: u64 = 32 * 1024 * 1024;
 
-const BUFFERED_RECORDS: usize = 8_192;
+const SERVER_HUB_LOG_BYTES: u64 = 33_554_432;
+const SERVER_HUB_LOG_RECORDS: u64 = 8_192;
 
 const ROTATED_SUFFIX: &str = ".1";
 
@@ -35,7 +38,9 @@ const ROTATED_SUFFIX: &str = ".1";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct RotatingFile {
+    maximum_bytes: u64,
     path: PathBuf,
     previous: PathBuf,
     file: File,
@@ -47,15 +52,22 @@ struct RotatingFile {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RotatingFile {
-    fn open(directory: &Path, filename: &str) -> Result<Self> {
+    fn open(directory: &Path, filename: &str, maximum_bytes: u64) -> Result<Self> {
         std::fs::create_dir_all(directory)
             .map_err(|error| Error::Setup(format!("failed to create log directory {}: {error}", directory.display())))?;
         let path = directory.join(filename);
         let previous = directory.join(format!("{filename}{ROTATED_SUFFIX}"));
         let file = append(&path)?;
         let written = file.metadata().map(|metadata| metadata.len()).unwrap_or(0);
-        Ok(Self { path, previous, file, written })
+        Ok(Self {
+            maximum_bytes,
+            path,
+            previous,
+            file,
+            written,
+        })
     }
 
     fn rotate(&mut self) {
@@ -77,7 +89,7 @@ impl RotatingFile {
 
 impl Write for RotatingFile {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if self.written > 0 && self.written.saturating_add(bytes.len() as u64) > MAX_HUB_LOG_BYTES {
+        if self.written > 0 && self.written.saturating_add(bytes.len() as u64) > self.maximum_bytes {
             self.rotate();
         }
         let written = self.file.write(bytes)?;
@@ -91,6 +103,7 @@ impl Write for RotatingFile {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
     let path = hub_log_path(root);
     let directory = path.parent().ok_or_else(|| Error::Setup(format!("the hub log path {} has no parent", path.display())))?.to_path_buf();
@@ -100,8 +113,10 @@ pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
         .to_string_lossy()
         .into_owned();
 
-    let (writer, guard) =
-        NonBlockingBuilder::default().buffered_lines_limit(BUFFERED_RECORDS).lossy(true).finish(RotatingFile::open(&directory, &filename)?);
+    let (writer, guard) = NonBlockingBuilder::default()
+        .buffered_lines_limit(usize::try_from(SERVER_HUB_LOG_RECORDS).expect("validated hub log queue count"))
+        .lossy(true)
+        .finish(RotatingFile::open(&directory, &filename, SERVER_HUB_LOG_BYTES)?);
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let layer = fmt::layer()
         .json()
@@ -120,9 +135,10 @@ pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
 }
 
 /* === Private Functions === */
+
 fn hub_log_path(root: &Path) -> PathBuf {
-    use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
-    dokime_runtime::domains::exports::storage::path_conventions(root)
+    use dokime::domains::exports::storage::DiagnosticPathKey;
+    dokime::domains::exports::storage::path_conventions(root)
         .into_iter()
         .find(|convention| convention.key == DiagnosticPathKey::HubLog)
         .and_then(|convention| convention.absolute_path)

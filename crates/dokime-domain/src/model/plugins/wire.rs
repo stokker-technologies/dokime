@@ -27,6 +27,8 @@ use crate::model::identity::wire::*;
 
 /* === Constants === */
 
+pub const INSTALL_ARCHIVE_MAX_BYTES: u64 = 272 * 1024 * 1024;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -52,34 +54,33 @@ pub struct InstallationPage {
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemovePluginReply {
-    // Absent means the staged installation was removed. Consented installations
-    // remain RemovalPending until next boot; the active process is untouched.
-    #[row(
-        description = "Absent means the staged installation was removed. Consented installations remain RemovalPending until next boot; the active process is untouched."
-    )]
+    // RemovalPending persists until the next boot; the active process is untouched.
+    #[row(description = "RemovalPending persists until the next boot; the active process is untouched.")]
     pub installation: Option<PluginInstallation>,
 }
 
-// Exactly one header first, followed by contiguous nonempty chunks <=256KiB.
-// EOF must match the declared size and SHA-256. Native archive limit is 272 MiB.
+// Exactly one header first, followed by contiguous nonempty chunks of at most the
+// backend's advertised chunk size, within the request limit. EOF must match the
+// declared size and SHA-256.
+// Native archive limit is `INSTALL_ARCHIVE_MAX_BYTES`.
 // No resumable upload session or automatic retry: after uncertain acknowledgement,
-// reconcile the manifest by digest before explicitly starting another stage.
+// reconcile the manifest by digest before explicitly starting another installation.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct StagePluginFrame {
-    pub frame: Option<StagePluginFrameFrame>,
+pub struct InstallPluginFrame {
+    pub frame: Option<InstallPluginFrameFrame>,
 }
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct StagePluginHeader {
+pub struct InstallPluginHeader {
     pub size_bytes: u64,
     pub sha256: String,
 }
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct StagePluginChunk {
+pub struct InstallPluginChunk {
     pub offset: u64,
     pub data: Vec<u8>,
 }
@@ -94,19 +95,10 @@ pub struct PluginIdentity {
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PluginEnvironmentReference {
-    pub owner: String,
-    pub setting: String,
-    pub variable: String,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginMetadata {
     pub identity: Option<PluginIdentity>,
     pub owners: Vec<String>,
     pub size_bytes: u64,
-    pub environment_references: Vec<PluginEnvironmentReference>,
 }
 
 #[harmos_domain::message]
@@ -121,15 +113,14 @@ pub struct PluginLastBoot {
 pub struct PluginInstallation {
     pub install_id: String,
     pub sha256: String,
-    pub staged_at: Option<Timestamp>,
-    pub consented_at: Option<Timestamp>,
+    pub installed_at: Option<Timestamp>,
     pub state: PluginInstallationState,
     pub last_boot: Option<PluginLastBoot>,
 
     // Absent if bytes cannot be verified or full metadata exceeds the response
-    // budget; error explains why. Permission disclosure is never truncated.
+    // budget; error explains why. Metadata is never truncated.
     #[row(
-        description = "Absent if bytes cannot be verified or full metadata exceeds the response budget; error explains why. Permission disclosure is never truncated."
+        description = "Absent if bytes cannot be verified or full metadata exceeds the response budget; error explains why. Metadata is never truncated."
     )]
     pub metadata: Option<PluginMetadata>,
 
@@ -189,7 +180,6 @@ pub struct AdmittedPlugin {
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PluginInstallationState {
     Unspecified,
-    Staged,
     Installed,
     Disabled,
     RemovalPending,
@@ -197,9 +187,9 @@ pub enum PluginInstallationState {
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub enum StagePluginFrameFrame {
-    Header(StagePluginHeader),
-    Chunk(StagePluginChunk),
+pub enum InstallPluginFrameFrame {
+    Header(InstallPluginHeader),
+    Chunk(InstallPluginChunk),
 }
 
 #[harmos_domain::message]

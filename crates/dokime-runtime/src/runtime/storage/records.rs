@@ -16,6 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+
 use harmos::storage::{RecordRead, StoredRecord, query::RecordSelection};
 
 // Local Imports
@@ -36,9 +37,11 @@ use dokime_domain::state::records::set::TestRecordSet;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
 
 /* === Structs === */
+
 pub struct RecordReader {
     rows: harmos::storage::RecordReader<RecordRow>,
     view: ExecutionView,
@@ -50,6 +53,7 @@ pub struct RecordReader {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordReader {
     pub(super) async fn open_page(view: &ExecutionView, after: u64) -> Result<Self> {
         Self::query(view, false, after).await
@@ -65,43 +69,59 @@ impl RecordReader {
             return Err(invalid("record evidence exceeds the original saved view"));
         }
         let rows = view
-            .storage()
+            .session()
             .read_records::<RecordRow>(RecordRead {
                 at: through.clone(),
-                selection: RecordSelection { schema: records::schema(), scope: None, item: None, source_start: None, source_end: None },
+                selection: RecordSelection {
+                    schema: records::schema(),
+                    scope: None,
+                    item: None,
+                    source_start: None,
+                    source_end: None,
+                },
                 after,
             })
             .await?;
         Ok(Self { rows, view: view.clone(), context })
     }
 
-    pub async fn next(&mut self) -> Result<Option<Vec<ContextRecord>>> {
-        Ok(self.next_positioned().await?.map(|rows| rows.into_iter().map(|row| row.captured).collect()))
+    pub async fn next(&mut self) -> Result<Option<harmos::storage::ReadBatch<Vec<ContextRecord>>>> {
+        let Some(rows) = self.next_positioned().await? else {
+            return Ok(None);
+        };
+        let selected = rows.try_map(|rows| -> Result<_> {
+            let mut selected = Vec::new();
+            selected.try_reserve_exact(rows.len()).map_err(|_| invalid("record projection allocation failed"))?;
+            selected.extend(rows.into_iter().map(|row| row.captured));
+            Ok(selected)
+        })?;
+        Ok(Some(selected))
     }
 
-    pub(super) async fn next_positioned(&mut self) -> Result<Option<Vec<PositionedRecord>>> {
-        let mut selected = Vec::new();
-        while selected.is_empty() {
+    pub(super) async fn next_positioned(&mut self) -> Result<Option<harmos::storage::ReadBatch<Vec<PositionedRecord>>>> {
+        loop {
             let Some(rows) = self.rows.next().await? else {
                 return Ok(None);
             };
-            selected = self.select(rows)?;
+            let selected = rows.try_map(|rows| self.select(rows))?;
+            if !selected.is_empty() {
+                return Ok(Some(selected));
+            }
         }
-        Ok(Some(selected))
     }
 
     // One Page's Rows Owned By The Execution, Or Its Shared Context When Requested.
     fn select(&self, rows: Vec<StoredRecord<RecordRow>>) -> Result<Vec<PositionedRecord>> {
         let execution = self.view.execution();
-        let subscriptions = execution.records.subscribed_records();
-        let subscribed = subscriptions.keys().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
+
         let mut selected = Vec::with_capacity(rows.len());
         for row in rows {
-            if !owned(&row, execution, self.context) && !subscribed.contains(row.item.as_str()) {
-                continue;
-            }
+            let native = owned(&row, execution, self.context);
             let position = row.position.sequence;
             let mut decoded = decode(row)?;
+            if !native && execution.records.captured_scope(&decoded.record).is_none() {
+                continue;
+            }
             apply_execution_scope(
                 &mut decoded.record,
                 &execution.records,
@@ -118,6 +138,7 @@ impl RecordReader {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // The Execution's Own Records; With Context, Also Its Cycle's Unowned
 // Records And Records Without Any Test Owner.
 fn owned(row: &StoredRecord<RecordRow>, execution: &TestExecution, context: bool) -> bool {
@@ -157,14 +178,14 @@ fn decode(row: StoredRecord<RecordRow>) -> Result<ContextRecord> {
 fn apply_execution_scope(
     record: &mut RecordEntry, captures: &TestRecordSet, cycle: &TestCycleId, case: &CaseId, execution: &TestExecutionId,
 ) -> Result<()> {
-    if let Some(scope) = captures.subscribed_records().get(&record.record_id) {
+    if let Some(scope) = captures.captured_scope(record).cloned() {
         if scope.test_execution_id.as_ref() != Some(execution)
             || scope.test_cycle_id.as_ref().is_some_and(|id| id != cycle)
             || scope.test_case_id.as_ref().is_some_and(|id| id != case)
         {
             return Err(invalid("frozen record subscription belongs to another execution"));
         }
-        record.scope = Some(scope.clone());
+        record.scope = Some(scope);
     }
     let Some(scope) = record.scope.as_ref() else {
         return Ok(());

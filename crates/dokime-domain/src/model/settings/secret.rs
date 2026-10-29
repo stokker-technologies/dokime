@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::SettingsError;
 use crate::model::values::Value;
@@ -28,27 +30,31 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SecretSetting {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
     pub default: Option<SecretReference>,
+
     #[serde(default)]
     pub required: bool,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SecretReference {
     Environment { variable: String },
-    StoredCredential { credential_id: String },
+    StoredSecret { secret_id: String },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SecretReference {
     pub fn validate(&self) -> crate::Result<()> {
         let valid = match self {
@@ -56,7 +62,7 @@ impl SecretReference {
                 !variable.is_empty()
                     && variable.bytes().enumerate().all(|(i, c)| c == b'_' || c.is_ascii_alphabetic() || (i > 0 && c.is_ascii_digit()))
             }
-            Self::StoredCredential { credential_id } => !credential_id.trim().is_empty() && !credential_id.contains('\0'),
+            Self::StoredSecret { secret_id } => !secret_id.trim().is_empty() && !secret_id.contains('\0'),
         };
         if valid { Ok(()) } else { Err(SettingsError::invalid("secret_reference", "invalid secret reference").into()) }
     }
@@ -80,9 +86,9 @@ impl From<SecretReference> for Value {
                 ("kind".into(), "environment".into()),
                 ("variable".into(), variable.into()),
             ])),
-            SecretReference::StoredCredential { credential_id } => Self::Object(std::collections::BTreeMap::from([
-                ("kind".into(), "stored_credential".into()),
-                ("credential_id".into(), credential_id.into()),
+            SecretReference::StoredSecret { secret_id } => Self::Object(std::collections::BTreeMap::from([
+                ("kind".into(), "stored_secret".into()),
+                ("secret_id".into(), secret_id.into()),
             ])),
         }
     }
@@ -90,8 +96,8 @@ impl From<SecretReference> for Value {
 
 impl SecretSetting {
     pub fn validate(&self) -> crate::Result<()> {
-        if matches!(self.default, Some(SecretReference::StoredCredential { .. })) {
-            return Err(SettingsError::invalid(&self.id, "stored credentials require an explicit operator binding").into());
+        if matches!(self.default, Some(SecretReference::StoredSecret { .. })) {
+            return Err(SettingsError::invalid(&self.id, "stored secrets require an explicit operator binding").into());
         }
         if let Some(reference) = &self.default {
             reference.validate()?;

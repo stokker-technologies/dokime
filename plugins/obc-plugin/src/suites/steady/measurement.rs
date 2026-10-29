@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{
     Mutex,
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
+
 // Third Party Imports
 
 // Local Imports
@@ -27,23 +29,26 @@ use crate::suites::common::measurement::InputMeasurement;
 use crate::suites::common::system::{self, SystemInputs};
 use crate::suites::common::{readiness, verdicts};
 use crate::{error::Error, prompts::checkpoint};
-use dokime_domain::model::identity::TemplateId;
-use dokime_runtime::definition::ParameterDefault;
-use dokime_runtime::document::{PlotDefinition, PlotStyle};
-use dokime_runtime::expressions::telemetry;
-use dokime_runtime::prelude::*;
+use dokime::definition::ParameterDefault;
+use dokime::document::{PlotDefinition, PlotStyle};
+use dokime::domain::model::identity::TemplateId;
+use dokime::expressions::telemetry;
+use dokime::prelude::*;
 use obc_runtime::device::Device;
 
 /* === Constants === */
-const STEADY_SAMPLE_POLL: Duration = Duration::from_millis(1);
 
+const STEADY_SAMPLE_POLL: Duration = Duration::from_millis(1);
 const STEADY_STREAM: &str = "obc.charger.steady.samples";
 
 /* === Macros === */
 
+bench!(Parameters);
+
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct SteadyResources {
     device: Mutex<Device>,
     interval_s: f64,
@@ -59,7 +64,7 @@ pub struct Steady {
 // [`InputMeasurement`]: four suites measure the same physical thing and each owns the
 // stream its evidence travels, so the shape declares no home and every
 // stream declares itself.
-#[dokime_runtime::stream(
+#[dokime::stream(
     id = "obc.charger.steady.samples",
     window = 4096,
     row = InputMeasurement,
@@ -72,7 +77,7 @@ pub struct Samples;
 // is the device's schedule and not the engine's. The stream is declared by
 // this row type, so its contract exists with nothing sampling it, and the step
 // that observes the event pushes the row.
-#[dokime_runtime::stream(
+#[dokime::stream(
     id = "obc.charger.steady.events",
     window = 4096,
     label = "Steady-State Supply Events",
@@ -81,15 +86,17 @@ pub struct Samples;
 pub struct BenchEvent {
     #[row(role = state)]
     pub event: String,
+
     #[row(unit = "s")]
     pub elapsed_s: f64,
+
     #[row(unit = "V")]
     pub voltage_rms_v: f64,
 }
 
-/* === Records === */
+// Records
 
-#[dokime_runtime::record(
+#[dokime::record(
     id = "obc.charger.steady.initialized",
     label = "Steady-state Charger initialized",
     description = "The Charger was initialized for this attempt."
@@ -97,15 +104,11 @@ pub struct BenchEvent {
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime_runtime::record(
-    id = "obc.charger.steady.started",
-    label = "Steady-state Charger energized",
-    description = "The supply was energized."
-)]
+#[dokime::record(id = "obc.charger.steady.started", label = "Steady-state Charger energized", description = "The supply was energized.")]
 #[derive(Clone, Debug)]
 pub struct Started {}
 
-#[dokime_runtime::record(
+#[dokime::record(
     id = "obc.charger.steady.completed",
     label = "Steady-state measurement and operator decision captured",
     description = "The steady-state measurement and the operator's decision, together."
@@ -114,11 +117,12 @@ pub struct Started {}
 pub struct Completed {
     #[record(description = "How many rows the steady-state measurement produced.")]
     pub sample_count: u64,
+
     #[record(description = "Whether the measurement behaved the way this procedure required.")]
     pub accepted: bool,
 }
 
-#[dokime_runtime::parameters]
+#[dokime::parameters]
 pub struct Parameters {
     #[parameter(
         label = "AC Voltage (RMS)",
@@ -127,6 +131,7 @@ pub struct Parameters {
         default = ParameterDefault::space([207.0, 230.0, 253.0]),
     )]
     pub ac_voltage_v: f64,
+
     #[parameter(
         label = "Load Impedance Magnitude",
         unit = "ohm",
@@ -134,14 +139,19 @@ pub struct Parameters {
         default = ParameterDefault::linspace(80.0, 120.0, 3),
     )]
     pub load_ohm: f64,
+
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
     pub frequency_hz: f64,
+
     #[parameter(label = "Current Phase Lag", unit = "deg", default = 15.0)]
     pub phase_deg: f64,
+
     #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
     pub current_limit_a: f64,
+
     #[parameter(label = "Observation Duration", unit = "s", default = 0.05, min = SHORTEST_S)]
     pub duration_s: f64,
+
     #[parameter(
         label = "Simulation Sample Interval",
         unit = "s",
@@ -153,29 +163,30 @@ pub struct Parameters {
 }
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Required {
     AskReadiness(crate::domain::operations::AskReadiness),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Prompts {
     SteadyCheck(checkpoint::SteadyCheck),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Streams {
     BenchEvent(BenchEvent),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Records {
     Initialized(Initialized),
     Started(Started),
     Completed(Completed),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum ObserverStreams {
     Samples(Samples),
 }
@@ -183,10 +194,9 @@ pub enum ObserverStreams {
 /* === Traits === */
 
 /* === Implementations === */
-bench!(Parameters);
 
-#[dokime_runtime::template(
-    id = STEADY_TEMPLATE, label = "Charging Input Measurement",
+#[dokime::template(
+    id = STEADY_TEMPLATE, label = "Steady-State Measurement",
     requires = Required,
     template_id = TemplateId::from_uuid(STEADY_TEMPLATE_ID).expect("steady template UUID"),
     tags = ["device", "steady"], prompts = Prompts,
@@ -203,11 +213,14 @@ bench!(Parameters);
     // this file, bound to this template.
     records = Records,
     attributes(path = "Testbench/Steady State", provider = "sidecar"),
-    parameters = Parameters, description = "Sweep AC voltage and load while the SDK samples one shared Charger.")]
+    parameters = Parameters, description = "Sweep AC voltage and load while the SDK samples the steady state of one shared Charger.")]
 impl Steady {
     async fn initialize(_: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<(Self, SteadyResources), Error> {
         readiness::ready(ctx).await?;
-        let template = Self { accepted: false, prompt_action: String::new() };
+        let template = Self {
+            accepted: false,
+            prompt_action: String::new(),
+        };
 
         let shared = SteadyResources {
             device: Mutex::new(Device::initialize(ctx.parameters().supply()).map_err(Error::Device)?),
@@ -240,7 +253,7 @@ impl Steady {
         steady_document()
     }
 
-    #[dokime_runtime::step(label = "Initialize and Energize Charger")]
+    #[dokime::step(label = "Initialize and Energize Charger")]
     async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Initialized {}).await;
         ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.start().map_err(Error::Device)?;
@@ -249,7 +262,7 @@ impl Steady {
         Ok(())
     }
 
-    #[dokime_runtime::step(
+    #[dokime::step(
         label = "Measure AC Waveform",
         description = "Waits on the template's own observer, and reports what it saw around it.\nThe wait is for an exact number of rows rather than a length of time, so what the run measured does not depend on how quickly it got going. The two event rows travel a stream nothing samples: the step pushes them through a handle it holds open across the wait, beside its log lines rather than instead of them."
     )]
@@ -257,25 +270,44 @@ impl Steady {
         let wanted = ctx.parameters().sample_count()?;
         let interval_s = ctx.resources().interval_s;
         let events = ctx.stream::<BenchEvent>().open();
-        events.push(BenchEvent { event: "hold_started".into(), elapsed_s: 0.0, voltage_rms_v: nominal(ctx)? }).await;
+        events
+            .push(BenchEvent {
+                event: "hold_started".into(),
+                elapsed_s: 0.0,
+                voltage_rms_v: nominal(ctx)?,
+            })
+            .await;
         // An exact number of rows rather than a length of time, so what the run
         // measured does not depend on how quickly it got going. Counted off the
         // sampler's own counter rather than awaited by type: `InputMeasurement` is one
         // shape serving four of this plugin's streams, so it names no home and
         // a subscription by type would not know which stream was meant.
-        while ctx.resources().produced.load(Ordering::Acquire) < wanted {
+        // Counted from this step's start: the observer also samples during
+        // initialization and between steps, and those rows carry no step
+        // attempt, so the criterion never sees them.
+        let started = ctx.resources().produced.load(Ordering::Acquire);
+        while ctx.resources().produced.load(Ordering::Acquire).saturating_sub(started) < wanted {
             tokio::time::sleep(STEADY_SAMPLE_POLL).await;
         }
-        events.push(BenchEvent { event: "hold_reached".into(), elapsed_s: wanted as f64 * interval_s, voltage_rms_v: nominal(ctx)? }).await;
+        events
+            .push(BenchEvent {
+                event: "hold_reached".into(),
+                elapsed_s: wanted as f64 * interval_s,
+                voltage_rms_v: nominal(ctx)?,
+            })
+            .await;
         ctx.info(format!("record=sidecar_held samples={wanted}"));
         Ok(())
     }
 
-    #[dokime_runtime::step(label = "Inspect Steady-State Trace")]
+    #[dokime::step(label = "Inspect Steady-State Trace")]
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.info("record=sidecar_prompt_requested");
         let response = ctx
-            .ask(checkpoint::SteadyCheck { operator_note: "Waveform and charger status indicator stable".into(), ..Default::default() })
+            .ask(checkpoint::SteadyCheck {
+                operator_note: "Waveform and charger status indicator stable".into(),
+                ..Default::default()
+            })
             .await?;
         self.accepted = response.accepted;
         self.prompt_action = if self.accepted { "continue" } else { "decline" }.into();
@@ -283,11 +315,15 @@ impl Steady {
         Ok(())
     }
 
-    #[dokime_runtime::step(label = "Attach Measurement Evidence")]
+    #[dokime::step(label = "Attach Measurement Evidence")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let device = ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.clone();
         let produced = ctx.resources().produced.load(Ordering::Acquire);
-        ctx.publish(Completed { sample_count: produced, accepted: self.accepted && device.fault.is_none() }).await;
+        ctx.publish(Completed {
+            sample_count: produced,
+            accepted: self.accepted && device.fault.is_none(),
+        })
+        .await;
         let summary = serde_json::to_vec_pretty(&serde_json::json!({
             "supply": device.supply,
             "sample_count": produced,
@@ -304,16 +340,19 @@ impl Steady {
         Ok(())
     }
 
-    #[dokime_runtime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = STEADY_ACCEPTANCE_CRITERION_LABEL, description = "Passed once the sampler reached the case's sample count and the operator accepted the trace.")]
+    #[dokime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = STEADY_ACCEPTANCE_CRITERION_LABEL, description = "Passed once the sampler reached the case's sample count and the operator accepted the trace.")]
     fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         Ok(ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
             && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?)
     }
 
-    #[dokime_runtime::observer(interval_ms = 50, streams = ObserverStreams)]
+    #[dokime::observer(interval_ms = 50, streams = ObserverStreams)]
     async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
-        let row = reading(ctx.resources())?;
+        // Count A Row Only Once Published, So The Stream Step Never Ends Ahead Of It.
+        let index = ctx.resources().produced.load(Ordering::Acquire);
+        let row = reading(ctx.resources(), index)?;
         ctx.stream::<InputMeasurement>().into::<Samples>().push(row).await;
+        ctx.resources().produced.store(index + 1, Ordering::Release);
 
         Ok(())
     }
@@ -322,8 +361,8 @@ impl Steady {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn reading(resources: &SteadyResources) -> Result<InputMeasurement, Error> {
-    let index = resources.produced.fetch_add(1, Ordering::AcqRel);
+
+fn reading(resources: &SteadyResources, index: u64) -> Result<InputMeasurement, Error> {
     let elapsed_s = 0.1 + index as f64 * resources.interval_s;
     let measured = resources.device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.sample(elapsed_s);
 
@@ -373,7 +412,7 @@ fn steady_document() -> Document {
     execution.plot(steady_voltage("obc.charger.steady.measurement.execution.signals"));
     execution.plot(steady_current());
 
-    let mut document = Document::new("default", "Charging Input Measurement");
+    let mut document = Document::new("default", "Steady-State Measurement");
     document.section(execution);
 
     let mut charging = Section::new("Battery Charging");

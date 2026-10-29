@@ -80,7 +80,7 @@ function flushList(blocks: MarkdownBlock[], listItems: string[]) {
 function renderBlock(block: MarkdownBlock, key: string) {
   if (block.kind === "list") {
     return (
-      <ul className="list-disc space-y-1 pl-5" key={key}>
+      <ul className="list-disc space-y-1 pl-4" key={key}>
         {occurrenceKeys(block.items, (item) => item).map(({ key: itemKey, value: item }) => (
           <li key={itemKey}>{inlineMarkdown(item)}</li>
         ))}
@@ -95,7 +95,7 @@ function inlineMarkdown(text: string) {
   return occurrenceKeys(parts, (part) => part).map(({ key, value: part }) => {
     if (part.startsWith("`") && part.endsWith("`")) {
       return (
-        <code className="rounded bg-muted px-1 py-0.5 text-xs" key={key}>
+        <code className="rounded bg-muted px-1 py-1 text-xs" key={key}>
           {part.slice(1, -1)}
         </code>
       );

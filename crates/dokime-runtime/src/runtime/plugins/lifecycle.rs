@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
+
 // Third Party Imports
 
 // Local Imports
@@ -26,15 +28,19 @@ use crate::runtime::sidecars::{PublicationIngest, flush_publications};
 use crate::{InstalledSidecar, RuntimeHandle, runtime::Error, runtime::Result};
 
 /* === Constants === */
+
 const FENCE_TIMEOUT: Duration = Duration::from_secs(10);
+const NATIVE_INVOCATION_ITEMS: usize = 128;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(in crate::runtime) type Manager = harmos::plugin::PluginManager<Infallible, Sidecar, crate::runtime::embedded::Instance>;
 type Backend = harmos::plugin::PluginBackend<Infallible, Sidecar, crate::runtime::embedded::Instance>;
 
 /* === Structs === */
+
 pub(in crate::runtime) struct Adapter<'a> {
     pub(in crate::runtime) handle: &'a RuntimeHandle,
     pub(in crate::runtime) publications: &'a PublicationIngest,
@@ -43,14 +49,12 @@ pub(in crate::runtime) struct Adapter<'a> {
 }
 
 pub(in crate::runtime) struct Sidecar {
-    services: harmos::operations::OperationManager,
+    services: crate::app::OperationManager,
     publications: PublicationIngest,
     program: Program,
     package: String,
     definition: harmos::plugin::PluginDefinition,
     registered: bool,
-    publication_core: Arc<crate::runtime::sidecars::core::Publications>,
-    publication_registered: bool,
     lease: Option<crate::services::Lease>,
     operations: Option<harmos::operations::PluginRegistration>,
     scope: Option<harmos::plugin::PluginScope>,
@@ -68,6 +72,7 @@ pub(in crate::runtime) struct Sidecar {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::plugin::PluginLifecycle for Adapter<'_> {
     type Guest = Infallible;
     type Sidecar = Sidecar;
@@ -182,25 +187,22 @@ impl Adapter<'_> {
         // Keep every monitor registered until it has finished. Dropping a reload
         // future or failing cancellation must never detach shutdown-owned work.
         let deadline = tokio::time::Instant::now() + FENCE_TIMEOUT;
-        loop {
-            let finished = self
-                .handle
-                .provider_tasks
-                .lock()
-                .expect("provider task lock poisoned")
-                .iter()
-                .filter(|task| sources.contains(&task.source))
-                .all(|task| task.task.is_finished());
-            if finished {
-                break;
-            }
-            if tokio::time::Instant::now() >= deadline {
+        let completions: Vec<_> = self
+            .handle
+            .provider_tasks
+            .lock()
+            .expect("provider task lock poisoned")
+            .iter()
+            .filter(|task| sources.contains(&task.source))
+            .map(|task| task.settled.clone())
+            .collect();
+        for completion in completions {
+            if tokio::time::timeout_at(deadline, completion.cancelled()).await.is_err() {
                 return Err(Error::timeout(
                     "plugin_drain_timeout",
                     "affected executions did not settle within the plugin drain bound; existing owners remain registered",
                 ));
             }
-            tokio::time::sleep(Duration::from_millis(20)).await;
         }
         self.handle.reconcile_listener_record_demand()?;
 
@@ -271,8 +273,6 @@ impl Adapter<'_> {
             package: name.clone(),
             definition: artifact.clone(),
             registered: false,
-            publication_core: self.handle.publication_core.clone(),
-            publication_registered: false,
             lease: None,
             operations: None,
             scope: None,
@@ -299,7 +299,6 @@ impl Adapter<'_> {
         let program = &sidecar.program;
         let bindings = program.bindings.clone();
         sidecar.start(self.handle, router, authority).await?;
-        self.handle.capture_suite_objects(&artifact.id).await?;
         self.packages.get_mut(&sidecar.package).expect("the prepared package is retained").running.push(Running {
             source: artifact.id.clone(),
             exposed: false,
@@ -334,7 +333,7 @@ impl Sidecar {
         let logged_by = source.clone();
         let sidecar: InstalledSidecar = harmos::sidecar::Supervised::new(
             executable.clone(),
-            Box::new(move |_context: &harmos::services::Service<crate::Dokime>, value| {
+            Box::new(move |_context: &harmos::ServiceContext<crate::Dokime>, value| {
                 if let harmos::sidecar::Notice::Logged { line } = &value {
                     forward_plugin_line(&logged_by, line);
                 }
@@ -349,8 +348,6 @@ impl Sidecar {
         )
         .routed(router)
         .expected_registrations(&self.definition.contributions.registrations);
-        self.publication_core.insert(&source, sidecar.clone())?;
-        self.publication_registered = true;
         let serving = sidecar.clone();
         let record_demands = sidecar.demands();
         let ready = sidecar.ready();
@@ -358,7 +355,7 @@ impl Sidecar {
             executable.declaration().restart().ok_or_else(|| operation("sidecar declaration has no authored restart policy"))?.bounded();
         // A declaration without restart credit deactivates on its first fault.
         let restart = if policy.enabled() {
-            harmos::operations::RestartPolicy::OnTransient {
+            harmos::operations::RestartPolicy::OnFailure {
                 credit: usize::try_from(policy.credit).map_err(operation)?,
                 sustained_health: policy.sustained_health(),
                 backoff: harmos::operations::Backoff::Exponential {
@@ -374,7 +371,7 @@ impl Sidecar {
             .register_service(
                 harmos::services::ServiceDefinition {
                     id: source.clone(),
-                    policy: harmos::operations::OperationPolicy { restart, ..harmos::services::POLICY },
+                    policy: harmos::ServicePolicy { restart, ..harmos::services::POLICY },
                 },
                 move |_: Arc<()>| sidecar.clone(),
             )
@@ -382,11 +379,11 @@ impl Sidecar {
         self.registered = true;
         self.lease = Some(self.services.submit_resident(&source).await?);
         let native = Arc::new(
-            tokio::time::timeout(Duration::from_secs(10), serving.staged_operations())
+            tokio::time::timeout(FENCE_TIMEOUT, serving.staged_operations())
                 .await
                 .map_err(|_| Error::PluginInitialization {
                     plugin: source.clone(),
-                    reason: "native endpoint did not stage within 10 seconds".to_owned(),
+                    reason: "native endpoint did not stage within its configured timeout".to_owned(),
                 })?
                 .map_err(operation)?,
         );
@@ -395,7 +392,7 @@ impl Sidecar {
             return Err(operation("native initialization generation differs"));
         }
         self.scope = Some(scope.clone());
-        let capacity = NonZeroUsize::new(128).expect("native invocation capacity is positive");
+        let capacity = NonZeroUsize::new(NATIVE_INVOCATION_ITEMS).expect("native invocation capacity is positive");
         self.operations = Some(
             handle
                 .operations
@@ -452,10 +449,6 @@ impl Sidecar {
             sdk.close().await?;
         }
         self.sdk.take();
-        if self.publication_registered {
-            self.publication_core.remove(self.program.executable.id());
-            self.publication_registered = false;
-        }
         self.scope = None;
 
         // Replaced packages release their preparation reference. The last old
@@ -470,10 +463,14 @@ impl Sidecar {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn lifecycle_error(error: Error) -> harmos::Error {
     match error {
         Error::Harmos(error) => error,
-        error => harmos::Error::TaskFailed { domain: "dokime plugin lifecycle", source: Arc::new(error) },
+        error => harmos::Error::TaskFailed {
+            domain: "dokime plugin lifecycle",
+            source: Arc::new(error),
+        },
     }
 }
 

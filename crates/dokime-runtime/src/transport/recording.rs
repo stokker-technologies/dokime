@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
+
 // Third Party Imports
 
 // Local Imports
@@ -40,6 +42,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, Default)]
 pub struct RecordingTransport {
     answers: VecDeque<PromptResponse>,
@@ -67,6 +70,9 @@ pub struct RecordingSink {
     chunks: Mutex<Vec<ArtifactChunk>>,
     samples: Mutex<Vec<TelemetrySample>>,
     delivered: Mutex<Vec<Record>>,
+
+    #[cfg(feature = "native")]
+    changed: Arc<tokio::sync::Notify>,
 }
 
 struct RecordingJournal {
@@ -83,13 +89,17 @@ struct RecordingProgressSink {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordingTransport {
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn answering(responses: impl IntoIterator<Item = PromptResponse>) -> Self {
-        Self { answers: responses.into_iter().collect(), ..Self::default() }
+        Self {
+            answers: responses.into_iter().collect(),
+            ..Self::default()
+        }
     }
 
     pub fn answer(&mut self, response: PromptResponse) {
@@ -129,7 +139,10 @@ impl RecordingTransport {
     }
 
     pub fn leasing(streams: impl IntoIterator<Item = Identifier>) -> Self {
-        Self { leasable: streams.into_iter().collect(), ..Self::default() }
+        Self {
+            leasable: streams.into_iter().collect(),
+            ..Self::default()
+        }
     }
 
     pub fn interrupt(&mut self, gap: LeaseGap) {
@@ -196,7 +209,10 @@ impl ExecutionTransport for RecordingTransport {
     }
 
     fn journal(&self) -> Arc<dyn Journal> {
-        Arc::new(RecordingJournal { records: Arc::clone(&self.records), diagnostics: Arc::clone(&self.diagnostics) })
+        Arc::new(RecordingJournal {
+            records: Arc::clone(&self.records),
+            diagnostics: Arc::clone(&self.diagnostics),
+        })
     }
 
     fn log(&self, level: Level, message: String) {
@@ -250,6 +266,8 @@ impl RecordingSink {
 
     pub fn deliver(&self, record: Record) {
         self.delivered.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(record);
+        #[cfg(feature = "native")]
+        self.changed.notify_waiters();
     }
 
     pub fn assembled(&self, name: &str) -> Vec<u8> {
@@ -297,6 +315,16 @@ impl SampleSink for RecordingSink {
 }
 
 impl RecordSource for RecordingSink {
+    #[cfg(feature = "native")]
+    fn changed(&self) -> Arc<tokio::sync::Notify> {
+        Arc::clone(&self.changed)
+    }
+
+    #[cfg(feature = "native")]
+    fn closed(&self) -> bool {
+        false
+    }
+
     fn delivered(&self, index: usize) -> Option<Record> {
         self.delivered.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(index).cloned()
     }

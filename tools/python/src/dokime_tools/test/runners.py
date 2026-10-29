@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/runners.py; sha256:5beafa94b0b0f03b2363ddfb52efdd5b65c580cd7b739dc6bad41b5b8d9e89f6
+# Rendered by stkr project update from templates/python/test/runners.py; sha256:e6dc1301d6ce7eac4bab6d8efedb48c770159a50c40d669504c955d4b8da62b5
 # ***
 #
 # Dokime
@@ -7,7 +7,7 @@
 #
 # ***
 
-"""Check Selected-Workflow Access Before Preparing A Release."""
+"""Check Selected-Workflow Access Before Opening A Release Review."""
 
 # === Imports === #
 
@@ -17,8 +17,9 @@ import os
 import subprocess
 
 # Third Party Imports
-
 # Local Imports
+from ..release import policy
+from ..release.run import release_tag
 
 # Type Checking Imports
 
@@ -43,10 +44,15 @@ def main() -> None:
     repository = os.environ["GITHUB_REPOSITORY"]
     organization = repository.split("/")[0]
     workflows = json.loads(os.environ["GITHUB_RUNNER_WORKFLOWS"])
-    groups = [group for page in _pages(f"orgs/{organization}/actions/runner-groups") for group in page["runner_groups"]]
-    references = [os.environ["GITHUB_REF"], "refs/heads/release/v" + os.environ["RELEASE_VERSION"]]
+    groups = None
+    references = [os.environ["GITHUB_REF"], "refs/heads/release/" + release_tag(policy.root())]
     for workflow, requirements in workflows.items():
-        for required in requirements:
+        labels = {label for platform, roles in requirements.items() if platform != "nightly" for label in roles.values()}
+        for required in sorted(labels):
+            if required.startswith(("ubuntu-", "windows-", "macos-")):
+                continue
+            if groups is None:
+                groups = [group for page in _pages(f"orgs/{organization}/actions/runner-groups") for group in page["runner_groups"]]
             eligible = []
             for group in groups:
                 runners = [
@@ -54,7 +60,7 @@ def main() -> None:
                     for page in _pages(f"orgs/{organization}/actions/runner-groups/{group['id']}/runners")
                     for runner in page["runners"]
                 ]
-                if any(set(required).issubset({label["name"] for label in runner["labels"]}) for runner in runners):
+                if any(required in {label["name"] for label in runner["labels"]} for runner in runners):
                     eligible.append(group)
             for reference in references:
                 if not any(permitted(group, repository, workflow, reference) for group in eligible):
@@ -65,7 +71,12 @@ def main() -> None:
 
 
 def _pages(endpoint: str) -> list[dict]:
-    return json.loads(subprocess.check_output(["gh", "api", "--hostname", "github.com", "--paginate", "--slurp", endpoint]))
+    return json.loads(
+        subprocess.check_output(
+            ["gh", "api", "--hostname", "github.com", "--paginate", "--slurp", endpoint],
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    )
 
 
 # === Entry Point === #

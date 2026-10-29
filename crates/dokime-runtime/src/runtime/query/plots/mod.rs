@@ -8,103 +8,158 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod analysis;
 mod context;
 mod request;
 mod stream;
 
 /* === Re-Exports === */
+
 pub use crate::plot::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
-    PlotPayloadCursor, PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries,
-    PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan,
+    PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries, PlotSeriesSummary,
+    PlotWindow, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan, declared_plot_request,
     plot_payload_request_for_descriptor,
 };
 pub(crate) use analysis::definitions as analysis_definitions;
-pub(crate) use request::request_telemetry_streams;
-pub use stream::{
-    RuntimePlotQueryMode, RuntimePlotStreamBatch, matching_plot_payload_request, merge_plot_payload_cursor,
-    plot_payload_stream_envelope_visible, plot_payload_stream_kind,
-};
+pub(crate) use request::{request_record_types, request_telemetry_streams};
+pub use stream::{RuntimePlotQueryMode, RuntimePlotStreamBatch, matching_plot_payload_request, plot_payload_stream_kind};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use futures_util::future::join_all;
-// Local Imports
 
+// Local Imports
 use crate::plot::{
-    PlotPayloadContext, build_plot_payload, complete_window, plot_payload_diagnostics, project_plot_payload, reads_window, resolved_format,
+    PlotPayloadContext, finish_retained_plot_payload, plot_payload_diagnostics, project_retained_plot_payload, resolved_format,
 };
-use crate::telemetry::{TelemetryColumn, TelemetryContract, TelemetrySample};
-use crate::{
-    evidence_runtime::{RecordSelection, TelemetrySelection},
-    handle::RuntimeHandle,
-};
+use crate::telemetry::{TelemetryColumn, TelemetryContract};
+use crate::{evidence_runtime::TelemetrySelection, handle::RuntimeHandle};
 use context::RuntimePlotEnvelopeContext;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
-use request::{canonical_plot_request, request_record_types, scope_selection, telemetry_read_groups};
-use stream::{cursor_revision, response_cursor, stream_requests_by_mode};
+use request::{canonical_plot_request, scope_selection};
 
 /* === Constants === */
 
 /* === Macros === */
 
 /* === Type Aliases === */
-type WindowedTelemetry = (Vec<Vec<TelemetrySample>>, Vec<Option<Vec<TelemetrySample>>>);
 
 /* === Structs === */
+
+/// What a live plot watch re-reads a plot for: rows on the telemetry streams
+/// it reads, and state changes when it reads records or no telemetry at all.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PlotWatchKeys {
+    telemetry_streams: Vec<String>,
+    records: bool,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl RuntimeHandle {
+    /// Telemetry Streams With Newly Durable Rows Between Two Saved Frontiers.
+    pub async fn plot_streams_saved_between(
+        &self, after: &harmos::storage::StorageCursor, at: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<std::collections::BTreeSet<String>> {
+        if !at.covers(after)? {
+            return Err(crate::runtime::Error::Operation("plot saved frontier moved backwards".into()));
+        }
+        let mut position = after.sequence;
+        let mut streams = std::collections::BTreeSet::new();
+        while position < at.sequence {
+            let page = self.local_storage.telemetry_page(at.clone(), position, None, None).await?;
+            if page.is_empty() {
+                break;
+            }
+            for row in page {
+                position = row.record.position.sequence;
+                if let Some(stream) = row.record.schema.id.as_str().strip_prefix("dokime.telemetry.") {
+                    streams.insert(stream.to_owned());
+                }
+            }
+        }
+        Ok(streams)
+    }
+}
+
+impl PlotWatchKeys {
+    pub fn for_request(request: &PlotPayloadRequest) -> Self {
+        Self {
+            telemetry_streams: request_telemetry_streams(request).into_iter().map(|stream| stream.as_str().to_owned()).collect(),
+            records: !request_record_types(request).is_empty(),
+        }
+    }
+
+    /// Whether a row committed on `stream` can change this plot.
+    pub fn reads_stream(&self, stream: &str) -> bool {
+        self.telemetry_streams
+            .iter()
+            .any(|declared| crate::plot::stream_matches_alias(stream, declared) || crate::plot::stream_matches_alias(declared, stream))
+    }
+
+    /// Whether a runtime state change can change this plot.
+    pub fn follows_state(&self) -> bool {
+        self.records || self.telemetry_streams.is_empty()
+    }
+}
+
 /* === Public Functions === */
+
+/// Reduces Display Points Without Repeating Evidence Reads Or Analysis.
+pub fn reduce_plot_payload(
+    envelope: harmos::storage::ReadBatch<PlotPayloadEnvelope>, request: &PlotPayloadRequest, maximum: usize,
+) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayloadEnvelope>> {
+    envelope.try_map(|mut value| {
+        value.payload.max_points = maximum;
+        value.payload = crate::plot::finish_plot_frame(value.payload, request)?;
+        value.diagnostics = plot_payload_diagnostics(&value.payload);
+        Ok(value)
+    })
+}
 
 pub async fn query_plot_payloads(
     runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode,
-) -> crate::runtime::Result<Vec<PlotPayloadEnvelope>> {
-    let context = RuntimePlotEnvelopeContext::load(runtime, &requests).await?;
-    query_plot_payloads_with_context(&context, runtime, requests, mode).await
+) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
+    let at = runtime.storage().cursor_saved();
+    query_plot_payloads_at(runtime, requests, mode, &at).await
+}
+
+pub async fn query_plot_payloads_at(
+    runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode, at: &harmos::storage::StorageCursor,
+) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
+    let session = runtime.storage().clone();
+    let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, at, &session).await?;
+    query_plot_payloads_with_context(&context, runtime, requests, mode, at, &session).await
 }
 
 pub async fn query_plot_stream_batches(
     runtime: &RuntimeHandle, requests: &[PlotPayloadRequest],
 ) -> crate::runtime::Result<Vec<RuntimePlotStreamBatch>> {
-    let (append_requests, replace_requests) = stream_requests_by_mode(requests);
-    let mut batches = Vec::with_capacity(append_requests.len() + replace_requests.len());
-    let context = RuntimePlotEnvelopeContext::load(runtime, requests).await?;
-
-    if !append_requests.is_empty() {
-        batches.extend(
-            query_plot_payloads_with_context(&context, runtime, append_requests, RuntimePlotQueryMode::Append)
-                .await?
-                .into_iter()
-                .map(|envelope| RuntimePlotStreamBatch { mode: RuntimePlotQueryMode::Append, envelope }),
-        );
-    }
-    if !replace_requests.is_empty() {
-        batches.extend(
-            query_plot_payloads_with_context(&context, runtime, replace_requests, RuntimePlotQueryMode::Replace)
-                .await?
-                .into_iter()
-                .map(|envelope| RuntimePlotStreamBatch { mode: RuntimePlotQueryMode::Replace, envelope }),
-        );
-    }
-
-    Ok(batches)
+    Ok(query_plot_payloads(runtime, requests.to_vec(), RuntimePlotQueryMode::Replace)
+        .await?
+        .into_iter()
+        .map(|envelope| RuntimePlotStreamBatch {
+            mode: RuntimePlotQueryMode::Replace,
+            envelope,
+        })
+        .collect())
 }
 
 /* === Private Functions === */
-fn plot_payload_context(
-    request: &PlotPayloadRequest, contract: Option<&TelemetryContract>, run_started_at: Option<&Timestamp>,
-    cycle_started_at: Option<&Timestamp>,
-) -> PlotPayloadContext {
+
+fn plot_payload_context<'a>(
+    request: &'a PlotPayloadRequest, contract: Option<&'a TelemetryContract>, run_started_at: Option<&'a Timestamp>,
+    cycle_started_at: Option<&'a Timestamp>, default_max_points: usize,
+) -> PlotPayloadContext<'a> {
     let column =
         |name: &str| -> Option<&TelemetryColumn> { contract?.columns.iter().find(|column| column.metadata.identifier.as_str() == name) };
     let x_key = request.x_key.as_deref().unwrap_or("timestamp");
@@ -112,199 +167,251 @@ fn plot_payload_context(
     let series_format = resolved_format(request.y_format.as_ref(), request.y_keys.first().and_then(|key| column(key)));
 
     PlotPayloadContext {
+        default_max_points,
         x_format,
         series_format,
-        run_started_at: run_started_at.map(|timestamp| timestamp.as_str().to_owned()),
-        cycle_started_at: cycle_started_at.map(|timestamp| timestamp.as_str().to_owned()),
+        run_started_at: run_started_at.map(|timestamp| timestamp.as_str()),
+        cycle_started_at: cycle_started_at.map(|timestamp| timestamp.as_str()),
     }
 }
 
 async fn query_plot_payloads_with_context(
-    context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode,
-) -> crate::runtime::Result<Vec<PlotPayloadEnvelope>> {
-    let requests = requests
-        .into_iter()
-        .map(|request| {
-            let telemetry_streams = request_telemetry_streams(&request);
-            canonical_plot_request(request, &telemetry_streams)
-        })
-        .collect::<Vec<_>>();
-    let analyses = requests
-        .iter()
-        .map(|request| analysis::Prepared::resolve(runtime, context.snapshot.state(), request))
-        .collect::<crate::runtime::Result<Vec<_>>>()?;
-    let telemetry_reads = collect_plot_telemetry(runtime, &requests, mode);
-    let record_reads = async {
-        if requests.iter().any(|request| !request_record_types(request).is_empty()) {
-            runtime.records_at(&context.snapshot).await
-        } else {
-            Ok(Vec::new())
+    context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, _mode: RuntimePlotQueryMode,
+    at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
+) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
+    let mut completed = Vec::with_capacity(requests.len());
+    let mut shared = Vec::<(String, harmos::storage::ReadBatch<PlotPayloadEnvelope>)>::new();
+    for request in requests {
+        let streams = request_telemetry_streams(&request);
+        let request = canonical_plot_request(request, &streams);
+        let mut key = serde_json::to_value(&request).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+        key.as_object_mut().expect("plot request is an object").remove("plot_id");
+        let key = key.to_string();
+        if let Some((_, previous)) = shared.iter().find(|(candidate, _)| candidate == &key) {
+            let id = request.plot_id.as_deref().unwrap_or(&request.stream).to_owned();
+            let previous = harmos::storage::ReadBatch::new((**previous).clone());
+            completed.push(previous.try_map(|mut envelope| {
+                envelope.plot_id = id;
+                Ok::<_, crate::runtime::Error>(envelope)
+            })?);
+            continue;
         }
-    };
-    let (telemetry, records) = tokio::join!(telemetry_reads, record_reads);
-    let (telemetry, window_telemetry) = telemetry?;
-    let records = records?;
-    let selected_records = requests
-        .iter()
-        .map(|request| {
-            let captured = super::records::execution_capture(
-                context.snapshot.state().executions.values(),
-                request.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()),
-            );
-            plot_records(&records, request, mode, captured)
-        })
-        .collect::<Vec<_>>();
-    // An append frame carries only the rows after its cursor, but its series
-    // summaries and cartesian domains and point count cover the whole window:
-    // they read the rows the cursor filter dropped from the same read.
-    let window_reads = window_telemetry
-        .into_iter()
-        .zip(&requests)
-        .map(|(telemetry, request)| {
-            let telemetry = telemetry?;
-            let captured = super::records::execution_capture(
-                context.snapshot.state().executions.values(),
-                request.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()),
-            );
-            let records = plot_records(&records, request, RuntimePlotQueryMode::Replace, captured);
-            Some((telemetry, records))
-        })
-        .collect::<Vec<_>>();
-
-    join_all(requests.into_iter().zip(telemetry).zip(selected_records).zip(window_reads.into_iter().zip(analyses)).map(
-        |(((request, telemetry), records), reads)| async move {
-            let (window, analysis) = reads;
-            if let Some(analysis) = &analysis {
-                analysis.check_evidence(&telemetry, &request)?;
-            }
-            let cursor = response_cursor(&telemetry, &records, request.cursor.as_ref());
-            let mut telemetry = telemetry;
-            telemetry.extend(record_context_samples(&records, &request));
-            let telemetry = context.enrich_telemetry(telemetry, &request);
-            let window = window.map(|(mut telemetry, records)| {
-                telemetry.extend(record_context_samples(&records, &request));
-                (context.enrich_telemetry(telemetry, &request), records)
-            });
-            let revision = cursor_revision(&cursor);
-            let plot_id = request.plot_id.clone().unwrap_or_else(|| request.stream.clone());
-            let delta = mode == RuntimePlotQueryMode::Append;
-            let generated_at = context.generated_at.clone();
-            let contract = Identifier::new(&request.stream)
-                .ok()
-                .and_then(|stream| context.snapshot.state().telemetry_definitions.get(&stream).cloned());
-            let (run_started_at, cycle_started_at) = context.run_and_cycle_start(request.scope.as_ref());
-            let format_context = plot_payload_context(&request, contract.as_ref(), run_started_at.as_ref(), cycle_started_at.as_ref());
-            let custom = analysis.is_some();
-            let (payload, request) = tokio::task::spawn_blocking(move || {
-                let mut payload = if custom {
-                    project_plot_payload(&telemetry, &records, &request, &generated_at, &format_context)
-                } else {
-                    build_plot_payload(&telemetry, &records, request.clone(), &generated_at, &format_context)
-                };
-                if let Some((telemetry, records)) = window {
-                    complete_window(&mut payload, &telemetry, &records, &request, &generated_at, &format_context);
-                }
-                (payload, request)
+        let payload = if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
+            let codecs = crate::runtime::storage::telemetry::saved_codecs(session, at, None, runtime.schema_settings(), |id, _| {
+                id.strip_prefix("dokime.telemetry.") == Some(request.stream.as_str())
             })
             .await?;
-            let payload = if let Some(analysis) = analysis {
-                analysis.execute(runtime, &request, &cursor, payload, contract.as_ref()).await?
+            if codecs.len() == 1 && crate::plot::stored::supports_codec(&request, &codecs[0]) {
+                let codec = &codecs[0];
+                let selection = TelemetrySelection {
+                    streams: vec![
+                        dokime_domain::model::identity::IdentifierPattern::new(request.stream.clone())
+                            .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?,
+                    ],
+                    scope: scope_selection(&request),
+                    ..Default::default()
+                };
+                let query = crate::runtime::storage::telemetry::plot_query(
+                    at,
+                    &selection,
+                    codec,
+                    request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
+                    &runtime.local_storage,
+                )
+                .await?;
+                let maximum = runtime.read_application_settings().await?.settings.report.plot_points as usize;
+                let contract = telemetry_contract(context, &request.stream);
+                let (run, cycle) = context.run_and_cycle_start(request.scope.as_ref());
+                let format = plot_payload_context(&request, contract, run, cycle, maximum);
+                let payload = match query {
+                    Some(query) => {
+                        crate::plot::stored::materialize(
+                            session,
+                            crate::plot::stored::Selection { query, codec, producer_order: false },
+                            &request,
+                            context.generated_at.as_str(),
+                            &format,
+                            crate::records::view::View::default(),
+                        )
+                        .await?
+                    }
+                    None => finish_retained_plot_payload(
+                        project_retained_plot_payload(
+                            &[],
+                            crate::records::view::View::default(),
+                            &request,
+                            context.generated_at.as_str(),
+                            &format,
+                        )?,
+                        &request,
+                    )?,
+                };
+                let diagnostics = plot_payload_diagnostics(&payload);
+                Some(payload.try_map(|payload| {
+                    Ok::<_, crate::runtime::Error>(PlotPayloadEnvelope {
+                        plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),
+                        revision: at.sequence,
+                        payload,
+                        diagnostics,
+                        warnings: Vec::new(),
+                    })
+                })?)
             } else {
-                payload
-            };
-            let diagnostics = plot_payload_diagnostics(&payload, delta);
-            Ok(PlotPayloadEnvelope { plot_id, revision, cursor, payload, diagnostics, warnings: Vec::new() })
-        },
-    ))
-    .await
-    .into_iter()
-    .collect()
-}
-
-async fn collect_plot_telemetry(
-    runtime: &RuntimeHandle, requests: &[PlotPayloadRequest], mode: RuntimePlotQueryMode,
-) -> crate::runtime::Result<WindowedTelemetry> {
-    let groups = telemetry_read_groups(requests);
-    let collected = join_all(groups.iter().map(|group| {
-        let bounded = group.request_indexes.iter().any(|&index| requests[index].analysis.is_some());
-        let selection = TelemetrySelection { streams: group.streams.clone(), scope: group.scope.clone(), ..TelemetrySelection::default() };
-        async move { runtime.try_collect_telemetry_bounded(&selection, bounded.then_some(crate::analysis::MAX_SAMPLES as usize)).await }
-    }))
-    .await;
-    let mut telemetry = vec![Vec::new(); requests.len()];
-    let mut window = vec![None; requests.len()];
-    for (group, samples) in groups.into_iter().zip(collected) {
-        let samples = samples?;
-        for request_index in group.request_indexes {
-            let request = &requests[request_index];
-            telemetry[request_index] = select_plot_telemetry(&samples, request, mode);
-            if mode == RuntimePlotQueryMode::Append && reads_window(request) {
-                window[request_index] = Some(select_plot_telemetry(&samples, request, RuntimePlotQueryMode::Replace));
+                None
             }
-        }
-    }
-    Ok((telemetry, window))
-}
-
-fn select_plot_telemetry(samples: &[TelemetrySample], request: &PlotPayloadRequest, mode: RuntimePlotQueryMode) -> Vec<TelemetrySample> {
-    let after_stream_cursors =
-        if mode == RuntimePlotQueryMode::Append { request.cursor.as_ref().map(|cursor| &cursor.telemetry_streams) } else { None };
-    samples
-        .iter()
-        .filter(|sample| {
-            let Some(after_stream_cursors) = after_stream_cursors else {
-                return true;
-            };
-            let stream = crate::telemetry_runtime::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-            after_stream_cursors.get(&stream).is_none_or(|after| sample.sequence > *after)
-        })
-        .cloned()
-        .collect::<Vec<_>>()
-}
-
-fn record_context_samples(records: &[RecordEntry], request: &PlotPayloadRequest) -> Vec<TelemetrySample> {
-    if !request::request_needs_dimension_context(request) {
-        return Vec::new();
-    }
-    let stream = Identifier::new(crate::plot::RECORD_CONTEXT_STREAM).expect("internal stream is valid");
-    records
-        .iter()
-        .map(|record| {
-            let mut sample = TelemetrySample::new(
-                crate::model::identity::new_id(),
-                stream.clone(),
-                record.sequence,
-                record.timestamp.clone(),
-                "plot_context",
-            );
-            sample.scope = record.scope.clone();
-            sample
-        })
-        .collect()
-}
-
-fn plot_records(
-    records: &[RecordEntry], request: &PlotPayloadRequest, mode: RuntimePlotQueryMode,
-    captured: Option<&dokime_domain::state::records::set::TestRecordSet>,
-) -> Vec<RecordEntry> {
-    let record_types = request_record_types(request);
-    if record_types.is_empty() {
-        return Vec::new();
-    }
-
-    let selection = RecordSelection {
-        after_sequence: if mode == RuntimePlotQueryMode::Append {
-            request.cursor.as_ref().and_then(|cursor| cursor.record_sequence)
         } else {
             None
-        },
-        limit: None,
-        record_types,
-        scope: scope_selection(request),
-        ..RecordSelection::default()
-    };
+        };
+        let envelope = match payload {
+            Some(payload) => payload,
+            None => query_spilled_plot(context, runtime, request, at, session).await?,
+        };
+        shared.push((key, envelope.clone()));
+        completed.push(envelope);
+    }
+    Ok(completed)
+}
 
-    selection.apply_with_subscriptions(records, |record| captured.and_then(|captures| captures.subscribed_records().get(&record.record_id)))
+async fn query_spilled_plot(
+    context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, request: PlotPayloadRequest, at: &harmos::storage::StorageCursor,
+    session: &crate::storage::Manager,
+) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayloadEnvelope>> {
+    let analysis = analysis::Prepared::resolve(runtime, context.snapshot.state(), &request)?;
+    let input = crate::plot::spilled::Input::new()?;
+    input.reverse_records()?;
+    let record_types = request_record_types(&request);
+    let scope = scope_selection(&request);
+    let captured = super::records::execution_capture(
+        context.snapshot.state().executions.values(),
+        request.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()),
+    );
+    let visible = super::records::view_filter(&context.snapshot, None, captured);
+    if !record_types.is_empty() {
+        runtime
+            .record_source
+            .visit_saved_records_at_in(session, context.snapshot.revision(), at, |page| {
+                for record in page.iter() {
+                    let subscribed = captured.and_then(|captures| captures.captured_scope(record));
+                    if !visible(record)
+                        || !record_types.contains(&record.record_type)
+                        || !scope.matches(subscribed.or(record.scope.as_ref()))
+                    {
+                        continue;
+                    }
+                    let mut record = record.clone();
+                    if let Some(scope) = subscribed {
+                        record.scope = Some(scope.clone());
+                    }
+                    input.append_record(&record)?;
+                    if !request::request_needs_dimension_context(&request) {
+                        continue;
+                    }
+                    let stream =
+                        dokime_domain::model::identity::Identifier::new(crate::plot::RECORD_CONTEXT_STREAM).expect("internal stream");
+                    let mut sample = crate::telemetry::TelemetrySample::new(
+                        crate::model::identity::new_id(),
+                        stream,
+                        record.sequence,
+                        record.timestamp.clone(),
+                        "plot_context",
+                    );
+                    sample.scope = record.scope.clone();
+                    context.enrich_sample(&mut sample, &request);
+                    input.append(&sample)?;
+                }
+                Ok(())
+            })
+            .await?;
+    }
+    let streams = request_telemetry_streams(&request);
+    if !streams.is_empty() {
+        let selection = TelemetrySelection {
+            streams: streams.into_iter().map(Into::into).collect(),
+            scope,
+            ..Default::default()
+        };
+        let options = crate::runtime::storage::telemetry::ReadOptions {
+            scan_limit: analysis.as_ref().map(|_| dokime_domain::model::analysis::MAX_SAMPLES as usize),
+            window: request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
+            sequence: crate::runtime::storage::telemetry::Sequence::StoragePosition,
+            ..Default::default()
+        };
+        crate::runtime::storage::telemetry::visit_saved(
+            session,
+            at,
+            &selection,
+            runtime.schema_settings(),
+            options,
+            &runtime.local_storage,
+            |mut sample| {
+                context.enrich_sample(&mut sample, &request);
+                input.append(&sample)
+            },
+        )
+        .await?;
+    }
+    if let Some(analysis) = &analysis {
+        let samples = input.collect(dokime_domain::model::analysis::MAX_SAMPLES as usize)?;
+        analysis.check_evidence(&samples, &request)?;
+    }
+    let maximum = runtime.read_application_settings().await?.settings.report.plot_points as usize;
+    let worker_context = context.clone();
+    let (payload, request) = tokio::task::spawn_blocking(move || {
+        let contract = telemetry_contract(&worker_context, &request.stream);
+        let (run, cycle) = worker_context.run_and_cycle_start(request.scope.as_ref());
+        let format = plot_payload_context(&request, contract, run, cycle, maximum);
+        let payload = crate::plot::spilled::project(&input, &request, worker_context.generated_at.as_str(), &format)?;
+        Ok::<_, crate::runtime::Error>((payload, request))
+    })
+    .await??;
+    let payload = if let Some(analysis) = analysis {
+        analysis.execute(runtime, &request, at, payload, telemetry_contract(context, &request.stream)).await?
+    } else {
+        payload
+    };
+    let diagnostics = plot_payload_diagnostics(&payload);
+    payload.try_map(|payload| {
+        Ok::<_, crate::runtime::Error>(PlotPayloadEnvelope {
+            plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),
+            revision: at.sequence,
+            payload,
+            diagnostics,
+            warnings: Vec::new(),
+        })
+    })
+}
+
+fn telemetry_contract<'a>(context: &'a RuntimePlotEnvelopeContext, stream: &str) -> Option<&'a TelemetryContract> {
+    context.snapshot.state().telemetry_definitions.iter().find(|(id, _)| id.as_str() == stream).map(|(_, contract)| contract)
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plot_refresh_follows_declared_inputs() {
+        let mut request = PlotPayloadRequest {
+            stream: "fixture.progress".to_owned(),
+            y_keys: vec!["progress".to_owned()],
+            ..Default::default()
+        };
+        let telemetry = PlotWatchKeys::for_request(&request);
+        assert!(telemetry.reads_stream("fixture.progress"));
+        assert!(!telemetry.reads_stream("fixture.unrelated"));
+        assert!(!telemetry.follows_state());
+
+        request.marker_record_types.push("prompt.response.submitted".to_owned());
+        let mixed = PlotWatchKeys::for_request(&request);
+        assert!(mixed.reads_stream("fixture.progress"));
+        assert!(mixed.follows_state());
+
+        request.stream.clear();
+        request.y_keys.clear();
+        let records = PlotWatchKeys::for_request(&request);
+        assert!(!records.reads_stream("fixture.progress"));
+        assert!(records.follows_state());
+    }
+}

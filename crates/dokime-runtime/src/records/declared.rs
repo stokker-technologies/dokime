@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -36,6 +38,7 @@ use dokime_domain::model::values::Value;
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait DeclaredRecord: Sized {
     const RECORD_TYPE: &'static str;
 
@@ -79,6 +82,7 @@ pub trait RecordMessage {
 }
 
 /* === Implementations === */
+
 impl RecordMessage for String {
     fn stated(&self, _label: &str) -> String {
         self.clone()

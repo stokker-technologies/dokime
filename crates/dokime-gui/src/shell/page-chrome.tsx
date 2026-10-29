@@ -18,16 +18,18 @@ export type PageChrome = {
   title: string;
   /** The single action slot at the right inset. Memoize it; see `usePageChrome`. */
   actions: ReactNode;
+  overflow: ReactNode;
 };
 
 type PageChromeInput = {
   title: string;
   actions?: ReactNode;
+  overflow?: ReactNode;
 };
 
 /* === Constants === */
 
-const EMPTY_CHROME: PageChrome = { actions: null, title: "" };
+const EMPTY_CHROME: PageChrome = { actions: null, overflow: null, title: "" };
 
 const PageChromeStateContext = createContext<PageChrome>(EMPTY_CHROME);
 const PageChromePublishContext = createContext<(chrome: PageChrome | null) => void>(() => undefined);
@@ -43,7 +45,9 @@ export function PageChromeProvider({ children }: { children: ReactNode }) {
   const publish = useCallback((next: PageChrome | null) => {
     setChrome((current) => {
       const resolved = next ?? EMPTY_CHROME;
-      return current.title === resolved.title && current.actions === resolved.actions ? current : resolved;
+      return current.title === resolved.title && current.actions === resolved.actions && current.overflow === resolved.overflow
+        ? current
+        : resolved;
     });
   }, []);
 
@@ -61,9 +65,9 @@ export function PageChromeProvider({ children }: { children: ReactNode }) {
  * `actions` is stored by identity, so callers must pass a `useMemo`-stable node
  * or the publish effect re-runs on every render.
  */
-export function usePageChrome({ actions = null, title }: PageChromeInput): void {
+export function usePageChrome({ actions = null, overflow = null, title }: PageChromeInput): void {
   const publish = useContext(PageChromePublishContext);
-  const chrome = useMemo<PageChrome>(() => ({ actions, title }), [actions, title]);
+  const chrome = useMemo<PageChrome>(() => ({ actions, overflow, title }), [actions, overflow, title]);
 
   useEffect(() => {
     publish(chrome);

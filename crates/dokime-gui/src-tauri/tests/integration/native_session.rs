@@ -46,9 +46,19 @@ async fn attached_backend_survives() {
     let backend = Published::start(root.path()).await;
     let endpoint = backend.endpoint();
     let attachment = DesktopSession::attached(ConnectionSession::default());
+    let mut status_updates = attachment.subscribe_status();
     assert!(matches!(attachment.select(BackendSelection::OwnedLocal).await, Err(DesktopSessionError::LocalBackendUnavailable)));
-    assert_eq!(attachment.select(attach(endpoint.clone())).await.unwrap().ownership, BackendOwnership::Attached);
+    let attached = attachment.select(attach(endpoint.clone())).await.unwrap();
+    assert_eq!(attached.ownership, BackendOwnership::Attached);
+    status_updates.changed().await.unwrap();
+    let announced = status_updates.borrow_and_update().clone();
+    assert_eq!(announced.ownership, BackendOwnership::Attached);
+    assert!(announced.status_revision >= attached.status_revision);
     attachment.shutdown().await.unwrap();
+    status_updates.changed().await.unwrap();
+    let stopped = status_updates.borrow_and_update().clone();
+    assert_eq!(stopped.ownership, BackendOwnership::None);
+    assert!(stopped.status_revision > announced.status_revision);
     let probe = ConnectionSession::default();
     if let BackendSelection::Attach { request } = attach(endpoint) {
         probe.connect(request).await.unwrap();

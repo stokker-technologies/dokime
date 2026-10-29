@@ -12,17 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::execution::health::HealthItem;
 use crate::model::execution::notes::OperatorNote;
 use crate::model::identity::NoteId;
-use crate::model::identity::RecordId;
 
 /* === Constants === */
 
@@ -31,12 +31,16 @@ use crate::model::identity::RecordId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TestRecordSet {
     health: Vec<HealthItem>,
     notes: Vec<OperatorNote>,
+
     #[serde(default)]
-    subscribed_records: BTreeMap<RecordId, RecordScope>,
+    capture_owner: Option<crate::model::identity::TestExecutionId>,
+    capture_through: u64,
+
     #[serde(default)]
     record_subscriptions_closed: bool,
 }
@@ -46,12 +50,12 @@ pub struct TestRecordSet {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for TestRecordSet {
     fn memory_size(&self) -> usize {
         let fields = [
             (harmos_domain::MemorySize::memory_size(&self.health), std::mem::size_of_val(&self.health)),
             (harmos_domain::MemorySize::memory_size(&self.notes), std::mem::size_of_val(&self.notes)),
-            (harmos_domain::MemorySize::memory_size(&self.subscribed_records), std::mem::size_of_val(&self.subscribed_records)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -64,7 +68,8 @@ impl TestRecordSet {
         Self {
             health: Vec::with_capacity(health),
             notes: Vec::with_capacity(notes),
-            subscribed_records: BTreeMap::new(),
+            capture_owner: None,
+            capture_through: 0,
             record_subscriptions_closed: false,
         }
     }
@@ -72,7 +77,8 @@ impl TestRecordSet {
     pub fn clear(&mut self) {
         self.health.clear();
         self.notes.clear();
-        self.subscribed_records.clear();
+        self.capture_owner = None;
+        self.capture_through = 0;
         self.record_subscriptions_closed = false;
     }
 
@@ -81,8 +87,24 @@ impl TestRecordSet {
         self.notes.retain(|note| keep(&note.scope));
     }
 
-    pub fn subscribed_records(&self) -> &BTreeMap<RecordId, RecordScope> {
-        &self.subscribed_records
+    pub fn capture_owner(&self) -> Option<&crate::model::identity::TestExecutionId> {
+        self.capture_owner.as_ref()
+    }
+    pub fn capture_through(&self) -> u64 {
+        self.capture_through
+    }
+
+    pub fn captured_scope<'a>(&self, record: &'a crate::model::records::evidence::RecordEntry) -> Option<&'a RecordScope> {
+        if record.ordinal > self.capture_through {
+            return None;
+        }
+        record.captured_scope(self.capture_owner.as_ref()?)
+    }
+
+    pub fn capture_frontier(&mut self, owner: crate::model::identity::TestExecutionId, through: u64) {
+        assert!(self.capture_owner.as_ref().is_none_or(|existing| existing == &owner), "capture frontier owner changed");
+        self.capture_owner = Some(owner);
+        self.capture_through = self.capture_through.max(through);
     }
 
     pub fn record_subscriptions_closed(&self) -> bool {
@@ -91,10 +113,6 @@ impl TestRecordSet {
 
     pub fn close_record_subscriptions(&mut self) {
         self.record_subscriptions_closed = true;
-    }
-
-    pub fn capture_record(&mut self, record_id: RecordId, scope: RecordScope) {
-        self.subscribed_records.entry(record_id).or_insert(scope);
     }
 
     pub fn health(&self) -> &[HealthItem] {
@@ -133,3 +151,22 @@ impl TestRecordSet {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capture_snapshot_retains_only_owner_and_frontier() {
+        let owner = crate::model::identity::TestExecutionId::from_seed("compact-capture");
+        let mut records = TestRecordSet::default();
+        records.capture_frontier(owner.clone(), 1);
+        let initial = serde_json::to_vec(&records).unwrap().len();
+        records.capture_frontier(owner.clone(), 6_048_000);
+        let completed = serde_json::to_vec(&records).unwrap().len();
+        assert!(completed <= initial + 7);
+        let restored: TestRecordSet = serde_json::from_slice(&serde_json::to_vec(&records).unwrap()).unwrap();
+        assert_eq!(restored.capture_owner(), Some(&owner));
+        assert_eq!(restored.capture_through(), 6_048_000);
+    }
+}

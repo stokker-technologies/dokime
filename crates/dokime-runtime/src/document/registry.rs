@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::document::{DocumentDefinition, DocumentInstance};
 use dokime_domain::model::identity::DocumentId;
@@ -24,6 +27,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(DocumentRegistryError, formatter {
     Self::DuplicateDefinition(id) => write!(formatter, "document definition {id} is already registered"),
     Self::DuplicateInstance(id) => write!(formatter, "document instance {id} is already registered"),
@@ -32,6 +36,7 @@ product_error!(DocumentRegistryError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct DocumentRegistry {
     definitions: BTreeMap<DocumentId, DocumentDefinition>,
@@ -39,6 +44,7 @@ pub struct DocumentRegistry {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DocumentRegistryError {
     DuplicateDefinition(DocumentId),
@@ -48,6 +54,7 @@ pub enum DocumentRegistryError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DocumentRegistry {
     pub fn definitions(&self) -> impl Iterator<Item = &DocumentDefinition> {
         self.definitions.values()

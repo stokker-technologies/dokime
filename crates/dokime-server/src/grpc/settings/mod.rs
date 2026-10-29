@@ -8,28 +8,45 @@
  */
 
 /* === Modules === */
+
 mod plugins;
 mod preferences;
 mod sources;
 mod wire;
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
+
 // Local Imports
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+
 /* === Constants === */
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 /* === Public Functions === */
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    preferences::register(runtime, maximum)?;
-    sources::register(runtime, maximum)?;
-    plugins::register(runtime, maximum)
+
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    preferences::register(runtime, maximum).await?;
+    sources::register(runtime, maximum).await?;
+    plugins::register(runtime, maximum).await
 }
+
 /* === Private Functions === */
+
 /* === Tests === */

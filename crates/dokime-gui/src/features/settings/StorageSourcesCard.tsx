@@ -18,16 +18,16 @@
 /* === External Imports === */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { useMemo } from "react";
 
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { DataTable } from "@/components/data-table/DataTable";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -93,7 +93,6 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
 
     const source = column.accessor((row) => sourceLabel(row.identifier), {
       cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
-      enableSorting: false,
       header: "Source",
       id: "source",
       meta: { label: "Source", truncate: true },
@@ -123,40 +122,30 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
       id: "state",
       meta: { label: "State", width: "w-48" },
     });
-    // One source has no priority to argue about, so neither the pair nor its
-    // column is drawn.
-    const priority = column.display({
+    const priority = column.accessor((source) => sources.findIndex((item) => item.identifier === source.identifier) + 1, {
+      id: "priority",
+      header: "Priority",
+      meta: { width: "w-24" },
+    });
+    const actions = column.display({
+      id: "actions",
+      header: "Actions",
+      meta: { width: "w-44" },
       cell: ({ row }) => {
-        const label = sourceLabel(row.original.identifier);
+        const index = sources.findIndex((source) => source.identifier === row.original.identifier);
         return (
-          <div className="flex items-center gap-1">
-            <Button
-              aria-label={`Move ${label} Up`}
-              disabled={!canReorder || isPending || row.index === 0}
-              onClick={() => move(row.index, -1)}
-              size="icon-sm"
-              variant="outline"
-            >
-              <ChevronUp />
-            </Button>
-            <Button
-              aria-label={`Move ${label} Down`}
-              disabled={!canReorder || isPending || row.index === sources.length - 1}
-              onClick={() => move(row.index, 1)}
-              size="icon-sm"
-              variant="outline"
-            >
-              <ChevronDown />
-            </Button>
-          </div>
+          <DataTableRowActions
+            label={sourceLabel(row.original.identifier)}
+            primary={{ label: "Move Up", disabled: !canReorder || isPending || index === 0, onSelect: () => move(index, -1) }}
+          >
+            <DropdownMenuItem disabled={!canReorder || isPending || index === sources.length - 1} onSelect={() => move(index, 1)}>
+              Move Down
+            </DropdownMenuItem>
+          </DataTableRowActions>
         );
       },
-      header: "Priority",
-      id: "priority",
-      meta: { label: "Priority", width: "w-24" },
     });
-
-    return (sources.length > 1 ? [source, state, priority] : [source, state]) as DataTableColumns<StorageSource>;
+    return [source, state, priority, actions] as DataTableColumns<StorageSource>;
   }, [canEnable, canReorder, changedIdentifier, isPending, isSuccess, mutate, sources]);
 
   return (
@@ -187,23 +176,13 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
           </span>
         </SettingsRow>
       ) : null}
-      {query.isSuccess && sources.length === 0 ? (
-        <SettingsRow label="Sources">
-          <span className="text-sm text-muted-foreground">No storage sources are configured.</span>
-        </SettingsRow>
-      ) : null}
-
-      {sources.length > 0 ? (
-        <DataTable
-          aria-label="Storage source priority"
-          className="[--table-inset:1rem] [--table-surface:var(--card)] [[data-density=touch]_&]:[--table-inset:1.5rem]"
-          columns={columns}
-          data={sources}
-          emptyText="No storage sources are configured."
-          getRowId={sourceId}
-          stickyHeader={false}
-        />
-      ) : null}
+      <DataTable
+        aria-label="Storage source priority"
+        columns={columns}
+        data={sources}
+        emptyText="No storage sources are configured."
+        getRowId={sourceId}
+      />
 
       {/* An unavailable feature is a note, not a row with an empty value. */}
       <p className="px-4 py-3 text-xs text-muted-foreground [[data-density=touch]_&]:px-6">Remote synchronization is not available yet.</p>

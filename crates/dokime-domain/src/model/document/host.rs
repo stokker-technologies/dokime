@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 
 // Local Imports
@@ -28,6 +30,7 @@ use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 
 /* === Constants === */
+
 const HOST_SYSTEM: &str = "host.system";
 const HOST_WIFI: &str = "host.wifi";
 const HOST_WIFI_LATENCY: &str = "host.wifi.latency";
@@ -39,6 +42,7 @@ const HOST_BLUETOOTH: &str = "host.bluetooth";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct HostPlotSpec<'a> {
     identifier: &'a str,
     label: &'a str,
@@ -58,12 +62,14 @@ struct HostPlotSpec<'a> {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn sections(tracking_requested: bool) -> Vec<DocumentSection> {
     let streams = BTreeSet::from([HOST_SYSTEM, HOST_WIFI, HOST_WIFI_LATENCY, HOST_WIFI_CHANNEL_OCCUPANCY, HOST_BLUETOOTH]);
     vec![wifi_section(&streams), wifi_congestion_section(&streams, tracking_requested), bluetooth_section(), system_section()]
 }
 
 /* === Private Functions === */
+
 fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
     let mut cards = Vec::new();
     if streams.contains(HOST_WIFI_LATENCY) {
@@ -225,7 +231,11 @@ fn system_section() -> DocumentSection {
 }
 
 fn section(identifier_value: &str, label: &str, cards: Vec<DocumentCard>) -> DocumentSection {
-    DocumentSection { metadata: simple_metadata(identifier_value, label), cards, repeat: None }
+    DocumentSection {
+        metadata: simple_metadata(identifier_value, label),
+        cards,
+        repeat: None,
+    }
 }
 
 fn plot_card(plot: PlotDefinition) -> DocumentCard {

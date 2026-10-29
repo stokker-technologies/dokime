@@ -16,7 +16,6 @@
 // Standard Library Imports
 use std::{
     io::{self, Write},
-    num::NonZeroUsize,
     sync::LazyLock,
 };
 
@@ -26,25 +25,22 @@ use serde::Serialize;
 // Local Imports
 
 /* === Constants === */
+
 const REPORT_DATA_MARKER: &str = r#"<script id="hub-report-data" type="application/json">"#;
 const REPORT_DATA_END: &str = "</script>";
-static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
+pub(super) static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
-struct ScriptFormatter;
-pub(super) struct Buffer {
-    bytes: Vec<u8>,
-    maximum: usize,
-}
 
-pub(super) struct Count {
-    bytes: usize,
-    maximum: NonZeroUsize,
-    exceeded: bool,
+struct ScriptFormatter;
+
+pub(super) struct Object<'a> {
+    writer: &'a mut dyn Write,
+    first: bool,
 }
 
 /* === Enums === */
@@ -52,6 +48,7 @@ pub(super) struct Count {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl serde_json::ser::Formatter for ScriptFormatter {
     fn write_string_fragment<W: ?Sized + Write>(&mut self, writer: &mut W, fragment: &str) -> io::Result<()> {
         let mut start = 0;
@@ -72,75 +69,53 @@ impl serde_json::ser::Formatter for ScriptFormatter {
     }
 }
 
-impl Buffer {
-    pub(super) fn new(maximum: usize) -> io::Result<Self> {
-        let mut bytes = Vec::new();
-        bytes.try_reserve_exact(maximum).map_err(io::Error::other)?;
-        if bytes.capacity() > maximum {
-            return Err(io::Error::other("report output capacity exceeds its preclaim"));
+impl<'a> Object<'a> {
+    pub(super) fn new(writer: &'a mut dyn Write) -> io::Result<Self> {
+        writer.write_all(b"{")?;
+        Ok(Self { writer, first: true })
+    }
+
+    pub(super) fn field(&mut self, name: &str, value: &impl Serialize) -> io::Result<()> {
+        self.raw(name, |writer| write_json(writer, value))
+    }
+
+    pub(super) fn raw(&mut self, name: &str, value: impl FnOnce(&mut dyn Write) -> io::Result<()>) -> io::Result<()> {
+        if !self.first {
+            self.writer.write_all(b",")?;
         }
-        Ok(Self { bytes, maximum })
+        self.first = false;
+        write_json(self.writer, &name)?;
+        self.writer.write_all(b":")?;
+        value(self.writer)
     }
 
-    pub(super) fn into_bytes(self) -> Vec<u8> {
-        self.bytes
-    }
-}
-
-impl Write for Buffer {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.bytes
-            .len()
-            .checked_add(bytes.len())
-            .filter(|required| *required <= self.maximum)
-            .ok_or_else(|| io::Error::other("report output exceeds its counted size"))?;
-        self.bytes.extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl Count {
-    pub(super) fn new(maximum: NonZeroUsize) -> Self {
-        Self { bytes: 0, maximum, exceeded: false }
-    }
-    pub(super) fn len(&self) -> usize {
-        self.bytes
-    }
-    pub(super) fn exceeded(&self) -> bool {
-        self.exceeded
-    }
-}
-
-impl Write for Count {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.bytes = self.bytes.checked_add(bytes.len()).filter(|required| *required <= self.maximum.get()).ok_or_else(|| {
-            self.exceeded = true;
-            io::Error::other("report output exceeds its byte limit")
-        })?;
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+    pub(super) fn finish(self) -> io::Result<()> {
+        self.writer.write_all(b"}")
     }
 }
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
 pub(super) fn write_html(writer: &mut dyn Write, payload: &impl Serialize, template: &str) -> io::Result<()> {
+    write_html_with(writer, template, |writer| write_json(writer, payload))
+}
+
+pub(super) fn write_json(writer: &mut dyn Write, payload: &impl Serialize) -> io::Result<()> {
+    let mut serializer = serde_json::Serializer::with_formatter(writer, ScriptFormatter);
+    payload.serialize(&mut serializer).map_err(io::Error::other)
+}
+
+pub(super) fn write_html_with(
+    writer: &mut dyn Write, template: &str, payload: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+) -> io::Result<()> {
     // Reuse The Fixed Embedded Template; Other Inputs Keep Their Own Split.
     let (prefix, suffix) = if std::ptr::eq(template, super::asset::REPORT_APP_TEMPLATE) { *REPORT_PARTS } else { split_template(template) };
     writer.write_all(prefix.as_bytes())?;
-    let mut serializer = serde_json::Serializer::with_formatter(&mut *writer, ScriptFormatter);
-    payload.serialize(&mut serializer).map_err(io::Error::other)?;
+    payload(writer)?;
     writer.write_all(suffix.as_bytes())
 }
+
+/* === Private Functions === */
 
 fn split_template(template: &str) -> (&str, &str) {
     template.find(REPORT_DATA_MARKER)

@@ -7,7 +7,10 @@
  * ***
  */
 
+#![recursion_limit = "256"]
+
 /* === Modules === */
+
 mod appearance;
 mod append;
 mod authoring;
@@ -23,6 +26,7 @@ mod media;
 mod notes;
 mod planning;
 mod plots;
+mod plugin_admission;
 mod plugins;
 mod prompts;
 mod query;
@@ -40,6 +44,7 @@ mod support;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Duration;
 // Third Party Imports
@@ -48,13 +53,10 @@ use tonic::{
     transport::{Certificate, ClientTlsConfig, Endpoint},
 };
 // Local Imports
-use dokime_client::contracts;
-use dokime_server::grpc::{
-    Config, Server, TlsIdentity,
-    access::{BearerGrant, Role},
-};
+use dokime::client::contracts;
+use dokime_server::grpc::{Config, Server, TlsIdentity};
 use support::wire::*;
-use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime};
+use {dokime::Identifier, dokime::Metadata, dokime::Runtime};
 
 /* === Constants === */
 

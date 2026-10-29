@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -22,7 +23,6 @@ use crate::{
     RuntimeConfig,
     evidence_runtime::EvidenceCounts,
     queries::{RuntimeCycleSummary, RuntimeOverviewFrame, RuntimeOverviewSnapshot, RuntimeRetentionDiagnostics},
-    runtime::state::contracts::RuntimeContractLookup,
 };
 use dokime_domain::model::execution::result::CycleView;
 
@@ -41,19 +41,20 @@ use dokime_domain::model::execution::result::CycleView;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn overview_entity_counts(state: &RuntimeState, artifact_records: usize) -> RuntimeOverviewFrame {
+
+pub(crate) fn overview_entity_counts(state: &RuntimeState, artifact_records: usize, traceability: usize) -> RuntimeOverviewFrame {
     RuntimeOverviewFrame {
         shell: None,
         suites: state.suites.suites().count(),
         cycles: state.cycles.len(),
         executions: state.executions.len(),
         installed_plugins: 0,
-        records: state.records.record_visibility.len(),
+        records: usize::try_from(state.records.through).unwrap_or(usize::MAX),
         telemetry_streams: 0,
         telemetry_samples: 0,
         resources: state.resource_records().len(),
         health: state.health_items().len(),
-        traceability: traceability_snapshot_count(state),
+        traceability,
         notes: state.notes().len(),
         documents: state.executions.values().map(|execution| execution.documents.len()).sum::<usize>(),
         record_definitions: state.record_definitions.len(),
@@ -62,22 +63,18 @@ pub(crate) fn overview_entity_counts(state: &RuntimeState, artifact_records: usi
     }
 }
 
-pub(crate) fn evidence_counts(state: &RuntimeState, artifacts: usize) -> EvidenceCounts {
+pub(crate) fn evidence_counts(state: &RuntimeState, artifacts: usize, traceability: usize) -> EvidenceCounts {
     EvidenceCounts {
-        records: state.records.record_visibility.len(),
+        records: usize::try_from(state.records.through).unwrap_or(usize::MAX),
         // Telemetry is off the journaled state (durable streams); no cheap
         // synchronous count. Async count paths use `collect_telemetry`.
         telemetry: 0,
         prompts: state.pending_prompt_projection().len(),
         artifacts,
         health: state.health_items().len(),
-        traceability: traceability_snapshot_count(state),
+        traceability,
         notes: state.notes().len(),
     }
-}
-
-pub(crate) fn contract_lookup(state: &RuntimeState) -> RuntimeContractLookup {
-    RuntimeContractLookup::from_registries(&state.telemetry_definitions)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -96,12 +93,13 @@ pub(crate) fn runtime_overview_snapshot(
         cycle_summaries,
         cycles,
         evidence_counts,
-        installed_plugin_errors: state.installed_plugin_errors.clone(),
+        installed_plugin_errors: state.installed_plugin_errors.to_vec(),
         retention: retention_diagnostics(state, telemetry_cursor_entries),
     }
 }
 
 /* === Private Functions === */
+
 fn retention_diagnostics(state: &RuntimeState, telemetry_cursor_entries: usize) -> RuntimeRetentionDiagnostics {
     RuntimeRetentionDiagnostics {
         state_cycles: state.cycles.len(),
@@ -109,10 +107,6 @@ fn retention_diagnostics(state: &RuntimeState, telemetry_cursor_entries: usize) 
         state_record_count: state.record_count,
         telemetry_cursor_entries,
     }
-}
-
-fn traceability_snapshot_count(state: &RuntimeState) -> usize {
-    crate::evidence_runtime::state::traceability_snapshots(state).len()
 }
 
 /* === Tests === */

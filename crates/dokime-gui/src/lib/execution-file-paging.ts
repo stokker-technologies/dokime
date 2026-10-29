@@ -19,8 +19,10 @@ import type { ExecutionFileFollowEvent, ExecutionFileIdentity, ExecutionFileLife
 
 /* === Constants === */
 
+const GUI_FILE_WINDOW_BYTES = 65_536;
+
 /** The contract's bound on one `ReadExecutionFile` window and one follow chunk. */
-export const EXECUTION_FILE_WINDOW_BYTES = 64 * 1024;
+export const EXECUTION_FILE_WINDOW_BYTES = GUI_FILE_WINDOW_BYTES;
 
 /* === Types === */
 

@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{Message, storage::SchemaKey};
@@ -34,10 +33,13 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct RecordRow {
     sequence: u64,
+    ordinal: u64,
+    captured_scopes: Vec<ScopeRow>,
     record_id: String,
     timestamp: String,
     received_at: String,
@@ -74,6 +76,32 @@ pub(crate) struct OriginRow {
     phase: u32,
     attempt_id: Option<String>,
 }
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct ErrorRow {
+    pub message: String,
+    pub code: Option<String>,
+    pub source: Option<String>,
+    pub cause_chain: Vec<CauseRow>,
+    pub stacktrace_attachment: Option<String>,
+    pub trace_id: Option<String>,
+    pub correlation_id: Option<String>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct CauseRow {
+    pub message: String,
+    pub code: Option<String>,
+    pub source: Option<String>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 impl From<&dokime_domain::model::execution::RecordScope> for ScopeRow {
     fn from(scope: &dokime_domain::model::execution::RecordScope) -> Self {
@@ -175,7 +203,9 @@ impl TryFrom<OriginRow> for dokime_domain::model::execution::EvidenceOrigin {
         match (row.phase, row.attempt_id) {
             (0, None) => Ok(Self::Default),
             (1, None) => Ok(Self::Initialization),
-            (2, Some(id)) => Ok(Self::Step { attempt_id: StepAttemptId::from_uuid(id)? }),
+            (2, Some(id)) => Ok(Self::Step {
+                attempt_id: StepAttemptId::from_uuid(id)?,
+            }),
             (3, None) => Ok(Self::Cleanup),
             _ => Err(Error::Invalid("invalid native capture origin")),
         }
@@ -189,13 +219,16 @@ impl serde::Serialize for OriginRow {
         let origin = match (self.phase, self.attempt_id.as_deref()) {
             (0, None) => EvidenceOrigin::Default,
             (1, None) => EvidenceOrigin::Initialization,
-            (2, Some(id)) => EvidenceOrigin::Step { attempt_id: StepAttemptId::from_uuid(id).map_err(serde::ser::Error::custom)? },
+            (2, Some(id)) => EvidenceOrigin::Step {
+                attempt_id: StepAttemptId::from_uuid(id).map_err(serde::ser::Error::custom)?,
+            },
             (3, None) => EvidenceOrigin::Cleanup,
             _ => return Err(serde::ser::Error::custom("invalid native capture origin")),
         };
         serde::Serialize::serialize(&origin, serializer)
     }
 }
+
 impl<'de> serde::Deserialize<'de> for OriginRow {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         use dokime_domain::model::execution::EvidenceOrigin;
@@ -209,40 +242,7 @@ impl<'de> serde::Deserialize<'de> for OriginRow {
     }
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct ErrorRow {
-    pub message: String,
-    pub code: Option<String>,
-    pub source: Option<String>,
-    pub cause_chain: Vec<CauseRow>,
-    pub stacktrace_attachment: Option<String>,
-    pub trace_id: Option<String>,
-    pub correlation_id: Option<String>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct CauseRow {
-    pub message: String,
-    pub code: Option<String>,
-    pub source: Option<String>,
-}
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl RecordRow {
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        let native = <Self as Message>::decoding_memory(bytes)?;
-        native
-            .checked_add(std::mem::size_of::<Vec<u8>>())
-            .and_then(|bound| bound.checked_add(bytes.len()))
-            .ok_or_else(|| error("record decoding memory overflows"))
-    }
-
     pub fn sequence(&self) -> u64 {
         self.sequence
     }
@@ -256,9 +256,7 @@ impl RecordRow {
     }
 
     pub fn entry(self) -> Result<RecordEntry> {
-        let bound = self.projection_memory()?;
-        let allowance = NonZeroUsize::new(bound).ok_or_else(|| error("record projection memory is invalid"))?;
-        self.into_entry(allowance)
+        self.into_entry()
     }
 
     pub fn from_bytes(bytes: &[u8], max_bytes: usize) -> Result<Self> {
@@ -266,7 +264,7 @@ impl RecordRow {
             return Err(error("record capture frame exceeds byte limit"));
         }
         let row = Self::decode(bytes)?;
-        let length = row.encoded_len();
+        let length = row.encoded_size();
         if length > bytes.len() {
             return Err(error("record capture frame is not canonical protobuf"));
         }
@@ -321,6 +319,8 @@ impl RecordRow {
         }
         Ok(Self {
             sequence: entry.sequence,
+            ordinal: entry.ordinal,
+            captured_scopes: entry.captured_scopes.iter().map(ScopeRow::from).collect(),
             record_id: copy_text(entry.record_id.as_str())?,
             timestamp: copy_text(entry.timestamp.as_str())?,
             received_at: copy_text(entry.received_at.as_str())?,
@@ -364,16 +364,12 @@ impl RecordRow {
         Ok(bytes)
     }
 
-    pub fn into_entry(self, allowance: NonZeroUsize) -> Result<RecordEntry> {
+    pub fn into_entry(self) -> Result<RecordEntry> {
         use crate::records::RecordSeverity;
         use dokime_domain::model::identity::ArtifactId;
         use dokime_domain::model::identity::RecordId;
         use dokime_domain::model::identity::TelemetrySampleId;
         use dokime_domain::model::identity::TelemetryStreamId;
-        let bound = self.projection_memory()?;
-        if bound == usize::MAX || bound > allowance.get() {
-            return Err(error("record projection exceeds memory allowance"));
-        }
         let timestamp = Timestamp::new(self.timestamp);
         let received_at = Timestamp::new(self.received_at);
         received_at.to_datetime()?;
@@ -388,8 +384,10 @@ impl RecordRow {
             "error" => RecordSeverity::Error,
             _ => return Err(error("invalid native record severity")),
         };
-        let details = values::decode_owned(self.details, allowance)?;
-        Ok(RecordEntry::from_record(
+        let details = values::decode_owned(self.details)?;
+        let ordinal = self.ordinal;
+        let captured_scopes = self.captured_scopes.into_iter().map(TryInto::try_into).collect::<Result<Vec<_>>>()?;
+        let mut entry = RecordEntry::from_record(
             self.sequence,
             Record {
                 record_id: RecordId::from_uuid(self.record_id)?,
@@ -407,7 +405,10 @@ impl RecordRow {
                 related_stream_id: self.related_stream_id.map(TelemetryStreamId::from_uuid).transpose()?,
                 related_artifact_id: self.related_artifact_id.map(ArtifactId::from_uuid).transpose()?,
             },
-        ))
+        );
+        entry.ordinal = ordinal;
+        entry.captured_scopes = captured_scopes;
+        Ok(entry)
     }
 }
 
@@ -485,7 +486,11 @@ impl TryFrom<ErrorRow> for dokime_domain::model::records::error::RecordErrorDeta
         use dokime_domain::model::identity::TraceId;
         let mut cause_chain = exact_slots(row.cause_chain.len())?;
         for cause in row.cause_chain {
-            cause_chain.push(ErrorCause { message: cause.message, code: cause.code, source: cause.source });
+            cause_chain.push(ErrorCause {
+                message: cause.message,
+                code: cause.code,
+                source: cause.source,
+            });
         }
         Ok(Self {
             message: row.message,
@@ -500,12 +505,13 @@ impl TryFrom<ErrorRow> for dokime_domain::model::records::error::RecordErrorDeta
 }
 
 /* === Public Functions === */
+
 pub fn encode(entry: &RecordEntry, max_bytes: usize) -> Result<Vec<u8>> {
     let row = RecordRow::from_entry(entry)?;
-    if row.encoded_len() > max_bytes {
+    if row.encoded_size() > max_bytes {
         return Err(error("record capture frame exceeds byte limit"));
     }
-    Ok(row.encode_to_vec())
+    Ok(row.encode())
 }
 
 pub fn decode(bytes: &[u8], max_bytes: usize) -> Result<RecordEntry> {
@@ -521,9 +527,11 @@ pub fn schema() -> SchemaKey {
 }
 
 /* === Private Functions === */
+
 fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
     if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
 }
+
 fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
     match value {
         RecordSeverity::Debug => "debug",
@@ -532,20 +540,16 @@ fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
         RecordSeverity::Error => "error",
     }
 }
+
 fn exact_slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| error("record allocation failed"))?;
-    if values.capacity() > count {
-        return Err(error("record slot capacity exceeds admission"));
-    }
     Ok(values)
 }
+
 fn copy_text(source: &str) -> Result<String> {
     let mut text = String::new();
     text.try_reserve_exact(source.len()).map_err(|_| error("record text allocation failed"))?;
-    if text.capacity() > source.len() {
-        return Err(error("record text capacity exceeds admission"));
-    }
     text.push_str(source);
     Ok(text)
 }

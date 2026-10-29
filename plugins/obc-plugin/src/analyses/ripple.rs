@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::convert::Infallible;
 use std::time::Duration;
@@ -19,7 +20,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::analysis::{Analysis, Limits, Output, Response, ResultData, Samples, Values};
+use dokime::analysis::{Analysis, Limits, Output, Response, ResultData, Samples, Values};
 
 /* === Constants === */
 
@@ -28,6 +29,7 @@ use dokime_runtime::analysis::{Analysis, Limits, Output, Response, ResultData, S
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Ripple;
 
 pub struct Amplitude {
@@ -40,11 +42,12 @@ pub struct Amplitude {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Analysis for Ripple {
     type Parameters = ();
     type Output = Amplitude;
     type Error = Infallible;
-    const ID: &'static str = "obc-plugin.ripple";
+    const ID: &'static str = "obc.analysis.ripple";
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Ripple";
     const DESCRIPTION: &'static str = "Peak-to-peak ripple: the maximum minus the minimum of the trace's original samples.";
@@ -56,13 +59,21 @@ impl Analysis for Ripple {
         let minimum = values.clone().fold(f64::INFINITY, f64::min);
         let maximum = values.fold(f64::NEG_INFINITY, f64::max);
 
-        Ok(Amplitude { value: maximum - minimum, unit: samples.unit.clone() })
+        Ok(Amplitude {
+            value: maximum - minimum,
+            unit: samples.unit.clone(),
+        })
     }
 }
 
 impl ResultData for Amplitude {
     fn outputs() -> Vec<Output> {
-        vec![Output { key: "ripple".into(), label: "Ripple".into(), unit: None, axis: None }]
+        vec![Output {
+            key: "ripple".into(),
+            label: "Ripple".into(),
+            unit: None,
+            axis: None,
+        }]
     }
 
     fn into_response(self) -> Response {

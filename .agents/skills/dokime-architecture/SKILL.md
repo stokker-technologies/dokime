@@ -5,14 +5,24 @@ description: Define Dokime domain, runtime, shell and packaging ownership and li
 
 # Dokime Architecture
 
-Apply the shared architecture and Rust rules. The accepted boundary is `dokime-domain` for definitions and pure domain behaviour, `dokime-runtime` for resource-bound behaviour, `dokime-server` and `dokime-gui` for shells, `dokime-client` for remote access, `dokime-packaging` for code generation and packaging, and the bare `dokime` crate for the installable CLI. During an in-progress cutover verify landed paths before citing an API.
+Apply `stkr-architecture` and `stkr-rust-architecture` for the shared tier model.
 
-The domain crate contains every operation, transaction, state entry, message and value definition. It performs no I/O, async work, storage or network access. Runtime crates implement the resource-bound behaviour and depend on domain crates; domain crates never depend on runtimes. Sidecars, plugins, clients and tools use the portable domain surface.
+| Crate | Ownership And Dependencies |
+| --- | --- |
+| `dokime` | Consumer entry library; depends on domain and runtime, with optional client support. |
+| `dokime-domain` | Host-free operation requests/replies, records, streams, prompts and settings contracts; no runtime dependency. |
+| `dokime-runtime` | Handlers, execution, evidence and storage; depends on domain and optionally macros. |
+| `dokime-cli` | Command interface and the `dokime` executable, including `dokime server`; depends on the entry library and server library. |
+| `dokime-gui` | Desktop interface; depends on the entry library. |
+| `dokime-server` | Server library owning session boot, listeners and bounded drain; shared by CLI and desktop composition, depends on the entry library. |
+| `dokime-client` | Remote client implementation; depends on domain, exposed through the entry library's `client` feature. |
+| `dokime-packaging` | Packaging implementation; depends on the entry library. |
+| `dokime-macros` | Authoring declarations; no production runtime dependency. |
 
-Organize declarations kind-first: `model/`, `operations/`, `transactions/`, `state/`. Each kind's `mod.rs` is its closed catalog, with folder modules by domain. Runtime implementations mirror the same domain names and paths. A plugin's private definitions live in its `domain/` module; move a declaration to a shared domain crate when another party consumes it typed.
+The entry library and library/SDK crates permit Cargo publication; registry availability is a release result. CLI, desktop shell, server executable and Cargo subcommand owners declare `publish = false` and ship through installers and raw release assets.
 
-Records select by envelope identity: scope is the cycle, item is the execution (or cycle for cycle context), source is the provider/process epoch. Use typed reads for records and retain columnar queries for plots and telemetry derivations. Lifecycle capture references the durable frozen execution revision rather than duplicating it.
+Declare product contracts once in `dokime-domain`; implement handlers in `dokime-runtime`. Interfaces consume `dokime` and expose the same operation contracts through their hosts without redeclaration or forwarding implementations. Host-free consumers depend on `dokime-domain` directly.
 
-Packaging depends on portable domains and Harmos packaging, never the runtime. Build scripts request only enabled generators (`generate-proto`, `generate-python`, `generate-typescript`); `grpc` implies proto. The thin cargo tool uses the canonical CLI and packaging instead of embedding a second runtime.
+Dokime admits native plugins: supervised processes over piped stdio. Embed a product runtime through its entry library by default; use a separately hosted runtime sidecar on the same machine only when process isolation is required. Requirements select operations by contract and shared visibility; ambiguous providers are refused.
 
-Storage is development v1. A clean schema break may require a fresh storage root; never silently reset existing data. Plugin installation and enablement become active after a full app restart; development reload remains an explicit separate lifecycle.
+Storage stays at development v1. Use a fresh storage root for incompatible schemas; never silently delete or reset existing data.

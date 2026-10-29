@@ -15,6 +15,7 @@ import { toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
+import * as documentWire from "@generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
 import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
 import {
   documentCard,
@@ -30,16 +31,20 @@ import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { DocumentDataExpression, DocumentDownsampleTechnique, DocumentViewCard, DocumentViewPayload, Metadata } from "@/lib/types";
-import * as documentWire from "../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
 import { aggregateName } from "./native-aggregate";
 import { enumTail, mapNativeValueFormat, nativeValueObjectToJson, nativeValueToJson, safeNumber } from "./native-values";
+
+const DOCUMENTS_ENCODED_DEPTH = 32;
+const DOCUMENTS_EXPANDED_NODES = 4_096;
+const DOCUMENTS_MATERIALIZED_BYTES = 33_554_432;
+const GUI_PLOT_TRANSFORMS = 32;
 
 /* === Canonical Types === */
 
 type DocumentFrame = documentWire.Row3;
 const DocumentFrameSchema = documentWire.Row3Schema;
 type DocumentCard = Wire<documentWire.Row22>;
-type DocumentDensity = Wire<documentWire.Row116>;
+type DocumentDensity = Wire<documentWire.Row113>;
 type DocumentHeader = Wire<documentWire.Row20>;
 type DocumentBinding = Wire<documentWire.Row30>;
 type DocumentLayoutNode = Wire<documentWire.Row21>;
@@ -48,7 +53,7 @@ type DocumentSummaryTileDefinition = Wire<documentWire.Row29>;
 type DocumentRepeatSelection = Wire<documentWire.Row31>;
 type DocumentRepeatInstance = Wire<documentWire.Row32>;
 type DocumentSectionIdentity = Wire<documentWire.Row33>;
-type DocumentRail = Wire<documentWire.Row117>;
+type DocumentRail = Wire<documentWire.Row114>;
 type DocumentScope = Wire<documentWire.Row4>;
 type DocumentSummaryGroup = Wire<documentWire.Row24>;
 type DocumentSummaryPresentation = Wire<documentWire.Row43>;
@@ -56,26 +61,20 @@ type DocumentSummaryState = Wire<documentWire.Row44>;
 type DocumentSummaryTile = Wire<documentWire.Row25>;
 type DocumentTableRow = Wire<documentWire.Row23>;
 type DocumentWarning = Wire<documentWire.Row26>;
-type NativePlotAxisKind = Wire<documentWire.Row182>;
-type PlotStyle = Wire<documentWire.Row178>;
-type AxisScale = Wire<documentWire.Row170>;
+type NativePlotAxisKind = Wire<documentWire.Row178>;
+type PlotStyle = Wire<documentWire.Row174>;
+type AxisScale = Wire<documentWire.Row167>;
 type DataExpression = Wire<documentWire.Row45>;
 type FftWindow = NonNullable<NonNullable<PlotRequest["fft"]>["window"]>;
 type FftDetrend = NonNullable<NonNullable<PlotRequest["fft"]>["detrend"]>;
 type FrequencyLevelUnit = NonNullable<NonNullable<PlotRequest["fft"]>["levelUnit"]>;
-type PlotRequest = Wire<documentWire.Row138>;
-type PlotType = Wire<documentWire.Row169>;
+type PlotRequest = Wire<documentWire.Row135>;
+type PlotType = Wire<documentWire.Row166>;
 type FilterOperator = Wire<documentWire.Row54>;
-type DocumentCardKind = Wire<documentWire.Row118>;
-type NativePlotDefinition = Wire<documentWire.Row107>;
+type DocumentCardKind = Wire<documentWire.Row115>;
+type NativePlotDefinition = Wire<documentWire.Row106>;
 type NativeDownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 
-export const documentLimits = {
-  bytes: 32 * 1024 * 1024,
-  frameBytes: 512 * 1024,
-  frames: 20_000,
-  depth: 32,
-} as const;
 /** Indexes reference canonical protobuf messages; no alternate document DTO contract. */
 export interface CompletedDocument {
   header: DocumentHeader;
@@ -147,6 +146,7 @@ export async function fetchNativeDocument(
   session: NativeDocumentSession,
   request: NativeDocumentRequest,
   signal?: AbortSignal,
+  previous?: CompletedDocument | null,
 ): Promise<CompletedDocument> {
   const scope = createDocumentScope(request);
   let reader: Awaited<ReturnType<typeof rpc.documentsCaptureCurrentDocument>> | undefined;
@@ -167,8 +167,22 @@ export async function fetchNativeDocument(
     dispose = session.own(() => {
       void reader?.cancel().catch(() => undefined);
     });
+    /* The header comes first and states the inputs' frontiers: the same
+       frontiers as the document already held mean the same document, so the
+       transfer stops there and the held document is answered. */
+    const frames = reader[Symbol.asyncIterator]();
+    const first = await frames.next();
+    const header = first.done ? undefined : first.value.frame?.HarmosVariant;
+    if (previous && header?.case === "Header" && sameFrontiers(header.value.field0?.frontiers, previous.header.frontiers)) {
+      await reader.cancel();
+      return previous;
+    }
+    const replay = (async function* () {
+      if (!first.done) yield first.value;
+      for (let next = await frames.next(); !next.done; next = await frames.next()) yield next.value;
+    })();
     return await assembleDocument(
-      reader,
+      replay,
       {
         scope,
         documentId: request.documentId,
@@ -180,6 +194,12 @@ export async function fetchNativeDocument(
     signal?.removeEventListener("abort", abort);
     dispose?.();
   }
+}
+
+/** Whether two captures read the same inputs: same state revision, telemetry cut and artifacts. */
+export function sameFrontiers(left: DocumentHeader["frontiers"], right: DocumentHeader["frontiers"]): boolean {
+  if (!left || !right) return false;
+  return frontierKey(left) === frontierKey(right);
 }
 
 /** Decode Transport Values And Delegate Layout Assembly To The Shared Renderer. */
@@ -625,7 +645,7 @@ function mapFilterOperator(value: FilterOperator | undefined): "eq" | "ne" | "gt
 function mapNativeExpression(value?: DataExpression): DocumentDataExpression | null {
   if (!value) return null;
   const sourceKind = value.source?.HarmosVariant;
-  if (!sourceKind?.case || !sourceKind.value.field0 || value.transforms.length > 32)
+  if (!sourceKind?.case || !sourceKind.value.field0 || value.transforms.length > GUI_PLOT_TRANSFORMS)
     invalid("expression source or transform bound is invalid");
   const source = (() => {
     switch (sourceKind.case) {
@@ -730,10 +750,10 @@ export async function assembleDocument(
   for await (const item of frames) {
     if (!active()) invalid("selection changed or transfer cancelled");
     if (complete) invalid("a frame followed completion");
-    if (++count > documentLimits.frames) invalid("frame budget exceeded");
+    count++;
     const length = toBinary(DocumentFrameSchema, item).byteLength;
+    if (length > DOCUMENTS_MATERIALIZED_BYTES - bytes) invalid("capture byte budget exceeded");
     bytes += length;
-    if (length > documentLimits.frameBytes || bytes > documentLimits.bytes) invalid("capture byte budget exceeded");
     const frame = item.frame?.HarmosVariant;
     if (!frame?.case) invalid("frame payload is missing");
     if (!header && frame.case !== "Header") invalid("header must be first");
@@ -757,7 +777,7 @@ export async function assembleDocument(
       case "LayoutNode": {
         const node = frame.value.field0;
         if (!node) invalid("frame payload is missing");
-        if (node.ordinal !== BigInt(layout.length) || !node.node?.HarmosVariant.case || layout.length >= 4096)
+        if (node.ordinal !== BigInt(layout.length) || !node.node?.HarmosVariant.case || layout.length >= DOCUMENTS_EXPANDED_NODES)
           invalid("layout ordinals are not contiguous or exceed the budget");
         if (node.parentOrdinal === undefined) path = [];
         else {
@@ -768,7 +788,7 @@ export async function assembleDocument(
           path = path.slice(0, ancestor + 1);
         }
         path.push(node.ordinal);
-        if (path.length > documentLimits.depth) invalid("layout depth budget exceeded");
+        if (path.length > DOCUMENTS_ENCODED_DEPTH) invalid("layout depth budget exceeded");
         if (
           node.node?.HarmosVariant.case === "Section" &&
           (!node.node.HarmosVariant.value.field0?.nodeId ||
@@ -784,7 +804,7 @@ export async function assembleDocument(
         const card = frame.value.field0;
         if (!card) invalid("frame payload is missing");
         const id = card.metadata?.identifier;
-        if (!id || cards.has(id) || !card.body?.HarmosVariant.case || cards.size >= 4096) invalid("missing or duplicate card identity");
+        if (!id || cards.has(id) || !card.body?.HarmosVariant.case) invalid("missing or duplicate card identity");
         cards.set(id, card);
         if (card.body?.HarmosVariant.case === "Table") rows.set(id, []);
         if (card.body?.HarmosVariant.case === "Summary") {
@@ -798,8 +818,7 @@ export async function assembleDocument(
         if (!binding) invalid("frame payload is missing");
         const id = binding.metadata?.identifier;
         const source = cards.get(binding.sourceId);
-        if (!id || bindings.has(id) || !source || !binding.result?.HarmosVariant.case || bindings.size >= 4096)
-          invalid("binding source or identity is invalid");
+        if (!id || bindings.has(id) || !source || !binding.result?.HarmosVariant.case) invalid("binding source or identity is invalid");
         const expectedResult =
           source.body?.HarmosVariant.case === "Summary"
             ? "Summary"
@@ -868,7 +887,7 @@ export async function assembleDocument(
       case "RepeatSelection": {
         const repeat = frame.value.field0;
         if (!repeat) invalid("frame payload is missing");
-        if (!repeat.nodeId || repeats.has(repeat.nodeId) || repeats.size >= 4096) invalid("repeat selection identity is invalid");
+        if (!repeat.nodeId || repeats.has(repeat.nodeId)) invalid("repeat selection identity is invalid");
         repeats.set(repeat.nodeId, repeat);
         instances.set(repeat.nodeId, []);
         break;
@@ -892,8 +911,7 @@ export async function assembleDocument(
       case "SectionIdentity": {
         const section = frame.value.field0;
         if (!section) invalid("frame payload is missing");
-        if (!section.nodeId || !section.metadata || sections.has(section.nodeId) || sections.size >= 4096)
-          invalid("section identity is invalid");
+        if (!section.nodeId || !section.metadata || sections.has(section.nodeId)) invalid("section identity is invalid");
         unavailableReason(section.unavailable);
         sections.set(section.nodeId, section);
         break;
@@ -965,4 +983,8 @@ export async function assembleDocument(
     sections,
     warnings,
   };
+}
+
+function frontierKey(frontiers: NonNullable<DocumentHeader["frontiers"]>): string {
+  return JSON.stringify(frontiers, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
 }

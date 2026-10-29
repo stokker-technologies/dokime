@@ -22,8 +22,10 @@ import { HistoryComparisonView } from "@/features/explore/HistoryComparisonView"
 import { HistoryLibrary } from "@/features/explore/HistoryLibrary";
 import { setNativeCycleArchived, setNativeExecutionArchived } from "@/lib/api/native-execution";
 import type { ExecutionBrowsePage } from "@/lib/types/view-contracts";
-import { usePageChrome } from "@/shell/page-chrome";
+import { PageNotice, PageShell } from "@/shell/PageShell";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey } from "./explore-contracts";
+
+const GUI_FILTER_DEBOUNCE_MS = 250;
 
 /* === Types === */
 
@@ -83,54 +85,50 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
   const cycles = cyclesQuery.data ?? [];
 
   useEffect(() => {
-    const handle = window.setTimeout(() => setSelection(query), 250);
+    const handle = window.setTimeout(() => setSelection(query), GUI_FILTER_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
   }, [query]);
-
-  usePageChrome({ title: comparing ? "Compare" : "History" });
 
   const selectedCycles = useMemo(() => cycles.filter((cycle) => selectedIds.has(exploreEntryKey(cycle.target))), [cycles, selectedIds]);
 
   return (
-    <div className="grid content-start">
-      {cyclesQuery.isError ? (
-        <p className="px-[var(--shell-inset)] py-[var(--shell-gap)] text-destructive" role="alert">
-          Unable to load execution history: {cyclesQuery.error.message}
-        </p>
-      ) : null}
+    <PageShell trail={comparing ? ["History", "Compare"] : ["History"]}>
+      {cyclesQuery.isError ? <PageNotice tone="alert">Unable to load execution history: {cyclesQuery.error?.message}</PageNotice> : null}
       {cyclesQuery.coverage && !cyclesQuery.coverage.discovery_complete ? (
         <IncompleteHistoryNotice coverage={cyclesQuery.coverage} />
       ) : null}
       {comparing ? (
         <HistoryComparisonView cycles={selectedCycles} onBack={onBack} />
       ) : (
-        <HistoryLibrary
-          archived={archived}
-          cycles={cycles}
-          loading={cyclesQuery.isPending}
-          onCompare={onCompare}
-          onToggleArchived={() => setArchived((current) => !current)}
-          onUnarchive={onUnarchive}
-          onOpenEntry={onOpenEntry}
-          onQueryChange={setQuery}
-          onToggleSelected={onToggleSelected}
-          query={query}
-          selectedIds={selectedIds}
-        />
+        <div className="min-w-0">
+          <HistoryLibrary
+            archived={archived}
+            cycles={cycles}
+            loading={cyclesQuery.isPending}
+            onCompare={onCompare}
+            onToggleArchived={() => setArchived((current) => !current)}
+            onUnarchive={onUnarchive}
+            onOpenEntry={onOpenEntry}
+            onQueryChange={setQuery}
+            onToggleSelected={onToggleSelected}
+            query={query}
+            selectedIds={selectedIds}
+          />
+        </div>
       )}
       {cyclesQuery.hasNextPage ? (
-        <div className="px-[var(--shell-inset)] py-[var(--shell-gap)]">
+        <div>
           <Button
             className="h-[var(--control-height)]"
             disabled={cyclesQuery.isFetchingNextPage}
             onClick={() => void cyclesQuery.fetchNextPage()}
             variant="outline"
           >
-            {cyclesQuery.isFetchingNextPage ? "Loading…" : "Load More Executions"}
+            {cyclesQuery.isFetchingNextPage ? "Loading…" : "Load More History"}
           </Button>
         </div>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 
@@ -152,15 +150,15 @@ function IncompleteHistoryNotice({ coverage }: { coverage: ExecutionBrowsePage }
   }
 
   return (
-    <div className="grid gap-1 border-b px-[var(--shell-inset)] py-[var(--shell-gap)] text-sm text-muted-foreground" role="status">
+    <PageNotice>
       <p>History is incomplete: some sources or executions could not be read.</p>
       {reasons.length ? (
-        <ul className="list-disc pl-5">
+        <ul className="list-disc pl-4">
           {reasons.map((reason) => (
             <li key={reason}>{reason}</li>
           ))}
         </ul>
       ) : null}
-    </div>
+    </PageNotice>
   );
 }

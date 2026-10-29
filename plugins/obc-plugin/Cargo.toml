@@ -6,9 +6,12 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 description = "Demonstrates onboard charger validation on a simulated testbench."
 name = "obc-plugin"
+publish = false
 version = { workspace = true }
 edition.workspace = true
 rust-version.workspace = true
@@ -17,11 +20,29 @@ license.workspace = true
 [package.metadata.dokime]
 debuginfo = false
 
+# === Package Targets === #
+
+[[bin]]
+name = "obc-plugin"
+path = "src/main.rs"
+test = false
+
+# === Features === #
+
+[features]
+default = ["runtime"]
+benchmarks = []
+# Generated operation resource wiring is gated on the consuming crate's `runtime` feature.
+runtime = []
+
+# === Dependencies === #
+
 [dependencies]
 # Local
-dokime-domain = { path = "../../crates/dokime-domain" }
-dokime-runtime = { path = "../../crates/dokime-runtime" }
-obc-runtime = { path = "runtime" }
+dokime = { workspace = true, features = ["plugin-sidecar"] }
+obc-runtime = { version = "0.1.0", path = "runtime" }
+
+# Git
 
 # Error Handling
 thiserror = { workspace = true }
@@ -33,19 +54,79 @@ tracing = { workspace = true }
 sysinfo = { workspace = true }
 
 # Serialization
-serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
 
 # Async
 tokio = { workspace = true }
 
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
 [dev-dependencies]
+# Local
+
 # Git
-harmos = { workspace = true, features = ["plugin-sidecar"] }
+
+# Error Handling
+
+# Logging
 
 # Utilities
 sha2 = { workspace = true }
 
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
 # Async
 futures-util = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

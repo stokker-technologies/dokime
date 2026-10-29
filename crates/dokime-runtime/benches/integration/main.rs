@@ -7,12 +7,11 @@
  * ***
  */
 
-// Integration Benchmarks: One Runtime Or Storage System In Process
+// Integration Benchmarks: Runtime Capture And Durable Plot Visibility
 
 /* === Modules === */
 mod capture;
 mod plots;
-mod storage;
 
 /* === Re-Exports === */
 
@@ -27,7 +26,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, capture::benchmark, plots::benchmark, storage::benchmark);
+criterion_group!(benches, capture::benchmark, plots::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */

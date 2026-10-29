@@ -13,7 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
@@ -36,11 +36,19 @@ const EXECUTABLE_SUFFIX: &str = if cfg!(windows) { ".exe" } else { "" };
 
 /* === Public Functions === */
 pub fn host_binary() -> PathBuf {
-    artifact(&format!("bin/dokime-server{EXECUTABLE_SUFFIX}"))
+    artifact(&format!("bin/dokime{EXECUTABLE_SUFFIX}"))
 }
 
 pub fn obc_plugin_bundle() -> PathBuf {
     artifact("plugins/obc-plugin.dokime")
+}
+
+pub fn workspace_root() -> PathBuf {
+    std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+        .ancestors()
+        .find(|directory| directory.join("Cargo.lock").is_file())
+        .expect("the workspace root holds Cargo.lock")
+        .to_owned()
 }
 
 /* === Private Functions === */
@@ -51,12 +59,10 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .find(|directory| directory.join("Cargo.lock").is_file())
-        .expect("the workspace root holds Cargo.lock")
-        .join("dist/build")
-        .join(PLATFORM)
+    let profile = std::env::var("STKR_TEST_PROFILE").unwrap_or_else(|_| "dev".to_owned());
+    assert!(matches!(profile.as_str(), "dev" | "release"), "invalid graph profile");
+    let target = format!("{PLATFORM}-{}", std::env::consts::ARCH);
+    workspace_root().join("target/build").join(profile).join(target)
 }
 
 /* === Tests === */

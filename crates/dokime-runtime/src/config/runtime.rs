@@ -12,61 +12,63 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
+
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use harmos::storage::StorageSettings;
+
 // Local Imports
 use crate::Dokime;
 use crate::InstalledPlugin;
 use crate::domains::ActionDispatcher;
-use dokime_domain::model::credentials::CredentialBackendKind;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
-use harmos::storage::StorageSettings;
 
 /* === Constants === */
+
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
 
-pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::services::Service<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
+pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
+pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
 
 /* === Structs === */
-#[derive(Clone, Serialize, Deserialize)]
+
+#[derive(Clone)]
 pub struct RuntimeConfig {
+    pub schema: harmos::config::SchemaSettings,
     pub session_id: SessionId,
     pub storage_root: PathBuf,
     pub application_root: PathBuf,
-    #[serde(default = "crate::config::storage_defaults")]
-    pub storage: StorageSettings,
-    #[serde(default = "default_compaction_interval")]
-    pub compaction_interval: Duration,
-    #[serde(default)]
-    pub local_retention: Option<Duration>,
-    pub hub_metadata: Metadata,
-    pub credential_backend: RuntimeCredentialConfig,
-    // A trusted bench is an isolated network where plain FTP sources are accepted.
-    #[serde(default)]
-    pub trusted_bench: bool,
-    #[serde(skip)]
-    pub installed_plugins: Vec<InstalledPlugin>,
-    #[serde(default)]
-    pub plugins: Vec<crate::plugins::PluginBundle>,
-    #[serde(default)]
-    pub plugin_lookup: Option<PathBuf>,
-    #[serde(skip)]
-    pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
-    #[serde(skip)]
-    pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
-}
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RuntimeCredentialConfig {
-    pub backend: CredentialBackendKind,
-    #[serde(default)]
-    pub local_file: Option<PathBuf>,
+    pub storage: StorageSettings,
+
+    pub local_storage: crate::storage::sqlite::Settings,
+
+    pub managed_storage: harmos::config::ManagedStorageSettings,
+
+    pub storage_state: harmos::config::StorageStateSettings,
+
+    pub hub_metadata: Metadata,
+
+    #[cfg(feature = "host")]
+    pub(crate) credential_store: Option<Arc<keyring_core::CredentialStore>>,
+
+    // A trusted bench is an isolated network where plain FTP sources are accepted.
+    pub trusted_bench: bool,
+
+    pub installed_plugins: Vec<InstalledPlugin>,
+
+    pub plugins: Vec<crate::plugins::PluginBundle>,
+
+    pub plugin_lookup: Option<PathBuf>,
+
+    pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
+
+    pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
 }
 
 /* === Enums === */
@@ -74,19 +76,24 @@ pub struct RuntimeCredentialConfig {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeConfig {
     pub fn new(storage_root: impl Into<PathBuf>, hub_metadata: Metadata) -> Self {
         let storage_root = storage_root.into();
         Self {
+            schema: harmos::config::SchemaSettings::default(),
             session_id: crate::model::identity::new_id::<SessionId>(),
             storage: crate::config::storage_defaults(),
-            compaction_interval: default_compaction_interval(),
-            local_retention: None,
+            local_storage: crate::config::local_storage_defaults(),
+            managed_storage: super::managed_storage_defaults(),
+            storage_state: super::storage_state_defaults(),
             // Programmatic configurations keep one disposable tree; shipped
             // shells always name a separate application root.
             application_root: storage_root.join("application"),
             hub_metadata,
-            credential_backend: RuntimeCredentialConfig::default(),
+
+            #[cfg(feature = "host")]
+            credential_store: None,
             trusted_bench: false,
             installed_plugins: Vec::new(),
             plugins: Vec::new(),
@@ -107,8 +114,10 @@ impl RuntimeConfig {
         self
     }
 
-    pub fn with_credential_backend(mut self, backend: RuntimeCredentialConfig) -> Self {
-        self.credential_backend = backend;
+    /// Supply Credential Storage As A Live Composition Resource, Separate From Settings.
+    #[cfg(feature = "host")]
+    pub fn with_credential_store(mut self, store: Arc<keyring_core::CredentialStore>) -> Self {
+        self.credential_store = Some(store);
         self
     }
 
@@ -163,7 +172,6 @@ impl fmt::Debug for RuntimeConfig {
             .field("storage", &self.storage)
             .field("application_root", &self.application_root)
             .field("hub_metadata", &self.hub_metadata)
-            .field("credential_backend", &self.credential_backend)
             .field("installed_plugins", &self.installed_plugins)
             .field("plugins", &self.plugins)
             .field("action_dispatchers", &self.action_dispatchers.keys().collect::<Vec<_>>())
@@ -171,17 +179,8 @@ impl fmt::Debug for RuntimeConfig {
     }
 }
 
-impl Default for RuntimeCredentialConfig {
-    fn default() -> Self {
-        Self { backend: CredentialBackendKind::OsKeyring, local_file: None }
-    }
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn default_compaction_interval() -> Duration {
-    Duration::from_secs(24 * 60 * 60)
-}
 
 /* === Tests === */

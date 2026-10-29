@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -41,15 +43,18 @@ use dokime_domain::model::values::validate_value_format;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(TemplateAuthoringError, formatter {
     Self::MissingMetadata => formatter.write_str("test case template metadata is required"),
     Self::InvalidIdentifier { field, value, reason } => write!(formatter, "invalid {field} identifier {value:?}: {reason}"),
 });
 
 /* === Type Aliases === */
+
 type StepAction<T, C, E> = dyn Fn(&mut T, &mut C) -> Result<(), E> + Send + Sync;
 
 /* === Structs === */
+
 pub struct TemplateContext {
     template_id: Option<TemplateId>,
     metadata: Option<Metadata>,
@@ -59,7 +64,6 @@ pub struct TemplateContext {
     document: Option<DocumentDefinition>,
     steps: Vec<Step>,
     criteria: Vec<CriterionDefinition>,
-    continue_on_failure: bool,
     prompts: Vec<crate::prompts::PromptDefinition>,
     subscriptions: Vec<super::Subscription>,
     attributes: BTreeMap<String, Value>,
@@ -113,6 +117,7 @@ pub struct StepBinding<T, C, E = ()> {
 }
 
 /* === Enums === */
+
 pub enum ParameterDefault {
     Expression(ParameterExpr),
     Source { source: Box<dyn Fn() -> Option<Value> + Send + Sync>, fallback: Value },
@@ -125,6 +130,7 @@ pub enum TemplateAuthoringError {
 }
 
 /* === Traits === */
+
 pub trait RustTemplate {
     fn define(&self, ctx: &mut TemplateContext);
 
@@ -154,6 +160,11 @@ pub trait DeclaredTemplate {
 }
 
 pub trait DeclaredSuite {
+    const ID: &'static str;
+
+    #[cfg(feature = "native")]
+    const TEMPLATE_IDENTIFIERS: &'static [crate::catalog::Node<&'static str>];
+
     #[cfg(feature = "native")]
     const OPERATIONS: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>];
 
@@ -164,7 +175,7 @@ pub trait DeclaredSuite {
 
     #[cfg(feature = "native")]
     fn bind<P: harmos::plugin::Declared>(
-        table: &mut harmos::sidecar::operations::WireTable<harmos::sidecar::Supervisor>, workflow: &str, records: &[RecordContract],
+        table: &mut harmos::sidecar::operations::WireTable, workflow: &str, records: &[RecordContract],
     ) -> Result<(), harmos::sidecar::operations::ServingError>;
 
     #[cfg(feature = "native")]
@@ -172,6 +183,7 @@ pub trait DeclaredSuite {
 }
 
 /* === Implementations === */
+
 impl TemplateContext {
     pub fn new() -> Self {
         Self {
@@ -183,7 +195,6 @@ impl TemplateContext {
             document: None,
             steps: Vec::new(),
             criteria: Vec::new(),
-            continue_on_failure: false,
             prompts: Vec::new(),
             subscriptions: Vec::new(),
             attributes: BTreeMap::new(),
@@ -236,10 +247,6 @@ impl TemplateContext {
         }
     }
 
-    pub fn set_continue_on_failure(&mut self, continue_on_failure: bool) {
-        self.continue_on_failure = continue_on_failure;
-    }
-
     pub fn set_prompts(&mut self, prompts: impl IntoIterator<Item = crate::prompts::PromptDefinition>) {
         self.prompts = prompts.into_iter().collect();
     }
@@ -290,7 +297,6 @@ impl TemplateContext {
             document: self.document,
             phases,
             criteria: self.criteria,
-            continue_on_failure: self.continue_on_failure,
             prompt_definitions: self.prompts,
             subscriptions: self.subscriptions,
             attributes,
@@ -417,7 +423,11 @@ impl Parameter {
 
     pub fn list(identifier: impl Into<String>, label: impl Into<String>, element: ValueType) -> Self {
         let mut parameter = Self::new(identifier, label, ValueType::Array);
-        parameter.list = Some(ParameterList { element_type: element, min_items: None, max_items: None });
+        parameter.list = Some(ParameterList {
+            element_type: element,
+            min_items: None,
+            max_items: None,
+        });
         parameter
     }
 
@@ -426,7 +436,9 @@ impl Parameter {
         I: IntoIterator<Item = V>,
         V: Into<Value>,
     {
-        self.selection = Some(ParameterSelection { choices: choices.into_iter().map(Into::into).collect() });
+        self.selection = Some(ParameterSelection {
+            choices: choices.into_iter().map(Into::into).collect(),
+        });
         self
     }
 
@@ -486,7 +498,10 @@ impl ParameterDefault {
     }
 
     pub fn dynamic(key: DynamicDefaultKey, fallback: impl Into<Value>) -> Self {
-        Self::Expression(ParameterExpr::DynamicDefault { key, fallback: Some(Box::new(ParameterExpr::Literal { value: fallback.into() })) })
+        Self::Expression(ParameterExpr::DynamicDefault {
+            key,
+            fallback: Some(Box::new(ParameterExpr::Literal { value: fallback.into() })),
+        })
     }
 
     pub fn source<F, V>(source: F, fallback: impl Into<Value>) -> Self
@@ -494,7 +509,10 @@ impl ParameterDefault {
         F: Fn() -> Option<V> + Send + Sync + 'static,
         V: Into<Value>,
     {
-        Self::Source { source: Box::new(move || source().map(Into::into)), fallback: fallback.into() }
+        Self::Source {
+            source: Box::new(move || source().map(Into::into)),
+            fallback: fallback.into(),
+        }
     }
 
     pub fn space<I, V>(values: I) -> Self
@@ -589,7 +607,12 @@ impl<T: Into<Value>> From<Vec<T>> for ParameterDefault {
 
 impl Step {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { identifier: identifier.into(), label: label.into(), description: None, repeatable: false }
+        Self {
+            identifier: identifier.into(),
+            label: label.into(),
+            description: None,
+            repeatable: false,
+        }
     }
 
     pub fn repeatable(mut self) -> Self {
@@ -615,7 +638,10 @@ impl<T, C, E> StepBinding<T, C, E> {
     where
         F: Fn(&mut T, &mut C) -> Result<(), E> + Send + Sync + 'static,
     {
-        Self { step: Step::new(identifier, label), action: Box::new(action) }
+        Self {
+            step: Step::new(identifier, label),
+            action: Box::new(action),
+        }
     }
 
     pub fn with_step<F>(step: Step, action: F) -> Self
@@ -639,12 +665,22 @@ impl<T, C, E> StepBinding<T, C, E> {
 }
 
 /* === Public Functions === */
+
 pub fn criterion(identifier_value: impl Into<String>, label: impl Into<String>, expected: Option<Value>) -> Criterion {
-    Criterion { identifier: identifier_value.into(), label: label.into(), description: None, expected }
+    Criterion {
+        identifier: identifier_value.into(),
+        label: label.into(),
+        description: None,
+        expected,
+    }
 }
 
 pub fn metadata(identifier_value: impl Into<String>, label: impl Into<String>, description: impl Into<Option<String>>) -> AuthoredMetadata {
-    AuthoredMetadata { identifier: identifier_value.into(), label: label.into(), description: description.into() }
+    AuthoredMetadata {
+        identifier: identifier_value.into(),
+        label: label.into(),
+        description: description.into(),
+    }
 }
 
 pub fn unit(symbol: impl Into<String>) -> MeasurementUnit {
@@ -711,6 +747,7 @@ pub const fn assert_template_identifiers(suite: &str, templates: &[&str]) {
 }
 
 /* === Private Functions === */
+
 const fn same_identifier(left: &str, right: &str) -> bool {
     let (left, right) = (left.as_bytes(), right.as_bytes());
     if left.len() != right.len() {

@@ -1,20 +1,25 @@
+# === Package === #
+
 [package]
 name = "dokime-packaging"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Cargo-driven native Dokime plugin packaging"
-publish = false
+description = "Dokime sidecar and native installer packaging"
 version = { workspace = true }
+
+# === Package Targets === #
+
+# === Features === #
+
+# === Dependencies === #
 
 [dependencies]
 # Local
-dokime = { path = "../dokime" }
+dokime = { workspace = true, features = ["terminal", "plugin-sidecar", "host"] }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
-harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -23,20 +28,128 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos-packaging = { workspace = true }
 process-wrap = { workspace = true, features = ["tokio1"] }
+sha2 = { workspace = true }
+time = { workspace = true }
 
 # Serialization
+base64 = { workspace = true }
+image = { workspace = true, features = ["bmp", "ico", "png"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
+zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Parsing
 cargo_metadata = { workspace = true }
+syn = { workspace = true }
+
+# Concurrency
 
 # Async
 tokio = { workspace = true, features = ["process"] }
+
+# Networking
+reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring", "std"] }
+
+# Storage
+
+# UI
+tauri-bundler = { workspace = true }
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+[target.'cfg(unix)'.dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+libc = { workspace = true }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+[target.'cfg(windows)'.dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging"] }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+tauri-utils = { workspace = true }
+
+# Testing
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

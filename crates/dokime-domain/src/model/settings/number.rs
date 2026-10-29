@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::SettingsError;
 use crate::model::values::Value;
@@ -29,6 +31,7 @@ use crate::model::values::numeric_value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Number {
     pub id: String,
@@ -45,6 +48,7 @@ pub struct Number {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Number {
     pub fn validate(&self) -> crate::Result<()> {
         if self.min.is_some_and(|v| !v.is_finite())

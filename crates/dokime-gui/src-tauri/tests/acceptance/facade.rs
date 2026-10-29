@@ -12,7 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::process::{Command, Stdio};
 // Third Party Imports
 use crate::support::wire::WireMessage;
@@ -20,7 +23,7 @@ use serde_json::json;
 // Local Imports
 use crate::support::bridge::{Harness, Local};
 use crate::support::{artifact, server::Fixture};
-use dokime_domain::model;
+use dokime::domain::model;
 use dokime_gui::rpc::Bridge;
 
 /* === Constants === */
@@ -40,29 +43,36 @@ use dokime_gui::rpc::Bridge;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn base64(bytes: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
 /* === Tests === */
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn typescript_facade_bridge() {
+    let manifest = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"));
     let fixture = Fixture::new().await;
     fixture.runtime.handle().set_brand(Some(
-        dokime_runtime::domains::installed_plugins::load_brand(
-            &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../branding"),
+        dokime::domains::installed_plugins::load_brand(
+            &std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+                .join("../../../organization"),
         )
         .unwrap(),
     ));
     let artifact_id = artifact::seed(&fixture.runtime.handle(), &fixture.artifacts).await;
     let harness = Harness::new(fixture.session.clone());
     let snapshot = fixture.session.status();
-    let mut child = Command::new("node")
+    let mut command = Command::new("node");
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let mut child = command
         .env("DOKIME_TEST_GENERATION", &snapshot.generation)
         .env("DOKIME_TEST_BACKEND_ID", &snapshot.backend.as_ref().unwrap().backend_id)
         .env("DOKIME_TEST_ARTIFACT_ID", artifact_id)
-        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-rpc-interop.mjs"))
+        .arg(manifest.join("tests/fixtures/test-rpc-interop.mjs"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -78,7 +88,7 @@ async fn typescript_facade_bridge() {
             }
             // These fixtures exercise TS-generated message semantics against canonical Harmos types.
             "fixture_value" => {
-                let value = model::values::wire::Value::from_wire(bytes).unwrap();
+                let (value, _admitted_memory) = model::values::wire::Value::from_wire(bytes).unwrap();
                 assert_eq!(value.nodes.len(), 5);
                 let Some(model::values::wire::ValueKind::Object(fields)) = &value.nodes[0].kind else {
                     panic!("the fixture value has an object root");
@@ -87,14 +97,14 @@ async fn typescript_facade_bridge() {
                     fields.fields.iter().map(|field| (field.key.as_str(), field.value)).collect::<Vec<_>>(),
                     vec![("minimum", 1), ("maximum", 2), ("null", 3), ("unset", 4)]
                 );
-                assert!(matches!(value.nodes[1].kind, Some(model::values::wire::ValueKind::Integer(i64::MIN))));
-                assert!(matches!(value.nodes[2].kind, Some(model::values::wire::ValueKind::Integer(i64::MAX))));
-                assert!(matches!(value.nodes[3].kind, Some(model::values::wire::ValueKind::Null)));
+                assert!(matches!(&value.nodes[1].kind, Some(model::values::wire::ValueKind::Integer(i64::MIN))));
+                assert!(matches!(&value.nodes[2].kind, Some(model::values::wire::ValueKind::Integer(i64::MAX))));
+                assert!(matches!(&value.nodes[3].kind, Some(model::values::wire::ValueKind::Null)));
                 assert!(value.nodes[4].kind.is_none());
                 Local::Reply(json!({ "bytes": base64(&value.wire_bytes()) }))
             }
             "fixture_admission" => {
-                let value = model::execution::wire::Admission::from_wire(bytes).unwrap();
+                let (value, _admitted_memory) = model::execution::wire::Admission::from_wire(bytes).unwrap();
                 assert_eq!(value.cursor.as_ref().unwrap().position, u64::MAX);
                 assert_eq!(value.accepted_at.as_ref().unwrap().seconds, -1);
                 assert_eq!(value.accepted_at.as_ref().unwrap().nanos, 999_999_999);

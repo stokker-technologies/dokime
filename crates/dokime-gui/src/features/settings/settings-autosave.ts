@@ -7,14 +7,7 @@
  * ***
  */
 
-/* Settings save themselves.
- *
- * A Save button beside every field made the operator confirm a preference they
- * had already expressed. Typing settles for 400 ms and then writes; a switch, a
- * select or a segmented control writes at once. The row reports the outcome
- * where the change was made, and a failure keeps the entered value and offers
- * the write again.
- */
+/* Debounced, Serialized Settings Writes With Inline Status. */
 
 /* === External Imports === */
 
@@ -27,53 +20,37 @@ export type AutosaveState = { kind: "error"; message: string } | { kind: "idle" 
 export type Autosave<T> = {
   /** Writes after the debounce; use for text and number inputs. */
   change: (value: T) => void;
-  /** Writes at once; use for switches, selects and segmented controls. */
-  commit: (value: T) => void;
   retry: () => void;
   state: AutosaveState;
 };
 
 /* === Constants === */
 
-const DEBOUNCE_MS = 400;
-const SAVED_MS = 2_000;
+const GUI_SETTINGS_DEBOUNCE_MS = 100;
+const GUI_SETTINGS_SAVED_MS = 2_000;
+
+const SAVED_MS = GUI_SETTINGS_SAVED_MS;
 
 /* === Public Functions === */
 
 export function useAutosave<T>(save: (value: T) => Promise<unknown>, message: (error: unknown) => string = describeError): Autosave<T> {
   const [state, setState] = useState<AutosaveState>({ kind: "idle" });
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const last = useRef<T | null>(null);
+  const last = useRef<{ value: T } | null>(null);
   const saveRef = useRef(save);
   saveRef.current = save;
-
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  const commit = useCallback(
-    (value: T) => {
-      if (timer.current) clearTimeout(timer.current);
-      last.current = value;
-      setState({ kind: "saving" });
-      saveRef
-        .current(value)
-        .then(() => setState({ kind: "saved" }))
-        .catch((error: unknown) => setState({ kind: "error", message: message(error) }));
-    },
-    [message],
-  );
-
-  const change = useCallback(
-    (value: T) => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => commit(value), DEBOUNCE_MS);
-    },
-    [commit],
-  );
+  const writer = useRef<ReturnType<typeof createDebouncedWriter<T>> | null>(null);
+  if (!writer.current)
+    writer.current = createDebouncedWriter(
+      async (value) => {
+        await saveRef.current(value);
+      },
+      (next) => setState(next.kind === "error" ? { ...next, message: message(new Error(next.message)) } : next),
+    );
+  useEffect(() => () => writer.current?.flush(), []);
+  const change = useCallback((value: T) => {
+    last.current = { value };
+    writer.current?.change(value);
+  }, []);
 
   /* "Saved" states what just happened, then stops taking up the row. */
   useEffect(() => {
@@ -83,10 +60,69 @@ export function useAutosave<T>(save: (value: T) => Promise<unknown>, message: (e
   }, [state]);
 
   const retry = useCallback(() => {
-    if (last.current !== null) commit(last.current);
-  }, [commit]);
+    if (last.current !== null) {
+      writer.current?.reset();
+      writer.current?.change(last.current.value);
+    }
+  }, []);
 
-  return { change, commit, retry, state };
+  return { change, retry, state };
+}
+
+/** Serialize Debounced Writes And Keep The Latest Edit While A Write Is In Flight. */
+export function createDebouncedWriter<T>(write: (value: T) => Promise<void>, changed: (state: AutosaveState) => void) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let pending: { value: T } | undefined;
+  let writing = false;
+  let ready = false;
+  let failed = false;
+
+  async function drain() {
+    if (writing || !pending || !ready || failed) return;
+    const current = pending;
+    pending = undefined;
+    writing = true;
+    try {
+      await write(current.value);
+      if (!pending) changed({ kind: "saved" });
+    } catch (error) {
+      pending ??= current;
+      failed = true;
+      changed({ kind: "error", message: describeError(error) });
+    } finally {
+      writing = false;
+      if (pending && ready && !failed) void drain();
+    }
+  }
+
+  return {
+    change(value: T) {
+      clearTimeout(timer);
+      pending = { value };
+      ready = false;
+      changed({ kind: "saving" });
+      timer = setTimeout(() => {
+        ready = true;
+        void drain();
+      }, GUI_SETTINGS_DEBOUNCE_MS);
+    },
+    flush() {
+      clearTimeout(timer);
+      ready = true;
+      void drain();
+    },
+    cancel() {
+      clearTimeout(timer);
+      pending = undefined;
+      ready = false;
+    },
+    reset() {
+      clearTimeout(timer);
+      pending = undefined;
+      ready = false;
+      failed = false;
+    },
+  };
 }
 
 /* === Private Functions === */

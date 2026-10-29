@@ -11,8 +11,8 @@
 import { ArtifactTree } from "@/components/ArtifactTree";
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
+import { type DocumentCardContentProps, DocumentCardContentView } from "./DocumentSurfaceView";
 import { OperatorNotesContent } from "./OperatorNotesContent";
-import { DocumentCardContentView, type DocumentCardContentProps } from "./DocumentSurfaceView";
 
 /* === Components === */
 export function DocumentCardContent(props: DocumentCardContentProps) {

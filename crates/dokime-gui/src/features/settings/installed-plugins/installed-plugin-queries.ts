@@ -20,7 +20,7 @@ import type { SettingValues } from "@/features/settings/installed-plugins/instal
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { settingsQueryKeys } from "@/features/settings/settings-queries";
 import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
-import { updateNativePluginCredential, updateNativePluginSettings } from "@/lib/api/native-settings";
+import { updateNativePluginSecret, updateNativePluginSettings } from "@/lib/api/native-settings";
 import { appearanceQueryKey } from "@/lib/appearance";
 
 /* === Query Keys === */
@@ -42,7 +42,6 @@ export function useInstalledPluginsQuery() {
   return useQuery({
     queryFn: () => listNativeAdmittedPlugins(session.identity),
     queryKey: pluginQueryKeys.list(session.identity.generation),
-    staleTime: 15_000,
   });
 }
 
@@ -57,7 +56,6 @@ export function useInstalledPluginDetailQuery(pluginId: string, ownerKey: string
       return getInstalledPluginDetail(session.identity, pluginId);
     },
     queryKey: [...pluginQueryKeys.detail(pluginId, session.identity.generation), ownerKey],
-    staleTime: 15_000,
   });
 }
 
@@ -79,14 +77,14 @@ export function useInstalledPluginSettingsMutation() {
   });
 }
 
-export function useInstalledPluginCredentialMutation() {
+export function useInstalledPluginSecretMutation() {
   const session = useNativeSession();
   const queryClient = useQueryClient();
 
   return useMutation({
     gcTime: 0,
-    mutationFn: ({ credentialId, pluginId, secret }: { credentialId: string; pluginId: string; secret: string }) =>
-      updateNativePluginCredential(session.identity, pluginId, credentialId, secret),
+    mutationFn: ({ secretId, pluginId, secret }: { secretId: string; pluginId: string; secret: string }) =>
+      updateNativePluginSecret(session.identity, pluginId, secretId, secret),
     onSuccess: async (_settings, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() }),

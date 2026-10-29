@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,10 +22,12 @@ use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Error, ImplItem, ImplItemFn, ItemImpl, Meta, Token};
+
 // Local Imports
 use crate::arguments::{self, Arguments};
 
 /* === Constants === */
+
 const ARGUMENTS: &[&str] = &["id", "label", "description", "tags", "templates", "records"];
 
 /* === Macros === */
@@ -40,6 +43,7 @@ const ARGUMENTS: &[&str] = &["id", "label", "description", "tags", "templates", 
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn suite(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -52,16 +56,14 @@ pub(crate) fn suite(attribute: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /* === Private Functions === */
+
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     refuse_product(&attribute)?;
     let arguments = Arguments::read(attribute, "a suite", ARGUMENTS)?;
     let block: ItemImpl = syn::parse2(item.clone())?;
     if let Some((path, _)) = &block.trait_ {
-        return Err(Error::new(
-            path.span(),
-            "`#[dokime_runtime::suite]` declares the suite's own inherent impl, not a trait implementation",
-        ));
+        return Err(Error::new(path.span(), "`#[dokime::suite]` declares the suite's own inherent impl, not a trait implementation"));
     }
     let suite = block.self_ty.clone();
 
@@ -87,6 +89,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     // step that files it, and reaches the registration through the same closed
     // template set the stream contracts do.
     let records = crate::catalog::argument(&arguments, "records")?;
+    let records_check = crate::catalog::assert_unique(&records, "RecordIdentifiers");
     let records = quote!(definition.record_contracts = <#records as #sdk::catalog::Catalog<#sdk::catalog::Records>>::ENTRIES
         .iter().map(|contract| contract()).collect(););
     let template_records = quote! {
@@ -118,6 +121,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         #block
 
         #identities
+        #records_check
 
         #[automatically_derived]
         impl #suite {
@@ -157,6 +161,10 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 
         #[automatically_derived]
         impl #sdk::definition::DeclaredSuite for #suite {
+            const ID: &'static str = #identifier;
+            const TEMPLATE_IDENTIFIERS: &'static [#sdk::catalog::Node<&'static str>] =
+                <#templates as #sdk::catalog::IdentifierCatalog<#sdk::catalog::TemplateIdentifierNodes>>::IDENTIFIERS;
+
             const OPERATIONS: &'static [#sdk::catalog::Node<#sdk::__harmos::operations::WireDeclaration>] =
                 &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateOperations>>::ENTRIES;
             const STREAMS: &'static [#sdk::catalog::Node<#sdk::catalog::Publication>] =
@@ -167,7 +175,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
             }
 
             fn bind<__DokimePlugin: #sdk::__harmos::plugin::Declared>(
-                table: &mut #sdk::__harmos::sidecar::operations::WireTable<#sdk::Supervisor>,
+                table: &mut #sdk::__harmos::sidecar::operations::WireTable,
                 _: &str,
                 _: &[#sdk::records::RecordContract],
             ) -> ::core::result::Result<(), #sdk::__harmos::sidecar::operations::ServingError> {

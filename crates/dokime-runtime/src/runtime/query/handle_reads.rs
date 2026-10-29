@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -45,38 +47,51 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub(crate) async fn projected_evidence_snapshot(
         &self, snapshot: &crate::queries::RuntimeStateSnapshot,
-    ) -> crate::runtime::Result<EvidenceSnapshot> {
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<EvidenceSnapshot>> {
         let state = snapshot.state();
-        let telemetry = self.collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default()).await;
-        let records = self.records_at(snapshot).await?;
-        let (prompts, health, mut traceability, notes, artifacts, record_contracts, telemetry_contracts) = (
-            state.pending_prompt_projection(),
-            state.health_items(),
-            crate::evidence_runtime::state::traceability_snapshots(state),
-            state.notes(),
-            self.artifacts().await?,
-            state.record_contracts(),
-            state.telemetry_contracts(),
-        );
-        self.enrich_host_traceability(&mut traceability, None).await;
-        self.enrich_lease_traceability(&mut traceability, None).await;
-        let summaries = EvidenceSummaries::from_records(&records, &telemetry);
-
-        Ok(EvidenceSnapshot {
-            record_contracts,
-            telemetry_contracts,
-            summaries,
-            records,
-            telemetry,
-            prompts,
-            artifacts,
-            health,
-            traceability,
-            notes,
+        let at = self.saved_through(snapshot.revision()).await?;
+        let session = self.storage().clone();
+        let telemetry =
+            self.collect_telemetry_at_in(&session, &crate::evidence_runtime::TelemetrySelection::default(), None, None, &at).await?;
+        let records: crate::storage::ReadRows<RecordEntry> = self.record_pages_at_in(&session, snapshot, &at).await?.into();
+        let artifacts = self.artifacts_at_in(&session, &at).await?;
+        let summaries = EvidenceSummaries::retained(&records, &telemetry)?;
+        let traceability = self.retained_traceability_in(state, None, &telemetry, true, &crate::model::time::now_utc())?;
+        let result = telemetry.try_map_with(summaries, |telemetry, summaries| {
+            Ok::<_, crate::runtime::Error>(EvidenceSnapshot {
+                record_contracts: evidence_clone_rows(state.record_definitions.values().count(), state.record_definitions.values())?,
+                telemetry_contracts: evidence_clone_rows(
+                    state.telemetry_definitions.values().count(),
+                    state.telemetry_definitions.values(),
+                )?,
+                summaries,
+                records,
+                telemetry,
+                prompts: evidence_clone_rows(state.open_prompts().count(), state.open_prompts())?,
+                artifacts: Vec::new(),
+                health: evidence_clone_rows(state.iter_health_items().count(), state.iter_health_items())?,
+                traceability: Vec::new(),
+                notes: evidence_clone_rows(state.iter_notes().count(), state.iter_notes())?,
+            })
+        })?;
+        let result = result.try_map_with(artifacts, |mut snapshot, artifacts| {
+            snapshot.artifacts = artifacts;
+            Ok::<_, crate::runtime::Error>(snapshot)
+        })?;
+        result.try_map_with(traceability, |mut snapshot, traceability| {
+            snapshot.traceability = traceability;
+            Ok(snapshot)
         })
+    }
+
+    // A Read Sees Its Own Writes: Records Through The Revision And Every Accepted Row Are Saved Before The Cut Is Taken.
+    pub(crate) async fn saved_through(&self, revision: u64) -> crate::runtime::Result<harmos::storage::StorageCursor> {
+        self.record_source.wait_through(&self.state_manager, revision).await?;
+        Ok(self.storage().flush_until(&self.storage().cursor_accepted()).await?)
     }
 
     pub(crate) fn state_read(&self) -> Arc<crate::runtime::state::RuntimeState> {
@@ -84,19 +99,29 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn refresh_state(&self) -> crate::runtime::Result<Arc<crate::runtime::state::RuntimeState>> {
+        let revision = self.state_manager.state().read(|_| ()).await?.position.0;
+        if self.state_watch.borrow().revision() >= revision {
+            return Ok(self.state_read());
+        }
+        // Clone Shared Roots At One Committed Revision; Readers Retain Immutable Entries.
         let state =
             self.state_manager.state().read(Clone::clone).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
         let frontier = state.position.0;
         let state = Arc::new(state.value);
-        *self.state.write().expect("runtime state read-model lock is healthy") = Arc::clone(&state);
-        self.state_watch.send_replace(crate::queries::RuntimeStateSnapshot::new(Arc::clone(&state), frontier));
-        Ok(state)
+        self.state_watch.send_if_modified(|snapshot| {
+            if snapshot.revision() >= frontier {
+                return false;
+            }
+            *self.state.write().expect("runtime state read-model lock is healthy") = Arc::clone(&state);
+            *snapshot = crate::queries::RuntimeStateSnapshot::new(Arc::clone(&state), frontier);
+            true
+        });
+        Ok(self.state_read())
     }
 
     pub(crate) async fn capture_state(&self) -> crate::runtime::Result<crate::queries::RuntimeStateSnapshot> {
-        let state =
-            self.state_manager.state().read(Clone::clone).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
-        Ok(crate::queries::RuntimeStateSnapshot::new(Arc::new(state.value), state.position.0))
+        self.refresh_state().await?;
+        Ok(self.state_watch.borrow().clone())
     }
 
     pub(crate) async fn settled_evidence_state(&self) -> Arc<crate::runtime::state::RuntimeState> {
@@ -108,6 +133,10 @@ impl RuntimeHandle {
 
     pub fn storage_root(&self) -> std::path::PathBuf {
         self.config().storage_root.clone()
+    }
+
+    pub fn storage_read_counters(&self) -> crate::storage::sqlite::ReadCounters {
+        self.local_storage.read_counters()
     }
 
     pub fn application_root(&self) -> std::path::PathBuf {
@@ -135,14 +164,15 @@ impl RuntimeHandle {
     pub async fn evidence_counts_at(
         &self, snapshot: &crate::queries::RuntimeStateSnapshot,
     ) -> crate::runtime::Result<crate::evidence_runtime::EvidenceCounts> {
-        Ok(crate::runtime_state::evidence_counts(snapshot.state(), self.execution_storage.artifact_count().await?))
+        let traceability = crate::traceability::count(snapshot.state())?;
+        Ok(crate::runtime_state::evidence_counts(snapshot.state(), self.execution_storage.artifact_count().await?, traceability))
     }
 }
 
-/* === Read Dispatch === */
+// Read Dispatch
 
 impl RuntimeHandle {
-    pub async fn evidence_snapshot(&self) -> crate::runtime::Result<crate::evidence_runtime::EvidenceSnapshot> {
+    pub async fn evidence_snapshot(&self) -> crate::runtime::Result<harmos::storage::ReadBatch<crate::evidence_runtime::EvidenceSnapshot>> {
         let snapshot = self.capture_state().await?;
         self.projected_evidence_snapshot(&snapshot).await
     }
@@ -159,10 +189,35 @@ impl RuntimeHandle {
         self.state_read().telemetry_contracts()
     }
 
-    pub async fn telemetry_stream_summaries(&self) -> Vec<crate::evidence_runtime::TelemetryStreamSummary> {
-        let telemetry = self.collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default()).await;
-
-        crate::evidence_runtime::EvidenceSummaries::from_records(std::iter::empty::<&RecordEntry>(), &telemetry).telemetry_streams
+    pub async fn telemetry_stream_summaries(
+        &self,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<crate::evidence_runtime::TelemetryStreamSummary>>> {
+        let session = self.storage();
+        let at = session.cursor_saved();
+        let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &at, None, self.schema_settings(), |id, _| {
+            crate::storage::telemetry::selected_schema(id, &[])
+        })
+        .await?;
+        let mut summaries = EvidenceSummaries::default();
+        let mut after = 0;
+        loop {
+            let page = self.local_storage.telemetry_page(at.clone(), after, None, None).await?;
+            if page.is_empty() {
+                break;
+            }
+            for row in page {
+                after = row.record.position.sequence;
+                let codec = codecs
+                    .iter()
+                    .find(|codec| codec.schema() == &row.record.schema)
+                    .ok_or_else(|| crate::runtime::Error::Operation("saved telemetry codec is missing".into()))?;
+                let mut sample = codec.decode_stored(&row)?.sample;
+                sample.sequence = after;
+                summaries.record_telemetry_sample(&sample);
+            }
+            tokio::task::yield_now().await;
+        }
+        Ok(harmos::storage::ReadBatch::new(summaries.telemetry_streams))
     }
 
     pub async fn selected_records(&self, selection: crate::evidence_runtime::RecordSelection) -> crate::runtime::Result<Vec<RecordEntry>> {
@@ -170,39 +225,27 @@ impl RuntimeHandle {
         let captured =
             crate::queries::records::execution_capture(snapshot.state().executions.values(), selection.scope.test_execution_id.as_ref());
         Ok(selection.apply_with_subscriptions(&self.records_at(&snapshot).await?, |record| {
-            captured.and_then(|captures| captures.subscribed_records().get(&record.record_id))
+            captured.and_then(|captures| captures.captured_scope(record))
         }))
     }
 
-    pub(crate) async fn journal_records_through(&self, frontier: harmos::state::Position) -> crate::runtime::Result<Vec<RecordEntry>> {
-        validate_frontier(frontier, self.state_manager.applied())?;
-        self.record_source.wait_through(&self.state_manager, frontier.0).await?;
-        let mut records = Vec::new();
-        let mut reader = self.record_source.history(&self.state_manager, 0, frontier.0).await?;
-        while let Some(record) = reader.next().await? {
-            records.push((*record).clone());
-        }
-        Ok(records)
+    pub(crate) async fn record_pages_at_in(
+        &self, session: &crate::storage::Manager, snapshot: &crate::queries::RuntimeStateSnapshot, at: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<crate::storage::projection::Pages<RecordEntry>> {
+        let state = snapshot.state();
+        self.record_source
+            .saved_filtered_records_at_in(session, snapshot.revision(), at, |record| {
+                record.scope.as_ref().is_none_or(|scope| scope.test_cycle_id.as_ref().is_none_or(|id| state.cycles.contains_key(id)))
+                    || state.executions.values().any(|execution| execution.records.captured_scope(record).is_some())
+            })
+            .await
     }
 
     pub(crate) async fn records_at(&self, snapshot: &crate::queries::RuntimeStateSnapshot) -> crate::runtime::Result<Vec<RecordEntry>> {
-        let visible = snapshot
-            .state()
-            .records
-            .record_visibility
-            .iter()
-            .map(|record| record.record_id.clone())
-            .chain(snapshot.state().executions.values().flat_map(|execution| execution.records.subscribed_records().keys().cloned()))
-            .collect::<BTreeSet<_>>();
-        Ok(self
-            .journal_records_through(harmos::state::Position(snapshot.revision()))
-            .await?
-            .into_iter()
-            .filter(|record| {
-                visible.contains(&record.record_id)
-                    || record.scope.as_ref().is_none_or(|scope| scope.test_cycle_id.is_none() && scope.test_execution_id.is_none())
-            })
-            .collect())
+        let session = self.storage().clone();
+        let at = self.saved_through(snapshot.revision()).await?;
+        let pages = self.record_pages_at_in(&session, snapshot, &at).await?;
+        Ok(pages.iter().flat_map(|page| page.iter().cloned()).collect())
     }
 
     pub(crate) async fn current_journal_records(&self) -> crate::runtime::Result<Vec<RecordEntry>> {
@@ -210,14 +253,36 @@ impl RuntimeHandle {
         self.records_at(&snapshot).await
     }
 
-    pub async fn selected_telemetry(&self, selection: crate::evidence_runtime::TelemetrySelection) -> Vec<TelemetrySample> {
+    pub async fn selected_telemetry(
+        &self, selection: crate::evidence_runtime::TelemetrySelection,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
         self.collect_telemetry(&selection).await
     }
 
-    pub async fn try_selected_telemetry(
-        &self, selection: crate::evidence_runtime::TelemetrySelection,
-    ) -> crate::runtime::Result<Vec<TelemetrySample>> {
-        self.try_collect_telemetry(&selection).await
+    // Reads One Storage-Ordered Page After The Position `after`; Each Page Or Wake Scans Only Rows Past It.
+    pub async fn telemetry_page_at(
+        &self, session: &crate::storage::Manager, selection: &crate::evidence_runtime::TelemetrySelection,
+        at: &harmos::storage::StorageCursor, after: u64,
+    ) -> crate::runtime::Result<(crate::runtime::TelemetryPage, bool)> {
+        use harmos::storage::{ObjectRead, query::ObjectVersions};
+        let mut sealed = false;
+        if let Some(id) = &selection.scope.test_execution_id {
+            let mut rows = session
+                .read_objects::<crate::storage::objects::execution::Execution>(ObjectRead {
+                    at: at.clone(),
+                    key: Some(id.as_str()),
+                    versions: ObjectVersions::Latest,
+                })
+                .await?;
+            while let Some(page) = rows.next().await? {
+                sealed |= page.iter().any(|row| row.value.is_sealed());
+            }
+        }
+        let options = crate::runtime::storage::telemetry::ReadOptions { after, ..Default::default() };
+        let page =
+            crate::runtime::storage::telemetry::collect_page(session, at, selection, self.schema_settings(), options, &self.local_storage)
+                .await?;
+        Ok((page, sealed))
     }
 
     pub async fn analysis_definitions(&self) -> crate::runtime::Result<Vec<crate::analysis::Definition>> {
@@ -227,8 +292,15 @@ impl RuntimeHandle {
 
     pub async fn query_plot_payloads(
         &self, requests: Vec<crate::queries::PlotPayloadRequest>, mode: crate::queries::RuntimePlotQueryMode,
-    ) -> crate::runtime::Result<Vec<crate::queries::PlotPayloadEnvelope>> {
+    ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<crate::queries::PlotPayloadEnvelope>>> {
         crate::queries::plots::query_plot_payloads(self, requests, mode).await
+    }
+
+    pub async fn query_plot_payloads_at(
+        &self, requests: Vec<crate::queries::PlotPayloadRequest>, mode: crate::queries::RuntimePlotQueryMode,
+        at: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<crate::queries::PlotPayloadEnvelope>>> {
+        crate::queries::plots::query_plot_payloads_at(self, requests, mode, at).await
     }
 
     pub async fn query_plot_stream_batches(
@@ -245,12 +317,11 @@ impl RuntimeHandle {
         self.state_read().health_items()
     }
 
-    pub async fn traceability_snapshots(&self) -> Vec<TraceabilitySnapshot> {
+    pub async fn traceability_snapshots(&self) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>> {
         let state = self.state_read();
-        let mut snapshots = crate::evidence_runtime::state::traceability_snapshots(&state);
-        self.enrich_host_traceability(&mut snapshots, None).await;
-        self.enrich_lease_traceability(&mut snapshots, None).await;
-        snapshots
+        let session = self.storage().clone();
+        let at = self.storage().cursor_saved();
+        self.retained_traceability_at_in(&session, &state, None, &at, true).await
     }
 
     pub async fn traceability_snapshots_page_at(
@@ -281,6 +352,7 @@ impl RuntimeHandle {
             }
             Ok((snapshots, has_more, host_fingerprint.to_owned()))
         })
+        .await
     }
 
     pub async fn notes(&self) -> Vec<OperatorNote> {
@@ -296,11 +368,18 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-fn validate_frontier(frontier: harmos::state::Position, applied: harmos::state::Position) -> crate::runtime::Result<()> {
-    if frontier > applied {
-        return Err(crate::runtime::Error::Operation("record frontier exceeds applied state position".into()));
+fn evidence_memory() -> crate::runtime::Error {
+    harmos::Error::ResourceExhausted {
+        resource: "evidence snapshot construction",
     }
-    Ok(())
+    .into()
+}
+
+fn evidence_clone_rows<'a, T: Clone + 'a>(count: usize, rows: impl Iterator<Item = &'a T>) -> crate::runtime::Result<Vec<T>> {
+    let mut result = Vec::new();
+    result.try_reserve_exact(count).map_err(|_| evidence_memory())?;
+    result.extend(rows.cloned());
+    Ok(result)
 }
 
 /* === Tests === */

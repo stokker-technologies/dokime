@@ -12,24 +12,29 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::Status;
+
 // Local Imports
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::notes::NoteOwner;
-use dokime_domain::model::execution::wire_cursor::Cursor;
-use dokime_runtime::runtime::query::RuntimeStateSnapshot;
+use dokime::domain::model::execution::RecordScope;
+use dokime::domain::model::execution::notes::NoteOwner;
+use dokime::domain::model::execution::wire_cursor::Cursor;
+use dokime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
+
+const NOTE_SCAN_ITEMS: u64 = 10_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Page {
     pub owner: Option<NoteOwner>,
     pub context: bool,
@@ -37,7 +42,7 @@ pub(super) struct Page {
     pub after: String,
     pub cursor: Cursor,
     scope: Option<RecordScope>,
-    case_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
+    case_executions: std::collections::BTreeSet<dokime::domain::model::identity::TestExecutionId>,
 }
 
 /* === Enums === */
@@ -45,13 +50,14 @@ pub(super) struct Page {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Page {
     pub fn new(
-        selection: Option<dokime_domain::model::notes::wire::AnnotationSelection>, limit: u32, after_id: String,
+        selection: Option<dokime::domain::model::notes::wire::AnnotationSelection>, limit: u32, after_id: String,
         given_cursor: Option<Cursor>, snapshot: &RuntimeStateSnapshot, kind: &str,
     ) -> Result<Self, Status> {
         let mut selection =
-            selection.unwrap_or(dokime_domain::model::notes::wire::AnnotationSelection { owner: None, include_context: false });
+            selection.unwrap_or(dokime::domain::model::notes::wire::AnnotationSelection { owner: None, include_context: false });
         let owner = selection.owner.take().map(|owner| super::wire::owner(Some(owner))).transpose()?;
         selection.owner = owner.as_ref().map(super::wire::encode_owner);
         if owner.is_none() {
@@ -59,15 +65,15 @@ impl Page {
         }
         let stream = format!(
             "{kind}:{}",
-            Sha256::digest(harmos::Message::encode_to_vec(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+            Sha256::digest(dokime::harmos::Message::encode(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
-        let cursor = Cursor { epoch: snapshot.state().process_epoch().to_string(), stream, position: snapshot.revision() };
-        if limit > 100 {
-            return Err(Status::invalid_argument("page limit exceeds 100"));
-        }
-        if after_id.len() > 64 {
-            return Err(Status::invalid_argument("invalid after_id"));
-        }
+        let cursor = Cursor {
+            epoch: snapshot.state().process_epoch().to_string(),
+            stream,
+            position: snapshot.revision(),
+        };
+        let limit = dokime::domain::model::execution::wire_cursor::page_size(limit, &after_id)
+            .map_err(crate::grpc::value::canonical::cursor_failure)?;
         if !after_id.is_empty() && given_cursor.is_none() {
             return Err(Status::invalid_argument("subsequent page requires cursor"));
         }
@@ -96,9 +102,9 @@ impl Page {
             let executions = snapshot
                 .state()
                 .executions_for_cycle(cycle)
-                .take(dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT + 1)
+                .take(usize::try_from(NOTE_SCAN_ITEMS).expect("validated note scan limit") + 1)
                 .collect::<Vec<_>>();
-            if executions.len() > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {
+            if executions.len() > usize::try_from(NOTE_SCAN_ITEMS).expect("validated note scan limit") {
                 return Err(Status::resource_exhausted("annotation owner scan budget exceeded"));
             }
             case_executions
@@ -107,7 +113,7 @@ impl Page {
         Ok(Self {
             owner,
             context: selection.include_context,
-            limit: if limit == 0 { 50 } else { limit as usize },
+            limit,
             after,
             cursor,
             scope,

@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 
@@ -26,9 +28,11 @@ use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopSessionSnapshot {
+    pub status_revision: u64,
     pub ownership: BackendOwnership,
     pub phase: Option<String>,
     pub archived_bytes: Option<u64>,
@@ -38,19 +42,17 @@ pub struct DesktopSessionSnapshot {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackendDiagnostics {
-    pub executable: String,
-    pub exit_code: Option<i32>,
-    pub exit_status: Option<String>,
-    pub tail: String,
+    pub cause: String,
     pub log: Option<String>,
 }
 
 /* === Enums === */
+
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BackendSelection {
     OwnedLocal,
-    Profile { name: String },
+    Profile { identifier: String },
     Attach { request: ConnectRequest },
 }
 
@@ -59,7 +61,7 @@ pub enum BackendSelection {
 pub enum BackendOwnership {
     None,
     OwnedLocal,
-    Profile { name: String },
+    Profile { identifier: String },
     Attached,
 }
 

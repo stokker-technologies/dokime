@@ -44,6 +44,7 @@ struct Reader;
 
 /* === Implementations === */
 impl Application for Reader {
+    type Lanes = dokime_runtime::app::Lanes;
     type State = ();
     type Transaction = Never;
     type Record = Never;
@@ -64,7 +65,7 @@ async fn report_publication_reopens() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let storage = Manager::new(StorageBackends { primary, state: recovery }, super::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
@@ -81,7 +82,7 @@ async fn report_publication_reopens() {
         })
         .await
         .unwrap();
-    file.write_all(b"<html>verified report</html>").await.unwrap();
+    file.write_all(b"<html>verified report</html>".to_vec()).await.unwrap();
     let file = file.finish().await.unwrap();
     let saved = storage.flush_until(&file.position).await.unwrap();
     let at = Timestamp::new("2026-10-09T09:00:00Z");
@@ -91,30 +92,28 @@ async fn report_publication_reopens() {
         session_id: None,
         metadata: dokime_runtime::Metadata::new(Identifier::new("report.cycle").unwrap(), "Report Cycle", None),
         lifecycle: dokime_domain::model::execution::result::CycleStatus::Completed,
+        phase: dokime_domain::model::execution::result::CyclePhase::Sealing,
         created_at: at.clone(),
         started_at: None,
         updated_at: at.clone(),
         execution_ids: Vec::new(),
         records: Default::default(),
-        continue_on_failure: false,
+        continue_automatically: false,
         result: None,
     };
-    let mut publication = reports::Prepared::new(
-        &storage,
-        &reports::Input {
-            owner: reports::Owner::Cycle(&owner),
-            cycle: Some(&cycle),
-            execution: None,
-            generated_at: &at,
-            final_report: true,
-            evidence_through: &evidence,
-            dependencies_saved: &saved,
-            executions: &[],
-            inputs: &[],
-            file: &file,
-        },
-    )
-    .unwrap();
+    let input = reports::Input {
+        owner: reports::Owner::Cycle(&owner),
+        cycle: Some(&cycle),
+        execution: None,
+        generated_at: &at,
+        final_report: true,
+        evidence_through: &evidence,
+        dependencies_saved: &saved,
+        executions: &[],
+        inputs: &[],
+        file: &file,
+    };
+    let mut publication = reports::Prepared::new(&storage, &input, &Default::default()).unwrap();
     let receipt = publication.finish().await.unwrap();
     assert_eq!(publication.finish().await.unwrap(), receipt);
     assert_eq!(storage.status().accepted, receipt);
@@ -125,7 +124,7 @@ async fn report_publication_reopens() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let storage = Manager::new(StorageBackends { primary, state: recovery }, super::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
@@ -147,13 +146,19 @@ async fn report_publication_reopens() {
     };
     for report_id in [None, Some(file.metadata.id.clone())] {
         let page = published(reports::Owner::Cycle(&owner), report_id).await;
-        assert_eq!(page.len(), 1);
-        assert_eq!(page[0].position, receipt);
-        let publication = reports::Publication::from_record(page[0].clone()).unwrap();
+        assert_eq!(page.iter().map(|batch| batch.len()).sum::<usize>(), 1);
+        let record = page.iter().flat_map(|batch| batch.iter()).next().unwrap();
+        assert_eq!(record.position, receipt);
+        assert_eq!(record.item, file.metadata.id);
+        let publication = page
+            .try_map(|batches| {
+                let batch = batches.into_iter().find(|batch| !batch.is_empty()).unwrap();
+                batch.try_map(|mut records| reports::Publication::from_record(records.pop().unwrap()))
+            })
+            .unwrap();
         assert_eq!(publication.file().unwrap(), &file);
         assert_eq!(publication.cycle().unwrap().restore().unwrap(), cycle);
-        assert_eq!(page[0].item, file.metadata.id);
     }
-    assert!(published(reports::Owner::Cycle(&other), None).await.is_empty());
+    assert!(published(reports::Owner::Cycle(&other), None).await.iter().all(|batch| batch.is_empty()));
     runtime.stop().await.unwrap();
 }

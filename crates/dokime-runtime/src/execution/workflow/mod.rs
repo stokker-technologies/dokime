@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, PoisonError};
+
 // Third Party Imports
 // Third-Party Imports
 use harmos::sidecar::Refusal;
 use tokio::sync::watch;
+
 // Local Imports
 use super::template::SidecarTemplate;
 use crate::definition::TestCaseTemplate;
@@ -30,7 +33,6 @@ use crate::transport::{CommandExecutionReply, CommandExecutionRequest, EvidenceB
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const MAX_RETAINED_EXECUTIONS: usize = 32;
 
 /* === Macros === */
 
@@ -53,15 +55,16 @@ pub struct Workflow<T: SidecarTemplate> {
     binding: Option<Arc<dyn std::any::Any + Send + Sync>>,
 }
 
+/* === Enums === */
+
 #[derive(Clone)]
 pub enum SampleOutput {
     Host(harmos::sidecar::Supervisor),
     Embedded(Arc<dyn EmbeddedPublisher>),
 }
 
-/* === Enums === */
-
 /* === Traits === */
+
 pub trait EmbeddedPublisher: Send + Sync {
     fn publish(
         &self, execution: &str, stream: &dokime_domain::model::identity::Identifier, values: BTreeMap<String, Value>,
@@ -70,6 +73,7 @@ pub trait EmbeddedPublisher: Send + Sync {
 }
 
 /* === Implementations === */
+
 impl<T: SidecarTemplate> Workflow<T> {
     pub fn new(workflow: impl Into<String>, source: impl Into<String>) -> Self {
         Self::declaring(workflow, source, T::definition(), T::declared_observers())
@@ -168,7 +172,11 @@ impl<T: SidecarTemplate> Workflow<T> {
         }
         let parameters = resolved(&request.parameters_json)?;
         let secrets = serde_json::from_str(&request.secrets_json).map_err(|_| Refusal::of("invalid execution secret bindings"))?;
-        let bindings = crate::plugin::Configuration { secrets, ..Default::default() };
+        let bindings = crate::plugin::Configuration {
+            secrets,
+            settings: BTreeMap::new(),
+            saved: Default::default(),
+        };
         let mut runs = self.runs.lock().unwrap_or_else(PoisonError::into_inner);
         runs.retain(|run| !run.is_finished());
 
@@ -182,7 +190,7 @@ impl<T: SidecarTemplate> Workflow<T> {
                 }
                 return Err(reused(&token));
             }
-            retain_capacity(&mut executions)?;
+            retain_capacity(&mut executions, 32)?;
             let mut state = ExecutionState::new(request, cancel);
             state.local_inputs = host.is_none();
             state.subscribe(&self.declaration.subscriptions);
@@ -280,7 +288,7 @@ impl<T: SidecarTemplate> Workflow<T> {
     }
 
     pub fn deliver_captured(
-        &self, record: &dokime_domain::model::records::evidence::Record, owner: &str,
+        &self, ordinal: u64, record: &dokime_domain::model::records::evidence::Record, owner: &str,
         scopes: &[dokime_domain::model::execution::RecordScope],
     ) -> usize {
         let mut taken = 0;
@@ -288,7 +296,7 @@ impl<T: SidecarTemplate> Workflow<T> {
             if let Some(scope) = scopes
                 .iter()
                 .find(|scope| scope.test_execution_id.as_ref().is_some_and(|id| id.as_str() == state.request.test_execution_id))
-                && state.deliver_captured(record, owner, Some(scope))
+                && state.deliver_captured(ordinal, record, owner, Some(scope))
             {
                 taken += 1;
             }
@@ -361,7 +369,8 @@ impl<T: SidecarTemplate> Workflow<T> {
         let callbacks: Vec<_> = lock(&self.executions)
             .values_mut()
             .map(|state| {
-                state.cancel();
+                // Owner Shutdown Ends Admission Before Joining Cleanup.
+                state.settle_operation();
                 state.callbacks.clone()
             })
             .collect();
@@ -380,8 +389,12 @@ impl<T: SidecarTemplate> Workflow<T> {
             let mut refused = std::collections::BTreeSet::new();
             for mut run in runs {
                 loop {
+                    let mut changes = Vec::new();
                     // Finalization owns local input admission after the driver stops polling.
                     for (token, state) in lock(&self.executions).iter_mut() {
+                        let mut changed = Box::pin(Arc::clone(&state.settled).notified_owned());
+                        changed.as_mut().enable();
+                        changes.push(changed);
                         if !state.local_inputs || refused.contains(token) {
                             continue;
                         }
@@ -390,9 +403,10 @@ impl<T: SidecarTemplate> Workflow<T> {
                             refused.insert(token.clone());
                         }
                     }
+                    let has_changes = !changes.is_empty();
                     tokio::select! {
                         _ = &mut run => break,
-                        _ = tokio::time::sleep(crate::transport::buffer::PROMPT_POLL_INTERVAL) => {}
+                        _ = async { futures_util::future::select_all(changes).await }, if has_changes => {}
                     }
                 }
             }
@@ -444,6 +458,7 @@ impl<T: SidecarTemplate> Clone for Workflow<T> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn resolved(parameters_json: &str) -> Result<BTreeMap<String, Value>, Refusal> {
     serde_json::from_str(parameters_json).map_err(|error| Refusal::of(format!("invalid resolved parameters JSON: {error}")))
 }
@@ -452,8 +467,8 @@ fn reused(token: &str) -> Refusal {
     Refusal::of(format!("execution token {token:?} was reused with different inputs"))
 }
 
-fn retain_capacity(executions: &mut BTreeMap<String, ExecutionState>) -> Result<(), Refusal> {
-    if executions.len() < MAX_RETAINED_EXECUTIONS {
+fn retain_capacity(executions: &mut BTreeMap<String, ExecutionState>, maximum: u64) -> Result<(), Refusal> {
+    if (executions.len() as u64) < maximum {
         return Ok(());
     }
     let finished = executions.iter().find_map(|(token, state)| state.terminal().then(|| token.clone()));
@@ -462,7 +477,7 @@ fn retain_capacity(executions: &mut BTreeMap<String, ExecutionState>) -> Result<
             executions.remove(&token);
             Ok(())
         }
-        None => Err(Refusal::of(format!("sidecar already has {MAX_RETAINED_EXECUTIONS} active executions"))),
+        None => Err(Refusal::of(format!("sidecar already has {maximum} active executions"))),
     }
 }
 

@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -31,24 +32,33 @@ use super::ValidationIssue;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, Error)]
 pub enum AdmissionFailure {
     #[error("{message}")]
     Validation { code: String, message: String, issues: Vec<ValidationIssue> },
+
     #[error("{message}")]
     Conflict { code: String, message: String },
+
     #[error("{message}")]
     Overload { code: String, message: String },
+
     #[error("{message}")]
     Unavailable { code: String, message: String },
+
     #[error("{message}")]
     Forbidden { code: String, message: String },
+
     #[error("{message}")]
     NotFound { code: String, message: String },
+
     #[error("{message}")]
     Timeout { code: String, message: String },
+
     #[error("{message}")]
     Cancelled { code: String, message: String },
+
     #[error("{message}")]
     Internal { code: String, message: String },
 }
@@ -56,6 +66,7 @@ pub enum AdmissionFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl AdmissionFailure {
     pub fn code(&self) -> &str {
         match self {
@@ -72,39 +83,67 @@ impl AdmissionFailure {
     }
 
     pub fn validation(code: impl Into<String>, message: impl Into<String>, issues: Vec<ValidationIssue>) -> Self {
-        Self::Validation { code: code.into(), message: message.into(), issues }
+        Self::Validation {
+            code: code.into(),
+            message: message.into(),
+            issues,
+        }
     }
 
     pub fn conflict(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Conflict { code: code.into(), message: message.into() }
+        Self::Conflict {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 
     pub fn overload(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Overload { code: code.into(), message: message.into() }
+        Self::Overload {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 
     pub fn unavailable(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Unavailable { code: code.into(), message: message.into() }
+        Self::Unavailable {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 
     pub fn forbidden(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Forbidden { code: code.into(), message: message.into() }
+        Self::Forbidden {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 
     pub fn not_found(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::NotFound { code: code.into(), message: message.into() }
+        Self::NotFound {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 
     pub fn timeout(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Timeout { code: code.into(), message: message.into() }
+        Self::Timeout {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 
     pub fn cancelled(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Cancelled { code: code.into(), message: message.into() }
+        Self::Cancelled {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 
     pub fn internal(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Internal { code: code.into(), message: message.into() }
+        Self::Internal {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 }
 

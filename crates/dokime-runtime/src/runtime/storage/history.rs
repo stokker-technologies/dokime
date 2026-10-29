@@ -21,7 +21,6 @@ use harmos::storage::{ObjectRead, ObjectRevision, query::ObjectVersions};
 // Local Imports
 use super::execution::check_seal_position;
 use crate::runtime::Result;
-use crate::storage::Manager;
 use crate::storage::objects::execution::Execution;
 use dokime_domain::model::execution::result::TestExecution;
 
@@ -40,19 +39,32 @@ use dokime_domain::model::execution::result::TestExecution;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) async fn executions(storage: &Manager) -> Result<Vec<ObjectRevision<TestExecution>>> {
-    let mut selected = Vec::new();
-    let rows = storage
-        .read_objects::<Execution>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest })
+
+pub(crate) async fn executions(
+    session: &crate::storage::Manager, at: harmos::storage::StorageCursor,
+) -> Result<crate::storage::projection::Pages<ObjectRevision<TestExecution>>> {
+    let rows = session
+        .read_objects::<Execution>(ObjectRead {
+            at,
+            key: None,
+            versions: ObjectVersions::Latest,
+        })
         .await?
         .collect()
         .await?;
-    for row in rows {
-        let execution = row.value.into_execution()?;
-        if let Some(seal) = &execution.saved {
-            check_seal_position(&row.position, &seal.dependencies_saved)?;
+    let selected = crate::storage::projection::pages(rows, |row| {
+        Ok(ObjectRevision {
+            value: row.value.into_execution()?,
+            position: row.position,
+            version: row.version,
+        })
+    })?;
+    for page in selected.iter() {
+        for row in page.iter() {
+            if let Some(seal) = &row.value.saved {
+                check_seal_position(&row.position, &seal.dependencies_saved)?;
+            }
         }
-        selected.push(ObjectRevision { value: execution, position: row.position, version: row.version });
     }
     Ok(selected)
 }

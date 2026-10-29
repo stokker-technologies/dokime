@@ -36,6 +36,8 @@ import { isRecord, numericValue } from "./utils";
 
 /* === Constants === */
 
+const DOCUMENTS_UNAVAILABLE_REASON_BYTES = 512;
+
 /* === Types === */
 
 type SummaryTile = Omit<TelemetrySummaryTilePayload_Serialize, "value" | "stat" | "metadata"> & {
@@ -221,7 +223,12 @@ export function validateSummaryResult(tile: { value?: unknown; state?: unknown; 
 
 export function unavailableReason(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
-  if (typeof value !== "string" || !value.trim() || value.length > 512 || new TextEncoder().encode(value).byteLength > 512) {
+  if (
+    typeof value !== "string" ||
+    !value.trim() ||
+    value.length > DOCUMENTS_UNAVAILABLE_REASON_BYTES ||
+    new TextEncoder().encode(value).byteLength > DOCUMENTS_UNAVAILABLE_REASON_BYTES
+  ) {
     throw new Error("Invalid document unavailable reason");
   }
   return value;

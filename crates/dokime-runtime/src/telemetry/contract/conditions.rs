@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@ use dokime_domain::model::values::Value;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn evaluate_telemetry_condition(condition: &TelemetryCondition, samples: &[TelemetrySample]) -> TelemetryConditionEvaluation {
     for sample in samples.iter().rev() {
         if sample.stream != condition.stream {
@@ -47,7 +49,11 @@ pub fn evaluate_telemetry_condition(condition: &TelemetryCondition, samples: &[T
             continue;
         }
 
-        return TelemetryConditionEvaluation { satisfied: true, matched_sequence: Some(sample.sequence), reason: None };
+        return TelemetryConditionEvaluation {
+            satisfied: true,
+            matched_sequence: Some(sample.sequence),
+            reason: None,
+        };
     }
 
     TelemetryConditionEvaluation {
@@ -58,6 +64,7 @@ pub fn evaluate_telemetry_condition(condition: &TelemetryCondition, samples: &[T
 }
 
 /* === Private Functions === */
+
 fn matches_operator(value: &Value, condition: &TelemetryCondition) -> bool {
     match condition.operator {
         TelemetryConditionOperator::Exists => true,

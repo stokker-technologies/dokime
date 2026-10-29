@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
@@ -35,7 +37,8 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "dokime.execution.invalidate", version = 1, irreversible)]
+
+#[harmos::transaction(id = "dokime.execution.invalidate", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InvalidateExecutions {
     pub previous: ExecutionPluginIdentity,
@@ -48,6 +51,7 @@ pub struct InvalidateExecutions {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl InvalidateExecutions {
     fn invalidates(&self, execution: &TestExecution) -> bool {
         execution.snapshot.plugin() == Some(&self.previous)
@@ -93,7 +97,10 @@ impl Transaction<RuntimeState> for InvalidateExecutions {
                     continue;
                 }
                 execution.status = ExecutionStatus::Invalidated;
-                execution.invalidation = Some(ExecutionInvalidation { previous: self.previous.clone(), current: self.current.clone() });
+                execution.invalidation = Some(ExecutionInvalidation {
+                    previous: self.previous.clone(),
+                    current: self.current.clone(),
+                });
                 execution.finished_at = Some(self.invalidated_at.clone());
                 execution.result = None;
                 for step in &mut execution.steps {

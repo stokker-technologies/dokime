@@ -1,0 +1,61 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Explicitly Regenerate Remote Certificate Identity
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+use serde::{Deserialize, Serialize};
+
+// Local Imports
+use super::*;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+#[harmos::operation(resources = [crate::hosting::Host<RegenerateCertificate>], response = RemoteListenerStatus, id = "dokime.remote.regenerate_certificate",
+    policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
+    grpc(package = "dokime.v1", service = "Remote", method = "RegenerateCertificate"))]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegenerateCertificate {
+    pub certificate_names: Vec<String>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */
+
+/* === --- === Runtime Module === --- === */
+
+#[cfg(feature = "runtime")]
+mod runtime {
+    use super::*;
+
+    crate::hosted!(RegenerateCertificate);
+}

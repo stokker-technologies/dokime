@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod case_materialization;
 pub mod conditions;
 pub mod parameters;
@@ -16,11 +17,11 @@ pub mod suite;
 pub mod wire;
 
 /* === Re-Exports === */
+
 pub use case_materialization::CaseMaterializationError;
 pub use case_materialization::CaseMaterializationOptions;
 pub use case_materialization::CaseMaterializationOutput;
 pub use case_materialization::CaseMaterializationSelection;
-pub use case_materialization::DEFAULT_MATERIALIZED_CASE_CAP;
 pub use case_materialization::materialize_template_cases;
 pub use conditions::RuntimeCondition;
 pub use conditions::RuntimeConditionEvaluation;
@@ -57,6 +58,7 @@ pub use suite::TestSuite;
 pub use suite::template_identifier;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

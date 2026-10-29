@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
 
@@ -23,7 +24,7 @@ use harmos::{
 
 // Local Imports
 use super::{annotations, metadata};
-use crate::storage::{Error, Manager, Result};
+use crate::storage::{Error, Result};
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ResultStatus;
@@ -44,6 +45,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Cycle {
@@ -51,13 +53,14 @@ pub struct Cycle {
     cycle_id: String,
     session_id: Option<String>,
     metadata: Option<metadata::Row>,
+    phase: dokime_domain::model::execution::result::CyclePhase,
     lifecycle: String,
     created_at: String,
     started_at: Option<String>,
     updated_at: String,
     execution_ids: Vec<String>,
     records: Option<annotations::Set>,
-    continue_on_failure: bool,
+    continue_automatically: bool,
     result: Option<Summary>,
 }
 
@@ -89,13 +92,14 @@ struct Input<'a> {
     test_cycle_id: &'a TestCycleId,
     session_id: &'a Option<SessionId>,
     metadata: &'a dokime_domain::model::identity::Metadata,
+    phase: dokime_domain::model::execution::result::CyclePhase,
     lifecycle: CycleStatus,
     created_at: &'a Timestamp,
     started_at: &'a Option<Timestamp>,
     updated_at: &'a Timestamp,
     execution_ids: &'a [TestExecutionId],
     records: &'a dokime_domain::state::records::set::TestRecordSet,
-    continue_on_failure: bool,
+    continue_automatically: bool,
     result: &'a Option<ResultSummary>,
 }
 
@@ -104,6 +108,7 @@ struct Input<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> From<&'a TestCycle> for Input<'a> {
     fn from(source: &'a TestCycle) -> Self {
         Self {
@@ -116,12 +121,14 @@ impl<'a> From<&'a TestCycle> for Input<'a> {
             updated_at: &source.updated_at,
             records: &source.records,
             result: &source.result,
+            phase: source.phase,
             lifecycle: source.lifecycle,
             execution_ids: &source.execution_ids,
-            continue_on_failure: source.continue_on_failure,
+            continue_automatically: source.continue_automatically,
         }
     }
 }
+
 impl<'a> Input<'a> {
     fn view(source: &'a CycleView, ids: &'a [TestExecutionId]) -> Result<Self> {
         if !source.test_executions.is_empty() {
@@ -151,9 +158,10 @@ impl<'a> Input<'a> {
             updated_at: &source.updated_at,
             records: &source.records,
             result: &source.result,
+            phase: source.phase,
             lifecycle: source.lifecycle,
             execution_ids: ids,
-            continue_on_failure: source.continue_on_failure,
+            continue_automatically: source.continue_automatically,
         }
     }
 }
@@ -163,6 +171,7 @@ impl Identified for Cycle {
         (DefinitionId::new("dokime.object.cycle"), 1)
     }
 }
+
 impl StoredObject for Cycle {
     type Key = str;
     const RETENTION: ObjectRetention = ObjectRetention::UntilReleased;
@@ -170,6 +179,7 @@ impl StoredObject for Cycle {
         &self.cycle_id
     }
 }
+
 impl Cycle {
     pub(crate) fn check_report_source<'a>(
         &self, owner: &str, finalized_at: Option<&str>, mut members: impl Iterator<Item = Result<&'a str>>,
@@ -186,10 +196,6 @@ impl Cycle {
             return Err(Error::Invalid("report header membership differs from sources"));
         }
         Ok(())
-    }
-
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        Ok(<Self as harmos::Message>::decoding_memory(bytes)?)
     }
 
     pub fn encoding_memory(source: &TestCycle) -> Result<usize> {
@@ -274,9 +280,6 @@ impl Cycle {
         execution_ids
             .try_reserve_exact(source.execution_ids.len())
             .map_err(|_| Error::Invalid("cycle membership encoding allocation failed"))?;
-        if execution_ids.capacity() > source.execution_ids.len() {
-            return Err(Error::Invalid("cycle membership slots exceed admission"));
-        }
         for id in source.execution_ids {
             execution_ids.push(id.as_str().to_owned());
         }
@@ -287,17 +290,19 @@ impl Cycle {
             cycle_id: source.test_cycle_id.as_str().to_owned(),
             session_id: source.session_id.as_ref().map(|id| id.as_str().to_owned()),
             metadata: Some(metadata),
+            phase: source.phase,
             lifecycle: lifecycle_text(&source.lifecycle).to_owned(),
             created_at: source.created_at.as_str().to_owned(),
             started_at: source.started_at.as_ref().map(|time| time.as_str().to_owned()),
             updated_at: source.updated_at.as_str().to_owned(),
             execution_ids,
             records: Some(records),
-            continue_on_failure: source.continue_on_failure,
+            continue_automatically: source.continue_automatically,
             result: source.result.as_ref().map(Summary::from),
         })
     }
 }
+
 impl TryFrom<Cycle> for TestCycle {
     type Error = Error;
 
@@ -342,13 +347,14 @@ impl TryFrom<Cycle> for TestCycle {
             test_cycle_id: TestCycleId::from_uuid(row.cycle_id)?,
             session_id: row.session_id.map(SessionId::from_uuid).transpose()?,
             metadata: row.metadata.ok_or(Error::Invalid("cycle metadata is missing"))?.try_into()?,
+            phase: row.phase,
             lifecycle,
             created_at,
             started_at,
             updated_at,
             execution_ids,
             records: row.records.ok_or(Error::Invalid("cycle record ownership is missing"))?.restore_owned()?,
-            continue_on_failure: row.continue_on_failure,
+            continue_automatically: row.continue_automatically,
             result: row.result.map(TryInto::try_into).transpose()?,
         };
         if let Some(saved) = &restored.saved {
@@ -377,16 +383,6 @@ impl From<&ResultSummary> for Summary {
     }
 }
 
-fn result_status_text(value: &ResultStatus) -> &'static str {
-    match value {
-        ResultStatus::Pending => "pending",
-        ResultStatus::Passed => "passed",
-        ResultStatus::Failed => "failed",
-        ResultStatus::Blocked => "blocked",
-        ResultStatus::Cancelled => "cancelled",
-    }
-}
-
 impl TryFrom<Summary> for ResultSummary {
     type Error = Error;
 
@@ -399,7 +395,13 @@ impl TryFrom<Summary> for ResultSummary {
             "cancelled" => ResultStatus::Cancelled,
             _ => return Err(Error::Invalid("invalid cycle result status")),
         };
-        Ok(Self { status, passed: row.passed, failed: row.failed, blocked: row.blocked, skipped: row.skipped })
+        Ok(Self {
+            status,
+            passed: row.passed,
+            failed: row.failed,
+            blocked: row.blocked,
+            skipped: row.skipped,
+        })
     }
 }
 
@@ -525,14 +527,34 @@ impl Cycle {
 }
 
 /* === Public Functions === */
-pub async fn read(storage: &Manager, id: &TestCycleId, version: ObjectVersion) -> Result<Option<ObjectRevision<TestCycle>>> {
+
+pub async fn read(
+    storage: &crate::storage::Manager, id: &TestCycleId, version: ObjectVersion,
+) -> Result<Option<harmos::storage::ReadBatch<ObjectRevision<TestCycle>>>> {
     let Some(stored) = storage.read_object::<Cycle>(id.as_str(), version).await? else {
         return Ok(None);
     };
-    Ok(Some(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version }))
+    Ok(Some(stored.try_map(|stored| -> Result<_> {
+        Ok(ObjectRevision {
+            value: stored.value.try_into()?,
+            position: stored.position,
+            version: stored.version,
+        })
+    })?))
 }
 
 /* === Private Functions === */
+
+fn result_status_text(value: &ResultStatus) -> &'static str {
+    match value {
+        ResultStatus::Pending => "pending",
+        ResultStatus::Passed => "passed",
+        ResultStatus::Failed => "failed",
+        ResultStatus::Blocked => "blocked",
+        ResultStatus::Cancelled => "cancelled",
+    }
+}
+
 fn lifecycle_text(value: &CycleStatus) -> &'static str {
     match value {
         CycleStatus::Ready => "ready",

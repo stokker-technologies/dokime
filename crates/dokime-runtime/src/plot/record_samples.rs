@@ -12,14 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::collections::BTreeMap;
 
 // Third Party Imports
 use time::OffsetDateTime;
+
 // Local Imports
 use crate::document::frame::{Lookup, Side, Strategy};
-use crate::plot::{parse_timestamp, sample_matches_scope, stream_matches_alias};
+use crate::plot::{PlotPayloadRequest, parse_timestamp, sample_matches_scope, stream_matches_alias};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
 
@@ -30,6 +31,13 @@ use dokime_domain::model::execution::RecordScope;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+pub(super) struct PlotSamples<'a> {
+    telemetry: &'a [TelemetrySample],
+    request: &'a PlotPayloadRequest,
+    cutoff: Option<OffsetDateTime>,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct IndexedRecordSample<'a> {
     pub(crate) sample: &'a TelemetrySample,
@@ -38,33 +46,59 @@ pub(crate) struct IndexedRecordSample<'a> {
 
 pub(crate) struct RecordSampleLookup<'a> {
     samples: Vec<IndexedRecordSample<'a>>,
-    lookup: Lookup,
-    prepared: BTreeMap<Probe, Option<usize>>,
+    lookup: Lookup<'a>,
 }
-
-type Probe = (Option<String>, Option<String>, i128);
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl<'a> RecordSampleLookup<'a> {
-    pub(crate) fn for_stream(telemetry: &'a [TelemetrySample], stream: &str, scope: Option<&RecordScope>) -> Self {
-        Self::for_stream_matching(telemetry, stream, scope, |_| true)
+
+impl<'a> PlotSamples<'a> {
+    pub(super) fn new(telemetry: &'a [TelemetrySample], request: &'a PlotPayloadRequest) -> Self {
+        let mut selected = Self { telemetry, request, cutoff: None };
+        if request.window_s.is_some() {
+            let latest = selected.iter().filter_map(|sample| parse_timestamp(sample.timestamp.as_str())).max();
+            selected.cutoff = latest.and_then(|latest| super::payload::plot_window_cutoff(latest, request.window_s));
+        }
+        selected
     }
 
-    pub(crate) fn for_stream_matching(
-        telemetry: &'a [TelemetrySample], stream: &str, scope: Option<&RecordScope>, mut keep: impl FnMut(&TelemetrySample) -> bool,
-    ) -> Self {
-        let samples = telemetry
-            .iter()
-            .filter(|sample| stream_matches_alias(sample.stream.as_str(), stream))
-            .filter(|sample| sample_matches_scope(sample.scope.as_ref(), scope))
-            .filter(|sample| keep(sample))
-            .filter_map(|sample| Some(IndexedRecordSample { sample, timestamp: parse_timestamp(sample.timestamp.as_str())? }))
-            .collect::<Vec<_>>();
-        let lookup = Lookup::new(
+    pub(super) fn len(&self) -> usize {
+        self.iter().count()
+    }
+
+    pub(super) fn collect(&self) -> Vec<&'a TelemetrySample> {
+        let mut samples = Vec::with_capacity(self.len());
+        samples.extend(self.iter());
+        let time_order = self.request.analysis.is_some()
+            || matches!(self.request.plot_type, Some(crate::document::PlotType::Trajectory | crate::document::PlotType::FrequencySeries));
+        let x_key = if time_order { "timestamp" } else { self.request.x_key.as_deref().unwrap_or("timestamp") };
+        super::payload::sort_plot_samples(&mut samples, x_key);
+        samples
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &'a TelemetrySample> + Clone {
+        self.telemetry.iter().filter(|sample| {
+            let selected = sample.stream.as_str() == self.request.stream
+                && sample_matches_scope(sample.scope.as_ref(), self.request.scope.as_ref())
+                && super::payload::sample_matches_filters(sample, &self.request.filters);
+            let visible = self.cutoff.is_none_or(|cutoff| parse_timestamp(sample.timestamp.as_str()).is_none_or(|time| time >= cutoff));
+            selected && visible
+        })
+    }
+}
+
+impl<'a> RecordSampleLookup<'a> {
+    pub(crate) fn try_for_stream_matching(
+        telemetry: &'a [TelemetrySample], stream: &str, scope: Option<&RecordScope>, keep: impl Fn(&TelemetrySample) -> bool + Clone,
+    ) -> crate::runtime::Result<Self> {
+        let selected = indexed_samples(telemetry, stream, scope, keep);
+        let mut samples = Vec::new();
+        samples.try_reserve_exact(selected.clone().count()).map_err(|_| lookup_memory())?;
+        samples.extend(selected);
+        let lookup = Lookup::try_new(
             samples.iter().enumerate().map(|(ordinal, sample)| Side {
                 ordinal,
                 scope: sample.sample.scope.as_ref(),
@@ -72,29 +106,15 @@ impl<'a> RecordSampleLookup<'a> {
                 present: true,
             }),
             Strategy::AtOrBefore,
-        );
-        Self { samples, lookup, prepared: BTreeMap::new() }
-    }
-
-    pub(crate) fn prepare<'p>(&mut self, probes: impl IntoIterator<Item = (Option<&'p RecordScope>, OffsetDateTime)>) {
-        let sides = probes
-            .into_iter()
-            .map(|(scope, time)| side(scope, time))
-            .filter(|side| !self.prepared.contains_key(&probe(side)))
-            .collect::<Vec<_>>();
-        for (side, found) in sides.iter().zip(self.lookup.find_many(&sides)) {
-            self.prepared.insert(probe(side), found);
-        }
+        )?;
+        Ok(Self { samples, lookup })
     }
 
     pub(crate) fn nearest_at_or_before(
         &self, record_scope: Option<&RecordScope>, record_time: OffsetDateTime,
     ) -> Option<IndexedRecordSample<'a>> {
         let side = side(record_scope, record_time);
-        let ordinal = match self.prepared.get(&probe(&side)) {
-            Some(found) => *found,
-            None => self.lookup.find(&side),
-        }?;
+        let ordinal = self.lookup.find(&side)?;
         self.samples.get(ordinal).copied()
     }
 }
@@ -102,19 +122,31 @@ impl<'a> RecordSampleLookup<'a> {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn side(scope: Option<&RecordScope>, time: OffsetDateTime) -> Side<'_> {
-    Side { ordinal: 0, scope, time: Some(time.unix_timestamp_nanos()), present: true }
+
+fn lookup_memory() -> crate::runtime::Error {
+    harmos::Error::ResourceExhausted { resource: "record sample lookup" }.into()
 }
 
-fn probe(side: &Side<'_>) -> Probe {
-    let scope = side.scope;
-    (
-        scope.and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str().to_owned()),
-        scope.and_then(|scope| match &scope.origin {
-            dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } => Some(attempt_id.as_str().to_owned()),
-            _ => None,
-        }),
-        side.time.unwrap_or_default(),
-    )
+fn side(scope: Option<&RecordScope>, time: OffsetDateTime) -> Side<'_> {
+    Side {
+        ordinal: 0,
+        scope,
+        time: Some(time.unix_timestamp_nanos()),
+        present: true,
+    }
 }
+
+fn indexed_samples<'a>(
+    telemetry: &'a [TelemetrySample], stream: &str, scope: Option<&RecordScope>, keep: impl Fn(&TelemetrySample) -> bool + Clone,
+) -> impl Iterator<Item = IndexedRecordSample<'a>> + Clone {
+    telemetry.iter().filter_map(move |sample| {
+        let selected = stream_matches_alias(sample.stream.as_str(), stream) && sample_matches_scope(sample.scope.as_ref(), scope);
+        if !selected || !keep(sample) {
+            return None;
+        }
+        let timestamp = parse_timestamp(sample.timestamp.as_str())?;
+        Some(IndexedRecordSample { sample, timestamp })
+    })
+}
+
 /* === Tests === */

@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+
 pub mod streams;
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::telemetry::host::contracts::HostTextList;
 pub use dokime_domain::model::telemetry::host::contracts::HostTimestamp;
 pub use streams::{Bluetooth, Network, System, Wifi, WifiChannelOccupancy, WifiLatency};
@@ -27,6 +29,7 @@ pub use crate::records::host::{
 };
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

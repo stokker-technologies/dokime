@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use tokio::sync::watch;
 use tracing::Instrument;
+
 // Local Imports
 use super::Environment;
 use super::ExecutionEvidence;
@@ -32,14 +35,13 @@ use crate::parameters::FromParameters;
 use crate::records::Deliveries;
 use crate::telemetry::{SampleSink, Streams};
 use crate::transport::ExecutionTransport;
-use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock};
+use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock, settled};
 use crate::transport::frame::{ExecutionSampleSink, FrameArtifactSink, FrameRecordSource, FrameTransport};
 use crate::transport::{SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome};
 use dokime_domain::model::execution::termination::TerminationReason;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const CRITERION_BUDGET: Duration = Duration::from_secs(1);
 
 const INITIALIZATION: &str = "initialization";
 const TRACEABILITY: &str = "traceability";
@@ -50,6 +52,7 @@ const PARAMETERS: &str = "resolving parameters";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Inputs {
     pub controls: Arc<crate::transport::control::Controls>,
     pub callbacks: super::Callbacks,
@@ -65,6 +68,7 @@ pub(super) struct Inputs {
 }
 
 /* === Enums === */
+
 enum Ended {
     Completed,
     Cancelled { step: String },
@@ -76,6 +80,7 @@ enum Ended {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run<T: SidecarTemplate>(
     executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs, cancel: watch::Receiver<bool>,
     observer_tasks: Tasks,
@@ -91,6 +96,7 @@ pub(crate) async fn run<T: SidecarTemplate>(
 }
 
 /* === Private Functions === */
+
 async fn execute<T: SidecarTemplate>(
     executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs,
     mut cancel: watch::Receiver<bool>, observer_tasks: Tasks,
@@ -127,9 +133,7 @@ async fn execute<T: SidecarTemplate>(
         Ok(typed) => typed,
         Err(refusal) => {
             super::scanning::settle(scanning, &watched, &executions, &token).await;
-            if let Err(diagnostic) =
-                finalize_record_inputs(&executions, &token, &mut cancel, &mut evidence, host_managed_subscriptions).await
-            {
+            if let Err(diagnostic) = finalize_record_inputs(&executions, &token, &mut evidence, host_managed_subscriptions).await {
                 transport.log(super::log::Level::Error, diagnostic.redacted().to_string());
             }
             let outcome = conclude::<T>(
@@ -137,7 +141,10 @@ async fn execute<T: SidecarTemplate>(
                 None,
                 &transport,
                 &evidence,
-                Ended::Failed { step: PARAMETERS.into(), diagnostic: Box::new(Diagnostic::of(refusal.to_string())) },
+                Ended::Failed {
+                    step: PARAMETERS.into(),
+                    diagnostic: Box::new(Diagnostic::of(refusal.to_string())),
+                },
                 None,
                 false,
             )
@@ -201,9 +208,7 @@ async fn execute<T: SidecarTemplate>(
             let cleanup_error = settle_callbacks(&environment, &transport).await;
             environment.streams().flush().await;
             super::scanning::settle(scanning, &watched, &executions, &token).await;
-            if let Err(diagnostic) =
-                finalize_record_inputs(&executions, &token, &mut cancel, &mut evidence, host_managed_subscriptions).await
-            {
+            if let Err(diagnostic) = finalize_record_inputs(&executions, &token, &mut evidence, host_managed_subscriptions).await {
                 transport.log(super::log::Level::Error, diagnostic.redacted().to_string());
             }
             let outcome = conclude::<T>(&declaration, None, &transport, &evidence, ended, cleanup_error, false).await;
@@ -257,7 +262,10 @@ async fn execute<T: SidecarTemplate>(
     if let Some(diagnostic) = settle_callbacks(&environment, &transport).await
         && matches!(ended, Ended::Completed)
     {
-        ended = Ended::Failed { step: "settling callbacks".into(), diagnostic: Box::new(diagnostic) };
+        ended = Ended::Failed {
+            step: "settling callbacks".into(),
+            diagnostic: Box::new(diagnostic),
+        };
     }
 
     let reason = match &ended {
@@ -289,21 +297,27 @@ async fn execute<T: SidecarTemplate>(
     }
 
     if let Some(diagnostic) = environment.streams().failure() {
-        ended = Ended::Failed { step: "publishing stream evidence".into(), diagnostic: Box::new(diagnostic) };
+        ended = Ended::Failed {
+            step: "publishing stream evidence".into(),
+            diagnostic: Box::new(diagnostic),
+        };
     }
 
     // Gaps join the evidence where the observers' rows did: after everything
     // that could still be measured has stopped, and before the first criterion
     // decides anything. A criterion reading `ctx.gaps` is reading a settled
     // fact about the run, not a running count.
-    let inputs_settled = match finalize_record_inputs(&executions, &token, &mut cancel, &mut evidence, host_managed_subscriptions).await {
+    let inputs_settled = match finalize_record_inputs(&executions, &token, &mut evidence, host_managed_subscriptions).await {
         Ok(()) => true,
         Err(diagnostic) => {
-            ended = Ended::Failed { step: "settling record subscriptions".into(), diagnostic: Box::new(diagnostic) };
+            ended = Ended::Failed {
+                step: "settling record subscriptions".into(),
+                diagnostic: Box::new(diagnostic),
+            };
             false
         }
     };
-    evidence.record_gaps(transport.gaps());
+    evidence.record_gaps(transport.gaps(), transport.gap_counts());
     let outcome =
         conclude::<T>(&declaration, inputs_settled.then_some(&environment), &transport, &evidence, ended, cleanup_error, !inputs_settled)
             .await;
@@ -311,48 +325,35 @@ async fn execute<T: SidecarTemplate>(
 }
 
 async fn finalize_record_inputs(
-    executions: &Executions, token: &str, cancel: &mut watch::Receiver<bool>, evidence: &mut ExecutionEvidence, host_managed: bool,
+    executions: &Executions, token: &str, evidence: &mut ExecutionEvidence, host_managed: bool,
 ) -> Result<(), Diagnostic> {
-    let result = if host_managed { settle_record_inputs(executions, token, cancel).await } else { Ok(()) };
+    let result = if host_managed { settle_record_inputs(executions, token).await } else { Ok(()) };
     if let Some(state) = lock(executions).get_mut(token) {
         evidence.subscribed_records = state.captured_records();
-        for sample in state.take_staged() {
-            evidence.record_sample(sample);
-        }
+        evidence.samples = state.take_staged();
     }
     result
 }
 
-async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut watch::Receiver<bool>) -> Result<(), Diagnostic> {
+async fn settle_record_inputs(executions: &Executions, token: &str) -> Result<(), Diagnostic> {
     if let Some(state) = lock(executions).get_mut(token) {
         state.begin_record_settle();
+        tracing::debug!(execution_token = token, progress = state.settlement_progress(), "execution input settlement started");
     }
-    let was_cancelled = *cancel.borrow();
-    let bound = if was_cancelled { Duration::from_secs(1) } else { Duration::from_secs(35) };
-    // The host settles by handing captured records and samples back. Bound
-    // idle time between accepted inputs, rather than total replay duration.
-    let mut deadline = tokio::time::Instant::now() + bound;
-    let mut staged = None;
-    loop {
-        let progress = match lock(executions).get(token) {
-            None => return Ok(()),
-            Some(state) if state.record_subscriptions_settled() => return Ok(()),
-            Some(state) => state.staged_inputs(),
-        };
-        if !was_cancelled && staged.is_some_and(|staged| progress > staged) {
-            deadline = tokio::time::Instant::now() + bound;
-        }
-        staged = Some(progress);
-        if tokio::time::Instant::now() >= deadline {
-            return Err(Diagnostic::of("host did not settle execution inputs before the deadline"));
-        }
-        tokio::select! {
-            _ = tokio::time::sleep(Duration::from_millis(5)) => {},
-            _ = cancel.changed(), if !was_cancelled => {
-                return Err(Diagnostic::of("record subscription settlement was interrupted"));
+    // The Owning Operation Bounds Admission; Cancellation Does Not Close Its In-Flight Receipt.
+    settled(
+        executions,
+        token,
+        || Err(Diagnostic::of("execution operation is no longer retained")),
+        |state| {
+            if state.record_subscriptions_settled() {
+                Some(Ok(()))
+            } else {
+                state.record_inputs_closed().then(|| Err(Diagnostic::of("execution operation settled before its input receipt")))
             }
-        }
-    }
+        },
+    )
+    .await
 }
 
 async fn initialize<T: SidecarTemplate>(
@@ -454,7 +455,10 @@ async fn walk<T: SidecarTemplate>(
                 controls.complete(&command.id, None, Some(message.into()));
                 continue;
             }
-            return Ended::Failed { step: declared.metadata.identifier.to_string(), diagnostic: Box::new(Diagnostic::of(message)) };
+            return Ended::Failed {
+                step: declared.metadata.identifier.to_string(),
+                diagnostic: Box::new(Diagnostic::of(message)),
+            };
         }
         let step = declared.metadata.identifier.clone();
         // Progress is recorded here, before the step's own code can run, so a
@@ -481,7 +485,10 @@ async fn walk<T: SidecarTemplate>(
             if *cancel.borrow() {
                 return Ended::Cancelled { step: step.to_string() };
             }
-            return Ended::Failed { step: step.to_string(), diagnostic: Box::new(diagnostic) };
+            return Ended::Failed {
+                step: step.to_string(),
+                diagnostic: Box::new(diagnostic),
+            };
         }
         evidence.record_step(step.clone());
         environment.handles().begin(super::StepIdentity {
@@ -545,7 +552,10 @@ async fn walk<T: SidecarTemplate>(
                 return Ended::Cancelled { step: step.to_string() };
             }
             Some(Err(diagnostic)) => {
-                return Ended::Failed { step: step.to_string(), diagnostic: Box::new(diagnostic) };
+                return Ended::Failed {
+                    step: step.to_string(),
+                    diagnostic: Box::new(diagnostic),
+                };
             }
             Some(Ok(())) => {}
         }
@@ -579,7 +589,7 @@ async fn conclude<T: SidecarTemplate>(
         let decided = if let Some(environment) = environment {
             let ctx = environment.criterion(evidence).selecting(Arc::clone(&selected_attempts)).deciding(transport, &identifier);
             let work = caught(T::evaluate(&identifier, &ctx)).instrument(tracing::info_span!("criterion", criterion = %identifier));
-            let result = match tokio::time::timeout(CRITERION_BUDGET, work).await {
+            let result = match tokio::time::timeout(Duration::from_secs(1), work).await {
                 Ok(result) => result.transpose(),
                 Err(_) => Some(Err(Diagnostic::of("criterion evaluation exceeded one second"))),
             };
@@ -613,7 +623,12 @@ async fn conclude<T: SidecarTemplate>(
             ),
         };
 
-        criteria.push(SidecarCriterionOutcome { identifier, label, status: status as i32, message });
+        criteria.push(SidecarCriterionOutcome {
+            identifier,
+            label,
+            status: status as i32,
+            message,
+        });
     }
 
     let passed = criteria.iter().filter(|criterion| criterion.status == SidecarCriterionStatus::Passed as i32).count();
@@ -691,3 +706,76 @@ fn report(executions: &Executions, token: &str, outcome: SidecarExecutionOutcome
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transport::buffer::ExecutionState;
+
+    #[tokio::test(start_paused = true)]
+    async fn receipt_admission_accepts_cancelled_execution_after_one_second() {
+        use harmos::operations::OperationDeclaration;
+        let policy = crate::transport::EvidenceBatch::POLICY.timeout;
+        let receipt_delay = policy / 2;
+        assert!(receipt_delay > Duration::from_secs(1));
+        let (cancel, _) = watch::channel(false);
+        let mut state = ExecutionState::new(Default::default(), cancel);
+        state.cancel();
+        assert!(!state.record_inputs_closed(), "execution cancellation retains the owning operation's admission");
+        let stream = dokime_domain::model::identity::Identifier::new("reading").unwrap();
+        let sample =
+            crate::telemetry::TelemetrySample::new(crate::model::identity::new_id(), stream, 1, crate::model::time::now_utc(), "fixture");
+        let record = dokime_domain::model::records::evidence::Record::new(
+            dokime_domain::model::identity::RecordId::from_seed("late-receipt"),
+            crate::model::time::now_utc(),
+            dokime_domain::model::identity::Identifier::new("reading").unwrap(),
+            1,
+            "fixture",
+            dokime_domain::model::records::RecordSeverity::Info,
+        );
+        let scope = dokime_domain::model::execution::RecordScope::default();
+        let executions = Arc::new(std::sync::Mutex::new(BTreeMap::from([("fixture".into(), state)])));
+        let waiting = Arc::clone(&executions);
+        let settlement = tokio::spawn(async move {
+            let mut evidence = ExecutionEvidence::new();
+            finalize_record_inputs(&waiting, "fixture", &mut evidence, true).await?;
+            Ok::<_, Diagnostic>(evidence)
+        });
+        tokio::task::yield_now().await;
+        tokio::time::advance(receipt_delay).await;
+        assert!(!settlement.is_finished(), "cancellation must retain admission while its operation awaits a receipt");
+        {
+            let mut states = lock(&executions);
+            let state = states.get_mut("fixture").unwrap();
+            assert!(state.receive(sample.clone()).unwrap());
+            assert_eq!(state.sample_receipts()[0].sample_id, sample.sample_id.as_str());
+            assert!(state.deliver_captured(1, &record, "host", Some(&scope)));
+            assert_eq!(state.record_ordinal, 1);
+            state.settle_record_subscriptions();
+            assert!(!state.deliver_captured(2, &record, "host", Some(&scope)), "a settled receipt closes record admission");
+            let mut late = sample.clone();
+            late.sample_id = crate::model::identity::new_id();
+            late.sequence += 1;
+            assert!(!state.receive(late).unwrap(), "a settled receipt closes admission");
+        }
+        let evidence = tokio::time::timeout(policy - receipt_delay, settlement).await.unwrap().unwrap().unwrap();
+        let samples = evidence.samples.iter().collect::<Vec<_>>();
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].sample_id, sample.sample_id);
+        let records = evidence.subscribed_records.iter().collect::<Vec<_>>();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].record_id, record.record_id);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn receipt_admission_closes_when_operation_settles_without_receipt() {
+        let (cancel, _) = watch::channel(false);
+        let state = ExecutionState::new(Default::default(), cancel);
+        let executions = Arc::new(std::sync::Mutex::new(BTreeMap::from([("fixture".into(), state)])));
+        let waiting = Arc::clone(&executions);
+        let settlement = tokio::spawn(async move { settle_record_inputs(&waiting, "fixture").await });
+        tokio::task::yield_now().await;
+        lock(&executions).get_mut("fixture").unwrap().settle_operation();
+        assert!(settlement.await.unwrap().is_err());
+    }
+}

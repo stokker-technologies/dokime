@@ -12,15 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
 use crate::{Resources, error::Error};
-use dokime_runtime::host::ToolConnectionAcquired;
-use dokime_runtime::prelude::*;
+use dokime::host::ToolConnectionAcquired;
+use dokime::plugin::ListenerContext;
 
 /* === Constants === */
 
@@ -29,23 +29,19 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(crate) struct Observed {
-    resources: Arc<Resources>,
-}
+
+pub(crate) struct Observed;
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::listener(id = "obc-plugin.connection", record = ToolConnectionAcquired)]
-impl Observed {
-    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
-        Self { resources }
-    }
 
-    async fn hear(&mut self, _: &Supervisor, acquired: ToolConnectionAcquired) -> Result<(), Error> {
-        self.resources.observed(acquired.resource_id);
+#[dokime::listener(id = "obc.bench.connection", record = ToolConnectionAcquired, resources = [Resources])]
+impl Observed {
+    async fn hear(ctx: &ListenerContext<'_, Self>, acquired: ToolConnectionAcquired) -> Result<(), Error> {
+        ctx.resource::<Resources>().observed(acquired.resource_id);
         Ok(())
     }
 }

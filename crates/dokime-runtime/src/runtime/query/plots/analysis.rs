@@ -17,16 +17,16 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use harmos::Message;
 
 // Local Imports
-use crate::analysis::{Definition, MAX_SAMPLES, Request, Samples, Selection};
+use crate::analysis::{Definition, Request, Samples, Selection};
 use crate::domains::ActionDispatcher;
-use crate::plot::{PlotComputation, PlotComputedSeries, PlotEvidence, PlotPayload, PlotPayloadCursor, PlotPayloadRequest};
+use crate::plot::{PlotComputation, PlotComputedSeries, PlotEvidence, PlotPayload, PlotPayloadRequest};
 use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry::{TelemetryContract, TelemetrySample};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::Identifier;
-use harmos::Message;
 
 /* === Constants === */
 
@@ -35,6 +35,7 @@ use harmos::Message;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct Prepared {
     definition: Definition,
     selection: Selection,
@@ -42,19 +43,21 @@ pub(crate) struct Prepared {
 }
 
 /* === Enums === */
+
 enum Target {
     Builtin,
     Plugin { source: Identifier, dispatcher: Arc<dyn ActionDispatcher> },
 }
 
-pub(crate) enum Environment<'a, 'ctx> {
+pub(crate) enum Environment<'a> {
     Live(&'a RuntimeHandle),
-    Report { ctx: &'a harmos::operations::Context<'ctx>, resources: &'a crate::report::analysis::Resources, epoch: &'a str },
+    Report { resources: &'a crate::report::analysis::Resources },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Prepared {
     pub(super) fn resolve(
         runtime: &RuntimeHandle, state: &crate::runtime::state::RuntimeState, request: &PlotPayloadRequest,
@@ -69,7 +72,7 @@ impl Prepared {
             return Ok(None);
         };
         if request.y_keys.is_empty()
-            || request.y_keys.len() > 32
+            || request.y_keys.len() as u64 > dokime_domain::model::analysis::MAX_OUTPUTS
             || request.series_by.is_some()
             || request.series_by_expression.is_some()
             || request.x_expression.is_some()
@@ -85,7 +88,7 @@ impl Prepared {
             .map_err(|error| invalid(error.to_string()))?
             .into_iter()
             .find(|definition| definition.id == selection.id);
-        let (definition, target) = if let Some(definition) = builtin {
+        let (mut definition, target) = if let Some(definition) = builtin {
             (definition, Target::Builtin)
         } else {
             let (artifact, definition) = state
@@ -106,72 +109,63 @@ impl Prepared {
             let dispatcher = resources.dispatcher(&source).ok_or_else(|| unavailable("analysis owner is not admitted"))?;
             (definition, Target::Plugin { source, dispatcher })
         };
+        definition.check_limits().map_err(invalid)?;
+        definition.check_selection_limits(selection).map_err(invalid)?;
+        definition.limits = definition.limits.constrained();
         let parameters = definition.resolve(selection).map_err(invalid)?;
-        Ok(Some(Self { definition, selection: Selection { parameters, ..selection.clone() }, target }))
+        Ok(Some(Self {
+            definition,
+            selection: Selection { parameters, ..selection.clone() },
+            target,
+        }))
     }
 
     pub(crate) fn check_evidence(&self, telemetry: &[TelemetrySample], request: &PlotPayloadRequest) -> crate::runtime::Result<()> {
-        let samples = telemetry
-            .iter()
-            .filter(|sample| {
-                sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
-            })
-            .collect::<Vec<_>>();
-        if samples.is_empty() {
-            return Err(invalid("analysis has no retained raw samples"));
-        }
-        let first = samples[0];
-        if samples.iter().any(|sample| evidence_owner(sample.scope.as_ref()) != evidence_owner(first.scope.as_ref())) {
+        let samples = telemetry.iter().filter(|sample| {
+            sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
+        });
+        let first = samples.clone().next().ok_or_else(|| invalid("analysis has no retained raw samples"))?;
+        if samples.clone().any(|sample| evidence_owner(sample.scope.as_ref()) != evidence_owner(first.scope.as_ref())) {
             return Err(invalid("analysis requires one evidence scope; narrow the selection"));
         }
         let window_start = if let Some(window) = request.window_s {
             if !window.is_finite() || window <= 0.0 {
                 return Err(invalid("analysis window must be finite and positive"));
             }
-            let last = crate::plot::parse_timestamp(samples.last().unwrap().timestamp.as_str())
+            let last = samples.clone().next_back().expect("nonempty matching evidence");
+            let last = crate::plot::parse_timestamp(last.timestamp.as_str())
                 .ok_or_else(|| invalid("analysis requires valid sample timestamps"))?;
             Some((last, window))
         } else {
             None
         };
-        if first.sequence > 1 {
-            let complete = window_start.is_some_and(|(last, window)| {
-                crate::plot::parse_timestamp(first.timestamp.as_str()).is_some_and(|first| (last - first).as_seconds_f64() >= window)
-            });
-            if !complete {
-                return Err(invalid("requested analysis window exceeds retained raw evidence"));
-            }
-        }
         let selected = samples
-            .into_iter()
             .filter(|sample| {
                 window_start.is_none_or(|(last, window)| {
                     crate::plot::parse_timestamp(sample.timestamp.as_str()).is_some_and(|time| (last - time).as_seconds_f64() <= window)
                 })
             })
-            .collect::<Vec<_>>();
-        if selected.windows(2).any(|pair| pair[1].sequence != pair[0].sequence.saturating_add(1)) {
-            return Err(invalid("analysis source contains missing samples"));
-        }
-        if selected.len().saturating_mul(request.y_keys.len()) > MAX_SAMPLES as usize {
+            .count();
+        let values = selected.checked_mul(request.y_keys.len()).ok_or_else(|| invalid("analysis input sample count overflows"))?;
+        if values > crate::analysis::MAX_SAMPLES as usize {
             return Err(invalid("analysis input exceeds the aggregate sample budget"));
         }
         Ok(())
     }
 
     pub(super) async fn execute(
-        self, runtime: &RuntimeHandle, request: &PlotPayloadRequest, cursor: &PlotPayloadCursor, payload: PlotPayload,
-        contract: Option<&TelemetryContract>,
-    ) -> crate::runtime::Result<PlotPayload> {
-        self.execute_in(Environment::Live(runtime), request, cursor, payload, contract).await
+        self, runtime: &RuntimeHandle, request: &PlotPayloadRequest, position: &harmos::storage::StorageCursor,
+        payload: harmos::storage::ReadBatch<PlotPayload>, contract: Option<&TelemetryContract>,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayload>> {
+        self.execute_in(Environment::Live(runtime), request, position, payload, contract).await
     }
 
     pub(crate) async fn execute_in(
-        self, environment: Environment<'_, '_>, request: &PlotPayloadRequest, cursor: &PlotPayloadCursor, mut payload: PlotPayload,
-        contract: Option<&TelemetryContract>,
-    ) -> crate::runtime::Result<PlotPayload> {
+        self, environment: Environment<'_>, request: &PlotPayloadRequest, position: &harmos::storage::StorageCursor,
+        payload: harmos::storage::ReadBatch<PlotPayload>, contract: Option<&TelemetryContract>,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayload>> {
         let total: usize = payload.series.iter().map(|series| series.points.len()).sum();
-        if total > MAX_SAMPLES as usize {
+        if total > crate::analysis::MAX_SAMPLES as usize {
             return Err(invalid("analysis input exceeds the aggregate sample budget"));
         }
         let mut computed = Vec::with_capacity(payload.series.len());
@@ -219,8 +213,9 @@ impl Prepared {
             };
             let output = environment.invoke(&self.target, &self.definition.id, call).await?;
             output.check(&self.definition).map_err(|error| invalid(error.to_string()))?;
+            output.check_limits().map_err(|error| invalid(error.to_string()))?;
             output_count += output.outputs.iter().map(|output| output.values.len()).sum::<usize>();
-            if output_count > MAX_SAMPLES as usize {
+            if output_count > crate::analysis::MAX_SAMPLES as usize {
                 return Err(invalid("analysis output exceeds the aggregate value budget"));
             }
             let mut display_indices = std::collections::BTreeMap::new();
@@ -247,47 +242,50 @@ impl Prepared {
                 display_indices,
             });
         }
-        payload.computed = Some(PlotComputation {
+        let computed = PlotComputation {
             definition: self.definition,
             selection: self.selection,
             source: PlotEvidence {
-                epoch: environment.epoch(),
                 stream: request.stream.clone(),
                 scope: request.scope.clone(),
-                cursor: cursor.clone(),
+                position: position.clone(),
                 window_s: request.window_s,
                 fields: request.y_keys.clone(),
                 x_key: payload.x_key.clone(),
             },
             series: computed,
-        });
-        payload.series.clear();
-        payload.analysis = None;
-        payload.cartesian = None;
-        Ok(payload)
+        };
+        // Dispatcher/Builtin Result Construction Still Requires Its Own Admission.
+        // This Projection Only Moves The Completed Result And Existing Payload.
+        payload.try_map(|mut payload| {
+            payload.computed = Some(computed);
+            payload.series.clear();
+            payload.analysis = None;
+            payload.cartesian = None;
+            Ok(payload)
+        })
     }
 }
 
-impl Environment<'_, '_> {
-    fn epoch(&self) -> String {
-        match self {
-            Self::Live(runtime) => runtime.process_epoch().to_string(),
-            Self::Report { epoch, .. } => (*epoch).to_owned(),
-        }
-    }
-
+impl Environment<'_> {
     async fn invoke(&self, target: &Target, operation: &str, request: Request) -> crate::runtime::Result<crate::analysis::Response> {
         match (self, target) {
+            // The runtime serves its built-in analyses as the host.
             (Self::Live(runtime), Target::Builtin) => {
-                let bytes = runtime.operations.call_encoded(operation, request.encode_to_vec()).await?;
+                let bytes = runtime.operations.call_encoded(&format!("host.{operation}"), request.encode()).await?;
                 crate::analysis::Response::decode(&bytes).map_err(|error| invalid(error.to_string()))
             }
             (Self::Live(runtime), Target::Plugin { source, dispatcher }) => {
                 runtime.analyze_with_dispatcher(source, dispatcher, operation, request).await
             }
-            (Self::Report { ctx, .. }, Target::Builtin) => {
-                let bytes = ctx.call_encoded(operation, request.encode_to_vec()).await?;
-                crate::analysis::Response::decode(&bytes).map_err(|error| invalid(error.to_string()))
+            (Self::Report { .. }, Target::Builtin) => {
+                let operation = operation.to_owned();
+                let work = tokio::task::spawn_blocking(move || crate::plot::builtins::evaluate_report(&operation, request));
+                tokio::time::timeout(std::time::Duration::from_secs(60), work)
+                    .await
+                    .map_err(|_| invalid("report analysis exceeded 60 seconds"))?
+                    .map_err(|error| invalid(error.to_string()))?
+                    .map_err(|error| invalid(error.to_string()))
             }
             (Self::Report { resources, .. }, Target::Plugin { source, dispatcher }) => {
                 resources.invoke(source, dispatcher, operation, request).await
@@ -297,6 +295,7 @@ impl Environment<'_, '_> {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn definitions(
     runtime: &RuntimeHandle, state: &crate::queries::RuntimeStateSnapshot,
 ) -> crate::runtime::Result<Vec<Definition>> {
@@ -312,6 +311,7 @@ pub(crate) fn definitions(
 }
 
 /* === Private Functions === */
+
 // Step And Criterion Attribution Do Not Start A New Telemetry Sequence.
 fn evidence_owner(
     scope: Option<&dokime_domain::model::execution::RecordScope>,
@@ -326,8 +326,12 @@ fn invalid(message: impl Into<String>) -> crate::runtime::Error {
         issues: vec![],
     })
 }
+
 fn unavailable(message: impl Into<String>) -> crate::runtime::Error {
-    crate::runtime::Error::Admission(AdmissionFailure::Unavailable { code: "analysis_unavailable".into(), message: message.into() })
+    crate::runtime::Error::Admission(AdmissionFailure::Unavailable {
+        code: "analysis_unavailable".into(),
+        message: message.into(),
+    })
 }
 
 /* === Tests === */

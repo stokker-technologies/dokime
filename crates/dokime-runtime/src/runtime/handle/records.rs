@@ -10,11 +10,14 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::runtime::storage::record_capture::CapturedRecord;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -51,9 +54,15 @@ pub struct CapturedRecords {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordSubscription {
     pub(crate) fn new(source: &Arc<Source>, state_manager: &crate::app::StateManager, after: harmos::state::Position) -> Self {
-        Self { source: source.clone(), state_manager: state_manager.clone(), delivered: after.0, reader: Process::default() }
+        Self {
+            source: source.clone(),
+            state_manager: state_manager.clone(),
+            delivered: after.0,
+            reader: source.process(),
+        }
     }
 
     pub async fn next(&mut self) -> Option<Result<CapturedRecord>> {
@@ -103,12 +112,16 @@ impl super::RuntimeHandle {
     }
 
     pub fn captured_records(&self) -> CapturedRecords {
+        self.captured_records_in(&self.storage().clone())
+    }
+
+    pub fn captured_records_in(&self, session: &crate::storage::Manager) -> CapturedRecords {
         CapturedRecords {
             source: self.record_source.clone(),
             state_manager: self.state_manager.clone(),
             epoch: self.record_source.epoch().to_owned(),
             frontier: self.state_manager.applied().0,
-            reader: tokio::sync::Mutex::new(Process::default()),
+            reader: tokio::sync::Mutex::new(Process::new(session.clone())),
         }
     }
 }

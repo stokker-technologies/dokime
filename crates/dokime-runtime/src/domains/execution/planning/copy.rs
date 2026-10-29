@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
+
 // Local Imports
 use crate::transactions::CopyCycle;
 use crate::{CommandContext, RuntimeHandle, runtime::Error, unavailable_rejection};
@@ -34,9 +36,13 @@ use dokime_domain::model::identity::TestCycleId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn copy_cycle(&self, source_cycle_id: TestCycleId, context: CommandContext) -> Result<TestCycleId, Error> {
         let transaction = CopyCycle {
+            max_executions: 10_000,
+            max_source_bytes: 16 * 1024 * 1024,
+            max_source_depth: 64,
             source_cycle_id,
             test_cycle_id: crate::model::identity::new_id::<TestCycleId>(),
             occurred_at: crate::model::time::now_utc(),

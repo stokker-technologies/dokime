@@ -61,7 +61,7 @@ export function CollapsibleSection({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3">
         <CollapsibleTrigger
           aria-label={title}
-          className="grid min-w-0 gap-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="grid min-w-0 gap-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           type="button"
         >
           <span className="flex min-w-0 items-center gap-2">
@@ -77,7 +77,7 @@ export function CollapsibleSection({
           {actions}
           <CollapsibleTrigger
             aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
-            className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             type="button"
           >
             <ChevronDown className={cn("transition-transform", open ? "rotate-180" : null)} />

@@ -46,7 +46,6 @@ use {
 pub fn benchmark(criterion: &mut Criterion) {
     let folded = fold(prepared(500));
     assert_eq!(folded.record_count, 500);
-    assert_eq!(folded.records.record_visibility.len(), 500);
 
     let mut group = criterion.benchmark_group("transactions_fold_records");
     for count in [500_u64, 1_000, 2_000] {

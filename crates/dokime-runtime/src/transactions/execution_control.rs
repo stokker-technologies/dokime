@@ -31,7 +31,6 @@ use crate::transactions::{
     provider::request::{RunPhase, RunRequest},
 };
 use dokime_domain::model::execution::result::CycleStatus;
-use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
@@ -42,7 +41,8 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "dokime.execution.control", version = 1, irreversible)]
+
+#[harmos::transaction(id = "dokime.execution.control", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ControlExecution {
@@ -56,24 +56,11 @@ pub struct ControlExecution {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ControlExecution {
     pub(crate) fn owning_request<'a>(state: &'a RuntimeState, id: &TestExecutionId) -> Option<&'a RunRequest> {
-        let execution = state.executions.get(id)?;
-        state.run_requests.values().find(|request| {
-            if request.summary.phase.terminal() {
-                return false;
-            }
-            match &request.test_execution_id {
-                Some(addressed) => addressed == id,
-                None => {
-                    request.summary.cycle_id == execution.test_cycle_id
-                        && execution.finished_at.is_none()
-                        && (request.pending.contains(id)
-                            || request.groups.iter().any(|group| group.pending.contains(id))
-                            || matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running))
-                }
-            }
-        })
+        state.executions.get(id)?;
+        state.run_requests.values().find(|request| !request.summary.phase.terminal() && request.selected_execution_ids.contains(id))
     }
 
     pub(crate) fn request<'a>(&self, state: &'a RuntimeState) -> Result<&'a RunRequest, String> {
@@ -92,21 +79,7 @@ impl ControlExecution {
         if !matches!(request.summary.phase, RunPhase::Queued | RunPhase::Preparing | RunPhase::Running) {
             return Err("provider work has settled; execution checkpoints are finishing".into());
         }
-        // A cycle-addressed request pauses and resumes as one queue, so only
-        // Stop narrows to a single member; Pause and Resume stay cycle-level.
-        let addressed = request.test_execution_id.is_some();
         match self.action {
-            CycleControlAction::Pause | CycleControlAction::Resume if !addressed => {
-                Err("a cycle run pauses and resumes at cycle level".into())
-            }
-            CycleControlAction::Stop
-                if !addressed
-                    && (request.summary.stop_requested
-                        || request.stopped_execution_ids.contains(&self.test_execution_id)
-                        || request.settled_execution_ids.contains(&self.test_execution_id)) =>
-            {
-                Err("execution is already stopping or has settled".into())
-            }
             CycleControlAction::Pause if request.summary.paused || request.summary.stop_requested => {
                 Err("execution request cannot be paused from its current state".into())
             }
@@ -152,6 +125,11 @@ impl Transaction<RuntimeState> for ControlExecution {
     type Error = String;
 
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
+        if matches!(self.action, CycleControlAction::Stop) {
+            let execution = state.executions.get(&self.test_execution_id).ok_or("execution not found")?;
+            state.cycles.get(&execution.test_cycle_id).ok_or("execution cycle not found")?;
+            return Ok(());
+        }
         self.request(state).map(|_| ())
     }
 
@@ -160,18 +138,14 @@ impl Transaction<RuntimeState> for ControlExecution {
     }
 
     fn apply(&self, state: &mut RuntimeState) {
+        if matches!(self.action, CycleControlAction::Stop) {
+            self.stop(state);
+            return;
+        }
         let id = self.request(state).expect("checked execution control").summary.request_id.clone();
         let (records, settled) = self.drafts(state);
         let request = state.run_requests.get_mut(&id).expect("checked request");
         let cycle = state.cycles.get_mut(&request.summary.cycle_id).expect("checked cycle");
-        if request.test_execution_id.is_none() {
-            // Stop one member of a cycle run: the request and its siblings run on.
-            request.stopped_execution_ids.push(self.test_execution_id.clone());
-            cycle.touch_at(self.occurred_at.clone());
-            records.apply(state);
-            commit_settled_prompts(state, settled);
-            return;
-        }
         match self.action {
             CycleControlAction::Pause => {
                 request.summary.paused = true;
@@ -188,6 +162,48 @@ impl Transaction<RuntimeState> for ControlExecution {
             }
         }
         cycle.touch_at(self.occurred_at.clone());
+        let cycle_id = cycle.test_cycle_id.clone();
+        super::provider::request::sync_cycle_activity(state, &cycle_id);
+        records.apply(state);
+        commit_settled_prompts(state, settled);
+    }
+}
+
+impl ControlExecution {
+    fn stop(&self, state: &mut RuntimeState) {
+        use dokime_domain::model::execution::result::{ExecutionStatus, ResultStatus, ResultSummary, StepStatus};
+        let (records, settled) = self.drafts(state);
+        let request = Self::owning_request(state, &self.test_execution_id);
+        let request_id = request.map(|request| request.summary.request_id.clone());
+        let prepared = request.is_some_and(|request| request.summary.prepared > 0);
+        let execution = state.executions.get_mut(&self.test_execution_id).expect("checked execution");
+        let cycle = state.cycles.get_mut(&execution.test_cycle_id).expect("checked cycle");
+        if cycle.phase == dokime_domain::model::execution::result::CyclePhase::Active {
+            cycle.continue_automatically = false;
+            cycle.touch_at(self.occurred_at.clone());
+        }
+        if !prepared && execution.started_at.is_none() && execution.finished_at.is_none() {
+            execution.status = ExecutionStatus::Cancelled;
+            execution.finished_at = Some(self.occurred_at.clone());
+            execution.result = Some(ResultSummary {
+                passed: 0,
+                failed: 0,
+                blocked: 0,
+                skipped: 1,
+                status: ResultStatus::Cancelled,
+            });
+            for step in &mut execution.steps {
+                if step.status == StepStatus::Pending {
+                    step.status = StepStatus::Skipped;
+                    step.finished_at = Some(self.occurred_at.clone());
+                }
+            }
+        }
+        if let Some(id) = request_id {
+            let request = state.run_requests.get_mut(&id).expect("execution request exists");
+            request.summary.stop_requested = true;
+            request.summary.paused = false;
+        }
         records.apply(state);
         commit_settled_prompts(state, settled);
     }

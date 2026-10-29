@@ -17,13 +17,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
-use harmos::MemorySize;
 use serde::ser::SerializeSeq;
 use serde::{Serialize, Serializer};
 
 // Local Imports
 use crate::definition::MaterializedParameter;
 use crate::expressions::DataSource;
+use crate::state::shared::Map;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
@@ -36,6 +36,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Default)]
 pub(crate) struct Context<'a> {
     executions: Executions<'a>,
@@ -51,22 +52,27 @@ pub(super) struct Entry<'a> {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 enum Executions<'a> {
     Slice(&'a [TestExecution]),
-    Ordered { ids: &'a [TestExecutionId], values: &'a BTreeMap<TestExecutionId, TestExecution> },
+    Ordered { ids: &'a [TestExecutionId], values: &'a Map<TestExecutionId, TestExecution> },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> Context<'a> {
     pub(crate) fn new(executions: &'a [TestExecution], selection: &'a RecordScope) -> Self {
-        Self { executions: Executions::Slice(executions), selection: Some(selection) }
+        Self {
+            executions: Executions::Slice(executions),
+            selection: Some(selection),
+        }
     }
 
     pub(crate) fn ordered(
-        ids: &'a [TestExecutionId], values: &'a BTreeMap<TestExecutionId, TestExecution>, selection: &'a RecordScope,
+        ids: &'a [TestExecutionId], values: &'a Map<TestExecutionId, TestExecution>, selection: &'a RecordScope,
     ) -> Option<Self> {
         let mut seen = BTreeSet::new();
         if ids.iter().any(|id| {
@@ -81,7 +87,10 @@ impl<'a> Context<'a> {
         }) {
             return None;
         }
-        Some(Self { executions: Executions::Ordered { ids, values }, selection: Some(selection) })
+        Some(Self {
+            executions: Executions::Ordered { ids, values },
+            selection: Some(selection),
+        })
     }
 
     pub(super) fn entries(self) -> impl DoubleEndedIterator<Item = Entry<'a>> {
@@ -119,20 +128,6 @@ impl<'a> Context<'a> {
         let id = scope.test_execution_id.as_ref()?;
         self.entries().find(|entry| entry.scope.test_execution_id.as_ref() == Some(id) && matches(scope, entry.scope))
     }
-
-    pub(super) fn largest_value(self) -> usize {
-        self.entries()
-            .flat_map(|entry| {
-                entry
-                    .dimensions
-                    .values()
-                    .chain(entry.inputs.values().map(|value| &value.value))
-                    .chain(entry.outputs.values().map(|value| &value.value))
-            })
-            .map(MemorySize::memory_size)
-            .max()
-            .unwrap_or(std::mem::size_of::<Value>())
-    }
 }
 
 impl Default for Executions<'_> {
@@ -165,18 +160,6 @@ impl Serialize for Context<'_> {
             sequence.serialize_element(&entry)?;
         }
         sequence.end()
-    }
-}
-
-impl MemorySize for Context<'_> {
-    fn memory_size(&self) -> usize {
-        self.entries().fold(std::mem::size_of::<Self>(), |bytes, entry| {
-            bytes
-                .saturating_add(entry.scope.memory_size())
-                .saturating_add(entry.dimensions.memory_size())
-                .saturating_add(entry.inputs.memory_size())
-                .saturating_add(entry.outputs.memory_size())
-        })
     }
 }
 
@@ -217,6 +200,7 @@ impl<'a> From<&'a TestExecution> for Entry<'a> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn member(execution: &RecordScope, selected: &RecordScope) -> bool {
     scoped(execution, selected, true)
 }

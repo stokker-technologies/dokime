@@ -44,7 +44,7 @@ import { ExpressionReferencePopover, FileValueCell, ParameterValueCell } from ".
 /** 40px rows, 48px at touch; the whole grid reads off this one measure. */
 const GRID_DENSITY = "[--parameter-row-height:2.5rem] [[data-density=touch]_&]:[--parameter-row-height:3rem]";
 
-const GRID_COLUMNS = "grid-cols-[minmax(0,2fr)_minmax(0,3fr)_2.5rem]";
+const GRID_COLUMNS = "grid-cols-[minmax(0,2fr)_minmax(0,3fr)_--spacing(10)]";
 
 /**
  * One inset for every row of every group.
@@ -53,7 +53,7 @@ const GRID_COLUMNS = "grid-cols-[minmax(0,2fr)_minmax(0,3fr)_2.5rem]";
  * row start their labels on the same line: 14px of padding behind a 2px rule
  * is the 16px the concept asks for.
  */
-const ROW_INSET = "border-l-2 pr-4 pl-[0.875rem]";
+const ROW_INSET = "border-l-2 pr-4 pl-4";
 
 /** The eyebrow above a parameter group; the first one does not need the air. */
 const GROUP_HEADING = "px-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase";
@@ -113,7 +113,7 @@ export function ParameterEditor({
       <div className="grid" data-testid="parameter-editor-grid">
         {groups.map((group, index) => (
           <section className="grid" key={group.label}>
-            <p className={cn(GROUP_HEADING, index === 0 ? "pt-1" : "pt-5")}>{group.label}</p>
+            <p className={cn(GROUP_HEADING, index === 0 ? "pt-1" : "pt-4")}>{group.label}</p>
             {group.rows.map((row) => (
               <ParameterEditorRow key={row.definition.parameter_id} onChangeRaw={onChangeRaw} onResetRow={onResetRow} row={row} />
             ))}
@@ -122,7 +122,7 @@ export function ParameterEditor({
 
         {fileDefinitions.length ? (
           <section className="grid">
-            <p className={cn(GROUP_HEADING, groups.length === 0 ? "pt-1" : "pt-5")}>Files</p>
+            <p className={cn(GROUP_HEADING, groups.length === 0 ? "pt-1" : "pt-4")}>Files</p>
             {fileDefinitions.map((definition) => {
               const row = fileRows.find((candidate) => candidate.name === definition.name) ?? {
                 error: null,
@@ -145,7 +145,7 @@ export function ParameterEditor({
                     inputId={`${parameterInputId(definition.name)}-file`}
                     label={definition.label ?? definition.name}
                   />
-                  <div className="grid min-w-0 gap-0.5">
+                  <div className="grid min-w-0 gap-1">
                     {/* The same reserved help slot a parameter row keeps, so
                         every field of the step shares one right edge. */}
                     <div className="flex min-w-0 items-center gap-1">
@@ -228,7 +228,7 @@ function ParameterEditorRow({
         label={definition.label ?? row.name}
       />
 
-      <div className="grid min-w-0 gap-0.5">
+      <div className="grid min-w-0 gap-1">
         {/* The help sits beside the field, not inside it: the value column
             keeps its edge and the icon stays on one vertical down the step. */}
         <div className="flex min-w-0 items-center gap-1">
@@ -260,10 +260,10 @@ function ParameterEditorRow({
             {error}
           </p>
         ) : expansion ? (
-          <p className="flex flex-wrap items-center gap-1.5 text-xs leading-snug text-muted-foreground">
+          <p className="flex flex-wrap items-center gap-2 text-xs leading-snug text-muted-foreground">
             {expansion.badge ? (
               /* A statement, not a control: no border, no hover, no pointer. */
-              <span className="pointer-events-none rounded-sm bg-muted px-1.5 py-0.5 text-[0.7rem] font-semibold tracking-wide text-muted-foreground uppercase select-none">
+              <span className="pointer-events-none rounded-lg bg-muted px-2 py-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase select-none">
                 {expansion.badge}
               </span>
             ) : null}
@@ -296,7 +296,7 @@ function ParameterEditorRow({
 
 function ParameterLabelCell({ description, inputId, label }: { description: string | null; inputId: string; label: string }) {
   return (
-    <div className="grid min-w-0 gap-0.5">
+    <div className="grid min-w-0 gap-1">
       <div className="flex min-w-0 items-center gap-1">
         <Label className="min-w-0 text-sm leading-snug font-medium" htmlFor={inputId} title={label}>
           {label}

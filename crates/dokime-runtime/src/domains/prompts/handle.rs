@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::time::Instant;
+
 // Third Party Imports
 
 // Local Imports
@@ -44,6 +46,7 @@ use dokime_domain::model::values::Value;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn prompt_definitions(&self) -> Vec<PromptDefinition> {
         self.state_read().prompt_definitions()
@@ -73,8 +76,11 @@ impl RuntimeHandle {
 
     pub async fn request_prompt(&self, prompt: PromptRequest) -> std::result::Result<PromptInstance, Error> {
         let prompt_id = prompt.prompt_id.clone();
-        let transaction =
-            Request { prompt, command_id: crate::model::identity::new_id::<CommandId>(), accepted_at: crate::model::time::now_utc() };
+        let transaction = Request {
+            prompt,
+            command_id: crate::model::identity::new_id::<CommandId>(),
+            accepted_at: crate::model::time::now_utc(),
+        };
         validate_request(&self.state_read(), &transaction)?;
         self.commit(transaction).await.map_err(|error| unavailable_rejection(error.to_string()))?;
         // Read the durable request projection, not the pending set: a fast
@@ -101,7 +107,7 @@ impl RuntimeHandle {
             return Ok(());
         };
         let records = self.records_at(&snapshot).await.map_err(|error| unavailable_rejection(error.to_string()))?;
-        let telemetry = self.collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default()).await;
+        let telemetry = self.collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default()).await?;
         let evaluation = crate::definition::evaluate_runtime_condition(&condition, &records, &telemetry);
         if evaluation.satisfied {
             return Ok(());
@@ -203,6 +209,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn ensure_accepted(receipt: &CommandReceipt) -> std::result::Result<(), Error> {
     match &receipt.rejection {
         Some(rejection) => Err(Error::internal(rejection.code.clone(), rejection.message.clone())),

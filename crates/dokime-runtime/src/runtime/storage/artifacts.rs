@@ -10,18 +10,22 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use super::artifact_reads::ArtifactReader;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{
     Arc, Weak,
     atomic::{AtomicU64, Ordering},
 };
+
 // Third Party Imports
-use harmos::storage::FileMetadata;
+use harmos::storage::{ByteRange, FileChunk, FileMetadata, FileReadBatch};
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
+
 // Local Imports
 use super::{
     execution::ExecutionView,
@@ -44,7 +48,7 @@ use dokime_domain::model::identity::UploadId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
-const CHUNK_BYTES: usize = 1024 * 1024;
+
 const UPLOAD_PREFIX: &str = "artifacts/uploads/";
 
 /* === Macros === */
@@ -52,6 +56,7 @@ const UPLOAD_PREFIX: &str = "artifacts/uploads/";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct ArtifactUpload {
     storage: Weak<ExecutionStorage>,
@@ -69,7 +74,7 @@ struct UploadProgress {
 
 struct Chunk {
     upload: ArtifactUpload,
-    bytes: Vec<u8>,
+    bytes: Bytes,
 }
 
 pub(super) struct Upload {
@@ -87,9 +92,24 @@ pub(super) struct Upload {
 
 /* === Enums === */
 
+enum Bytes {
+    Submitted(FileChunk),
+    Read(FileReadBatch),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Bytes {
+    fn as_slice(&self) -> &[u8] {
+        match self {
+            Self::Submitted(bytes) => bytes.as_slice(),
+            Self::Read(batch) => batch.bytes(),
+        }
+    }
+}
+
 impl Upload {
     pub(super) fn descriptor(&self) -> Option<&ExecutionOutput> {
         self.descriptor.as_ref()
@@ -101,26 +121,25 @@ impl ArtifactUpload {
         &self.id
     }
 
-    pub async fn send(&self, bytes: &[u8]) -> Result<()> {
-        if bytes.len() > CHUNK_BYTES {
-            return Err(error("artifact chunks must not exceed 1 MiB"));
-        }
-        let storage = self.storage.upgrade().ok_or(Error::ShuttingDown)?;
+    pub async fn send(&self, bytes: impl Into<FileChunk>) -> Result<()> {
+        let bytes = Bytes::Submitted(bytes.into());
+        self.send_chunk(Chunk { upload: self.clone(), bytes }).await
+    }
 
-        let chunk = Chunk { upload: self.clone(), bytes: bytes.to_vec() };
+    async fn send_chunk(&self, chunk: Chunk) -> Result<()> {
+        let storage = self.storage.upgrade().ok_or(Error::ShuttingDown)?;
+        let count = chunk.bytes.as_slice().len() as u64;
         let appended = tokio::spawn(async move {
             // Retain The Producer Token Through Admission
-            let ingress = &chunk;
-            let upload = &ingress.upload;
-            let owner = storage.acquisition(&upload.execution).await.ok_or_else(|| error("execution acquisition is closed"))?;
+            let owner = storage.acquisition(&chunk.upload.execution).await.ok_or_else(|| error("execution acquisition is closed"))?;
             let mut acquisition = owner.lock().await;
-            let state = acquisition.artifacts.get_mut(&upload.id).ok_or_else(|| error("artifact upload is missing"))?;
-            append(state, &ingress.bytes).await
+            let state = acquisition.artifacts.get_mut(&chunk.upload.id).ok_or_else(|| error("artifact upload is missing"))?;
+            append(state, chunk).await
         })
         .await
         .map_err(error)
         .and_then(|appended| appended);
-        let sent = self.progress.sent.fetch_add(bytes.len() as u64, Ordering::Relaxed) + bytes.len() as u64;
+        let sent = self.progress.sent.fetch_add(count, Ordering::Relaxed) + count;
         let operation = &self.progress.operation;
         operation.progress(sent, self.progress.expected);
         operation.track(appended)
@@ -169,7 +188,8 @@ impl ArtifactUpload {
                 save(&mut acquisition, &upload.id).await?;
                 let record = acquisition.artifacts[&upload.id].record.clone();
                 drop(acquisition);
-                storage.storage.flush().await?;
+                // Native Finish Already Confirms Immutable File Durability.
+                // Save The Logical Descriptors Together At The Execution Boundary.
                 return outcome(record, complete);
             }
             // A successful publication can retire its process-local owner.
@@ -183,23 +203,47 @@ impl ArtifactUpload {
 }
 
 impl RuntimeHandle {
+    pub(crate) async fn artifacts_at_in(
+        &self, session: &crate::storage::Manager, at: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<ArtifactRecord>>> {
+        super::artifact_inventory::records_at_in(&self.execution_storage, session, at).await
+    }
+
     // Stores a finished local file as the artifact `name`, a relative path.
     pub async fn upload_artifact_file(
         &self, scope: dokime_domain::model::execution::RecordScope, path: impl AsRef<std::path::Path>, filename: String,
         content_type: Option<String>,
     ) -> Result<ArtifactRecord> {
-        use tokio::io::AsyncReadExt;
         let path = path.as_ref();
-        let mut file = tokio::fs::File::open(path).await.map_err(error)?;
+        let file = tokio::fs::File::open(path).await.map_err(error)?;
         let size_bytes = file.metadata().await.map_err(error)?.len();
-        let upload = self.begin_artifact_upload(ArtifactUploadInput { scope, filename, content_type, size_bytes, sha256: None }).await?;
-        let mut buffer = vec![0; 64 * 1024];
-        loop {
-            let count = file.read(&mut buffer).await.map_err(error)?;
-            if count == 0 {
-                break;
-            }
-            upload.send(&buffer[..count]).await?;
+        let upload = self
+            .begin_artifact_upload(ArtifactUploadInput {
+                scope,
+                filename,
+                content_type,
+                size_bytes,
+                sha256: None,
+            })
+            .await?;
+
+        let session = self.storage().clone();
+        let source = file.try_clone().await.map_err(error)?.into_std().await;
+        let mut reader = session.read_opened_file(source, ByteRange { offset: 0, limit: Some(size_bytes) }).await?;
+        while let Some(batch) = reader.next().await? {
+            // The Native Page Owner Survives The Spawned Append And Blocking Write.
+            upload
+                .send_chunk(Chunk {
+                    upload: upload.clone(),
+                    bytes: Bytes::Read(batch),
+                })
+                .await?;
+        }
+
+        let completed = reader.completion()?;
+        let observed_size = file.metadata().await.map_err(error)?.len();
+        if completed.bytes != size_bytes || observed_size != size_bytes {
+            return Err(error("artifact source length changed during upload"));
         }
         upload.finish().await
     }
@@ -299,9 +343,13 @@ impl ExecutionStorage {
             status: ArtifactStatus::Staged,
             created_at: Timestamp::from_datetime(metadata.created_at.expect("runtime artifact creation time")),
         };
-        let progress = Arc::new(UploadProgress { operation, sent: AtomicU64::new(0), expected: input.size_bytes });
+        let progress = Arc::new(UploadProgress {
+            operation,
+            sent: AtomicU64::new(0),
+            expected: input.size_bytes,
+        });
         let state = Upload {
-            file: tokio::fs::File::from_std(tempfile::tempfile().map_err(error)?),
+            file: tokio::fs::File::from_std(tempfile::NamedTempFile::new().map_err(error)?.into_file()),
             closing: None,
             pending: None,
             descriptor: None,
@@ -314,7 +362,13 @@ impl ExecutionStorage {
         };
         acquisition.artifacts.insert(id.clone(), state);
         drop(acquisition);
-        Ok(ArtifactUpload { storage: Arc::downgrade(&self), execution, id, progress, _owner: owner })
+        Ok(ArtifactUpload {
+            storage: Arc::downgrade(&self),
+            execution,
+            id,
+            progress,
+            _owner: owner,
+        })
     }
 
     pub(crate) async fn artifact_records(&self) -> Result<Vec<ArtifactRecord>> {
@@ -326,16 +380,18 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn artifact_reader(&self, id: &ArtifactId) -> Result<Option<ArtifactReader>> {
+        let session = self.storage.clone();
         let mut found = None;
         super::artifact_inventory::inspect(self, |_, output| {
             if matches!(&output.content, ExecutionOutputContent::Artifact { record, .. } if &record.artifact_id == id) {
-                found = Some(output.clone());
+                let descriptor = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, harmos::Error>(output.clone()))?;
+                found = Some(descriptor);
             }
             Ok(())
         })
         .await?;
         match found {
-            Some(output) => Ok(Some(ArtifactReader::from_output(&self.storage, output).await?)),
+            Some(output) => Ok(Some(ArtifactReader::from_output(session, output).await?)),
             None => Ok(None),
         }
     }
@@ -357,6 +413,7 @@ impl ExecutionStorage {
 }
 
 /* === Public Functions === */
+
 pub(super) async fn abandon_dropped(acquisition: &mut Acquisition) -> Result<()> {
     for upload in acquisition.artifacts.values_mut() {
         if upload.record.status == ArtifactStatus::Staged && upload.owner.upgrade().is_none() {
@@ -385,19 +442,33 @@ pub(super) fn has_live_upload(acquisition: &Acquisition) -> bool {
 }
 
 /* === Private Functions === */
-async fn append(upload: &mut Upload, bytes: &[u8]) -> Result<()> {
+
+async fn append(upload: &mut Upload, chunk: Chunk) -> Result<()> {
+    use std::io::{Seek, Write};
+
     if upload.closing.is_some() || upload.record.status != ArtifactStatus::Staged {
         return Err(error("artifact upload is closed"));
     }
-    let size = upload.record.size_bytes.checked_add(bytes.len() as u64).ok_or_else(|| error("artifact size overflow"))?;
+    let size = upload.record.size_bytes.checked_add(chunk.bytes.as_slice().len() as u64).ok_or_else(|| error("artifact size overflow"))?;
     if size > upload.expected_size {
         return Err(error("artifact exceeds declared size"));
     }
-    // Discard Only An Unacknowledged Private Write Prefix Before Retrying
-    upload.file.set_len(upload.record.size_bytes).await.map_err(error)?;
-    upload.file.seek(std::io::SeekFrom::Start(upload.record.size_bytes)).await.map_err(error)?;
-    upload.file.write_all(bytes).await.map_err(error)?;
-    upload.digest.update(bytes);
+
+    let acknowledged = upload.record.size_bytes;
+    let mut file = upload.file.try_clone().await.map_err(error)?.into_std().await;
+    let chunk = tokio::task::spawn_blocking(move || {
+        // Discard Only An Unacknowledged Private Write Prefix Before Retrying.
+        // The Acquisition Lock Serializes This Original Handle's Shared Offset.
+        file.set_len(acknowledged).map_err(error)?;
+        file.seek(std::io::SeekFrom::Start(acknowledged)).map_err(error)?;
+        file.write_all(chunk.bytes.as_slice()).map_err(error)?;
+        Ok::<_, Error>(chunk)
+    })
+    .await
+    .map_err(error)??;
+
+    // Acknowledge Only The Completed Write; Errors Preserve The Prior Digest And Offset.
+    upload.digest.update(chunk.bytes.as_slice());
     upload.record.size_bytes = size;
     Ok(())
 }
@@ -461,7 +532,10 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
         created_at: record.created_at.clone(),
         file: reference,
         stream_state: Some(if *status == ArtifactStatus::Complete { SavedStreamState::Finalized } else { SavedStreamState::Interrupted }),
-        content: ExecutionOutputContent::Artifact { record: Box::new(record), metadata: upload.metadata.clone() },
+        content: ExecutionOutputContent::Artifact {
+            record: Box::new(record),
+            metadata: upload.metadata.clone(),
+        },
     };
     // A Refused Descriptor Retains The Original Finished Handle For Retry
     upload.record.status = status.clone();

@@ -1,0 +1,62 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Download One Complete Saved Evidence Archive
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+use serde::{Deserialize, Serialize};
+
+// Local Imports
+use super::*;
+use dokime_domain::model::exports::{EvidenceExportFrame, EvidenceSubject};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+#[harmos::operation(resources = [crate::hosting::Host<DownloadEvidence>], response = (), output = EvidenceExportFrame, id = "dokime.content.download_evidence",
+    policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
+    grpc(package = "dokime.v1", service = "Content", method = "DownloadEvidence"))]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DownloadEvidence {
+    pub subject: Option<EvidenceSubject>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */
+
+/* === --- === Runtime Module === --- === */
+
+#[cfg(feature = "runtime")]
+mod runtime {
+    use super::*;
+
+    crate::hosted!(DownloadEvidence);
+}

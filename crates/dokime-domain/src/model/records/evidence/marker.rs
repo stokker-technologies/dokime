@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::Identifier;
@@ -30,6 +32,7 @@ use crate::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordMarker {
     pub sequence: u64,
@@ -45,6 +48,7 @@ pub struct RecordMarker {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for RecordMarker {
     fn memory_size(&self) -> usize {
         let fields = [

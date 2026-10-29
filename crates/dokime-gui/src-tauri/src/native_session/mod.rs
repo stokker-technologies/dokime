@@ -8,18 +8,26 @@
  */
 
 /* === Modules === */
+
 pub mod backend;
 mod contract;
-mod diagnostics;
 pub mod launch;
 mod owner;
 pub mod storage;
 
 /* === Re-Exports === */
+
 pub use contract::*;
 pub use owner::DesktopSession;
 
+/* === Constants === */
+
+const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
+
+pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
+
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,6 +41,7 @@ pub use owner::DesktopSession;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct DesktopSessionControl(DesktopSession);
 
 /* === Enums === */
@@ -40,6 +49,7 @@ pub struct DesktopSessionControl(DesktopSession);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DesktopSessionControl {
     pub fn active(owner: DesktopSession) -> Self {
         Self(owner)
@@ -48,12 +58,29 @@ impl DesktopSessionControl {
         self.0.shutdown().await?;
         Ok(())
     }
+    // End the owned backend without the rest of its orderly stop.
+    pub fn abandon(&self) {
+        self.0.abandon();
+    }
+    pub async fn local_client(&self) -> Result<dokime::client::Client, DesktopSessionError> {
+        self.0.local_client().await
+    }
+    pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
+        self.0.select(selection).await
+    }
+    pub fn remove_profile(&self, name: &str) -> Result<(), DesktopSessionError> {
+        self.0.remove_profile(name)
+    }
+    pub async fn disconnect(&self) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
+        self.0.disconnect().await
+    }
     pub fn status(&self) -> DesktopSessionSnapshot {
         self.0.status()
     }
 }
 
 /* === Public Functions === */
+
 pub async fn desktop_session_select(
     state: tauri::State<'_, DesktopSessionControl>, selection: BackendSelection,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
@@ -95,7 +122,10 @@ pub async fn desktop_storage_backup_destination(
     if !choose {
         return Ok(Some(default.display().to_string()));
     }
-    let failed = |message: String| DesktopSessionError::StorageReset { reason: StorageResetReason::Failed, message };
+    let failed = |message: String| DesktopSessionError::StorageReset {
+        reason: StorageResetReason::Failed,
+        message,
+    };
     // The dialog blocks until the operator answers; keep it off the async workers.
     let selected = tauri::async_runtime::spawn_blocking(move || {
         let mut dialog = app.dialog().file().add_filter("Zip Archive", &["zip"]);
@@ -159,27 +189,29 @@ pub async fn desktop_open_backend_log(
     .map_err(|error| error.to_string())?
 }
 
-pub fn desktop_profiles_list() -> Result<dokime_client::profiles::Document, String> {
-    let store = dokime_client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
-    store.load().map_err(|error| error.to_string())
-}
-
 /* === Private Functions === */
+
 fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageRoot, DesktopSessionError> {
     use tauri::Manager;
 
     // Trust Only The Main Application Window
-    let unavailable = |message: String| DesktopSessionError::StorageReset { reason: StorageResetReason::OutsideRoot, message };
+    let unavailable = |message: String| DesktopSessionError::StorageReset {
+        reason: StorageResetReason::OutsideRoot,
+        message,
+    };
     let url = window.url().map_err(|error| unavailable(error.to_string()))?;
     if window.label() != "main" || !trusted_application_url(&url, window.app_handle().config()) {
         return Err(unavailable("Only the main application window may manage local storage.".to_owned()));
     }
 
     // Resolve The Data Root The Owned Backend Opens
-    let failed = |message: String| DesktopSessionError::StorageReset { reason: StorageResetReason::Failed, message };
+    let failed = |message: String| DesktopSessionError::StorageReset {
+        reason: StorageResetReason::Failed,
+        message,
+    };
     let application =
         crate::app::settings::application_root(&window.app_handle().config().identifier).map_err(|error| failed(error.to_string()))?;
-    storage::StorageRoot::resolve(application).map_err(failed)
+    storage::StorageRoot::resolve(application, DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES).map_err(failed)
 }
 
 /* === Tests === */

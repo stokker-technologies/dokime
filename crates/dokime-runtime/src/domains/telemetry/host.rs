@@ -10,15 +10,18 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_host::HostTelemetryCollector;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::Duration,
 };
+
 // Third Party Imports
 
 // Local Imports
@@ -35,6 +38,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct HostTelemetrySource {
     collector: Arc<dyn HostTelemetryCollector>,
 }
@@ -50,6 +54,8 @@ struct HostSamplerSession {
     ready: Vec<(String, TelemetryBatch)>,
     refused: Option<String>,
     tasks: Vec<Collecting>,
+    // Collections Past Their Timeout Or Abandoned By Shutdown That Settlement Released.
+    detached: Vec<Collecting>,
     settlement_failure: Option<tokio::task::JoinError>,
 }
 
@@ -57,8 +63,9 @@ struct Collecting {
     task: tokio::task::JoinHandle<std::result::Result<Option<TelemetryBatch>, String>>,
     stream: String,
     at: Timestamp,
-    deadline: tokio::time::Instant,
+    timeout: std::pin::Pin<Box<tokio::time::Sleep>>,
     expired: bool,
+    aborting: bool,
 }
 
 /* === Enums === */
@@ -66,6 +73,7 @@ struct Collecting {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl HostTelemetrySource {
     pub fn new(collector: Arc<dyn HostTelemetryCollector>) -> Self {
         Self { collector }
@@ -78,44 +86,93 @@ impl HostTelemetrySource {
 
 impl Sampler for HostSampler {
     fn open(&self) -> std::result::Result<Box<dyn SamplerSession>, String> {
-        Ok(Box::new(HostSamplerSession {
-            collector: self.collector.clone(),
+        Ok(Box::new(HostSamplerSession::new(self.collector.clone())))
+    }
+}
+
+impl HostSamplerSession {
+    fn new(collector: Arc<dyn HostTelemetryCollector>) -> Self {
+        Self {
+            collector,
             working: BTreeSet::new(),
             next_due: BTreeMap::new(),
             ready: Vec::new(),
             refused: None,
             tasks: Vec::new(),
+            detached: Vec::new(),
             settlement_failure: None,
-        }))
+        }
     }
-}
 
-impl HostSamplerSession {
     fn reap(&mut self) {
         let mut context = std::task::Context::from_waker(std::task::Waker::noop());
-        let now = tokio::time::Instant::now();
+        let _ = self.poll_tasks(&mut context);
+    }
+
+    fn poll_tasks(&mut self, context: &mut std::task::Context<'_>) -> std::task::Poll<()> {
+        self.poll_detached(context);
+        let mut completed = false;
         let mut index = 0;
         while index < self.tasks.len() {
             let pending = &mut self.tasks[index];
-            let result = std::future::Future::poll(std::pin::Pin::new(&mut pending.task), &mut context);
+            let result = std::future::Future::poll(std::pin::Pin::new(&mut pending.task), context);
             let std::task::Poll::Ready(result) = result else {
-                if !pending.expired && now >= pending.deadline {
+                if !pending.expired && std::future::Future::poll(pending.timeout.as_mut(), context).is_ready() {
                     pending.expired = true;
                     let stream = pending.stream.clone();
                     self.refuse(&stream, "host collection timed out".to_owned());
+                    completed = true;
                 }
                 index += 1;
                 continue;
             };
             let pending = self.tasks.remove(index);
-            self.complete(pending.stream, pending.at, result);
+            self.complete(pending.stream, pending.at, pending.aborting, result);
+            completed = true;
+        }
+        if completed { std::task::Poll::Ready(()) } else { std::task::Poll::Pending }
+    }
+
+    // A Detached Collection Returns No Sample; Its Stream Resumes Only After The Collector Ended.
+    fn poll_detached(&mut self, context: &mut std::task::Context<'_>) {
+        self.detached.retain_mut(|pending| {
+            let std::task::Poll::Ready(result) = std::future::Future::poll(std::pin::Pin::new(&mut pending.task), context) else {
+                return true;
+            };
+            match result {
+                Err(error) if !error.is_cancelled() => {
+                    tracing::warn!(stream = pending.stream, %error, "released host collection failed after its settlement");
+                }
+                _ => tracing::debug!(stream = pending.stream, "released host collection ended after its settlement"),
+            }
+            self.working.remove(&pending.stream);
+            false
+        });
+    }
+
+    // Settlement Is Bounded By Each Collection's Timeout Policy: A Blocking Collector Cannot
+    // Be Cancelled, So One That Outlived Its Timeout Or Was Abandoned Is Released Unjoined.
+    fn release_overdue(&mut self) {
+        let mut index = 0;
+        while index < self.tasks.len() {
+            if !self.tasks[index].expired && !self.tasks[index].aborting {
+                index += 1;
+                continue;
+            }
+            let pending = self.tasks.remove(index);
+            tracing::debug!(stream = pending.stream, "host collection released unjoined at settlement");
+            self.detached.push(pending);
         }
     }
 
     fn complete(
-        &mut self, stream: String, at: Timestamp,
+        &mut self, stream: String, at: Timestamp, aborting: bool,
         result: std::result::Result<std::result::Result<Option<TelemetryBatch>, String>, tokio::task::JoinError>,
     ) {
+        if aborting && result.as_ref().is_err_and(|error| error.is_cancelled()) {
+            self.working.remove(&stream);
+            return;
+        }
         let outcome = match result {
             Ok(outcome) => outcome,
             Err(error) => {
@@ -148,6 +205,13 @@ impl HostSamplerSession {
 }
 
 impl SamplerSession for HostSamplerSession {
+    fn poll_ready(&mut self, context: &mut std::task::Context<'_>) -> std::task::Poll<()> {
+        if !self.ready.is_empty() || self.refused.is_some() {
+            return std::task::Poll::Ready(());
+        }
+        self.poll_tasks(context)
+    }
+
     fn tick(&mut self, at: Timestamp, streams: &[String]) {
         self.reap();
         let now = tokio::time::Instant::now();
@@ -156,23 +220,41 @@ impl SamplerSession for HostSamplerSession {
             let collector = Arc::clone(&self.collector);
             let source = stream.clone();
             let task = tokio::task::spawn_blocking(move || collector.collect(&source));
-            self.tasks.push(Collecting { task, deadline: now + collection_timeout(&stream), stream, at: at.clone(), expired: false });
+            self.tasks.push(Collecting {
+                task,
+                timeout: Box::pin(tokio::time::sleep_until(now + collection_timeout(&stream))),
+                stream,
+                at: at.clone(),
+                expired: false,
+                aborting: false,
+            });
         }
     }
 
     fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>> {
         Box::pin(async move {
-            while let Some(pending) = self.tasks.last_mut() {
-                let result = (&mut pending.task).await;
-                let pending = self.tasks.pop().expect("the original collector remains owned");
-                self.complete(pending.stream, pending.at, result);
+            loop {
+                self.reap();
+                self.release_overdue();
+                if self.tasks.is_empty() {
+                    break;
+                }
+                std::future::poll_fn(|context| self.poll_tasks(context)).await;
             }
-            self.reap();
             match self.settlement_failure.take() {
                 Some(error) => Err(Box::new(error) as SettlementError),
                 None => Ok(()),
             }
         })
+    }
+
+    fn abandon(&mut self) {
+        self.reap();
+        for pending in &mut self.tasks {
+            // Abort Cancels Only A Collector That Has Not Started; Settlement Releases A Running One.
+            pending.aborting = true;
+            pending.task.abort();
+        }
     }
 
     fn collected(&mut self) -> std::result::Result<Vec<TelemetryBatch>, String> {
@@ -202,7 +284,10 @@ impl RuntimeHandle {
     }
 
     pub fn bind_native_host_telemetry(&self) {
-        self.bind_host_telemetry_source(dokime_host::default_host_telemetry_collector());
+        self.bind_host_telemetry_source(dokime_host::host_telemetry_collector(dokime_host::HostTelemetryConfig {
+            source: dokime_host::HostTelemetrySourceKind::Native,
+            options: dokime_host::HostOptions::default(),
+        }));
     }
 
     pub async fn request_host_sampling(
@@ -230,6 +315,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn due_streams<T: Copy + Ord + std::ops::Add<Duration, Output = T>>(
     streams: &[String], working: &mut BTreeSet<String>, next_due: &mut BTreeMap<String, T>, now: T, interval: impl Fn(&str) -> Duration,
 ) -> Vec<String> {
@@ -254,13 +340,90 @@ fn host_producer_key() -> String {
 }
 
 fn collection_timeout(stream: &str) -> Duration {
-    match stream {
-        "host.wifi" => Duration::from_secs(10),
-        "host.wifi.latency" => Duration::from_secs(4),
-        "host.wifi.channel_occupancy" => Duration::from_secs(12),
-        "host.bluetooth" => Duration::from_secs(6),
-        _ => Duration::from_secs(2),
-    }
+    dokime_host::collection_timeout(stream)
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct BlockingCollector {
+        entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+
+    impl HostTelemetryCollector for BlockingCollector {
+        fn interval(&self, _: &str) -> Duration {
+            Duration::from_secs(1)
+        }
+
+        fn collect(&self, _: &str) -> std::result::Result<Option<TelemetryBatch>, String> {
+            self.entered.lock().unwrap().take().unwrap().send(()).unwrap();
+            self.release.lock().unwrap().recv().unwrap();
+            Ok(None)
+        }
+    }
+
+    fn blocking_session() -> (HostSamplerSession, tokio::sync::oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
+        let (entered, started) = tokio::sync::oneshot::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let collector = BlockingCollector {
+            entered: std::sync::Mutex::new(Some(entered)),
+            release: std::sync::Mutex::new(released),
+        };
+        (HostSamplerSession::new(Arc::new(collector)), started, release)
+    }
+
+    // Settlement Must Complete On Its First Poll While The Collector Still Blocks.
+    async fn settle_now(session: &mut HostSamplerSession) -> Option<std::result::Result<(), SettlementError>> {
+        let mut settled = session.settle();
+        let polled = std::future::poll_fn(|context| std::task::Poll::Ready(std::future::Future::poll(settled.as_mut(), context))).await;
+        match polled {
+            std::task::Poll::Ready(result) => Some(result),
+            std::task::Poll::Pending => None,
+        }
+    }
+
+    // The Released Collector Still Ends On Its Own Thread; Its Stream Waits For That End.
+    async fn collector_ends(session: &mut HostSamplerSession, release: std::sync::mpsc::Sender<()>) {
+        assert!(session.working.contains("host.system"), "a released collector still owns its stream");
+        release.send(()).unwrap();
+        std::future::poll_fn(|context| {
+            session.poll_detached(context);
+            if session.detached.is_empty() { std::task::Poll::Ready(()) } else { std::task::Poll::Pending }
+        })
+        .await;
+        assert!(session.working.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn expired_collection_settles_without_its_collector() {
+        let (mut session, started, release) = blocking_session();
+        session.tick(crate::model::time::now_utc(), &["host.system".into()]);
+        started.await.unwrap();
+
+        tokio::time::advance(collection_timeout("host.system")).await;
+        std::future::poll_fn(|context| session.poll_ready(context)).await;
+        assert!(session.collected().is_err(), "the sample deadline still reports failure");
+
+        let settled = settle_now(&mut session).await;
+        assert!(matches!(settled, Some(Ok(()))), "a collection past its timeout cannot hold settlement");
+        assert!(session.collected().unwrap().is_empty());
+        collector_ends(&mut session, release).await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn abandoned_collection_settles_without_its_collector() {
+        let (mut session, started, release) = blocking_session();
+        session.tick(crate::model::time::now_utc(), &["host.system".into()]);
+        started.await.unwrap();
+
+        session.abandon();
+        let settled = settle_now(&mut session).await;
+        assert!(matches!(settled, Some(Ok(()))), "shutdown does not wait for an abandoned collection");
+        assert!(session.collected().unwrap().is_empty());
+        collector_ends(&mut session, release).await;
+    }
+}

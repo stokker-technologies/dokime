@@ -66,11 +66,19 @@ async fn kill_recovers_cycle() {
         .collect()
         .await
         .unwrap();
-    assert_eq!(cycles.len(), 1, "admitted cycle remains saved");
-    let cycle = dokime_domain::model::execution::result::TestCycle::try_from(cycles[0].value.clone()).expect("saved cycle is canonical");
+    assert_eq!(cycles.iter().map(|batch| batch.len()).sum::<usize>(), 1);
+    let cycle = cycles
+        .try_map(|batches| {
+            let batch = batches.into_iter().find(|batch| !batch.is_empty()).unwrap();
+
+            batch.try_map(|mut revisions| dokime_domain::model::execution::result::TestCycle::try_from(revisions.pop().unwrap().value))
+        })
+        .unwrap();
     assert_eq!(cycle.metadata.identifier.as_str(), "fixture.cycle");
     assert!(cycle.execution_ids.is_empty());
-    assert_eq!(cycle.lifecycle, CycleStatus::Ready);
+    assert_eq!(cycle.lifecycle, CycleStatus::Stopped);
+    assert_eq!(cycle.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
+    assert!(cycle.saved.is_some(), "recovery seals the interrupted container before admission");
     let id = cycle.test_cycle_id.clone();
     drop(cycle);
     drop(runtime);
@@ -94,7 +102,10 @@ async fn run_kill_child() {
     let (_owner, runtime) = booted(&root).await;
     let created = runtime
         .create_cycle(
-            CycleDefinition { metadata: metadata("fixture.cycle", "Fixture Cycle"), continue_on_failure: false },
+            CycleDefinition {
+                metadata: metadata("fixture.cycle", "Fixture Cycle"),
+                continue_automatically: false,
+            },
             CommandContext::default(),
         )
         .await;

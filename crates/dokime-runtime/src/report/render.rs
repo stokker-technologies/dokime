@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod cycle;
 pub(super) mod header;
 mod plan;
@@ -16,18 +17,21 @@ mod telemetry;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
+
 // Third Party Imports
 use serde::{
     Serialize, Serializer,
     ser::{SerializeMap, SerializeSeq},
 };
 use serde_json::Value as JsonValue;
+
 // Local Imports
 use super::output;
 use crate::definition::TestCase;
@@ -58,6 +62,7 @@ use dokime_domain::model::values::Value;
 use header::Header;
 
 /* === Constants === */
+
 const DEFAULT_DOCUMENT_ID: &str = "default";
 
 /* === Macros === */
@@ -65,6 +70,7 @@ const DEFAULT_DOCUMENT_ID: &str = "default";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct CaseRun<'a> {
     test_case: &'a TestCase,
     execution: Option<&'a TestExecution>,
@@ -92,6 +98,7 @@ struct ExecutionRow<'a, S> {
 struct ArtifactRow<'a> {
     #[serde(flatten)]
     link: &'a ReportArtifactLink,
+
     #[serde(rename = "downloadHref")]
     download_href: &'a str,
 }
@@ -210,13 +217,6 @@ struct StepRow<'a> {
 }
 
 #[derive(Serialize)]
-#[serde(untagged)]
-enum StepResult<'a> {
-    Step { status: &'static str, details: StepFailure<'a> },
-    Criterion { status: &'static str, reason: &'a Option<String>, details: CriterionDetails<'a> },
-}
-
-#[derive(Serialize)]
 struct CriterionDetails<'a> {
     observed: Option<ReportValue<'a>>,
 }
@@ -238,6 +238,7 @@ struct StepOwner<'a> {
     scope: &'a RecordScope,
     generated_at: &'a Timestamp,
 }
+
 struct ReportValue<'a>(&'a Value);
 
 #[derive(Serialize)]
@@ -294,10 +295,12 @@ struct TraceabilityItem<'a> {
 struct TraceabilityDetails<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<&'a str>,
+
     identifier: &'a str,
 }
 
 struct TraceabilityItems<'g, 'a>(&'g BTreeMap<TraceabilityKey<'a>, TraceabilityItem<'a>>);
+
 struct TraceabilitySources<'g, 'a>(&'g BTreeSet<&'a str>);
 
 struct ReportTitle<'a> {
@@ -311,6 +314,13 @@ struct TraceabilityKey<'a> {
 }
 
 /* === Enums === */
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum StepResult<'a> {
+    Step { status: &'static str, details: StepFailure<'a> },
+    Criterion { status: &'static str, reason: &'a Option<String>, details: CriterionDetails<'a> },
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum TraceabilityGroupRank {
@@ -406,175 +416,6 @@ impl Serialize for ReportValue<'_> {
             }
         }
     }
-}
-
-/* === Public Functions === */
-/* === Private Functions === */
-fn snapshot(input: Header<'_>) -> Snapshot<'_> {
-    let template_id = input.cycle.metadata.identifier.as_str();
-    Snapshot {
-        run: RunRow {
-            session_id: input.session_id.as_str(),
-            title: &input.cycle.metadata.label,
-            template_id,
-            template_slug: template_id,
-            label: &input.cycle.metadata.label,
-            metadata: input.cycle.metadata,
-            status: run_status(input),
-            started_at: input.cycle.created_at,
-            updated_at: input.generated_at,
-            run_dir: None,
-            local_url: None,
-            lan_url: None,
-            rerun_command: None,
-        },
-        session_id: input.session_id.as_str(),
-        title: report_document_title(input, cycle_default_document_materialization(input).map(|document| &document.definition)),
-        revision: 0,
-        pending_prompts: &[],
-        result_summary: input.cycle.result.map(|result| Summary {
-            outcome: match result.status {
-                ResultStatus::Passed => "completed",
-                ResultStatus::Failed | ResultStatus::Blocked | ResultStatus::Cancelled => "failed",
-                ResultStatus::Pending => "unknown",
-            },
-            headline: result_status(&result.status),
-            warnings: &[],
-            evidence: [SummaryEvidence { passed: result.passed, failed: result.failed, blocked: result.blocked, skipped: result.skipped }],
-            updated_at: input.generated_at,
-            scope: empty_report_scope(input),
-        }),
-        // Cycle-Level Traceability Is Read Per Case.
-        traceability: None,
-        updated_at: input.generated_at,
-    }
-}
-
-fn report_scope<'a>(input: Header<'a>, scope: &'a RecordScope) -> ReportScope<'a> {
-    ReportScope {
-        test_cycle_id: scope.test_cycle_id.as_ref().map_or(input.cycle.test_cycle_id.as_str(), |id| id.as_str()),
-        test_execution_id: scope.test_execution_id.as_ref().map(|id| id.as_str()),
-        test_case_id: scope.test_case_id.as_ref().map(|id| id.as_str()),
-        template_id: scope.template_id.as_ref().map(|id| id.as_str()),
-        step_id: scope.step_id.as_ref().map(|id| id.as_str()),
-        criterion_id: scope.criterion_id.as_ref().map(|id| id.as_str()),
-    }
-}
-
-fn record_tone(severity: &str) -> &'static str {
-    match severity {
-        "error" => "danger",
-        "warning" | "warn" => "warning",
-        "debug" => "muted",
-        _ => "neutral",
-    }
-}
-
-fn record_severity(severity: crate::records::RecordSeverity) -> &'static str {
-    match severity {
-        crate::records::RecordSeverity::Debug => "debug",
-        crate::records::RecordSeverity::Info => "info",
-        crate::records::RecordSeverity::Warning => "warning",
-        crate::records::RecordSeverity::Error => "error",
-    }
-}
-
-fn record_row<'a>(input: Header<'a>, record: &'a dokime_domain::model::records::evidence::RecordEntry) -> RecordRow<'a> {
-    let severity = record_severity(record.severity);
-    RecordRow {
-        record_id: record.record_id.as_str(),
-        record_type: record.record_type.as_str(),
-        timestamp: &record.timestamp,
-        session_id: input.session_id.as_str(),
-        sequence: record.sequence,
-        level: severity,
-        source: &record.source,
-        display: RecordDisplay { icon: "clock", tone: record_tone(severity) },
-        message: record.message.as_deref(),
-        error: record.error.as_ref(),
-        details: ReportValues(&record.details),
-        related_sample_id: record.related_sample_id.as_ref().map(|id| id.as_str()),
-        related_stream: record.related_stream_id.as_ref().map(|id| id.as_str()),
-        related_artifact_id: record.related_artifact_id.as_ref().map(|id| id.as_str()),
-        scope: record.scope.as_ref().map(|scope| report_scope(input, scope)),
-    }
-}
-
-fn step_with_owner<'a>(
-    input: Header<'a>, owner: StepOwner<'a>, step: &'a StepRecord, order: usize, criterion: Option<&'a CriterionResult>,
-) -> StepRow<'a> {
-    let status = criterion.map_or_else(|| step_status(&step.status), |criterion| criterion_status(&criterion.status));
-    let result = criterion.map_or_else(
-        || StepResult::Step { status, details: StepFailure(step) },
-        |criterion| StepResult::Criterion {
-            status,
-            reason: &criterion.message,
-            details: CriterionDetails { observed: criterion.observed.as_ref().map(ReportValue) },
-        },
-    );
-    let scope = owner.scope;
-    StepRow {
-        record_type: if criterion.is_some() { "criterion" } else { "step" },
-        test_execution_id: owner.id,
-        test_cycle_id: input.cycle.test_cycle_id.as_str(),
-        queue_item_id: owner.case,
-        case_id: owner.case,
-        template_id: owner.template,
-        step_id: step.step_id.as_str(),
-        method_name: criterion.map_or(&step.metadata, |criterion| &criterion.metadata).identifier.as_str(),
-        order,
-        status,
-        result,
-        started_at: step.started_at.as_ref().unwrap_or(owner.generated_at),
-        finished_at: step.finished_at.as_ref().unwrap_or(owner.generated_at),
-        duration_s: if criterion.is_some() { 0.0 } else { duration_seconds(step.started_at.as_ref(), step.finished_at.as_ref()) },
-        metadata: criterion.map_or(&step.metadata, |criterion| &criterion.metadata),
-        scope: StepScope {
-            test_cycle_id: scope.test_cycle_id.as_ref().map_or(input.cycle.test_cycle_id.as_str(), |id| id.as_str()),
-            test_execution_id: scope.test_execution_id.as_ref().map(|id| id.as_str()),
-            test_case_id: scope.test_case_id.as_ref().map(|id| id.as_str()),
-            template_id: owner.template,
-            step_id: step.step_id.as_str(),
-            criterion_id: criterion
-                .map(|criterion| criterion.criterion_id.as_str())
-                .or_else(|| scope.criterion_id.as_ref().map(|id| id.as_str())),
-        },
-    }
-}
-
-fn case_session<'a>(input: &'a CycleReportInput, test_case: &'a TestCase) -> CaseRun<'a> {
-    let execution = latest_execution_for_case(input, &test_case.test_case_id);
-    let scope = execution.map_or_else(
-        || RecordScope::default().with_cycle(input.cycle.test_cycle_id.clone()).with_test_case(test_case.test_case_id.clone()),
-        |execution| execution.scope.clone(),
-    );
-    let document = case_document_for_case(input, &test_case.test_case_id, execution);
-    let traceability = Traceability { input, scope: Some(scope) };
-    CaseRun { test_case, execution, document, traceability }
-}
-
-fn report_document_title<'a>(input: Header<'a>, document: Option<&'a DocumentDefinition>) -> ReportTitle<'a> {
-    match document.filter(|document| document.metadata.identifier.as_str() != "cycle.default") {
-        Some(document) => ReportTitle { label: &document.metadata.label, cycle: false },
-        None => ReportTitle { label: &input.cycle.metadata.label, cycle: true },
-    }
-}
-
-fn cycle_default_document_materialization(input: Header<'_>) -> Option<&Capture> {
-    input.documents.iter().find_map(|(id, document)| (id.as_str() == DEFAULT_DOCUMENT_ID).then_some(document))
-}
-
-fn case_document_for_case<'a>(
-    input: &'a CycleReportInput, test_case_id: &CaseId, execution: Option<&TestExecution>,
-) -> Option<&'a ReportCaseDocument> {
-    input.case_documents.iter().find(|document| {
-        &document.test_case_id == test_case_id
-            && match (&document.test_execution_id, execution) {
-                (Some(expected), Some(execution)) => expected == &execution.test_execution_id,
-                (Some(_), None) => false,
-                (None, _) => true,
-            }
-    })
 }
 
 impl Serialize for Traceability<'_> {
@@ -696,6 +537,198 @@ impl Serialize for TraceabilitySources<'_, '_> {
     }
 }
 
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+fn snapshot(input: Header<'_>) -> Snapshot<'_> {
+    let template_id = input.cycle.metadata.identifier.as_str();
+    Snapshot {
+        run: RunRow {
+            session_id: input.session_id.as_str(),
+            title: &input.cycle.metadata.label,
+            template_id,
+            template_slug: template_id,
+            label: &input.cycle.metadata.label,
+            metadata: input.cycle.metadata,
+            status: run_status(input),
+            started_at: input.cycle.created_at,
+            updated_at: input.generated_at,
+            run_dir: None,
+            local_url: None,
+            lan_url: None,
+            rerun_command: None,
+        },
+        session_id: input.session_id.as_str(),
+        title: report_document_title(input, cycle_default_document_materialization(input).map(|document| &document.definition)),
+        revision: 0,
+        pending_prompts: &[],
+        result_summary: input.cycle.result.map(|result| Summary {
+            outcome: match result.status {
+                ResultStatus::Passed => "completed",
+                ResultStatus::Failed | ResultStatus::Blocked | ResultStatus::Cancelled => "failed",
+                ResultStatus::Pending => "unknown",
+            },
+            headline: result_status(&result.status),
+            warnings: &[],
+            evidence: [SummaryEvidence {
+                passed: result.passed,
+                failed: result.failed,
+                blocked: result.blocked,
+                skipped: result.skipped,
+            }],
+            updated_at: input.generated_at,
+            scope: empty_report_scope(input),
+        }),
+        // Cycle-Level Traceability Is Read Per Case.
+        traceability: None,
+        updated_at: input.generated_at,
+    }
+}
+
+fn report_scope<'a>(input: Header<'a>, scope: &'a RecordScope) -> ReportScope<'a> {
+    ReportScope {
+        test_cycle_id: scope.test_cycle_id.as_ref().map_or(input.cycle.test_cycle_id.as_str(), |id| id.as_str()),
+        test_execution_id: scope.test_execution_id.as_ref().map(|id| id.as_str()),
+        test_case_id: scope.test_case_id.as_ref().map(|id| id.as_str()),
+        template_id: scope.template_id.as_ref().map(|id| id.as_str()),
+        step_id: scope.step_id.as_ref().map(|id| id.as_str()),
+        criterion_id: scope.criterion_id.as_ref().map(|id| id.as_str()),
+    }
+}
+
+fn record_tone(severity: &str) -> &'static str {
+    match severity {
+        "error" => "danger",
+        "warning" | "warn" => "warning",
+        "debug" => "muted",
+        _ => "neutral",
+    }
+}
+
+fn record_severity(severity: crate::records::RecordSeverity) -> &'static str {
+    match severity {
+        crate::records::RecordSeverity::Debug => "debug",
+        crate::records::RecordSeverity::Info => "info",
+        crate::records::RecordSeverity::Warning => "warning",
+        crate::records::RecordSeverity::Error => "error",
+    }
+}
+
+fn record_row<'a>(input: Header<'a>, record: &'a dokime_domain::model::records::evidence::RecordEntry) -> RecordRow<'a> {
+    let severity = record_severity(record.severity);
+    RecordRow {
+        record_id: record.record_id.as_str(),
+        record_type: record.record_type.as_str(),
+        timestamp: &record.timestamp,
+        session_id: input.session_id.as_str(),
+        sequence: record.sequence,
+        level: severity,
+        source: &record.source,
+        display: RecordDisplay {
+            icon: "clock",
+            tone: record_tone(severity),
+        },
+        message: record.message.as_deref(),
+        error: record.error.as_ref(),
+        details: ReportValues(&record.details),
+        related_sample_id: record.related_sample_id.as_ref().map(|id| id.as_str()),
+        related_stream: record.related_stream_id.as_ref().map(|id| id.as_str()),
+        related_artifact_id: record.related_artifact_id.as_ref().map(|id| id.as_str()),
+        scope: record.scope.as_ref().map(|scope| report_scope(input, scope)),
+    }
+}
+
+fn step_with_owner<'a>(
+    input: Header<'a>, owner: StepOwner<'a>, step: &'a StepRecord, order: usize, criterion: Option<&'a CriterionResult>,
+) -> StepRow<'a> {
+    let status = criterion.map_or_else(|| step_status(&step.status), |criterion| criterion_status(&criterion.status));
+    let result = criterion.map_or_else(
+        || StepResult::Step { status, details: StepFailure(step) },
+        |criterion| StepResult::Criterion {
+            status,
+            reason: &criterion.message,
+            details: CriterionDetails {
+                observed: criterion.observed.as_ref().map(ReportValue),
+            },
+        },
+    );
+    let scope = owner.scope;
+    StepRow {
+        record_type: if criterion.is_some() { "criterion" } else { "step" },
+        test_execution_id: owner.id,
+        test_cycle_id: input.cycle.test_cycle_id.as_str(),
+        queue_item_id: owner.case,
+        case_id: owner.case,
+        template_id: owner.template,
+        step_id: step.step_id.as_str(),
+        method_name: criterion.map_or(&step.metadata, |criterion| &criterion.metadata).identifier.as_str(),
+        order,
+        status,
+        result,
+        started_at: step.started_at.as_ref().unwrap_or(owner.generated_at),
+        finished_at: step.finished_at.as_ref().unwrap_or(owner.generated_at),
+        duration_s: if criterion.is_some() { 0.0 } else { duration_seconds(step.started_at.as_ref(), step.finished_at.as_ref()) },
+        metadata: criterion.map_or(&step.metadata, |criterion| &criterion.metadata),
+        scope: StepScope {
+            test_cycle_id: scope.test_cycle_id.as_ref().map_or(input.cycle.test_cycle_id.as_str(), |id| id.as_str()),
+            test_execution_id: scope.test_execution_id.as_ref().map(|id| id.as_str()),
+            test_case_id: scope.test_case_id.as_ref().map(|id| id.as_str()),
+            template_id: owner.template,
+            step_id: step.step_id.as_str(),
+            criterion_id: criterion
+                .map(|criterion| criterion.criterion_id.as_str())
+                .or_else(|| scope.criterion_id.as_ref().map(|id| id.as_str())),
+        },
+    }
+}
+
+fn case_session<'a>(input: &'a CycleReportInput, test_case: &'a TestCase) -> CaseRun<'a> {
+    let execution = latest_execution_for_case(input, &test_case.test_case_id);
+    let scope = execution.map_or_else(
+        || RecordScope::default().with_cycle(input.cycle.test_cycle_id.clone()).with_test_case(test_case.test_case_id.clone()),
+        |execution| execution.scope.clone(),
+    );
+    let document = case_document_for_case(input, &test_case.test_case_id, execution);
+    let traceability = Traceability { input, scope: Some(scope) };
+    CaseRun {
+        test_case,
+        execution,
+        document,
+        traceability,
+    }
+}
+
+fn report_document_title<'a>(input: Header<'a>, document: Option<&'a DocumentDefinition>) -> ReportTitle<'a> {
+    match document.filter(|document| document.metadata.identifier.as_str() != "cycle.default") {
+        Some(document) => ReportTitle {
+            label: &document.metadata.label,
+            cycle: false,
+        },
+        None => ReportTitle {
+            label: &input.cycle.metadata.label,
+            cycle: true,
+        },
+    }
+}
+
+fn cycle_default_document_materialization(input: Header<'_>) -> Option<&Capture> {
+    input.documents.iter().find_map(|(id, document)| (id.as_str() == DEFAULT_DOCUMENT_ID).then_some(document))
+}
+
+fn case_document_for_case<'a>(
+    input: &'a CycleReportInput, test_case_id: &CaseId, execution: Option<&TestExecution>,
+) -> Option<&'a ReportCaseDocument> {
+    input.case_documents.iter().find(|document| {
+        &document.test_case_id == test_case_id
+            && match (&document.test_execution_id, execution) {
+                (Some(expected), Some(execution)) => expected == &execution.test_execution_id,
+                (Some(_), None) => false,
+                (None, _) => true,
+            }
+    })
+}
+
 fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordScope>) -> TraceabilityGroups<'a> {
     // Rank Separates Derived Groups From Equally Titled Authored Sections.
     let mut groups = BTreeMap::<(TraceabilityGroupRank, &str), TraceabilityGroup<'a>>::new();
@@ -711,7 +744,10 @@ fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordSco
             let entries = std::slice::from_ref(&entry);
             let title = traceability_group_title(item, entries);
             let group = groups.entry((rank, title)).or_insert_with(|| TraceabilityGroup {
-                group_id: TraceabilityKey { identifier: item.traceability_id.as_str(), label: title },
+                group_id: TraceabilityKey {
+                    identifier: item.traceability_id.as_str(),
+                    label: title,
+                },
                 title,
                 sources: BTreeSet::new(),
                 items: BTreeMap::new(),
@@ -721,7 +757,10 @@ fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordSco
                 group.sources.insert(source);
             }
             group.updated_at = &item.created_at;
-            let key = TraceabilityKey { identifier: entry.metadata.identifier.as_str(), label: &entry.metadata.label };
+            let key = TraceabilityKey {
+                identifier: entry.metadata.identifier.as_str(),
+                label: &entry.metadata.label,
+            };
             group.items.insert(
                 key,
                 TraceabilityItem {
@@ -729,7 +768,10 @@ fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordSco
                     value: ReportValue(&entry.value),
                     unit: entry.unit.as_deref(),
                     level: "info",
-                    details: TraceabilityDetails { source: entry.source.as_deref(), identifier: entry.metadata.identifier.as_str() },
+                    details: TraceabilityDetails {
+                        source: entry.source.as_deref(),
+                        identifier: entry.metadata.identifier.as_str(),
+                    },
                     scope: report_scope(input.into(), &item.scope),
                 },
             );

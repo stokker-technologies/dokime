@@ -1,0 +1,83 @@
+# Dokime Organization Pack — Appearance, Theme Policy And Geometry.
+#
+# This authored pack supplies the compiled appearance. An installed Organization
+# Pack can override appearance on the next desktop start; bundle identity,
+# storage identity, deep-link registration and signing trust remain compiled.
+# Compiled identity belongs to the application build configuration.
+#
+# Pack Layout (Bundled With Dokime Or Supplied As An Override):
+#
+#   organization.toml    this manifest — display identity, artwork, theme policy
+#   logos/        app marks, named `<treatment>-on-<surface>.<ext>`
+#   icons/        OS app-icon sources (icon.png is the desktop icon master)
+#   theme/        authored CSS: typography.css, base.css, light.css, dark.css
+#   fonts/        vendored woff2 faces (offline; never fetched at runtime)
+#
+# Run `mise run prepare:organization` and rebuild after editing compiled assets.
+#
+# Typography and application palette values live in theme/. Native installer
+# sidebar appearance is configured here without evaluating CSS.
+
+[installer]
+sidebar_color = "#1B1915"
+# sidebar_image = "installer/sidebar.png" # Optional PNG; takes precedence over color.
+
+[updates]
+mode = "manual"
+source = "dokime"
+
+[updates.sources.dokime]
+kind = "github"
+repository = "stokker-technologies/dokime"
+
+[app]
+# Display name shown in the title bar and app shell.
+label = "Dokime"
+# `{app}` is substituted with `label`.
+title_template = "{app}"
+
+[app.artwork]
+application = "icons/icon.png"
+tray = "icons/icon.png"
+installer = "icons/icon.png"
+
+[app.organization]
+name = "Stokker Technologies"
+# unit = "..."       # optional
+# website = "..."    # optional
+
+# Stoa categories: treatment and intended background surface, not ink tone.
+# Declared asset paths are relative to this pack root; matching PNGs are exports.
+# The shell prefers transparent artwork and falls back within the same surface.
+[app.logos.transparent]
+on_light = "logos/transparent-on-light.svg"
+on_dark = "logos/transparent-on-dark.svg"
+
+[app.logos.contained]
+on_light = "logos/contained-on-light.svg"
+on_dark = "logos/contained-on-dark.svg"
+
+[theme]
+# register_only | default | required.
+#   register_only — offer the theme in the picker but do not force it active.
+#   default        — make it the default active family (users can still switch).
+#   required       — lock the app to this family and the mode below.
+# The brand's label/organization/title/logo apply regardless of this policy;
+# it governs only the theme.
+policy = "required"
+# user_or_system | force_system | force_light | force_dark (used when required).
+default_mode = "user_or_system"
+label = "Default"
+description = "Dokime's charcoal and gilt workshop theme."
+
+# Shared corner geometry for both modes. Values map to Tailwind's radius scale;
+# only genuinely circular controls use `rounded-full` outside this family scale.
+[theme.corner_radii]
+base = "0.1875rem"
+sm = "0.0625rem"
+md = "0.125rem"
+lg = "0.1875rem"
+xl = "0.25rem"
+"2xl" = "0.3125rem"
+"3xl" = "0.375rem"
+"4xl" = "0.5rem"

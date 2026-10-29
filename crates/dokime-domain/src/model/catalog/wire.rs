@@ -74,7 +74,6 @@ pub struct TemplateDefinition {
     pub files: Vec<FileParameterDefinition>,
     pub steps: Vec<StepDefinition>,
     pub parameter_groups: Vec<ParameterGroupDefinition>,
-    pub continue_on_failure: bool,
 }
 
 #[harmos_domain::message]

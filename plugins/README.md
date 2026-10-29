@@ -12,12 +12,14 @@ block and carries the identity, the operations it provides and requires, the
 restart policy and the contributions it adds to the host — suites, records and
 listeners, evidence streams and settings — each owned by a named
 `#[dokime::catalog]` enum. Device behaviour is `#[dokime::operation]`s listed in
-`provides = operations::Operations`.
+`provides = operations::Operations`; each request struct is its operation,
+declares the `resources = [...]` it reads and implements `Operation::run`, and
+`bind_operations` registers the catalog with one dependency snapshot.
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
 
-`cargo dokime build` compiles the selected native executable, runs its bounded
+`cargo dokime sidecar build` compiles the selected native executable, runs its bounded
 catalog export, and creates a `.dokime` bundle containing the executable,
 frozen registrations and `assets/`. Ordinary `cargo build` only compiles.
 Catalog export must be deterministic: declaration identities use stable seeds,
@@ -29,9 +31,9 @@ and dropdown sources come off the authored settings aggregate —
 `PluginSettings::status_operation()`, `PluginSettings::option_providers()` — read
 from the admitted catalog; the host has no compiled plugin adapters.
 
-Operators install bundles through **Settings → Plugins**. Staging inspects frozen
-bytes without running author code. Consent binds an installation UUID to its
-SHA-256 in `settings.json`; immutable bytes live at
+Operators install bundles through **Settings → Plugins**. Installation validates
+the complete bundle and frozen registrations without running author code, then
+atomically binds an installation UUID to its SHA-256 in `settings.json`; immutable bytes live at
 `<application root>/plugins/<UUID>.dokime`. Files copied there manually are not
 admitted and the boot sweep deletes them. `DOKIME_PLUGINS_DIR` (or
 `--plugins-root`) names a development directory whose bundles load for one
@@ -39,7 +41,7 @@ process; it is never a store. A corrupt `settings.json` fails explicitly; missin
 or changed bundle bytes remain visible by UUID and error, without displaying
 unverified author metadata.
 
-Consent rechecks configured and installed owner collisions. Replacing an installed
+Installation checks configured and installed owner collisions before publication. Replacing an installed
 package marks its previous version for next-boot removal; package names identify
 installations, while executable IDs identify dependencies. Boot selects native
 files for the current platform, verifies frozen and live registrations before
@@ -47,7 +49,6 @@ initialization, and admits catalogs only after every surviving package initializ
 A failed package loses all its executable siblings and dependent packages.
 A bundle that declares a Harmos guest is refused at admission.
 
-New catalog ownership is explicit. Host registrations survive plugin removal.
-Legacy catalogs without ownership remain readable but authorize no executable;
-an admitted bundle can replace a matching unclassified source. Other legacy
-sources remain untouched. Bundle removal removes only its tracked catalogs.
+Catalog ownership is explicit. Host registrations survive plugin removal.
+Provider reconciliation rebuilds the catalogs owned by configured, embedded and
+installed plugins from their admitted registrations.

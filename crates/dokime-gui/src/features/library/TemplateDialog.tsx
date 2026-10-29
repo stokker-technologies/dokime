@@ -42,6 +42,8 @@ import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTra
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ActiveCycleInline } from "@/features/library/ActiveCycle";
+import type { OpenCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, caseDeltas, NO_ACTIVE_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
 import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -58,10 +60,12 @@ const STEP_LABELS: { key: DialogStep; label: string }[] = [
 
 type TemplateDialogProps = {
   /** The active cycle the cases join; absent, the dialog adds nothing. */
-  cycleId?: string;
-  /** The active cycle's label, shown on the summary step. */
-  cycleLabel?: string;
-  /** Opens New Cycle, for when there is no active cycle to add to. */
+  activeCycle: OpenCycle | null;
+  /** Whether any cycle is open, so a missing choice asks for one rather than blocking. */
+  hasOpenCycles: boolean;
+  /** Opens the active cycle picker. */
+  onChangeCycle: () => void;
+  /** Opens New Cycle, for when no cycle is open. */
   onNewCycle: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -73,7 +77,18 @@ type DialogStep = "parameters" | "summary";
 
 /* === Components === */
 
-export function TemplateDialog({ cycleId, cycleLabel, onNewCycle, onOpenChange, open, suite, template }: TemplateDialogProps) {
+export function TemplateDialog({
+  activeCycle,
+  hasOpenCycles,
+  onChangeCycle,
+  onNewCycle,
+  onOpenChange,
+  open,
+  suite,
+  template,
+}: TemplateDialogProps) {
+  const cycleId = activeCycle?.cycleId;
+  const cycleLabel = activeCycle?.label;
   const navigate = useNavigate();
   const touch = useTouchDensity();
   const templateId = template.template_id;
@@ -284,14 +299,9 @@ export function TemplateDialog({ cycleId, cycleLabel, onNewCycle, onOpenChange, 
       ) : (
         <SummaryStep preview={preview} rows={rows} target={cycleLabel ?? cycleId ?? ""} title={title} />
       )}
-      {append ? null : (
-        <div className="mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border bg-muted/50 px-3 py-2" role="status">
-          <p className="text-sm text-muted-foreground">{NO_ACTIVE_CYCLE}</p>
-          <Button onClick={onNewCycle} size="sm" type="button" variant="outline">
-            New Cycle
-          </Button>
-        </div>
-      )}
+      <div className="mx-4">
+        <ActiveCycleInline cycle={activeCycle} hasOpenCycles={hasOpenCycles} onChange={onChangeCycle} onNewCycle={onNewCycle} />
+      </div>
       {error ? (
         <p className="px-4 text-sm text-destructive" role="alert">
           {error}
@@ -312,7 +322,7 @@ export function TemplateDialog({ cycleId, cycleLabel, onNewCycle, onOpenChange, 
         {step === "summary" ? "Back" : "Cancel"}
       </Button>
       {step === "parameters" ? (
-        <span className="grid justify-items-stretch gap-0.5">
+        <span className="grid justify-items-stretch gap-1">
           <Button
             className="h-9 w-full"
             disabled={Boolean(problems) || busy || !parametersReady || !append}
@@ -379,7 +389,7 @@ export function TemplateDialog({ cycleId, cycleLabel, onNewCycle, onOpenChange, 
       {/* A pinned top, not a centred box: the header keeps its place while the
           body grows or shrinks between the two steps. */}
       <DialogContent
-        className="top-[6vh] max-h-[88vh] translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] pb-0 sm:max-w-[720px]"
+        className="top-[6vh] max-h-[88vh] translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] pb-0 sm:max-w-180"
         onOpenAutoFocus={focusContent}
       >
         <DialogHeader className="items-center gap-2 text-center">
@@ -411,7 +421,7 @@ function StepIndicator({ step }: { step: DialogStep }) {
   return (
     <ol
       aria-hidden
-      className="mx-auto grid w-full max-w-72 grid-cols-[minmax(0,1fr)_1.5rem_minmax(0,1fr)] items-center text-[0.8125rem]"
+      className="mx-auto grid w-full max-w-72 grid-cols-(--layout-comparison) items-center text-sm"
       data-testid="step-indicator"
     >
       <StepSlot done={currentIndex > 0} entry={STEP_LABELS[0]} step={step} />
@@ -425,8 +435,8 @@ function StepSlot({ done, entry, step }: { done: boolean; entry: (typeof STEP_LA
   if (!entry) return null;
   const current = entry.key === step;
   return (
-    <li className="flex items-center justify-center gap-1.5">
-      {done ? <Check aria-hidden className="size-3.5 text-primary" /> : null}
+    <li className="flex items-center justify-center gap-2">
+      {done ? <Check aria-hidden className="size-4 text-primary" /> : null}
       <span className={cn(current ? "font-semibold text-primary" : done ? "text-foreground" : "text-muted-foreground")}>{entry.label}</span>
     </li>
   );
@@ -471,14 +481,14 @@ function SummaryStep({
           const deltas = caseDeltas(item.parameters, rows);
           return (
             <li
-              className="grid min-h-[var(--list-row-height)] grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-3 border-b border-border/60 py-1.5"
+              className="grid min-h-[var(--list-row-height)] grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-3 border-b border-border/60 py-2"
               key={item.case_id}
             >
               <span className="min-w-0 text-sm font-medium">{ordinals ? `${title} ${index + 1}` : title}</span>
               <span className="flex min-w-0 flex-wrap items-center gap-1">
                 {deltas.length ? (
                   deltas.map((delta) => (
-                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground" key={delta}>
+                    <span className="rounded-lg bg-muted px-2 py-1 text-xs text-muted-foreground" key={delta}>
                       {delta}
                     </span>
                   ))

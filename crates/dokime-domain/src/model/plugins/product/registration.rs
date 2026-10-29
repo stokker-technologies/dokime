@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::definition::TestSuite;
 use crate::model::document::resolve_document_plot_axes;
@@ -26,6 +28,7 @@ use crate::model::telemetry::TelemetryContract;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(SuiteContractError, formatter {
     Self::EmptySuiteId => formatter.write_str("suite id must not be empty"),
 });
@@ -33,6 +36,7 @@ product_error!(SuiteContractError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestSuiteDefinition {
     pub suite_id: String,
@@ -64,6 +68,7 @@ pub enum SuiteContractError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestSuiteDefinition {
     pub fn new(suite_id: impl Into<String>, suite: TestSuite) -> crate::Result<Self> {
         let suite_id = suite_id.into();
@@ -71,7 +76,14 @@ impl TestSuiteDefinition {
             return Err(SuiteContractError::EmptySuiteId.into());
         }
 
-        Ok(Self { suite_id, tags: Vec::new(), workflow: None, suite, record_contracts: Vec::new(), telemetry_contracts: Vec::new() })
+        Ok(Self {
+            suite_id,
+            tags: Vec::new(),
+            workflow: None,
+            suite,
+            record_contracts: Vec::new(),
+            telemetry_contracts: Vec::new(),
+        })
     }
 }
 
@@ -82,6 +94,7 @@ impl SidecarExecutionBinding {
 }
 
 /* === Public Functions === */
+
 pub fn resolve_suite_plot_axes(definition: &mut TestSuiteDefinition) {
     // Normalized, so the automatic `timestamp` column a contract does not
     // spell out is still a column a plot's x axis can be read against.

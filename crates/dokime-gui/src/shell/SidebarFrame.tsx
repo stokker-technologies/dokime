@@ -17,7 +17,11 @@
 
 // Third Party Imports
 import type { ReactNode } from "react";
-import { useBrand } from "@/lib/brand";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useUiStore } from "@/stores/ui-store";
+import { sidebarWidth } from "./navigation-model";
+import { selectLogo, useBrand } from "@/lib/brand";
 import { BrandMark } from "./BrandMark";
 import { useSidebarState } from "./use-sidebar-state";
 
@@ -31,29 +35,69 @@ import { useSidebarState } from "./use-sidebar-state";
 
 /* === Components === */
 export function SidebarFrame({ children }: { children: ReactNode }) {
-  const { label } = useBrand();
-  const { collapsed, width } = useSidebarState();
+  const { collapsed, width, mode, toggle } = useSidebarState();
+  if (mode === "phone") return null;
   return (
     <nav
       aria-label="Navigation"
-      className="grid min-h-0 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-r bg-card"
+      className="relative grid min-h-0 shrink-0 grid-rows-[auto_minmax(0,1fr)] bg-background"
       data-collapsed={collapsed || undefined}
       style={{ width }}
     >
-      {/* The mark and the product name, once, as one centred block at the top
-          of the one sidebar. It is exactly the page bar's height, so the brand
-          bar and the page title bar end on one line at every density. The
-          height is fixed, so the first destination starts on the same y
-          whether the rail is open or collapsed. */}
-      <div className="grid place-items-center px-[var(--shell-gap)]" style={{ height: "var(--page-bar-height)" }}>
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <BrandMark />
-          {collapsed ? null : <span className="truncate font-heading font-semibold tracking-wide">{label}</span>}
+      <div className="flex min-w-0 items-center">
+        <div className="min-w-0 flex-1">
+          <SidebarBrand collapsed={collapsed} />
         </div>
+        {mode === "desktop" ? (
+          <Button aria-label={collapsed ? "Expand Sidebar" : "Collapse Sidebar"} size="icon" variant="ghost" onClick={toggle}>
+            {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+          </Button>
+        ) : null}
       </div>
+      {mode === "desktop" && !collapsed ? (
+        <button
+          type="button"
+          aria-label="Resize Sidebar"
+          className="absolute inset-y-0 right-0 z-10 w-1 cursor-col-resize touch-none hover:bg-primary"
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+            event.preventDefault();
+            useUiStore
+              .getState()
+              .setUiState({ sidebarWidth: sidebarWidth(useUiStore.getState().sidebarWidth + (event.key === "ArrowRight" ? 4 : -4)) });
+          }}
+          onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+          onPointerMove={(event) => {
+            if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+            const left = event.currentTarget.parentElement?.getBoundingClientRect().left ?? 0;
+            useUiStore.getState().setUiState({ sidebarWidth: sidebarWidth(event.clientX - left) });
+          }}
+          onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
+        />
+      ) : null}
 
       {children}
     </nav>
+  );
+}
+
+// A Compact Brand Row Above Navigation.
+export function SidebarBrand({ collapsed }: { collapsed: boolean }) {
+  const brand = useBrand();
+  // Without artwork the wordmark alone stands for the brand.
+  const artwork = selectLogo(brand, "transparent", "light") ?? selectLogo(brand, "transparent", "dark");
+  if (collapsed) {
+    return (
+      <div className="flex min-w-0 justify-center px-2 py-3">
+        <BrandMark className="h-6 max-w-full object-contain" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-w-0 items-center gap-2 px-4 py-3" data-slot="sidebar-brand">
+      {artwork ? <BrandMark className="h-6 w-6 max-w-full object-contain" /> : null}
+      <span className="max-w-full truncate font-heading text-base font-semibold tracking-wide">{brand.label}</span>
+    </div>
   );
 }
 

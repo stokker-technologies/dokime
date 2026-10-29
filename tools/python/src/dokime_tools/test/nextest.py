@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/nextest.py; sha256:5c3614eba2fe477c48367e5b744c0e1b11600c1db7b77098f65d72e8a7aed23d
+# Rendered by stkr project update from templates/python/test/nextest.py; sha256:f0a40972c9efddb0ed6aec86a32c074437e090dae55103d70effcdd45c8bed98
 # ***
 #
 # Dokime
@@ -20,12 +20,10 @@ read: the runner writes the one profile it needs and passes it with `--config-fi
 
 # Standard Library Imports
 import json
-import re
 from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from . import policy
 
@@ -37,7 +35,6 @@ from . import policy
 
 PROFILE = "stkr"
 UNIT = "kind(lib) | kind(bin) | kind(proc-macro)"
-PLAIN = re.compile(r"^[A-Za-z0-9_:.\-]+$")
 PACKAGE_FLAGS = ("-p", "--package")
 FILTER_FLAGS = ("-E", "--filterset", "--filter-expr")
 TIMEOUT = 'slow-timeout = { period = "%ds", terminate-after = 1 }'
@@ -90,6 +87,7 @@ def config(
         "",
         f"[profile.{PROFILE}.junit]",
         'path = "junit.xml"',
+        'report-skipped = "ignored"',
     ]
     for expression, seconds in overrides:
         lines += [
@@ -104,28 +102,16 @@ def config(
 def overrides(
     rules: policy.Policy,
     category: str | None,
-    durations: dict[str, dict[str, dict]],
     coverage: bool,
     binaries: dict[str, str],
 ) -> list[tuple[str, int]]:
-    """Reviewed overrides first, then layer deadlines (all-layer runs) or measured stories."""
+    """Explicit overrides followed by layer deadlines for all-layer runs."""
     categories = [category] if category else list(policy.CATEGORIES)
     factor = policy.COVERAGE_FACTOR if coverage else 1
     selected = [(entry.select, entry.timeout_seconds * factor) for name in categories for entry in rules.selected(name, "rust")]
     if category is None:
         names = sorted(set(binaries.values()))
         return selected + [(layer(name, names), rules.deadline(name, coverage)) for name in categories]
-    if coverage:
-        return selected
-
-    lane = rules.deadline(category)
-    for suite, stories in sorted(durations.items()):
-        if suite not in binaries:
-            continue
-        for story, record in sorted(stories.items()):
-            deadline = rules.story(category, record.get("seconds"))
-            if deadline < lane and PLAIN.match(suite) and PLAIN.match(story):
-                selected.append((f"binary_id(={suite}) & test(={story})", deadline))
     return selected
 
 
@@ -177,7 +163,7 @@ def coverage(
         "--locked",
         "--workspace",
         "--cargo-profile",
-        profile,
+        "test",
         "--config-file",
         str(configuration),
         "--profile",
@@ -196,7 +182,7 @@ def report(profile: str, output: Path) -> list[str]:
         "llvm-cov",
         "report",
         "--profile",
-        profile,
+        "test",
         "--cobertura",
         "--ignore-filename-regex",
         "(/tests/|/benches/|/fixtures/)",

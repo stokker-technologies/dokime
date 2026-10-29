@@ -31,18 +31,21 @@ import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type ConsoleLevel, type ConsoleScope, useUiStore } from "@/stores/ui-store";
 import { type ConsoleRecords, consoleRecordsStore } from "./console-buffer";
-import { consoleFollowsTail, consoleTailPinned } from "./console-follow";
+import { consoleFollowsTail, consoleTailPinned, consoleWindow } from "./console-follow";
 
 // Local Imports
 
 /* === Re-Exports === */
 
 /* === Constants === */
+
+const GUI_CONSOLE_OVERSCAN = 12;
+
 /** One row height, so the window can be computed instead of measured. */
 const ROW_HEIGHT = 22;
 
 /** Rows drawn beyond the viewport on each side, to cover a fast scroll. */
-const OVERSCAN = 12;
+const OVERSCAN = GUI_CONSOLE_OVERSCAN;
 
 const LEVEL_ORDER: Record<ConsoleLevel, number> = {
   trace: 0,
@@ -69,6 +72,14 @@ const SCOPE_LABEL: Record<ConsoleScope, string> = {
 };
 
 const MIN_HEIGHT = 120;
+
+/**
+ * The scroll area always scrolls and always shows its track, so the frame
+ * reads as a fixed viewport whether it holds three rows or thirty thousand.
+ * WebKitGTK draws overlay scrollbars unless the pseudo-elements are styled.
+ */
+const SCROLL_AREA_CLASS =
+  "overflow-y-scroll [overflow-anchor:none] [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:bg-muted/60 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/60";
 const MAX_HEIGHT = 900;
 
 /* === Types === */
@@ -111,7 +122,7 @@ export function LiveConsoleView({
     >
       <HeightHandle height={drawer.height} onHeightChange={(height) => setConsoleState({ height })} />
 
-      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-b px-[var(--shell-inset)] py-1.5">
+      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-b px-[var(--shell-inset)] py-2">
         <ToggleGroup
           onValueChange={(next) => next && setConsoleState({ scope: next as ConsoleScope })}
           type="single"
@@ -193,6 +204,7 @@ export function LiveConsoleView({
  */
 export function FrozenConsole({ records }: { records: HubRecord[] }) {
   const [level, setLevel] = useState<ConsoleLevel>("info");
+  const [follow, setFollow] = useState(true);
   const rows = useMemo(() => visibleConsoleRecords(records, level, ""), [level, records]);
 
   return (
@@ -212,8 +224,8 @@ export function FrozenConsole({ records }: { records: HubRecord[] }) {
           </SelectContent>
         </Select>
       </div>
-      <div className="rounded-md border">
-        <RecordWindow className="max-h-96" empty="No records at this level." follow={false} rows={rows} />
+      <div className="rounded-lg border">
+        <RecordWindow className="h-96" empty="No records at this level." follow={follow} onFollowChange={setFollow} rows={rows} />
       </div>
     </section>
   );
@@ -249,18 +261,16 @@ function RecordWindow({
   // Where the operator last left the list, read synchronously on each scroll.
   const pinned = useRef(true);
   const [height, setHeight] = useState(0);
-  const populated = rows.length > 0;
   const tail = rows.at(-1)?.record_id;
 
   useLayoutEffect(() => {
-    if (!populated) return undefined;
     const node = viewport.current;
     if (!node) return undefined;
     const observer = new ResizeObserver(() => setHeight(node.clientHeight));
     observer.observe(node);
     setHeight(node.clientHeight);
     return () => observer.disconnect();
-  }, [populated]);
+  }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: a resize re-pins a following list
   useLayoutEffect(() => {
@@ -268,9 +278,8 @@ function RecordWindow({
     if (node && consoleFollowsTail(follow, pinned.current) && tail) node.scrollTop = node.scrollHeight;
   }, [follow, height, tail]);
 
-  const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
-  const last = Math.min(rows.length, Math.ceil((scrollTop + height) / ROW_HEIGHT) + OVERSCAN);
-  const visible = rows.slice(first, last);
+  const slice = consoleWindow({ count: rows.length, height, overscan: OVERSCAN, rowHeight: ROW_HEIGHT, scrollTop });
+  const visible = rows.slice(slice.first, slice.last);
 
   const onScroll = (event: UIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
@@ -281,20 +290,20 @@ function RecordWindow({
     if (next !== follow) onFollowChange(next);
   };
 
-  if (rows.length === 0) {
-    return <p className="px-[var(--shell-inset)] py-4 text-sm text-muted-foreground">{empty}</p>;
-  }
-
   return (
     <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)]">
-      <div className={cn("min-h-0 overflow-y-auto [overflow-anchor:none]", className)} onScroll={onScroll} ref={viewport}>
-        <div className="relative" style={{ height: `${rows.length * ROW_HEIGHT}px` }}>
-          <div className="absolute inset-x-0" style={{ top: `${first * ROW_HEIGHT}px` }}>
-            {visible.map((record) => (
-              <ConsoleRow key={record.record_id} record={record} />
-            ))}
+      <div className={cn("min-h-0", SCROLL_AREA_CLASS, className)} onScroll={onScroll} ref={viewport}>
+        {rows.length === 0 ? (
+          <p className="px-[var(--shell-inset)] py-2 text-sm text-muted-foreground">{empty}</p>
+        ) : (
+          <div className="relative" style={{ height: `${slice.contentHeight}px` }}>
+            <div className="absolute inset-x-0" style={{ top: `${slice.offset}px` }}>
+              {visible.map((record) => (
+                <ConsoleRow key={record.record_id} record={record} />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
       {onFollowChange && !follow ? (
         <Button
@@ -323,7 +332,7 @@ function ConsoleRow({ record }: { record: HubRecord }) {
   return (
     <button
       className={cn(
-        "grid w-full grid-cols-[5rem_3.75rem_9rem_minmax(0,1fr)] items-start gap-2 px-[var(--shell-inset)] text-left font-mono text-xs tabular-nums hover:bg-muted/40",
+        "grid w-full grid-cols-[--spacing(20)_--spacing(15)_--spacing(36)_minmax(0,1fr)] items-start gap-2 px-[var(--shell-inset)] text-left font-mono text-xs tabular-nums hover:bg-muted/40",
         expanded ? "py-1" : "overflow-hidden",
       )}
       onClick={() => setExpanded((current) => !current)}

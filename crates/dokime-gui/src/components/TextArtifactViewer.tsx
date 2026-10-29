@@ -334,7 +334,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(92vh,58rem)] w-[min(96vw,92rem)] max-w-none overflow-hidden p-0 sm:max-w-none">
+      <DialogContent className="max-h-[min(92vh,--spacing(232))] w-[min(96vw,--spacing(368))] max-w-none overflow-hidden p-0 sm:max-w-none">
         <DialogHeader className="border-b px-4 py-3 pr-12">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
@@ -407,7 +407,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
           <section
             ref={textRef}
             aria-label="Text File Contents"
-            className="max-h-[min(74vh,44rem)] min-h-[30rem] overflow-auto bg-background font-mono text-[12px] leading-5 text-foreground"
+            className="max-h-[min(74vh,--spacing(176))] min-h-120 overflow-auto bg-background font-mono text-xs leading-5 text-foreground"
             data-testid="text-artifact-code-pane"
             data-wrap={wrap ? "true" : "false"}
           >
@@ -435,7 +435,9 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
 function TextLine({ index, language, line, wrap }: { index: number; language: TextArtifactLanguage; line: string; wrap: boolean }) {
   return (
     <div
-      className={wrap ? "grid grid-cols-[4.5rem_minmax(0,1fr)] hover:bg-muted/25" : "grid grid-cols-[4.5rem_max-content] hover:bg-muted/25"}
+      className={
+        wrap ? "grid grid-cols-(--layout-record-label) hover:bg-muted/25" : "grid grid-cols-(--layout-record-value) hover:bg-muted/25"
+      }
     >
       <span
         aria-hidden="true"

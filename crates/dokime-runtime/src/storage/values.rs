@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod map {
     use super::*;
     use serde::{Deserialize, Serialize};
@@ -28,24 +29,24 @@ pub(crate) mod map {
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 
 // Local Imports
 use super::{Error, Result};
-use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const MAX_DEPTH: usize = 64;
-const MAX_CELLS: usize = 131072;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Cell {
@@ -71,6 +72,7 @@ struct Encoding {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn encoding_memory(details: &BTreeMap<String, Value>) -> Result<usize> {
     let plan = encoding(details)?;
     Ok(std::mem::size_of::<Vec<Cell>>().saturating_add(plan.cells.saturating_mul(std::mem::size_of::<Cell>())).saturating_add(plan.strings))
@@ -100,7 +102,11 @@ pub(crate) fn encode_value(value: &Value) -> Result<Vec<Cell>> {
     let plan = value_encoding(value)?;
     let mut cells = Vec::new();
     cells.try_reserve_exact(plan.cells).map_err(|_| error("stored scalar allocation failed"))?;
-    cells.push(Cell { kind: "object".into(), children: 1, ..Default::default() });
+    cells.push(Cell {
+        kind: "object".into(),
+        children: 1,
+        ..Default::default()
+    });
     append(value, Some("value".into()), 1, &mut cells)?;
     Ok(cells)
 }
@@ -130,22 +136,31 @@ pub(crate) fn encode_datetime(value: time::OffsetDateTime) -> Result<String> {
 }
 
 pub(crate) fn decode(cells: &[Cell]) -> Result<BTreeMap<String, Value>> {
-    if cells.len() > MAX_CELLS {
-        return Err(error("stored values exceed cell limit"));
-    }
+    owned_memory(cells)?;
     let mut at = 0;
     let Value::Object(details) = read(cells, &mut at, 0)? else {
         return Err(error("stored values root must be an object"));
     };
-    if at != cells.len() || encode(&details)? != cells {
+    if at != cells.len() {
         return Err(error("stored values contain noncanonical cells"));
     }
     Ok(details)
 }
 
+pub(crate) fn decode_value(cells: &[Cell]) -> Result<Value> {
+    if owned_memory(cells)? == usize::MAX {
+        return Err(error("stored value projection exceeds memory allowance"));
+    }
+    if cells[0].children != 1 || cells.get(1).and_then(|cell| cell.name.as_deref()) != Some("value") {
+        return Err(error("scalar value must have one value member"));
+    }
+    let mut at = 1;
+    read(cells, &mut at, 1)
+}
+
 pub(crate) fn owned_memory(cells: &[Cell]) -> Result<usize> {
-    if cells.len() > MAX_CELLS || cells.first().is_none_or(|cell| cell.kind != "object") {
-        return Err(error("stored values require a bounded object root"));
+    if cells.first().is_none_or(|cell| cell.kind != "object") {
+        return Err(error("stored values require an object root"));
     }
     let mut at = 0;
     let bytes = measure(cells, &mut at, 0, false)?;
@@ -158,11 +173,8 @@ pub(crate) fn owned_memory(cells: &[Cell]) -> Result<usize> {
     Ok(bytes.saturating_sub(std::mem::size_of::<Value>()).saturating_add(std::mem::size_of::<BTreeMap<String, Value>>()))
 }
 
-pub(crate) fn decode_owned(cells: Vec<Cell>, allowance: NonZeroUsize) -> Result<BTreeMap<String, Value>> {
-    let bound = owned_memory(&cells)?;
-    if bound == usize::MAX || bound > allowance.get() {
-        return Err(error("stored value projection exceeds memory allowance"));
-    }
+pub(crate) fn decode_owned(cells: Vec<Cell>) -> Result<BTreeMap<String, Value>> {
+    owned_memory(&cells)?;
     let mut cells = cells.into_iter();
     let Value::Object(value) = consume(&mut cells)? else {
         return Err(error("stored values root must be an object"));
@@ -171,6 +183,7 @@ pub(crate) fn decode_owned(cells: Vec<Cell>, allowance: NonZeroUsize) -> Result<
 }
 
 /* === Private Functions === */
+
 fn encoding(details: &BTreeMap<String, Value>) -> Result<Encoding> {
     let mut plan = Encoding { cells: 1, strings: "object".len() };
     u32::try_from(details.len()).map_err(|_| error("stored value child count exceeds limit"))?;
@@ -187,10 +200,10 @@ fn value_encoding(value: &Value) -> Result<Encoding> {
 }
 
 fn measure_encoding(value: &Value, name: Option<&str>, depth: usize, plan: &mut Encoding) -> Result<()> {
-    if depth > MAX_DEPTH || plan.cells == MAX_CELLS {
-        return Err(error("stored values exceed nesting or cell limit"));
+    if depth > MAX_DEPTH {
+        return Err(error("stored values exceed nesting limit"));
     }
-    plan.cells += 1;
+    plan.cells = plan.cells.checked_add(1).ok_or_else(|| error("stored cell count overflows"))?;
     let (kind, text) = match value {
         Value::Null => ("null", 0),
         Value::Bool(_) => ("bool", 0),
@@ -322,6 +335,10 @@ fn consume(cells: &mut std::vec::IntoIter<Cell>) -> Result<Value> {
     })
 }
 
+pub(crate) fn validate_datetime(text: &str) -> Result<()> {
+    parse_datetime(text).map(|_| ())
+}
+
 fn parse_datetime(text: &str) -> Result<time::OffsetDateTime> {
     struct Compare<'a> {
         remaining: &'a [u8],
@@ -353,8 +370,8 @@ fn error(reason: &'static str) -> Error {
 }
 
 fn append(value: &Value, name: Option<String>, depth: usize, cells: &mut Vec<Cell>) -> Result<()> {
-    if depth > MAX_DEPTH || cells.len() == MAX_CELLS {
-        return Err(error("stored values exceed nesting or cell limit"));
+    if depth > MAX_DEPTH {
+        return Err(error("stored values exceed nesting limit"));
     }
     let mut cell = Cell { name, ..Default::default() };
     cell.kind = match value {
@@ -427,8 +444,8 @@ fn read(cells: &[Cell], at: &mut usize, depth: usize) -> Result<Value> {
         "number" => Value::Number(cell.number.ok_or_else(missing)?),
         "text" => Value::Text(cell.text.clone().ok_or_else(missing)?),
         "datetime" => {
-            let timestamp = Timestamp::new(cell.text.clone().ok_or_else(missing)?);
-            Value::Datetime(timestamp.to_datetime()?)
+            let text = cell.text.as_deref().ok_or_else(missing)?;
+            Value::Datetime(parse_datetime(text)?)
         }
         "array" | "object" => {
             if cell.children as usize > cells.len().saturating_sub(*at) {
@@ -456,3 +473,160 @@ fn read(cells: &[Cell], at: &mut usize, depth: usize) -> Result<Value> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scalar(kind: &str) -> Vec<Cell> {
+        vec![
+            Cell {
+                kind: "object".into(),
+                children: 1,
+                ..Default::default()
+            },
+            Cell {
+                name: Some("value".into()),
+                kind: kind.into(),
+                ..Default::default()
+            },
+        ]
+    }
+
+    #[test]
+    fn borrowed_scalar_projection_preserves_validation() {
+        let value = Value::Array(vec![Value::Text("payload".into()), Value::Number(-0.0)]);
+        let mut cells = encode_value(&value).unwrap();
+        assert_eq!(decode_value(&cells).unwrap(), value);
+
+        cells[1].name = Some("other".into());
+        assert!(decode_value(&cells).is_err());
+        cells[1].name = Some("value".into());
+        cells[1].boolean = Some(false);
+        assert!(decode_value(&cells).is_err());
+        assert!(decode_value(&[]).is_err());
+    }
+
+    #[test]
+    fn canonical_values_preserve_types_and_signed_zero() {
+        let datetime = parse_datetime("1999-12-31T23:59:59.123Z").unwrap();
+        let array = vec![Value::Null, Value::Bool(true), Value::Integer(i64::MIN), Value::Unsigned(u64::MAX), Value::Text("text".into())];
+        let entries = [
+            ("array".into(), Value::Array(array)),
+            ("datetime".into(), Value::Datetime(datetime)),
+            ("empty".into(), Value::Object(BTreeMap::new())),
+            ("negative_zero".into(), Value::Number(-0.0)),
+            ("positive_zero".into(), Value::Number(0.0)),
+        ];
+        let details = BTreeMap::from(entries);
+        let cells = encode(&details).unwrap();
+        let decoded = decode(&cells).unwrap();
+        assert_eq!(decoded, details);
+        for (name, negative) in [("negative_zero", true), ("positive_zero", false)] {
+            let Value::Number(value) = &decoded[name] else { panic!("number kind changed") };
+            assert_eq!(value.is_sign_negative(), negative);
+        }
+    }
+
+    #[test]
+    fn scalar_shapes_and_nonfinite_numbers_are_rejected() {
+        let mut cells = scalar("integer");
+        assert!(decode(&cells).is_err());
+        cells[1].integer = Some(1);
+        assert!(decode(&cells).is_ok());
+        cells[1].boolean = Some(false);
+        assert!(decode(&cells).is_err());
+        cells[1].boolean = None;
+        cells[1].children = 1;
+        assert!(decode(&cells).is_err());
+
+        for number in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut cells = scalar("number");
+            cells[1].number = Some(number);
+            assert!(decode(&cells).is_err());
+        }
+    }
+
+    #[test]
+    fn datetime_cells_require_exact_utc_spelling() {
+        for (text, accepted) in [
+            ("1970-01-01T00:00:00Z", true),
+            ("1999-12-31T23:59:59.123Z", true),
+            ("1970-01-01T00:00:00+00:00", false),
+            ("1970-01-01T01:00:00+01:00", false),
+            ("1970-01-01T00:00:00.000Z", false),
+            ("1999-12-31T23:59:59.1230Z", false),
+            ("not a datetime", false),
+        ] {
+            let mut cells = scalar("datetime");
+            cells[1].text = Some(text.into());
+            let result = decode(&cells);
+            assert_eq!(result.is_ok(), accepted, "{text}");
+        }
+    }
+
+    #[test]
+    fn names_order_and_complete_structure_are_required() {
+        let details = BTreeMap::from([("a".into(), Value::Null), ("b".into(), Value::Null)]);
+        let canonical = encode(&details).unwrap();
+        let mut named_root = canonical.clone();
+        named_root[0].name = Some("root".into());
+        let mut extra_root_scalar = canonical.clone();
+        extra_root_scalar[0].boolean = Some(false);
+
+        let mut reversed = canonical.clone();
+        reversed.swap(1, 2);
+        let mut duplicate = canonical.clone();
+        duplicate[2].name = Some("a".into());
+        let mut unnamed = canonical.clone();
+        unnamed[1].name = None;
+
+        let mut trailing = canonical.clone();
+        trailing.push(Cell {
+            kind: "null".into(),
+            ..Default::default()
+        });
+        let mut unknown = canonical.clone();
+        unknown[1].kind = "unknown".into();
+
+        for cells in [named_root, extra_root_scalar, reversed, duplicate, unnamed, trailing, unknown, canonical[..2].to_vec()] {
+            assert!(decode(&cells).is_err());
+        }
+
+        let mut array = scalar("array");
+        array[1].children = 1;
+        let named = Cell {
+            name: Some("named".into()),
+            kind: "null".into(),
+            ..Default::default()
+        };
+        array.push(named);
+        assert!(decode(&array).is_err());
+    }
+
+    #[test]
+    fn nesting_bound_remains_enforced() {
+        let mut cells = scalar("array");
+        for _ in 1..MAX_DEPTH {
+            cells.last_mut().unwrap().children = 1;
+            cells.push(Cell {
+                kind: "array".into(),
+                ..Default::default()
+            });
+        }
+        assert!(decode(&cells).is_ok());
+        cells.last_mut().unwrap().children = 1;
+        cells.push(Cell {
+            kind: "null".into(),
+            ..Default::default()
+        });
+        assert!(decode(&cells).is_err());
+    }
+
+    #[test]
+    fn flat_values_roundtrip_without_heap_claims() {
+        let details = BTreeMap::from([("samples".to_owned(), Value::Array(vec![Value::Null; 131_073]))]);
+        let cells = encode(&details).unwrap();
+        assert_eq!(decode_owned(cells).unwrap(), details);
+    }
+}

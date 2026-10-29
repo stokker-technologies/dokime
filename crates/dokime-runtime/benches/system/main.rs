@@ -16,7 +16,7 @@ mod report;
 
 /* === Imports === */
 // Standard Library Imports
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 // Third Party Imports
 use criterion::{criterion_group, criterion_main};
@@ -24,7 +24,6 @@ use criterion::{criterion_group, criterion_main};
 // Local Imports
 
 /* === Constants === */
-const PLATFORM: &str = if cfg!(windows) { "windows" } else { "linux" };
 
 /* === Macros === */
 criterion_group!(benches, report::benchmark);
@@ -42,14 +41,15 @@ criterion_main!(benches);
 
 /* === Public Functions === */
 pub fn plugin_bundle() -> PathBuf {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+    let path = std::env::current_dir()
+        .expect("benchmark runner starts in the package")
         .ancestors()
         .find(|directory| directory.join("Cargo.lock").is_file())
         .expect("the workspace root holds Cargo.lock")
-        .join("dist/build")
-        .join(PLATFORM)
-        .join("plugins/obc-plugin.dokime");
-    assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
+        .join("target/build/bench")
+        .join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH))
+        .join("fixtures/plugins/obc-plugin.dokime");
+    assert!(path.is_file(), "missing built artifact {}; run `mise run build:rust:bench`", path.display());
     path
 }
 

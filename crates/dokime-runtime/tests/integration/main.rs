@@ -14,8 +14,14 @@
 
 /* === Modules === */
 
+mod domains;
 mod engine;
-mod services;
+mod execution;
+mod plugin;
+mod plugins;
+mod report;
+mod runtime;
+mod state;
 
 #[path = "../support/engine/mod.rs"]
 pub mod engine_support;

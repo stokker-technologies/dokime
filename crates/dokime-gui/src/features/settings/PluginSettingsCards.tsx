@@ -89,7 +89,7 @@ function HostCardBlockView({ block }: { block: HostCardBlock }) {
       return (
         <div className="grid gap-3 px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
           {(block.items ?? []).map((item) => (
-            <div className="min-w-0 rounded-md border bg-muted/20 px-3 py-2" key={item.label}>
+            <div className="min-w-0 rounded-lg border bg-muted/20 px-3 py-2" key={item.label}>
               <div className="truncate text-xs text-muted-foreground">{item.label}</div>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="truncate text-lg font-semibold">{item.value}</span>

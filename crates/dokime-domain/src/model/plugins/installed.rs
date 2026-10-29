@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::definition::SuiteSet;
 use crate::model::plugins::AppCustomizationContribution;
@@ -36,37 +38,52 @@ use crate::model::telemetry::TelemetryContract;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct InstalledPlugin {
     pub source: String,
     pub version: String,
     pub description: String,
+
     #[serde(default = "enabled")]
     pub enabled: bool,
+
     #[serde(default)]
     pub suites: SuiteSet,
+
     #[serde(default)]
     pub settings: Settings,
+
     #[serde(default)]
     pub permissions: Vec<Permission>,
+
     #[serde(default)]
     pub record_contracts: Vec<RecordContract>,
+
     #[serde(default)]
     pub listeners: Vec<PluginListener>,
+
     #[serde(default)]
     pub prompts: Vec<PromptDefinition>,
+
     #[serde(default)]
     pub telemetry_contracts: Vec<TelemetryContract>,
+
     #[serde(default)]
     pub settings_status: Option<PluginEntrypoint>,
+
     #[serde(default)]
     pub settings_discoveries: Vec<SettingDiscovery>,
+
     #[serde(default)]
     pub app_customizations: Vec<AppCustomizationContribution>,
+
     #[serde(default)]
     pub app_themes: Vec<AppThemeContribution>,
+
     #[serde(default)]
     pub option_providers: Vec<OptionProviderContribution>,
+
     #[serde(default)]
     pub analyses: Vec<crate::model::analysis::Definition>,
 }
@@ -88,6 +105,7 @@ pub struct SettingDiscovery {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl InstalledPlugin {
     pub fn listened_records(&self) -> impl Iterator<Item = &str> {
         self.listeners.iter().map(|listener| listener.record.as_str())
@@ -97,7 +115,6 @@ impl InstalledPlugin {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/* === Functions === */
 
 fn enabled() -> bool {
     true

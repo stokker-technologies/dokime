@@ -25,6 +25,10 @@ import type { DocumentViewCard, DocumentViewNode, DocumentViewPayload, Metadata 
 
 /* === Constants === */
 
+const DOCUMENTS_ENCODED_DEPTH = 32;
+const DOCUMENTS_EVALUATION_WORK = 256_000_000;
+const DOCUMENTS_EXPANDED_NODES = 4_096;
+
 /* === Types === */
 export type DeclaredNode =
   | { type: "section"; node_id: string; repeat: boolean; children: DeclaredNode[] }
@@ -45,7 +49,11 @@ export interface CaptureAssembly {
 /* === Public Functions === */
 export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
   const sources = new Set(capture.sources);
-  if (sources.size !== capture.sources.length || sources.size > 4096 || capture.bindings.length > 4096) {
+  if (
+    sources.size !== capture.sources.length ||
+    sources.size > DOCUMENTS_EXPANDED_NODES ||
+    capture.bindings.length > DOCUMENTS_EXPANDED_NODES
+  ) {
     throw new Error("Captured document sources or bindings exceed their contract");
   }
   const cards = new Map<string, { source_id: string; card: DocumentViewCard }>();
@@ -61,17 +69,17 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
   let count = 0;
   let work = 0;
   function assemble(nodes: DeclaredNode[], suffixes: string[], depth: number): DocumentViewNode[] {
-    if (depth > 32 && nodes.length > 0) throw new Error("Captured document depth exceeds its budget");
+    if (depth > DOCUMENTS_ENCODED_DEPTH && nodes.length > 0) throw new Error("Captured document depth exceeds its budget");
     const result: DocumentViewNode[] = [];
     const suffix = suffixes.map((part) => `.${part}`).join("");
     for (const node of nodes) {
-      if (++work > 4096 * 32) throw new Error("Captured document assembly exceeds its budget");
+      if (++work > DOCUMENTS_EVALUATION_WORK) throw new Error("Captured document assembly exceeds its budget");
       if (node.type === "card") {
         const id = node.card_id + suffix;
         const binding = cards.get(id);
         if (!binding || binding.source_id !== node.card_id) throw new Error(`Captured card binding is missing or mismatched: ${id}`);
         usedCards.add(id);
-        if (++count > 4096) throw new Error("Captured document expansion exceeds its budget");
+        if (++count > DOCUMENTS_EXPANDED_NODES) throw new Error("Captured document expansion exceeds its budget");
         result.push({ ...node, card_id: id });
         continue;
       }
@@ -89,7 +97,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
           throw new Error("Unavailable repeat has instances or duplicate identity");
         }
         usedSections.add(id);
-        if (++count > 4096) throw new Error("Captured document expansion exceeds its budget");
+        if (++count > DOCUMENTS_EXPANDED_NODES) throw new Error("Captured document expansion exceeds its budget");
         result.push({
           type: "section",
           node_id: id,
@@ -101,7 +109,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
       }
       const suffixesSeen = new Set<string>();
       for (const instance of instances) {
-        if (++work > 4096 * 32) throw new Error("Captured document assembly exceeds its budget");
+        if (++work > DOCUMENTS_EVALUATION_WORK) throw new Error("Captured document assembly exceeds its budget");
         if (instance.suffix !== null) {
           if (!instance.suffix || suffixesSeen.has(instance.suffix)) throw new Error("Captured repeat suffix is empty or duplicated");
           suffixesSeen.add(instance.suffix);
@@ -112,7 +120,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
         if (!section?.metadata || unavailableReason(section.unavailable) || usedSections.has(instance.node_id))
           throw new Error(`Captured section identity is missing or duplicated: ${instance.node_id}`);
         usedSections.add(instance.node_id);
-        if (++count > 4096) throw new Error("Captured document expansion exceeds its budget");
+        if (++count > DOCUMENTS_EXPANDED_NODES) throw new Error("Captured document expansion exceeds its budget");
         result.push({
           type: "section",
           node_id: instance.node_id,

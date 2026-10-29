@@ -8,15 +8,14 @@
  */
 
 /* === Modules === */
-mod build;
-mod dev;
-mod inspect;
-mod new;
-mod package;
+
+mod installer;
+mod sidecar;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -32,27 +31,29 @@ mod package;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(clap::Subcommand)]
 pub enum Command {
-    New(new::Args),
-    Build(Box<build::Args>),
-    Package(package::Args),
-    Dev(Box<dev::Args>),
-    Inspect(inspect::Args),
+    #[command(name = "__desktop-development", hide = true)]
+    DesktopDevelopment(sidecar::dev::desktop::Args),
+    #[command(about = "Package And Inspect Native Installers")]
+    Installer(installer::Args),
+
+    #[command(about = "Create, Build, Package And Develop Native Sidecars")]
+    Sidecar(sidecar::Args),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Command {
     #[tracing::instrument(level = "debug", skip_all)]
     pub async fn run(self) -> Result<(), crate::error::Error> {
         match self {
-            Self::New(args) => new::run(args),
-            Self::Build(args) => build::run(*args).await,
-            Self::Package(args) => package::run(args).await,
-            Self::Dev(args) => dev::run(*args).await,
-            Self::Inspect(args) => inspect::run(args),
+            Self::DesktopDevelopment(args) => sidecar::dev::desktop::run(args).await,
+            Self::Installer(args) => installer::run(args).await,
+            Self::Sidecar(args) => sidecar::run(args).await,
         }
     }
 }

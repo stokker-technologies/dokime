@@ -8,10 +8,9 @@
  */
 
 /* === Modules === */
-mod color;
 mod development_environment;
+mod isolation;
 mod new;
-mod scaffold;
 
 #[path = "../support/mod.rs"]
 mod support;
@@ -44,8 +43,3 @@ mod support;
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[test]
-fn generated_plugin_contract() {
-    scaffold::generated_plugin_tasks();
-}

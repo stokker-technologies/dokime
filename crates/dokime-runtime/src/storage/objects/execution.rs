@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
@@ -33,6 +34,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! native_map {
     ($name:ident, $entry:ident, $value:ty) => {
         #[harmos::message]
@@ -67,12 +69,15 @@ macro_rules! native_map {
         }
     };
 }
+
 native_map!(Parameters, ParameterEntry, Parameter);
+
 native_map!(Documents, DocumentEntry, templates::documents::Document);
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct PublicationCheck<'a> {
     pub source: &'a Revision,
     pub input: &'a FileReference,
@@ -291,13 +296,10 @@ struct TraceabilityRow {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Execution {
     pub fn is_sealed(&self) -> bool {
         self.saved.is_some()
-    }
-
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        Ok(<Self as harmos::Message>::decoding_memory(bytes)?)
     }
 }
 
@@ -524,7 +526,10 @@ impl TryFrom<&BTreeMap<dokime_domain::model::identity::DocumentId, crate::docume
         let mut entries = Vec::new();
         entries.try_reserve_exact(value.len()).map_err(|_| Error::Invalid("document entries allocation failed"))?;
         for (key, document) in value {
-            entries.push(DocumentEntry { key: key.as_str().to_owned(), value: Some(templates::documents::Document::try_from(document)?) });
+            entries.push(DocumentEntry {
+                key: key.as_str().to_owned(),
+                value: Some(templates::documents::Document::try_from(document)?),
+            });
         }
         Ok(Self { entries })
     }
@@ -899,7 +904,11 @@ impl TryFrom<&dokime_domain::model::traceability::TraceabilitySection> for Trace
         for row in &value.rows {
             rows.push(TraceabilityRow::try_from(row)?);
         }
-        Ok(Self { identifier: value.identifier.as_str().to_owned(), label: value.label.as_str().to_owned(), rows })
+        Ok(Self {
+            identifier: value.identifier.as_str().to_owned(),
+            label: value.label.as_str().to_owned(),
+            rows,
+        })
     }
 }
 
@@ -913,7 +922,11 @@ impl TryFrom<Traceability> for dokime_domain::model::traceability::TraceabilityS
         for row in row.rows {
             rows.push(row.try_into()?);
         }
-        Ok(Self { identifier: dokime_domain::model::identity::Identifier::new(row.identifier)?, label: row.label, rows })
+        Ok(Self {
+            identifier: dokime_domain::model::identity::Identifier::new(row.identifier)?,
+            label: row.label,
+            rows,
+        })
     }
 }
 
@@ -958,7 +971,10 @@ impl TryFrom<&BTreeMap<String, crate::definition::MaterializedParameter>> for Pa
         let mut entries = Vec::new();
         entries.try_reserve_exact(value.len()).map_err(|_| Error::Invalid("parameter entries allocation failed"))?;
         for (key, parameter) in value {
-            entries.push(ParameterEntry { key: key.as_str().to_owned(), value: Some(Parameter::try_from(parameter)?) });
+            entries.push(ParameterEntry {
+                key: key.as_str().to_owned(),
+                value: Some(Parameter::try_from(parameter)?),
+            });
         }
         Ok(Self { entries })
     }
@@ -999,12 +1015,16 @@ impl TryFrom<&dokime_domain::model::execution::snapshot::ExecutionImplementation
             return Err(Error::Invalid("implementation encoding memory overflows"));
         }
         Ok(match value {
-            ExecutionImplementation::Bundle { content_digest } => {
-                Self { kind: "bundle".into(), content_digest: Some(content_digest.as_str().to_owned()), generation: None }
-            }
-            ExecutionImplementation::Embedded { generation } => {
-                Self { kind: "embedded".into(), content_digest: None, generation: Some(generation.as_str().to_owned()) }
-            }
+            ExecutionImplementation::Bundle { content_digest } => Self {
+                kind: "bundle".into(),
+                content_digest: Some(content_digest.as_str().to_owned()),
+                generation: None,
+            },
+            ExecutionImplementation::Embedded { generation } => Self {
+                kind: "embedded".into(),
+                content_digest: None,
+                generation: Some(generation.as_str().to_owned()),
+            },
         })
     }
 }
@@ -1106,7 +1126,10 @@ impl TryFrom<&dokime_domain::model::execution::result::ExecutionInvalidation> fo
         if Self::encoding_memory(value) == usize::MAX {
             return Err(Error::Invalid("invalidation encoding memory overflows"));
         }
-        Ok(Self { previous: Some(Plugin::try_from(&value.previous)?), current: value.current.as_ref().map(Plugin::try_from).transpose()? })
+        Ok(Self {
+            previous: Some(Plugin::try_from(&value.previous)?),
+            current: value.current.as_ref().map(Plugin::try_from).transpose()?,
+        })
     }
 }
 
@@ -1161,7 +1184,13 @@ impl TryFrom<&crate::diagnostics::Diagnostic> for Diagnostic {
 
 impl From<Diagnostic> for crate::diagnostics::Diagnostic {
     fn from(row: Diagnostic) -> Self {
-        Self { message: row.message, chain: row.chain, location: row.location, span_trace: row.span_trace, backtrace: row.backtrace }
+        Self {
+            message: row.message,
+            chain: row.chain,
+            location: row.location,
+            span_trace: row.span_trace,
+            backtrace: row.backtrace,
+        }
     }
 }
 
@@ -1898,6 +1927,7 @@ impl Identified for Execution {
         (DefinitionId::new("dokime.object.execution"), 1)
     }
 }
+
 impl StoredObject for Execution {
     type Key = str;
     const RETENTION: ObjectRetention = ObjectRetention::UntilReleased;
@@ -1917,11 +1947,20 @@ impl Execution {
 }
 
 /* === Public Functions === */
-pub async fn read(storage: &Manager, id: &TestExecutionId, version: ObjectVersion) -> Result<Option<ObjectRevision<TestExecution>>> {
+
+pub async fn read(
+    storage: &crate::storage::Manager, id: &TestExecutionId, version: ObjectVersion,
+) -> Result<Option<harmos::storage::ReadBatch<ObjectRevision<TestExecution>>>> {
     let Some(stored) = storage.read_object::<Execution>(id.as_str(), version).await? else {
         return Ok(None);
     };
-    Ok(Some(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version }))
+    Ok(Some(stored.try_map(|stored| -> Result<_> {
+        Ok(ObjectRevision {
+            value: stored.value.try_into()?,
+            position: stored.position,
+            version: stored.version,
+        })
+    })?))
 }
 
 pub async fn flush_seal(storage: &Manager, execution: &TestExecution, receipt: &harmos::storage::ObjectReceipt) -> Result<StorageCursor> {
@@ -1935,6 +1974,7 @@ pub async fn flush_seal(storage: &Manager, execution: &TestExecution, receipt: &
 }
 
 /* === Private Functions === */
+
 fn parameter_source(value: &crate::definition::ParameterSource) -> &'static str {
     match value {
         ParameterSource::Definition => "definition",
@@ -2109,22 +2149,8 @@ fn validate_attempts(source: &TestExecution) -> Result<()> {
             return Err(Error::Invalid("completed step attempt is also active"));
         }
     }
-    for scope in source.records.subscribed_records().values() {
-        if scope.test_execution_id.as_ref() != Some(&source.test_execution_id)
-            || scope.test_cycle_id.as_ref() != Some(&source.test_cycle_id)
-            || scope.test_case_id.as_ref() != Some(&source.test_case_id)
-        {
-            return Err(Error::Invalid("captured record scope differs from its execution"));
-        }
-        if let dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } = &scope.origin {
-            let step =
-                source.active_step_attempt.as_ref().filter(|start| &start.attempt_id == attempt_id).map(|start| &start.step_id).or_else(
-                    || source.step_attempts.iter().find(|attempt| &attempt.attempt_id == attempt_id).map(|attempt| &attempt.step_id),
-                );
-            if step.is_none() || step != scope.step_id.as_ref() {
-                return Err(Error::Invalid("captured record has invalid attempt provenance"));
-            }
-        }
+    if source.records.capture_owner().is_some_and(|owner| owner != &source.test_execution_id) {
+        return Err(Error::Invalid("capture frontier belongs to another execution"));
     }
     for step in &source.steps {
         for at in step.started_at.iter().chain(step.finished_at.iter()) {
@@ -2133,4 +2159,5 @@ fn validate_attempts(source: &TestExecution) -> Result<()> {
     }
     Ok(())
 }
+
 /* === Tests === */

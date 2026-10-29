@@ -12,12 +12,15 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 #[cfg(not(windows))]
 pub use crate::platform::linux::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
+
 #[cfg(windows)]
 pub use crate::platform::windows::wifi::WifiLink;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -25,16 +28,22 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use sysinfo::Networks;
+
 // Local Imports
 use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
+const WINDOWS_WIFI_SCAN_MS: u64 = 4_000;
+const PING_TIMEOUT_MS: u64 = 5_000;
+const LATENCY_HOST: &str = "1.1.1.1";
+
 const WIFI_CONGESTION_MODEL_24_GHZ: &str = "2.4ghz_adjacent_channel_v1";
 const WIFI_CONGESTION_MODEL_SAME_CHANNEL: &str = "same_channel_v1";
-const DEFAULT_WIFI_LATENCY_HOST: &str = "1.1.1.1";
 const BITS_PER_MEGABIT: f64 = 1_000_000.0;
 const WIFI_5_GHZ_CHANNELS: &[u32] = &[
     32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169,
@@ -46,6 +55,7 @@ const WIFI_5_GHZ_CHANNELS: &[u32] = &[
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct WifiCollector {
     sample_index: u64,
     latency_sample_index: u64,
@@ -90,6 +100,7 @@ pub(crate) struct WifiCongestionCache {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl WifiCollector {
     pub(crate) fn new(options: HostOptions, congestion_cache: Arc<Mutex<WifiCongestionCache>>) -> Self {
         Self {
@@ -192,7 +203,7 @@ impl WifiCollector {
             .as_deref()
             .or(self.options.latency_host.as_deref())
             .filter(|host| !host.trim().is_empty())
-            .unwrap_or(DEFAULT_WIFI_LATENCY_HOST)
+            .unwrap_or(LATENCY_HOST)
             .trim()
             .to_owned();
         let mut values = BTreeMap::from([
@@ -201,7 +212,7 @@ impl WifiCollector {
             ("probe_status".to_owned(), Value::from("unsupported")),
         ]);
 
-        match ping_latency_ms(&host) {
+        match ping_latency_ms(&host, Duration::from_millis(PING_TIMEOUT_MS)) {
             Ok(latency_ms) => {
                 values.insert("probe_status".to_owned(), Value::from("ok"));
                 values.insert("wifi_latency_ms".to_owned(), Value::from(latency_ms));
@@ -252,7 +263,7 @@ impl WifiCollector {
 
         #[cfg(windows)]
         {
-            match crate::platform::windows::wifi::scan_channel_occupancy(options) {
+            match crate::platform::windows::wifi::scan_channel_occupancy(options, Duration::from_millis(WINDOWS_WIFI_SCAN_MS)) {
                 Ok(channels) => {
                     let scan_timestamp = dokime_domain::model::time::Timestamp::from_system_time(std::time::SystemTime::now());
                     let active_channel = channels.iter().find_map(|channel| channel.active_channel);
@@ -260,7 +271,10 @@ impl WifiCollector {
                     let active_adapter = channels.iter().find_map(|channel| channel.adapter.clone());
                     let counts = channels
                         .iter()
-                        .map(|channel| WifiChannelCount { channel: channel.channel, network_count: channel.network_count })
+                        .map(|channel| WifiChannelCount {
+                            channel: channel.channel,
+                            network_count: channel.network_count,
+                        })
                         .collect::<Vec<_>>();
                     let congestion = wifi_congestion_summary(active_channel, active_band, &counts);
                     self.update_congestion_cache(congestion.clone());
@@ -361,7 +375,10 @@ impl WifiCollector {
                     }
                     let counts = by_channel
                         .iter()
-                        .map(|(channel, network_count)| WifiChannelCount { channel: *channel, network_count: *network_count })
+                        .map(|(channel, network_count)| WifiChannelCount {
+                            channel: *channel,
+                            network_count: *network_count,
+                        })
                         .collect::<Vec<_>>();
                     let congestion = wifi_congestion_summary(active_channel, active_band, &counts);
                     self.update_congestion_cache(congestion.clone());
@@ -442,6 +459,7 @@ impl WifiCongestionCache {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn wifi_congestion_summary(
     active_channel: Option<u32>, active_band: Option<String>, channels: &[WifiChannelCount],
 ) -> WifiCongestionSummary {
@@ -489,7 +507,11 @@ fn active_wifi_context(options: &HostOptions) -> ActiveWifiContext {
         crate::platform::windows::wifi::active_link(options)
             .ok()
             .flatten()
-            .map(|link| ActiveWifiContext { channel: link.channel, band: link.band, adapter: link.adapter })
+            .map(|link| ActiveWifiContext {
+                channel: link.channel,
+                band: link.band,
+                adapter: link.adapter,
+            })
             .unwrap_or_default()
     }
 
@@ -502,7 +524,11 @@ fn active_wifi_context(options: &HostOptions) -> ActiveWifiContext {
                 rows.into_iter()
                     .find(|row| row.active && crate::platform::linux::wifi::adapter_matches(row.device.as_deref(), adapter_filter))
             })
-            .map(|row| ActiveWifiContext { channel: row.channel, band: row.channel.and_then(wifi_channel_band), adapter: row.device })
+            .map(|row| ActiveWifiContext {
+                channel: row.channel,
+                band: row.channel.and_then(wifi_channel_band),
+                adapter: row.device,
+            })
             .unwrap_or_default()
     }
 }
@@ -573,9 +599,8 @@ fn is_encoded_6ghz_channel(channel: u32) -> bool {
     channel >= 1_000 && (1..=233).contains(&display_channel) && display_channel % 4 == 1
 }
 
-fn ping_latency_ms(host: &str) -> Result<f64, String> {
-    let output =
-        super::run_command_bounded(ping_command(host), Duration::from_secs(5)).map_err(|error| format!("ping command failed: {error}"))?;
+fn ping_latency_ms(host: &str, timeout: Duration) -> Result<f64, String> {
+    let output = super::run_command_bounded(ping_command(host), timeout).map_err(|error| format!("ping command failed: {error}"))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     let output_text = format!("{stdout}\n{stderr}");

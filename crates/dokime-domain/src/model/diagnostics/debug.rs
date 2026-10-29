@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::ArtifactId;
 use crate::model::identity::CorrelationId;
@@ -29,6 +31,7 @@ use crate::model::identity::TraceId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorCause {
     pub message: String,
@@ -48,12 +51,15 @@ pub struct StructuredErrorDetail {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DebugLevel {
     Debug,
+
     #[default]
     Info,
+
     Warning,
     Error,
 }
@@ -61,6 +67,7 @@ pub enum DebugLevel {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for ErrorCause {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -93,7 +100,11 @@ impl harmos_domain::MemorySize for StructuredErrorDetail {
 
 impl ErrorCause {
     pub fn new(message: impl Into<String>) -> Self {
-        Self { message: message.into(), code: None, source: None }
+        Self {
+            message: message.into(),
+            code: None,
+            source: None,
+        }
     }
 }
 

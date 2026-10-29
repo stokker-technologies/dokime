@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::expressions::DataExpression;
@@ -31,28 +34,33 @@ use crate::model::values::Value;
 use crate::model::values::ValueFormat;
 use crate::model::values::ValueType;
 use crate::model::values::format::ValueFormatKind;
-use crate::model::values::validate_value_format;
+use crate::model::values::format::validate_value_format_with;
 
 /* === Constants === */
-pub const DEFAULT_PLOT_MAX_POINTS: usize = 2_000;
+
 pub const DURATION_UNIT_SYMBOLS: &[&str] = &["s", "ms", "us", "\u{b5}s", "min", "h"];
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Document = DocumentDefinition;
 pub type Section = DocumentSection;
 pub type Card = DocumentCard;
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentDefinition {
     pub document_id: DocumentId,
     pub metadata: Metadata,
+
     #[serde(default)]
     pub cards: Vec<DocumentCardDefinition>,
+
     #[serde(default)]
     pub layout: DocumentLayout,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sections: Vec<DocumentSection>,
 }
@@ -67,8 +75,10 @@ pub struct DocumentLayout {
 pub struct DocumentSectionNode {
     pub node_id: Identifier,
     pub metadata: Metadata,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repeat: Option<DocumentSectionRepeat>,
+
     #[serde(default)]
     pub children: Vec<DocumentNode>,
 }
@@ -76,6 +86,7 @@ pub struct DocumentSectionNode {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentCardPlacement {
     pub card_id: Identifier,
+
     #[serde(default)]
     pub layout: DocumentCardLayout,
 }
@@ -83,8 +94,10 @@ pub struct DocumentCardPlacement {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentCardDefinition {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub filters: Vec<DocumentFilter>,
+
     #[serde(flatten)]
     pub body: DocumentCardBody,
 }
@@ -92,8 +105,10 @@ pub struct DocumentCardDefinition {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSection {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub cards: Vec<DocumentCard>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repeat: Option<DocumentSectionRepeat>,
 }
@@ -101,10 +116,13 @@ pub struct DocumentSection {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentCard {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub layout: DocumentCardLayout,
+
     #[serde(default)]
     pub filters: Vec<DocumentFilter>,
+
     #[serde(flatten)]
     pub body: DocumentCardBody,
 }
@@ -113,12 +131,16 @@ pub struct DocumentCard {
 pub struct DocumentCardLayout {
     #[serde(default)]
     pub col_span: ResponsiveSpan,
+
     #[serde(default = "default_row_span")]
     pub row_span: u8,
+
     #[serde(default)]
     pub order: i32,
+
     #[serde(default)]
     pub density: DocumentCardDensity,
+
     #[serde(default)]
     pub rail: DocumentCardRail,
 }
@@ -127,12 +149,16 @@ pub struct DocumentCardLayout {
 pub struct ResponsiveSpan {
     #[serde(default = "default_base_span")]
     pub base: u8,
+
     #[serde(default)]
     pub sm: Option<u8>,
+
     #[serde(default)]
     pub md: Option<u8>,
+
     #[serde(default)]
     pub lg: Option<u8>,
+
     #[serde(default)]
     pub xl: Option<u8>,
 }
@@ -141,10 +167,13 @@ pub struct ResponsiveSpan {
 pub struct DocumentSectionRepeat {
     pub value: DataExpression,
     pub label_template: String,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id_template: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub order_by: Option<DataExpression>,
+
     #[serde(default)]
     pub filters: Vec<DocumentFilter>,
 }
@@ -158,6 +187,7 @@ pub struct TelemetrySummaryDefinition {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySummaryGroupDefinition {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub tiles: Vec<TelemetrySummaryTileDefinition>,
 }
@@ -166,16 +196,22 @@ pub struct TelemetrySummaryGroupDefinition {
 pub struct TelemetrySummaryTileDefinition {
     pub metadata: Metadata,
     pub value: DataExpression,
+
     #[serde(default)]
     pub filters: Vec<DocumentFilter>,
+
     #[serde(default)]
     pub stat: TelemetrySummaryStat,
+
     #[serde(default)]
     pub format: TelemetrySummaryFormat,
+
     #[serde(default)]
     pub presentation: TelemetrySummaryPresentation,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
+
     #[serde(default)]
     pub conditions: Vec<TelemetrySummaryCondition>,
 }
@@ -191,62 +227,91 @@ pub struct TelemetrySummaryCondition {
 pub struct PlotDefinition {
     #[serde(skip)]
     pub automatic_id: bool,
+
     pub metadata: Metadata,
     pub plot_type: PlotType,
+
     #[serde(default)]
     pub stream: Option<String>,
+
     #[serde(default)]
     pub x: Option<String>,
+
     #[serde(default)]
     pub y: Vec<String>,
+
     #[serde(default)]
     pub z_stream: Option<String>,
+
     #[serde(default)]
     pub z_field: Option<String>,
+
     #[serde(default)]
     pub series_by: Option<String>,
+
     #[serde(default)]
     pub x_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub y_expressions: Vec<DataExpression>,
+
     #[serde(default)]
     pub z_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub series_by_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub filters: Vec<DocumentFilter>,
+
     #[serde(default)]
     pub unit: Option<String>,
+
     #[serde(default)]
     pub style: PlotStyle,
+
     #[serde(default)]
     pub x_scale: AxisScale,
+
     #[serde(default)]
     pub y_scale: AxisScale,
+
     #[serde(default)]
     pub fft: FftOptions,
+
     #[serde(default)]
     pub analysis: Option<crate::model::analysis::Selection>,
+
     #[serde(default)]
     pub interval: SigmaIntervalOptions,
+
     #[serde(default)]
     pub histogram: HistogramOptions,
+
     #[serde(default)]
     pub marker_record_types: Vec<String>,
+
     #[serde(default)]
     pub reference_lines: Vec<ReferenceLine>,
+
     #[serde(default)]
     pub reference_bands: Vec<ReferenceBand>,
+
     #[serde(default = "default_live_window_s")]
     pub live_window_s: Option<f64>,
+
     #[serde(default)]
     pub x_format: Option<ValueFormat>,
+
     #[serde(default)]
     pub y_format: Option<ValueFormat>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub x_axis: Option<PlotAxisKind>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_points: Option<u32>,
+
     #[serde(default)]
     pub downsample: DownsampleTechnique,
 }
@@ -255,6 +320,7 @@ pub struct PlotDefinition {
 pub struct DocumentFilter {
     pub expression: DataExpression,
     pub operator: FilterOperator,
+
     #[serde(default)]
     pub value: Option<Value>,
 }
@@ -263,16 +329,22 @@ pub struct DocumentFilter {
 pub struct FftOptions {
     #[serde(default)]
     pub sample_rate_hz: Option<f64>,
+
     #[serde(default)]
     pub window: FftWindow,
+
     #[serde(default)]
     pub detrend: FftDetrend,
+
     #[serde(default)]
     pub level_unit: FrequencyLevelUnit,
+
     #[serde(default)]
     pub include_dc: bool,
+
     #[serde(default)]
     pub min_frequency_hz: Option<f64>,
+
     #[serde(default)]
     pub max_frequency_hz: Option<f64>,
 }
@@ -281,8 +353,10 @@ pub struct FftOptions {
 pub struct SigmaIntervalOptions {
     #[serde(default = "default_interval_bin_width")]
     pub bin_width: f64,
+
     #[serde(default = "default_interval_sigma")]
     pub sigma: f64,
+
     #[serde(default = "default_true")]
     pub clip_to_observed: bool,
 }
@@ -291,6 +365,7 @@ pub struct SigmaIntervalOptions {
 pub struct HistogramOptions {
     #[serde(default = "default_histogram_bins")]
     pub bins: usize,
+
     #[serde(default)]
     pub unit: Option<String>,
 }
@@ -298,14 +373,19 @@ pub struct HistogramOptions {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReferenceLine {
     pub axis: ReferenceAxis,
+
     #[serde(default)]
     pub value: Option<f64>,
+
     #[serde(default)]
     pub source: Option<DataExpression>,
+
     #[serde(default = "default_reference_source_scale")]
     pub source_scale: f64,
+
     #[serde(default)]
     pub label: Option<String>,
+
     #[serde(default = "default_reference_color")]
     pub color: String,
 }
@@ -313,16 +393,22 @@ pub struct ReferenceLine {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReferenceBand {
     pub axis: ReferenceAxis,
+
     #[serde(default)]
     pub min: Option<f64>,
+
     #[serde(default)]
     pub max: Option<f64>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub center: Option<DataExpression>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<DataExpression>,
+
     #[serde(default)]
     pub label: Option<String>,
+
     #[serde(default = "default_reference_color")]
     pub color: String,
 }
@@ -361,39 +447,53 @@ pub struct PlotInput {
     pub z_field: Option<String>,
     pub stream: Option<String>,
     pub series_by: Option<String>,
+
     #[serde(default)]
     pub x_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub y_expressions: Vec<DataExpression>,
+
     #[serde(default)]
     pub z_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub series_by_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub filters: Vec<DocumentFilter>,
+
     pub unit: Option<String>,
     pub style: PlotStyle,
     pub x_scale: AxisScale,
     pub y_scale: AxisScale,
     pub fft: FftOptions,
+
     #[serde(default)]
     pub analysis: Option<crate::model::analysis::Selection>,
+
     pub interval: SigmaIntervalOptions,
     pub histogram: HistogramOptions,
     pub marker_record_types: Vec<String>,
     pub reference_lines: Vec<ReferenceLine>,
     pub reference_bands: Vec<ReferenceBand>,
     pub live_window_s: Option<f64>,
+
     #[serde(default)]
     pub x_format: Option<ValueFormat>,
+
     #[serde(default)]
     pub y_format: Option<ValueFormat>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub x_axis: Option<PlotAxisKind>,
+
     pub available_streams: Vec<Identifier>,
     pub marker_count: usize,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_points: Option<u32>,
+
     #[serde(default)]
     pub downsample: DownsampleTechnique,
 }
@@ -401,8 +501,10 @@ pub struct PlotInput {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentDataset {
     pub grain: DocumentDatasetGrain,
+
     #[serde(default)]
     pub rows: Vec<BTreeMap<String, Value>>,
+
     #[serde(default)]
     pub warnings: Vec<DocumentDatasetWarning>,
 }
@@ -411,15 +513,17 @@ pub struct DocumentDataset {
 pub struct DocumentDatasetWarning {
     pub code: Identifier,
     pub message: String,
+
     #[serde(default)]
     pub count: u64,
 }
 
-/* === DSL Constructors === */
+// DSL Constructors
 
 pub struct Plot;
 
 /* === Enums === */
+
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -428,6 +532,7 @@ pub enum DownsampleTechnique {
     Raw,
     MinMax,
     Lttb,
+
     #[default]
     Auto,
 }
@@ -479,8 +584,10 @@ pub enum DocumentCardBodyKind {
 #[serde(rename_all = "snake_case")]
 pub enum DocumentCardDensity {
     Compact,
+
     #[default]
     Normal,
+
     Spacious,
 }
 
@@ -489,6 +596,7 @@ pub enum DocumentCardDensity {
 pub enum DocumentCardRail {
     #[default]
     Main,
+
     Right,
     Left,
 }
@@ -521,6 +629,7 @@ pub enum PlotType {
 pub enum PlotStyle {
     #[default]
     Line,
+
     Points,
     LinePoints,
     Step,
@@ -531,6 +640,7 @@ pub enum PlotStyle {
 pub enum AxisScale {
     #[default]
     Linear,
+
     Log,
 }
 
@@ -539,6 +649,7 @@ pub enum AxisScale {
 pub enum PlotAxisKind {
     #[default]
     WallTime,
+
     Elapsed {
         unit: String,
     },
@@ -569,6 +680,7 @@ pub enum TelemetrySummaryStat {
 pub enum TelemetrySummaryFormat {
     #[default]
     Auto,
+
     Number,
     Percent,
     Duration,
@@ -582,6 +694,7 @@ pub enum TelemetrySummaryFormat {
 pub enum TelemetrySummaryPresentation {
     #[default]
     Value,
+
     Progress,
     Badge,
 }
@@ -610,10 +723,13 @@ pub enum DocumentDatasetGrain {
 pub enum FrequencyLevelUnit {
     #[default]
     Linear,
+
     #[serde(rename = "dB")]
     Db,
+
     #[serde(rename = "dBu")]
     Dbu,
+
     #[serde(rename = "dBm")]
     Dbm,
 }
@@ -622,6 +738,7 @@ pub enum FrequencyLevelUnit {
 #[serde(rename_all = "snake_case")]
 pub enum FftDetrend {
     None,
+
     #[default]
     Mean,
 }
@@ -631,6 +748,7 @@ pub enum FftDetrend {
 pub enum FftWindow {
     #[default]
     Hann,
+
     Rectangular,
 }
 
@@ -642,6 +760,7 @@ pub enum ReferenceAxis {
 }
 
 /* === Traits === */
+
 pub trait DocumentTagged {
     fn metadata_mut(&mut self) -> &mut Metadata;
 
@@ -659,6 +778,7 @@ pub trait DocumentTagged {
 }
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for PlotDescriptor {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -997,19 +1117,32 @@ impl Default for DocumentCardLayout {
 
 impl Default for ResponsiveSpan {
     fn default() -> Self {
-        Self { base: default_base_span(), sm: None, md: None, lg: None, xl: None }
+        Self {
+            base: default_base_span(),
+            sm: None,
+            md: None,
+            lg: None,
+            xl: None,
+        }
     }
 }
 
 impl Default for SigmaIntervalOptions {
     fn default() -> Self {
-        Self { bin_width: default_interval_bin_width(), sigma: default_interval_sigma(), clip_to_observed: true }
+        Self {
+            bin_width: default_interval_bin_width(),
+            sigma: default_interval_sigma(),
+            clip_to_observed: true,
+        }
     }
 }
 
 impl Default for HistogramOptions {
     fn default() -> Self {
-        Self { bins: default_histogram_bins(), unit: None }
+        Self {
+            bins: default_histogram_bins(),
+            unit: None,
+        }
     }
 }
 
@@ -1038,8 +1171,10 @@ impl DocumentDefinition {
 
     pub fn upsert_card(&mut self, section_id: &Identifier, section_label: impl Into<String>, card: DocumentCard) {
         self.upsert_card_definition(DocumentCardDefinition::from(card.clone()));
-        let placement =
-            DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier.clone(), layout: card.layout.clone() });
+        let placement = DocumentNode::Card(DocumentCardPlacement {
+            card_id: card.metadata.identifier.clone(),
+            layout: card.layout.clone(),
+        });
         let section = self.layout.nodes.iter_mut().find_map(|node| section_node_mut(node, section_id));
 
         match section {
@@ -1077,23 +1212,44 @@ impl DocumentDefinition {
     }
 
     pub fn normalized_parts(&self) -> (Vec<DocumentCardDefinition>, DocumentLayout) {
-        let mut cards = self.cards.clone();
-        let mut layout = self.layout.clone();
+        let card_capacity = self
+            .sections
+            .iter()
+            .try_fold(self.cards.len(), |count, section| count.checked_add(section.cards.len()))
+            .expect("normalized card capacity overflows");
+        let node_capacity = self.layout.nodes.len().checked_add(self.sections.len()).expect("normalized node capacity overflows");
+        let mut cards = Vec::with_capacity(card_capacity);
+        cards.extend(self.cards.iter().cloned());
+        let mut layout = DocumentLayout { nodes: Vec::with_capacity(node_capacity) };
+        layout.nodes.extend(self.layout.nodes.iter().cloned());
 
-        if !self.sections.is_empty() {
-            merge_authored_sections_into_layout(&mut cards, &mut layout, &self.sections);
+        for section in &self.sections {
+            for card in &section.cards {
+                upsert_card_definition(&mut cards, DocumentCardDefinition::from(card.clone()));
+            }
+            let mut children = Vec::with_capacity(section.cards.len());
+            for card in &section.cards {
+                children.push(DocumentNode::Card(DocumentCardPlacement {
+                    card_id: card.metadata.identifier.clone(),
+                    layout: card.layout.clone(),
+                }));
+            }
+            layout.nodes.push(DocumentNode::Section(Box::new(DocumentSectionNode {
+                node_id: section.metadata.identifier.clone(),
+                metadata: section.metadata.clone(),
+                repeat: section.repeat.clone(),
+                children,
+            })));
         }
 
         if layout.nodes.is_empty() && !cards.is_empty() {
-            layout.nodes = cards
-                .iter()
-                .map(|card| {
-                    DocumentNode::Card(DocumentCardPlacement {
-                        card_id: card.metadata.identifier.clone(),
-                        layout: DocumentCardLayout::default(),
-                    })
-                })
-                .collect();
+            layout.nodes = Vec::with_capacity(cards.len());
+            for card in &cards {
+                layout.nodes.push(DocumentNode::Card(DocumentCardPlacement {
+                    card_id: card.metadata.identifier.clone(),
+                    layout: DocumentCardLayout::default(),
+                }));
+            }
         }
 
         (cards, layout)
@@ -1140,8 +1296,10 @@ impl DocumentDefinition {
     }
 
     pub(crate) fn append_card(&mut self, section_id: &Identifier, card: DocumentCard) {
-        let placement =
-            DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier.clone(), layout: card.layout.clone() });
+        let placement = DocumentNode::Card(DocumentCardPlacement {
+            card_id: card.metadata.identifier.clone(),
+            layout: card.layout.clone(),
+        });
         self.upsert_card_definition(DocumentCardDefinition::from(card));
         if let Some(section) = self.layout.nodes.iter_mut().find_map(|node| section_node_mut(node, section_id)) {
             section.children.push(placement);
@@ -1157,7 +1315,11 @@ impl DocumentLayout {
 
 impl From<DocumentCard> for DocumentCardDefinition {
     fn from(card: DocumentCard) -> Self {
-        Self { metadata: card.metadata, filters: card.filters, body: card.body }
+        Self {
+            metadata: card.metadata,
+            filters: card.filters,
+            body: card.body,
+        }
     }
 }
 
@@ -1170,7 +1332,12 @@ impl From<DocumentSection> for DocumentSectionNode {
             children: section
                 .cards
                 .into_iter()
-                .map(|card| DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier, layout: card.layout }))
+                .map(|card| {
+                    DocumentNode::Card(DocumentCardPlacement {
+                        card_id: card.metadata.identifier,
+                        layout: card.layout,
+                    })
+                })
                 .collect(),
         }
     }
@@ -1181,7 +1348,11 @@ impl DocumentSection {
         let label = label.into();
         let identifier = identifier_from_label(&label);
 
-        Self { metadata: Metadata::new(identifier, label, None), cards: Vec::new(), repeat: None }
+        Self {
+            metadata: Metadata::new(identifier, label, None),
+            cards: Vec::new(),
+            repeat: None,
+        }
     }
 
     pub fn id(&mut self, identifier: impl AsRef<str>) {
@@ -1219,7 +1390,12 @@ impl DocumentCard {
             .first()
             .map(|group| group.metadata.clone())
             .unwrap_or_else(|| metadata("telemetry.summary", "Telemetry Summary".to_owned(), None));
-        Self { metadata, layout: DocumentCardLayout::default(), filters: Vec::new(), body: DocumentCardBody::TelemetrySummary { summary } }
+        Self {
+            metadata,
+            layout: DocumentCardLayout::default(),
+            filters: Vec::new(),
+            body: DocumentCardBody::TelemetrySummary { summary },
+        }
     }
 
     pub fn plot(mut plot: PlotDefinition) -> Self {
@@ -1269,7 +1445,13 @@ impl DocumentCardBody {
 
 impl DocumentSectionRepeat {
     fn new(value: impl Into<DataExpression>, label_template: impl Into<String>) -> Self {
-        Self { value: value.into(), label_template: label_template.into(), id_template: None, order_by: None, filters: Vec::new() }
+        Self {
+            value: value.into(),
+            label_template: label_template.into(),
+            id_template: None,
+            order_by: None,
+            filters: Vec::new(),
+        }
     }
 
     pub fn id(&mut self, template: impl Into<String>) -> &mut Self {
@@ -1319,13 +1501,21 @@ impl DataExpression {
     }
 
     pub fn exists(self) -> DocumentFilter {
-        DocumentFilter { expression: self, operator: FilterOperator::Exists, value: None }
+        DocumentFilter {
+            expression: self,
+            operator: FilterOperator::Exists,
+            value: None,
+        }
     }
 }
 
 impl DocumentFilter {
     fn compared(expression: DataExpression, operator: FilterOperator, value: impl Into<Value>) -> Self {
-        Self { expression, operator, value: Some(value.into()) }
+        Self {
+            expression,
+            operator,
+            value: Some(value.into()),
+        }
     }
 }
 
@@ -1347,7 +1537,10 @@ impl Default for TelemetrySummaryDefinition {
 
 impl TelemetrySummaryGroupDefinition {
     pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
-        Self { metadata: metadata(identifier.as_ref(), label.into(), None), tiles: Vec::new() }
+        Self {
+            metadata: metadata(identifier.as_ref(), label.into(), None),
+            tiles: Vec::new(),
+        }
     }
 
     pub fn tile(&mut self, tile: TelemetrySummaryTileDefinition) {
@@ -1672,7 +1865,12 @@ impl Plot {
 
 impl Band {
     pub fn between(min: f64, max: f64) -> Self {
-        Self { min: Some(min), max: Some(max), center: None, tolerance: None }
+        Self {
+            min: Some(min),
+            max: Some(max),
+            center: None,
+            tolerance: None,
+        }
     }
 
     pub fn parameters(center: impl Into<String>, tolerance: impl Into<String>) -> Self {
@@ -1680,13 +1878,22 @@ impl Band {
     }
 
     pub fn around(center: impl Into<DataExpression>, tolerance: impl Into<DataExpression>) -> Self {
-        Self { min: None, max: None, center: Some(center.into()), tolerance: Some(tolerance.into()) }
+        Self {
+            min: None,
+            max: None,
+            center: Some(center.into()),
+            tolerance: Some(tolerance.into()),
+        }
     }
 }
 
 impl Line {
     pub fn at(value: f64) -> Self {
-        Self { value: Some(value), source: None, scale: default_reference_source_scale() }
+        Self {
+            value: Some(value),
+            source: None,
+            scale: default_reference_source_scale(),
+        }
     }
 
     pub fn parameter(name: impl Into<String>) -> Self {
@@ -1694,7 +1901,11 @@ impl Line {
     }
 
     pub fn expression(source: impl Into<DataExpression>) -> Self {
-        Self { value: None, source: Some(source.into()), scale: default_reference_source_scale() }
+        Self {
+            value: None,
+            source: Some(source.into()),
+            scale: default_reference_source_scale(),
+        }
     }
 }
 
@@ -1723,6 +1934,7 @@ impl DocumentTagged for PlotDefinition {
 }
 
 /* === Public Functions === */
+
 pub fn resolve_document_plot_axes(document: &mut DocumentDefinition, contracts: &[TelemetryContract]) {
     for card in &mut document.cards {
         resolve_card_body_plot_axis(&mut card.body, contracts);
@@ -1735,117 +1947,130 @@ pub fn resolve_document_plot_axes(document: &mut DocumentDefinition, contracts: 
 }
 
 pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
-    if plot.display_points.is_some_and(|points| points > 100_000) {
-        return Err("plot display points must not exceed 100000".to_owned());
-    }
+    validate_plot_definition_with(plot, &crate::model::validation::diagnostic::text)
+}
 
+pub(crate) fn plot_validation_issue_bytes(plot: &PlotDefinition) -> Option<usize> {
+    validate_plot_definition_with(plot, &crate::model::validation::diagnostic::size).err()
+}
+
+fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if matches!(
         plot.plot_type,
         PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pie | PlotType::Donut | PlotType::Pareto | PlotType::AggregateTable
     ) {
-        return Err(format!("unsupported document plot type {}", plot_type_label(&plot.plot_type)));
+        return Err(error(format_args!("unsupported document plot type {}", plot_type_label(&plot.plot_type))));
     }
 
     if plot.plot_type == PlotType::TimeSeries
         && (plot.x_expression.is_some() || plot.x.as_deref().is_some_and(|field| field != "timestamp"))
     {
-        return Err("`time_series` plots draw against the row timestamp; remove `.x(…)`, or use \
+        return Err(error(format_args!(
+            "`time_series` plots draw against the row timestamp; remove `.x(…)`, or use \
              `Plot::xy_line` to choose both axes"
-            .to_owned());
+        )));
     }
 
     if plot.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
-        return Err("z expressions must select a row value without transforms".to_owned());
+        return Err(error(format_args!("z expressions must select a row value without transforms")));
     }
 
     if let Some(x_format) = &plot.x_format {
-        validate_value_format(x_format)?;
+        validate_value_format_with(x_format, error)?;
         if plot.plot_type == PlotType::TimeSeries && x_format.kind() == ValueFormatKind::Number {
-            return Err("`x_format` on a time_series plot takes a time format: format::clock(…), \
+            return Err(error(format_args!(
+                "`x_format` on a time_series plot takes a time format: format::clock(…), \
                  format::elapsed_seconds(), format::elapsed_ms()"
-                .to_owned());
+            )));
         }
         if plot_has_number_x_axis(&plot.plot_type) && x_format.kind() == ValueFormatKind::Time {
-            return Err(format!(
+            return Err(error(format_args!(
                 "`x_format` on a {} plot takes a number format: format::normal(), \
                  format::fixed(…), format::engineering()",
                 plot_type_label(&plot.plot_type)
-            ));
+            )));
         }
     }
 
     if let Some(y_format) = &plot.y_format {
         if plot.plot_type == PlotType::Histogram {
-            return Err("`y_format` on a histogram plot has nothing to format: its y axis is the count \
+            return Err(error(format_args!(
+                "`y_format` on a histogram plot has nothing to format: its y axis is the count \
                  the host computes; format the binned value with `x_format`"
-                .to_owned());
+            )));
         }
-        validate_value_format(y_format)?;
+        validate_value_format_with(y_format, error)?;
         if y_format.kind() == ValueFormatKind::Time {
-            return Err("`y_format` takes a number format".to_owned());
+            return Err(error(format_args!("`y_format` takes a number format")));
         }
     }
 
     match plot.plot_type {
         PlotType::Bar => {
             if plot.x.is_none() && plot.x_expression.is_none() {
-                return Err("bar plots must declare an x field or x expression".to_owned());
+                return Err(error(format_args!("bar plots must declare an x field or x expression")));
             }
             if plot.y.is_empty() && plot.y_expressions.is_empty() {
-                return Err("bar plots must declare at least one y field or y expression".to_owned());
+                return Err(error(format_args!("bar plots must declare at least one y field or y expression")));
             }
         }
         PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pareto | PlotType::XyScatter | PlotType::XyLine | PlotType::XyInterval => {
-            validate_xy_axes(plot)?
+            validate_xy_axes(plot, error)?
         }
-        PlotType::Trajectory => validate_xy_axes(plot)?,
+        PlotType::Trajectory => validate_xy_axes(plot, error)?,
         PlotType::Heatmap | PlotType::XyValueHeatmap => {
-            validate_xy_axes(plot)?;
+            validate_xy_axes(plot, error)?;
             if plot.z_field.as_ref().is_none_or(|field| field.is_empty()) && plot.z_expression.is_none() {
-                return Err(format!("{} plots must declare a z field or z expression", plot_type_label(&plot.plot_type)));
+                return Err(error(format_args!("{} plots must declare a z field or z expression", plot_type_label(&plot.plot_type))));
             }
         }
-        PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot)?,
-        PlotType::Histogram => validate_histogram_axes(plot)?,
+        PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot, error)?,
+        PlotType::Histogram => validate_histogram_axes(plot, error)?,
         PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
             if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
-                return Err(format!("{} plots must declare exactly one y field or y expression", plot_type_label(&plot.plot_type)));
+                return Err(error(format_args!(
+                    "{} plots must declare exactly one y field or y expression",
+                    plot_type_label(&plot.plot_type)
+                )));
             }
         }
         PlotType::TimeSeries | PlotType::FrequencySeries => {
             if plot.y.is_empty() && plot.y_expressions.is_empty() {
-                return Err(format!("{} plots must declare at least one y field or y expression", plot_type_label(&plot.plot_type)));
+                return Err(error(format_args!(
+                    "{} plots must declare at least one y field or y expression",
+                    plot_type_label(&plot.plot_type)
+                )));
             }
         }
         PlotType::AggregateTable => {}
     }
     if plot.histogram.bins < 2 {
-        return Err("histograms must declare at least two bins".to_owned());
+        return Err(error(format_args!("histograms must declare at least two bins")));
     }
     if !plot.interval.bin_width.is_finite() || plot.interval.bin_width <= 0.0 {
-        return Err("interval bin_width must be greater than zero".to_owned());
+        return Err(error(format_args!("interval bin_width must be greater than zero")));
     }
     if !plot.interval.sigma.is_finite() || plot.interval.sigma <= 0.0 {
-        return Err("interval sigma must be greater than zero".to_owned());
+        return Err(error(format_args!("interval sigma must be greater than zero")));
     }
     if plot.fft.sample_rate_hz.is_some_and(|value| !value.is_finite() || value <= 0.0) {
-        return Err("FFT sample_rate_hz must be greater than zero".to_owned());
+        return Err(error(format_args!("FFT sample_rate_hz must be greater than zero")));
     }
     if plot.fft.min_frequency_hz.is_some_and(|value| !value.is_finite() || value < 0.0)
         || plot.fft.max_frequency_hz.is_some_and(|value| !value.is_finite() || value < 0.0)
     {
-        return Err("FFT frequency bounds must be greater than or equal to zero".to_owned());
+        return Err(error(format_args!("FFT frequency bounds must be greater than or equal to zero")));
     }
     if let (Some(min), Some(max)) = (plot.fft.min_frequency_hz, plot.fft.max_frequency_hz)
         && min > max
     {
-        return Err("FFT min_frequency_hz must be less than or equal to max_frequency_hz".to_owned());
+        return Err(error(format_args!("FFT min_frequency_hz must be less than or equal to max_frequency_hz")));
     }
     for band in &plot.reference_bands {
         if let (Some(min), Some(max)) = (band.min, band.max)
             && min > max
         {
-            return Err("reference band min must be less than or equal to max".to_owned());
+            return Err(error(format_args!("reference band min must be less than or equal to max")));
         }
     }
 
@@ -1876,6 +2101,7 @@ pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
 }
 
 /* === Private Functions === */
+
 fn document_nodes_memory(nodes: &Vec<DocumentNode>, depth: usize) -> usize {
     if depth > 64 {
         return usize::MAX;
@@ -1950,15 +2176,6 @@ fn plot_has_number_x_axis(plot_type: &PlotType) -> bool {
 
 fn metadata(identifier_value: &str, label: String, description: Option<String>) -> Metadata {
     Metadata::new(Identifier::new(identifier_value).unwrap_or_else(|_| identifier_from_label(identifier_value)), label, description)
-}
-
-fn merge_authored_sections_into_layout(cards: &mut Vec<DocumentCardDefinition>, layout: &mut DocumentLayout, sections: &[DocumentSection]) {
-    for section in sections {
-        for card in &section.cards {
-            upsert_card_definition(cards, DocumentCardDefinition::from(card.clone()));
-        }
-        layout.nodes.push(DocumentNode::Section(Box::new(DocumentSectionNode::from(section.clone()))));
-    }
 }
 
 fn upsert_card_definition(cards: &mut Vec<DocumentCardDefinition>, card: DocumentCardDefinition) {
@@ -2106,59 +2323,61 @@ fn default_true() -> bool {
     true
 }
 
-fn validate_xy_axes(plot: &PlotDefinition) -> Result<(), String> {
+fn validate_xy_axes<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if plot.x.is_none() && plot.x_expression.is_none() {
-        return Err("XY plots must declare an x field or x expression".to_owned());
+        return Err(error(format_args!("XY plots must declare an x field or x expression")));
     }
     if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
-        return Err("XY plots must declare exactly one y field or y expression".to_owned());
+        return Err(error(format_args!("XY plots must declare exactly one y field or y expression")));
     }
 
     Ok(())
 }
 
-fn validate_histogram_axes(plot: &PlotDefinition) -> Result<(), String> {
+fn validate_histogram_axes<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if !plot.y.is_empty() || !plot.y_expressions.is_empty() {
-        return Err("histogram plots take their value on the x axis and the host counts it on y; \
+        return Err(error(format_args!(
+            "histogram plots take their value on the x axis and the host counts it on y; \
              replace `.y(…)` with `.x(…)`"
-            .to_owned());
+        )));
     }
     let x_field = plot.x.as_deref().filter(|field| *field != "timestamp");
     if usize::from(x_field.is_some()) + usize::from(plot.x_expression.is_some()) != 1 {
-        return Err("histogram plots must declare exactly one x field or x expression: the value they bin".to_owned());
+        return Err(error(format_args!("histogram plots must declare exactly one x field or x expression: the value they bin")));
     }
 
     Ok(())
 }
 
-fn validate_wifi_channel_occupancy(plot: &PlotDefinition) -> Result<(), String> {
+fn validate_wifi_channel_occupancy<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if plot.x_expression.is_some() || !plot.y_expressions.is_empty() || plot.z_expression.is_some() || plot.series_by_expression.is_some() {
-        return Err("wifi_channel_occupancy uses fixed host columns; remove axis and grouping expressions".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy uses fixed host columns; remove axis and grouping expressions")));
     }
 
     if plot.stream.as_deref() != Some("host.wifi.channel_occupancy") {
-        return Err("wifi_channel_occupancy plots must use stream host.wifi.channel_occupancy".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy plots must use stream host.wifi.channel_occupancy")));
     }
     if plot.x.as_deref() != Some("timestamp") {
-        return Err("wifi_channel_occupancy plots must use timestamp as x field".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy plots must use timestamp as x field")));
     }
     if plot.y.len() != 1 || plot.y[0] != "network_count" {
-        return Err("wifi_channel_occupancy plots must use network_count as y field".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy plots must use network_count as y field")));
     }
     if plot.series_by.as_deref() != Some("wifi_channel") {
-        return Err("wifi_channel_occupancy plots must group by wifi_channel".to_owned());
+        return Err(error(format_args!("wifi_channel_occupancy plots must group by wifi_channel")));
     }
 
     Ok(())
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn section_derives_its_identifier_from_the_label_until_overridden() {
+    fn section_identifier_override() {
         let mut section = DocumentSection::new("Battery Charging");
         assert_eq!(section.metadata.identifier.as_str(), "battery.charging");
 
@@ -2168,7 +2387,7 @@ mod tests {
     }
 
     #[test]
-    fn each_repeats_by_value_with_no_order_filter_or_identifier_template() {
+    fn each_value_defaults() {
         let mut section = DocumentSection::new("Channels");
         let repeat = section.each(crate::model::expressions::telemetry("wifi", "channel"), "Channel {value}");
         assert_eq!(repeat.label_template, "Channel {value}");
@@ -2181,7 +2400,7 @@ mod tests {
     }
 
     #[test]
-    fn each_chains_its_order_filter_and_identifier_template() {
+    fn each_filter_chain() {
         let channel = crate::model::expressions::telemetry("wifi", "channel");
         let strength = crate::model::expressions::telemetry("wifi", "strength");
 
@@ -2195,7 +2414,7 @@ mod tests {
     }
 
     #[test]
-    fn comparisons_map_one_to_one_onto_filter_operators() {
+    fn comparison_filter_mapping() {
         let point = crate::model::expressions::telemetry("charger", "point");
         let cases = [
             (point.clone().eq("CP-03"), FilterOperator::Eq),
@@ -2221,7 +2440,7 @@ mod tests {
     }
 
     #[test]
-    fn only_narrows_cards_plots_and_summary_tiles() {
+    fn only_narrows_elements() {
         let point = crate::model::expressions::telemetry("charger", "point");
         let filter = point.clone().eq("CP-03");
 

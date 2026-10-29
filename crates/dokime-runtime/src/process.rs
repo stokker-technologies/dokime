@@ -31,8 +31,6 @@ use std::future::Future;
 
 /* === Constants === */
 
-// Thirty-two megabytes covers the deepest dev-profile futures observed with a
-// wide margin; release binaries use a fraction of it.
 pub const STACK_BYTES: usize = 32 * 1024 * 1024;
 
 /* === Macros === */
@@ -48,18 +46,25 @@ pub const STACK_BYTES: usize = 32 * 1024 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // Runs the future to completion on a multi-threaded runtime whose driving and
-// worker threads all have `STACK_BYTES` of stack. A panic inside the future
+// worker threads use the supplied execution stack policy. A panic inside the future
 // propagates to the caller as it would from `block_on`.
 pub fn block_on<F>(future: F) -> std::io::Result<F::Output>
 where
     F: Future + Send + 'static,
     F::Output: Send + 'static,
 {
+    let stack_bytes = STACK_BYTES;
+    let shutdown = std::time::Duration::from_millis(250);
+
     // Run On A Sized Thread
-    let driver = std::thread::Builder::new().name("dokime-main".to_owned()).stack_size(STACK_BYTES).spawn(move || {
-        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().thread_stack_size(STACK_BYTES).build()?;
-        Ok::<_, std::io::Error>(runtime.block_on(future))
+    let driver = std::thread::Builder::new().name("dokime-main".to_owned()).stack_size(stack_bytes).spawn(move || {
+        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().thread_stack_size(stack_bytes).build()?;
+        let outcome = runtime.block_on(future);
+        // A collector still blocked in the pool runs out its own bound without holding the exit.
+        runtime.shutdown_timeout(shutdown);
+        Ok::<_, std::io::Error>(outcome)
     })?;
 
     // Surface The Outcome

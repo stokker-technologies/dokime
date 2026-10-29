@@ -29,14 +29,21 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
-static EMPTY: RuntimeExecutionFileFrame =
-    RuntimeExecutionFileFrame { files: Vec::new(), total_files: 0, returned_files: 0, truncated: false, error: None };
+
+static EMPTY: RuntimeExecutionFileFrame = RuntimeExecutionFileFrame {
+    files: Vec::new(),
+    total_files: 0,
+    returned_files: 0,
+    truncated: false,
+    error: None,
+};
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct RuntimeExecutionFileRead {
     value: Option<Arc<RuntimeExecutionFileFrame>>,
@@ -47,6 +54,7 @@ pub struct RuntimeExecutionFileRead {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeExecutionFileRead {
     pub(crate) fn unselected() -> Self {
         Self { value: None }
@@ -69,6 +77,7 @@ impl PartialEq for RuntimeExecutionFileRead {
         self.deref() == other.deref()
     }
 }
+
 impl Eq for RuntimeExecutionFileRead {}
 
 impl Serialize for RuntimeExecutionFileRead {
@@ -78,6 +87,7 @@ impl Serialize for RuntimeExecutionFileRead {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn execution_file_frame(
     execution: &TestExecutionId, files: &[ExecutionFileEntry], window: &RuntimeWindow, resolution: &RuntimeResolution,
 ) -> RuntimeExecutionFileFrame {
@@ -108,10 +118,17 @@ pub(crate) fn execution_file_frame(
             updated_at: file.updated_at.clone(),
         });
     }
-    RuntimeExecutionFileFrame { files: records, total_files: total, returned_files: returned, truncated: returned < total, error: None }
+    RuntimeExecutionFileFrame {
+        files: records,
+        total_files: total,
+        returned_files: returned,
+        truncated: returned < total,
+        error: None,
+    }
 }
 
 /* === Private Functions === */
+
 fn windowed<'a>(files: &'a [ExecutionFileEntry], window: &'a RuntimeWindow) -> impl Iterator<Item = &'a ExecutionFileEntry> {
     files
         .iter()

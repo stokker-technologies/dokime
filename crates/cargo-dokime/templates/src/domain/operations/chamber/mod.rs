@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use crate::domain::model::chamber::ChamberReading;
-use dokime_runtime::prelude::Discovered;
+use dokime::prelude::Discovered;
 
 /* === Constants === */
 
@@ -27,24 +28,23 @@ use dokime_runtime::prelude::Discovered;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
-    id = "{{owner}}.get_chamber",
+
+#[dokime::operation(
+    id = "{{crate}}.get_chamber",
     response = ChamberReading,
-    version = 1,
     description = "Reads the chamber. A template calls it with `ctx.call::<ReadChamber>(ReadChamber {})`.",
-    policy = super::POLICY
+    policy = super::POLICY,
+    resources = [crate::Bench]
 )]
 #[derive(Clone, PartialEq)]
 pub struct ReadChamber {}
 
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
-    id = "{{owner}}.detect_port",
+#[dokime::operation(
+    id = "{{crate}}.detect_port",
     response = Discovered,
-    version = 1,
     description = "Finds the sensor port the settings card offers before anybody saved one.",
-    policy = super::POLICY
+    policy = super::POLICY,
+    resources = [crate::Bench]
 )]
 #[derive(Clone, PartialEq)]
 pub struct DetectPort {}

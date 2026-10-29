@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod bluetooth;
 pub mod network;
 pub mod system;
@@ -16,14 +17,17 @@ pub mod wifi;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     process::{Command, Output, Stdio},
     thread,
     time::Duration,
 };
+
 // Third Party Imports
 use tokio::io::{AsyncRead, AsyncReadExt};
+
 // Local Imports
 use dokime_domain::model::values::Value;
 
@@ -42,6 +46,7 @@ use dokime_domain::model::values::Value;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn integer(value: u64) -> Value {
     Value::Integer(value.min(i64::MAX as u64) as i64)
 }
@@ -89,7 +94,11 @@ async fn capture(
         let mut stdout_bytes = Vec::new();
         let mut stderr_bytes = Vec::new();
         let (_, _, status) = tokio::try_join!(stdout.read_to_end(&mut stdout_bytes), stderr.read_to_end(&mut stderr_bytes), wait,)?;
-        Ok(Output { status, stdout: stdout_bytes, stderr: stderr_bytes })
+        Ok(Output {
+            status,
+            stdout: stdout_bytes,
+            stderr: stderr_bytes,
+        })
     };
     tokio::time::timeout(timeout, capture)
         .await

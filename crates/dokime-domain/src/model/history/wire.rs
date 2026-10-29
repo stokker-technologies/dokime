@@ -7,7 +7,7 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
+// Saved History Discovery And Immutable Evidence Projection Contracts.
 
 /* === Modules === */
 
@@ -70,6 +70,26 @@ use crate::model::values::wire::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct CycleBrowsePage {
+    pub entries: Vec<SavedCycleSummary>,
+    pub at: Option<StorageCursor>,
+    pub next_after_sequence: Option<u64>,
+}
+
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct SavedCycleSummary {
+    pub cycle_id: String,
+    pub metadata: Option<Metadata>,
+    pub phase: crate::model::execution::result::CyclePhase,
+    pub created_at: Option<Timestamp>,
+    pub updated_at: Option<Timestamp>,
+    pub execution_count: u64,
+    pub archived: bool,
+}
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -153,6 +173,7 @@ pub struct ExecutionBrowseCycle {
     pub finished_at: Option<Timestamp>,
     // The cycle's own label, absent when its header is no longer readable.
     pub label: Option<String>,
+    pub phase: Option<crate::model::execution::result::CyclePhase>,
 }
 
 #[harmos_domain::message]
@@ -457,6 +478,7 @@ pub struct HistoricalCycleContext {
 pub struct HistoricalCycle {
     pub cycle_id: String,
     pub metadata: Option<Metadata>,
+    pub phase: crate::model::execution::result::CyclePhase,
     pub lifecycle: CycleStatus,
     pub created_at: Option<Timestamp>,
     pub started_at: Option<Timestamp>,

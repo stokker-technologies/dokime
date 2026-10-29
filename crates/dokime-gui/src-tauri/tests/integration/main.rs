@@ -7,9 +7,12 @@
  * ***
  */
 
+#![recursion_limit = "256"]
+
 /* === Modules === */
 
 mod connection;
+mod http;
 mod native_session;
 mod parameters;
 mod rpc;

@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::RuntimeHandle;
 use crate::definition::{MaterializedParameter, ParameterSource, TestCase};
@@ -45,6 +48,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeOverviewSnapshot {
     pub revision: u64,
@@ -54,10 +58,13 @@ pub struct RuntimeOverviewSnapshot {
     pub hub_metadata: Metadata,
     pub test_suite_count: usize,
     pub cycle_summaries: Vec<RuntimeCycleSummary>,
+
     #[serde(skip)]
     pub cycles: Vec<CycleView>,
+
     pub evidence_counts: EvidenceCounts,
     pub installed_plugin_errors: Vec<InstalledPluginErrorRecord>,
+
     #[serde(skip)]
     pub retention: RuntimeRetentionDiagnostics,
 }
@@ -91,13 +98,14 @@ pub struct RuntimeCycleSummary {
     pub test_cycle_id: TestCycleId,
     pub session_id: Option<SessionId>,
     pub metadata: Metadata,
+    pub phase: dokime_domain::model::execution::result::CyclePhase,
     pub lifecycle: CycleStatus,
     pub created_at: Timestamp,
     pub started_at: Option<Timestamp>,
     pub updated_at: Timestamp,
     pub test_cases: Vec<TestCase>,
     pub test_executions: Vec<RuntimeExecutionSummary>,
-    pub continue_on_failure: bool,
+    pub continue_automatically: bool,
     pub result: Option<ResultSummary>,
 }
 
@@ -116,6 +124,7 @@ pub struct RuntimeExecutionSummary {
 }
 
 /* === Enums === */
+
 pub enum RuntimeChange {
     State(RuntimeStateSnapshot),
     Operations(OperationSnapshot),
@@ -124,6 +133,7 @@ pub enum RuntimeChange {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeStateSnapshot {
     pub(crate) fn new(state: Arc<RuntimeState>, revision: u64) -> Self {
         Self { state, revision }
@@ -174,13 +184,14 @@ impl RuntimeCycleSummary {
             test_cycle_id: cycle.test_cycle_id.clone(),
             session_id: cycle.session_id.clone(),
             metadata: cycle.metadata.clone(),
+            phase: cycle.phase,
             lifecycle: cycle.lifecycle,
             created_at: cycle.created_at.clone(),
             started_at: cycle.started_at.clone(),
             updated_at: cycle.updated_at.clone(),
             test_cases: cycle.cases().cloned().collect::<Vec<_>>(),
             test_executions: cycle.test_executions.iter().map(RuntimeExecutionSummary::from_execution).collect(),
-            continue_on_failure: cycle.continue_on_failure,
+            continue_automatically: cycle.continue_automatically,
             result: cycle.result.clone(),
         }
     }
@@ -206,7 +217,7 @@ impl RuntimeExecutionSummary {
 impl RuntimeHandle {
     pub async fn runtime_overview(&self) -> crate::runtime::Result<RuntimeOverviewSnapshot> {
         let artifact_count = self.execution_storage.artifact_count().await?;
-        let telemetry_cursor_entries = self.telemetry_cursors.lock().unwrap_or_else(|error| error.into_inner()).len();
+        let telemetry_cursor_entries = self.telemetry_cursors.lock().unwrap_or_else(|error| error.into_inner()).values.len();
         let state = self.state_read();
         // Product revisions advance with transactions. Records share Harmos's
         // ordered history but do not mutate this state image, so report the
@@ -214,19 +225,24 @@ impl RuntimeHandle {
         // record-only journal frontier.
         let revision = self.state_watch.borrow().revision();
         let cycles = state.cycle_views().collect();
-        let evidence_counts = crate::runtime_state::evidence_counts(&state, artifact_count);
+        let traceability = crate::traceability::count(&state)?;
+        let evidence_counts = crate::runtime_state::evidence_counts(&state, artifact_count, traceability);
         let config = self.config();
         Ok(crate::runtime_state::runtime_overview_snapshot(&state, &config, revision, cycles, evidence_counts, telemetry_cursor_entries))
     }
 
     pub fn watch_state(&self) -> RuntimeStateWatch {
-        RuntimeStateWatch { receiver: self.state_watch.subscribe(), operations: self.operation_progress.watch() }
+        RuntimeStateWatch {
+            receiver: self.state_watch.subscribe(),
+            operations: self.operation_progress.watch(),
+        }
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn public_parameters(parameters: &BTreeMap<String, MaterializedParameter>) -> BTreeMap<String, MaterializedParameter> {
     parameters
         .iter()

@@ -45,7 +45,7 @@ const NATIVE_STREAMS: [(&str, HostTelemetryStream); 4] = [
 
 /* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
-    let host = Host::default();
+    let host = Host::new(dokime_host::HostTelemetryConfig::default());
     for (name, stream) in NATIVE_STREAMS {
         criterion.bench_function(name, |bencher| {
             bencher.iter(|| black_box(host.collect_stream(stream).expect("native collection should complete")));

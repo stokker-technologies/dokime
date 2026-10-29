@@ -7,30 +7,24 @@
  * ***
  */
 
-/* === Constants === */
+/* === Local Imports === */
 
-/**
- * Wall-clock floor for plausible timestamps. The runtime emits epoch-relative
- * placeholders in transitional states (e.g. `1970-01-01T00:00:00.027Z`, a
- * few milliseconds past epoch zero); anything before this floor is a
- * placeholder, never a real test timestamp.
- */
-const MIN_VALID_TIMESTAMP_MS = Date.UTC(2000, 0, 1);
+import { formatDuration } from "./format";
+
+/* === Constants === */
 
 /* === Public Functions === */
 
 /**
- * Parse a wire timestamp into epoch milliseconds, rejecting missing values,
- * unparseable strings, and epoch-relative placeholders that the runtime
- * emits in transitional states. Returns `null` for anything that should
- * render as "no timestamp".
+ * Parse a wire timestamp into epoch milliseconds. Missing and unparseable
+ * values render as "no timestamp"; valid historical dates remain dates.
  */
 export function parseTimestampMs(timestamp: string | null | undefined): number | null {
   if (!timestamp) {
     return null;
   }
   const parsed = Date.parse(timestamp);
-  if (!Number.isFinite(parsed) || parsed < MIN_VALID_TIMESTAMP_MS) {
+  if (!Number.isFinite(parsed)) {
     return null;
   }
   return parsed;
@@ -78,7 +72,7 @@ export function elapsedLabel(startedAt: string | null | undefined, now: number, 
   if (started === null) {
     return "-";
   }
-  return durationLabel(Math.max(0, Math.floor((elapsedEndTime(finishedAt, now) - started) / 1000)));
+  return formatDuration(Math.max(0, Math.floor((elapsedEndTime(finishedAt, now) - started) / 1000))) ?? "-";
 }
 
 export function ageLabel(timestamp: string | null | undefined, now: number): string {
@@ -86,21 +80,7 @@ export function ageLabel(timestamp: string | null | undefined, now: number): str
   if (updated === null) {
     return "-";
   }
-  return durationLabel(Math.max(0, Math.floor((now - updated) / 1000)));
-}
-
-export function durationLabel(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (minutes < 60) {
-    return `${minutes}m ${remainingSeconds}s`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours}h ${remainingMinutes}m`;
+  return formatDuration(Math.max(0, Math.floor((now - updated) / 1000))) ?? "-";
 }
 
 /** Full local date-time label, or "-" for missing/invalid/epoch-zero timestamps. */

@@ -8,14 +8,17 @@
  */
 
 /* === Modules === */
+
 mod options;
 mod project;
 
 /* === Re-Exports === */
+
 pub use options::Options;
 pub use project::Project;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -23,22 +26,32 @@ use std::{
     process::Command,
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use cargo_metadata::{Message, MetadataCommand, Package};
-use harmos::plugin::inventory::Declaration;
-use harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
+use dokime::harmos::plugin::inventory::Declaration;
+use dokime::harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source};
+
 // Local Imports
 use crate::{Error, bundle::files, process};
 
 /* === Constants === */
 
+const PROBE_TIMEOUT_MS: u64 = 30_000;
+const PROBE_OUTPUT_BYTES: u64 = 65_536;
+const STRIP_TIMEOUT_MS: u64 = 120_000;
+const CATALOG_EXPORT_TIMEOUT_MS: u64 = 10_000;
+const CATALOG_STDERR_BYTES: u64 = 262_144;
+
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Executables = BTreeMap<String, Vec<(PathBuf, Option<PathBuf>)>>;
 
 /* === Structs === */
+
 // One plugin's executables as an earlier Cargo build produced them, ready to bundle without compiling again.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Collected {
@@ -49,8 +62,7 @@ pub struct Collected {
     pub strip: bool,
 }
 
-// Whether a build keeps line-table debug info and ships its symbols, as the
-// package's `[package.metadata.dokime] debuginfo` selects.
+// Packaging Selects Symbols Already Emitted By Cargo, Without Changing Its Profiles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct DebugInfo {
     enabled: bool,
@@ -61,6 +73,7 @@ struct DebugInfo {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DebugInfo {
     fn of(package: &Package) -> Self {
         let disabled =
@@ -68,29 +81,11 @@ impl DebugInfo {
         Self { enabled: !disabled }
     }
 
-    fn split(target: &str) -> &'static str {
-        if target.contains("windows-msvc") { "packed" } else { "off" }
-    }
-
-    fn arguments(self, profile: &str, target: &str) -> Vec<String> {
+    fn summary(self) -> &'static str {
         if !self.enabled {
-            return vec!["--config".to_owned(), format!("profile.{profile}.debug=false")];
+            return "Cargo defaults; omit debug symbols via [package.metadata.dokime] debuginfo = false";
         }
-        vec![
-            "--config".to_owned(),
-            format!("profile.{profile}.debug=\"line-tables-only\""),
-            "--config".to_owned(),
-            format!("profile.{profile}.strip=\"none\""),
-            "--config".to_owned(),
-            format!("profile.{profile}.split-debuginfo=\"{}\"", Self::split(target)),
-        ]
-    }
-
-    fn summary(self, profile: &str, target: &str) -> String {
-        if !self.enabled {
-            return format!("disabled via [package.metadata.dokime] debuginfo = false (profile.{profile})");
-        }
-        format!("line tables only, unstripped, split-debuginfo={} (profile.{profile})", Self::split(target))
+        "Cargo defaults; include emitted debug symbols"
     }
 
     // Cargo reports every emitted output for the unit, debug info included: on
@@ -109,6 +104,7 @@ impl DebugInfo {
 }
 
 /* === Public Functions === */
+
 #[tracing::instrument(level = "debug", skip_all)]
 pub async fn run(args: Options) -> Result<PathBuf, Error> {
     let metadata = metadata(&args, false).await?;
@@ -156,16 +152,15 @@ pub async fn collect(args: &Options) -> Result<Collected, Error> {
 // Bundle collected executables into `output/<package>.dokime`.
 pub async fn package(collected: Collected, output: &Path) -> Result<PathBuf, Error> {
     let destination = output.join(format!("{}.dokime", collected.package.name));
-    let stripped = tempfile::tempdir_in(output)?;
     let mut executables = Executables::new();
     for (name, (path, symbols)) in collected.executables {
-        let path = if collected.strip { strip(&path, stripped.path(), &collected.target).await? } else { path };
         executables.insert(name, vec![(path, symbols)]);
     }
-    bundle(&collected.package, &collected.target, executables, destination).await
+    bundle(&collected.package, &collected.target, executables, destination, collected.strip).await
 }
 
 /* === Private Functions === */
+
 async fn metadata(args: &Options, dependencies: bool) -> Result<cargo_metadata::Metadata, Error> {
     let cargo_timeout = args.cargo_timeout;
     let cargo_options = args.cargo_options();
@@ -229,19 +224,13 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     if args.release {
         command.arg("--release");
     }
-    let profile_name = match &args.profile {
-        Some(profile) => {
-            command.args(["--profile", profile]);
-            profile.clone()
-        }
-        None if args.release => "release".to_owned(),
-        None => "dev".to_owned(),
-    };
+    if let Some(profile) = &args.profile {
+        command.args(["--profile", profile]);
+    }
     let debuginfo = DebugInfo::of(package);
-    command.args(debuginfo.arguments(&profile_name, target));
     let terminal = dokime::terminal::Terminal::default();
     terminal.status(format!("Building {} ({}) for {target}", package.name, selected.join(", ")));
-    terminal.field("Debug info", debuginfo.summary(&profile_name, target));
+    terminal.field("Debug info", debuginfo.summary());
     let output = process::cargo(command, "Cargo compilation", cargo_timeout, true).await?;
     let mut executables = std::collections::BTreeMap::<_, Vec<(PathBuf, Option<PathBuf>)>>::new();
     let mut finished = false;
@@ -267,7 +256,7 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     }
     let executables = single(executables, selected.len())?;
     let output = args.output.unwrap_or_else(|| target_dir.join("dokime").join(format!("{}-{}.dokime", package.name, package.version)));
-    bundle(package, target, executables, output).await
+    bundle(package, target, executables, output, !debuginfo.enabled && !target.contains("windows-msvc")).await
 }
 
 fn selected_binaries(package: &Package, binaries: &[String]) -> Result<Vec<String>, Error> {
@@ -305,7 +294,9 @@ async fn host_target(package: &Package) -> Result<String, Error> {
     let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
     let mut probe = Command::new("rustc");
     probe.current_dir(root).arg("-vV");
-    let host = process::run(probe, "rustc host probe", Some(Duration::from_secs(30)), 64 * 1024, 64 * 1024).await?;
+    let timeout = Some(Duration::from_millis(PROBE_TIMEOUT_MS));
+    let output_bytes = PROBE_OUTPUT_BYTES as usize;
+    let host = process::run(probe, "rustc host probe", timeout, output_bytes, output_bytes).await?;
     String::from_utf8_lossy(&host.stdout)
         .lines()
         .find_map(|line| line.strip_prefix("host: "))
@@ -317,7 +308,9 @@ async fn host_target(package: &Package) -> Result<String, Error> {
 async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<PathBuf, Error> {
     let mut sysroot = Command::new("rustc");
     sysroot.arg("--print").arg("sysroot");
-    let sysroot = process::run(sysroot, "rustc sysroot probe", Some(Duration::from_secs(30)), 64 * 1024, 64 * 1024).await?;
+    let timeout = Some(Duration::from_millis(PROBE_TIMEOUT_MS));
+    let output_bytes = PROBE_OUTPUT_BYTES as usize;
+    let sysroot = process::run(sysroot, "rustc sysroot probe", timeout, output_bytes, output_bytes).await?;
     let sysroot = PathBuf::from(String::from_utf8_lossy(&sysroot.stdout).trim());
     let objcopy =
         sysroot.join("lib/rustlib").join(target).join("bin").join(if cfg!(windows) { "llvm-objcopy.exe" } else { "llvm-objcopy" });
@@ -328,7 +321,8 @@ async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<Path
     let stripped = directory.join(name);
     let mut command = Command::new(objcopy);
     command.arg("--strip-debug").arg(executable).arg(&stripped);
-    process::run(command, "strip debug sections", Some(Duration::from_secs(120)), 64 * 1024, 64 * 1024).await?;
+    let timeout = Some(Duration::from_millis(STRIP_TIMEOUT_MS));
+    process::run(command, "strip debug sections", timeout, output_bytes, output_bytes).await?;
     Ok(stripped)
 }
 
@@ -343,7 +337,8 @@ fn single(mut executables: Executables, selected: usize) -> Result<Executables, 
     Ok(executables)
 }
 
-async fn bundle(package: &Package, target: &str, executables: Executables, output: PathBuf) -> Result<PathBuf, Error> {
+async fn bundle(package: &Package, target: &str, executables: Executables, output: PathBuf, strip_debug: bool) -> Result<PathBuf, Error> {
+    let stripped = tempfile::tempdir()?;
     let limits = Limits::default();
     let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
     let terminal = dokime::terminal::Terminal::default();
@@ -354,8 +349,9 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
     let mut catalog_remaining = limits.manifest_bytes;
     for paths in executables.values() {
         let (path, pdb) = &paths[0];
+        let path = if strip_debug { strip(path, stripped.path(), target).await? } else { path.clone() };
         let (name, binary, executable) = collect_executable(
-            path,
+            &path,
             package,
             target,
             limits.file_bytes.min(limits.total_file_bytes.saturating_sub(total)),
@@ -390,7 +386,14 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
     terminal.success(format!("Plugin declarations and assets collected in {:.1}s", collection_started.elapsed().as_secs_f64()));
     terminal.status("Building verified plugin bundle");
     let bundle_started = Instant::now();
-    let sources = inputs.iter().map(|(path, bytes, executable)| Source { path, bytes, executable: executable.clone() }).collect::<Vec<_>>();
+    let sources = inputs
+        .iter()
+        .map(|(path, bytes, executable)| Source {
+            path,
+            bytes,
+            executable: executable.clone(),
+        })
+        .collect::<Vec<_>>();
     let bundle = Bundle::build(package_identity(package), &sources, limits)?;
     let parent = output.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
     std::fs::create_dir_all(parent)?;
@@ -433,7 +436,7 @@ async fn collect_executable(
     path: &std::path::Path, package: &Package, target: &str, max_bytes: usize, catalog_remaining: &mut usize,
 ) -> Result<(String, Vec<u8>, Executable), Error> {
     let binary = files::read(path, max_bytes)?;
-    let declaration = Declaration::inspect(&binary, harmos::plugin::inventory::Facility::Sidecar)
+    let declaration = Declaration::inspect(&binary, dokime::harmos::plugin::inventory::Facility::Sidecar)
         .map_err(|error| Error::Invalid(format!("selected binary has no complete native declaration: {error}")))?;
     if declaration.version.to_string() != package.version.to_string() {
         return Err(Error::Invalid(format!(
@@ -446,9 +449,9 @@ async fn collect_executable(
     let export = process::run(
         command,
         "plugin catalog export",
-        Some(Duration::from_secs(10)),
+        Some(Duration::from_millis(CATALOG_EXPORT_TIMEOUT_MS)),
         CATALOG_EXPORT_LIMIT.min(*catalog_remaining),
-        256 * 1024,
+        CATALOG_STDERR_BYTES as usize,
     )
     .await?;
     *catalog_remaining = catalog_remaining.saturating_sub(export.stdout.len());
@@ -461,7 +464,11 @@ async fn collect_executable(
     Ok((
         format!("bin/{target}/{binary_name}"),
         binary,
-        Executable { facility: Facility::Sidecar, target: target.to_owned(), registrations },
+        Executable {
+            facility: Facility::Sidecar,
+            target: target.to_owned(),
+            registrations,
+        },
     ))
 }
 
@@ -503,6 +510,7 @@ fn package_identity(package: &Package) -> Identity {
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -512,7 +520,6 @@ mod tests {
         let disabled = DebugInfo { enabled: false };
         let outputs = vec![cargo_metadata::camino::Utf8PathBuf::from("deps/plugin.pdb")];
 
-        assert_eq!(disabled.arguments("dev", "x86_64-pc-windows-msvc"), ["--config", "profile.dev.debug=false"]);
         assert_eq!(disabled.symbols(&outputs), None);
         assert_eq!(DebugInfo { enabled: true }.symbols(&outputs), Some(PathBuf::from("deps/plugin.pdb")));
     }
@@ -535,7 +542,11 @@ mod tests {
         let sources = [Source {
             path: "bin/x86_64-pc-windows-msvc/fixture.exe",
             bytes: executable.as_bytes(),
-            executable: Some(Executable { facility: Facility::Sidecar, target: target.into(), registrations: vec![] }),
+            executable: Some(Executable {
+                facility: Facility::Sidecar,
+                target: target.into(),
+                registrations: vec![],
+            }),
         }];
         let identity = Identity {
             name: "fixture".into(),
@@ -549,14 +560,13 @@ mod tests {
     // A non-running executable carrying the minimal native declaration.
     fn inert_executable() -> String {
         let owner = "fixture";
-        let policy = harmos::operations::OperationPolicy {
+        let policy = dokime::harmos::operations::OperationPolicy {
             timeout: Duration::from_secs(5),
             attempt_timeout: Duration::from_secs(5),
-            retries: harmos::operations::RetryPolicy::Never,
-            restart: harmos::operations::RestartPolicy::Never,
+            retries: dokime::harmos::operations::RetryPolicy::Never,
         };
-        let lifecycle = [harmos::operations::lifecycle::Action::Initialize, harmos::operations::lifecycle::Action::Shutdown]
-            .map(|action| harmos::operations::lifecycle::Descriptor::new(action, policy).unwrap());
+        let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
+            .map(|action| serde_json::json!({"action":action,"identity":"harmos.operation.v1","policy":policy}));
         let sections = [
             serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"}),
             serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle}),
@@ -564,7 +574,7 @@ mod tests {
             serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]}),
             serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]}),
         ];
-        let prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap();
+        let prefix = std::str::from_utf8(dokime::harmos::artifacts::PREFIX).unwrap();
 
         sections.iter().fold("inert".to_owned(), |executable, section| format!("{executable}{prefix}{section}\0"))
     }

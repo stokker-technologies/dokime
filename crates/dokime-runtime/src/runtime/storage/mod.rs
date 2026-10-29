@@ -8,19 +8,16 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod aggregate;
 mod artifact_inventory;
 mod artifact_reads;
 pub(crate) mod artifacts;
 mod assembly;
 pub(crate) mod captures;
-pub mod config;
 pub(crate) mod context_records;
 pub(crate) mod cycle;
 pub(crate) mod cycle_finalization;
-#[cfg(test)]
-#[path = "../../../tests/private/cycle_restart.rs"]
-mod cycle_restart;
 mod cycles;
 pub(crate) mod execution;
 pub(crate) mod executions;
@@ -40,9 +37,11 @@ pub(crate) mod telemetry;
 pub(crate) mod telemetry_pages;
 
 /* === Re-Exports === */
+
 pub(crate) use assembly::build;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

@@ -12,13 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
-use std::ops::Deref;
+
 // Third Party Imports
 use harmos::signal::Series;
 
 // Local Imports
+use super::evidence_rows::EvidenceRows;
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
 
@@ -29,22 +31,24 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct ExecutionEvidence {
-    pub(crate) samples: BTreeMap<String, Vec<TelemetrySample>>,
-    pub(crate) subscribed_records: Vec<dokime_domain::model::records::evidence::Record>,
+    pub(crate) samples: EvidenceRows<TelemetrySample>,
+    pub(crate) subscribed_records: EvidenceRows<dokime_domain::model::records::evidence::Record>,
     pub(crate) steps: Vec<Identifier>,
     pub(crate) attempts: Vec<dokime_domain::model::execution::result::TestStepAttempt>,
     pub(crate) gaps: Vec<crate::telemetry::LeaseGap>,
+    // Exact Gap Count Per Stream; `gaps` Holds Bounded Examples.
+    pub(crate) gap_counts: BTreeMap<String, u64>,
 }
 
-// The rows of one stream a criterion reads, in capture order. It reads as a
-// slice of rows (`iter`, `len`, `last`) and turns one numeric field into a
-// Harmos `Series`, which answers the aggregate vocabulary over it:
-// `ctx.samples::<Samples>().column(|row| row.voltage_v).median()`.
-#[derive(Clone, Debug, PartialEq)]
+// Criteria Iterate Saved Rows In Capture Order; Explicit Column Collection
+// Uses A Finite Workspace For The Harmos Aggregate Vocabulary.
+#[derive(Clone, Debug)]
 pub struct Samples<Row> {
-    rows: Vec<Row>,
+    rows: EvidenceRows<TelemetrySample>,
+    decode: fn(&std::collections::BTreeMap<String, dokime_domain::model::values::Value>) -> Result<Row, crate::telemetry::FieldError>,
 }
 
 /* === Enums === */
@@ -52,17 +56,19 @@ pub struct Samples<Row> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionEvidence {
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn record_sample(&mut self, sample: TelemetrySample) {
-        self.samples.entry(sample.stream.to_string()).or_default().push(sample);
+        self.samples.push(sample.sample_id.as_str(), &sample).expect("execution evidence persistence failed");
     }
 
-    pub fn record_gaps(&mut self, gaps: Vec<crate::telemetry::LeaseGap>) {
+    pub fn record_gaps(&mut self, gaps: Vec<crate::telemetry::LeaseGap>, counts: BTreeMap<String, u64>) {
         self.gaps = gaps;
+        self.gap_counts = counts;
     }
 
     pub fn record_step(&mut self, step: Identifier) {
@@ -71,44 +77,56 @@ impl ExecutionEvidence {
 }
 
 impl<Row> Samples<Row> {
-    pub(crate) fn new(rows: Vec<Row>) -> Self {
-        Self { rows }
+    pub(crate) fn new(
+        rows: EvidenceRows<TelemetrySample>,
+        decode: fn(&std::collections::BTreeMap<String, dokime_domain::model::values::Value>) -> Result<Row, crate::telemetry::FieldError>,
+    ) -> Self {
+        Self { rows, decode }
     }
 
-    // One numeric field of every row; a non-finite value is skipped, as every
-    // aggregate skips it, so `count` says how many values were measured.
-    pub fn column(&self, field: impl FnMut(&Row) -> f64) -> Series<'static> {
-        self.rows.iter().map(field).collect()
+    pub fn iter(&self) -> impl Iterator<Item = Row> + '_ {
+        self.rows.iter().filter_map(|sample| match (self.decode)(&sample.values) {
+            Ok(row) => Some(row),
+            Err(error) => {
+                tracing::warn!(%error, "captured telemetry row shape differs from its declaration");
+                None
+            }
+        })
+    }
+
+    pub fn len(&self) -> usize {
+        self.iter().count()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.iter().next().is_none()
+    }
+    pub fn last(&self) -> Option<Row> {
+        self.iter().last()
+    }
+    pub fn first(&self) -> Option<Row> {
+        self.iter().next()
+    }
+
+    pub fn column(&self, mut field: impl FnMut(&Row) -> f64) -> Series<'static> {
+        let mut values = Vec::new();
+        let count = self.rows.len();
+        assert!(count <= 64 * 1024 * 1024 / std::mem::size_of::<f64>(), "criterion column exceeds bounded workspace");
+        values.try_reserve_exact(count).expect("criterion column allocation failed");
+        values.extend(self.iter().map(|row| field(&row)));
+        values.into()
     }
 
     pub fn into_rows(self) -> Vec<Row> {
-        self.rows
-    }
-}
-
-impl<Row> Deref for Samples<Row> {
-    type Target = [Row];
-
-    fn deref(&self) -> &[Row] {
-        &self.rows
-    }
-}
-
-impl<Row> IntoIterator for Samples<Row> {
-    type Item = Row;
-    type IntoIter = std::vec::IntoIter<Row>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.rows.into_iter()
-    }
-}
-
-impl<'a, Row> IntoIterator for &'a Samples<Row> {
-    type Item = &'a Row;
-    type IntoIter = std::slice::Iter<'a, Row>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.rows.iter()
+        let maximum = 64 * 1024 * 1024 / std::mem::size_of::<Row>().max(1);
+        assert!(self.rows.len() <= maximum, "criterion row collection exceeds bounded workspace");
+        let mut bytes = 0usize;
+        for row in self.rows.iter() {
+            bytes = bytes
+                .checked_add(crate::execution::evidence_rows::encoded_bytes(&row))
+                .filter(|bytes| *bytes <= 64 * 1024 * 1024)
+                .expect("criterion row collection exceeds bounded workspace");
+        }
+        self.iter().collect()
     }
 }
 

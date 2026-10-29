@@ -41,14 +41,16 @@ type SettingContribution = NonNullable<PluginRuntimeSettings["settings"]>["contr
 type NativeSecretReference = NonNullable<
   Extract<NonNullable<SettingContribution["kind"]>["HarmosVariant"], { case: "SecretReference" }>["value"]["field0"]
 >["default"];
-type CredentialBackendKind = NonNullable<NonNullable<PluginRuntimeSettings["credentialBindings"]>["bindings"][number]["value"]>["backend"];
+type SecretBackendKind = NonNullable<NonNullable<PluginRuntimeSettings["secretBindings"]>["bindings"][number]["value"]>["backend"];
 type SettingValues = LegacyPluginRuntimeSettings["values"];
 
 /* === Settings frame === */
 
 export async function fetchNativeSettingsFrame(session: SessionIdentity): Promise<RuntimeSettingsFrame> {
   const frame = await rpc.settingsGetSettings(session, {});
+  const paths = frame.bootstrapPaths;
   return {
+    bootstrap_paths: paths ? { application: paths.application, storage: paths.storage, plugins: paths.plugins, logs: paths.logs } : null,
     sections: frame.sections.map(mapSettingsSection),
     cards: frame.cards.map(mapSettingsCard),
   };
@@ -65,21 +67,21 @@ export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSett
     },
     values: nativeValueObjectToJson(settings.values) as SettingValues,
     discovered: nativeValueObjectToJson(settings.discovered) as SettingValues,
-    credential_bindings: {
+    secret_bindings: {
       bindings: Object.fromEntries(
-        (settings.credentialBindings?.bindings ?? []).map(({ key, value }) => {
-          if (!value) throw new Error(`Native settings omitted credential binding ${key}.`);
+        (settings.secretBindings?.bindings ?? []).map(({ key, value }) => {
+          if (!value) throw new Error(`Native settings omitted secret binding ${key}.`);
           return [
             key,
             {
-              credential_id: value.credentialId,
-              backend: mapCredentialBackend(value.backend),
+              secret_id: value.secretId,
+              backend: mapSecretBackend(value.backend),
               configured: value.configured,
             },
           ];
         }),
       ),
-      missing_required: settings.credentialBindings?.missingRequired ?? [],
+      missing_required: settings.secretBindings?.missingRequired ?? [],
     },
   };
 }
@@ -97,8 +99,8 @@ export async function updateNativePluginSettings(session: SessionIdentity, plugi
   );
 }
 
-export async function updateNativePluginCredential(session: SessionIdentity, pluginId: string, credentialId: string, secret: string) {
-  return mapNativePluginRuntimeSettings(await rpc.settingsUpdatePluginCredential(session, { pluginId, credentialId, secret }));
+export async function updateNativePluginSecret(session: SessionIdentity, pluginId: string, secretId: string, secret: string) {
+  return mapNativePluginRuntimeSettings(await rpc.settingsUpdatePluginSecret(session, { pluginId, secretId, secret }));
 }
 
 /* === Mapping === */
@@ -265,14 +267,14 @@ function mapSettingContribution(contribution: SettingContribution): SettingsEntr
 
 function mapSecretReference(
   reference?: NativeSecretReference,
-): { kind: "environment"; variable: string } | { kind: "stored_credential"; credential_id: string } | null {
+): { kind: "environment"; variable: string } | { kind: "stored_secret"; secret_id: string } | null {
   if (!reference) return null;
   if (reference.kind?.HarmosVariant.case === "Environment")
     return { kind: "environment", variable: reference.kind.HarmosVariant.value.field0 ?? "" };
-  if (reference.kind?.HarmosVariant.case === "StoredCredential")
+  if (reference.kind?.HarmosVariant.case === "StoredSecret")
     return {
-      kind: "stored_credential",
-      credential_id: reference.kind.HarmosVariant.value.field0 ?? "",
+      kind: "stored_secret",
+      secret_id: reference.kind.HarmosVariant.value.field0 ?? "",
     };
   throw new Error("Native settings returned a secret reference without a kind.");
 }
@@ -333,15 +335,11 @@ function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["st
   }
 }
 
-function mapCredentialBackend(backend: CredentialBackendKind): "os_keyring" | "memory" | "local_file" {
+function mapSecretBackend(backend: SecretBackendKind): "os_keyring" {
   switch (backend?.HarmosVariant.case) {
     case "OsKeyring":
       return "os_keyring";
-    case "Memory":
-      return "memory";
-    case "LocalFile":
-      return "local_file";
     default:
-      throw new Error("Native settings returned an unknown credential backend.");
+      throw new Error("Native settings returned an unknown secret backend.");
   }
 }

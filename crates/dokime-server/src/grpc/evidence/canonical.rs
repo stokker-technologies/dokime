@@ -12,15 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
-use crate::grpc::value::{self, Budget, canonical};
-use dokime_domain::model::identity::wire::Severity;
-use dokime_domain::model::records::evidence::RecordEntry;
-use dokime_runtime::records::RecordSeverity;
+use crate::grpc::value::{Budget, canonical};
+use dokime::domain::model::identity::wire::Severity;
+use dokime::domain::model::records::evidence::RecordEntry;
+use dokime::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -37,107 +39,52 @@ use dokime_runtime::records::RecordSeverity;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
-    let record = &entry.record;
-    let mut bytes = std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedRecord>()
-        .saturating_add(record.record_id.as_str().len())
-        .saturating_add(record.record_type.as_str().len())
-        .saturating_add(record.source.len())
-        .saturating_add(record.message.as_ref().map_or(0, String::len))
-        .saturating_add(canonical::object_memory(&record.details, &mut Budget::new())?);
-    if let Some(scope) = &record.scope {
-        bytes = bytes.saturating_add(canonical::scope_memory(scope)?);
-    }
-    for id in [
-        record.related_sample_id.as_ref().map(|id| id.as_str()),
-        record.related_stream_id.as_ref().map(|id| id.as_str()),
-        record.related_artifact_id.as_ref().map(|id| id.as_str()),
-    ]
-    .into_iter()
-    .flatten()
-    {
-        bytes = bytes.saturating_add(id.len());
-    }
-    if let Some(error) = &record.error {
-        value::collection(error.cause_chain.len())?;
-        bytes = bytes.saturating_add(error.message.len());
-        for text in [error.code.as_ref(), error.source.as_ref()].into_iter().flatten() {
-            bytes = bytes.saturating_add(text.len());
-        }
-        bytes = bytes.saturating_add(
-            error.cause_chain.len().saturating_mul(4 * std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedErrorCause>()),
-        );
-        for cause in &error.cause_chain {
-            bytes = bytes.saturating_add(cause.message.len());
-            for text in [cause.code.as_ref(), cause.source.as_ref()].into_iter().flatten() {
-                bytes = bytes.saturating_add(text.len());
-            }
-        }
-        for id in [
-            error.stacktrace_attachment.as_ref().map(|id| id.as_str()),
-            error.trace_id.as_ref().map(|id| id.as_str()),
-            error.correlation_id.as_ref().map(|id| id.as_str()),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            bytes = bytes.saturating_add(id.len());
-        }
-    }
-    if bytes == usize::MAX {
-        return Err(Status::resource_exhausted("record construction size overflow"));
-    }
-    Ok(bytes)
-}
 
-pub(crate) fn record(entry: &RecordEntry) -> Result<dokime_domain::model::evidence::wire::CapturedRecord, Status> {
+pub(crate) fn record(entry: &RecordEntry) -> Result<dokime::domain::model::evidence::wire::CapturedRecord, Status> {
     let record = &entry.record;
-    memory(entry)?;
-    let details = canonical::object(&record.details, &mut Budget::new())?;
+    let details = canonical::object(&record.details, &mut Budget::new()?)?;
     let error = record
         .error
         .as_ref()
         .map(|error| {
-            value::collection(error.cause_chain.len())?;
-            Ok::<_, Status>(dokime_domain::model::evidence::wire::CapturedRecordError {
-                message: error.message.clone(),
-                code: error.code.clone(),
-                source: error.source.clone(),
-                cause_chain: error
-                    .cause_chain
-                    .iter()
-                    .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
-                        message: cause.message.clone(),
-                        code: cause.code.clone(),
-                        source: cause.source.clone(),
-                    })
-                    .collect(),
-                stacktrace_attachment: error.stacktrace_attachment.as_ref().map(ToString::to_string),
-                trace_id: error.trace_id.as_ref().map(ToString::to_string),
-                correlation_id: error.correlation_id.as_ref().map(ToString::to_string),
+            let mut cause_chain = crate::grpc::value::projection::slots(error.cause_chain.len()).map_err(allocation_error)?;
+            for cause in &error.cause_chain {
+                cause_chain.push(dokime::domain::model::evidence::wire::CapturedErrorCause {
+                    message: text(&cause.message)?,
+                    code: optional(cause.code.as_deref())?,
+                    source: optional(cause.source.as_deref())?,
+                });
+            }
+            Ok::<_, Status>(dokime::domain::model::evidence::wire::CapturedRecordError {
+                message: text(&error.message)?,
+                code: optional(error.code.as_deref())?,
+                source: optional(error.source.as_deref())?,
+                cause_chain,
+                stacktrace_attachment: optional(error.stacktrace_attachment.as_ref().map(|id| id.as_str()))?,
+                trace_id: optional(error.trace_id.as_ref().map(|id| id.as_str()))?,
+                correlation_id: optional(error.correlation_id.as_ref().map(|id| id.as_str()))?,
             })
         })
         .transpose()?;
-    Ok(dokime_domain::model::evidence::wire::CapturedRecord {
-        record_id: record.record_id.to_string(),
+    Ok(dokime::domain::model::evidence::wire::CapturedRecord {
+        record_id: text(record.record_id.as_str())?,
         sequence: entry.sequence,
         timestamp: Some(canonical::timestamp(&record.timestamp)?),
         received_at: Some(canonical::timestamp(&record.received_at)?),
-        record_type: record.record_type.to_string(),
+        record_type: text(record.record_type.as_str())?,
         schema_version: record.schema_version,
-        source: record.source.clone(),
+        source: text(&record.source)?,
         severity: severity(record.severity),
-        message: record.message.clone(),
+        message: optional(record.message.as_deref())?,
         error,
         details: Some(details),
         scope: record.scope.as_ref().map(canonical::scope).transpose()?,
-        related_sample_id: record.related_sample_id.as_ref().map(ToString::to_string),
-        related_stream_id: record.related_stream_id.as_ref().map(ToString::to_string),
-        related_artifact_id: record.related_artifact_id.as_ref().map(ToString::to_string),
+        related_sample_id: optional(record.related_sample_id.as_ref().map(|id| id.as_str()))?,
+        related_stream_id: optional(record.related_stream_id.as_ref().map(|id| id.as_str()))?,
+        related_artifact_id: optional(record.related_artifact_id.as_ref().map(|id| id.as_str()))?,
     })
 }
 
-/* === Private Functions === */
 pub(crate) fn severity(value: RecordSeverity) -> Severity {
     match value {
         RecordSeverity::Debug => Severity::Debug,
@@ -145,6 +92,20 @@ pub(crate) fn severity(value: RecordSeverity) -> Severity {
         RecordSeverity::Warning => Severity::Warn,
         RecordSeverity::Error => Severity::Error,
     }
+}
+
+/* === Private Functions === */
+
+fn text(value: &str) -> Result<String, Status> {
+    crate::grpc::value::projection::text(value).map_err(allocation_error)
+}
+
+fn optional(value: Option<&str>) -> Result<Option<String>, Status> {
+    value.map(text).transpose()
+}
+
+fn allocation_error(source: dokime::harmos::Error) -> Status {
+    Status::resource_exhausted(source.to_string())
 }
 
 /* === Tests === */

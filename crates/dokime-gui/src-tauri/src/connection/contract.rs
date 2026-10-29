@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 
 /* === Constants === */
@@ -25,11 +27,12 @@ use serde::{Deserialize, Serialize};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectRequest {
     pub target: ConnectionTarget,
-    pub credentials: ConnectionCredentials,
+    pub secrets: ConnectionSecrets,
     pub expected_backend_id: Option<String>,
 }
 
@@ -51,6 +54,7 @@ pub struct BackendSnapshot {
     pub epoch: String,
     pub display_name: String,
     pub product_version: String,
+    pub target: String,
     pub api_version: String,
     pub descriptor_sha256: String,
     pub methods: Vec<String>,
@@ -63,6 +67,7 @@ pub struct BackendLimits {
     pub max_request_bytes: String,
     pub max_response_bytes: String,
     pub max_content_bytes: Option<String>,
+    pub max_evidence_bytes: Option<String>,
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,
     pub max_stream_buffer_items: Option<u32>,
@@ -76,6 +81,7 @@ pub struct AdmissionIssue {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum ConnectionTarget {
@@ -85,7 +91,7 @@ pub enum ConnectionTarget {
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ConnectionCredentials {
+pub enum ConnectionSecrets {
     None,
     Saved,
     Bearer { token: String, remember: bool },
@@ -103,8 +109,9 @@ pub enum ConnectionPhase {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConnectionError {
+    Registry { message: String },
     InvalidTarget { message: String },
-    CredentialsUnavailable,
+    SecretsUnavailable,
     AuthenticationRequired,
     Unauthenticated,
     PermissionDenied,

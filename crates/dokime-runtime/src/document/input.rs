@@ -10,23 +10,24 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use super::context::Context;
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
+
 // Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::document::definition::DocumentDefinition;
-use crate::runtime::storage::record_capture::CapturedRecord;
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
-use dokime_domain::model::identity::RecordId;
+
 use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
@@ -36,6 +37,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentResolveInput {
     pub definition: DocumentDefinition,
@@ -62,7 +64,7 @@ pub(crate) struct BorrowedInput<'a> {
     pub data: BorrowedData<'a>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Serialize)]
 pub(crate) struct BorrowedData<'a> {
     pub context: Context<'a>,
     pub records: Records<'a>,
@@ -77,10 +79,12 @@ pub(super) struct RecordView<'a> {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 pub(crate) enum Records<'a> {
-    Native(&'a [RecordEntry]),
-    Captured { rows: &'a [CapturedRecord], scopes: &'a BTreeMap<RecordId, RecordScope> },
+    Native(crate::records::view::View<'a>),
+    Pages(&'a [harmos::storage::ReadBatch<Vec<RecordEntry>>]),
+    Subscribed { rows: crate::records::view::View<'a>, captures: &'a dokime_domain::state::records::set::TestRecordSet },
 }
 
 #[derive(Clone, Copy)]
@@ -92,6 +96,7 @@ pub(crate) enum Artifacts<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DocumentResolveInput {
     pub(crate) fn borrowed(&self) -> BorrowedInput<'_> {
         BorrowedInput {
@@ -99,7 +104,7 @@ impl DocumentResolveInput {
             selection: &self.selection,
             data: BorrowedData {
                 context: Context::default(),
-                records: Records::Native(&self.data.records),
+                records: Records::Native((&self.data.records).into()),
                 telemetry: &self.data.telemetry,
                 artifacts: Artifacts::Native(&self.data.artifacts),
             },
@@ -111,27 +116,29 @@ impl Records<'_> {
     pub(super) fn len(self) -> usize {
         match self {
             Self::Native(rows) => rows.len(),
-            Self::Captured { rows, .. } => rows.len(),
+            Self::Pages(pages) => pages.iter().map(|page| page.len()).sum(),
+            Self::Subscribed { rows, .. } => rows.len(),
         }
     }
 }
 
 impl<'a> Records<'a> {
     pub(super) fn iter(self) -> impl DoubleEndedIterator<Item = RecordView<'a>> + Clone {
-        let (native, captured, scopes) = match self {
+        let (native, pages, scopes) = match self {
             Self::Native(rows) => (rows, &[][..], None),
-            Self::Captured { rows, scopes } => (&[][..], rows, Some(scopes)),
+            Self::Pages(pages) => (crate::records::view::View::default(), pages, None),
+            Self::Subscribed { rows, captures } => (rows, &[][..], Some(captures)),
         };
-        native
-            .iter()
-            .chain(captured.iter().map(|row| &**row))
-            .map(move |entry| RecordView { entry, scope: scopes.and_then(|scopes| scopes.get(&entry.record_id)).or(entry.scope.as_ref()) })
+        native.iter().chain(pages.iter().flat_map(|page| page.iter())).map(move |entry| RecordView {
+            entry,
+            scope: scopes.and_then(|captures| captures.captured_scope(entry)).or(entry.scope.as_ref()),
+        })
     }
 }
 
 impl Default for Records<'_> {
     fn default() -> Self {
-        Self::Native(&[])
+        Self::Native(crate::records::view::View::default())
     }
 }
 
@@ -175,64 +182,6 @@ impl Serialize for Artifacts<'_> {
             sequence.serialize_element(row)?;
         }
         sequence.end()
-    }
-}
-
-impl harmos::MemorySize for BorrowedInput<'_> {
-    fn memory_size(&self) -> usize {
-        use harmos::MemorySize;
-
-        // Count Reachable Native Values Without Claiming Their Existing Owners.
-        let fields = [
-            (self.definition.memory_size(), std::mem::size_of::<DocumentDefinition>()),
-            (self.selection.memory_size(), std::mem::size_of::<DocumentSelection>()),
-        ];
-        let bytes = fields.into_iter().fold(std::mem::size_of::<DocumentResolveInput>(), |bytes, (owned, inline)| {
-            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-        });
-        self.data
-            .records
-            .iter()
-            .map(|row| row.entry.memory_size().saturating_add(row.scope.map_or(0, MemorySize::memory_size)))
-            .chain(self.data.telemetry.iter().map(MemorySize::memory_size))
-            .chain(self.data.artifacts.iter().map(MemorySize::memory_size))
-            .fold(bytes, usize::saturating_add)
-            .saturating_add(self.data.context.memory_size())
-    }
-}
-
-impl harmos::MemorySize for DocumentResolveInput {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (harmos::MemorySize::memory_size(&self.definition), std::mem::size_of_val(&self.definition)),
-            (harmos::MemorySize::memory_size(&self.selection), std::mem::size_of_val(&self.selection)),
-            (harmos::MemorySize::memory_size(&self.data), std::mem::size_of_val(&self.data)),
-        ];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-        })
-    }
-}
-
-impl harmos::MemorySize for DocumentDataInput {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
-            (harmos::MemorySize::memory_size(&self.telemetry), std::mem::size_of_val(&self.telemetry)),
-            (harmos::MemorySize::memory_size(&self.artifacts), std::mem::size_of_val(&self.artifacts)),
-        ];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-        })
-    }
-}
-
-impl harmos::MemorySize for DocumentSelection {
-    fn memory_size(&self) -> usize {
-        let fields = [(harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope))];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-        })
     }
 }
 

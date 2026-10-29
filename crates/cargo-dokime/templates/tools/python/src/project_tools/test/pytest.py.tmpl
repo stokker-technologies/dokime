@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/pytest.py; sha256:33e6a10e7adccac54242fd205294fdb67016bbfd41a55ebc96984128afa56993
+# Rendered by stkr project update from templates/python/test/pytest.py; sha256:3a901df52e43d9df3a27fe3971817e9df8cf587a2f216e056ca6e34200e8ef32
 # ***
 #
 # {{package}}
@@ -19,11 +19,11 @@ first. Lane arguments after `--` are appended to pytest.
 
 # Standard Library Imports
 import os
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from . import policy
 
@@ -44,7 +44,8 @@ STRICT = ["--strict-config", "--strict-markers", "--import-mode=importlib"]
 
 def environment(directory: Path) -> dict[str, str]:
     """The shared root environment with no ambient selection that could narrow a lane."""
-    variables = dict(os.environ, UV_PROJECT_ENVIRONMENT=str(directory / ".venv"))
+    variables = dict(os.environ)
+    variables.pop("UV_PROJECT_ENVIRONMENT", None)
     variables.pop("PYTEST_ADDOPTS", None)
     variables.pop("COVERAGE_PROCESS_START", None)
     return variables
@@ -61,7 +62,7 @@ def run(
     if not (project / suite).is_dir():
         raise policy.TestError(f"missing Python suite {project / suite}")
     return [
-        *_python(project),
+        sys.executable,
         "-m",
         "pytest",
         *STRICT,
@@ -85,7 +86,7 @@ def bench(project: Path, category: str, output: Path, arguments: Sequence[str]) 
     if not (project / suite).is_dir():
         raise policy.TestError(f"missing Python benchmarks {project / suite}")
     return [
-        *_python(project),
+        sys.executable,
         "-m",
         "pytest",
         *STRICT,
@@ -97,10 +98,6 @@ def bench(project: Path, category: str, output: Path, arguments: Sequence[str]) 
 
 
 # === Private Functions === #
-
-
-def _python(project: Path) -> list[str]:
-    return ["uv", "run", "--no-sync", "--project", str(project), "python"]
 
 
 # === Entry Point === #

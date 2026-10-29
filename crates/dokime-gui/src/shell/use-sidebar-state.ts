@@ -7,11 +7,7 @@
  * ***
  */
 
-/* Whether the one sidebar is open, and how wide it therefore is.
- *
- * The sidebar and the status bar's first cell are the same column of the shell
- * grid, so they must agree on one width and one toggle. Both read it here.
- */
+/* Breakpoint Navigation With Viewer-Owned Desktop Geometry. */
 
 /* === External Imports === */
 
@@ -21,57 +17,50 @@ import { useCallback, useSyncExternalStore } from "react";
 
 import { useFocusMode } from "@/shell/focus-mode";
 import { useShellDensity } from "@/shell/use-shell-density";
-import { sidebarStartsCollapsed, useUiStore } from "@/stores/ui-store";
+import { useUiStore } from "@/stores/ui-store";
 
-/* === Constants === */
-
-/* Below this the open sidebar would take more than a third of the window, so
-   a window this narrow starts on the icon rail unless the operator opened it. */
-const NARROW_WINDOW = "(max-width: 56rem)";
-
-/* === Types === */
-
-export type SidebarState = {
-  collapsed: boolean;
-  toggle: () => void;
-  /** The CSS width of the sidebar column, in a form both bars can apply. */
-  width: string;
-};
-
-/* === Private Functions === */
-
-function readNarrow(): boolean {
-  return typeof window !== "undefined" && window.matchMedia(NARROW_WINDOW).matches;
-}
-
-function observeNarrow(onChange: () => void): () => void {
-  if (typeof window === "undefined") return () => undefined;
-  const query = window.matchMedia(NARROW_WINDOW);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
+import { navigationMode, sidebarWidth, type NavigationMode } from "./navigation-model";
 
 /* === Public Functions === */
 
+export function useNavigationMode() {
+  return useSyncExternalStore(observeViewport, readViewport, () => "desktop" as const);
+}
 export function useSidebarState(): SidebarState {
+  const mode = useNavigationMode();
   const density = useShellDensity();
-  const narrow = useSyncExternalStore(observeNarrow, readNarrow, () => false);
-  const collapsedByDensity = useUiStore((state) => state.sidebarCollapsed);
+  const choices = useUiStore((state) => state.sidebarCollapsed);
+  const savedWidth = useUiStore((state) => state.sidebarWidth);
   const setUiState = useUiStore((state) => state.setUiState);
   const { focused } = useFocusMode();
-
-  // Focus borrows a collapsed sidebar for as long as it lasts; the operator's
-  // own choice is untouched and comes back when they leave.
-  const chosen = sidebarStartsCollapsed(collapsedByDensity, density, narrow);
-  const collapsed = chosen || focused;
-
+  const collapsed = mode !== "desktop" || (choices[density] ?? false) || focused;
   const toggle = useCallback(() => {
-    setUiState({ sidebarCollapsed: { ...collapsedByDensity, [density]: !chosen } });
-  }, [chosen, collapsedByDensity, density, setUiState]);
-
+    setUiState({ sidebarCollapsed: { ...choices, [density]: !collapsed } });
+  }, [choices, collapsed, density, setUiState]);
   return {
     collapsed,
     toggle,
-    width: collapsed ? "var(--sidebar-width-collapsed)" : "var(--sidebar-width)",
+    mode,
+    width: mode === "phone" ? "0px" : mode === "tablet" ? "4.5rem" : collapsed ? "3.5rem" : `${sidebarWidth(savedWidth)}px`,
+  };
+}
+
+/* === Types === */
+export type SidebarState = {
+  collapsed: boolean;
+  toggle: () => void;
+  width: string;
+  mode: NavigationMode;
+};
+
+/* === Private Functions === */
+function readViewport(): NavigationMode {
+  return navigationMode(typeof window === "undefined" ? 1024 : window.innerWidth);
+}
+function observeViewport(onChange: () => void): () => void {
+  const queries = [window.matchMedia("(min-width: 600px)"), window.matchMedia("(min-width: 1024px)")];
+  for (const query of queries) query.addEventListener("change", onChange);
+  return () => {
+    for (const query of queries) query.removeEventListener("change", onChange);
   };
 }

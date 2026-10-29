@@ -1,5 +1,8 @@
+# === Package === #
+
 [package]
 name = "obc-runtime"
+publish = false
 edition.workspace = true
 rust-version.workspace = true
 description = "Deterministic onboard charger and testbench runtime for the OBC demo."
@@ -7,9 +10,17 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+# === Package Targets === #
+
+# === Features === #
+
+# === Dependencies === #
+
 [dependencies]
+# Local
+dokime = { workspace = true, features = ["plugin-sidecar"] }
+
 # Git
-harmos = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -17,9 +28,47 @@ thiserror = { workspace = true }
 # Logging
 tracing = { workspace = true }
 
+# Utilities
+
 # Serialization
 serde = { workspace = true }
 
-[dev-dependencies]
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
 # Async
-tokio = { workspace = true }
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

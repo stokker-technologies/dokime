@@ -8,16 +8,20 @@
  */
 
 /* === Modules === */
+
 mod listeners;
+mod prompts;
+mod run;
 mod saved;
 
 /* === Re-Exports === */
-pub(super) use listeners::{read_records, read_samples, sample_interval};
+
+pub(super) use listeners::{read_records, read_samples, validate_filters, validate_sample_page};
+pub use run::{RunCallbacks, RunOptions};
 
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::{Arc, OnceLock};
 
 // Third Party Imports
 
@@ -28,28 +32,24 @@ use dokime_domain::model::execution::StepCommand;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::StepAttemptId;
 use dokime_domain::model::identity::StepId;
-use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
-const REQUEST_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
+
+const CHECKPOINT_BYTES: u64 = 4_096;
+const IDENTITY_BYTES: u64 = 4_096;
+const REQUEST_POLL_MS: u64 = 200;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct TestExecutionHandle {
     client: Client,
     id: TestExecutionId,
-}
-
-#[derive(Clone)]
-pub struct ExecutionRequestHandle {
-    client: Client,
-    id: CommandId,
-    cycle: Arc<OnceLock<TestCycleId>>,
 }
 
 /* === Enums === */
@@ -57,101 +57,21 @@ pub struct ExecutionRequestHandle {
 /* === Traits === */
 
 /* === Implementations === */
-impl Client {
-    pub fn execution_request(&self, id: CommandId) -> ExecutionRequestHandle {
-        ExecutionRequestHandle::new(self.clone(), id, None)
-    }
 
+impl Client {
     pub fn execution(&self, id: TestExecutionId) -> TestExecutionHandle {
         TestExecutionHandle { client: self.clone(), id }
     }
 }
 
-impl ExecutionRequestHandle {
-    pub(super) async fn evidence_ready(&self) -> Result<bool> {
-        evidence_complete(&self.status().await?)
-    }
-
-    pub(super) async fn wait_evidence(&self) -> Result<()> {
-        evidence_complete(&self.wait(None, None).await?).map(|_| ())
-    }
-
-    pub(super) fn bind_cycle(&self, client: &Client, cycle: &TestCycleId) -> Result<Self> {
-        if !Arc::ptr_eq(&self.client.inner, &client.inner) || self.cycle.get_or_init(|| cycle.clone()) != cycle {
-            return Err(Error::Rpc(tonic::Status::invalid_argument("request belongs to another cycle or connection")));
-        }
-        Ok(self.clone())
-    }
-
-    pub(super) fn new(client: Client, id: CommandId, cycle: Option<TestCycleId>) -> Self {
-        let bound = cycle.map(OnceLock::from).unwrap_or_default();
-        Self { client, id, cycle: Arc::new(bound) }
-    }
-
-    pub fn id(&self) -> &CommandId {
-        &self.id
-    }
-
-    pub fn updates(
-        &self, interval: Option<std::time::Duration>,
-    ) -> Result<ResponseStream<dokime_domain::model::execution::wire::RunRequestReceipt>> {
-        let interval = poll_interval(interval)?;
-        let handle = self.clone();
-        ResponseStream::spawn(&self.client, move |sender| async move {
-            let mut previous = None;
-            loop {
-                let receipt = match handle.status().await {
-                    Ok(receipt) => receipt,
-                    Err(error) => {
-                        let _ = sender.send(Err(error)).await;
-                        return;
-                    }
-                };
-                // Status already validates the original phase before publishing.
-                let terminal = request_terminal(receipt.phase).expect("validated receipt phase");
-                if previous.as_ref() != Some(&receipt) {
-                    previous = Some(receipt.clone());
-                    if sender.send(Ok(receipt)).await.is_err() {
-                        return;
-                    }
-                }
-                if terminal {
-                    return;
-                }
-                tokio::time::sleep(interval).await;
-            }
-        })
-    }
-
-    pub async fn status(&self) -> Result<dokime_domain::model::execution::wire::RunRequestReceipt> {
-        self.client.verify(false).await?;
-        let receipt =
-            self.client.execution_get_run_request(contracts::execution::GetRunRequest { request_id: self.id.to_string() }).await?;
-        validate_request_receipt(&self.id, &self.cycle, &receipt)?;
-        Ok(receipt)
-    }
-
-    pub async fn wait(
-        &self, timeout: Option<std::time::Duration>, interval: Option<std::time::Duration>,
-    ) -> Result<dokime_domain::model::execution::wire::RunRequestReceipt> {
-        let interval = poll_interval(interval)?;
-        let wait = self.client.guard(async {
-            loop {
-                let receipt = self.status().await?;
-                if request_terminal(receipt.phase)? {
-                    return Ok(receipt);
-                }
-                tokio::time::sleep(interval).await;
-            }
-        });
-        match timeout {
-            Some(timeout) => tokio::time::timeout(timeout, wait).await.map_err(|source| Error::WaitTimedOut { source })??,
-            None => wait.await?,
-        }
-    }
-}
-
 impl TestExecutionHandle {
+    pub async fn export(
+        &self, destination: std::path::PathBuf, overwrite: bool,
+    ) -> std::result::Result<super::Download<dokime_domain::model::exports::EvidenceExportMetadata>, super::DownloadError> {
+        let subject = dokime_domain::model::exports::EvidenceSubject::Execution(self.id.to_string());
+        self.client.download_evidence(contracts::content::DownloadEvidence { subject: Some(subject) }, destination, overwrite).await
+    }
+
     pub fn id(&self) -> &TestExecutionId {
         &self.id
     }
@@ -168,7 +88,9 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let checkpoint = self
             .client
-            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint { execution_identifier: self.id.to_string() })
+            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint {
+                execution_identifier: self.id.to_string(),
+            })
             .await?;
         validate_checkpoint(&self.id, &checkpoint)?;
         Ok(checkpoint)
@@ -190,7 +112,7 @@ impl TestExecutionHandle {
     pub async fn wait(
         &self, timeout: Option<std::time::Duration>, interval: Option<std::time::Duration>,
     ) -> Result<dokime_domain::model::history::wire::CheckpointDocument> {
-        let interval = poll_interval(interval)?;
+        let interval = poll_interval(interval, REQUEST_POLL_MS)?;
         let wait = self.client.guard(async {
             loop {
                 let checkpoint = match self.checkpoint().await {
@@ -213,24 +135,15 @@ impl TestExecutionHandle {
         }
     }
 
-    pub async fn start(&self, key: &str, mode: ExecutionMode) -> Result<dokime_domain::model::execution::wire::Admission> {
-        dokime_domain::model::execution::command::validate_idempotency_key(key)
-            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
+    pub async fn start(&self, mode: ExecutionMode) -> Result<()> {
         self.client.verify(true).await?;
         let mode = match mode {
             ExecutionMode::Automatic => dokime_domain::model::execution::wire::ExecutionMode::Automatic,
             ExecutionMode::Interactive => dokime_domain::model::execution::wire::ExecutionMode::Interactive,
         };
-        let reply = self
-            .client
-            .execution_run_execution(contracts::execution::RunExecution {
-                execution_id: self.id.to_string(),
-                context: None,
-                idempotency_key: Some(key.to_owned()),
-                mode,
-            })
-            .await?;
-        admission(&self.client.backend().epoch, reply)
+        let reply =
+            self.client.execution_start_execution(contracts::execution::StartExecution { execution_id: self.id.to_string(), mode }).await?;
+        admission(&self.client.backend().epoch, reply).map(|_| ())
     }
 
     pub async fn command_receipt(
@@ -278,7 +191,10 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_pause_execution(contracts::execution::PauseExecution { execution_id: self.id.to_string(), context: None })
+            .execution_pause_execution(contracts::execution::PauseExecution {
+                execution_id: self.id.to_string(),
+                context: None,
+            })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)
@@ -288,7 +204,10 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_resume_execution(contracts::execution::ResumeExecution { execution_id: self.id.to_string(), context: None })
+            .execution_resume_execution(contracts::execution::ResumeExecution {
+                execution_id: self.id.to_string(),
+                context: None,
+            })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)
@@ -298,7 +217,10 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_stop_execution(contracts::execution::StopExecution { execution_id: self.id.to_string(), context: None })
+            .execution_stop_execution(contracts::execution::StopExecution {
+                execution_id: self.id.to_string(),
+                context: None,
+            })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)
@@ -306,6 +228,7 @@ impl TestExecutionHandle {
 }
 
 /* === Public Functions === */
+
 pub(super) fn admission(
     epoch: &str, reply: dokime_domain::model::execution::wire::RunReply,
 ) -> Result<dokime_domain::model::execution::wire::Admission> {
@@ -320,29 +243,9 @@ pub(super) fn admission(
 }
 
 /* === Private Functions === */
-fn evidence_complete(receipt: &dokime_domain::model::execution::wire::RunRequestReceipt) -> Result<bool> {
-    if receipt.phase == dokime_domain::model::execution::wire::RunRequestPhase::Interrupted {
-        return Err(invalid("interrupted acquisition does not certify complete live evidence"));
-    }
-    request_terminal(receipt.phase)
-}
 
-fn validate_request_receipt(
-    id: &CommandId, cycle: &OnceLock<TestCycleId>, receipt: &dokime_domain::model::execution::wire::RunRequestReceipt,
-) -> Result<()> {
-    if receipt.request_id != id.as_str() {
-        return Err(invalid("request receipt identity differs"));
-    }
-    request_terminal(receipt.phase)?;
-    let observed = TestCycleId::from_uuid(&receipt.cycle_id).map_err(|_| invalid("request receipt has an invalid cycle identity"))?;
-    if cycle.get_or_init(|| observed.clone()) != &observed {
-        return Err(invalid("request receipt belongs to another cycle"));
-    }
-    Ok(())
-}
-
-fn poll_interval(interval: Option<std::time::Duration>) -> Result<std::time::Duration> {
-    let interval = interval.unwrap_or(REQUEST_POLL_INTERVAL);
+fn poll_interval(interval: Option<std::time::Duration>, default_ms: u64) -> Result<std::time::Duration> {
+    let interval = interval.unwrap_or_else(|| std::time::Duration::from_millis(default_ms));
     if interval.is_zero() {
         return Err(Error::Rpc(tonic::Status::invalid_argument("poll interval must be positive")));
     }
@@ -355,34 +258,35 @@ fn validate_checkpoint(
     use harmos::storage::ObjectVersionToken;
     use std::num::NonZeroUsize;
 
-    if checkpoint.execution_identifier != id.as_str() || checkpoint.version.len() > 4096 {
+    if checkpoint.execution_identifier != id.as_str() || checkpoint.version.len() as u64 > CHECKPOINT_BYTES {
         return Err(invalid("saved checkpoint identity or version differs"));
     }
     let version = ObjectVersionToken::decode_bounded(
         &checkpoint.version,
-        NonZeroUsize::new(4096 + std::mem::size_of::<ObjectVersionToken>()).unwrap(),
+        NonZeroUsize::new((CHECKPOINT_BYTES as usize).saturating_add(std::mem::size_of::<ObjectVersionToken>())).unwrap(),
     )
     .map_err(|_| invalid("saved checkpoint version is invalid"))?;
-    let canonical = version.encode_bounded(NonZeroUsize::new(4096).unwrap()).map_err(|_| invalid("saved checkpoint version is invalid"))?;
+    let maximum = NonZeroUsize::new(CHECKPOINT_BYTES as usize).unwrap();
+    let canonical = version.encode_bounded(maximum).map_err(|_| invalid("saved checkpoint version is invalid"))?;
     if canonical != checkpoint.version {
         return Err(invalid("saved checkpoint version is noncanonical"));
     }
     let original = dokime_domain::model::execution::ExecutionCheckpoint {
         execution_id: id.clone(),
-        position: checkpoint_cursor(checkpoint.position.as_ref())?,
+        position: checkpoint_cursor(checkpoint.position.as_ref(), IDENTITY_BYTES)?,
         version,
-        evidence_through: checkpoint_cursor(checkpoint.evidence_through.as_ref())?,
+        evidence_through: checkpoint_cursor(checkpoint.evidence_through.as_ref(), IDENTITY_BYTES)?,
     };
     original.validate().map_err(|_| invalid("saved checkpoint cut differs"))?;
     Ok(original)
 }
 
 fn checkpoint_cursor(
-    cursor: Option<&dokime_domain::model::execution::wire_checkpoint::StorageCursor>,
+    cursor: Option<&dokime_domain::model::execution::wire_checkpoint::StorageCursor>, maximum: u64,
 ) -> Result<harmos::storage::StorageCursor> {
     let cursor = cursor.ok_or_else(|| invalid("saved checkpoint cursor is missing"))?;
     let history = cursor.history.as_ref().ok_or_else(|| invalid("saved checkpoint history is missing"))?;
-    if history.store.len() > 4096 || history.epoch.len() > 4096 {
+    if history.store.len() as u64 > maximum || history.epoch.len() as u64 > maximum {
         return Err(invalid("saved checkpoint history exceeds its bound"));
     }
     Ok(harmos::storage::StorageCursor {
@@ -394,20 +298,6 @@ fn checkpoint_cursor(
         },
         sequence: cursor.sequence,
     })
-}
-
-fn request_terminal(phase: dokime_domain::model::execution::wire::RunRequestPhase) -> Result<bool> {
-    match phase {
-        dokime_domain::model::execution::wire::RunRequestPhase::Completed
-        | dokime_domain::model::execution::wire::RunRequestPhase::Failed
-        | dokime_domain::model::execution::wire::RunRequestPhase::Stopped
-        | dokime_domain::model::execution::wire::RunRequestPhase::Interrupted => Ok(true),
-        dokime_domain::model::execution::wire::RunRequestPhase::Queued
-        | dokime_domain::model::execution::wire::RunRequestPhase::Preparing
-        | dokime_domain::model::execution::wire::RunRequestPhase::Running
-        | dokime_domain::model::execution::wire::RunRequestPhase::Finishing => Ok(false),
-        _ => Err(invalid("request receipt has an unknown phase")),
-    }
 }
 
 fn validate_admission(epoch: &str, admission: &dokime_domain::model::execution::wire::Admission) -> Result<()> {

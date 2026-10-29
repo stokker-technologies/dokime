@@ -14,10 +14,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
-use harmos::sidecar::{Refusal, Supervisor};
+use harmos::ExecutionContext;
+use harmos::sidecar::Refusal;
+use harmos::sidecar::operations::Carrier;
 
 // Local Imports
 use super::{Analysis, Error, Operation, Request, Response};
@@ -29,16 +30,14 @@ use super::{Analysis, Error, Operation, Request, Response};
 /* === Type Aliases === */
 
 /* === Structs === */
-pub struct Handler<A> {
-    state: State,
-    analysis: std::marker::PhantomData<fn() -> A>,
-}
 
-pub struct Served<A, R = ()>(Handler<A>, std::marker::PhantomData<fn() -> R>);
-
-struct State {
+// One analysis invocation: the request is consumed by exactly one blocking
+// worker, which a cancelled attempt keeps and a retry or `stop` awaits; the
+// evaluation never replays.
+pub struct Evaluation<A> {
     consumed: bool,
     worker: Option<tokio::task::JoinHandle<Result<Response, Error>>>,
+    analysis: std::marker::PhantomData<fn() -> A>,
 }
 
 /* === Enums === */
@@ -46,81 +45,44 @@ struct State {
 /* === Traits === */
 
 /* === Implementations === */
-impl<A: Analysis> harmos::operations::Operation for Handler<A> {
+
+impl<A: Analysis> harmos::Executable for Operation<A> {
+    type Carrier = Evaluation<A>;
+}
+
+impl<A: Analysis> Carrier for Evaluation<A> {
     type Declaration = Operation<A>;
-    type Resources = ();
     type Error = Refusal;
-    type Context<'a> = harmos::operations::Context<'a>;
-    type Endpoints = ();
+    type StreamEndpoints = ();
 
-    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
-        Ok(Self::fresh())
-    }
-    async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, request: &mut Operation<A>, _: &mut (),
-    ) -> Result<harmos::operations::Response<Response>, Refusal> {
-        self.state.evaluate::<A>(&mut request.0).await.map(Into::into)
-    }
-    async fn stop(&mut self) -> Result<(), Refusal> {
-        self.state.settle().await
-    }
-}
-
-impl<A: Analysis, R> harmos::operations::Declares for Served<A, R> {
-    type Declaration = Operation<A>;
-}
-
-impl<A: Analysis, R: Send + Sync + 'static> harmos::operations::Operation for Served<A, R> {
-    type Declaration = Operation<A>;
-    type Resources = R;
-    type Error = Refusal;
-    type Context<'a> = &'a Supervisor;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(_: Arc<R>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
-        Ok(Self(Handler::fresh(), std::marker::PhantomData))
-    }
-    async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, request: &mut Operation<A>, _: &mut (),
-    ) -> Result<harmos::operations::Response<Response>, Refusal> {
-        self.0.state.evaluate::<A>(&mut request.0).await.map(Into::into)
-    }
-    async fn stop(&mut self) -> Result<(), Refusal> {
-        self.0.state.settle().await
-    }
-}
-
-impl<A: Analysis> Handler<A> {
-    fn fresh() -> Self {
-        Self { state: State { consumed: false, worker: None }, analysis: std::marker::PhantomData }
-    }
-}
-
-impl State {
-    fn check<A: Analysis>(request: &Request) -> Result<(), Refusal> {
-        if request.parameters.len() > super::MAX_PARAMETER_BYTES {
-            return Err(Refusal::of("analysis configuration exceeds its budget"));
-        }
-        request.samples.as_ref().ok_or_else(|| Refusal::of("analysis samples are missing"))?.check(A::LIMITS).map_err(Refusal::of)?;
-        Ok(())
+    async fn bind(_: ExecutionContext) -> Result<Self, Refusal> {
+        Ok(Self {
+            consumed: false,
+            worker: None,
+            analysis: std::marker::PhantomData,
+        })
     }
 
-    async fn evaluate<A: Analysis>(&mut self, request: &mut Request) -> Result<Response, Refusal> {
+    async fn attempt(
+        &mut self, _: ExecutionContext, request: &mut Operation<A>, _: &mut (),
+    ) -> Result<harmos::Response<Response>, Refusal> {
         if self.worker.is_none() {
             if self.consumed {
                 return Err(Refusal::of("analysis attempt was already consumed"));
             }
-            Self::check::<A>(request)?;
-            let request = std::mem::take(request);
+            check::<A>(&request.0)?;
+            let request = std::mem::take(&mut request.0);
             self.consumed = true;
             self.worker = Some(tokio::task::spawn_blocking(move || Operation::<A>::evaluate(request)));
         }
+        // Borrow rather than take: a cancelled attempt leaves the same worker for the next one.
         let result = self.worker.as_mut().expect("retained analysis worker").await;
         self.worker.take();
-        result.map_err(Refusal::of)?.map_err(Refusal::of)
+        result.map_err(Refusal::of)?.map(Into::into).map_err(Refusal::of)
     }
-    async fn settle(&mut self) -> Result<(), Refusal> {
-        // Borrow Rather Than Take: Cancelled Finalization Resumes The Same Worker.
+
+    async fn stop(&mut self) -> Result<(), Refusal> {
+        // Borrow rather than take: cancelled finalization resumes the same worker.
         if let Some(worker) = self.worker.as_mut() {
             let result = worker.await;
             self.worker.take();
@@ -134,5 +96,18 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn check<A: Analysis>(request: &Request) -> Result<(), Refusal> {
+    if request.parameters.len() as u64 > dokime_domain::model::analysis::MAX_PARAMETER_BYTES as u64 {
+        return Err(Refusal::of("analysis configuration exceeds its budget"));
+    }
+    request
+        .samples
+        .as_ref()
+        .ok_or_else(|| Refusal::of("analysis samples are missing"))?
+        .check(A::LIMITS.constrained())
+        .map_err(Refusal::of)?;
+    Ok(())
+}
 
 /* === Tests === */

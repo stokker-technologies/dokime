@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -30,6 +31,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Secret(String);
 
@@ -37,8 +39,10 @@ pub struct Secret(String);
 pub struct Configuration {
     #[serde(default)]
     pub settings: BTreeMap<String, Value>,
+
     #[serde(default)]
     pub secrets: BTreeMap<String, Option<String>>,
+
     #[serde(default)]
     pub saved: BTreeSet<String>,
 }
@@ -48,6 +52,7 @@ pub struct Configuration {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Secret {
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
@@ -92,7 +97,7 @@ impl Configuration {
         S::decode(&values, self)
     }
 
-    pub fn credentials_configured<S: PluginSettings>(&self) -> bool {
+    pub fn secrets_configured<S: PluginSettings>(&self) -> bool {
         S::catalog().secrets().filter(|declared| declared.required).all(|declared| self.secret(&declared.id).is_ok())
     }
 
@@ -134,3 +139,19 @@ impl fmt::Debug for Configuration {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::Configuration;
+
+    #[test]
+    fn initialization_roundtrips_declared_values() {
+        let configuration: Configuration =
+            serde_json::from_str(r#"{"settings":{},"secrets":{"password":"protected"},"saved":["password"]}"#).unwrap();
+        let encoded = serde_json::to_vec(&configuration).unwrap();
+        let decoded: Configuration = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(decoded.settings, configuration.settings);
+        assert_eq!(decoded.secrets, configuration.secrets);
+        assert_eq!(decoded.saved, configuration.saved);
+    }
+}

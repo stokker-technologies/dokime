@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::{MaterializedParameter, ParameterSource};
 use crate::state::RuntimeState;
@@ -31,7 +34,8 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "dokime.execution.outputs.execution.finalize", version = 1, irreversible)]
+
+#[harmos::transaction(id = "dokime.execution.outputs.execution.finalize", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinalizeExecutionOutputs {
     pub test_execution_id: TestExecutionId,
@@ -43,6 +47,7 @@ pub struct FinalizeExecutionOutputs {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for FinalizeExecutionOutputs {
     type Error = String;
 
@@ -58,6 +63,7 @@ impl Transaction<RuntimeState> for FinalizeExecutionOutputs {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn finalize_execution_outputs(state: &mut RuntimeState, test_execution_id: &TestExecutionId, outputs: Vec<AggregateOutput>) {
     if let Some(execution) = state.executions.get_mut(test_execution_id) {
         replace_aggregate_parameters(&mut execution.output_parameters, outputs);

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::id::CaseId;
 use crate::model::identity::id::CriterionId;
@@ -35,6 +37,7 @@ use crate::model::identity::id::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RecordScope {
@@ -50,11 +53,13 @@ pub struct RecordScope {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EvidenceOrigin {
     #[default]
     Default,
+
     Initialization,
     Step {
         attempt_id: StepAttemptId,
@@ -67,6 +72,7 @@ pub enum EvidenceOrigin {
 pub enum CapturePhase {
     #[default]
     Default,
+
     Initialization,
     Cleanup,
 }
@@ -74,6 +80,7 @@ pub enum CapturePhase {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for RecordScope {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -117,7 +124,10 @@ impl From<CapturePhase> for EvidenceOrigin {
 
 impl RecordScope {
     pub fn session(session_id: SessionId) -> Self {
-        Self { session_id: Some(session_id), ..Self::default() }
+        Self {
+            session_id: Some(session_id),
+            ..Self::default()
+        }
     }
 
     pub fn with_cycle(mut self, test_cycle_id: TestCycleId) -> Self {
@@ -168,6 +178,7 @@ impl RecordScope {
 }
 
 /* === Public Functions === */
+
 pub fn scope_visible_in(record_scope: Option<&RecordScope>, selected: &RecordScope) -> bool {
     if selected.is_empty() {
         return true;
@@ -189,6 +200,7 @@ pub fn scope_visible_in(record_scope: Option<&RecordScope>, selected: &RecordSco
 }
 
 /* === Private Functions === */
+
 fn field_visible_in<T: PartialEq>(record: &Option<T>, selected: &Option<T>) -> bool {
     selected.as_ref().is_none_or(|selected| record.as_ref() == Some(selected))
 }

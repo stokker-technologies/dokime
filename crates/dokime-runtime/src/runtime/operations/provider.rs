@@ -12,18 +12,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+use std::collections::HashMap;
 use std::sync::Arc;
+
 // Third Party Imports
 use futures_util::FutureExt;
-use harmos::operations::{Context, Operation, OperationPolicy, RestartPolicy, RetryPolicy};
+use futures_util::future::BoxFuture;
+use harmos::{Context, RegistrationExt};
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::app::Lanes;
 use crate::domains::ExecutionProviderTarget;
+use crate::operations::execution::RunProviderCycle;
+use crate::operations::hosting::{Host, Serve, Served};
 use crate::transport::{ProviderCycleOutcome, ProviderExecutionFailure};
 use crate::{
-    execution_runtime::provider::{ExecutionFixtureContext, ExecutionFixtureFuture, ProviderExecutorRegistry},
+    execution_runtime::provider::{ExecutionFixtureContext, ProviderExecutorRegistry},
     handle::RuntimeHandle,
 };
 use dokime_domain::model::execution::result::ExecutionStatus;
@@ -31,19 +38,21 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
-const PROVIDER_POLICY: OperationPolicy = OperationPolicy {
-    timeout: std::time::Duration::from_secs(86_400),
-    attempt_timeout: std::time::Duration::from_secs(86_400),
-    retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
-};
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type ProviderOutcome = std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure>;
 
+// The Process-Local Work Of One Invocation, Started Once By Its First Attempt.
+type ProviderWork = Box<dyn FnOnce(tokio::sync::watch::Receiver<bool>) -> BoxFuture<'static, ProviderOutcome> + Send>;
+
+// Concludes An Invocation's Provider Resources Exactly Once After Its Work Settled.
+type ProviderFinish = Box<dyn FnOnce() -> BoxFuture<'static, Result<(), ProviderExecutionFailure>> + Send>;
+
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct ProviderCycleRequest {
     pub(crate) request_id: String,
@@ -52,6 +61,8 @@ pub(crate) struct ProviderCycleRequest {
 }
 
 pub(crate) struct ProviderTask {
+    pub(crate) request_id: dokime_domain::model::identity::CommandId,
+    pub(crate) settled: tokio_util::sync::CancellationToken,
     pub(crate) source: String,
     pub(crate) cycle: TestCycleId,
     pub(crate) task: tokio::task::JoinHandle<()>,
@@ -64,71 +75,173 @@ pub(crate) struct PublicationFailure {
     source: Arc<crate::runtime::Error>,
 }
 
-// The portable identity of one provider cycle run; the process-local
-// invocation travels as the operation's endpoints and carries its outcome.
-#[harmos::message]
-#[harmos::operation(response = (), id = "dokime.execution.provider.run", version = 1, policy = PROVIDER_POLICY)]
-#[derive(Clone, PartialEq)]
-struct RunProviderCycle {
-    request_id: String,
+// Process-Local Provider Invocations Keyed By Request ID. `RunProviderCycle`
+// Carries Only The Portable Request ID; Its Attempt Starts The Registered Work
+// As A Task This Registry Owns, And Whoever Settles The Entry (Its Monitor, Or
+// Runtime Shutdown For An Orphan) Awaits That Task And Finishes It Once.
+#[derive(Default)]
+pub(crate) struct ProviderInvocations {
+    entries: std::sync::Mutex<HashMap<String, ProviderInvocation>>,
 }
 
-#[derive(Clone)]
 struct ProviderInvocation {
-    job: ProviderCycleRequest,
-    runtime: RuntimeHandle,
-    after: harmos::state::Position,
-    started: Arc<std::sync::atomic::AtomicU8>,
-    finalization: crate::execution_runtime::run::Finalization,
-    outcome: Arc<std::sync::Mutex<Option<ProviderOutcome>>>,
-}
-
-struct ProviderState {
-    invocation: Option<ProviderInvocation>,
-    work: ProviderWork,
-}
-
-struct ProviderWork {
-    future: Option<ExecutionFixtureFuture<'static>>,
+    work: Option<ProviderWork>,
+    task: Option<tokio::task::JoinHandle<ProviderOutcome>>,
     cancellation: tokio::sync::watch::Sender<bool>,
-    cancelled: tokio::sync::watch::Receiver<bool>,
+    concluded: tokio_util::sync::CancellationToken,
+    finish: Option<ProviderFinish>,
 }
+
+// What Settling One Invocation Observed.
+struct ProviderSettlement {
+    // `None` When No Attempt Ever Started The Work.
+    outcome: Option<ProviderOutcome>,
+    finished: Result<(), ProviderExecutionFailure>,
+}
+
+// Signals The Work To Cancel When An Attempt Is Dropped Before It Concluded.
+struct CancelOnDrop(Option<tokio::sync::watch::Sender<bool>>);
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl ProviderWork {
-    fn new() -> Self {
-        let (cancellation, cancelled) = tokio::sync::watch::channel(false);
-        Self { future: None, cancellation, cancelled }
+
+impl ProviderInvocations {
+    // Registers An Invocation Before Its Operation Is Submitted.
+    fn open(&self, request_id: &str, work: ProviderWork, finish: ProviderFinish) {
+        let (cancellation, _) = tokio::sync::watch::channel(false);
+        let invocation = ProviderInvocation {
+            work: Some(work),
+            task: None,
+            cancellation,
+            concluded: tokio_util::sync::CancellationToken::new(),
+            finish: Some(finish),
+        };
+        let replaced = self.entries.lock().expect("provider invocation registry is healthy").insert(request_id.to_owned(), invocation);
+        debug_assert!(replaced.is_none(), "one provider invocation per request");
     }
 
-    async fn run(&mut self, future: ExecutionFixtureFuture<'static>) -> Result<ProviderCycleOutcome, ProviderExecutionFailure> {
-        self.future = Some(Box::pin(async move {
-            match std::panic::AssertUnwindSafe(future).catch_unwind().await {
-                Ok(outcome) => outcome,
-                Err(_) => Err(ProviderExecutionFailure::new("panic", "provider work panicked")),
+    // Serves One Attempt: Starts The Work Once And Awaits Its Conclusion. A
+    // Dropped Attempt (Deadline Or Cancellation) Signals The Work To Cancel.
+    async fn attend(&self, request_id: &str) -> Result<(), tonic::Status> {
+        let (concluded, cancellation) = {
+            let mut entries = self.entries.lock().expect("provider invocation registry is healthy");
+            let invocation = entries
+                .get_mut(request_id)
+                .ok_or_else(|| tonic::Status::failed_precondition(format!("provider invocation `{request_id}` is not open")))?;
+            if let Some(work) = invocation.work.take() {
+                let work = work(invocation.cancellation.subscribe());
+                let concluded = invocation.concluded.clone();
+                invocation.task = Some(tokio::spawn(async move {
+                    // Conclude On Every Exit, Including Panic Or Runtime Teardown.
+                    let _concluded = concluded.drop_guard();
+                    match std::panic::AssertUnwindSafe(work).catch_unwind().await {
+                        Ok(outcome) => outcome,
+                        Err(_) => Err(ProviderExecutionFailure::new("panic", "provider work panicked")),
+                    }
+                }));
             }
-        }));
-        let outcome = self.future.as_mut().expect("provider work is retained").await;
-        self.future = None;
-        outcome
+            (invocation.concluded.clone(), invocation.cancellation.clone())
+        };
+        let cancel_on_drop = CancelOnDrop(Some(cancellation));
+        concluded.cancelled().await;
+        cancel_on_drop.disarm();
+        Ok(())
     }
 
-    async fn finalize(&mut self) -> Option<ProviderExecutionFailure> {
-        self.cancellation.send_replace(true);
-        let outcome = match self.future.as_mut() {
-            Some(future) => future.await.err(),
+    // Removes The Invocation, Cancels Work No Attempt Awaits Any Longer, Awaits
+    // Its Task And Finishes It. Returns `None` When Another Owner Settled It.
+    async fn settle(&self, request_id: &str) -> Option<ProviderSettlement> {
+        let mut invocation = self.entries.lock().expect("provider invocation registry is healthy").remove(request_id)?;
+        invocation.cancellation.send_replace(true);
+        let outcome = match invocation.task.take() {
+            Some(task) => Some(match task.await {
+                Ok(outcome) => outcome,
+                Err(error) if error.is_panic() => Err(ProviderExecutionFailure::new("panic", "provider work panicked")),
+                Err(_) => Err(ProviderExecutionFailure::new("interrupt", "provider work was aborted")),
+            }),
             None => None,
         };
-        self.future = None;
-        outcome
+        let finished = match invocation.finish.take() {
+            Some(finish) => finish().await,
+            None => Ok(()),
+        };
+        Some(ProviderSettlement { outcome, finished })
+    }
+
+    // Settles Every Outstanding Invocation. Runtime Shutdown Calls This After
+    // Its Monitors Drained, So No Provider Work Outlives The Runtime.
+    pub(crate) async fn settle_all(&self) {
+        loop {
+            let request_ids: Vec<String> = self.entries.lock().expect("provider invocation registry is healthy").keys().cloned().collect();
+            if request_ids.is_empty() {
+                return;
+            }
+            for request_id in request_ids {
+                if let Some(settlement) = self.settle(&request_id).await {
+                    tracing::warn!(
+                        request_id = %request_id,
+                        started = settlement.outcome.is_some(),
+                        finished = settlement.finished.is_ok(),
+                        "shutdown settled an orphaned provider invocation"
+                    );
+                }
+            }
+        }
+    }
+}
+
+impl Serve<RunProviderCycle> for ProviderInvocations {
+    fn serve<'a>(&'a self, request: RunProviderCycle, _: Context<'a, RunProviderCycle>) -> Served<'a, ()> {
+        Box::pin(async move {
+            self.attend(&request.request_id).await?;
+            Ok(().into())
+        })
+    }
+}
+
+impl CancelOnDrop {
+    fn disarm(mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        if let Some(cancellation) = self.0.take() {
+            cancellation.send_replace(true);
+        }
     }
 }
 
 impl RuntimeHandle {
+    pub(crate) async fn dispatch_next_request(&self) {
+        let _admission = self.plugin_admission.lock().await;
+        if self.is_shutting_down() {
+            return;
+        }
+        let job = {
+            let state = self.state_read();
+            let Some(id) = state.run_queue.front() else { return };
+            let request = &state.run_requests[id];
+            if request.summary.phase != crate::transactions::provider::request::RunPhase::Queued {
+                return;
+            }
+            let tasks = self.provider_tasks.lock().expect("provider task registry is healthy");
+            if tasks.iter().any(|task| &task.request_id == id && !task.task.is_finished()) {
+                return;
+            }
+            ProviderCycleRequest {
+                request_id: id.to_string(),
+                test_cycle_id: request.summary.cycle_id.to_string(),
+                target: serde_json::to_value(&request.target).expect("provider target serializes"),
+            }
+        };
+        job.submit(self.clone());
+    }
+
     pub(crate) fn provider_completion_result(&self) -> crate::runtime::Result<()> {
         let failure = self.provider_completion_failure.lock().expect("provider completion failure lock poisoned");
         if let Some(failure) = &*failure {
@@ -141,72 +254,6 @@ impl RuntimeHandle {
     }
 }
 
-// The invocation is process-local state, never a streamed endpoint.
-impl harmos::operations::EndpointSet for ProviderInvocation {
-    fn item_types() -> (Option<std::any::TypeId>, Option<std::any::TypeId>) {
-        (None, None)
-    }
-}
-
-impl Operation for ProviderState {
-    type Context<'a> = Context<'a>;
-    type Declaration = RunProviderCycle;
-    type Resources = ();
-    type Endpoints = ProviderInvocation;
-    type Error = crate::runtime::Error;
-
-    async fn initialize<'ctx>(_: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(ProviderState { invocation: None, work: ProviderWork::new() })
-    }
-
-    async fn run<'ctx>(
-        &mut self, _context: Self::Context<'ctx>, _: &mut RunProviderCycle, endpoints: &mut ProviderInvocation,
-    ) -> Result<harmos::operations::Response<()>, Self::Error> {
-        let invocation = self.invocation.get_or_insert_with(|| endpoints.clone());
-        let slot = Arc::clone(&invocation.outcome);
-        if invocation.started.compare_exchange(0, 1, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire).is_err() {
-            *slot.lock().expect("provider outcome lock poisoned") =
-                Some(Err(ProviderExecutionFailure::new("cancel", "plugin shutdown before execution started")));
-            return Ok(().into());
-        }
-
-        let runtime = invocation.runtime.clone();
-        let providers = Arc::clone(&runtime.providers);
-        let job = invocation.job.clone();
-        let after = invocation.after;
-        let cancelled = self.work.cancelled.clone();
-        let finalization = invocation.finalization.clone();
-        let outcome = self
-            .work
-            .run(Box::pin(async move { run_provider_cycle(runtime, &providers, job, after, cancelled, finalization).await }))
-            .await;
-        *slot.lock().expect("provider outcome lock poisoned") = Some(outcome);
-        Ok(().into())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), Self::Error> {
-        let Some(invocation) = &self.invocation else {
-            return Ok(());
-        };
-        let settlement = std::time::Instant::now();
-        tracing::debug!(request_id = %invocation.job.request_id, phase = "provider_settlement", "provider work settlement started");
-        if let Some(error) = self.work.finalize().await {
-            tracing::warn!(
-                request_id = %invocation.job.request_id,
-                stage = %error.stage,
-                message = %error.message,
-                "cancelled provider work settled with an execution failure"
-            );
-        }
-        tracing::debug!(request_id = %invocation.job.request_id, phase = "provider_settlement", elapsed_ms = %settlement.elapsed().as_millis(), "provider work settlement finished");
-        invocation
-            .finalization
-            .finish(&ExecutionFixtureContext::new(invocation.runtime.clone()))
-            .await
-            .map_err(|error| crate::runtime::Error::Operation(format!("sidecar cleanup unresolved: {}", error.message)))
-    }
-}
-
 impl ProviderTask {
     pub(crate) fn cancel_queued(&self) {
         if self.started.compare_exchange(0, 2, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire).is_ok() {
@@ -216,7 +263,7 @@ impl ProviderTask {
 }
 
 impl ProviderCycleRequest {
-    pub(crate) fn submit(self, runtime: RuntimeHandle, after: harmos::state::Position) {
+    pub(crate) fn submit(self, runtime: RuntimeHandle) {
         let registry = runtime.provider_tasks.clone();
         let mut tasks = registry.lock().unwrap();
         // Admission already committed this request and retains its capacity
@@ -227,66 +274,76 @@ impl ProviderCycleRequest {
         let target: ExecutionProviderTarget = serde_json::from_value(self.target.clone()).expect("provider target");
         let source = target.source;
         let cycle = TestCycleId::from_uuid(&self.test_cycle_id).expect("cycle id");
+        let request_id = dokime_domain::model::identity::CommandId::from_uuid(&self.request_id).expect("request id");
         let started = Arc::new(std::sync::atomic::AtomicU8::new(0));
         let (cancel, mut cancelled) = tokio::sync::watch::channel(false);
         let finalization = crate::execution_runtime::run::Finalization::default();
-        let settlement = Arc::new(std::sync::Mutex::new(None));
-        let invocation = runtime.operations.submit_endpoints(
-            RunProviderCycle { request_id: self.request_id.clone() },
-            ProviderInvocation {
-                job: self.clone(),
-                runtime: runtime.clone(),
-                after,
-                started: Arc::clone(&started),
-                finalization: finalization.clone(),
-                outcome: Arc::clone(&settlement),
-            },
+        runtime.provider_invocations.open(
+            &self.request_id,
+            provider_work(runtime.clone(), self.clone(), Arc::clone(&started), finalization.clone()),
+            provider_finish(runtime.clone(), finalization.clone()),
         );
+        let invocation = runtime.operations.submit::<RunProviderCycle>(RunProviderCycle { request_id: self.request_id.clone() });
+        let settled = tokio_util::sync::CancellationToken::new();
+        let settlement_guard = settled.clone().drop_guard();
         let task = tokio::spawn(async move {
-            let mut handle = match invocation {
-                Ok(handle) => handle,
-                Err(error) => {
-                    finish_interrupted_provider_job(&runtime, &self, error).await;
-                    return;
+            // Signal Settlement On Every Exit, Including Cancellation Or Panic.
+            let _settlement = settlement_guard;
+            let outcome = match invocation {
+                Ok(mut handle) => {
+                    let mut changes = runtime.state_watch.subscribe();
+                    let mut shutdown = runtime.shutdown_requested.subscribe();
+                    let monitoring = std::time::Instant::now();
+                    tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", "provider monitor awaiting original invocation settlement");
+                    let outcome = tokio::select! {
+                        outcome = &mut handle => outcome,
+                        _ = async { let _ = cancelled.wait_for(|cancelled| *cancelled).await; } => {
+                            handle.cancel();
+                            handle.await
+                        }
+                        _ = async { let _ = shutdown.wait_for(|requested| *requested).await; } => {
+                            handle.cancel();
+                            handle.await
+                        }
+                        _ = async {
+                            while !changes.borrow_and_update().state().shutting_down {
+                                if changes.changed().await.is_err() { break; }
+                            }
+                        } => {
+                            handle.cancel();
+                            handle.await
+                        }
+                    };
+                    tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", elapsed_ms = %monitoring.elapsed().as_millis(), transport_ok = outcome.is_ok(), "provider monitor observed settled invocation");
+                    outcome.map(|_| ())
                 }
+                Err(error) => Err(error),
             };
-
-            let mut changes = runtime.state_watch.subscribe();
-            let mut shutdown = runtime.shutdown_requested.subscribe();
-            let monitoring = std::time::Instant::now();
-            tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", "provider monitor awaiting original invocation settlement");
-            let outcome = tokio::select! {
-                outcome = &mut handle => outcome,
-                _ = async { let _ = cancelled.wait_for(|cancelled| *cancelled).await; } => {
-                    handle.cancel();
-                    handle.await
+            // The Work And Its Finalization Settle Here Exactly Once, Whatever The Attempt Did.
+            let settlement = std::time::Instant::now();
+            tracing::debug!(request_id = %self.request_id, phase = "provider_settlement", "provider work settlement started");
+            let settled = runtime.provider_invocations.settle(&self.request_id).await;
+            tracing::debug!(request_id = %self.request_id, phase = "provider_settlement", elapsed_ms = %settlement.elapsed().as_millis(), "provider work settlement finished");
+            let settled = settled.and_then(|ProviderSettlement { outcome, finished }| {
+                if let Err(error) = finished {
+                    tracing::warn!(request_id = %self.request_id, stage = %error.stage, message = %error.message, "provider finalization is unresolved");
                 }
-                _ = async { let _ = shutdown.wait_for(|requested| *requested).await; } => {
-                    handle.cancel();
-                    handle.await
-                }
-                _ = async {
-                    while !changes.borrow_and_update().state().shutting_down {
-                        if changes.changed().await.is_err() { break; }
-                    }
-                } => {
-                    handle.cancel();
-                    handle.await
-                }
-            };
-            tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", elapsed_ms = %monitoring.elapsed().as_millis(), transport_ok = outcome.is_ok(), "provider monitor observed settled invocation");
-            match outcome {
-                Ok(_) => {
-                    let settled = settlement
-                        .lock()
-                        .expect("provider outcome lock poisoned")
-                        .take()
-                        .unwrap_or_else(|| Err(ProviderExecutionFailure::new("cancel", "provider run settled without an outcome")));
+                outcome
+            });
+            match (outcome, settled) {
+                (Ok(()), settled) => {
+                    let settled =
+                        settled.unwrap_or_else(|| Err(ProviderExecutionFailure::new("cancel", "provider run settled without an outcome")));
                     let cycle = TestCycleId::from_uuid(&self.test_cycle_id).expect("journaled cycle id is valid");
                     let started = started_execution_ids_for(&runtime, &cycle);
                     submit_finish_provider_cycle(&runtime, &self, settled, started).await;
                 }
-                Err(error) if finalization.pending().await => {
+                (Err(_), Some(settled)) => {
+                    let cycle = TestCycleId::from_uuid(&self.test_cycle_id).expect("journaled cycle id is valid");
+                    let started = started_execution_ids_for(&runtime, &cycle);
+                    submit_finish_provider_cycle(&runtime, &self, settled, started).await;
+                }
+                (Err(error), None) if finalization.pending().await => {
                     tracing::error!(%error, "provider cleanup is unresolved; terminal publication remains blocked");
                     runtime.provider_completion_failure.lock().expect("provider completion failure lock poisoned").get_or_insert_with(
                         || PublicationFailure {
@@ -296,19 +353,57 @@ impl ProviderCycleRequest {
                         },
                     );
                 }
-                Err(error) => finish_interrupted_provider_job(&runtime, &self, error).await,
+                (Err(error), None) => finish_interrupted_provider_job(&runtime, &self, error).await,
             }
         });
-        tasks.push(ProviderTask { source, cycle, task, started, cancel });
+        tasks.push(ProviderTask {
+            request_id,
+            settled,
+            source,
+            cycle,
+            task,
+            started,
+            cancel,
+        });
     }
 }
 
 /* === Public Functions === */
-pub(crate) fn register(operations: &harmos::operations::OperationManager) -> harmos::Result<()> {
-    operations.register_operation::<ProviderState>("dokime.execution", Lanes::Execution, Arc::new(()))
+
+pub(crate) async fn register(
+    operations: &crate::app::OperationManager, invocations: Arc<ProviderInvocations>,
+) -> crate::runtime::Result<()> {
+    let mut dependencies = harmos::Dependencies::new();
+    dependencies.insert(Host::<RunProviderCycle>::new(invocations))?;
+    let batch = harmos::RegistrationBatch::new(dependencies).operation::<RunProviderCycle>();
+    operations.register(batch.lane(Lanes::Execution)).await?;
+    Ok(())
 }
 
 /* === Private Functions === */
+
+fn provider_work(
+    runtime: RuntimeHandle, job: ProviderCycleRequest, started: Arc<std::sync::atomic::AtomicU8>,
+    finalization: crate::execution_runtime::run::Finalization,
+) -> ProviderWork {
+    Box::new(move |cancelled: tokio::sync::watch::Receiver<bool>| -> BoxFuture<'static, ProviderOutcome> {
+        Box::pin(async move {
+            // A Queued Request Cancelled Before Its Attempt Began Never Starts Provider Work.
+            if started.compare_exchange(0, 1, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire).is_err() {
+                return Err(ProviderExecutionFailure::new("cancel", "plugin shutdown before execution started"));
+            }
+            let providers = Arc::clone(&runtime.providers);
+            run_provider_cycle(runtime, &providers, job, cancelled, finalization).await
+        })
+    })
+}
+
+fn provider_finish(runtime: RuntimeHandle, finalization: crate::execution_runtime::run::Finalization) -> ProviderFinish {
+    Box::new(move || -> BoxFuture<'static, Result<(), ProviderExecutionFailure>> {
+        Box::pin(async move { finalization.finish(&ExecutionFixtureContext::new(runtime)).await })
+    })
+}
+
 async fn finish_interrupted_provider_job(runtime: &RuntimeHandle, job: &ProviderCycleRequest, outcome: harmos::Error) {
     let stage = interruption_stage(&outcome, runtime.is_shutting_down());
     let error = ProviderExecutionFailure::new(stage, format!("provider cycle run did not complete: {outcome}"));
@@ -338,8 +433,8 @@ fn interruption_stage(outcome: &harmos::Error, shutting_down: bool) -> &'static 
     fields(cycle_id = %job.test_cycle_id),
 )]
 async fn run_provider_cycle(
-    runtime: RuntimeHandle, providers: &ProviderExecutorRegistry, job: ProviderCycleRequest, after: harmos::state::Position,
-    cancelled: tokio::sync::watch::Receiver<bool>, finalization: crate::execution_runtime::run::Finalization,
+    runtime: RuntimeHandle, providers: &ProviderExecutorRegistry, job: ProviderCycleRequest, cancelled: tokio::sync::watch::Receiver<bool>,
+    finalization: crate::execution_runtime::run::Finalization,
 ) -> std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure> {
     let test_cycle_id = TestCycleId::from_uuid(job.test_cycle_id.as_str()).expect("journaled provider-cycle test cycle id is valid");
     let target: ExecutionProviderTarget = serde_json::from_value(job.target.clone()).expect("journaled provider-cycle target deserializes");
@@ -348,7 +443,7 @@ async fn run_provider_cycle(
         .with_request(request_id.clone())
         .with_cancellation(cancelled)
         .with_finalization(finalization);
-    prepare_attempts(&context, &request_id, after).await?;
+    prepare_attempts(&context, &request_id).await?;
     let mut changes = runtime.state_watch.subscribe();
     loop {
         let summary = runtime.state_read().run_requests[&request_id].summary.clone();
@@ -374,6 +469,7 @@ async fn run_provider_cycle(
         }
     }
     let summary = runtime.state_read().run_requests[&request_id].summary.clone();
+
     runtime
         .request_storage
         .update(&request_id, |receipt| receipt.summary = summary)
@@ -394,7 +490,7 @@ async fn run_provider_cycle(
 }
 
 async fn prepare_attempts(
-    context: &ExecutionFixtureContext, request_id: &dokime_domain::model::identity::CommandId, _after: harmos::state::Position,
+    context: &ExecutionFixtureContext, request_id: &dokime_domain::model::identity::CommandId,
 ) -> Result<(), ProviderExecutionFailure> {
     let runtime = &context.runtime;
     let mut changes = runtime.state_watch.subscribe();
@@ -435,18 +531,26 @@ async fn prepare_attempts(
             return Ok(());
         };
         let ordinal = summary.prepared;
+
         runtime
             .request_storage
             .update(request_id, |receipt| {
                 receipt.summary = summary.clone();
                 receipt.claimed = ordinal + 1;
-                receipt.last_claim =
-                    Some(crate::runtime::storage::requests::AttemptClaim { ordinal, case_id, execution_id: execution_id.clone() });
+                receipt.last_claim = Some(crate::runtime::storage::requests::AttemptClaim {
+                    ordinal,
+                    case_id,
+                    execution_id: execution_id.clone(),
+                });
             })
             .await
             .map_err(|error| ProviderExecutionFailure::new("request_checkpoint", error.to_string()))?;
         let result = runtime
-            .commit(crate::transactions::PrepareAttempt { request_id: request_id.clone(), ordinal, at: crate::model::time::now_utc() })
+            .commit(crate::transactions::PrepareAttempt {
+                request_id: request_id.clone(),
+                ordinal,
+                at: crate::model::time::now_utc(),
+            })
             .await;
         if let Err(error) = result {
             let state = runtime.state_read();
@@ -468,6 +572,7 @@ async fn prepare_attempts(
             .await
             .map_err(|error| ProviderExecutionFailure::new("storage", error.to_string()))?;
         let summary = runtime.state_read().run_requests[request_id].summary.clone();
+
         runtime
             .request_storage
             .update(request_id, |receipt| receipt.summary = summary)
@@ -527,6 +632,8 @@ async fn submit_finish_provider_cycle(
         );
     }
     let finish = crate::execution_runtime::provider_finish::Finish {
+        installed_plugin_errors: 100,
+        request_id: dokime_domain::model::identity::CommandId::from_uuid(&job.request_id).expect("journaled request identity is valid"),
         test_cycle_id,
         target,
         started_execution_ids,
@@ -538,7 +645,7 @@ async fn submit_finish_provider_cycle(
     let published = runtime.finish_provider_cycle(finish).await;
     tracing::debug!(request_id = %job.request_id, cycle_id = %job.test_cycle_id, phase = "terminal_publication", elapsed_ms = %publishing.elapsed().as_millis(), succeeded = published.is_ok(), "provider monitor terminal publication finished");
     if let Err(error) = published {
-        tracing::error!(?error, storage_read_bytes = runtime.storage().status().read_bytes, "failed to record terminal provider state");
+        tracing::error!(?error, "failed to record terminal provider state");
         runtime.provider_completion_failure.lock().expect("provider completion failure lock poisoned").get_or_insert_with(|| {
             PublicationFailure {
                 request_id: dokime_domain::model::identity::CommandId::from_uuid(&job.request_id).expect("journaled request ID is valid"),
@@ -549,3 +656,124 @@ async fn submit_finish_provider_cycle(
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    const BOUND: Duration = Duration::from_secs(10);
+
+    fn counting_finish(finishes: &Arc<AtomicUsize>) -> ProviderFinish {
+        let finishes = Arc::clone(finishes);
+        Box::new(move || -> BoxFuture<'static, Result<(), ProviderExecutionFailure>> {
+            Box::pin(async move {
+                finishes.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            })
+        })
+    }
+
+    // Work That Runs Until Its Attempt Cancels It, Reporting When It Started And When It Observed Cancellation.
+    fn cancellable_work(started: tokio::sync::oneshot::Sender<()>, observed: tokio::sync::oneshot::Sender<()>) -> ProviderWork {
+        Box::new(move |mut cancelled: tokio::sync::watch::Receiver<bool>| -> BoxFuture<'static, ProviderOutcome> {
+            Box::pin(async move {
+                let _ = started.send(());
+                let _ = cancelled.wait_for(|cancelled| *cancelled).await;
+                let _ = observed.send(());
+                Err(ProviderExecutionFailure::new("cancel", "work observed cancellation"))
+            })
+        })
+    }
+
+    fn stage(settlement: &ProviderSettlement) -> &str {
+        match settlement.outcome.as_ref().expect("work started") {
+            Ok(_) => "ok",
+            Err(failure) => failure.stage.as_str(),
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_invocation_success_removes_entry_and_finalizes_once() {
+        let invocations = ProviderInvocations::default();
+        let finishes = Arc::new(AtomicUsize::new(0));
+        invocations.open(
+            "request",
+            Box::new(|_: tokio::sync::watch::Receiver<bool>| -> BoxFuture<'static, ProviderOutcome> {
+                Box::pin(async { Err(ProviderExecutionFailure::new("done", "work concluded")) })
+            }),
+            counting_finish(&finishes),
+        );
+
+        tokio::time::timeout(BOUND, invocations.attend("request")).await.expect("attempt concludes").expect("attempt succeeds");
+        let settlement = invocations.settle("request").await.expect("monitor settles the invocation");
+
+        assert_eq!(stage(&settlement), "done");
+        assert!(settlement.finished.is_ok());
+        assert_eq!(finishes.load(Ordering::SeqCst), 1);
+        assert!(invocations.entries.lock().unwrap().is_empty());
+        assert!(invocations.settle("request").await.is_none());
+        assert_eq!(finishes.load(Ordering::SeqCst), 1);
+        // A Late Attempt Cannot Restart Settled Work.
+        assert!(invocations.attend("request").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn provider_invocation_dropped_attempt_cancels_work_and_finalizes_once() {
+        let invocations = Arc::new(ProviderInvocations::default());
+        let finishes = Arc::new(AtomicUsize::new(0));
+        let (started, work_started) = tokio::sync::oneshot::channel();
+        let (observed, work_cancelled) = tokio::sync::oneshot::channel();
+        invocations.open("request", cancellable_work(started, observed), counting_finish(&finishes));
+
+        let attempt = tokio::spawn({
+            let invocations = Arc::clone(&invocations);
+            async move { invocations.attend("request").await }
+        });
+        tokio::time::timeout(BOUND, work_started).await.expect("work starts").expect("work reports its start");
+        // Deadline Or Cancellation Drops The Attempt Future.
+        attempt.abort();
+        assert!(attempt.await.expect_err("attempt was dropped").is_cancelled());
+        tokio::time::timeout(BOUND, work_cancelled).await.expect("dropped attempt cancels work").expect("work observes cancellation");
+        assert_eq!(finishes.load(Ordering::SeqCst), 0);
+
+        let settlement = invocations.settle("request").await.expect("monitor settles the invocation");
+        assert_eq!(stage(&settlement), "cancel");
+        assert_eq!(finishes.load(Ordering::SeqCst), 1);
+        assert!(invocations.entries.lock().unwrap().is_empty());
+        assert!(invocations.settle("request").await.is_none());
+        assert_eq!(finishes.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn provider_invocation_shutdown_settles_outstanding_entries() {
+        let invocations = Arc::new(ProviderInvocations::default());
+        let running_finishes = Arc::new(AtomicUsize::new(0));
+        let idle_finishes = Arc::new(AtomicUsize::new(0));
+        let (started, work_started) = tokio::sync::oneshot::channel();
+        let (observed, work_cancelled) = tokio::sync::oneshot::channel();
+        invocations.open("running", cancellable_work(started, observed), counting_finish(&running_finishes));
+        invocations.open(
+            "idle",
+            Box::new(|_: tokio::sync::watch::Receiver<bool>| -> BoxFuture<'static, ProviderOutcome> {
+                panic!("an unattended invocation never starts its work")
+            }),
+            counting_finish(&idle_finishes),
+        );
+        let attempt = tokio::spawn({
+            let invocations = Arc::clone(&invocations);
+            async move { invocations.attend("running").await }
+        });
+        tokio::time::timeout(BOUND, work_started).await.expect("work starts").expect("work reports its start");
+
+        tokio::time::timeout(BOUND, invocations.settle_all()).await.expect("shutdown settles every invocation");
+
+        assert!(invocations.entries.lock().unwrap().is_empty());
+        assert_eq!(running_finishes.load(Ordering::SeqCst), 1);
+        assert_eq!(idle_finishes.load(Ordering::SeqCst), 1);
+        work_cancelled.await.expect("shutdown cancels running work");
+        // The Attempt Still Waiting On The Work Concludes Once It Settled.
+        tokio::time::timeout(BOUND, attempt).await.expect("attempt concludes").expect("attempt joins").expect("attempt succeeds");
+    }
+}

@@ -12,19 +12,22 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
+
 // Third Party Imports
 use arrow_array::{
     ArrayRef, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, StringArray, StructArray, UInt32Array, UInt64Array,
 };
 use arrow_schema::Field;
-// Local Imports
-use dokime_domain::model::values::Value;
 use harmos::schema::{
     Cardinality,
     graph::{Kind, Schema},
 };
+
+// Local Imports
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -41,8 +44,11 @@ use harmos::schema::{
 /* === Implementations === */
 
 /* === Public Functions === */
-pub fn capture_payload(schema: &Schema, values: &BTreeMap<String, Value>) -> Result<Vec<u8>, String> {
-    schema.preparation(&harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
+
+pub fn capture_payload(
+    schema: &Schema, values: &BTreeMap<String, Value>, settings: &harmos::config::SchemaSettings,
+) -> Result<Vec<u8>, String> {
+    schema.preparation(settings).map_err(|error| error.to_string())?;
     let fields = schema.definitions.get(schema.root).ok_or("matcher schema root is absent")?;
     if values.keys().any(|name| !fields.iter().any(|field| field.name == name.as_str())) {
         return Err("matcher values contain an undeclared field".into());
@@ -108,14 +114,14 @@ pub fn capture_payload(schema: &Schema, values: &BTreeMap<String, Value>) -> Res
     }
     let payload = StructArray::from(columns);
     let allowance = NonZeroUsize::new((64usize * 1024).saturating_mul(2)).expect("line captures have a nonzero bound");
-    let mut rows = harmos::storage::arrow::encode_payloads(schema, &payload, harmos::storage::PayloadEncoding::PostcardV1, allowance)
-        .map_err(|error| error.to_string())?;
+    let mut rows = harmos::storage::arrow::encode_payloads(schema, &payload, allowance).map_err(|error| error.to_string())?;
     rows.pop().ok_or_else(|| "matcher encoded no row".into())
 }
 
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,14 +137,18 @@ mod tests {
     #[test]
     fn captures_preserve_the_declared_codec_and_unsigned_range() {
         let graph = Schema::from_declaration(Reading::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
-        let row = Reading { counter: u64::MAX, voltage: 1.5, state: None };
+        let row = Reading {
+            counter: u64::MAX,
+            voltage: 1.5,
+            state: None,
+        };
         let values = BTreeMap::from([("counter".to_owned(), Value::Unsigned(u64::MAX)), ("voltage".to_owned(), Value::Number(1.5))]);
-        assert_eq!(capture_payload(&graph, &values).unwrap(), row.encode_to_vec());
+        assert_eq!(capture_payload(&graph, &values, &Default::default()).unwrap(), row.encode());
         let mut unknown = values.clone();
         unknown.insert("undeclared".to_owned(), Value::Bool(true));
-        assert!(capture_payload(&graph, &unknown).is_err());
+        assert!(capture_payload(&graph, &unknown, &Default::default()).is_err());
         let mut invalid = values;
         invalid.insert("counter".to_owned(), Value::Integer(-1));
-        assert!(capture_payload(&graph, &invalid).is_err());
+        assert!(capture_payload(&graph, &invalid, &Default::default()).is_err());
     }
 }

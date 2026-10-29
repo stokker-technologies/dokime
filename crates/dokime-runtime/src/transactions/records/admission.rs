@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +37,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn host(state: &RuntimeState, kind: &Identifier) -> Result<(), String> {
     if builtin(kind)
         || state.plugin_owners.iter().any(|(source, owner)| matches!(owner, PluginOwner::Host) && declares(state, source, kind))
@@ -62,6 +64,7 @@ pub(crate) fn sidecar(state: &RuntimeState, owner: &str, kind: &Identifier) -> R
 }
 
 /* === Private Functions === */
+
 fn builtin(kind: &Identifier) -> bool {
     crate::records::builtin_record_types().contains(kind)
 }

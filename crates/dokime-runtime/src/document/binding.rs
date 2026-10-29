@@ -36,6 +36,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Default)]
 pub(super) struct Evidence<'a> {
     pub records: Records<'a>,
@@ -46,6 +47,7 @@ pub(super) struct Evidence<'a> {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 pub(super) enum Row<'a> {
     Artifact { artifact: &'a ArtifactRecord, context: Option<Entry<'a>> },
@@ -57,6 +59,7 @@ pub(super) enum Row<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> Evidence<'a> {
     pub(super) fn upper_rows(self) -> usize {
         self.telemetry.len().saturating_add(self.context.len()).saturating_add(self.records.len()).saturating_add(self.artifacts.len())
@@ -67,7 +70,10 @@ impl<'a> Evidence<'a> {
     }
 
     pub(super) fn sample(self, sample: &'a TelemetrySample) -> Row<'a> {
-        Row::Sample { sample, context: self.context.for_scope(sample.scope.as_ref()) }
+        Row::Sample {
+            sample,
+            context: self.context.for_scope(sample.scope.as_ref()),
+        }
     }
 
     pub(super) fn rows(self, expression: &DataExpression) -> impl DoubleEndedIterator<Item = Row<'a>> {
@@ -89,7 +95,10 @@ impl<'a> Evidence<'a> {
             .filter(move |sample| {
                 !contextual && !uses_facts && self.selected(sample) && case.is_none_or(|case| case.covers(sample.scope.as_ref()))
             })
-            .map(move |sample| Row::Sample { sample, context: case.or_else(|| self.context.for_scope(sample.scope.as_ref())) });
+            .map(move |sample| Row::Sample {
+                sample,
+                context: case.or_else(|| self.context.for_scope(sample.scope.as_ref())),
+            });
         let records = self
             .records
             .iter()
@@ -101,7 +110,10 @@ impl<'a> Evidence<'a> {
                     && self.selection.is_none_or(|selection| selection.matches_scope(record.scope))
                     && case.is_none_or(|case| case.covers(record.scope))
             })
-            .map(move |record| Row::Record { record, context: case.or_else(|| self.context.for_scope(record.scope)) });
+            .map(move |record| Row::Record {
+                record,
+                context: case.or_else(|| self.context.for_scope(record.scope)),
+            });
         let contexts = self
             .context
             .entries()
@@ -118,14 +130,23 @@ impl<'a> Evidence<'a> {
                     && self.selection.is_none_or(|selection| selection.matches_scope(Some(&record.scope)))
                     && case.is_none_or(|case| case.covers(Some(&record.scope)))
             })
-            .map(move |artifact| Row::Artifact { artifact, context: case.or_else(|| self.context.for_scope(Some(&artifact.scope))) });
+            .map(move |artifact| Row::Artifact {
+                artifact,
+                context: case.or_else(|| self.context.for_scope(Some(&artifact.scope))),
+            });
         samples.chain(records).chain(contexts).chain(artifacts)
     }
 }
 
 impl<'a> From<&'a [TelemetrySample]> for Evidence<'a> {
     fn from(telemetry: &'a [TelemetrySample]) -> Self {
-        Self { records: Records::default(), artifacts: Artifacts::default(), telemetry, context: Context::default(), selection: None }
+        Self {
+            records: Records::default(),
+            artifacts: Artifacts::default(),
+            telemetry,
+            context: Context::default(),
+            selection: None,
+        }
     }
 }
 
@@ -151,20 +172,33 @@ impl Row<'_> {
 }
 
 /* === Public Functions === */
-pub(super) fn row_text<'a>(row: Row<'a>, expression: &DataExpression) -> Option<&'a str> {
-    let Row::Artifact { artifact, .. } = row else {
-        return None;
-    };
-    let DataSource::Artifact { artifact: filename } = &expression.source else {
-        return None;
-    };
-    if &artifact.filename != filename {
-        return None;
-    }
-    let Some(DataTransform::Detail { name }) = expression.transforms.first() else {
-        return None;
-    };
-    artifact_text_field(artifact, name)
+
+pub(crate) fn selected_sources(definition: &DocumentDefinition, context: Context<'_>) -> (Vec<String>, Vec<String>, bool) {
+    let records = std::cell::RefCell::new(Vec::new());
+    let streams = std::cell::RefCell::new(Vec::new());
+    let all_telemetry = std::cell::Cell::new(false);
+    bindings_need(definition, |expression| {
+        match &expression.source {
+            DataSource::Record { record_type } => records.borrow_mut().push(record_type.clone()),
+            DataSource::Telemetry { stream, .. } => streams.borrow_mut().push(stream.clone()),
+            _ if expression_needs_telemetry(expression, context) => all_telemetry.set(true),
+            _ => {}
+        }
+        // Correlated Telemetry May Name A Stream Independently Of The Primary Source.
+        for transform in &expression.transforms {
+            if let DataTransform::TelemetryAtOrBefore { stream, .. } = transform {
+                streams.borrow_mut().push(stream.clone());
+            }
+        }
+        false
+    });
+    let mut records = records.into_inner();
+    records.sort();
+    records.dedup();
+    let mut streams = streams.into_inner();
+    streams.sort();
+    streams.dedup();
+    (records, streams, all_telemetry.get())
 }
 
 pub(crate) fn telemetry_needed(definition: &DocumentDefinition, context: Context<'_>) -> bool {
@@ -235,10 +269,6 @@ pub(super) fn validate_predicates<'a>(expression: &DataExpression, filters: impl
         validate_pair(expression, &filter.expression)?;
     }
     Ok(())
-}
-
-pub(super) fn scratch_memory(definition: &DocumentDefinition, rows: usize) -> usize {
-    summary_expressions(definition).map(|expression| plan(expression, rows).map_or(usize::MAX, |plan| plan.memory(rows))).max().unwrap_or(0)
 }
 
 pub(super) fn evaluation_work(definition: &DocumentDefinition, rows: usize, instances: usize) -> usize {
@@ -367,8 +397,9 @@ pub(super) fn evaluate(expression: &DataExpression, evidence: Evidence<'_>, sele
 }
 
 /* === Private Functions === */
-fn plan(expression: &DataExpression, rows: usize) -> Result<Plan> {
-    let cases = expression.transforms.contains(&DataTransform::PerCase).then_some(rows.clamp(1, 4096));
+
+fn plan(expression: &DataExpression, rows: usize) -> Result<Plan<'_>> {
+    let cases = expression.transforms.contains(&DataTransform::PerCase).then_some(rows.max(1));
     Plan::compile(expression, cases)
 }
 

@@ -24,6 +24,7 @@ use std::path::Path;
 // Local Imports
 
 /* === Constants === */
+
 // The wire and storage bound of one artifact name, in UTF-8 bytes.
 pub const MAX_NAME_BYTES: usize = 255;
 
@@ -37,10 +38,12 @@ pub const MAX_PATH_BYTES: usize = 1024;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum InvalidName {
     #[error("artifact name must contain 1–255 bytes")]
     Length,
+
     #[error("artifact name must be a relative path with forward slashes and no empty, '.' or '..' segments")]
     Path,
 }
@@ -50,6 +53,7 @@ pub enum InvalidName {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // One relative path below an execution folder: forward slashes, no empty, `.`
 // or `..` segment, no root, drive or control character.
 pub fn is_relative_path(path: &str) -> bool {

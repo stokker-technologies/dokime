@@ -12,146 +12,212 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+use std::fmt::Write as _;
 
 // Third Party Imports
-use harmos::operations::StreamOutput;
+use dokime::harmos::operations::{Response, StreamOutput};
+use dokime::harmos::storage::{ByteRange, ReadBatch};
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncReadExt;
 use tonic::Status;
+
 // Local Imports
 use super::super::chunked;
 use super::{failure, source_budget};
-use dokime_domain::operations::content;
-use dokime_runtime::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
+use dokime::operations::content;
+use dokime::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
 
 /* === Constants === */
-const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
+
+const SERVER_APPEARANCE_ASSET_BYTES: u64 = 8_388_608;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Asset {
-    pub metadata: dokime_domain::model::appearance::wire::AppearanceAssetMetadata,
-    bytes: Vec<u8>,
+    pub metadata: ReadBatch<dokime::domain::model::appearance::wire::AppearanceAssetMetadata>,
+    bytes: ReadBatch<Vec<u8>>,
 }
 
-struct AssetFrames(dokime_domain::model::appearance::wire::AppearanceAssetMetadata);
+struct AssetFrames {
+    metadata: Response<dokime::domain::model::content::wire::AppearanceAssetFrame>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl chunked::Frames for AssetFrames {
-    type Frame = dokime_domain::model::content::wire::AppearanceAssetFrame;
+    type Frame = dokime::domain::model::content::wire::AppearanceAssetFrame;
 
     fn metadata(&self) -> Self::Frame {
-        dokime_domain::model::content::wire::AppearanceAssetFrame {
-            payload: Some(dokime_domain::model::content::wire::AppearanceAssetFramePayload::Metadata(self.0.clone())),
-        }
+        (*self.metadata).clone()
+    }
+
+    fn metadata_owned(&self) -> Option<Response<Self::Frame>> {
+        Some(self.metadata.clone())
     }
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        dokime_domain::model::content::wire::AppearanceAssetFrame {
-            payload: Some(dokime_domain::model::content::wire::AppearanceAssetFramePayload::Chunk(
-                dokime_domain::model::content::wire::ArtifactChunk { offset, data },
+        dokime::domain::model::content::wire::AppearanceAssetFrame {
+            payload: Some(dokime::domain::model::content::wire::AppearanceAssetFramePayload::Chunk(
+                dokime::domain::model::content::wire::ArtifactChunk { offset, data },
             )),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        dokime_domain::model::content::wire::AppearanceAssetFrame {
-            payload: Some(dokime_domain::model::content::wire::AppearanceAssetFramePayload::Complete(
-                dokime_domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
+        dokime::domain::model::content::wire::AppearanceAssetFrame {
+            payload: Some(dokime::domain::model::content::wire::AppearanceAssetFramePayload::Complete(
+                dokime::domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
             )),
         }
     }
 }
 
 /* === Public Functions === */
-pub(super) async fn capture(source: RuntimeInstalledPluginAsset, plugin_id: String, asset_id: String) -> Result<Asset, Status> {
-    if source.mime_type.len() > 128 || !source.mime_type.starts_with("image/") {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable));
+
+pub(super) async fn capture(
+    session: &dokime::storage::Manager, source: &RuntimeInstalledPluginAsset, plugin_id: &str, asset_id: &str, maximum_bytes: usize,
+) -> Result<Asset, Status> {
+    if !source.mime_type.starts_with("image/") {
+        return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable));
     }
     // Registered sources are host-owned paths. Reject non-files before opening
     // them, then validate the opened handle again to avoid stale size checks.
     let initial = tokio::fs::metadata(&source.path).await.map_err(io_failure)?;
     if !initial.is_file() {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable));
+        return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable));
     }
-    if initial.len() > MAX_ASSET_BYTES as u64 {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
+    if initial.len() > maximum_bytes as u64 {
+        return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
     }
-    let file = tokio::fs::File::open(source.path).await.map_err(io_failure)?;
+    let file = tokio::fs::File::open(&source.path).await.map_err(io_failure)?;
     let metadata = file.metadata().await.map_err(io_failure)?;
     if !metadata.is_file() {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable));
+        return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable));
     }
-    if metadata.len() > MAX_ASSET_BYTES as u64 {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
+    if metadata.len() > maximum_bytes as u64 {
+        return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
     }
-    let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    file.take((MAX_ASSET_BYTES + 1) as u64).read_to_end(&mut bytes).await.map_err(io_failure)?;
-    if bytes.len() > MAX_ASSET_BYTES {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
+    let file = file.into_std().await;
+    let mut reader = session.read_opened_file(file, ByteRange { offset: 0, limit: None }).await.map_err(native_failure)?;
+    let first = reader.next().await.map_err(native_failure)?;
+    let mut bytes = match first {
+        Some(batch) if batch.bytes().len() <= maximum_bytes => batch.try_map(|batch| Ok(batch.bytes)),
+        Some(_) => return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge)),
+        None => dokime::harmos::storage::ReadBatch::new(()).try_map(|_| Ok(Vec::new())),
     }
-    let sha256 = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-    Ok(Asset {
-        metadata: dokime_domain::model::appearance::wire::AppearanceAssetMetadata {
-            reference: Some(dokime_domain::model::appearance::wire::AppearanceAssetReference { plugin_id, asset_id, sha256 }),
-            content_type: source.mime_type,
-            size_bytes: bytes.len() as u64,
-        },
-        bytes,
-    })
+    .map_err(native_failure)?;
+    while let Some(batch) = reader.next().await.map_err(native_failure)? {
+        let length = bytes
+            .len()
+            .checked_add(batch.bytes().len())
+            .filter(|length| *length <= maximum_bytes)
+            .ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
+        bytes = bytes
+            .try_map(|mut bytes| {
+                bytes.try_reserve_exact(length - bytes.len()).map_err(|_| allocation())?;
+                bytes.extend_from_slice(batch.bytes());
+                Ok(bytes)
+            })
+            .map_err(native_failure)?;
+    }
+    reader.completion().map_err(native_failure)?;
+
+    let metadata = dokime::harmos::storage::ReadBatch::new(())
+        .try_map(|_| {
+            let hash = Sha256::digest(bytes.as_slice());
+            let mut sha256 = String::new();
+            sha256.try_reserve_exact(64).map_err(|_| allocation())?;
+            for byte in hash {
+                write!(&mut sha256, "{byte:02x}").map_err(|_| allocation())?;
+            }
+            Ok(dokime::domain::model::appearance::wire::AppearanceAssetMetadata {
+                reference: Some(dokime::domain::model::appearance::wire::AppearanceAssetReference {
+                    plugin_id: plugin_id.to_owned(),
+                    asset_id: asset_id.to_owned(),
+                    sha256,
+                }),
+                content_type: source.mime_type.clone(),
+                size_bytes: bytes.len() as u64,
+            })
+        })
+        .map_err(native_failure)?;
+    Ok(Asset { metadata, bytes })
 }
 
 pub(crate) async fn download(
     runtime: &RuntimeHandle, request: content::DownloadAppearanceAsset, max_message_bytes: usize,
-    output: &mut StreamOutput<dokime_domain::model::content::wire::AppearanceAssetFrame>,
+    output: &StreamOutput<dokime::domain::model::content::wire::AppearanceAssetFrame>,
 ) -> Result<(), Status> {
     let reference =
-        request.reference.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::InvalidReference))?;
-    if reference.plugin_id.len() > 256
-        || reference.asset_id.len() > 256
-        || dokime_domain::model::identity::Identifier::new(&reference.plugin_id).is_err()
-        || dokime_domain::model::identity::Identifier::new(&reference.asset_id).is_err()
+        request.reference.ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::InvalidReference))?;
+    if dokime::domain::model::identity::Identifier::new(&reference.plugin_id).is_err()
+        || dokime::domain::model::identity::Identifier::new(&reference.asset_id).is_err()
         || reference.sha256.len() != 64
         || !reference.sha256.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
     {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::InvalidReference));
+        return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::InvalidReference));
     }
+    let session = runtime.storage().clone();
     let captured = runtime
         .capture_appearance(source_budget(max_message_bytes))
-        .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
-    let logo = captured.frame.logo.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
-    if logo.plugin_id.as_str() != reference.plugin_id || logo.asset_id.as_str() != reference.asset_id {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing));
-    }
-    let source = captured.logo.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
-    let asset = capture(source, reference.plugin_id.clone(), reference.asset_id.clone()).await?;
+        .map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
+    let source = captured
+        .frame
+        .logos
+        .iter()
+        .zip(captured.logos.iter())
+        .find(|(logo, _)| logo.plugin_id.as_str() == reference.plugin_id && logo.asset_id.as_str() == reference.asset_id)
+        .and_then(|(_, source)| source.as_ref())
+        .ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
+    let asset = capture(
+        &session,
+        source,
+        &reference.plugin_id,
+        &reference.asset_id,
+        usize::try_from(SERVER_APPEARANCE_ASSET_BYTES).expect("validated appearance asset size"),
+    )
+    .await?;
+    drop(captured);
     if asset.metadata.reference.as_ref() != Some(&reference) {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetChanged));
+        return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetChanged));
     }
     let sha256 = asset.metadata.reference.as_ref().expect("captured reference").sha256.clone();
+    let size_bytes = asset.metadata.size_bytes;
+    let metadata = asset
+        .metadata
+        .try_map(|metadata| {
+            Ok(dokime::domain::model::content::wire::AppearanceAssetFrame {
+                payload: Some(dokime::domain::model::content::wire::AppearanceAssetFramePayload::Metadata(metadata)),
+            })
+        })
+        .map_err(native_failure)?;
+    let frames = AssetFrames {
+        metadata: Response::from_owner(metadata.owner()),
+    };
     chunked::Download {
-        size_bytes: asset.metadata.size_bytes,
+        size_bytes,
         sha256: Some(sha256),
-        frames: AssetFrames(asset.metadata),
-        source: chunked::Source::bytes(asset.bytes),
+        frames,
+        source: chunked::Source::bytes(Response::from_owner(asset.bytes.owner())),
         noun: "appearance asset",
         read_failure: "appearance asset content could not be read",
-        chunk_bytes: (64 * 1024).min(max_message_bytes.saturating_sub(128)),
+        chunk_bytes: super::super::content::download_chunk_bytes(runtime, max_message_bytes)?,
         message_limit: max_message_bytes,
     }
     .run(output)
     .await
     .map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
-            failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge)
+            failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge)
         } else {
             source
         }
@@ -159,11 +225,27 @@ pub(crate) async fn download(
 }
 
 /* === Private Functions === */
+
+fn allocation() -> dokime::harmos::storage::Error {
+    dokime::harmos::storage::Error::ResourceExhausted {
+        resource: "appearance asset construction",
+    }
+}
+
+pub(super) fn native_failure(error: dokime::harmos::storage::Error) -> Status {
+    let kind = if matches!(error, dokime::harmos::storage::Error::ResourceExhausted { .. }) {
+        dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge
+    } else {
+        dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable
+    };
+    failure(kind)
+}
+
 fn io_failure(error: std::io::Error) -> Status {
     failure(if error.kind() == std::io::ErrorKind::NotFound {
-        dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing
+        dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetMissing
     } else {
-        dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable
+        dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable
     })
 }
 

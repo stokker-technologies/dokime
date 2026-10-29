@@ -17,9 +17,9 @@
 
 // Third Party Imports
 
+import type { ArtifactSource } from "@/lib/desktop/delivery";
 // Local Imports
 import type { MediaArtifactKind } from "@/lib/media";
-import type { ArtifactSource } from "@/lib/desktop/delivery";
 import type { RecordScope } from "@/lib/types";
 
 /* === Re-Exports === */

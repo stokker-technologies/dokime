@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+
 mod registration;
 
 /* === Re-Exports === */
+
 pub use registration::ExecutionProviderTarget;
 pub use registration::SidecarExecutionBinding;
 pub use registration::SuiteContractError;
@@ -18,6 +20,7 @@ pub use registration::TestSuiteDefinition;
 pub use registration::resolve_suite_plot_axes;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

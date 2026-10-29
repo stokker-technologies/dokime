@@ -7,7 +7,11 @@
  * ***
  */
 
+// Match The Runtime's Nested Native Startup Future Layout.
+#![recursion_limit = "256"]
+
 /* === Modules === */
+
 mod app;
 pub mod bindings;
 pub mod connection;
@@ -17,10 +21,12 @@ pub mod parameters;
 pub mod rpc;
 
 /* === Re-Exports === */
+
 pub use app::run;
 pub use error::Error;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,6 +34,7 @@ pub use error::Error;
 // Local Imports
 
 /* === Constants === */
+
 pub const PRODUCT: &str = env!("DOKIME_BRAND_LABEL");
 
 /* === Macros === */

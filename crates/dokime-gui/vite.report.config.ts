@@ -22,6 +22,7 @@ const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.met
 const appVersion = packageJson.version ?? "dev";
 
 export default defineConfig({
+  publicDir: false,
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
     __DOKIME_UI_MODE__: JSON.stringify("report"),
@@ -29,8 +30,10 @@ export default defineConfig({
   },
   plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {
+    dedupe: ["@bufbuild/protobuf"],
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@generated": fileURLToPath(new URL("../../target/generated/typescript", import.meta.url)),
     },
   },
   build: {

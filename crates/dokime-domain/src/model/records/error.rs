@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::diagnostics::StructuredErrorDetail;
 use crate::model::records::RecordSeverity;
@@ -23,6 +25,7 @@ use crate::model::records::RecordSeverity;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(RecordFailure, formatter {
     Self::UnknownRecordType { record_type } => write!(formatter, "record type {record_type:?} is not registered"),
     Self::SchemaVersionMismatch { record_type, expected, actual } => write!(formatter, "record {record_type:?} expects schema version {expected}, got {actual}"),
@@ -37,9 +40,11 @@ product_error!(RecordFailure, formatter {
 });
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, RecordFailure>;
 
 /* === Structs === */
+
 #[derive(Debug, PartialEq, thiserror::Error)]
 #[error("record {record:?} detail {field:?}: {reason}")]
 pub struct RecordDetailError {
@@ -78,6 +83,7 @@ pub enum RecordFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for RecordErrorDetail {
     fn memory_size(&self) -> usize {
         let fields = [

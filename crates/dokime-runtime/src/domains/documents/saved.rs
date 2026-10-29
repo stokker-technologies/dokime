@@ -17,13 +17,11 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::operations::ReadFile;
+use harmos::storage::FileRead;
 use harmos::storage::{ByteRange, ObjectRevision, ObjectVersion};
 
 // Local Imports
-use crate::execution_runtime::outputs::{
-    ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState, MAX_ARTIFACT_READ_BYTES,
-};
+use crate::execution_runtime::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState};
 use crate::storage::Manager;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::result::TestExecution;
@@ -41,9 +39,10 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct SavedOutputs {
-    storage: Manager,
-    revision: ObjectRevision<TestExecution>,
+    session: crate::storage::Manager,
+    revision: harmos::storage::ReadBatch<ObjectRevision<TestExecution>>,
 }
 
 pub(crate) struct SavedOutputFile {
@@ -56,8 +55,15 @@ pub(crate) struct SavedOutputFile {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SavedOutputs {
     pub(crate) async fn open(storage: &Manager, id: &TestExecutionId, checkpoint: Option<&ExecutionCheckpoint>) -> Result<Option<Self>> {
+        Self::open_in(&storage.clone(), id, checkpoint).await
+    }
+
+    pub(crate) async fn open_in(
+        session: &crate::storage::Manager, id: &TestExecutionId, checkpoint: Option<&ExecutionCheckpoint>,
+    ) -> Result<Option<Self>> {
         let version = match checkpoint {
             Some(point) => {
                 point.validate().map_err(crate::storage::Error::from)?;
@@ -68,7 +74,7 @@ impl SavedOutputs {
             }
             None => ObjectVersion::Latest,
         };
-        let Some(revision) = crate::storage::objects::execution::read(storage, id, version).await? else {
+        let Some(revision) = crate::storage::objects::execution::read(session, id, version).await? else {
             return Ok(None);
         };
         if let Some(point) = checkpoint
@@ -89,7 +95,7 @@ impl SavedOutputs {
         {
             return Err(invalid("saved output seal admission or evidence cut differs"));
         }
-        Ok(Some(Self { storage: storage.clone(), revision }))
+        Ok(Some(Self { session: session.clone(), revision }))
     }
 
     fn outputs(&self) -> &[ExecutionOutput] {
@@ -117,46 +123,60 @@ impl SavedOutputFile {
         &self.outputs.outputs()[self.index]
     }
 
-    pub(crate) fn metadata(&self) -> ExecutionFileContent {
-        window(self.descriptor(), 0, Vec::new())
+    pub(crate) fn session(&self) -> &crate::storage::Manager {
+        &self.outputs.session
     }
 
-    pub(crate) async fn window(&self, offset: u64, maximum: NonZeroUsize) -> Result<ExecutionFileContent> {
-        let maximum = maximum.get().min(MAX_ARTIFACT_READ_BYTES);
+    pub(crate) fn metadata(&self) -> Result<harmos::storage::ReadBatch<ExecutionFileContent>> {
+        let output = self.descriptor();
+        harmos::storage::ReadBatch::new(()).try_map(|_| Ok(window(output, 0, Vec::new())))
+    }
+
+    pub(crate) async fn window(&self, offset: u64, maximum: NonZeroUsize) -> Result<harmos::storage::ReadBatch<ExecutionFileContent>> {
+        let maximum = maximum.get();
         let output = self.descriptor();
         let offset = offset.min(output.file.length);
-        let bytes = self.read(offset, maximum as u64).await?;
-        Ok(window(output, offset, bytes))
+        self.read(offset, maximum as u64).await
     }
 
-    pub(crate) async fn snapshot(&self, maximum: NonZeroUsize, require_complete: bool) -> Result<ExecutionFileContent> {
-        let output = self.descriptor();
-        if require_complete && output.file.length > maximum.get() as u64 {
-            return Err(crate::runtime::Error::ExecutionFileTooLarge);
-        }
-        let bytes = self.read(0, maximum.get() as u64).await?;
-        Ok(window(output, 0, bytes))
+    pub(crate) async fn snapshot(&self) -> Result<harmos::storage::ReadBatch<ExecutionFileContent>> {
+        self.read(0, self.descriptor().file.length).await
     }
 
-    async fn read(&self, offset: u64, limit: u64) -> Result<Vec<u8>> {
-        let mut reader = self
+    async fn read(&self, offset: u64, limit: u64) -> Result<harmos::storage::ReadBatch<ExecutionFileContent>> {
+        let metadata = self.metadata()?;
+        let length = usize::try_from((metadata.size_bytes - offset).min(limit)).map_err(|_| invalid("saved file extent overflows"))?;
+        let reader = self
             .outputs
-            .storage
-            .read_file(ReadFile { file: self.descriptor().file.clone(), range: ByteRange { offset, limit: Some(limit) } })
+            .session
+            .read_file(FileRead {
+                source: harmos::storage::FileSource::Stored(self.descriptor().file.clone()),
+                range: ByteRange { offset, limit: Some(limit) },
+            })
             .await?;
-        let mut bytes = Vec::new();
-        while let Some(batch) = reader.next().await? {
-            bytes.extend_from_slice(&batch.bytes);
-        }
-        Ok(bytes)
+        crate::runtime::storage::native_outputs::reader::collect(metadata, reader, offset, length).await
     }
 }
 
 /* === Public Functions === */
+
 pub(crate) fn entry(id: &TestExecutionId, output: &ExecutionOutput) -> harmos::Result<ExecutionFileEntry> {
     let artifact_id = match &output.content {
         ExecutionOutputContent::Artifact { record, .. } => record.artifact_id.as_str().to_owned(),
-        ExecutionOutputContent::File => format!("{}:{}", id.as_str(), output.relative_path),
+        ExecutionOutputContent::File => {
+            let bytes = id
+                .as_str()
+                .len()
+                .checked_add(1)
+                .and_then(|bytes| bytes.checked_add(output.relative_path.len()))
+                .ok_or(harmos::Error::ResourceExhausted { resource: "execution file identity" })?;
+            let mut value = String::new();
+            value.try_reserve_exact(bytes).map_err(|_| harmos::Error::ResourceExhausted { resource: "execution file identity" })?;
+            value.push_str(id.as_str());
+            value.push(':');
+            value.push_str(&output.relative_path);
+            value
+        }
     };
     Ok(ExecutionFileEntry {
         artifact_id,
@@ -170,6 +190,7 @@ pub(crate) fn entry(id: &TestExecutionId, output: &ExecutionOutput) -> harmos::R
 }
 
 /* === Private Functions === */
+
 fn state(output: &ExecutionOutput) -> ExecutionFileStreamState {
     match output.stream_state {
         Some(SavedStreamState::Interrupted) => ExecutionFileStreamState::Interrupted,

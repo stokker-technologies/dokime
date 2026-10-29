@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::Identifier;
@@ -31,6 +34,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySample {
     pub sample_id: TelemetrySampleId,
@@ -42,8 +46,10 @@ pub struct TelemetrySample {
     pub source: String,
     pub scope: Option<RecordScope>,
     pub values: BTreeMap<String, Value>,
+
     #[serde(skip)]
     pub storage_payload: Option<Vec<u8>>,
+
     pub summary: BTreeMap<String, Value>,
     pub metadata: BTreeMap<String, Value>,
 }
@@ -53,6 +59,7 @@ pub struct TelemetrySample {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for TelemetrySample {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -80,7 +87,7 @@ impl TelemetrySample {
     }
 
     pub fn typed<T: harmos_domain::Message>(self, row: &T) -> Self {
-        self.with_storage_payload(row.encode_to_vec())
+        self.with_storage_payload(row.encode())
     }
 
     pub fn new(sample_id: TelemetrySampleId, stream: Identifier, sequence: u64, timestamp: Timestamp, source: impl Into<String>) -> Self {

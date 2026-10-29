@@ -48,7 +48,7 @@ export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
   }
 
   return (
-    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-5 rounded-md bg-muted/20 p-4">
+    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-4 rounded-lg bg-muted/20 p-4">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="truncate text-sm font-semibold">{plot.title}</h4>
@@ -61,13 +61,13 @@ export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
       <div className="grid gap-3 pt-1">
         {buckets.map((bucket) => (
           <div
-            className="grid min-h-14 min-w-0 grid-cols-[minmax(6.5rem,10rem)_minmax(10rem,1fr)_max-content] items-center gap-3"
+            className="grid min-h-14 min-w-0 grid-cols-[minmax(--spacing(26),--spacing(40))_minmax(--spacing(40),1fr)_max-content] items-center gap-3"
             key={bucket.key}
           >
             <span className="min-w-0 truncate text-xs font-semibold tabular-nums" title={bucket.label}>
               {bucket.label}
             </span>
-            <div className="relative h-12 min-w-0 overflow-hidden rounded-md bg-background ring-1 ring-border">
+            <div className="relative h-12 min-w-0 overflow-hidden rounded-lg bg-background ring-1 ring-border">
               {[...new Set(bucket.outliers)].map((value) => (
                 <span
                   key={value}

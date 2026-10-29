@@ -90,7 +90,11 @@ impl SidecarTemplate for Capture {
         template.set_metadata(dokime_runtime::definition::authoring::metadata(TEMPLATE, "Capture", None::<String>));
         template.set_steps(vec![Step::new("capture", "Capture")]);
 
-        TemplateDefinition { template: template.into_test_case_template().unwrap(), records: Vec::new(), streams: Vec::new() }
+        TemplateDefinition {
+            template: template.into_test_case_template().unwrap(),
+            records: Vec::new(),
+            streams: Vec::new(),
+        }
     }
 
     fn initialize<'a>(ctx: &'a mut InitializationContext<'_, Self, ()>) -> InitializationFuture<'a, (Self, ())> {
@@ -137,8 +141,14 @@ impl DirectoryRun {
         let reply = self.workflow.drain(&self.token, self.cursor).unwrap();
         for encoded in &reply.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            self.workflow
-                .admit(&self.token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
+            self.workflow.admit(
+                &self.token,
+                &StepAdmission {
+                    attempt_id: start.attempt_id.to_string(),
+                    accepted: true,
+                    message: String::new(),
+                },
+            );
         }
         self.cursor = reply.cursor;
         for chunk in reply.artifact_chunks {

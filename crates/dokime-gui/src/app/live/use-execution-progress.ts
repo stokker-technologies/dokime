@@ -17,6 +17,8 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openNativeExecutionProgressStream } from "@/lib/api/native-observation";
 import { safeNumber } from "@/lib/api/native-values";
 
+const GUI_RECONNECT_MS = 1_000;
+
 /* === Types === */
 
 export interface LiveExecutionProgress {
@@ -70,7 +72,7 @@ export function useExecutionProgress(testExecutionId: string | null): LiveExecut
       } finally {
         stream = undefined;
         if (active && session.identity.isCurrent()) {
-          retry = window.setTimeout(() => void connect(), 1_000);
+          retry = window.setTimeout(() => void connect(), GUI_RECONNECT_MS);
         }
       }
     };

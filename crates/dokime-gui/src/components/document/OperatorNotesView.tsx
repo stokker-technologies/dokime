@@ -133,7 +133,7 @@ function NoteEditor({
           <button
             aria-selected={draft.tab === tab.id}
             className={cn(
-              "rounded-md px-2.5 py-1 text-xs font-semibold uppercase text-muted-foreground transition-colors hover:text-foreground",
+              "rounded-lg px-3 py-1 text-xs font-semibold uppercase text-muted-foreground transition-colors hover:text-foreground",
               draft.tab === tab.id && "bg-muted text-foreground",
             )}
             key={tab.id}
@@ -155,7 +155,7 @@ function NoteEditor({
           value={draft.markdown}
         />
       ) : (
-        <div className="min-h-28 rounded-lg border border-border/40 px-2.5 py-2">
+        <div className="min-h-28 rounded-lg border border-border/40 px-3 py-2">
           <MarkdownText text={draft.markdown} />
         </div>
       )}

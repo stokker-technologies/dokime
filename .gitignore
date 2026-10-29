@@ -7,6 +7,7 @@
 
 # Runtime outputs from dev stacks, exercises, and e2e runs
 /.run/
+.env
 
 # Python
 /.cache/
@@ -36,10 +37,6 @@ __pycache__/
 /crates/dokime-gui/playwright-report/
 /crates/dokime-gui/src-tauri/gen/
 
-/crates/dokime-gui/src-tauri/binaries/*
-!/crates/dokime-gui/src-tauri/binaries/.gitkeep
-# Retired installer staging path may still exist in developer checkouts.
-/crates/dokime-gui/src-tauri/resources/runtime/
 /crates/dokime-gui/src-tauri/target/
 /examples/*/dist/
 
@@ -93,9 +90,6 @@ Thumbs.db
 /core
 /core.*
 
-# Generated report embedded by the runtime and included in source distributions.
-/crates/dokime-runtime/dist-report/
-
 # Retired Private Namespace Must Never Enter History
 /.stkr/agents/
 
@@ -105,4 +99,8 @@ Thumbs.db
 
 # BEGIN Stkr CI
 /.cache/
+/.mise/
 # END Stkr CI
+
+# OpenSpec Changes And Specs Are Tracked; Uncomment To Keep Them Local.
+# /openspec/

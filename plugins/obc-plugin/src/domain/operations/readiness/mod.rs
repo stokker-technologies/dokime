@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -26,13 +27,13 @@ use crate::domain::model::readiness::Readiness;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
-    id = "obc-plugin.check_readiness",
+
+#[dokime::operation(
+    id = "obc.bench.check_readiness",
     response = Readiness,
-    version = 1,
     description = "Reports whether the testbench will still take work. A template calls it with `AskReadiness {}`.",
-    policy = super::POLICY
+    policy = super::POLICY,
+    resources = [crate::Resources]
 )]
 #[derive(Clone, PartialEq)]
 pub struct AskReadiness {}

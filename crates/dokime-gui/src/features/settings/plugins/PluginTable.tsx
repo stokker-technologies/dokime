@@ -18,14 +18,12 @@
 
 /* === External Imports === */
 
-import { Settings2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { DataTable } from "@/components/data-table/DataTable";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 
 /* === Types === */
@@ -54,7 +52,7 @@ const column = dataTableColumns<PluginTableRow>();
 const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
   column.accessor("name", {
     cell: ({ row }) => (
-      <div className="grid min-w-0 gap-0.5">
+      <div className="grid min-w-0 gap-1">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-medium" title={row.original.name}>
             {row.original.name}
@@ -89,50 +87,33 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
     meta: { label: "Enabled", width: "w-24" },
   }),
   column.display({
-    // A disabled control swallows pointer events, so the reason it is
-    // disabled has to live on the wrapper.
-    cell: ({ row }) => (
-      <span className="flex items-center" title={row.original.onOpenSettings ? "Plugin Settings" : "No settings"}>
-        <Button
-          aria-label="Plugin Settings"
-          disabled={!row.original.onOpenSettings}
-          onClick={row.original.onOpenSettings}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          <Settings2 />
-        </Button>
-      </span>
-    ),
-    header: "Settings",
-    id: "settings",
-    meta: { label: "Settings", width: "w-24" },
-  }),
-  column.display({
-    cell: ({ row }) => <span className="flex items-center justify-end gap-2">{row.original.trailing}</span>,
-    header: () => <span className="sr-only">Actions</span>,
     id: "actions",
-    meta: { align: "end", label: "Actions", width: "w-44" },
+    header: "Actions",
+    meta: { width: "w-48", align: "end" },
+    cell: ({ row }) => (
+      <DataTableRowActions
+        label={row.original.name}
+        primary={{ label: "Settings", disabled: !row.original.onOpenSettings, onSelect: () => row.original.onOpenSettings?.() }}
+      >
+        {row.original.trailing}
+      </DataTableRowActions>
+    ),
   }),
 ]);
 
 /* === Components === */
 
-export function PluginTable({ label, rows }: { label: string; rows: PluginTableRow[] }) {
+export function PluginTable({ label, rows, actions }: { label: string; rows: PluginTableRow[]; actions?: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
-      <DataTable
-        aria-label={label}
-        className="[--table-inset:1rem] [--table-surface:var(--card)]"
-        columns={COLUMNS}
-        data={rows}
-        emptyText="No plugins."
-        getRowId={rowKey}
-        onRowClick={(row) => row.onOpenSettings?.()}
-        stickyHeader={false}
-      />
-    </div>
+    <DataTable
+      actions={actions}
+      aria-label={label}
+      columns={COLUMNS}
+      data={rows}
+      emptyText="No plugins."
+      getRowId={rowKey}
+      onRowClick={(row) => row.onOpenSettings?.()}
+    />
   );
 }
 

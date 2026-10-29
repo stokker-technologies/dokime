@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,6 +22,7 @@
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! call_handler {
     (sync, $handler:path, $($arg:ident),*) => { $handler($($arg),*) };
     (async, $handler:path, $($arg:ident),*) => { $handler($($arg),*).await };
@@ -47,6 +49,36 @@ macro_rules! native_commands {
 }
 
 native_commands! {
+    async desktop_pairing_create
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
+        (label: String, endpoint: String) -> Result<Option<std::path::PathBuf>, crate::connection::ConnectionError>
+        => crate::app::desktop::desktop_pairing_create;
+    async desktop_backend_import_pairing
+        [window: tauri::WebviewWindow, app: tauri::AppHandle, registry: tauri::State<'_, crate::connection::registry::Registry>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+        (identifier: Option<String>) -> Result<Option<dokime::client::profiles::Document>, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backend_import_pairing;
+
+    async desktop_backends_list [] () -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backends_list;
+    async desktop_backend_add [registry: tauri::State<'_, crate::connection::registry::Registry>]
+        (profile: dokime::client::profiles::Profile) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backend_add;
+    async desktop_backend_remove
+        [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (identifier: String) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backend_remove;
+    async desktop_backend_use
+        [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (identifier: String) -> Result<crate::connection::ConnectionSnapshot, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backend_use;
+    async desktop_settings_read [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+        (scope: dokime::domain::model::settings::application::SettingsScope) -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
+        => crate::app::preferences::desktop_settings_read;
+    async desktop_settings_update [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+        (scope: dokime::domain::model::settings::application::SettingsScope, update: dokime::domain::model::settings::application::UpdateSettings)
+        -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
+        => crate::app::preferences::desktop_settings_update;
+
     // Secret-free native launch preferences.
     sync desktop_session_launch
         [state: tauri::State<'_, crate::native_session::launch::DesktopLaunch>]
@@ -69,11 +101,6 @@ native_commands! {
         () -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
         => crate::native_session::desktop_session_status;
 
-
-    sync desktop_profiles_list
-        []
-        () -> Result<dokime_client::profiles::Document, String>
-        => crate::native_session::desktop_profiles_list;
 
     // Open the failed owned start's log; the shell supplies the path.
     async desktop_open_backend_log
@@ -116,11 +143,10 @@ native_commands! {
         (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<Option<String>, String>
         => crate::app::desktop::desktop_save_document;
 
-    // Open a verified document from the private native cache.
-    async desktop_open_document
+    async desktop_pick_secret_archive
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<(), String>
-        => crate::app::desktop::desktop_open_document;
+        (generation: String) -> Result<Option<String>, String>
+        => crate::app::desktop::desktop_pick_secret_archive;
 
     // Write a verified diagnostics bundle into the operator's Downloads folder;
     // returns the saved path.
@@ -133,7 +159,7 @@ native_commands! {
     // native destination.
     async desktop_artifact_deliver
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<bool, crate::app::content::DeliveryError>
+        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<Option<crate::app::desktop::Delivered>, crate::app::content::DeliveryError>
         => crate::app::desktop::desktop_artifact_deliver;
 
     // Materialize one verified artifact in the private media cache and return its preview URL path.
@@ -154,10 +180,34 @@ native_commands! {
         (generation: String, duration_ms: u64, media_type: String) -> Result<String, String>
         => crate::app::recording::desktop_recording_finish;
 
+    // Stage the bundle just dropped on the window, or pick one natively; `None` when the operator cancels.
+    async desktop_plugin_install_file
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, dropped: tauri::State<'_, crate::app::plugins::DroppedFiles>, app: tauri::AppHandle]
+        (generation: String, drop: bool, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<Option<String>, String>
+        => crate::app::plugins::desktop_plugin_install_file;
+
     sync desktop_set_title
         [window: tauri::WebviewWindow]
         (title: String) -> Result<(), String>
         => crate::app::desktop::desktop_set_title;
+
+    // The organization pack applied at boot and the one that applies on the next start.
+    sync desktop_organization_status
+        [state: tauri::State<'_, crate::app::organization::OrganizationState>]
+        () -> Result<crate::app::organization::OrganizationStatus, String>
+        => crate::app::organization::desktop_organization_status;
+
+    // Pick, validate and stage a organization pack zip; None when the picker is dismissed.
+    async desktop_organization_choose
+        [app: tauri::AppHandle]
+        () -> Result<Option<crate::app::organization::OrganizationStatus>, String>
+        => crate::app::organization::desktop_organization_choose;
+
+    // Delete the pending and active packs; the compiled brand applies on the next start.
+    async desktop_organization_remove
+        [app: tauri::AppHandle]
+        () -> Result<crate::app::organization::OrganizationStatus, String>
+        => crate::app::organization::desktop_organization_remove;
 
     // Drain all runtime resources before requesting Tauri's non-cancellable restart.
     async desktop_restart
@@ -175,35 +225,35 @@ native_commands! {
         (values: crate::parameters::Values) -> Result<(), crate::app::settings::DesktopSettingsError>
         => crate::app::settings::desktop_parameters_write;
 
-    async desktop_pick_execution_directory
-        [app: tauri::AppHandle]
-        () -> Result<Option<String>, crate::app::settings::DesktopSettingsError>
-        => crate::app::settings::desktop_pick_execution_directory;
+    async desktop_updates_status
+        [state: tauri::State<'_, crate::app::updates::UpdateState>]
+        () -> Result<crate::app::updates::UpdateStatus, String>
+        => crate::app::updates::desktop_updates_status;
 
-    async gitlab_auth_status
-        [state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabAuthStatus, String>
-        => crate::app::gitlab::gitlab_auth_status;
+    async desktop_updates_configure
+        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        (selection: crate::app::updates::Selection) -> Result<crate::app::updates::UpdateStatus, String>
+        => crate::app::updates::desktop_updates_configure;
 
-    async gitlab_sign_in
-        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabAuthStatus, String>
-        => crate::app::gitlab::gitlab_sign_in;
+    async desktop_updates_check
+        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        () -> Result<crate::app::updates::UpdateCheck, String>
+        => crate::app::updates::desktop_updates_check;
 
-    async gitlab_sign_out
-        [state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabAuthStatus, String>
-        => crate::app::gitlab::gitlab_sign_out;
+    async desktop_updates_install
+        [state: tauri::State<'_, crate::app::updates::UpdateState>]
+        (candidate: String) -> Result<crate::app::updates::InstallResult, String>
+        => crate::app::updates::desktop_updates_install;
 
-    async gitlab_check_for_updates
-        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabUpdateCheck, String>
-        => crate::app::gitlab::gitlab_check_for_updates;
+    async desktop_plugin_release_check
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        (generation: String) -> Result<crate::app::updates::plugins::Release, String>
+        => crate::app::updates::plugins::desktop_plugin_release_check;
 
-    async gitlab_install_update
-        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabInstallResult, String>
-        => crate::app::gitlab::gitlab_install_update;
+    async desktop_plugin_release_install
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        (generation: String, candidate: String, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<String, String>
+        => crate::app::updates::plugins::desktop_plugin_release_install;
 }
 
 /* === Type Aliases === */

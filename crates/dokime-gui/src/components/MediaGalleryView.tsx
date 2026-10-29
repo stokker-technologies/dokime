@@ -135,7 +135,7 @@ export function MediaGallerySurface({
 
   return (
     <>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2" data-testid="media-gallery">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(--spacing(36),1fr))] gap-2" data-testid="media-gallery">
         {resolvedMedia.map((artifact) => (
           <MediaGalleryCard
             artifact={artifact}
@@ -161,14 +161,14 @@ export function MediaGallerySurface({
           }
         }}
       >
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="sm:max-w-5xl">
           {selectedArtifact ? (
             <div className="grid gap-4">
               <DialogHeader>
                 <DialogTitle>{mediaArtifactTitle(selectedArtifact)}</DialogTitle>
                 <DialogDescription>{selectedArtifact.displayPath}</DialogDescription>
               </DialogHeader>
-              <div className="overflow-hidden rounded-xl border bg-muted/20 p-2">
+              <div className="overflow-hidden rounded-lg border bg-muted/20 p-2">
                 {selectedArtifact.href ? (
                   selectedArtifact.kind === "image" ? (
                     <img
@@ -312,7 +312,7 @@ function MediaGalleryCard({
   }, [artifact.artifact_id, onVisibilityChange]);
 
   return (
-    <article className="grid min-w-0 overflow-hidden rounded-md border bg-background" ref={cardRef}>
+    <article className="grid min-w-0 overflow-hidden rounded-lg border bg-background" ref={cardRef}>
       <button
         className="group/media relative grid aspect-video place-items-center overflow-hidden bg-muted/45 text-left"
         title={artifact.displayPath}
@@ -336,28 +336,28 @@ function MediaGalleryCard({
           </span>
         ) : null}
         <span className="absolute inset-x-2 bottom-2 flex justify-end">
-          <span className="inline-flex items-center gap-1 rounded-md bg-background/85 px-2 py-1 text-[0.68rem] font-semibold text-foreground shadow-sm">
+          <span className="inline-flex items-center gap-1 rounded-lg bg-background/85 px-2 py-1 text-xs font-semibold text-foreground shadow-sm">
             <Search size={12} />
             Inspect
           </span>
         </span>
       </button>
       <div className="grid min-w-0 gap-1 px-2 py-2">
-        <div className="flex min-w-0 items-start gap-1.5">
-          <MediaKindIcon className="mt-0.5 shrink-0" kind={artifact.kind} size={14} />
+        <div className="flex min-w-0 items-start gap-2">
+          <MediaKindIcon className="mt-1 shrink-0" kind={artifact.kind} size={14} />
           <div className="min-w-0">
             <h3 className="line-clamp-2 break-all text-xs font-semibold" title={title}>
               {title}
             </h3>
-            <p className="truncate text-[0.7rem] text-muted-foreground" title={artifact.displayPath}>
+            <p className="truncate text-xs text-muted-foreground" title={artifact.displayPath}>
               {artifact.displayPath}
             </p>
           </div>
         </div>
         <div className="flex min-w-0 items-center justify-between gap-2">
-          {meta ? <span className="truncate text-[0.7rem] text-muted-foreground">{meta}</span> : <span />}
+          {meta ? <span className="truncate text-xs text-muted-foreground">{meta}</span> : <span />}
           {previewError ? (
-            <Button className="h-auto px-1 py-0 text-[0.68rem]" size="sm" type="button" variant="ghost" onClick={onRetry}>
+            <Button className="h-auto px-1 py-0 text-xs" size="sm" type="button" variant="ghost" onClick={onRetry}>
               Retry
             </Button>
           ) : null}

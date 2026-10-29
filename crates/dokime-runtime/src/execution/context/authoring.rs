@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+
 // Third Party Imports
 // Third-Party Imports
 use serde::de::DeserializeOwned;
+
 // Local Imports
 use crate::artifacts::Artifacts;
 use crate::execution::environment::Environment;
@@ -39,6 +42,7 @@ use dokime_domain::model::values::Value;
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! own_resources {
     ($($stage:ty),+ $(,)?) => {
         $(impl<'a, C, O, I> Context<'a, C, O, I, $stage> {
@@ -70,18 +74,17 @@ own_document!(Initialize, Traceability, Step, Cleanup);
 own_document!(Observing);
 
 /* === Type Aliases === */
+
 pub type InitializationContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Initialize>;
-
 pub type TraceabilityContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Traceability>;
-
 pub type StepContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Step>;
 
 #[cfg(feature = "native")]
 pub type ObserverContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Observing>;
-
 pub type CleanupContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Cleanup>;
 
 /* === Structs === */
+
 pub struct Context<'a, C, O, I, Stage> {
     environment: &'a Environment<'a, C, O, I>,
     transport: &'a mut dyn ExecutionTransport,
@@ -107,15 +110,19 @@ pub struct Cleanup {
 
 pub struct CriterionContext<'a, C = (), I = ()> {
     calls: std::marker::PhantomData<fn() -> C>,
+
     #[cfg(feature = "native")]
     caller: crate::execution::Caller,
+
     #[cfg(feature = "native")]
     binding: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
+
     parameters: &'a I,
     raw: &'a BTreeMap<String, Value>,
     evidence: &'a ExecutionEvidence,
     selected_attempts: Arc<BTreeSet<StepAttemptId>>,
     log: Option<(&'a dyn ExecutionTransport, &'a str)>,
+
     #[cfg(feature = "native")]
     callbacks: crate::execution::Callbacks,
 }
@@ -136,14 +143,20 @@ pub trait Required {
 )]
 pub trait Called<T> {}
 
+/* === Implementations === */
+
 impl<T: Required, O> Called<T> for O where T::Operations: crate::catalog::Contains<O> {}
 
-/* === Implementations === */
 impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
     pub(in crate::execution) fn new(
         environment: &'a Environment<'a, C, O, I>, transport: &'a mut dyn ExecutionTransport, stage: S,
     ) -> Self {
-        Self { environment, transport, stage, call_stage: String::new() }
+        Self {
+            environment,
+            transport,
+            stage,
+            call_stage: String::new(),
+        }
     }
 
     pub(in crate::execution) fn calling_stage(mut self, stage: impl Into<String>) -> Self {
@@ -200,7 +213,7 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
 impl<C, O, I, S> Context<'_, C, O, I, S> {
     pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
-        Op: harmos::operations::OperationDeclaration + Called<C>,
+        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
     {
         self.environment.caller().call_at(&self.call_stage, request).await
     }
@@ -225,7 +238,7 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
         T: IntoIterator,
         T::IntoIter: ExactSizeIterator,
     {
-        crate::execution::Progress::new(phase, items.into_iter(), self.transport.progress())
+        crate::execution::Progress::new(phase, items.into_iter(), self.transport.progress(), 3)
     }
 
     pub async fn ask<R: Prompt>(&mut self, prompt: R) -> crate::Result<R::Response> {
@@ -357,7 +370,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     #[cfg(feature = "native")]
     pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
-        Op: harmos::operations::OperationDeclaration + Called<C>,
+        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
     {
         let stage = self.log.map_or_else(String::new, |(_, criterion)| format!("criterion/{criterion}"));
         self.caller.call_at(&stage, request).await
@@ -429,21 +442,8 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
 
     fn selected_evidence(&self, phase: Option<CapturePhase>) -> ExecutionEvidence {
         ExecutionEvidence {
-            samples: self
-                .evidence
-                .samples
-                .iter()
-                .map(|(stream, samples)| {
-                    (stream.clone(), samples.iter().filter(|sample| self.selected(sample.scope.as_ref(), phase)).cloned().collect())
-                })
-                .collect(),
-            subscribed_records: self
-                .evidence
-                .subscribed_records
-                .iter()
-                .filter(|record| self.selected(record.scope.as_ref(), phase))
-                .cloned()
-                .collect(),
+            samples: self.evidence.samples.selected(|sample| self.selected(sample.scope.as_ref(), phase)),
+            subscribed_records: self.evidence.subscribed_records.selected(|record| self.selected(record.scope.as_ref(), phase)),
             attempts: self
                 .evidence
                 .attempts
@@ -453,9 +453,11 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
                 .collect(),
             steps: self.evidence.steps.clone(),
             gaps: self.evidence.gaps.clone(),
+            gap_counts: self.evidence.gap_counts.clone(),
         }
     }
 
+    #[cfg(feature = "native")]
     pub(crate) fn selecting(mut self, attempts: Arc<BTreeSet<StepAttemptId>>) -> Self {
         self.selected_attempts = attempts;
         self
@@ -483,23 +485,8 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     }
 
     fn selected_samples<S: TelemetryStream>(&self, phase: Option<CapturePhase>) -> Samples<S::Row> {
-        let rows = self
-            .evidence
-            .samples
-            .get(S::ID)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
-            .iter()
-            .filter(|sample| self.selected(sample.scope.as_ref(), phase))
-            .filter_map(|sample| match S::Row::from_row(&sample.values) {
-                Ok(row) => Some(row),
-                Err(refusal) => {
-                    tracing::warn!(stream = S::ID, "a captured row does not match the shape that declared this stream: {refusal}");
-                    None
-                }
-            })
-            .collect();
-        Samples::new(rows)
+        let rows = self.evidence.samples.selected(|sample| sample.stream.as_str() == S::ID && self.selected(sample.scope.as_ref(), phase));
+        Samples::new(rows, S::Row::from_row)
     }
 
     pub fn records<R: DeclaredRecord>(&self) -> crate::Result<Vec<R>> {
@@ -511,13 +498,29 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     }
 
     fn selected_records<R: DeclaredRecord>(&self, phase: Option<CapturePhase>) -> crate::Result<Vec<R>> {
-        self.evidence
+        let mut rows = Vec::new();
+        let mut bytes = 0usize;
+        for record in self
+            .evidence
             .subscribed_records
             .iter()
             .filter(|record| record.record_type.as_str() == R::RECORD_TYPE && self.selected(record.scope.as_ref(), phase))
-            .map(|record| &record.details)
-            .map(|details| R::from_details(details).map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error)))
-            .collect()
+        {
+            bytes = bytes
+                .checked_add(crate::execution::evidence_rows::encoded_bytes(&record))
+                .filter(|bytes| *bytes <= 64 * 1024 * 1024)
+                .expect("criterion record collection exceeds bounded workspace; use record_rows");
+            rows.push(R::from_details(&record.details).map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error))?);
+        }
+        Ok(rows)
+    }
+
+    pub fn record_rows<R: DeclaredRecord>(&self) -> impl Iterator<Item = crate::Result<R>> + '_ {
+        self.evidence
+            .subscribed_records
+            .iter()
+            .filter(|record| record.record_type.as_str() == R::RECORD_TYPE && self.selected(record.scope.as_ref(), None))
+            .map(|record| R::from_details(&record.details).map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error)))
     }
 
     pub fn steps_reached(&self) -> &'a [Identifier] {
@@ -527,6 +530,11 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     pub fn gaps<R: TelemetryStream>(&self) -> Vec<LeaseGap> {
         let stream = R::ID;
         self.evidence.gaps.iter().filter(|gap| gap.stream.as_str() == stream).cloned().collect()
+    }
+
+    // Every Gap The Stream Had; `gaps` Returns Bounded Examples Of A Long Run's Gaps.
+    pub fn gap_count<R: TelemetryStream>(&self) -> u64 {
+        self.evidence.gap_counts.get(R::ID).copied().unwrap_or_default()
     }
 }
 

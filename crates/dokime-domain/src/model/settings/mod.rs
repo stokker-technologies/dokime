@@ -8,6 +8,8 @@
  */
 
 /* === Modules === */
+
+pub mod application;
 pub mod boolean;
 pub mod multiple_choice;
 pub mod number;
@@ -17,6 +19,12 @@ pub mod text_area;
 pub mod wire;
 
 /* === Re-Exports === */
+
+pub use application::{
+    Appearance, ApplicationSettings, ClientPreferences, Density, ReportDefaults, SettingsConflict, SettingsScope, SettingsSnapshot,
+    TelemetryPreferences, ThemeMode, UpdateSettings,
+};
+
 pub use boolean::Boolean;
 pub use multiple_choice::Choice;
 pub use multiple_choice::MultipleChoice;
@@ -27,23 +35,36 @@ pub use secret::SecretSetting;
 pub use text_area::TextArea;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::values::Value;
 
 /* === Constants === */
 
+/// Rust Sources Declaring The Application Settings Models, For Binding Generators That Parse Them.
+pub const APPLICATION_SETTINGS_SOURCES: [&str; 4] = [
+    include_str!("application.rs"),
+    include_str!("../remote.rs"),
+    include_str!("../document/definition.rs"),
+    include_str!("../backends.rs"),
+];
+
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type SettingValues = BTreeMap<String, Value>;
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
@@ -57,6 +78,7 @@ pub struct SettingsError {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SettingsEntry {
@@ -71,6 +93,7 @@ pub enum SettingsEntry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SettingsError {
     pub(crate) fn invalid(id: impl Into<String>, message: impl Into<String>) -> Self {
         Self { id: id.into(), message: message.into() }

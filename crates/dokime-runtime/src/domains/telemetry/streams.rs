@@ -9,23 +9,23 @@
 
 /* === Modules === */
 
+pub(super) mod admission;
+
 /* === Re-Exports === */
 
+pub(crate) use admission::{Payloads, PreparedSample, TelemetryCursors};
+
 /* === Imports === */
+
 // Standard Library Imports
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    pin::Pin,
-};
+
 // Third Party Imports
-use futures_util::{Stream, StreamExt};
+
 // Local Imports
 use crate::evidence_runtime::{PublishReceipt, TelemetrySelection, retain_running_samples, validation_rejection};
 use crate::runtime::handle::RuntimeHandle;
-use crate::streams::{CycleTrack, ExecutionTrack, TelemetryRow};
-use crate::telemetry::{TelemetryBatch, TelemetrySample, ValidationMode, validate_normalized_telemetry_sample};
+use crate::telemetry::{TelemetryBatch, TelemetrySample};
 use crate::unavailable_rejection;
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::scope_visible_in;
 use dokime_domain::model::identity::Identifier;
@@ -33,6 +33,7 @@ use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const TELEMETRY_STREAM_PREFIX: &str = "dokime.tel";
 const TELEMETRY_STREAM_DELIMITER: char = '|';
 const UNSCOPED_STREAM_SEGMENT: &str = "-";
@@ -40,61 +41,36 @@ const UNSCOPED_STREAM_SEGMENT: &str = "-";
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(crate) type TelemetryWatch = Pin<Box<dyn Stream<Item = u64> + Send>>;
-type PreparedSample = (TelemetrySample, crate::telemetry::TelemetryContract, u64);
 
 /* === Structs === */
-pub(crate) struct SampleAdmission {
-    _order: tokio::sync::OwnedMutexGuard<()>,
-    execution: crate::runtime::storage::telemetry::TelemetryAdmission,
-    accepted: Vec<PreparedSample>,
-    supplied: Vec<(Option<dokime_domain::model::identity::TestExecutionId>, dokime_domain::model::identity::TelemetrySampleId)>,
-    rows: Vec<TelemetryRow>,
-    delivery: super::leases::LeasedRows,
-    // A Finishing Provider Writes Its Outcome Under Its Own Quiescence.
-    observes_closure: bool,
-}
 
 pub(crate) struct CapturedPublication {
-    pub receipt: PublishReceipt,
+    pub receipt: harmos::storage::ReadBatch<PublishReceipt>,
     pub failure: Option<crate::runtime::Error>,
 }
 
 /* === Enums === */
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum TelemetryRead {
-    Unfiltered,
-    Cycle(CycleTrack),
-    Execution(CycleTrack, ExecutionTrack),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
-impl SampleAdmission {
-    pub(crate) fn within_quiescence(mut self) -> Self {
-        self.observes_closure = false;
-        self
-    }
-}
 
 impl RuntimeHandle {
     pub(crate) async fn publish_telemetry_to_streams(
-        &self, batch: TelemetryBatch, received_at: Timestamp,
-    ) -> std::result::Result<PublishReceipt, crate::runtime::Error> {
+        &self, batch: TelemetryBatch, received_at: Timestamp, payloads: Payloads,
+    ) -> std::result::Result<harmos::storage::ReadBatch<PublishReceipt>, crate::runtime::Error> {
         let runtime = self.clone();
-        tokio::spawn(async move { runtime.publish_telemetry_to_streams_inner(batch, received_at).await })
+        tokio::spawn(async move { runtime.publish_telemetry_to_streams_inner(batch, received_at, payloads).await })
             .await
             .map_err(|e| unavailable_rejection(e.to_string()))?
     }
     async fn publish_telemetry_to_streams_inner(
-        &self, mut batch: TelemetryBatch, received_at: Timestamp,
-    ) -> std::result::Result<PublishReceipt, crate::runtime::Error> {
+        &self, mut batch: TelemetryBatch, received_at: Timestamp, payloads: Payloads,
+    ) -> std::result::Result<harmos::storage::ReadBatch<PublishReceipt>, crate::runtime::Error> {
         let sampling = self.sampling();
         let _publish = sampling.begin_publish().await;
-        let closing_executions = sampling.closing_executions().await;
         let state = self.state_read();
-        let contract = crate::runtime_state::contract_lookup(&state).telemetry_contract(&batch.stream);
+        let contract = state.telemetry_definitions.get(&batch.stream);
         for sample in &batch.samples {
             if let Some(scope) = &sample.scope {
                 state
@@ -102,7 +78,7 @@ impl RuntimeHandle {
                     .map_err(|reason| crate::runtime::Error::Operation(format!("telemetry acquisition refused: {reason}")))?;
             }
         }
-        let dropped = retain_open_execution_samples(&mut batch, &closing_executions) + retain_running_samples(&state, &mut batch);
+        let dropped = sampling.retain_open_samples(&mut batch).await + retain_running_samples(&state, &mut batch);
         let revision = self.state_manager.applied().0;
         let Some(contract) = contract else {
             return Err(validation_rejection(
@@ -112,25 +88,27 @@ impl RuntimeHandle {
             ));
         };
         if batch.samples.is_empty() {
-            return Ok(PublishReceipt::dropped(
+            drop(batch);
+            return admission::dropped_receipt(
                 dropped,
                 revision,
                 "telemetry sample(s) dropped because the scoped execution or cycle is not running",
-            ));
+            );
         }
 
-        normalize_batch(&mut batch, &contract, &received_at)?;
+        normalize_batch(&mut batch, contract, &received_at)?;
 
-        let mut receipt = self
-            .write_samples_to_streams(&batch.samples)
+        let receipt = self
+            .write_samples_to_streams(batch.samples, payloads)
             .await
             .map_err(|error| unavailable_rejection(format!("telemetry stream write failed: {error}")))?;
         // Admission also delivers the frozen lease batch while this publish
         // guard is held. Quiescence therefore waits for both capture and
         // physical delivery; a later lease never receives an uncaptured row.
-        receipt.dropped += dropped;
-
-        Ok(receipt)
+        receipt.try_map(|mut receipt| {
+            receipt.dropped += dropped;
+            Ok::<_, crate::runtime::Error>(receipt)
+        })
     }
 
     pub(crate) async fn publish_captured_telemetry(
@@ -139,294 +117,84 @@ impl RuntimeHandle {
         let sampling = self.sampling();
         let _publish = sampling.begin_publish().await;
         let mut batch = completion.into_batch();
-        let closed = sampling.closing_executions().await;
-        let dropped = retain_open_execution_samples(&mut batch, &closed);
+        let dropped = sampling.retain_open_samples(&mut batch).await;
         let revision = self.state_manager.applied().0;
         if batch.samples.is_empty() {
+            drop(batch);
             return Ok(CapturedPublication {
-                receipt: PublishReceipt::dropped(dropped, revision, "unsent captured samples discarded after execution stop"),
+                receipt: admission::dropped_receipt(dropped, revision, "unsent captured samples discarded after execution stop")?,
                 failure: None,
             });
         }
-        let contract = crate::runtime_state::contract_lookup(&self.state_read()).telemetry_contract(&batch.stream).ok_or_else(|| {
+        let state = self.state_read();
+        let contract = state.telemetry_definitions.get(&batch.stream).ok_or_else(|| {
             validation_rejection(
                 format!("telemetry stream {} is not registered", batch.stream),
                 "stream",
                 Some("active telemetry contract".to_owned()),
             )
         })?;
-        normalize_batch(&mut batch, &contract, &received_at)?;
+        normalize_batch(&mut batch, contract, &received_at)?;
         // The Original Storage Admission Rejects A Closed Acquisition And Retains Capacity.
-        let admission = self.prepare_sample_admission(&batch.samples).await?;
+        let admission = self.prepare_sample_admission(batch.samples, Payloads::Unchecked).await?;
         let runtime = self.clone();
         let mut published = tokio::spawn(async move { runtime.admit_samples_owned(admission).await }).await??;
-        published.receipt.dropped += dropped;
+        published.receipt = published.receipt.try_map(|mut receipt| {
+            receipt.dropped += dropped;
+            Ok::<_, crate::runtime::Error>(receipt)
+        })?;
         Ok(published)
     }
 
-    async fn write_samples_to_streams(&self, samples: &[TelemetrySample]) -> crate::runtime::Result<PublishReceipt> {
+    async fn write_samples_to_streams(
+        &self, samples: Vec<TelemetrySample>, payloads: Payloads,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<PublishReceipt>> {
         let runtime = self.clone();
-        let samples = samples.to_vec();
         tokio::spawn(async move {
-            let admission = runtime.prepare_sample_admission(&samples).await?;
+            let admission = runtime.prepare_sample_admission(samples, payloads).await?;
             runtime.admit_samples(admission).await
         })
         .await
         .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?
     }
 
-    pub(crate) async fn prepare_sample_admission(&self, samples: &[TelemetrySample]) -> crate::runtime::Result<SampleAdmission> {
-        if samples.len() > 4096 {
-            return Err(crate::runtime::Error::overload("telemetry_capture_busy", "telemetry capture exceeds 4096 rows; split the batch"));
-        }
-        // Fresh Data May Rearm A Transient Worker; Previously Accepted Batches Stay With Storage.
-        self.storage().retry_transient_persistence();
-        let order = self.telemetry_admission.clone().lock_owned().await;
-        let supplied = samples
-            .iter()
-            .map(|sample| (sample.scope.as_ref().and_then(|scope| scope.test_execution_id.clone()), sample.sample_id.clone()))
-            .collect();
-        let mut delivery = self.leased_rows(samples).await;
-        let open = self.execution_storage.telemetry_scopes().await?;
-        let mut leased = BTreeMap::new();
-        for sample in samples {
-            if leased.contains_key(&sample.stream) {
-                continue;
-            }
-            let scopes = delivery.capture_scopes(&sample.stream);
-            let mut owners = BTreeMap::new();
-            for scope in scopes {
-                if let Some(id) = scope.test_execution_id.as_ref()
-                    && let Some(canonical) = open.get(id)
-                {
-                    owners.insert(id.clone(), canonical.clone());
-                }
-            }
-            leased.insert(sample.stream.clone(), owners.into_values().collect::<Vec<_>>());
-        }
-        let state =
-            self.state_manager.state().read(Clone::clone).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?.value;
-        // Validate The Entire Supplied Batch Before Closed Scope Filtering.
-        for sample in samples {
-            if let Some(scope) = &sample.scope {
-                state
-                    .capture_scope(scope)
-                    .map_err(|reason| crate::runtime::Error::Operation(format!("telemetry acquisition refused: {reason}")))?;
-            }
-        }
-        let mut samples = captured_samples(samples, &leased)?;
-        delivery.attribute(&state)?;
-        for sample in &mut samples {
-            if let Some(scope) = &sample.scope {
-                sample.scope = Some(state.capture_scope(scope).map_err(crate::runtime::Error::Operation)?);
-            }
-        }
-        // Each stream's contract is looked up and normalized once per batch;
-        // only the row checks run per row.
-        let lookup = crate::runtime_state::contract_lookup(&state);
-        let mut contracts = BTreeMap::new();
-        let mut accepted = Vec::with_capacity(samples.len());
-        for sample in samples {
-            if !contracts.contains_key(&sample.stream) {
-                let contract = lookup
-                    .telemetry_contract(&sample.stream)
-                    .ok_or_else(|| validation_rejection("telemetry contract is unavailable", "stream", None))?;
-                let normalized = contract.normalized();
-                contracts.insert(sample.stream.clone(), (contract, normalized));
-            }
-            let (contract, normalized) = &contracts[&sample.stream];
-            validate_normalized_telemetry_sample(normalized, &sample, ValidationMode::Strict)
-                .map_err(|error| validation_rejection(error.to_string(), "telemetry", None))?;
-            accepted.push((sample, contract.clone(), 0));
-        }
-        let rows = {
-            let known = self.telemetry_cursors.lock().unwrap_or_else(|error| error.into_inner());
-            let mut cursors = BTreeMap::new();
-            let mut rows = Vec::with_capacity(accepted.len());
-            for (sample, _, ordinal) in &mut accepted {
-                let stream = telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-                let next = cursors.entry(stream.clone()).or_insert_with(|| known.get(&stream).copied().unwrap_or(0));
-                *next = next.checked_add(1).ok_or_else(|| crate::runtime::Error::Operation("telemetry ordinal exhausted".into()))?;
-                *ordinal = *next;
-                rows.push(telemetry_row(sample, *next)?);
-            }
-            rows
-        };
-        let host_count = accepted.iter().filter(|(sample, _, _)| sample.stream.as_str() == "host.system").count() as u64;
-        self.host_traceability
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .generation
-            .checked_add(host_count)
-            .ok_or_else(|| crate::runtime::Error::Operation("host traceability generation exhausted".into()))?;
-        let execution = self.execution_storage.prepare_telemetry(&accepted).await?;
-        Ok(SampleAdmission { _order: order, execution, supplied, accepted, rows, delivery, observes_closure: true })
+    pub async fn collect_telemetry(
+        &self, selection: &TelemetrySelection,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
+        crate::runtime::storage::telemetry::collect_saved(
+            self.storage(),
+            &self.storage().cursor_saved(),
+            selection,
+            self.schema_settings(),
+            crate::runtime::storage::telemetry::ReadOptions {
+                sequence: crate::runtime::storage::telemetry::Sequence::StoragePosition,
+                ..Default::default()
+            },
+            &self.local_storage,
+        )
+        .await
     }
 
-    pub(crate) async fn admit_samples(&self, admission: SampleAdmission) -> crate::runtime::Result<PublishReceipt> {
-        let runtime = self.clone();
-        Ok(tokio::spawn(async move { runtime.admit_samples_owned(admission).await }).await??.receipt)
-    }
-
-    async fn admit_samples_owned(&self, admission: SampleAdmission) -> crate::runtime::Result<CapturedPublication> {
-        let SampleAdmission { _order, execution, accepted, supplied, rows, delivery, observes_closure } = admission;
-        let sampling = self.sampling();
-        let admitted = execution.commit(observes_closure.then_some(sampling.as_ref())).await?;
-        let mut native = admitted.accepted.iter();
-        let mut kept = Vec::with_capacity(accepted.len());
-        let mut cursors = BTreeMap::<String, u64>::new();
-        for ((sample, contract, ordinal), row) in accepted.into_iter().zip(rows) {
-            let scoped = sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some());
-            if scoped && !*native.next().ok_or_else(|| crate::runtime::Error::Operation("native admission receipt is incomplete".into()))? {
-                continue;
-            }
-            self.streams.publish(row);
-            let stream = telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-            cursors.entry(stream).and_modify(|current| *current = (*current).max(ordinal)).or_insert(ordinal);
-            kept.push((sample, contract, ordinal));
-        }
-        let accepted_count = supplied
-            .iter()
-            .filter(|(execution, sample_id)| {
-                kept.iter().any(|(sample, _, _)| {
-                    &sample.sample_id == sample_id
-                        && sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()) == execution.as_ref()
-                })
-            })
-            .count() as u64;
-        let dropped_count = supplied.len() as u64 - accepted_count;
-        let delivered = kept
-            .iter()
-            .map(|(sample, _, _)| (sample.scope.as_ref().and_then(|scope| scope.test_execution_id.clone()), sample.sample_id.clone()))
-            .collect::<Vec<_>>();
-        let accepted = kept;
-        {
-            let mut host = self.host_traceability.lock().unwrap_or_else(|error| error.into_inner());
-            for (sample, _, ordinal) in accepted {
-                if sample.stream.as_str() != "host.system" {
-                    continue;
-                }
-                let stream = telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-                let mut sample = sample;
-                sample.sequence = ordinal;
-                // Checked while the same telemetry admission guard was held.
-                host.generation += 1;
-                host.samples.insert(stream, sample);
-            }
-        }
-        {
-            let mut known = self.telemetry_cursors.lock().unwrap_or_else(|error| error.into_inner());
-            for (stream, ordinal) in &cursors {
-                known.entry(stream.clone()).and_modify(|known| *known = (*known).max(*ordinal)).or_insert(*ordinal);
-            }
-        }
-        drop(_order);
-        self.forward_leased_rows(delivery, &delivered).await;
-        let mut receipt = PublishReceipt::accepted(accepted_count, cursors, self.state_manager.applied().0);
-        receipt.dropped = dropped_count;
-        receipt.message =
-            admitted.failure.as_ref().map(|source| format!("telemetry was partially accepted; unaccepted samples were dropped: {source}"));
-        Ok(CapturedPublication { receipt, failure: admitted.failure })
-    }
-
-    pub async fn watch_plot_telemetry(
-        &self, _requests: &[crate::queries::PlotPayloadRequest],
-    ) -> crate::runtime::Result<Vec<TelemetryWatch>> {
-        let watching = self.streams.watch::<TelemetryRow>().map(|item| match item {
-            harmos::streams::Item::Row(row) => row.value.ordinal,
-            harmos::streams::Item::Gap { missed } => missed,
-        });
-        Ok(vec![Box::pin(watching)])
-    }
-
-    pub async fn collect_telemetry(&self, selection: &TelemetrySelection) -> Vec<TelemetrySample> {
-        self.try_collect_telemetry(selection).await.unwrap_or_else(|error| {
-            tracing::error!(%error, "failed to read Harmos telemetry series");
-            Vec::new()
-        })
-    }
-
-    pub(crate) async fn try_collect_telemetry(&self, selection: &TelemetrySelection) -> crate::runtime::Result<Vec<TelemetrySample>> {
-        self.try_collect_telemetry_bounded(selection, None).await
-    }
-
-    pub(crate) async fn try_collect_telemetry_bounded(
-        &self, selection: &TelemetrySelection, scan_limit: Option<usize>,
-    ) -> crate::runtime::Result<Vec<TelemetrySample>> {
-        let (cycle, sealed) = {
-            let state = self.state_read();
-            let execution = selection.scope.test_execution_id.as_ref().and_then(|id| state.executions.get(id));
-            let cycle = selection.scope.test_cycle_id.clone().or_else(|| execution.map(|execution| execution.test_cycle_id.clone()));
-            (cycle, execution.is_none_or(|execution| execution.saved.is_some()))
-        };
-        // The window is bounded and empty after a restart, so a sealed
-        // execution answers from its complete stored evidence instead.
-        if let Some(execution) = selection.scope.test_execution_id.as_ref().filter(|_| sealed)
-            && let Some(mut stored) = self.sealed_telemetry(execution).await?
-        {
-            stored.retain(|sample| {
-                let stream = telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-                selection.after_stream_cursors.get(&stream).is_none_or(|after| sample.sequence > *after)
-            });
-            if scan_limit.is_some_and(|limit| stored.len() > limit) {
-                return Err(analysis_read_budget());
-            }
-            return Ok(selection.apply(&stored));
-        }
-        let read = telemetry_read_plan(selection, cycle);
-        let mut rows = match read {
-            TelemetryRead::Unfiltered => self.streams.query::<TelemetryRow>(..).retained().await,
-            TelemetryRead::Cycle(cycle) => self.streams.query::<TelemetryRow>(..).retained().track((cycle,)).await,
-            TelemetryRead::Execution(cycle, execution) => self.streams.query::<TelemetryRow>(..).retained().track((cycle, execution)).await,
-        }
-        .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?
-        .take(scan_limit.map_or(usize::MAX, |limit| limit.saturating_add(1)))
-        .collect::<Vec<_>>();
-        if scan_limit.is_some_and(|limit| rows.len() > limit) {
-            return Err(analysis_read_budget());
-        }
-
-        // A page resumes after its stream cursors; rows it has passed are
-        // dropped before they are decoded, so paging stays one decode per row.
-        rows.retain(|row| {
-            let row = &row.value;
-            let stream = telemetry_stream_id_from_track(&row.cycle, &row.execution, &row.stream);
-            selection.after_stream_cursors.get(&stream).is_none_or(|after| row.ordinal > *after)
-        });
-        // Preserve publication order across tracks within the selected prefix.
-        rows.sort_by_key(|row| row.position);
-        let samples = rows.into_iter().map(|row| row.value).map(sample_from_row).collect::<crate::runtime::Result<Vec<_>>>()?;
-        Ok(selection.apply(&samples))
-    }
-
-    async fn sealed_telemetry(
-        &self, execution: &dokime_domain::model::identity::TestExecutionId,
-    ) -> crate::runtime::Result<Option<Vec<TelemetrySample>>> {
-        let Some(view) =
-            crate::runtime::storage::execution::ExecutionView::open(self.storage(), execution, harmos::storage::ObjectVersion::Latest)
-                .await?
-        else {
-            return Ok(None);
-        };
-        if view.execution().saved.is_none() {
-            return Ok(None);
-        }
-        let mut reader = view.snapshot().await?.context_telemetry()?;
-        let mut samples = Vec::new();
-        while let Some(entries) = reader.next().await? {
-            samples.extend(entries.into_iter().map(|entry| {
-                let mut sample = entry.sample;
-                sample.sequence = entry.ordinal;
-                sample
-            }));
-        }
-        Ok(Some(samples))
+    pub(crate) async fn collect_telemetry_at_in(
+        &self, session: &crate::storage::Manager, selection: &TelemetrySelection, scan_limit: Option<usize>, window: Option<(&str, f64)>,
+        at: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
+        crate::runtime::storage::telemetry::collect_saved(
+            session,
+            at,
+            selection,
+            self.schema_settings(),
+            crate::runtime::storage::telemetry::ReadOptions { scan_limit, window, ..Default::default() },
+            &self.local_storage,
+        )
+        .await
     }
 
     pub(crate) async fn telemetry_sample_count(&self) -> usize {
         self.telemetry_cursors
             .lock()
             .unwrap_or_else(|error| error.into_inner())
+            .values
             .values()
             .fold(0_usize, |count, cursor| count.saturating_add(usize::try_from(*cursor).unwrap_or(usize::MAX)))
     }
@@ -436,180 +204,128 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<Vec<crate::telemetry_runtime::output::AggregateOutput>> {
         let state = self.settled_evidence_state().await;
         let contracts = state.telemetry_contracts();
-        let samples = self
-            .collect_telemetry(&TelemetrySelection {
-                scope: crate::evidence_runtime::ScopeSelection {
-                    test_cycle_id: scope.test_cycle_id.clone(),
-                    test_execution_id: scope.test_execution_id.clone(),
-                    test_case_id: scope.test_case_id.clone(),
-                    template_id: scope.template_id.clone(),
-                },
-                ..TelemetrySelection::default()
-            })
-            .await;
-        Ok(crate::telemetry_runtime::output::project_samples(&contracts, &samples))
+        crate::telemetry_runtime::output::project_saved(self.storage(), &self.local_storage, self.schema_settings(), scope, &contracts)
+            .await
     }
 
-    pub(crate) async fn enrich_host_traceability(
-        &self, snapshots: &mut Vec<dokime_domain::model::traceability::TraceabilitySnapshot>,
-        scope: Option<&dokime_domain::model::execution::RecordScope>,
-    ) {
-        let mut host = self
-            .collect_telemetry(&TelemetrySelection {
-                streams: vec![Identifier::new("host.system").expect("valid stream")],
-                ..TelemetrySelection::default()
+    pub(crate) fn retained_traceability_in(
+        &self, state: &crate::state::RuntimeState, scope: Option<&RecordScope>, samples: &[TelemetrySample], include_leases: bool,
+        created_at: &Timestamp,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<dokime_domain::model::traceability::TraceabilitySnapshot>>> {
+        let snapshots = crate::traceability::retained_state(state, scope, created_at)?;
+        self.enrich_retained_traceability(snapshots, scope, samples, include_leases)
+    }
+
+    fn enrich_retained_traceability(
+        &self, mut snapshots: harmos::storage::ReadBatch<Vec<dokime_domain::model::traceability::TraceabilitySnapshot>>,
+        scope: Option<&RecordScope>, samples: &[TelemetrySample], include_leases: bool,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<dokime_domain::model::traceability::TraceabilitySnapshot>>> {
+        let host = samples
+            .iter()
+            .filter(|sample| {
+                sample.stream.as_str() == "host.system"
+                    && scope.is_none_or(|scope| dokime_domain::model::execution::scope_visible_in(sample.scope.as_ref(), scope))
             })
-            .await;
-        host.sort_by_key(|sample| sample.sequence);
-        if let Some(snapshot) =
-            crate::traceability::host_traceability_snapshot_from_samples(host.iter(), scope, crate::model::time::now_utc())
+            .max_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
+        if let Some(host) = host
+            && let Some(host) = crate::traceability::retained_host(host, &crate::model::time::now_utc())?
         {
-            crate::traceability::replace_snapshots_by_source(snapshots, "traceability.host", snapshot);
+            snapshots = crate::traceability::replace_source(snapshots, host, "traceability.host")?;
         }
+        if !include_leases {
+            return Ok(snapshots);
+        }
+        let empty = RecordScope::default();
+        self.stream_leases().with_facts(scope.unwrap_or(&empty), |facts| {
+            let leases = crate::traceability::retained_leases(scope, facts, &crate::model::time::now_utc())?;
+            match leases {
+                Some(leases) => {
+                    crate::traceability::replace_source(snapshots, leases, dokime_domain::model::traceability::LEASES_TRACEABILITY.source)
+                }
+                None => Ok(snapshots),
+            }
+        })
     }
 
-    pub(crate) async fn enrich_lease_traceability(
-        &self, snapshots: &mut Vec<dokime_domain::model::traceability::TraceabilitySnapshot>,
-        scope: Option<&dokime_domain::model::execution::RecordScope>,
-    ) {
-        let selected = scope.cloned().unwrap_or_default();
-        let leases = self.stream_leases().facts_for(&selected);
-        if let Some(snapshot) = crate::traceability::lease_traceability_snapshot(&leases, &selected, crate::model::time::now_utc()) {
-            crate::traceability::replace_snapshots_by_source(
-                snapshots,
-                dokime_domain::model::traceability::LEASES_TRACEABILITY.source,
-                snapshot,
-            );
-        }
+    pub(crate) async fn retained_traceability_at_in(
+        &self, session: &crate::storage::Manager, state: &crate::state::RuntimeState, scope: Option<&RecordScope>,
+        at: &harmos::storage::StorageCursor, include_leases: bool,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<dokime_domain::model::traceability::TraceabilitySnapshot>>> {
+        let snapshots = crate::traceability::retained_state(state, scope, &crate::model::time::now_utc())?;
+        let mut streams = Vec::new();
+        streams.try_reserve_exact(1).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+        streams.push(Identifier::new("host.system").expect("valid stream").into());
+        let host = crate::runtime::storage::telemetry::collect_saved(
+            session,
+            at,
+            &TelemetrySelection { streams, ..Default::default() },
+            self.schema_settings(),
+            crate::runtime::storage::telemetry::ReadOptions {
+                window: Some(("host.system", 0.0)),
+                visible: scope,
+                ..Default::default()
+            },
+            &self.local_storage,
+        )
+        .await?;
+        self.enrich_retained_traceability(snapshots, scope, &host, include_leases)
     }
 
-    pub(crate) fn with_latest_host_traceability<T>(
-        &self, scope: Option<&RecordScope>,
-        read: impl FnOnce(Option<&crate::telemetry::TelemetrySample>, &str) -> crate::runtime::Result<T>,
+    pub(crate) async fn with_latest_host_traceability<T>(
+        &self, scope: Option<&RecordScope>, read: impl FnOnce(Option<&TelemetrySample>, &str) -> crate::runtime::Result<T>,
     ) -> crate::runtime::Result<T> {
-        let host_traceability = self.host_traceability.lock().unwrap_or_else(|error| error.into_inner());
-        let fingerprint = format!("host.system:g{}", host_traceability.generation);
-        let latest = host_traceability
-            .samples
-            .values()
+        self.with_host_traceability_at(scope, &self.storage().cursor_saved(), read).await
+    }
+
+    async fn with_host_traceability_at<T>(
+        &self, scope: Option<&RecordScope>, at: &harmos::storage::StorageCursor,
+        read: impl FnOnce(Option<&TelemetrySample>, &str) -> crate::runtime::Result<T>,
+    ) -> crate::runtime::Result<T> {
+        let host = crate::runtime::storage::telemetry::collect_saved(
+            &self.storage().clone(),
+            at,
+            &TelemetrySelection {
+                streams: vec![Identifier::new("host.system").expect("valid stream").into()],
+                ..Default::default()
+            },
+            self.schema_settings(),
+            crate::runtime::storage::telemetry::ReadOptions {
+                window: Some(("host.system", 0.0)),
+                visible: scope,
+                ..Default::default()
+            },
+            &self.local_storage,
+        )
+        .await?;
+        let latest = host
+            .iter()
             .filter(|sample| scope.is_none_or(|selected| scope_visible_in(sample.scope.as_ref(), selected)))
-            .max_by(|left, right| {
-                left.timestamp
-                    .cmp(&right.timestamp)
-                    .then_with(|| left.sequence.cmp(&right.sequence))
-                    .then_with(|| left.sample_id.cmp(&right.sample_id))
-            });
+            .max_by(|left, right| left.timestamp.cmp(&right.timestamp).then_with(|| left.sequence.cmp(&right.sequence)));
+        let fingerprint = format!("host.system:{}:{}:{}", at.history.store, at.history.epoch, at.sequence);
         read(latest, &fingerprint)
     }
 }
 
 /* === Public Functions === */
-pub fn telemetry_stream_id(scope: Option<&dokime_domain::model::execution::RecordScope>, stream: &Identifier) -> String {
-    let (cycle, execution) = telemetry_track(scope);
-    telemetry_stream_id_from_track(&cycle, &execution, stream.as_str())
+
+pub fn telemetry_stream_id_len(scope: Option<&RecordScope>, stream: &Identifier) -> Option<usize> {
+    let cycle = scope.and_then(|scope| scope.test_cycle_id.as_ref()).map_or(UNSCOPED_STREAM_SEGMENT, |id| id.as_str());
+    let execution = scope.and_then(|scope| scope.test_execution_id.as_ref()).map_or(UNSCOPED_STREAM_SEGMENT, |id| id.as_str());
+    [TELEMETRY_STREAM_PREFIX.len(), 3 * TELEMETRY_STREAM_DELIMITER.len_utf8(), cycle.len(), execution.len(), stream.as_str().len()]
+        .into_iter()
+        .try_fold(0usize, |bytes, next| bytes.checked_add(next))
 }
 
-/* === Private Functions === */
-fn normalize_batch(
-    batch: &mut TelemetryBatch, contract: &crate::telemetry::TelemetryContract, received_at: &Timestamp,
-) -> crate::runtime::Result<()> {
-    batch.schema_version = contract.schema_version;
-    let normalized = contract.normalized();
-    for sample in &mut batch.samples {
-        sample.stream = contract.stream.clone();
-        sample.schema_version = contract.schema_version;
-        sample.received_at = received_at.clone();
-        if sample.storage_payload.is_none()
-            && let Ok(host) = crate::host::HostTelemetryStream::try_from(contract.stream.as_str())
-        {
-            sample.storage_payload = Some(
-                dokime_domain::model::telemetry::host::host_telemetry_payload(host, &sample.values)
-                    .map_err(|error| validation_rejection(error.to_string(), "telemetry.payload", None))?,
-            );
-        }
-        if contract.storage_schema.is_none() || sample.storage_payload.is_none() {
-            return Err(validation_rejection(
-                "telemetry storage requires an explicit row graph and original canonical payload bytes",
-                "telemetry.payload",
-                None,
-            ));
-        }
-        ensure_telemetry_timestamp(sample).map_err(|message| {
-            validation_rejection(message, "telemetry.timestamp", Some("an RFC 3339 timestamp at or after the Unix epoch".to_owned()))
-        })?;
-        validate_normalized_telemetry_sample(&normalized, sample, ValidationMode::Strict).map_err(|error| {
-            validation_rejection(
-                error.to_string(),
-                format!("telemetry.{}", contract.stream.as_str()),
-                Some(format!("schema_version {}", contract.schema_version)),
-            )
-        })?;
+pub fn telemetry_stream_id(scope: Option<&RecordScope>, stream: &Identifier) -> String {
+    let cycle = scope.and_then(|scope| scope.test_cycle_id.as_ref()).map_or(UNSCOPED_STREAM_SEGMENT, |id| id.as_str());
+    let execution = scope.and_then(|scope| scope.test_execution_id.as_ref()).map_or(UNSCOPED_STREAM_SEGMENT, |id| id.as_str());
+    let mut id = String::with_capacity(telemetry_stream_id_len(scope, stream).expect("telemetry key length fits address space"));
+    id.push_str(TELEMETRY_STREAM_PREFIX);
+    for segment in [cycle, execution, stream.as_str()] {
+        id.push(TELEMETRY_STREAM_DELIMITER);
+        id.push_str(segment);
     }
-    Ok(())
-}
-
-fn telemetry_row(sample: &TelemetrySample, ordinal: u64) -> crate::runtime::Result<TelemetryRow> {
-    let timestamp = sample.timestamp.unix_millis().ok_or_else(|| {
-        crate::runtime::Error::Operation(format!("sample timestamp `{}` is not at or after the Unix epoch", sample.timestamp))
-    })?;
-    let payload = crate::persistence::to_vec(sample).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
-    let (cycle, execution) = telemetry_track(sample.scope.as_ref());
-    Ok(TelemetryRow {
-        cycle,
-        execution,
-        ordinal,
-        timestamp_millis: timestamp,
-        stream: sample.stream.to_string(),
-        payload,
-        storage_payload: sample.storage_payload.clone(),
-    })
-}
-
-fn analysis_read_budget() -> crate::runtime::Error {
-    crate::runtime::Error::Admission(AdmissionFailure::Validation {
-        code: "analysis_read_budget".into(),
-        message: "analysis raw evidence scan exceeds its budget; narrow the scope".into(),
-        issues: vec![],
-    })
-}
-
-fn sample_from_row(row: TelemetryRow) -> crate::runtime::Result<TelemetrySample> {
-    let mut sample: TelemetrySample = crate::persistence::from_slice(&row.payload)
-        .map_err(|error| crate::runtime::Error::Operation(format!("invalid telemetry row: {error}")))?;
-    sample.sequence = row.ordinal;
-    sample.storage_payload = row.storage_payload;
-    Ok(sample)
-}
-
-fn telemetry_track(scope: Option<&dokime_domain::model::execution::RecordScope>) -> (CycleTrack, ExecutionTrack) {
-    (
-        CycleTrack::from_id(scope.and_then(|scope| scope.test_cycle_id.clone())),
-        ExecutionTrack::from_id(scope.and_then(|scope| scope.test_execution_id.clone())),
-    )
-}
-
-fn telemetry_read_plan(
-    selection: &TelemetrySelection, resolved_cycle: Option<dokime_domain::model::identity::TestCycleId>,
-) -> TelemetryRead {
-    let cycle = resolved_cycle.map(|cycle| CycleTrack::from_id(Some(cycle)));
-    let execution = selection.scope.test_execution_id.clone().map(|execution| ExecutionTrack::from_id(Some(execution)));
-
-    match (cycle, execution) {
-        (Some(cycle), Some(execution)) => TelemetryRead::Execution(cycle, execution),
-        (Some(cycle), None) => TelemetryRead::Cycle(cycle),
-        (None, Some(execution)) => TelemetryRead::Execution(CycleTrack::from_id(None), execution),
-        (None, None) => TelemetryRead::Unfiltered,
-    }
-}
-
-fn telemetry_stream_id_from_track(cycle: &CycleTrack, execution: &ExecutionTrack, stream: &str) -> String {
-    format!(
-        "{TELEMETRY_STREAM_PREFIX}{delimiter}{cycle}{delimiter}{execution}{delimiter}{stream}",
-        delimiter = TELEMETRY_STREAM_DELIMITER,
-        cycle = cycle.as_str().unwrap_or(UNSCOPED_STREAM_SEGMENT),
-        execution = execution.as_str().unwrap_or(UNSCOPED_STREAM_SEGMENT),
-        stream = stream,
-    )
+    id
 }
 
 pub(super) fn lease_accepts_sample(source: Option<&RecordScope>, target: &RecordScope) -> bool {
@@ -621,34 +337,37 @@ pub(super) fn lease_accepts_sample(source: Option<&RecordScope>, target: &Record
     })
 }
 
-fn captured_samples(
-    samples: &[TelemetrySample], leased: &BTreeMap<Identifier, Vec<RecordScope>>,
-) -> crate::runtime::Result<Vec<TelemetrySample>> {
-    let mut captured = Vec::new();
-    for sample in samples {
-        if captured.len() >= 4096 {
-            return Err(crate::runtime::Error::overload("telemetry_capture_busy", "telemetry capture exceeds 4096 rows; split the batch"));
+/* === Private Functions === */
+
+fn normalize_batch(
+    batch: &mut TelemetryBatch, contract: &crate::telemetry::TelemetryContract, received_at: &Timestamp,
+) -> crate::runtime::Result<()> {
+    batch.schema_version = contract.schema_version;
+    for sample in &mut batch.samples {
+        sample.stream = contract.stream.clone();
+        sample.schema_version = contract.schema_version;
+        sample.received_at = received_at.clone();
+        if sample.storage_payload.is_none()
+            && let Ok(host) = crate::host::HostTelemetryStream::try_from(contract.stream.as_str())
+        {
+            use dokime_domain::model::telemetry::host::prepare_host_telemetry_payload;
+            let row = prepare_host_telemetry_payload(host, &sample.values)
+                .map_err(|error| validation_rejection(error.to_string(), "telemetry.payload", None))?;
+            sample.storage_payload = Some(row.into_bytes());
         }
-        captured.push(sample.clone());
-        if sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some()) {
-            continue;
+        if contract.storage_schema.is_none() || sample.storage_payload.is_none() {
+            return Err(validation_rejection(
+                "telemetry storage requires an explicit row graph and original canonical payload bytes",
+                "telemetry.payload",
+                None,
+            ));
         }
-        for scope in leased.get(&sample.stream).into_iter().flatten() {
-            if !lease_accepts_sample(sample.scope.as_ref(), scope) {
-                continue;
-            }
-            if captured.len() >= 4096 {
-                return Err(crate::runtime::Error::overload(
-                    "telemetry_capture_busy",
-                    "telemetry capture exceeds 4096 rows; split the batch",
-                ));
-            }
-            let mut owned = sample.clone();
-            owned.scope = Some(scope.clone());
-            captured.push(owned);
-        }
+        ensure_telemetry_timestamp(sample).map_err(|message| {
+            validation_rejection(message, "telemetry.timestamp", Some("an RFC 3339 timestamp at or after the Unix epoch".to_owned()))
+        })?;
     }
-    Ok(captured)
+    // The Owned Admission Performs The Semantic Check Once After Attribution.
+    Ok(())
 }
 
 fn ensure_telemetry_timestamp(sample: &mut TelemetrySample) -> Result<(), String> {
@@ -661,16 +380,6 @@ fn ensure_telemetry_timestamp(sample: &mut TelemetrySample) -> Result<(), String
         .ok_or_else(|| format!("sample timestamp `{}` is not an RFC 3339 instant at or after the Unix epoch", sample.timestamp))?;
     sample.values.insert("timestamp".to_owned(), Value::Number(timestamp as f64 / 1_000.0));
     Ok(())
-}
-
-fn retain_open_execution_samples(
-    batch: &mut TelemetryBatch, closing_executions: &BTreeSet<dokime_domain::model::identity::TestExecutionId>,
-) -> u64 {
-    let before = batch.samples.len();
-    batch.samples.retain(|sample| {
-        sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).is_none_or(|id| !closing_executions.contains(id))
-    });
-    (before - batch.samples.len()) as u64
 }
 
 /* === Tests === */

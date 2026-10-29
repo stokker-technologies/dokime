@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 #[cfg(feature = "native")]
@@ -21,6 +23,7 @@ use tokio::sync::watch;
 
 #[cfg(feature = "native")]
 use tokio::time::{Instant, MissedTickBehavior, interval_at};
+
 // Local Imports
 
 /* === Constants === */
@@ -30,6 +33,7 @@ use tokio::time::{Instant, MissedTickBehavior, interval_at};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Tick {
     index: u64,
@@ -49,6 +53,7 @@ pub(crate) struct Cadence {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Tick {
     pub fn new(index: u64, elapsed: Duration) -> Self {
         Self { index, elapsed }

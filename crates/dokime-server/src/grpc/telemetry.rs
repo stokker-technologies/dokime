@@ -8,71 +8,171 @@
  */
 
 /* === Modules === */
+
 pub(super) mod projection;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
+use crate::grpc::transcode::Transcode;
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
+
 // Local Imports
 use super::value::{self, canonical};
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::wire as common;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::operations::telemetry as wire;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::domains::evidence::ScopeSelection;
-use dokime_runtime::domains::evidence::TelemetrySelection;
+
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::IdentifierPattern;
+use dokime::domain::model::identity::wire as common;
+use dokime::domain::model::time::Timestamp;
+use dokime::domains::evidence::ScopeSelection;
+use dokime::domains::evidence::TelemetrySelection;
+use dokime::operations::hosting::{Host, Serve, Served};
+use dokime::operations::telemetry as wire;
 
 /* === Constants === */
-const DEFAULT_LIMIT: usize = 500;
-const MAX_LIMIT: usize = 5_000;
+
+const SERVER_DEFAULT_TELEMETRY_ITEMS: u64 = 500;
+const SERVER_EVIDENCE_SELECTION_ITEMS: u64 = 64;
+const SERVER_MAXIMUM_TELEMETRY_ITEMS: u64 = 5_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
 }
 
-struct List {
-    resources: Arc<Resources>,
+struct Selection {
+    query: TelemetrySelection,
 }
 
 /* === Enums === */
 
+enum ProjectionError {
+    Status(Status),
+    Storage(dokime::harmos::storage::Error),
+}
+
+impl From<Status> for ProjectionError {
+    fn from(error: Status) -> Self {
+        Self::Status(error)
+    }
+}
+
+impl From<dokime::harmos::storage::Error> for ProjectionError {
+    fn from(error: dokime::harmos::storage::Error) -> Self {
+        Self::Storage(error)
+    }
+}
+
+impl ProjectionError {
+    fn status(self) -> Status {
+        match self {
+            Self::Status(error) => error,
+            Self::Storage(error @ dokime::harmos::storage::Error::ResourceExhausted { .. }) => {
+                Status::resource_exhausted(error.to_string())
+            }
+            Self::Storage(error) => Status::unavailable(error.to_string()),
+        }
+    }
+}
+
 /* === Traits === */
 
 /* === Implementations === */
-impl Operation for List {
-    type Declaration = wire::ListSamples;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
+
+impl Serve<wire::ListSamples> for Resources {
+    fn serve<'a>(
+        &'a self, mut request: wire::ListSamples, _: Context<'a, wire::ListSamples>,
+    ) -> Served<'a, dokime::domain::model::telemetry::wire::TelemetrySamplesReply> {
+        Box::pin(async move {
+            let session = self.runtime.storage().clone();
+            let selection = self.selection(&mut request)?;
+            let at = session.cursor_saved();
+            self.page(&session, &selection, &at, 0, false).await.map(|(page, ..)| page)
+        })
     }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::ListSamples, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>, Status> {
+}
+
+impl Serve<wire::WatchSamples> for Resources {
+    fn serve<'a>(&'a self, mut request: wire::WatchSamples, ctx: Context<'a, wire::WatchSamples>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let mut selection = request.selection.take().ok_or_else(|| Status::invalid_argument("telemetry selection is missing"))?;
+                if selection.latest || request.follow && selection.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()).is_none() {
+                    return Err(Status::invalid_argument("telemetry watch requires forward paging and an execution scope when following"));
+                }
+                let runtime = &self.runtime;
+                let session = runtime.storage().clone();
+                let mut selection = self.selection(&mut selection)?;
+                let mut at = session.cursor_saved();
+                // Every Selected Row At Or Below `after` Was Delivered, So Each Page And Wake Scans Only Newer Rows.
+                let mut after = 0;
+                loop {
+                    let (page, sealed, settled) = self.page(&session, &selection, &at, after, true).await?;
+                    let complete = page.complete;
+                    let through = page.through_stream_cursors.clone();
+                    output.send_owned(page).await.map_err(|error| Status::unavailable(error.to_string()))?;
+                    selection.advance_cursors(&through);
+                    after = settled;
+                    if !complete {
+                        continue;
+                    }
+                    if !request.follow || sealed {
+                        return Ok(().into());
+                    }
+                    // Native Wait Registers Before Inspecting The Saved Frontier; Cancellation Only Drops The Waiter.
+                    at = loop {
+                        match tokio::time::timeout(super::WATCH_HEARTBEAT, session.wait_saved_after(&at)).await {
+                            Ok(saved) => break saved.map_err(storage_failure)?,
+                            Err(_) => {
+                                output.send_owned(heartbeat().into()).await.map_err(|error| Status::unavailable(error.to_string()))?
+                            }
+                        }
+                    };
+                }
+            })
+            .await
+        })
+    }
+}
+
+impl Resources {
+    fn selection(&self, request: &mut wire::ListSamples) -> Result<Selection, Status> {
         let limit = bounded_limit(request.limit)?;
-        let after_stream_cursors = bounded_cursors(std::mem::take(&mut request.after_stream_cursors))?;
-        if request.latest && !after_stream_cursors.is_empty() {
+        if request.latest && !request.after_stream_cursors.is_empty() {
             return Err(Status::invalid_argument("latest telemetry windows cannot be continued with after_stream_cursors"));
         }
-        let selection = TelemetrySelection {
-            after_stream_cursors: after_stream_cursors.clone(),
+        if request.streams.len() as u64 > SERVER_EVIDENCE_SELECTION_ITEMS {
+            return Err(Status::invalid_argument("stream selection exceeds the configured alternatives limit"));
+        }
+        value::collection(request.after_stream_cursors.len())?;
+        let after_stream_cursors =
+            std::mem::take(&mut request.after_stream_cursors).into_iter().map(|entry| (entry.key, entry.value)).collect();
+        let mut streams = Vec::new();
+        streams.try_reserve_exact(request.streams.len()).map_err(|_| selection_memory())?;
+
+        for value in std::mem::take(&mut request.streams) {
+            streams.push(stream(value)?);
+        }
+        let query = TelemetrySelection {
+            after_stream_cursors,
             limit: Some(limit),
-            streams: std::mem::take(&mut request.streams).into_iter().map(stream).collect::<Result<_, _>>()?,
+            streams,
             schema_versions: bounded_schema_versions(std::mem::take(&mut request.schema_versions))?,
             sources: bounded_texts(std::mem::take(&mut request.sources), "telemetry source")?,
             signals: bounded_texts(std::mem::take(&mut request.signals), "telemetry signal")?,
@@ -81,110 +181,172 @@ impl Operation for List {
             end: timestamp(request.end.take(), "telemetry end")?,
             latest: request.latest,
         };
-        let mut samples = self
-            .resources
+        Ok(Selection { query })
+    }
+
+    // Answers One Page And The Storage Position Through Which The Selection Is Now Settled.
+    async fn page(
+        &self, session: &dokime::storage::Manager, selection: &Selection, at: &dokime::harmos::storage::StorageCursor, after: u64,
+        streamed: bool,
+    ) -> Result<(Response<dokime::domain::model::telemetry::wire::TelemetrySamplesReply>, bool, u64), Status> {
+        let query = &selection.query;
+        let after_stream_cursors = &query.after_stream_cursors;
+        let limit = query.limit.expect("selection limit is bounded during admission");
+        let (page, sealed) = self
             .runtime
-            .try_selected_telemetry(selection)
+            .telemetry_page_at(session, query, at, after)
             .await
             .map_err(|error| Status::unavailable(format!("telemetry query unavailable: {error}")))?;
-        let selected = samples.len();
-        let (through_stream_cursors, _) = fit_page(&mut samples, request.latest, after_stream_cursors, self.resources.max_message_bytes)?;
-        // A clamped page is never complete: forward pages continue from the
-        // returned cursors, a latest window asks again with a smaller limit.
-        let clamped = samples.len() < selected;
-        let samples = samples.iter().map(projection::sample).collect::<Result<Vec<_>, _>>()?;
-        let reply = dokime_domain::model::telemetry::wire::TelemetrySamplesReply {
-            samples,
-            through_stream_cursors: through_stream_cursors
-                .into_iter()
-                .map(|(key, value)| dokime_domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry { key, value })
-                .collect(),
-            complete: !clamped && request_is_complete(request.latest, selected, limit),
+        let mut delivered = 0;
+        let reply = page
+            .samples
+            .try_map(|mut samples| -> Result<_, ProjectionError> {
+                let selected = samples.len();
+                let (through, _) = fit_page(&mut samples, query.latest, after_stream_cursors, self.max_message_bytes, streamed, limit)?;
+                delivered = samples.len();
+                let clamped = samples.len() < selected;
+                let mut projected = Vec::new();
+                projected
+                    .try_reserve_exact(samples.len())
+                    .map_err(|_| Status::resource_exhausted("telemetry response allocation refused"))?;
+                for sample in &samples {
+                    projected.push(projection::sample(sample)?);
+                }
+                let mut cursors = Vec::new();
+                cursors.try_reserve_exact(through.len()).map_err(|_| Status::resource_exhausted("telemetry cursor allocation refused"))?;
+                for (key, value) in through {
+                    cursors.push(dokime::domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry { key, value });
+                }
+                Ok(dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
+                    samples: projected,
+                    through_stream_cursors: cursors,
+                    complete: !clamped && request_is_complete(query.latest, selected, limit),
+                })
+            })
+            .map_err(ProjectionError::status)?;
+        // A Whole Page Settles The Frontier; A Clamped One Settles Its Last Delivered Storage Position.
+        let settled = match delivered.checked_sub(1) {
+            _ if delivered == page.positions.len() && !page.limited => at.sequence,
+            Some(last) => page.positions[last],
+            None => after,
         };
-        if reply.wire_len()? > self.resources.max_message_bytes {
-            return Err(Status::resource_exhausted("telemetry sample response exceeds transport limit"));
+        Ok((Response::from_owner(reply.owner()), sealed, settled))
+    }
+}
+
+impl Selection {
+    fn advance_cursors(&mut self, cursors: &[dokime::domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry]) {
+        for cursor in cursors {
+            match self.query.after_stream_cursors.get_mut(&cursor.key) {
+                Some(value) => *value = cursor.value,
+                None => {
+                    self.query.after_stream_cursors.insert(cursor.key.clone(), cursor.value);
+                }
+            }
         }
-        Ok(reply.into())
     }
 }
 
 /* === Public Functions === */
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operation::<List>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum }),
-    )?;
+
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes: maximum,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::ListSamples>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::WatchSamples>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::ListSamples>().operation::<wire::WatchSamples>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
 /* === Private Functions === */
+
+/// An Empty Complete Page Keeps Every Cursor And Proves The Followed Stream Is Alive.
+fn heartbeat() -> dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
+    dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
+        samples: Vec::new(),
+        through_stream_cursors: Vec::new(),
+        complete: true,
+    }
+}
+
+fn selection_memory() -> Status {
+    Status::resource_exhausted("telemetry selection allocation refused")
+}
+
+fn storage_failure(error: dokime::harmos::storage::Error) -> Status {
+    ProjectionError::Storage(error).status()
+}
+
 fn bounded_limit(value: u32) -> Result<usize, Status> {
     let value = if value == 0 {
-        DEFAULT_LIMIT
+        usize::try_from(SERVER_DEFAULT_TELEMETRY_ITEMS).expect("validated telemetry default count")
     } else {
         usize::try_from(value).map_err(|_| Status::out_of_range("telemetry limit is unsupported"))?
     };
     // Asking for more than one page holds is never refused; the page clamps.
-    Ok(value.min(MAX_LIMIT))
+    Ok(value.min(usize::try_from(SERVER_MAXIMUM_TELEMETRY_ITEMS).expect("validated telemetry maximum count")))
 }
 
 fn fit_page(
-    samples: &mut Vec<dokime_runtime::telemetry::TelemetrySample>, latest: bool, after_stream_cursors: BTreeMap<String, u64>, budget: usize,
+    samples: &mut Vec<dokime::telemetry::TelemetrySample>, latest: bool, after: &BTreeMap<String, u64>, maximum: usize, streamed: bool,
+    limit: usize,
 ) -> Result<(BTreeMap<String, u64>, usize), Status> {
-    let cursor = |key: &str| {
-        key.len().saturating_add(
-            4 * std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry>(),
-        )
+    let selected = samples.len();
+    let project = |count: usize| -> Result<_, Status> {
+        let mut through = if latest { BTreeMap::new() } else { after.clone() };
+        let start = if latest { selected - count } else { 0 };
+        let mut projected = Vec::new();
+        projected.try_reserve_exact(count).map_err(|_| selection_memory())?;
+        for sample in &samples[start..start + count] {
+            projected.push(projection::sample(sample)?);
+            if !latest {
+                let stream = dokime::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
+                through.entry(stream).and_modify(|value| *value = (*value).max(sample.sequence)).or_insert(sample.sequence);
+            }
+        }
+        let cursors = through
+            .iter()
+            .map(|(key, value)| dokime::domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry {
+                key: key.clone(),
+                value: *value,
+            })
+            .collect();
+        let reply = dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
+            samples: projected,
+            through_stream_cursors: cursors,
+            complete: count == selected && request_is_complete(latest, selected, limit),
+        };
+        let bytes = if streamed { super::content::output_frame_len(&reply)? } else { reply.wire_len()? };
+        Ok((through, bytes))
     };
-    let mut through = if latest { BTreeMap::new() } else { after_stream_cursors };
-    let mut required =
-        through.keys().fold(std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>(), |bytes, key| {
-            bytes.saturating_add(cursor(key))
-        });
-    let order: Box<dyn Iterator<Item = usize>> = if latest { Box::new((0..samples.len()).rev()) } else { Box::new(0..samples.len()) };
-    let mut kept = 0;
-    for index in order {
-        let sample = &samples[index];
-        let mut bytes =
-            projection::memory(sample)?.saturating_add(3 * std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>());
-        let stream = (!latest).then(|| dokime_runtime::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream));
-        if let Some(stream) = &stream
-            && !through.contains_key(stream)
-        {
-            bytes = bytes.saturating_add(cursor(stream));
-        }
-        if required.saturating_add(bytes) > budget {
-            break;
-        }
-        required = required.saturating_add(bytes);
-        if let Some(stream) = stream {
-            through.entry(stream).and_modify(|through| *through = (*through).max(sample.sequence)).or_insert(sample.sequence);
-        }
-        kept += 1;
+    let (through, bytes) = project(selected)?;
+    if bytes <= maximum {
+        return Ok((through, bytes));
     }
-    if kept == 0 && !samples.is_empty() {
-        return Err(Status::resource_exhausted("one telemetry sample exceeds the message budget"));
+    let mut low = 0;
+    let mut high = selected;
+    while low < high {
+        let middle = low + (high - low).div_ceil(2);
+        if project(middle)?.1 <= maximum {
+            low = middle;
+        } else {
+            high = middle - 1;
+        }
+    }
+    let (through, bytes) = project(low)?;
+    if bytes > maximum || low == 0 && selected != 0 {
+        return Err(Status::resource_exhausted("telemetry sample or cursor exceeds transport limit"));
     }
     if latest {
-        samples.drain(..samples.len() - kept);
+        samples.drain(..selected - low);
     } else {
-        samples.truncate(kept);
+        samples.truncate(low);
     }
-    Ok((through, required))
-}
-
-fn bounded_cursors(
-    values: Vec<dokime_domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry>,
-) -> Result<std::collections::BTreeMap<String, u64>, Status> {
-    value::collection(values.len())?;
-    values
-        .into_iter()
-        .map(|entry| {
-            value::text(&entry.key)?;
-            Ok((entry.key, entry.value))
-        })
-        .collect()
+    Ok((through, bytes))
 }
 
 fn bounded_schema_versions(values: Vec<u32>) -> Result<Vec<u32>, Status> {
@@ -194,21 +356,14 @@ fn bounded_schema_versions(values: Vec<u32>) -> Result<Vec<u32>, Status> {
 
 fn bounded_texts(values: Vec<String>, label: &str) -> Result<Vec<String>, Status> {
     value::collection(values.len())?;
-    values
-        .into_iter()
-        .map(|value| {
-            value::text(&value)?;
-            if value.is_empty() {
-                return Err(Status::invalid_argument(format!("{label} is empty")));
-            }
-            Ok(value)
-        })
-        .collect()
+    if values.iter().any(String::is_empty) {
+        return Err(Status::invalid_argument(format!("{label} is empty")));
+    }
+    Ok(values)
 }
 
-fn stream(value: String) -> Result<Identifier, Status> {
-    value::text(&value)?;
-    Identifier::new(value).map_err(|error| Status::invalid_argument(format!("invalid telemetry stream: {error}")))
+fn stream(value: String) -> Result<IdentifierPattern, Status> {
+    IdentifierPattern::new(value).map_err(|error| Status::invalid_argument(format!("invalid telemetry stream pattern: {error}")))
 }
 
 fn scope_selection(scope: Option<common::EvidenceScope>) -> Result<ScopeSelection, Status> {

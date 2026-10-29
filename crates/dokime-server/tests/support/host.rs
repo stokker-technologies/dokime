@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     path::{Path, PathBuf},
@@ -30,6 +31,7 @@ use tokio::process::{Child, ChildStdout, Command};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Host {
     child: Child,
     endpoint: String,
@@ -43,6 +45,18 @@ pub struct Host {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Drop for Host {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            return;
+        }
+        let status = self.child.try_wait();
+        let diagnostics = std::fs::read_to_string(&self.stderr).unwrap_or_default();
+        eprintln!("backend status at story failure: {status:?}\n{diagnostics}");
+    }
+}
+
 impl Host {
     pub async fn launch(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -56,6 +70,9 @@ impl Host {
         let stderr = root.join("host.stderr.log");
         let diagnostics = std::fs::File::create(&stderr).unwrap();
         let mut command = Command::new(super::artifacts::host_binary());
+        command.arg("server");
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
         command
             .args(["--dev-control", "--shutdown-stdin", "--port", "0", "--output-root"])
             .arg(root.join("data"))
@@ -77,7 +94,10 @@ impl Host {
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
         let mut phases = Vec::new();
         let ready = loop {
-            let line = lines.next_line().await.unwrap().expect("the backend exited before reporting readiness");
+            let Some(line) = lines.next_line().await.unwrap() else {
+                let diagnostics = std::fs::read_to_string(&stderr).unwrap_or_default();
+                panic!("the backend exited before reporting readiness:\n{diagnostics}");
+            };
             let event: serde_json::Value =
                 serde_json::from_str(&line).unwrap_or_else(|error| panic!("unparseable readiness line {line:?}: {error}"));
             if event["event"] != "phase" {
@@ -85,7 +105,7 @@ impl Host {
             }
             phases.push(event["name"].as_str().unwrap_or_default().to_owned());
         };
-        // The dev-control startup phases `serve` reaches, in order, before it
+        // The dev-control startup phases `dokime server` reaches, in order, before it
         // starts the gRPC listener and reports ready.
         assert_eq!(phases, vec!["storage", "plugins", "requests"]);
         assert_eq!(ready["event"], "ready");
@@ -94,7 +114,13 @@ impl Host {
         assert_eq!(ready["dev_protocol"], 4);
         assert_eq!(ready["transport"], "grpc");
         let endpoint = ready["endpoint"].as_str().unwrap().to_owned();
-        Self { child, endpoint, replies: lines, stderr, _root: None }
+        Self {
+            child,
+            endpoint,
+            replies: lines,
+            stderr,
+            _root: None,
+        }
     }
 
     pub async fn command(&mut self, request: serde_json::Value) -> serde_json::Value {
@@ -105,17 +131,38 @@ impl Host {
         serde_json::from_str(&line).unwrap()
     }
 
-    pub async fn connect(&self) -> dokime_client::Client {
-        dokime_client::Client::connect(dokime_client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
+    pub async fn connect(&self) -> dokime::client::Client {
+        dokime::client::Client::connect(dokime::client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
+    }
+
+    pub fn endpoint(&self) -> &str {
+        &self.endpoint
+    }
+
+    pub fn pid(&self) -> u32 {
+        self.child.id().expect("the host is running")
+    }
+
+    // Close stdin, the desktop's stop request, and wait for the exit: its
+    // status, how long the stop took and the host's diagnostics.
+    pub async fn shutdown(mut self) -> (std::process::ExitStatus, std::time::Duration, String) {
+        let started = std::time::Instant::now();
+        drop(self.child.stdin.take());
+        let status = self.child.wait().await.unwrap();
+        let elapsed = started.elapsed();
+        (status, elapsed, std::fs::read_to_string(&self.stderr).unwrap())
     }
 
     pub async fn stop(mut self, signal: bool) {
+        // `Child::wait` closes stdin, which is itself a stop request: a signalled
+        // stop holds it open so the interrupt is the only request the host sees.
+        let stdin = self.child.stdin.take();
         if signal {
             let pid = self.child.id().unwrap().to_string();
             let status = Command::new("kill").args(["-INT", &pid]).status().await.unwrap();
             assert!(status.success());
         } else {
-            drop(self.child.stdin.take());
+            drop(stdin);
         }
         let status = self.child.wait().await.unwrap();
         let diagnostics = std::fs::read_to_string(&self.stderr).unwrap();

@@ -45,7 +45,7 @@ pub enum Field {
 
 /* === Public Functions === */
 pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBatch {
-    Host::default()
+    Host::new(dokime_host::HostTelemetryConfig::default())
         .collect_stream(stream)
         .expect("native host collection should return a structured result")
         .unwrap_or_else(|| panic!("native host collection for {} should produce a telemetry sample", stream.as_str()))

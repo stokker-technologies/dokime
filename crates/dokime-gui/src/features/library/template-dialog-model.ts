@@ -29,7 +29,11 @@ export type CaseAppend = { cycleId: string; selections: TestCycleSelection[] };
 
 /* === Constants === */
 
-export const NO_ACTIVE_CYCLE = "Cases join the active cycle. Open a cycle or create one first.";
+/** The one blocking statement: no cycle is open, so there is nothing to add to. */
+export const NO_ACTIVE_CYCLE = "No cycle is open. Create one to add cases.";
+
+/** Open cycles exist, but none is the active cycle yet. */
+export const NO_CHOSEN_CYCLE = "Choose the cycle these cases join.";
 
 /* === Public Functions === */
 

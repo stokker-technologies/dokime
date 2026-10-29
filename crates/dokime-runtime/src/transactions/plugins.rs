@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::state::ProviderCatalog;
 use crate::{InstalledPlugin, RuntimeState};
@@ -28,19 +30,20 @@ use crate::{InstalledPlugin, RuntimeState};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "dokime.artifact.host.install", version = 1, irreversible)]
+
+#[harmos::transaction(id = "dokime.artifact.host.install", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InstallHostPlugin {
     pub installation: InstalledPlugin,
 }
 
-#[harmos::transaction(id = "dokime.providers.reconcile", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.providers.reconcile", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReconcileProviders {
     pub providers: Vec<ProviderCatalog>,
 }
 
-#[harmos::transaction(id = "dokime.providers.reload", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.providers.reload", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReloadProviderCatalog {
     pub providers: Vec<ProviderCatalog>,
@@ -52,11 +55,12 @@ pub struct ReloadProviderCatalog {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for InstallHostPlugin {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         active(state)?;
-        state.clone().install_host_plugin(self.installation.clone())
+        state.catalog_candidate().install_host_plugin(self.installation.clone())
     }
     fn apply(&self, state: &mut RuntimeState) {
         state.install_host_plugin(self.installation.clone()).expect("host catalog admission was checked");
@@ -88,6 +92,7 @@ impl Transaction<RuntimeState> for ReloadProviderCatalog {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn active(state: &RuntimeState) -> Result<(), String> {
     if state.shutting_down { Err("runtime is shutting down".into()) } else { Ok(()) }
 }

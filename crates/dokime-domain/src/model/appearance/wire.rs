@@ -12,6 +12,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+pub use crate::model::plugins::LogoVariant;
 
 /* === Imports === */
 
@@ -37,7 +38,7 @@ pub struct AppearanceSnapshot {
     pub app_name: String,
     pub organization: Option<OrganizationIdentity>,
     pub title_template: Option<String>,
-    pub logo: Option<AppearanceLogo>,
+    pub logos: Vec<AppearanceLogo>,
     pub themes: Vec<ThemeFamily>,
     pub active_theme: Option<String>,
     pub theme_family_locked: bool,
@@ -57,6 +58,7 @@ pub struct OrganizationIdentity {
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearanceLogo {
+    pub variant: LogoVariant,
     pub asset: Option<AppearanceAssetMetadata>,
     pub alt: Option<String>,
 }

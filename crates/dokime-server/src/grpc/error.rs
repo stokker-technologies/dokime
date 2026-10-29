@@ -10,19 +10,23 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::Error;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use prost::Message;
 use tonic::Status;
+
 // Local Imports
-use dokime_runtime::plugin::Diagnostic;
-use dokime_runtime::runtime::Error as HostError;
+use dokime::plugin::Diagnostic;
+use dokime::runtime::Error as HostError;
 
 /* === Constants === */
+
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";
 
 /* === Macros === */
@@ -38,8 +42,14 @@ const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError
 /* === Implementations === */
 
 /* === Public Functions === */
+
 #[track_caller]
 pub(super) fn detailed(status: Status, error: &HostError) -> Status {
+    detailed_error(status, error)
+}
+
+#[track_caller]
+pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 'static)) -> Status {
     let diagnostic = Diagnostic::capture(error).redacted();
     let code = status.code();
     let message = status.message().to_owned();
@@ -49,7 +59,10 @@ pub(super) fn detailed(status: Status, error: &HostError) -> Status {
         // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
         details: crate::grpc::transcode::Transcode::wire_bytes(&captured(&diagnostic))
             .ok()
-            .map(|value| prost_types::Any { type_url: DETAIL_TYPE_URL.to_owned(), value })
+            .map(|value| prost_types::Any {
+                type_url: DETAIL_TYPE_URL.to_owned(),
+                value,
+            })
             .into_iter()
             .collect(),
     };
@@ -58,15 +71,20 @@ pub(super) fn detailed(status: Status, error: &HostError) -> Status {
 }
 
 /* === Private Functions === */
-fn captured(diagnostic: &Diagnostic) -> dokime_domain::model::evidence::wire::CapturedRecordError {
-    dokime_domain::model::evidence::wire::CapturedRecordError {
+
+fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::CapturedRecordError {
+    dokime::domain::model::evidence::wire::CapturedRecordError {
         message: diagnostic.message.clone(),
         code: None,
         source: (!diagnostic.location.is_empty()).then(|| diagnostic.location.clone()),
         cause_chain: diagnostic
             .chain
             .iter()
-            .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause { message: cause.clone(), code: None, source: None })
+            .map(|cause| dokime::domain::model::evidence::wire::CapturedErrorCause {
+                message: cause.clone(),
+                code: None,
+                source: None,
+            })
             .collect(),
         stacktrace_attachment: None,
         trace_id: None,

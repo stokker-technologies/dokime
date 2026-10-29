@@ -8,15 +8,16 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod artifacts;
 pub(crate) mod health;
 pub mod notes;
 pub(crate) mod publish;
 mod selection;
-pub(crate) mod state;
 mod summary;
 
 /* === Re-Exports === */
+
 pub use crate::artifacts::ArtifactUploadInput;
 pub use dokime_domain::model::execution::notes::OperatorNoteRequest;
 pub use publish::{PublishReceipt, PublishStatus, RecordPublishRequest};
@@ -26,10 +27,12 @@ pub use selection::{RecordSelection, ScopeSelection, TelemetrySelection};
 pub use summary::{EvidenceSummaries, RecordSummary, TelemetryStreamSummary};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::prompts::PromptInstance;
@@ -47,12 +50,13 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceSnapshot {
     pub record_contracts: Vec<RecordContract>,
     pub telemetry_contracts: Vec<TelemetryContract>,
     pub summaries: EvidenceSummaries,
-    pub records: Vec<RecordEntry>,
+    pub records: crate::storage::ReadRows<RecordEntry>,
     pub telemetry: Vec<TelemetrySample>,
     pub prompts: Vec<PromptInstance>,
     pub artifacts: Vec<ArtifactRecord>,
@@ -77,6 +81,7 @@ pub struct EvidenceCounts {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl EvidenceSnapshot {
     pub fn counts(&self) -> EvidenceCounts {
         EvidenceCounts {

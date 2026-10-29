@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use model::documents::wire::DocumentFrameFrame as Frame;
 
 /* === Constants === */
@@ -41,8 +42,16 @@ use model::documents::wire::DocumentFrameFrame as Frame;
 
 #[tokio::test]
 async fn running_execution_owners() {
-    let Gated { root: _root, gate, mut owner, service: _service, server, execution, cycle } = Gated::open().await;
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service: _service,
+        server,
+        execution,
+        cycle,
+    } = Gated::open().await;
+    execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let attempts = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -54,7 +63,10 @@ async fn running_execution_owners() {
         .into_inner();
     let id = attempts.executions[0].execution_id.clone();
     let documents = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let selected = model::documents::wire::DocumentScope { cycle_id: cycle, execution_id: id.clone() };
+    let selected = model::documents::wire::DocumentScope {
+        cycle_id: cycle,
+        execution_id: id.clone(),
+    };
     let mut stream = documents
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
             scope: Some(selected),

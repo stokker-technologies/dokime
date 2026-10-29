@@ -68,9 +68,9 @@ pub struct DocumentFrontiers {
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentTelemetryCut {
-    pub delivered_cursor: u64,
-    pub source: Option<DocumentTelemetryCutSource>,
-    pub series_ordinal: Option<u64>,
+    pub store: String,
+    pub epoch: String,
+    pub position: u64,
 }
 
 #[harmos_domain::message]
@@ -475,13 +475,6 @@ pub enum DocumentSummaryState {
     Warning,
     Critical,
     Muted,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub enum DocumentTelemetryCutSource {
-    SeriesEpoch(u64),
-    RetainedWindow(bool),
 }
 
 #[harmos_domain::message]

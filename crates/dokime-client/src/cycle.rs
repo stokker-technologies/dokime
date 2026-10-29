@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod prompts;
 
 /* === Re-Exports === */
@@ -15,27 +16,18 @@ mod prompts;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    collections::{BTreeMap, HashSet},
-    time::Duration,
-};
+use std::collections::HashSet;
 
 // Third Party Imports
 
 // Local Imports
-use super::{
-    Client, Error, ExecutionRequestHandle, ResponseStream, Result, TestExecutionHandle, contracts, validate_observed_cursor,
-    validate_observed_epoch,
-};
+use super::{Client, Error, ResponseStream, Result, TestExecutionHandle, contracts, validate_observed_cursor, validate_observed_epoch};
 use dokime_domain::model::identity::CaseId;
-use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::identity::wire::Metadata;
-use dokime_domain::model::values::wire::Value;
-use dokime_domain::operations::Endpoint;
-use dokime_domain::operations::execution as contract;
-use dokime_domain::operations::planning;
+use dokime_operations::Endpoint;
+use dokime_operations::execution as contract;
+use dokime_operations::planning;
 
 /* === Constants === */
 
@@ -44,6 +36,7 @@ use dokime_domain::operations::planning;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct TestCycleHandle {
     client: Client,
@@ -55,31 +48,8 @@ pub struct TestCycleHandle {
 /* === Traits === */
 
 /* === Implementations === */
-impl Client {
-    pub async fn plan_cycle(
-        &self, suite: &str, template: &str, parameters: BTreeMap<String, dokime_domain::model::values::Value>, label: Option<String>,
-    ) -> Result<TestCycleHandle> {
-        let definition = self.suite(suite).await?;
-        let (plan, default_label) = single_plan(&definition, template, parameters)?;
-        let cycle = self
-            .create_cycle(contract::CreateCycle {
-                metadata: Some(Metadata {
-                    identifier: String::new(),
-                    label: label.unwrap_or(default_label),
-                    description: None,
-                    tags: Vec::new(),
-                    attributes: Vec::new(),
-                    created_at: None,
-                    updated_at: None,
-                }),
-                continue_on_failure: false,
-                context: None,
-            })
-            .await?;
-        cycle.append_cases(plan).await?;
-        Ok(cycle)
-    }
 
+impl Client {
     pub fn cycle(&self, id: TestCycleId) -> TestCycleHandle {
         TestCycleHandle { client: self.clone(), id }
     }
@@ -107,6 +77,21 @@ impl Client {
         super::transport::value(reply)
     }
 
+    pub async fn materialize_template(
+        &self, request: planning::MaterializeTemplate,
+    ) -> Result<dokime_domain::model::planning::wire::PreviewSelectionReply> {
+        self.verify(true).await?;
+        let reply = self.unary::<planning::MaterializeTemplate>(planning::MaterializeTemplate::PATH, request).await?;
+        validate_observed_cursor(&self.backend().epoch, reply.observed_cursor.as_ref())?;
+        for case in &reply.cases {
+            CaseId::from_wire(&case.case_id).map_err(|_| invalid("materialized case has an invalid identity"))?;
+            if case.definition_revision.is_empty() || case.provider.is_empty() {
+                return Err(invalid("materialized case is missing its definition or provider revision"));
+            }
+        }
+        super::transport::value(reply)
+    }
+
     pub async fn create_cycle(&self, request: contract::CreateCycle) -> Result<TestCycleHandle> {
         self.verify(true).await?;
         let reply = self.unary::<contract::CreateCycle>(contract::CreateCycle::PATH, request).await?;
@@ -117,22 +102,22 @@ impl Client {
 }
 
 impl TestCycleHandle {
+    pub async fn export(
+        &self, destination: std::path::PathBuf, overwrite: bool,
+    ) -> std::result::Result<super::Download<dokime_domain::model::exports::EvidenceExportMetadata>, super::DownloadError> {
+        let subject = dokime_domain::model::exports::EvidenceSubject::Cycle(self.id.to_string());
+        self.client.download_evidence(contracts::content::DownloadEvidence { subject: Some(subject) }, destination, overwrite).await
+    }
+
     pub fn samples(
-        &self, streams: Vec<String>, execution_id: Option<TestExecutionId>, until: Option<&ExecutionRequestHandle>, page_size: u32,
-        interval: Option<Duration>,
+        &self, streams: Vec<String>, execution_id: Option<TestExecutionId>, page_size: u32,
     ) -> Result<ResponseStream<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>> {
-        let interval = super::execution::sample_interval(page_size, interval)?;
-        let until = until.map(|request| request.bind_cycle(&self.client, &self.id)).transpose()?;
+        super::execution::validate_filters(&streams)?;
+        super::execution::validate_sample_page(page_size)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let result = async {
                 handle.snapshot().await?;
-                let completion = || async {
-                    match &until {
-                        Some(request) => request.evidence_ready().await,
-                        None => Ok(true),
-                    }
-                };
                 let scope = dokime_domain::model::identity::wire::EvidenceScope {
                     cycle_id: Some(handle.id.to_string()),
                     execution_id: execution_id.map(|id| id.to_string()),
@@ -144,7 +129,7 @@ impl TestCycleHandle {
                     suite_id: None,
                     origin: None,
                 };
-                super::execution::read_samples(&handle.client, scope, streams, page_size, interval, completion, &sender).await
+                super::execution::read_samples(&handle.client, scope, streams, page_size, false, &sender).await
             }
             .await;
             if let Err(error) = result {
@@ -154,14 +139,14 @@ impl TestCycleHandle {
     }
 
     pub fn records(
-        &self, record_types: Vec<String>, execution_id: Option<TestExecutionId>, until: Option<&ExecutionRequestHandle>,
+        &self, record_types: Vec<String>, execution_id: Option<TestExecutionId>,
     ) -> Result<ResponseStream<dokime_domain::model::evidence::wire::RecordPage>> {
-        let until = until.map(|request| request.bind_cycle(&self.client, &self.id)).transpose()?;
+        super::execution::validate_filters(&record_types)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let result = async {
                 handle.snapshot().await?;
-                let completion = until.map(|request| async move { request.wait_evidence().await });
+                let completion = None::<std::future::Ready<Result<()>>>;
                 let scope = dokime_domain::model::identity::wire::EvidenceScope {
                     cycle_id: Some(handle.id.to_string()),
                     execution_id: execution_id.map(|id| id.to_string()),
@@ -182,65 +167,25 @@ impl TestCycleHandle {
         })
     }
 
-    pub fn request(&self, id: CommandId) -> ExecutionRequestHandle {
-        ExecutionRequestHandle::new(self.client.clone(), id, Some(self.id.clone()))
-    }
-
     pub fn id(&self) -> &TestCycleId {
         &self.id
     }
 
-    pub async fn stop(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
-        use dokime_domain::operations::execution::StopCycle;
+    pub async fn seal(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+        use dokime_operations::execution::SealCycle;
         self.client.verify(true).await?;
-        let reply = self.client.unary::<StopCycle>(StopCycle::PATH, StopCycle { cycle_id: self.id.to_string(), context: None }).await?;
+        let reply = self
+            .client
+            .unary::<SealCycle>(
+                SealCycle::PATH,
+                SealCycle {
+                    cycle_id: self.id.to_string(),
+                    context: None,
+                },
+            )
+            .await?;
         validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         super::transport::value(reply)
-    }
-
-    pub async fn run(&self, key: &str) -> Result<dokime_domain::model::execution::wire::Admission> {
-        dokime_domain::model::execution::command::validate_idempotency_key(key)
-            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
-        self.client.verify(true).await?;
-        let reply = self
-            .client
-            .execution_run_cycle(contracts::execution::RunCycle {
-                cycle_id: self.id.to_string(),
-                idempotency_key: Some(key.to_owned()),
-                context: None,
-            })
-            .await?;
-        super::execution::admission(&self.client.backend().epoch, reply)
-    }
-
-    pub async fn schedule_rerun(&self, case_id: &str) -> Result<dokime_domain::model::execution::wire::ControlReply> {
-        self.client.verify(true).await?;
-        let reply = self
-            .client
-            .execution_schedule_case_rerun(contracts::execution::ScheduleCaseRerun {
-                cycle_id: self.id.to_string(),
-                case_id: case_id.to_owned(),
-                context: None,
-            })
-            .await?;
-        validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
-        Ok(reply)
-    }
-
-    pub async fn run_case(&self, case_id: &str, key: &str) -> Result<dokime_domain::model::execution::wire::Admission> {
-        dokime_domain::model::execution::command::validate_idempotency_key(key)
-            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
-        self.client.verify(true).await?;
-        let reply = self
-            .client
-            .execution_run_case(contracts::execution::RunCase {
-                cycle_id: self.id.to_string(),
-                case_id: case_id.to_owned(),
-                context: None,
-                idempotency_key: Some(key.to_owned()),
-            })
-            .await?;
-        super::execution::admission(&self.client.backend().epoch, reply)
     }
 
     pub async fn snapshot(&self) -> Result<dokime_domain::model::execution::wire::CycleSummary> {
@@ -279,18 +224,29 @@ impl TestCycleHandle {
             .await?
     }
 
-    pub async fn append_cases(
-        &self, plan: dokime_domain::model::planning::wire::SelectionPlan,
-    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+    pub async fn append(
+        &self, executions: Vec<contract::ExecutionBinding>,
+    ) -> Result<dokime_domain::model::execution::wire::AppendCasesReply> {
+        let expected = executions.iter().map(|binding| binding.execution_id.clone()).collect::<Vec<_>>();
+        let mut seen = HashSet::new();
+        for binding in &executions {
+            TestExecutionId::from_uuid(&binding.execution_id)
+                .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
+            CaseId::from_wire(&binding.case_id).map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
+            if !seen.insert(&binding.execution_id) {
+                return Err(Error::Rpc(tonic::Status::invalid_argument("append repeats an execution identity")));
+            }
+        }
         self.client.verify(true).await?;
-        let reply = self
-            .client
-            .unary::<contract::AppendPlannedCases>(
-                contract::AppendPlannedCases::PATH,
-                contract::AppendPlannedCases { cycle_id: self.id.to_string(), plan: Some(plan), context: None },
-            )
-            .await?;
-        validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
+        let request = contract::AppendExecutions {
+            cycle_id: self.id.to_string(),
+            executions,
+        };
+        let reply = self.client.unary::<contract::AppendExecutions>(contract::AppendExecutions::PATH, request).await?;
+        validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
+        if reply.execution_ids != expected {
+            return Err(invalid("append reply differs from the registered execution identities or order"));
+        }
         super::transport::value(reply)
     }
 }
@@ -298,33 +254,6 @@ impl TestCycleHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn single_plan(
-    definition: &dokime_domain::model::catalog::wire::SuiteDefinition, template: &str,
-    parameters: BTreeMap<String, dokime_domain::model::values::Value>,
-) -> Result<(dokime_domain::model::planning::wire::SelectionPlan, String)> {
-    let identity = definition.identity.as_ref().ok_or_else(|| invalid("suite definition has no identity"))?;
-    // Templates are referenced by their readable id; the UUID stays internal.
-    let selected = super::catalog::registered_template(definition, template)?;
-    let plan = dokime_domain::model::planning::wire::SelectionPlan {
-        max_cases: 1,
-        case_ids: Vec::new(),
-        selections: vec![dokime_domain::model::planning::wire::RegisteredSelection {
-            suite_id: identity.suite_id.clone(),
-            template_id: selected.template_id.clone(),
-            parameters: parameters
-                .into_iter()
-                .map(|(key, value)| dokime_domain::model::planning::wire::RegisteredSelectionParametersEntry {
-                    key,
-                    value: Some(dokime_domain::model::planning::wire::SelectionValues { values: vec![Value::from(value)] }),
-                })
-                .collect(),
-            files: Vec::new(),
-        }],
-        cycle_id: String::new(),
-    };
-    let label = selected.metadata.as_ref().map(|metadata| metadata.label.clone()).unwrap_or_default();
-    Ok((plan, label))
-}
 
 fn execution_members(
     epoch: &str, request: &contracts::execution::ListExecutions, page: &dokime_domain::model::execution::wire::ListExecutionsReply,

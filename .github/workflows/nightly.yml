@@ -1,0 +1,254 @@
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:3984da110267822b643fa794558e9f66f244da0c990536caba43d49569799d63
+name: CI / Nightly
+"on":
+  schedule:
+  - cron: 0 0 * * *
+    timezone: Europe/Zurich
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: nightly-${{ github.run_id }}
+  cancel-in-progress: false
+jobs:
+  bench:
+    name: Bench
+    uses: ./.github/workflows/managed-bench.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"bench_rust_integration\":120,\"bench_rust_system\":120,\"bench_rust_unit\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - build_nightly
+    - check
+    - check_generated
+    - check_linux
+    - check_windows
+    - test
+    - test_linux
+    - test_nightly
+    - test_windows
+  build:
+    name: Build
+    uses: ./.github/workflows/managed-build.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_python_any\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+  build_product_linux:
+    name: Build
+    uses: ./.github/workflows/managed-build-product-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_product_linux\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - build
+  build_tests_linux:
+    name: Build
+    uses: ./.github/workflows/managed-build-tests-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_tests_linux\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+  build_product_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-product-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_product_windows\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - build
+  build_tests_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-tests-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_tests_windows\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+  build_nightly:
+    name: Build
+    uses: ./.github/workflows/managed-build-nightly.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_bench\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+  check:
+    name: Check
+    uses: ./.github/workflows/managed-check.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"check_python\":120,\"check_typescript\":120,\"source\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+  check_generated:
+    name: Check
+    uses: ./.github/workflows/managed-check-generated.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"check_generated_python\":120,\"check_generated_typescript\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - build
+    - build_product_linux
+  check_linux:
+    name: Check
+    uses: ./.github/workflows/managed-check-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"check_rust_linux\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+  check_windows:
+    name: Check
+    uses: ./.github/workflows/managed-check-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"check_rust_windows\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+  package:
+    name: Package
+    uses: ./.github/workflows/managed-package.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"package_python\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+    needs:
+    - build
+    - check
+    - check_generated
+    - check_linux
+    - check_windows
+  package_linux:
+    name: Package
+    uses: ./.github/workflows/managed-package-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"package_rust_linux\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+      stable_release: ${{ needs.check.outputs.stable_release }}
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+    needs:
+    - build_product_linux
+    - check
+    - check_generated
+    - check_linux
+  package_windows:
+    name: Package
+    uses: ./.github/workflows/managed-package-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"package_rust_windows\":120,\"package_signing_windows_rust_windows\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+      stable_release: ${{ needs.check.outputs.stable_release }}
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+    needs:
+    - build_product_windows
+    - check
+    - check_generated
+    - check_windows
+  release_nightly:
+    name: Release
+    uses: ./.github/workflows/managed-release-nightly.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"release_dry_nightly\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - check
+    - check_generated
+    - check_linux
+    - check_windows
+    - package
+    - package_linux
+    - package_windows
+    - test
+    - test_linux
+    - test_windows
+  test:
+    name: Test
+    uses: ./.github/workflows/managed-test.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"validate_test_python_acceptance\":120,\"validate_test_python_integration\":120,\"validate_test_python_unit\":120,\"validate_test_typescript_integration\":120,\"validate_test_typescript_unit\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - build
+    - build_product_linux
+  test_linux:
+    name: Test
+    uses: ./.github/workflows/managed-test-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"validate_test_rust_acceptance_linux\":120,\"validate_test_rust_integration_linux\":120,\"validate_test_rust_starter_linux\":120,\"validate_test_rust_system_linux\":120,\"validate_test_rust_unit_linux\":120,\"validate_test_typescript_system_linux\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - build
+    - build_product_linux
+    - build_tests_linux
+  test_windows:
+    name: Test
+    uses: ./.github/workflows/managed-test-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"validate_test_rust_acceptance_windows\":120,\"validate_test_rust_integration_windows\":120,\"validate_test_rust_starter_windows\":120,\"validate_test_rust_system_windows\":120,\"validate_test_rust_unit_windows\":120,\"validate_test_typescript_system_windows\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - build
+    - build_product_windows
+    - build_tests_windows
+  test_nightly:
+    name: Test
+    uses: ./.github/workflows/managed-test-nightly.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"validate_coverage_python\":120,\"validate_coverage_rust\":120}"
+      pipeline: nightly
+      impact: "[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:prepare\",\"release:publish\",\"release:publish:dry\",\"release:rehearse\",\"release:tag\",\"release:verify\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"]"
+    secrets: inherit
+    needs:
+    - build
+    - build_product_linux
+    - build_tests_linux

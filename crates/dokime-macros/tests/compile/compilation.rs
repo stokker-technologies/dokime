@@ -17,6 +17,8 @@
 /* === Imports === */
 
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 // Third Party Imports
 
@@ -29,6 +31,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct SdkArtifact {
     library: std::path::PathBuf,
     serde: std::path::PathBuf,
@@ -44,22 +47,26 @@ struct SdkArtifact {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn sdk_artifact() -> &'static SdkArtifact {
     static SDK: std::sync::OnceLock<SdkArtifact> = std::sync::OnceLock::new();
     SDK.get_or_init(|| {
-        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dokime-runtime/Cargo.toml").canonicalize().unwrap();
+        let manifest = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+            .join("../dokime/Cargo.toml")
+            .canonicalize()
+            .unwrap();
         let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
         let target = std::env::var_os("CARGO_TARGET_DIR").map(|path| workspace.join(path)).unwrap_or_else(|| workspace.join("target"));
-        // The build records its compiler messages beside its nextest archive, under the profile this story was built with.
-        let directory =
-            std::env::current_exe().unwrap().parent().and_then(std::path::Path::parent).unwrap().file_name().unwrap().to_owned();
-        let profile = if directory == "debug" { "dev".into() } else { directory.to_string_lossy().into_owned() };
-        let messages = target.join("nextest").join(&profile).join("compiler.json");
+        // Both Graph Profiles Compile Tests In Cargo's Debug Directory.
+        let built_tests = std::path::PathBuf::from(
+            std::env::var_os("DOKIME_COMPILE_CONTRACTS_DIRECTORY").expect("the Build owner supplies its selected Tests export"),
+        );
+        let messages = built_tests.join("compiler.json");
         let built = std::fs::read_to_string(&messages)
-            .unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", messages.display()));
+            .unwrap_or_else(|error| panic!("run mise run build:rust:tests to produce {}: {error}", messages.display()));
         // Only the SDK's own dependency closure links into a plugin: another member's build script output (the
         // desktop shell's import stub libraries) would shadow the platform's runtime libraries on the search path.
-        let closure = sdk_closure(&target.join("nextest").join(&profile).join("metadata.json"), &manifest);
+        let closure = sdk_closure(&built_tests.join("metadata.json"), &manifest);
         let mut artifacts = Vec::new();
         let mut serde = None;
         let mut native_paths = Vec::new();
@@ -103,7 +110,7 @@ fn sdk_artifact() -> &'static SdkArtifact {
 
             if value["reason"] != "compiler-artifact"
                 || !value["manifest_path"].as_str().is_some_and(|path| same_path(&manifest, path))
-                || value["target"]["name"] != "dokime_runtime"
+                || value["target"]["name"] != "dokime"
             {
                 continue;
             }
@@ -142,7 +149,8 @@ fn sdk_artifact() -> &'static SdkArtifact {
 // Every package the SDK depends on, by Cargo package id, from the build's resolved metadata.
 fn sdk_closure(metadata: &std::path::Path, manifest: &std::path::Path) -> std::collections::BTreeSet<String> {
     let metadata: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(metadata).unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", metadata.display())),
+        &std::fs::read_to_string(metadata)
+            .unwrap_or_else(|error| panic!("run mise run build:tests to produce {}: {error}", metadata.display())),
     )
     .unwrap();
     let root = metadata["packages"]
@@ -174,21 +182,33 @@ fn same_path(left: &std::path::Path, right: &str) -> bool {
 }
 
 fn compile(source: &str) -> (std::process::Output, std::path::PathBuf) {
+    compile_configured(source, None)
+}
+
+fn compile_configured(source: &str, configuration: Option<&str>) -> (std::process::Output, std::path::PathBuf) {
     let sdk = sdk_artifact();
     let dependencies = sdk.library.parent().unwrap();
     assert!(dependencies.is_dir(), "Cargo dependency directory missing");
     let directory = dependencies.join(format!("inventory-artifacts-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
-    let output = directory.join(std::path::Path::new(source).file_stem().unwrap());
+    let stem = std::path::Path::new(source).file_stem().unwrap().to_str().unwrap();
+    let output = directory.join(format!("{stem}{}", std::env::consts::EXE_SUFFIX));
     let mut rustc = std::process::Command::new("rustc");
-    // These inspection fixtures have empty mains; retain their uncalled
-    // sidecar declarations instead of letting MSVC discard the metadata.
-    #[cfg(target_env = "msvc")]
-    rustc.args(["-C", "link-arg=/OPT:NOREF"]);
+    #[cfg(windows)]
+    rustc.creation_flags(0x0800_0000);
+    // Fixtures build as a plugin crate's runtime build, where Harmos serves operations.
+    rustc.args(["--cfg", "feature=\"runtime\""]);
+    if let Some(configuration) = configuration {
+        rustc.args(["--cfg", configuration]);
+    }
     let built = rustc
         .arg("--edition=2024")
         .arg("--crate-type=bin")
-        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join(source))
+        .arg(
+            std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+                .join("tests")
+                .join(source),
+        )
         .arg("--extern")
         .arg(format!("sdk={}", sdk.library.display()))
         .arg("--extern")
@@ -212,14 +232,13 @@ extern crate sdk;
 use std::sync::Arc;
 
 use sdk::harmos::plugin::{Attachment, Declared};
-use sdk::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
+use sdk::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
 use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 #[sdk::stream(id = "shared.sample", window = 8)]
@@ -244,7 +263,7 @@ type Observing = ObserverAttachment<(), Publisher<Shared>>;
 struct Shared { observers: Option<Arc<Observing>> }
 
 
-impl sdk::harmos::operations::lifecycle::Policy for Shared {
+impl sdk::harmos::builtins::lifecycle::Policy for Shared {
     const INITIALIZATION_POLICY: OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: OperationPolicy = POLICY;
 }
@@ -279,7 +298,7 @@ impl sdk::Plugin for Shared {
         Arc::new(())
     }
 
-    fn bind_operations(&self, table: &mut WireTable<sdk::Supervisor>) -> Result<(), ServingError> {
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
@@ -352,6 +371,29 @@ fn declaration_of(source: &str) -> sdk::harmos::plugin::inventory::Declaration {
 /* === Tests === */
 
 #[test]
+fn catalog_identifiers_are_unique() {
+    for (configuration, identifier) in [
+        ("duplicate_suites", "checks"),
+        ("duplicate_templates", "checks.probe"),
+        ("duplicate_records", "checks.record"),
+        ("duplicate_streams", "checks.samples"),
+    ] {
+        let (built, _) = compile_configured("fixtures/catalog_identifiers.rs", Some(configuration));
+        let diagnostics = String::from_utf8_lossy(&built.stderr);
+        assert!(!built.status.success(), "{configuration} compiled");
+        // Rust 1.99 supports the single-str panic format in const evaluation,
+        // so diagnostics must name the actual duplicate, even for const ids.
+        assert!(diagnostics.contains(&format!("evaluation panicked: {identifier}")), "{diagnostics}");
+        assert!(diagnostics.contains("assert_unique"), "{diagnostics}");
+        assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
+    }
+
+    let (built, output) = compile("fixtures/catalog_identifiers.rs");
+    assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
+    std::fs::remove_file(output).unwrap();
+}
+
+#[test]
 fn alias_inventory_declared() {
     let declaration = declaration_of("integration/renamed_sdk.rs");
     assert_eq!(declaration.id, "renamed");
@@ -370,7 +412,7 @@ fn alias_inventory_declared() {
             "renamed.get_spare_echo",
         ]
     );
-    assert_eq!(declaration.observe_contract().expect("observers serve their built-in control").operation().id.as_str(), "harmos.observe");
+    assert_eq!(declaration.observe_contract().expect("observers serve their built-in control").operation().id.as_str(), "harmos_observe");
     assert_eq!(declaration.observers.len(), 1);
     assert_eq!(declaration.observers[0].streams, ["renamed.observations"]);
     let namespaces = declaration.sections.iter().map(|section| section.namespace.to_string()).collect::<Vec<_>>();
@@ -394,7 +436,19 @@ fn invalid_identity_refused() {
     let diagnostics = String::from_utf8_lossy(&built.stderr);
     // The plugin's identity is checked on the line it was written, because it is
     // the one every operation and stream it serves is scoped under.
-    assert_eq!(diagnostics.matches("an artifact id is lowercase ASCII").count(), 1, "{diagnostics}");
+    assert_eq!(diagnostics.matches("a plugin id is one owner segment").count(), 1, "{diagnostics}");
+    assert!(diagnostics.contains("aborting due to 1 previous error"), "{diagnostics}");
+    assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
+}
+
+#[test]
+fn hyphenated_identity_refused() {
+    let (built, _) = compile("fixtures/hyphenated_identity.rs");
+    assert!(!built.status.success());
+    let diagnostics = String::from_utf8_lossy(&built.stderr);
+    // Harmos qualifies served operations as `<plugin id>.<operation>`, so a
+    // hyphen that an artifact id would allow is refused as an owner segment.
+    assert_eq!(diagnostics.matches("a plugin id is one owner segment").count(), 1, "{diagnostics}");
     assert!(diagnostics.contains("aborting due to 1 previous error"), "{diagnostics}");
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
@@ -457,8 +511,8 @@ fn foreign_stream_unpublished() {
     for unsatisfied in [
         "the trait bound `GatewayRssi: Publishable` is not satisfied",
         "the trait bound `GatewayRssi: OwnedStream` is not satisfied",
-        "the trait bound `dokime_runtime::host::System: Publishable` is not satisfied",
-        "the trait bound `dokime_runtime::host::System: OwnedStream` is not satisfied",
+        "the trait bound `dokime::host::System: Publishable` is not satisfied",
+        "the trait bound `dokime::host::System: OwnedStream` is not satisfied",
     ] {
         assert!(diagnostics.contains(unsatisfied), "{diagnostics}");
     }
@@ -473,9 +527,9 @@ fn undeclared_call_refused() {
     let diagnostics = String::from_utf8_lossy(&built.stderr);
     // The plugin serves the operation; the template never said it would call it,
     // so the refusal is on the call and names the catalog to add it to.
-    assert!(diagnostics.contains("ProbeRequired: dokime_runtime::catalog::Contains<GetCurrent>"), "{diagnostics}");
+    assert!(diagnostics.contains("ProbeRequired: dokime::catalog::Contains<GetCurrent>"), "{diagnostics}");
     assert_eq!(
-        diagnostics.matches("ProbeRequired: dokime_runtime::catalog::Contains<GetVoltage>").count(),
+        diagnostics.matches("ProbeRequired: dokime::catalog::Contains<GetVoltage>").count(),
         0,
         "a declared request is not refused: {diagnostics}"
     );
@@ -533,7 +587,10 @@ fn shared_stream_once() {
     .expect("shared producers produce a valid artifact");
     assert_eq!(declaration.streams.iter().filter(|stream| stream.id == "shared.sample").count(), 1,);
     assert_eq!(declaration.observers.len(), 2);
-    let ran = std::process::Command::new(&output).output().unwrap();
+    let mut command = std::process::Command::new(&output);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let ran = command.output().unwrap();
     std::fs::remove_file(output).unwrap();
     assert!(ran.status.success(), "{}", String::from_utf8_lossy(&ran.stderr));
 }

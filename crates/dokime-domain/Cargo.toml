@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 name = "dokime-domain"
 edition.workspace = true
@@ -15,13 +17,20 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+# === Package Targets === #
+
+# === Features === #
+
 [features]
 # Captures error chains, span traces and backtraces into a `Diagnostic`.
 diagnostics = ["dep:tracing-error"]
 
+# === Dependencies === #
+
 [dependencies]
+# Local
+
 # Git
-harmos-domain = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -30,6 +39,7 @@ thiserror = { workspace = true }
 tracing-error = { workspace = true, optional = true }
 
 # Utilities
+harmos-domain = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 
@@ -37,3 +47,43 @@ time = { workspace = true }
 base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

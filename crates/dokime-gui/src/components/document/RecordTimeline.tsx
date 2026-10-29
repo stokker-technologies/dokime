@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { recordMessage, recordTitle } from "@/lib/dashboard";
 import { recordClockLabel, recordLevelLabel, recordLevelVariant, recordToneRowClass } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
+import { useRowWindow } from "@/lib/use-row-window";
 import { cn } from "@/lib/utils";
 
 /* === Constants === */
@@ -43,7 +44,7 @@ import { cn } from "@/lib/utils";
 const FILTER_CONTROL_CLASS = "h-[var(--bar-control-height)]";
 
 /** The record row's column tracks: time, level, source, message, type. */
-const RECORD_ROW_COLUMNS = "grid grid-cols-[6rem_5.5rem_10rem_minmax(0,1fr)_auto] gap-x-3";
+const RECORD_ROW_COLUMNS = "grid grid-cols-[--spacing(24)_--spacing(22)_--spacing(40)_minmax(0,1fr)_auto] gap-x-3";
 
 /* === Components === */
 
@@ -95,6 +96,7 @@ export function RecordTimeline({
         );
       });
   }, [recordType, records, query]);
+  const rowWindow = useRowWindow(visibleRecords.length);
 
   return (
     <>
@@ -103,12 +105,9 @@ export function RecordTimeline({
             search box carries its own hint, the type select sits beside it.
             The Records card already owns the only border around it. */}
         {live ? (
-          <div className="grid items-center gap-x-3 text-sm sm:grid-cols-[minmax(0,1fr)_14rem]">
+          <div className="grid items-center gap-x-3 text-sm sm:grid-cols-[minmax(0,1fr)_--spacing(56)]">
             <div className="relative">
-              <Search
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-              />
+              <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label="Search Records"
                 className={cn(FILTER_CONTROL_CLASS, "pl-8")}
@@ -150,18 +149,28 @@ export function RecordTimeline({
              one line; opening it shows the whole record in the dialog. */
           /* The Records card already owns the only border around this list;
              a second one here would be a card inside a card. */
-          <ol className="grid border-t" data-testid="record-rows">
-            {visibleRecords.map((record) => {
+          <ol
+            className="grid border-t"
+            data-testid="record-rows"
+            ref={(node) => {
+              rowWindow.anchor.current = node;
+            }}
+          >
+            {rowWindow.window.before > 0 ? <li aria-hidden style={{ height: rowWindow.window.before }} /> : null}
+            {visibleRecords.slice(rowWindow.window.first, rowWindow.window.last).map((record, index) => {
               return (
                 <li
                   className={cn("border-b border-l-2 border-b-border/60 last:border-b-0", recordToneRowClass(record.display.tone))}
                   key={record.record_id}
+                  data-window-row={rowWindow.window.first + index}
+                  aria-posinset={rowWindow.window.first + index + 1}
+                  aria-setsize={visibleRecords.length}
                 >
                   <button
                     aria-haspopup="dialog"
                     className={cn(
                       RECORD_ROW_COLUMNS,
-                      "w-full items-start px-3 py-1.5 text-left font-mono text-xs tabular-nums hover:bg-muted/40",
+                      "w-full items-start px-3 py-2 text-left font-mono text-xs tabular-nums hover:bg-muted/40",
                     )}
                     onClick={() => setSelectedRecord(record)}
                     type="button"
@@ -169,7 +178,7 @@ export function RecordTimeline({
                     <time className="truncate text-muted-foreground" dateTime={record.timestamp}>
                       {recordClockLabel(record.timestamp)}
                     </time>
-                    <Badge className="h-4 justify-self-start px-1 text-[0.65rem]" variant={recordLevelVariant(record.level)}>
+                    <Badge className="h-4 justify-self-start px-1 text-xs" variant={recordLevelVariant(record.level)}>
                       {recordLevelLabel(record.level)}
                     </Badge>
                     <span className="truncate text-muted-foreground">{record.source}</span>
@@ -179,6 +188,7 @@ export function RecordTimeline({
                 </li>
               );
             })}
+            {rowWindow.window.after > 0 ? <li aria-hidden style={{ height: rowWindow.window.after }} /> : null}
           </ol>
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">

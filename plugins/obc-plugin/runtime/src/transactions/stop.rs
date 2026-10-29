@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::state::Transaction;
+use dokime::harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{Error, Testbench};
 
@@ -27,7 +29,8 @@ use crate::{Error, Testbench};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "obc.bench.stop", version = 1, irreversible)]
+
+#[dokime::harmos::transaction(harmos_path = dokime::harmos, id = "obc.bench.stop", irreversible)]
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Stop;
 
@@ -36,12 +39,14 @@ pub struct Stop;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<Testbench> for Stop {
     type Error = Error;
     fn check(&self, _: &Testbench) -> Result<(), Self::Error> {
         Ok(())
     }
     fn apply(&self, state: &mut Testbench) {
+        state.device.stop();
         state.stopped = true;
     }
 }

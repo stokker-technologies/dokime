@@ -48,13 +48,13 @@ type OwnerDisplay = {
 /** A monospace identifier with a copy affordance. */
 export function CatalogIdentifier({ className, subject, value }: CatalogIdentifierProps) {
   return (
-    <span className={cn("flex min-w-0 items-center gap-1 font-mono text-[11px] leading-4 text-muted-foreground", className)}>
+    <span className={cn("flex min-w-0 items-center gap-1 font-mono text-xs leading-4 text-muted-foreground", className)}>
       <span className="min-w-0 truncate" title={value}>
         {value}
       </span>
       <button
         aria-label={`Copy ${subject} identifier ${value}`}
-        className="grid size-4 shrink-0 place-items-center rounded-sm hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="grid size-4 shrink-0 place-items-center rounded-lg hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={(event) => {
           event.stopPropagation();
           void copyIdentifier(value);

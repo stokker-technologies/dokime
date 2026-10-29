@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod files;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -34,6 +36,7 @@ pub(crate) mod files;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn read(path: &std::path::Path) -> Result<Vec<u8>, crate::Error> {
     files::read(path, harmos_packaging::bundle::Limits::default().archive_bytes)
 }

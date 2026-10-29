@@ -12,23 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::NoteId;
 use crate::model::time::Timestamp;
 
 /* === Constants === */
-pub const NOTE_TEXT_BYTES: usize = 16 * 1024;
-pub const NOTE_OWNER_BYTES: usize = 4096;
-pub const NOTE_ACTOR_BYTES: usize = 256;
-pub const NOTE_RECEIPT_LIMIT: usize = 4096;
-pub const NOTE_RECEIPT_BYTES: usize = 8 * 1024 * 1024;
-pub const NOTE_CHECKPOINT_LIMIT: usize = 64;
-pub const NOTE_SCAN_LIMIT: usize = 10_000;
+
 pub const NOTE_EDIT_NOT_AUTHOR: &str = "only the note's author may edit it";
 pub const NOTE_OWNER_SEALED: &str = "note owner is sealed; its report keeps the notes it froze";
 
@@ -37,6 +33,7 @@ pub const NOTE_OWNER_SEALED: &str = "note owner is sealed; its report keeps the 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OperatorNote {
     pub note_id: NoteId,
@@ -52,6 +49,7 @@ pub struct OperatorNoteRequest {
     pub author: Option<String>,
     pub message: String,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NoteAdmission {
     pub mutation_id: crate::model::identity::CommandId,
@@ -61,6 +59,7 @@ pub struct NoteAdmission {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NoteOwner {
@@ -72,6 +71,7 @@ pub enum NoteOwner {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for OperatorNote {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -86,6 +86,7 @@ impl harmos_domain::MemorySize for OperatorNote {
         })
     }
 }
+
 impl NoteOwner {
     pub fn cycle_id(&self) -> &crate::model::identity::TestCycleId {
         match self {
@@ -95,6 +96,7 @@ impl NoteOwner {
 }
 
 /* === Public Functions === */
+
 pub fn note_identity(epoch: &crate::model::identity::SessionId, actor: &str, mutation: &crate::model::identity::CommandId) -> NoteId {
     NoteId::from_seed(format!("note:{}:{}:{}:{}", epoch, actor.len(), actor, mutation))
 }

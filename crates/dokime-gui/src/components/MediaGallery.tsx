@@ -8,6 +8,7 @@
  */
 
 /* === External Imports === */
+
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -16,16 +17,16 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from "@/lib/api/native-content";
 import { prepareNativeMedia } from "@/lib/api/native-delivery";
 import { isReportBuild } from "@/lib/ui-mode";
-import {
-  type MediaArtifactCandidate,
-  type MediaPreviewState,
-  type MediaGalleryProps,
-  artifactContentKey,
-  mediaBlobType,
-  isNativeArtifactSource,
-  mediaArtifactSource,
-} from "./media-gallery-model";
 import { MediaGallerySurface, useMediaGallery } from "./MediaGalleryView";
+import {
+  artifactContentKey,
+  isNativeArtifactSource,
+  type MediaArtifactCandidate,
+  type MediaGalleryProps,
+  type MediaPreviewState,
+  mediaArtifactSource,
+  mediaBlobType,
+} from "./media-gallery-model";
 
 /* === Types === */
 type MediaUrlEntry = {
@@ -49,7 +50,10 @@ type MediaDownloadRequest = {
 };
 
 /* === Constants === */
-const MAX_ACTIVE_MEDIA_DOWNLOADS = 2;
+
+const GUI_MEDIA_DOWNLOADS = 2;
+
+const MAX_ACTIVE_MEDIA_DOWNLOADS = GUI_MEDIA_DOWNLOADS;
 
 /* === Components === */
 export function MediaGallery({ artifacts, emptyMessage, runDir }: MediaGalleryProps) {

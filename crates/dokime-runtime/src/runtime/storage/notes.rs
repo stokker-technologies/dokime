@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::storage::ObjectVersion;
 
@@ -21,8 +23,6 @@ use harmos::storage::ObjectVersion;
 use super::executions::{Acquisition, ExecutionStorage};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::notes::NOTE_CHECKPOINT_LIMIT;
-use dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT;
 use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::identity::SessionId;
@@ -35,6 +35,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct AnnotationAdmission {
     _guards: Vec<tokio::sync::OwnedMutexGuard<()>>,
     _owners: Vec<Arc<tokio::sync::Mutex<Acquisition>>>,
@@ -45,15 +46,21 @@ pub(crate) struct AnnotationAdmission {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionStorage {
     pub(crate) async fn admit_annotations(&self, scope: &RecordScope) -> Result<AnnotationAdmission> {
         // Snapshot Handles In Key Order; Release The Registry Before Awaiting Owners
         let owners = {
             let active = self.active.lock().await;
-            if active.len() > NOTE_SCAN_LIMIT {
-                return Err(annotation_limit("annotation owner scan exceeds budget"));
+            match scope.test_execution_id.as_ref() {
+                Some(id) => active.get(id).cloned().into_iter().collect::<Vec<_>>(),
+                None => {
+                    if active.len() > crate::state::notes::NOTE_SCAN_LIMIT {
+                        return Err(annotation_limit("annotation owner scan exceeds budget"));
+                    }
+                    active.values().cloned().collect::<Vec<_>>()
+                }
             }
-            active.values().cloned().collect::<Vec<_>>()
         };
         let mut candidates = Vec::with_capacity(owners.len());
         for owner in &owners {
@@ -77,9 +84,9 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn note_targets(&self, cycle: &CycleView, scope: &RecordScope) -> Result<Vec<TestExecutionId>> {
-        let mut targets = Vec::with_capacity(NOTE_CHECKPOINT_LIMIT);
+        let mut targets = Vec::with_capacity(crate::state::notes::NOTE_CHECKPOINT_LIMIT);
         for (index, execution) in cycle.test_executions.iter().enumerate() {
-            if index >= NOTE_SCAN_LIMIT {
+            if index >= crate::state::notes::NOTE_SCAN_LIMIT {
                 return Err(annotation_limit("note checkpoint scan exceeds budget"));
             }
             if scope.test_case_id.as_ref().is_some_and(|id| id != &execution.test_case_id)
@@ -90,8 +97,8 @@ impl ExecutionStorage {
             if let Some(owner) = self.acquisition(&execution.test_execution_id).await {
                 let acquisition = owner.lock().await;
                 if !acquisition.finish_requested && acquisition.execution.saved.is_none() {
-                    if targets.len() == NOTE_CHECKPOINT_LIMIT {
-                        return Err(annotation_limit("note checkpoint fanout exceeds 64 targets"));
+                    if targets.len() == crate::state::notes::NOTE_CHECKPOINT_LIMIT {
+                        return Err(annotation_limit("note checkpoint fanout exceeds configured targets"));
                     }
                     targets.push(execution.test_execution_id.clone());
                 }
@@ -113,13 +120,21 @@ impl ExecutionStorage {
         };
         let inspection = inspection.snapshot().await?;
         let context = inspection.context()?;
-        includes_note(&inspection.execution().test_execution_id, &context.session_id, &context.notes, target, note)
+        includes_note(
+            &inspection.execution().test_execution_id,
+            &context.session_id,
+            &context.notes,
+            target,
+            note,
+            crate::state::notes::NOTE_SCAN_LIMIT,
+        )
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn annotation_limit(reason: &'static str) -> Error {
     Error::Operation(reason.into())
 }
@@ -150,11 +165,12 @@ fn annotation_open(expected: &Arc<tokio::sync::Mutex<()>>, current: Option<(&Arc
 
 fn includes_note(
     execution: &TestExecutionId, session: &SessionId, notes: &[OperatorNote], target: &TestExecutionId, note: &OperatorNote,
+    scan_items: usize,
 ) -> Result<bool> {
     if execution != target || note.scope.session_id.as_ref() != Some(session) {
         return Ok(false);
     }
-    if notes.len() > NOTE_SCAN_LIMIT {
+    if notes.len() > scan_items {
         return Err(Error::Operation("checkpoint note verification exceeds scan budget".into()));
     }
     let mut matching = notes.iter().filter(|item| item.note_id == note.note_id);

@@ -10,10 +10,12 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::definition::conditions::RuntimeCondition;
 pub use dokime_domain::model::definition::conditions::RuntimeConditionEvaluation;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -38,6 +40,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn evaluate_runtime_condition(
     condition: &RuntimeCondition, records: &[RecordEntry], telemetry: &[TelemetrySample],
 ) -> RuntimeConditionEvaluation {
@@ -51,7 +54,10 @@ pub fn evaluate_runtime_condition(
                     return evaluation;
                 }
             }
-            RuntimeConditionEvaluation { satisfied: true, ..RuntimeConditionEvaluation::default() }
+            RuntimeConditionEvaluation {
+                satisfied: true,
+                ..RuntimeConditionEvaluation::default()
+            }
         }
         RuntimeCondition::Any { conditions } => {
             let mut reasons = Vec::new();
@@ -64,7 +70,11 @@ pub fn evaluate_runtime_condition(
                     reasons.push(reason);
                 }
             }
-            RuntimeConditionEvaluation { satisfied: false, matched_sequence: None, reason: Some(reasons.join("; ")) }
+            RuntimeConditionEvaluation {
+                satisfied: false,
+                matched_sequence: None,
+                reason: Some(reasons.join("; ")),
+            }
         }
     }
 }

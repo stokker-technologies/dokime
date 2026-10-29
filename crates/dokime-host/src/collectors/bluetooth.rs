@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -22,20 +23,26 @@ use std::{
 
 #[cfg(not(windows))]
 use std::process::Command;
+
 // Third Party Imports
 
 // Local Imports
-use crate::{DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL, HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
-use dokime_domain::model::time::DurationMillis;
+use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
+const BLUETOOTH_DEEP_SCAN_INTERVAL_MS: u64 = 300_000;
+#[cfg(not(windows))]
+const BLUETOOTH_COMMAND_TIMEOUT_MS: u64 = 5_000;
+const WINDOWS_BLUETOOTH_TIMEOUT_MS: u64 = 10_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct BluetoothCollector {
     sample_index: u64,
     options: HostOptions,
@@ -49,12 +56,14 @@ pub struct BluetoothCollector {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl BluetoothCollector {
-    pub fn new(options: HostOptions, deep_refresh_interval: DurationMillis) -> Self {
+    pub fn new(options: HostOptions) -> Self {
+        let deep_refresh_interval = Duration::from_millis(BLUETOOTH_DEEP_SCAN_INTERVAL_MS);
         Self {
             sample_index: 0,
             options,
-            deep_refresh_interval: Duration::from_millis(deep_refresh_interval.0.max(1)),
+            deep_refresh_interval,
             last_deep_refresh: None,
             cached_values: None,
         }
@@ -75,7 +84,7 @@ impl BluetoothCollector {
 
             if should_refresh {
                 self.last_deep_refresh = Some(now);
-                match crate::platform::windows::bluetooth::snapshot(&self.options) {
+                match crate::platform::windows::bluetooth::snapshot(&self.options, Duration::from_millis(WINDOWS_BLUETOOTH_TIMEOUT_MS)) {
                     Ok(snapshot) => {
                         let snapshot_values = snapshot_values(snapshot);
                         self.cached_values = Some(snapshot_values.clone());
@@ -108,7 +117,10 @@ impl BluetoothCollector {
 
             if should_refresh {
                 self.last_deep_refresh = Some(now);
-                match crate::platform::linux::bluetooth::linux_bluetooth_snapshot(&self.options) {
+                match crate::platform::linux::bluetooth::linux_bluetooth_snapshot(
+                    &self.options,
+                    Duration::from_millis(BLUETOOTH_COMMAND_TIMEOUT_MS),
+                ) {
                     Ok(snapshot_values) => {
                         self.cached_values = Some(snapshot_values.clone());
                         values.insert("probe_status".to_owned(), Value::from("ok"));
@@ -135,15 +147,10 @@ impl BluetoothCollector {
     }
 }
 
-impl Default for BluetoothCollector {
-    fn default() -> Self {
-        Self::new(HostOptions::default(), DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL)
-    }
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 #[cfg(windows)]
 fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnapshot) -> BTreeMap<String, Value> {
     let mut values = BTreeMap::new();

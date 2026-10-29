@@ -72,10 +72,9 @@ type CapturedAnalysis = {
   };
   selection: AnalysisSelection;
   source: {
-    epoch: string;
+    position: { history: { store: string; epoch: string }; sequence: number };
     stream: string;
     scope: EvidenceAnalysisResult["source"]["scope"];
-    cursor: { telemetry_streams: Record<string, string>; record_sequence?: string };
     window_s?: number;
     fields: string[];
     x_key: string;
@@ -112,11 +111,11 @@ function capturedPlots(plots?: Record<string, PlotPayload>): Record<string, Plot
           parameters: serializedValueObjectToJson(captured.selection.parameters),
         },
         source: {
-          epoch: captured.source.epoch,
+          store: captured.source.position.history.store,
+          epoch: captured.source.position.history.epoch,
+          position: captured.source.position.sequence.toString(),
           stream: captured.source.stream,
           scope: captured.source.scope,
-          telemetryStreams: captured.source.cursor.telemetry_streams,
-          recordSequence: captured.source.cursor.record_sequence,
           windowS: captured.source.window_s,
           fields: captured.source.fields,
           xKey: captured.source.x_key,

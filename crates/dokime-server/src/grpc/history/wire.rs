@@ -12,21 +12,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
+
 // Third Party Imports
-use harmos::storage::{ObjectVersionToken, StorageCursor, StoreHistory};
+use dokime::harmos::storage::{ObjectVersionToken, StorageCursor, StoreHistory};
 use tonic::Status;
+
 // Local Imports
 use super::super::error::detailed;
 use super::super::{execution, value};
-use dokime_domain::model::execution::result::ResultStatus;
-use dokime_runtime::runtime::query::execution_history::{
+use dokime::domain::model::execution::result::ResultStatus;
+use dokime::runtime::query::execution_history::{
     ExecutionAvailability, ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowseLifecycle, ExecutionCheckpoint,
 };
 
 /* === Constants === */
-const MAX_CHECKPOINT_TOKEN_BYTES: usize = 4096;
+
+const SERVER_CHECKPOINT_TOKEN_BYTES: u64 = 4_096;
 
 /* === Macros === */
 
@@ -41,16 +45,27 @@ const MAX_CHECKPOINT_TOKEN_BYTES: usize = 4096;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn query_failure(error: dokime_runtime::runtime::Error) -> Status {
-    if matches!(&error, dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+
+pub(super) fn query_failure(error: dokime::runtime::Error) -> Status {
+    if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
         return detailed(Status::resource_exhausted("historical response exceeds its original budget"), &error);
+    }
+    if let dokime::runtime::Error::Admission(dokime::domain::model::diagnostics::admission::AdmissionFailure::Validation {
+        message, ..
+    }) = &error
+    {
+        return detailed(Status::invalid_argument(message.clone()), &error);
     }
     detailed(Status::unavailable(format!("historical execution discovery failed: {error}")), &error)
 }
 
-pub(super) fn checkpoint_failure(error: dokime_runtime::runtime::Error) -> Status {
+pub(super) fn checkpoint_failure(error: dokime::runtime::Error) -> Status {
     tracing::warn!(error = %error, "checkpoint read failed");
-    if matches!(&error, dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+    if matches!(
+        &error,
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })
+            | dokime::runtime::Error::HarmosStorage(dokime::harmos::storage::Error::ResourceExhausted { .. })
+    ) {
         return detailed(Status::resource_exhausted("checkpoint exceeds its original budget"), &error);
     }
     detailed(Status::failed_precondition(format!("checkpoint cannot be read: {error}")), &error)
@@ -58,62 +73,68 @@ pub(super) fn checkpoint_failure(error: dokime_runtime::runtime::Error) -> Statu
 
 pub(super) fn deletion_request_identifier(value: String) -> Result<String, Status> {
     if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("deletion request identifier must be 1 to 256 bytes"));
+        return Err(Status::invalid_argument("deletion request identifier must contain 1 to 256 bytes"));
     }
-    value::text(&value)?;
     Ok(value)
 }
 
 pub(crate) fn checkpoint(
-    value: Option<dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint>,
+    value: Option<dokime::domain::model::execution::wire_checkpoint::ExecutionCheckpoint>,
 ) -> Result<ExecutionCheckpoint, Status> {
     let value = value.ok_or_else(|| Status::invalid_argument("checkpoint is required"))?;
-    value::text(&value.execution_identifier)?;
-    let execution_id = dokime_domain::model::identity::TestExecutionId::from_uuid(value.execution_identifier)
+    let execution_id = dokime::domain::model::identity::TestExecutionId::from_uuid(value.execution_identifier)
         .map_err(|_| Status::invalid_argument("invalid checkpoint execution identifier"))?;
-    if value.version.len() > MAX_CHECKPOINT_TOKEN_BYTES {
+    let maximum = usize::try_from(SERVER_CHECKPOINT_TOKEN_BYTES)
+        .map_err(|_| Status::resource_exhausted("checkpoint token bound exceeds native size"))?;
+    if value.version.len() > maximum {
         return Err(Status::resource_exhausted("checkpoint version exceeds its byte limit"));
     }
-    let allowance =
-        NonZeroUsize::new(MAX_CHECKPOINT_TOKEN_BYTES + std::mem::size_of::<ObjectVersionToken>()).expect("nonzero token allowance");
+    let allowance = maximum
+        .checked_add(std::mem::size_of::<ObjectVersionToken>())
+        .and_then(NonZeroUsize::new)
+        .ok_or_else(|| Status::resource_exhausted("checkpoint token allowance overflows"))?;
     let version = ObjectVersionToken::decode_bounded(&value.version, allowance)
         .map_err(|_| Status::invalid_argument("invalid checkpoint version token"))?;
     let canonical = version
-        .encode_bounded(NonZeroUsize::new(MAX_CHECKPOINT_TOKEN_BYTES).unwrap())
+        .encode_bounded(NonZeroUsize::new(maximum).ok_or_else(|| Status::resource_exhausted("checkpoint token allowance is empty"))?)
         .map_err(|_| Status::invalid_argument("invalid checkpoint version token"))?;
     if canonical != value.version {
         return Err(Status::invalid_argument("checkpoint version token is noncanonical"));
     }
-    let checkpoint =
-        ExecutionCheckpoint { execution_id, position: cursor(value.position)?, version, evidence_through: cursor(value.evidence_through)? };
+    let checkpoint = ExecutionCheckpoint {
+        execution_id,
+        position: cursor(value.position)?,
+        version,
+        evidence_through: cursor(value.evidence_through)?,
+    };
     checkpoint.validate().map_err(|_| Status::invalid_argument("checkpoint revision or evidence cut differs"))?;
     Ok(checkpoint)
 }
 
 pub(super) fn browse_page(
-    page: &dokime_runtime::runtime::query::execution_history::ExecutionBrowsePage,
-) -> Result<dokime_domain::model::history::wire::ExecutionBrowsePage, Status> {
+    page: dokime::runtime::query::execution_history::ExecutionBrowsePage, maximum: usize,
+) -> Result<dokime::domain::model::history::wire::ExecutionBrowsePage, Status> {
     let mut entries = exact_slots(page.entries.len())?;
-    for entry in &page.entries {
-        entries.push(browse_entry(entry)?);
+    for entry in page.entries {
+        entries.push(browse_entry(entry, maximum)?);
     }
     let mut conflicts = exact_slots(page.conflicts.len())?;
-    for id in &page.conflicts {
+    for id in page.conflicts {
         conflicts.push(id.as_str().to_owned());
     }
     let mut issues = exact_slots(page.issues.len())?;
-    for issue in &page.issues {
-        issues.push(dokime_domain::model::history::wire::HistoryIssue {
-            source: issue.source.clone(),
-            dataset: issue.dataset.clone(),
-            message: issue.message.clone(),
+    for issue in page.issues {
+        issues.push(dokime::domain::model::history::wire::HistoryIssue {
+            source: issue.source,
+            dataset: issue.dataset,
+            message: issue.message,
         });
     }
     let mut cycles = exact_slots(page.cycles.len())?;
-    for cycle in &page.cycles {
+    for cycle in page.cycles {
         cycles.push(browse_cycle(cycle)?);
     }
-    Ok(dokime_domain::model::history::wire::ExecutionBrowsePage {
+    Ok(dokime::domain::model::history::wire::ExecutionBrowsePage {
         entries,
         next_after_execution_id: page.next.as_ref().map(|id| id.as_str().to_owned()),
         discovery_complete: page.discovery_complete,
@@ -125,63 +146,24 @@ pub(super) fn browse_page(
     })
 }
 
-fn browse_cycle(value: &ExecutionBrowseCycle) -> Result<dokime_domain::model::history::wire::ExecutionBrowseCycle, Status> {
-    Ok(dokime_domain::model::history::wire::ExecutionBrowseCycle {
-        cycle_id: value.cycle_id.as_str().to_owned(),
-        label: value.label.clone(),
-        lifecycle: match value.lifecycle {
-            ExecutionBrowseLifecycle::Running => dokime_domain::model::history::wire::ExecutionBrowseLifecycle::Running,
-            ExecutionBrowseLifecycle::Interrupted => dokime_domain::model::history::wire::ExecutionBrowseLifecycle::Interrupted,
-            ExecutionBrowseLifecycle::Pending => dokime_domain::model::history::wire::ExecutionBrowseLifecycle::Pending,
-            ExecutionBrowseLifecycle::Uncheckpointed => dokime_domain::model::history::wire::ExecutionBrowseLifecycle::Uncheckpointed,
-            ExecutionBrowseLifecycle::Completed => dokime_domain::model::history::wire::ExecutionBrowseLifecycle::Completed,
-        },
-        result_status: value.result_status.as_ref().map(|status| match status {
-            ResultStatus::Pending => dokime_domain::model::execution::wire::ResultStatus::Pending,
-            ResultStatus::Passed => dokime_domain::model::execution::wire::ResultStatus::Passed,
-            ResultStatus::Failed => dokime_domain::model::execution::wire::ResultStatus::Failed,
-            ResultStatus::Blocked => dokime_domain::model::execution::wire::ResultStatus::Blocked,
-            ResultStatus::Cancelled => dokime_domain::model::execution::wire::ResultStatus::Cancelled,
-        }),
-        case_count: value.case_count as u64,
-        execution_count: value.execution_count as u64,
-        unrun_count: value.unrun_count as u64,
-        queued_count: value.queued_count as u64,
-        running_count: value.running_count as u64,
-        passed_count: value.passed_count as u64,
-        failed_count: value.failed_count as u64,
-        blocked_count: value.blocked_count as u64,
-        started_at: value.started_at.as_ref().map(value::canonical::timestamp).transpose()?,
-        finished_at: value.finished_at.as_ref().map(value::canonical::timestamp).transpose()?,
-    })
-}
-
-fn exact_slots<T>(count: usize) -> Result<Vec<T>, Status> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(count).map_err(|_| Status::resource_exhausted("historical wire slot allocation failed"))?;
-    if values.capacity() > count {
-        return Err(Status::resource_exhausted("historical wire slots exceed admission"));
-    }
-    Ok(values)
-}
-
 pub(super) fn checkpoint_wire(
-    value: ExecutionCheckpoint,
-) -> Result<dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint, Status> {
-    checkpoint_wire_ref(&value)
+    value: ExecutionCheckpoint, maximum: usize,
+) -> Result<dokime::domain::model::execution::wire_checkpoint::ExecutionCheckpoint, Status> {
+    checkpoint_wire_ref(&value, maximum)
 }
 
 pub(super) fn checkpoint_wire_ref(
-    value: &ExecutionCheckpoint,
-) -> Result<dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint, Status> {
-    value.validate().map_err(|error| {
-        detailed(Status::internal("invalid native checkpoint"), &dokime_runtime::runtime::Error::Operation(error.to_string()))
-    })?;
+    value: &ExecutionCheckpoint, maximum: usize,
+) -> Result<dokime::domain::model::execution::wire_checkpoint::ExecutionCheckpoint, Status> {
+    value
+        .validate()
+        .map_err(|error| detailed(Status::internal("invalid native checkpoint"), &dokime::runtime::Error::Operation(error.to_string())))?;
+    let maximum = NonZeroUsize::new(maximum).ok_or_else(|| Status::resource_exhausted("checkpoint response allowance is empty"))?;
     let version = value
         .version
-        .encode_bounded(NonZeroUsize::new(MAX_CHECKPOINT_TOKEN_BYTES).unwrap())
+        .encode_bounded(maximum)
         .map_err(|error| detailed(Status::resource_exhausted("checkpoint version exceeds its byte limit"), &error.into()))?;
-    Ok(dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint {
+    Ok(dokime::domain::model::execution::wire_checkpoint::ExecutionCheckpoint {
         execution_identifier: value.execution_id.as_str().to_owned(),
         position: Some(cursor_wire_ref(&value.position)),
         version,
@@ -189,62 +171,12 @@ pub(super) fn checkpoint_wire_ref(
     })
 }
 
-fn cursor(value: Option<dokime_domain::model::execution::wire_checkpoint::StorageCursor>) -> Result<StorageCursor, Status> {
-    let value = value.ok_or_else(|| Status::invalid_argument("checkpoint cursor is required"))?;
-    let history = value.history.ok_or_else(|| Status::invalid_argument("checkpoint history is required"))?;
-    value::text(&history.store)?;
-    value::text(&history.epoch)?;
-    let store = dokime_domain::model::identity::Identifier::new(history.store)
-        .map_err(|_| Status::invalid_argument("invalid checkpoint store identifier"))?;
-    let epoch = dokime_domain::model::identity::Identifier::new(history.epoch)
-        .map_err(|_| Status::invalid_argument("invalid checkpoint history epoch"))?;
-    Ok(StorageCursor { history: StoreHistory { store, epoch }, sequence: value.sequence })
-}
-
-fn cursor_wire_ref(value: &StorageCursor) -> dokime_domain::model::execution::wire_checkpoint::StorageCursor {
-    dokime_domain::model::execution::wire_checkpoint::StorageCursor {
-        history: Some(dokime_domain::model::execution::wire_checkpoint::StoreHistory {
-            store: value.history.store.as_str().to_owned(),
-            epoch: value.history.epoch.as_str().to_owned(),
-        }),
-        sequence: value.sequence,
-    }
-}
-
-pub(crate) fn traceability_memory(source: &dokime_domain::model::traceability::TraceabilitySnapshot) -> Result<usize, Status> {
-    use super::super::value::canonical;
-    use dokime_domain::model::identity::wire as common;
-    value::text(source.traceability_id.as_str())?;
-    value::collection(source.entries.len())?;
-    let mut bytes = std::mem::size_of::<common::TraceabilitySnapshot>()
-        .saturating_add(source.traceability_id.as_str().len())
-        .saturating_add(canonical::scope_memory(&source.scope)?)
-        .saturating_add(source.entries.len().saturating_mul(std::mem::size_of::<common::TraceabilityEntry>()));
-    if let Some(metadata) = &source.metadata {
-        bytes = bytes.saturating_add(canonical::metadata_memory(metadata)?);
-    }
-    let mut budget = value::Budget::new();
-    for entry in &source.entries {
-        bytes = bytes.saturating_add(canonical::metadata_memory(&entry.metadata)?).saturating_add(canonical::memory(
-            &entry.value,
-            &mut budget,
-            0,
-        )?);
-        for text in [entry.source.as_ref(), entry.unit.as_ref()].into_iter().flatten() {
-            value::text(text)?;
-            bytes = bytes.saturating_add(text.len());
-        }
-    }
-    Ok(bytes)
-}
-
 pub(crate) fn traceability(
-    source: &dokime_domain::model::traceability::TraceabilitySnapshot,
-) -> Result<dokime_domain::model::identity::wire::TraceabilitySnapshot, Status> {
+    source: &dokime::domain::model::traceability::TraceabilitySnapshot,
+) -> Result<dokime::domain::model::identity::wire::TraceabilitySnapshot, Status> {
     use super::super::value::canonical;
-    use dokime_domain::model::identity::wire as common;
-    traceability_memory(source)?;
-    let mut budget = value::Budget::new();
+    use dokime::domain::model::identity::wire as common;
+    let mut budget = value::Budget::new()?;
     let mut entries = canonical::slots(source.entries.len())?;
     for entry in &source.entries {
         entries.push(common::TraceabilityEntry {
@@ -264,34 +196,97 @@ pub(crate) fn traceability(
 }
 
 /* === Private Functions === */
-fn browse_entry(value: &ExecutionBrowseEntry) -> Result<dokime_domain::model::history::wire::ExecutionBrowseEntry, Status> {
-    Ok(dokime_domain::model::history::wire::ExecutionBrowseEntry {
+
+fn browse_cycle(value: ExecutionBrowseCycle) -> Result<dokime::domain::model::history::wire::ExecutionBrowseCycle, Status> {
+    Ok(dokime::domain::model::history::wire::ExecutionBrowseCycle {
+        cycle_id: value.cycle_id.as_str().to_owned(),
+        label: value.label,
+        phase: value.phase,
+        lifecycle: match value.lifecycle {
+            ExecutionBrowseLifecycle::Running => dokime::domain::model::history::wire::ExecutionBrowseLifecycle::Running,
+            ExecutionBrowseLifecycle::Interrupted => dokime::domain::model::history::wire::ExecutionBrowseLifecycle::Interrupted,
+            ExecutionBrowseLifecycle::Pending => dokime::domain::model::history::wire::ExecutionBrowseLifecycle::Pending,
+            ExecutionBrowseLifecycle::Uncheckpointed => dokime::domain::model::history::wire::ExecutionBrowseLifecycle::Uncheckpointed,
+            ExecutionBrowseLifecycle::Completed => dokime::domain::model::history::wire::ExecutionBrowseLifecycle::Completed,
+        },
+        result_status: value.result_status.as_ref().map(|status| match status {
+            ResultStatus::Pending => dokime::domain::model::execution::wire::ResultStatus::Pending,
+            ResultStatus::Passed => dokime::domain::model::execution::wire::ResultStatus::Passed,
+            ResultStatus::Failed => dokime::domain::model::execution::wire::ResultStatus::Failed,
+            ResultStatus::Blocked => dokime::domain::model::execution::wire::ResultStatus::Blocked,
+            ResultStatus::Cancelled => dokime::domain::model::execution::wire::ResultStatus::Cancelled,
+        }),
+        case_count: value.case_count as u64,
+        execution_count: value.execution_count as u64,
+        unrun_count: value.unrun_count as u64,
+        queued_count: value.queued_count as u64,
+        running_count: value.running_count as u64,
+        passed_count: value.passed_count as u64,
+        failed_count: value.failed_count as u64,
+        blocked_count: value.blocked_count as u64,
+        started_at: value.started_at.as_ref().map(value::canonical::timestamp).transpose()?,
+        finished_at: value.finished_at.as_ref().map(value::canonical::timestamp).transpose()?,
+    })
+}
+
+fn exact_slots<T>(count: usize) -> Result<Vec<T>, Status> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|_| Status::resource_exhausted("historical wire slot allocation failed"))?;
+
+    Ok(values)
+}
+
+pub(super) fn cursor(value: Option<dokime::domain::model::execution::wire_checkpoint::StorageCursor>) -> Result<StorageCursor, Status> {
+    let value = value.ok_or_else(|| Status::invalid_argument("checkpoint cursor is required"))?;
+    let history = value.history.ok_or_else(|| Status::invalid_argument("checkpoint history is required"))?;
+    let store = dokime::domain::model::identity::Identifier::new(history.store)
+        .map_err(|_| Status::invalid_argument("invalid checkpoint store identifier"))?;
+    let epoch = dokime::domain::model::identity::Identifier::new(history.epoch)
+        .map_err(|_| Status::invalid_argument("invalid checkpoint history epoch"))?;
+    Ok(StorageCursor {
+        history: StoreHistory { store, epoch },
+        sequence: value.sequence,
+    })
+}
+
+pub(super) fn cursor_wire_ref(value: &StorageCursor) -> dokime::domain::model::execution::wire_checkpoint::StorageCursor {
+    dokime::domain::model::execution::wire_checkpoint::StorageCursor {
+        history: Some(dokime::domain::model::execution::wire_checkpoint::StoreHistory {
+            store: value.history.store.as_str().to_owned(),
+            epoch: value.history.epoch.as_str().to_owned(),
+        }),
+        sequence: value.sequence,
+    }
+}
+
+fn browse_entry(value: ExecutionBrowseEntry, maximum: usize) -> Result<dokime::domain::model::history::wire::ExecutionBrowseEntry, Status> {
+    Ok(dokime::domain::model::history::wire::ExecutionBrowseEntry {
         archived: value.archived,
-        metadata: Some(metadata(&value.metadata)?),
-        checkpoint: value.checkpoint.as_ref().map(checkpoint_wire_ref).transpose()?,
+        metadata: Some(metadata(value.metadata)?),
+        checkpoint: value.checkpoint.map(|value| checkpoint_wire(value, maximum)).transpose()?,
         availability: match value.availability {
-            ExecutionAvailability::Live => dokime_domain::model::history::wire::ExecutionAvailability::Live,
-            ExecutionAvailability::Stored => dokime_domain::model::history::wire::ExecutionAvailability::Stored,
-            ExecutionAvailability::Interrupted => dokime_domain::model::history::wire::ExecutionAvailability::Interrupted,
-            ExecutionAvailability::Uncheckpointed => dokime_domain::model::history::wire::ExecutionAvailability::Uncheckpointed,
+            ExecutionAvailability::Live => dokime::domain::model::history::wire::ExecutionAvailability::Live,
+            ExecutionAvailability::Stored => dokime::domain::model::history::wire::ExecutionAvailability::Stored,
+            ExecutionAvailability::Interrupted => dokime::domain::model::history::wire::ExecutionAvailability::Interrupted,
+            ExecutionAvailability::Uncheckpointed => dokime::domain::model::history::wire::ExecutionAvailability::Uncheckpointed,
         },
     })
 }
 
 fn metadata(
-    value: &dokime_runtime::execution::storage::ExecutionMetadata,
-) -> Result<dokime_domain::model::history::wire::HistoricalExecutionMetadata, Status> {
-    Ok(dokime_domain::model::history::wire::HistoricalExecutionMetadata {
+    value: dokime::execution::storage::ExecutionMetadata,
+) -> Result<dokime::domain::model::history::wire::HistoricalExecutionMetadata, Status> {
+    Ok(dokime::domain::model::history::wire::HistoricalExecutionMetadata {
         execution_id: value.execution_id.as_str().to_owned(),
         cycle_id: Some(value.cycle_id.as_str().to_owned()),
         case_id: value.case_id.as_str().to_owned(),
-        title: value.title.clone(),
+        title: value.title,
         status: execution::execution_status(&value.status),
         started_at: value.started_at.as_ref().map(value::canonical::timestamp).transpose()?,
         finished_at: value.finished_at.as_ref().map(value::canonical::timestamp).transpose()?,
         result: value.result.as_ref().map(execution::result_summary),
-        template_id: value.template_id.clone(),
-        suite_label: value.suite_label.clone(),
+        template_id: value.template_id,
+        suite_label: value.suite_label,
     })
 }
 

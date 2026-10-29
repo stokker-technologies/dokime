@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,11 +36,16 @@
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo::rerun-if-changed=build.rs");
+    let target = std::env::var("TARGET")?;
+    println!("cargo::rustc-env=DOKIME_BACKEND_TARGET={target}");
     let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").ok_or("Cargo sets OUT_DIR for build scripts")?);
-    let contracts = harmos::operations::Contracts::of::<dokime_domain::operations::Operations>()?;
-    harmos_packaging::proto::generate(&contracts, &output.join("grpc").join("operations"))?;
+    let contracts = dokime::harmos::operations::Contracts::of::<dokime::operations::Operations>()?;
+    let destination = output.join("grpc").join("operations");
+    harmos_packaging::proto::generate(&contracts, &destination)?;
+    dokime_packaging::export_application_settings(&destination)?;
     Ok(())
 }
 

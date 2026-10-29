@@ -9,35 +9,18 @@
 
 /* === External Imports === */
 
-import { ArchiveRestore, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
+import { Cloud, Database, GitCompare, HardDrive } from "lucide-react";
 import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import { DataTable } from "@/components/data-table/DataTable";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
 import { cn } from "@/lib/utils";
-
-/* === Types === */
-
-type HistoryLibraryProps = {
-  /** The Archived view: archived rows only, each with Unarchive. */
-  archived: boolean;
-  cycles: ExploreEntry[];
-  loading: boolean;
-  onCompare: () => void;
-  onToggleArchived: () => void;
-  onUnarchive: (entry: ExploreEntry) => void;
-  onOpenEntry: (target: ExploreTarget) => void;
-  onQueryChange: (query: string) => void;
-  onToggleSelected: (entryKey: string) => void;
-  /** The box's own value. The rows it selects are the server's answer. */
-  query: string;
-  selectedIds: Set<string>;
-};
 
 /* === Constants === */
 
@@ -47,7 +30,7 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
   column.accessor("title", {
     cell: ({ row }) => <EntryTitle entry={row.original} />,
     header: "Execution / Cycle",
-    meta: { label: "Execution / Cycle", primary: true },
+    meta: { label: "Execution / Cycle", primary: true, width: "w-64" },
   }),
   column.accessor("failed_count", {
     cell: ({ row }) => <ResultPills failed={row.original.failed_count} passed={row.original.passed_count} />,
@@ -55,7 +38,11 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
     meta: { label: "Result", width: "w-36" },
   }),
   column.accessor("lifecycle", {
-    cell: ({ row }) => <span className="text-sm capitalize">{row.original.lifecycle}</span>,
+    cell: ({ row }) => (
+      <span className="text-sm capitalize">
+        {row.original.phase ?? "Unknown"} · {row.original.lifecycle}
+      </span>
+    ),
     header: "Lifecycle",
     meta: { filter: "facet", label: "Lifecycle", width: "w-32" },
   }),
@@ -75,20 +62,27 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
     cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updated_at)}</span>,
     header: "Updated",
     id: "updated",
-    meta: { align: "end", label: "Updated", width: "w-28" },
+    meta: { align: "end", label: "Updated", width: "w-44" },
   }),
 ]);
 
-/* === Private Functions === */
+/* === Types === */
 
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
-}
-
-function entryKey(entry: ExploreEntry): string {
-  return exploreEntryKey(entry.target);
-}
+type HistoryLibraryProps = {
+  /** The Archived view: archived rows only, each with Unarchive. */
+  archived: boolean;
+  cycles: ExploreEntry[];
+  loading: boolean;
+  onCompare: () => void;
+  onToggleArchived: () => void;
+  onUnarchive: (entry: ExploreEntry) => void;
+  onOpenEntry: (target: ExploreTarget) => void;
+  onQueryChange: (query: string) => void;
+  onToggleSelected: (entryKey: string) => void;
+  /** The box's own value. The rows it selects are the server's answer. */
+  query: string;
+  selectedIds: Set<string>;
+};
 
 /* === Components === */
 
@@ -120,32 +114,20 @@ export function HistoryLibrary({
 
   const columns = useMemo(
     () =>
-      archived
-        ? column.columns([
-            ...COLUMNS,
-            column.display({
-              cell: ({ row }) => (
-                <Button
-                  className="h-[var(--control-height)]"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onUnarchive(row.original);
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <ArchiveRestore data-icon="inline-start" />
-                  Unarchive
-                </Button>
-              ),
-              header: "",
-              id: "unarchive",
-              meta: { align: "end", label: "Unarchive", width: "w-36" },
-            }),
-          ])
-        : COLUMNS,
-    [archived, onUnarchive],
+      column.columns([
+        ...COLUMNS,
+        column.display({
+          id: "actions",
+          header: "Actions",
+          meta: { width: "w-36", align: "end" },
+          cell: ({ row }) => (
+            <DataTableRowActions label={row.original.title} primary={{ label: "Open", onSelect: () => onOpenEntry(row.original.target) }}>
+              {archived ? <DropdownMenuItem onSelect={() => onUnarchive(row.original)}>Unarchive</DropdownMenuItem> : null}
+            </DataTableRowActions>
+          ),
+        }),
+      ]),
+    [archived, onUnarchive, onOpenEntry],
   );
 
   /* The view toggle sits on the toolbar beside Compare: pressed, the table
@@ -195,7 +177,7 @@ export function HistoryLibrary({
   );
 }
 
-/* === Private Components === */
+/* Private Components */
 
 /** One line: the title, then its qualifier. */
 function EntryTitle({ entry }: { entry: ExploreEntry }) {
@@ -209,7 +191,7 @@ function EntryTitle({ entry }: { entry: ExploreEntry }) {
 
 function ResultPills({ failed, passed }: { failed: number; passed: number }) {
   return (
-    <div className="flex items-center gap-1.5 text-xs font-medium">
+    <div className="flex items-center gap-2 text-xs font-medium">
       <span className="text-success">{passed} passed</span>
       <span className={cn(failed > 0 ? "text-destructive" : "text-muted-foreground")}>{failed} failed</span>
     </div>
@@ -221,7 +203,7 @@ function SourceBadge({ source }: { source: ExploreSource }) {
   return (
     <Badge
       className={cn(
-        "h-5 gap-1 rounded px-1.5 text-[0.7rem] font-medium [&>svg]:size-3",
+        "h-5 gap-1 rounded px-2 text-xs font-medium [&>svg]:size-3",
         source.kind === "remote" ? "border-info/30 bg-info/10 text-info" : null,
       )}
       variant={source.kind === "remote" ? "secondary" : "outline"}
@@ -230,4 +212,15 @@ function SourceBadge({ source }: { source: ExploreSource }) {
       {source.label}
     </Badge>
   );
+}
+
+/* === Private Functions === */
+
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
+}
+
+function entryKey(entry: ExploreEntry): string {
+  return exploreEntryKey(entry.target);
 }

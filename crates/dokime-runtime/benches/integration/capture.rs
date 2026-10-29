@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
+use futures_util::FutureExt;
 use tempfile::TempDir;
 
 // Local Imports
@@ -53,7 +54,7 @@ impl Fixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
         let config = RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("runtime.hub").unwrap(), "Runtime Hub", None));
-        let owner = Runtime::start(config).await.unwrap();
+        let owner = Runtime::start(config).boxed_local().await.unwrap();
         let handle = owner.handle();
         handle.storage().flush().await.unwrap();
         Self { _root: root, owner, handle }

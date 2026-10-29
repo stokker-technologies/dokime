@@ -25,8 +25,16 @@ type CheckpointContext = Awaited<ReturnType<typeof fetchNativeCheckpointContext>
 type ExecutionFileWindow = Awaited<ReturnType<typeof readNativeCheckpointOutput>>;
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage, ExecutionCheckpoint } from "@/lib/types/view-contracts";
+import type {
+  ExecutionBrowseCycle,
+  ExecutionBrowseEntry,
+  ExecutionBrowsePage,
+  ExecutionCheckpoint,
+  SavedCycleSummary,
+} from "@/lib/types/view-contracts";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey, isUnrunExecution } from "./explore-contracts";
+
+const GUI_CHECKPOINT_WINDOW_BYTES = 65_536;
 
 export function fetchExecutionPage(
   session: SessionIdentity,
@@ -77,7 +85,7 @@ export function readCheckpointOutput(
   offset: bigint,
   signal?: AbortSignal,
 ): Promise<ExecutionFileWindow> {
-  return readNativeCheckpointOutput(session, checkpoint, relativePath, { offset, maxBytes: 64 * 1024 }, signal);
+  return readNativeCheckpointOutput(session, checkpoint, relativePath, { offset, maxBytes: GUI_CHECKPOINT_WINDOW_BYTES }, signal);
 }
 /** The one suite label every entry of this cycle agrees on, or its identifier. */
 function suiteTitle(entries: ExecutionBrowseEntry[], cycleId: string): string {
@@ -87,11 +95,10 @@ function suiteTitle(entries: ExecutionBrowseEntry[], cycleId: string): string {
 }
 
 /**
- * Only associated executions form cycle groups; unassociated ones stay
- * independent. Every count, lifecycle, result and time span is the backend's
- * fold over the whole selection; grouping only places the loaded entries.
+ * Execution groups retain the backend's fold over the whole selection.
+ * Independently saved empty cycles have no execution rows or outcome to fold.
  */
-export function groupExecutions(pages: ExecutionBrowsePage[]): ExploreEntry[] {
+export function groupExecutions(pages: ExecutionBrowsePage[], saved: SavedCycleSummary[] = []): ExploreEntry[] {
   const executions = new Map<string, ExecutionBrowseEntry>();
   const cycles = new Map<string, ExecutionBrowseCycle>();
   for (const page of pages) {
@@ -109,46 +116,76 @@ export function groupExecutions(pages: ExecutionBrowsePage[]): ExploreEntry[] {
     group.push(entry);
     groups.set(key, group);
   }
-  return [...groups]
-    .map(([key, entries]): ExploreEntry => {
-      const cycleId = entries[0].metadata.cycle_id;
-      const totals = cycleId === null ? undefined : cycles.get(cycleId);
-      if (!totals) throw new Error(`History.BrowseExecutions returned no totals for ${key}.`);
-      const target: ExploreTarget = { kind: "cycle", id: totals.cycle_id };
-      const started = totals.started_at;
-      const finished = totals.finished_at;
-      return {
-        target,
-        /* A group is titled by its own cycle. Only a cycle whose header is
+  const entries = [...groups].map(([key, entries]): ExploreEntry => {
+    const cycleId = entries[0].metadata.cycle_id;
+    const totals = cycleId === null ? undefined : cycles.get(cycleId);
+    if (!totals) throw new Error(`History.BrowseExecutions returned no totals for ${key}.`);
+    const target: ExploreTarget = { kind: "cycle", id: totals.cycle_id };
+    const started = totals.started_at;
+    const finished = totals.finished_at;
+    return {
+      target,
+      /* A group is titled by its own cycle. Only a cycle whose header is
            no longer readable falls back to a suite label every entry agrees
            on, and then to its identifier. */
-        title: totals.label ?? suiteTitle(entries, target.id),
-        session_id: null,
-        lifecycle: totals.lifecycle,
-        result_status: totals.result_status,
-        case_count: totals.case_count,
-        execution_count: totals.execution_count,
-        queued_count: totals.queued_count,
-        running_count: totals.running_count,
-        passed_count: totals.passed_count,
-        failed_count: totals.failed_count,
-        blocked_count: totals.blocked_count,
-        created_at: started ?? "",
-        started_at: started,
-        finished_at: finished,
-        updated_at: finished ?? started ?? "",
-        duration_s: started && finished ? Math.max(0, (Date.parse(finished) - Date.parse(started)) / 1000) : null,
-        source: { id: "storage", label: "Storage", kind: "storage" },
-        /* Only what ran is history. The planned cases that never started are
+      title: totals.label ?? suiteTitle(entries, target.id),
+      session_id: null,
+      phase: totals.phase,
+      lifecycle: totals.lifecycle,
+      result_status: totals.result_status,
+      case_count: totals.case_count,
+      execution_count: totals.execution_count,
+      queued_count: totals.queued_count,
+      running_count: totals.running_count,
+      passed_count: totals.passed_count,
+      failed_count: totals.failed_count,
+      blocked_count: totals.blocked_count,
+      created_at: started ?? "",
+      started_at: started,
+      finished_at: finished,
+      updated_at: finished ?? started ?? "",
+      duration_s: started && finished ? Math.max(0, (Date.parse(finished) - Date.parse(started)) / 1000) : null,
+      source: { id: "storage", label: "Storage", kind: "storage" },
+      /* Only what ran is history. The planned cases that never started are
            held aside: they carry no acquisition, so listing them would state
            cases this cycle never performed as outcomes it recorded. */
-        executions: entries.filter((entry) => !isUnrunExecution(entry)),
-        unrun: entries.filter(isUnrunExecution),
-        unrun_count: totals.unrun_count,
-      };
-    })
-    .sort(
-      (left, right) =>
-        right.updated_at.localeCompare(left.updated_at) || exploreEntryKey(left.target).localeCompare(exploreEntryKey(right.target)),
-    );
+      executions: entries.filter((entry) => !isUnrunExecution(entry)),
+      unrun: entries.filter(isUnrunExecution),
+      unrun_count: totals.unrun_count,
+    };
+  });
+  const existing = new Set(entries.map((entry) => exploreEntryKey(entry.target)));
+  for (const cycle of saved) {
+    const target = { kind: "cycle" as const, id: cycle.cycle_id };
+    if (cycle.execution_count !== 0 || existing.has(exploreEntryKey(target))) continue;
+    existing.add(exploreEntryKey(target));
+    entries.push({
+      target,
+      title: cycle.label,
+      session_id: null,
+      phase: cycle.phase,
+      lifecycle: "completed",
+      result_status: null,
+      case_count: 0,
+      execution_count: 0,
+      queued_count: 0,
+      running_count: 0,
+      passed_count: 0,
+      failed_count: 0,
+      blocked_count: 0,
+      created_at: cycle.created_at,
+      started_at: null,
+      finished_at: null,
+      updated_at: cycle.updated_at,
+      duration_s: null,
+      source: { id: "storage", label: "Storage", kind: "storage" },
+      executions: [],
+      unrun: [],
+      unrun_count: 0,
+    });
+  }
+  return entries.sort(
+    (left, right) =>
+      right.updated_at.localeCompare(left.updated_at) || exploreEntryKey(left.target).localeCompare(exploreEntryKey(right.target)),
+  );
 }

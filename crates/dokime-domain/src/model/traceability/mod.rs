@@ -12,36 +12,40 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 // Third-Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
+use crate::model::execution::RecordScope;
 use crate::model::identity::Identifier;
+use crate::model::identity::Metadata;
+use crate::model::identity::TraceabilityId;
+use crate::model::time::Timestamp;
 use crate::model::values::Value;
 
-use crate::model::identity::Metadata;
-
-use crate::model::execution::RecordScope;
-
-use crate::model::time::Timestamp;
-
-use crate::model::identity::TraceabilityId;
-
 /* === Constants === */
+
 const TRACEABILITY_SOURCE_PREFIX: &str = "traceability.";
-
-pub const TEST_DEFINITION_TRACEABILITY: DerivedTraceabilityGroup =
-    DerivedTraceabilityGroup { source: "traceability.test_definition", label: "Test Definition" };
-
-pub const TEST_EXECUTION_TRACEABILITY: DerivedTraceabilityGroup =
-    DerivedTraceabilityGroup { source: "traceability.test_execution", label: "Test Execution" };
-
-pub const LEASES_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup { source: "traceability.leases", label: "Leases" };
-
-pub const HOST_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup { source: "traceability.host", label: "Host" };
-
+pub const TEST_DEFINITION_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
+    source: "traceability.test_definition",
+    label: "Test Definition",
+};
+pub const TEST_EXECUTION_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
+    source: "traceability.test_execution",
+    label: "Test Execution",
+};
+pub const LEASES_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
+    source: "traceability.leases",
+    label: "Leases",
+};
+pub const HOST_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
+    source: "traceability.host",
+    label: "Host",
+};
 pub const DERIVED_TRACEABILITY_GROUPS: &[DerivedTraceabilityGroup] =
     &[TEST_DEFINITION_TRACEABILITY, TEST_EXECUTION_TRACEABILITY, LEASES_TRACEABILITY, HOST_TRACEABILITY];
 
@@ -50,10 +54,12 @@ pub const DERIVED_TRACEABILITY_GROUPS: &[DerivedTraceabilityGroup] =
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TraceabilitySection {
     pub identifier: Identifier,
     pub label: String,
+
     #[serde(default)]
     pub rows: Vec<TraceabilityRow>,
 }
@@ -63,11 +69,14 @@ pub struct TraceabilityRow {
     pub identifier: Identifier,
     pub label: String,
     pub value: Value,
+
     #[serde(default)]
     pub unit: Option<String>,
+
     #[serde(default)]
     pub source: Option<String>,
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DerivedTraceabilityGroup {
     pub source: &'static str,
@@ -79,8 +88,10 @@ pub struct TraceabilitySnapshot {
     pub traceability_id: TraceabilityId,
     pub scope: RecordScope,
     pub created_at: Timestamp,
+
     #[serde(default)]
     pub metadata: Option<Metadata>,
+
     pub entries: Vec<TraceabilityEntry>,
 }
 
@@ -89,6 +100,7 @@ pub struct TraceabilityEntry {
     pub metadata: Metadata,
     pub value: Value,
     pub source: Option<String>,
+
     #[serde(default)]
     pub unit: Option<String>,
 }
@@ -98,6 +110,7 @@ pub struct TraceabilityEntry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for TraceabilitySection {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -128,7 +141,11 @@ impl harmos_domain::MemorySize for TraceabilityRow {
 
 impl TraceabilitySection {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { identifier: Identifier::declared(identifier, "traceability section"), label: label.into(), rows: Vec::new() }
+        Self {
+            identifier: Identifier::declared(identifier, "traceability section"),
+            label: label.into(),
+            rows: Vec::new(),
+        }
     }
 
     // Sections grow by statements, as a document `Section` does; a row is
@@ -144,7 +161,13 @@ impl TraceabilitySection {
 
 impl TraceabilityRow {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>, value: Value) -> Self {
-        Self { identifier: Identifier::declared(identifier, "traceability row"), label: label.into(), value, unit: None, source: None }
+        Self {
+            identifier: Identifier::declared(identifier, "traceability row"),
+            label: label.into(),
+            value,
+            unit: None,
+            source: None,
+        }
     }
 
     pub fn text(identifier: impl Into<String>, label: impl Into<String>, value: impl Into<String>) -> Self {
@@ -175,6 +198,7 @@ impl TraceabilityRow {
         self
     }
 }
+
 impl harmos_domain::MemorySize for TraceabilitySnapshot {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -212,11 +236,6 @@ impl DerivedTraceabilityGroup {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === Functions === */
 pub fn derived_traceability_group(source: &str) -> Option<DerivedTraceabilityGroup> {
     let name = source.strip_prefix(TRACEABILITY_SOURCE_PREFIX)?;
     let name = name.split('.').next()?;
@@ -226,3 +245,7 @@ pub fn derived_traceability_group(source: &str) -> Option<DerivedTraceabilityGro
 pub fn derived_traceability_group_named(identifier: &str) -> Option<DerivedTraceabilityGroup> {
     DERIVED_TRACEABILITY_GROUPS.iter().copied().find(|group| group.identifier() == identifier)
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

@@ -6,12 +6,16 @@
 #
 # ***
 
+# === Workspace === #
+
 [workspace]
 members = [
   "crates/dokime",
+  "crates/dokime-cli",
   "crates/dokime-runtime",
   "crates/dokime-client",
   "crates/dokime-domain",
+  "crates/dokime-operations",
   "crates/cargo-dokime",
   "crates/dokime-packaging",
   "crates/dokime-gui/src-tauri",
@@ -19,10 +23,11 @@ members = [
   "crates/dokime-macros",
   "crates/dokime-server",
   "plugins/obc-plugin",
-  "crates/dokime-runtime/tests/fixtures",
   "plugins/obc-plugin/runtime",
 ]
 resolver = "2"
+
+# === Workspace Package === #
 
 [workspace.package]
 version = "0.1.0"
@@ -33,12 +38,18 @@ license = "Apache-2.0"
 publish = true
 repository = "https://github.com/stokker-technologies/dokime"
 
+# === Workspace Dependencies === #
+
 [workspace.dependencies]
+# Local
+dokime = { version = "0.1.0", path = "crates/dokime" }
+dokime-client = { version = "0.1.0", path = "crates/dokime-client" }
+dokime-domain = { version = "0.1.0", path = "crates/dokime-domain" }
+dokime-packaging = { version = "0.1.0", path = "crates/dokime-packaging" }
+dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-features = false }
+dokime-server = { version = "0.1.0", path = "crates/dokime-server" }
+
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-domain = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -53,8 +64,12 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-blake2 = { version = "0.11.0" }
+harmos = "=0.1.12"
+harmos-domain = "=0.1.12"
+harmos-packaging = "=0.1.12"
+harmos-sdk = "=0.1.12"
 keyring = { version = "4.2.0" }
+keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
 process-wrap = { version = "10.0.1" }
 rand = { version = "0.10.3" }
@@ -66,26 +81,21 @@ subtle = { version = "=2.6.1" }
 sysinfo = { version = "0.39.6" }
 time = { version = "0.3.55", features = ["formatting", "parsing"] }
 uuid = { version = "1.28.0", features = ["v5", "v7", "serde"] }
+widestring = { version = "1.2.1" }
 windows = { version = "0.62.2" }
 windows-sys = { version = "0.61.2" }
 zeroize = { version = "=1.9.1" }
 
 # Serialization
-arrow-array = { version = "=59.3.0" }
-arrow-ipc = { version = "=59.3.0" }
-arrow-schema = { version = "=59.3.0" }
-arrow-select = { version = "=59.3.0" }
+arrow-array = { version = "=60.0.0" }
+arrow-schema = { version = "=60.0.0" }
 base64 = { version = "0.23.1" }
 hound = { version = "3.5.1" }
-# Excludes every default image codec (AVIF encoding pulls rav1e and rayon); Dokime encodes JPEG and PNG.
+# Excludes default image codecs; consumers select their required formats explicitly.
 image = { version = "0.25.10", default-features = false }
 prost = { version = "0.14.4" }
-prost-build = { version = "=0.14.4" }
 prost-types = { version = "=0.14.4" }
-protoc-bin-vendored = { version = "=3.3.0" }
-schemars = { version = "1.2.2" }
 serde = { version = "1.0.229", features = ["derive"] }
-serde_arrow = { version = "0.15.1", features = ["arrow-59"] }
 serde_json = { version = "1.0.154" }
 toml = { version = "1.1.8" }
 toml_edit = { version = "0.25.17" }
@@ -98,11 +108,10 @@ dotenv = { package = "dotenvy", version = "0.15.7" }
 file-id = { version = "0.2.3" }
 glob = { version = "0.3.4" }
 globset = { version = "0.4.20" }
-tar = { version = "=0.4.46" }
 tempfile = { version = "3.27.0" }
 walkdir = { version = "2.5.0" }
 # Excludes every default compression and encryption backend; Dokime writes stored archives only.
-zip = { version = "9.0.2", default-features = false }
+zip = { version = "9.1.0", default-features = false }
 
 # Parsing
 cargo_metadata = { version = "0.23.1" }
@@ -112,10 +121,13 @@ proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }
 syn = { version = "3.0.9", features = ["extra-traits", "full"] }
 
+# Concurrency
+interprocess = { version = "2.4.7", features = ["tokio"] }
+
 # Async
 async-trait = { version = "0.1.92" }
 futures-util = { version = "0.3.34" }
-tokio = { version = "1.53.2", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "=0.1.19" }
 tokio-util = { version = "=0.7.20" }
 
@@ -124,23 +136,20 @@ getifs = { version = "0.7.0" }
 # Excludes the aws-lc-rs TLS, Prometheus metrics and proxy-protocol defaults; the test FTP server needs none of them.
 libunftp = { version = "0.23.1", default-features = false }
 rcgen = { version = "0.14.10" }
-# Excludes the native default TLS; Dokime selects rustls.
-reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+# Excludes default TLS provider selection; Dokime installs ring before constructing HTTP clients.
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
 # Excludes the default aws-lc-rs provider; Dokime installs ring.
-rustls = { version = "0.23.45", default-features = false }
+rustls = { version = "0.23.46", default-features = false }
 rustls-platform-verifier = { version = "0.7.1" }
 suppaftp = { version = "12.0.0" }
-tonic = { version = "=0.14.6" }
-tonic-prost = { version = "=0.14.6" }
-tonic-prost-build = { version = "=0.14.6" }
-tonic-types = { version = "=0.14.6" }
-tower = { version = "0.5.3", features = ["util"] }
+tonic = { version = "=0.14.7" }
+tonic-types = { version = "=0.14.7" }
 unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }
 
 # Storage
-rusqlite = { version = "0.40.2", features = ["bundled", "functions"] }
+rusqlite = { version = "0.40.2", features = ["bundled", "functions", "limits"] }
 
 # UI
 anstream = { version = "1.0.0" }
@@ -150,34 +159,36 @@ cpal = { version = "0.18.2" }
 indicatif = { version = "0.18.6" }
 nokhwa = { version = "0.10.11" }
 portable-pty = { version = "0.9.0" }
-tauri = { version = "2.12.3" }
+tauri = { version = "2.12.5" }
 tauri-build = { version = "2.7.2" }
-tauri-plugin-deep-link = { version = "2.6.1" }
+tauri-bundler = { version = "2.10.4" }
 tauri-plugin-dialog = { version = "2.8.2" }
 tauri-plugin-opener = { version = "2.7.1" }
 tauri-plugin-updater = { version = "2.13.3" }
+tauri-utils = { version = "2.10.2" }
 xcap = { version = "0.9.8" }
 
 # Testing
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# Keep Development Debug Archives Small While Retaining Workspace Source Locations.
 [profile.dev]
 debug = "line-tables-only"
-split-debuginfo = "unpacked"
 
-# Dependencies build optimized: debug-mode hashing, compression and SQLite made bundle verification
-# and full-capture reports several times slower than any deadline expects; workspace crates stay debuggable.
 [profile.dev.package."*"]
-opt-level = 2
+debug = false
 
-[profile.release]
-lto = "thin"
-codegen-units = 1
-strip = "symbols"
+# The Stored Evidence Integrity Check Digests Every Row A Read Returns; Unoptimized,
+# SHA-256 Alone Cost About 21 µs Per Row In Debug Test Builds.
+[profile.dev.package.sha2]
+opt-level = 3
 
-[profile.bench]
-inherits = "release"
-lto = false
-incremental = false
-debug = "line-tables-only"
-strip = "none"
+# === Patches === #
+
+# === Other === #
