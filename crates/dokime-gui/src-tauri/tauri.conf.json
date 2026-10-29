@@ -25,7 +25,10 @@
   },
   "bundle": {
     "active": false,
-    "icon": ["icons/icon.ico", "icons/128x128.png"]
+    "icon": [
+      "icons/icon.ico",
+      "icons/128x128.png"
+    ]
   },
   "identifier": "com.stokker.dokime",
   "plugins": {
