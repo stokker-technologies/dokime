@@ -1197,7 +1197,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-dokime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "dokime",
@@ -2433,7 +2433,7 @@ checksum = "c2db04e74f0a9a93103b50e90b96024c9b2bdca8bce6a632ec71b88736d3d359"
 
 [[package]]
 name = "dokime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2450,7 +2450,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "criterion",
@@ -2473,7 +2473,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-client"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dokime-domain",
  "dokime-operations",
@@ -2497,7 +2497,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-domain"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.23.1",
  "harmos-domain",
@@ -2511,7 +2511,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-gui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2554,7 +2554,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-host"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "criterion",
  "dokime-domain",
@@ -2574,7 +2574,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-macros"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dokime",
  "proc-macro-crate 3.5.0",
@@ -2587,7 +2587,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-operations"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dokime-domain",
  "harmos",
@@ -2598,7 +2598,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-packaging"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.23.1",
  "cargo_metadata 0.23.1",
@@ -2628,7 +2628,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -2685,7 +2685,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-server"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anstream",
  "anyhow",
@@ -6072,7 +6072,7 @@ dependencies = [
 
 [[package]]
 name = "obc-plugin"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dokime",
  "futures-util",
@@ -6087,7 +6087,7 @@ dependencies = [
 
 [[package]]
 name = "obc-runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dokime",
  "serde",

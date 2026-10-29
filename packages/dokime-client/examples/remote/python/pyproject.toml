@@ -8,13 +8,13 @@
 
 [project]
 name = "dokime-remote-examples"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.13,<3.16"
-dependencies = ["dokime-client==0.1.0"]
+dependencies = ["dokime-client==0.1.1"]
 
 [tool.uv]
 package = false
 system-certs = true
 
 [tool.uv.sources]
-dokime-client = { path = "../wheels/dokime_client-0.1.0-py3-none-any.whl" }
+dokime-client = { path = "../wheels/dokime_client-0.1.1-py3-none-any.whl" }
