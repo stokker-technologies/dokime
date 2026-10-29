@@ -69,7 +69,7 @@ async fn watch_liveness() {
     std::fs::write(&log, record).unwrap();
     let server = prepared.ready().await.unwrap().listen().await.unwrap();
     let client = Client::connect(Target::local(server.local_endpoint()).unwrap(), None, None).await.unwrap();
-    let plots = client.plots_watch(contracts::plots::Watch { requests: vec![request(10_000)] }).await.unwrap();
+    let plots = client.stream(contracts::plots::Watch { requests: vec![request(10_000)] }).await.unwrap();
     let opened = loop {
         let frame = plots.message().await.unwrap().unwrap();
         if frame.kind != model::plots::wire::PlotStreamKind::Unspecified {
@@ -79,7 +79,7 @@ async fn watch_liveness() {
     assert_eq!(opened.kind, model::plots::wire::PlotStreamKind::Snapshot);
     assert_eq!(served_points(&opened), 10);
     let logs = client
-        .backend_watch_logs(contracts::backend::WatchLogs {
+        .stream(contracts::backend::WatchLogs {
             min_level: model::backend::wire::LogLevel::Error,
             replay_lines: 500,
         })

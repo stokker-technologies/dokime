@@ -194,7 +194,7 @@ pub async fn desktop_pairing_create(
     let Some((path, overwrite)) = selected else { return Ok(None) };
     state.with_current(&status.generation, || ())?;
     let client = lease.client();
-    let mut created = client.remote_create_pairing(CreatePairing { label, endpoint }).await.map_err(ConnectionError::from)?;
+    let mut created = client.call(CreatePairing { label, endpoint }).await.map_err(ConnectionError::from)?;
     let bytes = serde_json::to_vec_pretty(&created.pairing).map(zeroize::Zeroizing::new);
     if let Some(key) = created.pairing.access_key.as_mut() {
         zeroize::Zeroize::zeroize(key);
@@ -229,7 +229,7 @@ pub async fn desktop_pairing_create(
     if let Err(message) = saved {
         if let Some(paired) = created.client {
             client
-                .remote_revoke_paired_client(RevokePairedClient { identifier: paired.identifier })
+                .call(RevokePairedClient { identifier: paired.identifier })
                 .await
                 .map_err(|_| local(format!("{message}; the new paired client could not be revoked. Revoke it in Paired Clients.")))?;
         }

@@ -71,7 +71,7 @@ fn idle_shutdown(runtime: &tokio::runtime::Runtime, connected: bool, watching: b
         let client = if connected { Some(Client::connect(target(), None, None).await.unwrap()) } else { None };
         let watch = if watching {
             let observer = Client::connect(target(), None, None).await.unwrap();
-            let stream = observer.observation_watch_runtime(Default::default()).await.unwrap();
+            let stream = observer.stream(dokime::client::contracts::observation::WatchRuntime::default()).await.unwrap();
             Some((observer, stream))
         } else {
             None

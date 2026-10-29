@@ -364,7 +364,7 @@ async fn owner_cancellation_health() {
     assert_eq!(error["kind"], "cancelled");
     let client =
         dokime::client::Client::connect(dokime::client::Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
-    assert!(client.backend_get_health(backend::GetHealth {}).await.is_ok());
+    assert!(client.call(backend::GetHealth {}).await.is_ok());
     fixture.close().await;
 }
 

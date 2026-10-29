@@ -492,14 +492,14 @@ Batch recovery applies while these native commands are observing an interrupt;
 it cannot reliably cover connection setup or gaps between commands. A lost
 Create reply leaves the cycle identity unknown and requires manual inspection.
 
-The [Remote CLI Workflows](../packages/dokime-client/examples/remote/cli/README.md) include
+The [Remote CLI Workflows](remote/cli.md) include
 linear device, test and confirmation exercises for POSIX shell, PowerShell 7.3+ and
 Command Prompt. Edit their connection, execution, observation and file globals,
 then run without arguments. Their names, grouping and meanings match the
 [Python examples](../packages/dokime-client/examples/remote/python/control-test.py).
 The scripts require the matching CLI and simulated OBC plugin; a matching
 first-party release combination and native workflow validation remain pending.
-The [candidate walkthrough](../packages/dokime-client/examples/remote/README.md) explains
+The [candidate walkthrough](remote/overview.md) explains
 how to obtain matching native CI artifacts and prepare a local Python wheel from the same revision.
 
 `--parameters-json` supplies single template parameter values as a plain
@@ -1110,8 +1110,12 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 
 ## Documentation
 
-- [Remote OBC Walkthrough](../packages/dokime-client/examples/remote/README.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
-- [OBC Plugin](../plugins/sidecars/obc/) — the charger simulation and complete test templates.
+- [Remote OBC Walkthrough](remote/overview.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
+- [OBC Plugin](obc-plugin.md) — the charger simulation and complete test templates.
+- [Plugins](plugins.md) — the host telemetry plugin, plugin lifecycle, bundles and installation.
+- [Desktop GUI](gui.md) — frontend layout, generated outputs and the desktop transport rules.
+- [Repository Tooling](tooling.md) — mise tasks, Python tooling and desktop development processes.
+- [Screenshots](../screenshots/README.md) — the published product images and how to regenerate them.
 - [Plugin Starter](../crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Entry Library And Plugin SDK](../crates/dokime/src/lib.rs) — public entry point for authoring APIs.
 - [Client API](../crates/dokime-client/src/) — programmatic access to cycles and executions.

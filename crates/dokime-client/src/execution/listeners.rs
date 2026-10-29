@@ -113,7 +113,7 @@ pub(crate) async fn read_samples(
     loop {
         client.verify(true).await?;
         let opened = client
-            .telemetry_watch_samples(contracts::telemetry::WatchSamples {
+            .stream(contracts::telemetry::WatchSamples {
                 selection: Some(contracts::telemetry::ListSamples {
                     scope: Some(scope.clone()),
                     streams: streams.clone(),
@@ -193,7 +193,7 @@ where
     let mut after = None;
     if let Some(completion) = completion {
         let reader = client
-            .evidence_watch_records(contracts::evidence::WatchRecords {
+            .stream(contracts::evidence::WatchRecords {
                 selection: Some(selection.clone()),
                 after: None,
             })
@@ -233,13 +233,13 @@ where
         through: None,
         latest: 0,
     };
-    let mut page = client.evidence_list_records(request.clone()).await?;
+    let mut page = client.call(request.clone()).await?;
     validate_records(&scope, &patterns, &client.backend().epoch, &page, None)?;
     let frontier = page.through.clone();
     if let Some(after) = after {
         request.after = Some(after);
         request.through = frontier.clone();
-        page = client.evidence_list_records(request.clone()).await?;
+        page = client.call(request.clone()).await?;
     }
     loop {
         validate_records(&scope, &patterns, &client.backend().epoch, &page, request.after.as_ref())?;
@@ -252,7 +252,7 @@ where
         if sender.send(Ok(page)).await.is_err() || complete {
             return Ok(());
         }
-        page = client.evidence_list_records(request.clone()).await?;
+        page = client.call(request.clone()).await?;
     }
 }
 
