@@ -20,7 +20,7 @@
 /* === External Imports === */
 
 import { Download } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -53,10 +53,10 @@ export function CycleReportMenuItem({ cycleId, executionId, label }: CycleReport
       .then((saved) => {
         if (!saved) return;
         toast.success("Report Saved");
-        if (saved.openFailure) toast.warning("The saved report could not be opened.", { description: saved.openFailure });
+        if (saved.openFailure) toast.warning("The Saved Report Could Not Be Opened", { description: saved.openFailure });
       })
       .catch((error: unknown) =>
-        toast.error("The report could not be saved.", {
+        toast.error("The Report Could Not Be Saved", {
           description: error instanceof Error ? error.message : String(error),
         }),
       );

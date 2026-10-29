@@ -26,5 +26,26 @@ Triage: `ApplicationPaths` already owns basic root/data/plugins paths (`crates/d
 
 ## Workflow Follow-Up
 
-- Implementation for 1.2 and coverage for 1.5 are present, but their closure remains blocked by an unexplained Windows NSIS inspection failure: `none of the supported compression methods succeeded`. Two subsequent current-fixture runs passed without a production decoder or compression change. Preserve this as a repair obligation; do not waive it as unrelated or infer that rerunning explains it. A failing fixture is retained on future failures for diagnosis.
-- Owner question: if diagnosis confirms a decoding dependency defect, authorize that repair beyond this identity slice or assign it to the decoder/installer owner. No dependency replacement, compression workaround or weakened inspection was introduced here. Native Windows and Unix walkthroughs remain open under 2.1.
+- Integration preserves the distribution slug in native filenames and the release layout's Rust target in NSIS filenames. Explicit plugin selection/staging remains unchanged; Linux plugin destinations follow the distribution directory.
+- Keep 1.2 and 1.5 open for the NSIS decoding repair. A fixed, valid LZMA stream reproduces the header failure without packaging, files, environment variables or external processes. The full 8,196-byte stream decodes; its 4,100-byte prefix fails with `end reached but not decoder finished`, and `decompress_header` returns `UnsupportedCompression` (the public installer parser reports `none of the supported compression methods succeeded`). Two focused diagnostic runs reproduce it. This establishes a dependency defect, not environmental proof; the original failed installer was not retained, so its exact cause cannot be proven retrospectively.
+- `nsis` 0.6.0's `decompress_lzma` supplies a known final size for `DecodeLimit::Exact`, but a solid header is a prefix of a continuing stream. `lzma-rust2` 0.21.0 rejects a pending match at that artificial end. The compressed fixture below contains a little-endian 4,096-byte header length followed by 8,192 zero bytes; the header boundary cuts a match.
+- Reproduce with this temporary packaging test target (`crates/dokime-packaging/tests/nsis_diagnostic.rs`), using `mise run build:rust:focused -- test --locked -p dokime-packaging --test nsis_diagnostic -- --exact solid_header_prefix --nocapture`. The diagnostic intentionally fails at the final unwrap; it is not part of the committed test suite.
+
+```rust
+#[test]
+fn solid_header_prefix() {
+    use nsis::decompress::{DecodeLimit, decompress_header, lzma::decompress_lzma};
+    let stream = &[
+        93, 0, 0, 128, 0, 0, 0, 4, 134, 51, 209, 233, 7, 130, 254, 100, 93, 106,
+        22, 213, 216, 220, 249, 7, 192, 205, 39, 6, 162, 106, 225, 181, 38, 215, 246, 172,
+        215, 140, 70, 137, 71, 222, 4, 13, 152, 193, 25, 255, 255, 148, 210, 0, 0,
+    ];
+    let full = decompress_lzma(stream, DecodeLimit::Capped(8196)).unwrap();
+    assert_eq!(full.data.len(), 8196);
+    assert_eq!(&full.data[..4], &4096_u32.to_le_bytes());
+    eprintln!("{:?}", decompress_lzma(stream, DecodeLimit::Exact(4100)));
+    decompress_header(stream, 4096).unwrap();
+}
+```
+
+- Owner question: authorize a bounded-prefix decoding repair in the dependency or assign it to the decoder/installer owner. No dependency replacement, compression workaround or weakened inspection was introduced here. Native Windows and Unix walkthroughs remain open under 2.1.

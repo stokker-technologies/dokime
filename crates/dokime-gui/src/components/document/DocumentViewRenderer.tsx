@@ -104,7 +104,7 @@ export function DocumentViewRenderer({
         ))
       ) : (
         <div className="grid min-h-48 place-items-center gap-2 rounded-lg border border-dashed bg-muted/15 px-6 py-8 text-center">
-          <strong className="text-base font-semibold">No content in this document yet</strong>
+          <strong className="text-base font-semibold">No Content In This Document Yet</strong>
           <p className="max-w-2xl text-sm text-muted-foreground">{emptyMessage}</p>
         </div>
       )}

@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -31,9 +31,9 @@ export async function copyTraceabilityText(value: string): Promise<void> {
       throw new Error("Clipboard API is unavailable.");
     }
     await navigator.clipboard.writeText(value);
-    toast.success("Copied to clipboard");
+    toast.success("Copied To Clipboard");
   } catch {
-    toast.error("Could not copy to clipboard");
+    toast.error("Could Not Copy To Clipboard");
   }
 }
 

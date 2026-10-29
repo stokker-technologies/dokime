@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/build/bench.py; sha256:8e1a73241391fa8a9963435dd7b4a609254efe8e2565e62f2d074e4a00e65d4e
+# Rendered by stkr project update from templates/python/build/bench.py; sha256:a5a7bde8b691e7e5b3ed97ff230ace90cf5ccf71d223daf299bb8a09c425e216
 # ***
 #
 # Dokime
@@ -22,6 +22,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..process import spawn_flags
 from .. import temporary
 from ..test import archive
 from . import cargo, paths
@@ -76,7 +77,7 @@ def build(directory: Path, extra: Sequence[str] = ()) -> Path:
                 command,
                 stdin=sys.stdin,
                 stderr=sys.stderr,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 cwd=directory,
                 stdout=written,
                 check=True,

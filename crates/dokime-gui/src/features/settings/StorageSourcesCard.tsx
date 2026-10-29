@@ -20,6 +20,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp } from "lucide-react";
 import { useMemo } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -156,19 +157,17 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
   return (
     <SettingsCard>
       <DataTable
-        aria-label="Storage source priority"
+        aria-label="Storage Source Priority"
         columns={columns}
         data={sources}
         description="Higher rows have priority when resolving conflicting edits. Changing priority does not move data."
-        emptyText="No storage sources are configured."
+        emptyText="No Storage Sources Are Configured"
         getRowId={sourceId}
         title="Storage Sources"
       />
       {query.isPending ? (
         <SettingsRow label="Status">
-          <span className="text-sm text-muted-foreground" role="status">
-            Loading storage sources…
-          </span>
+          <NotificationMessage tone="info">Loading storage sources…</NotificationMessage>
         </SettingsRow>
       ) : null}
       {error ? (
@@ -182,9 +181,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
             ) : null
           }
         >
-          <span className="text-sm text-destructive" role="alert">
-            {error instanceof Error ? error.message : String(error)}
-          </span>
+          <NotificationMessage>{error instanceof Error ? error.message : String(error)}</NotificationMessage>
         </SettingsRow>
       ) : null}
 

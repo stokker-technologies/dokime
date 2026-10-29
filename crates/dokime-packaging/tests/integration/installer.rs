@@ -117,7 +117,13 @@ async fn distribution_identity() {
         };
         assert_eq!(packages.len(), if cfg!(windows) { 1 } else { 2 });
         for package in packages {
-            assert!(package.file_name().unwrap().to_string_lossy().starts_with(slug));
+            let expected = match package.extension().unwrap().to_str().unwrap() {
+                "exe" => format!("{slug}-1.2.3-{target}-setup.exe"),
+                "deb" => format!("{slug}_1.2.3_amd64.deb"),
+                "rpm" => format!("{slug}-1.2.3-1.x86_64.rpm"),
+                extension => panic!("unexpected package extension: {extension}"),
+            };
+            assert_eq!(package.file_name().unwrap().to_str().unwrap(), expected);
             let inspection = dokime_packaging::installer::inspect(&package).unwrap();
             let identity = &inspection.distribution.identity;
             assert_eq!(identity.identifier, identifier.unwrap_or("com.stokker.dokime"));

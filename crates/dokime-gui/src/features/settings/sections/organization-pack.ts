@@ -34,7 +34,7 @@ export type OrganizationPackPresentation = {
   value: string;
   /** What happens next, in one sentence. */
   detail: string;
-  /** The host's reason a pack did not apply; shown as the field error. */
+  /** The host's reason a pack did not apply; delivered through notifications. */
   error: string | null;
   restart: boolean;
   remove: boolean;

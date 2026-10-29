@@ -8,6 +8,7 @@
  */
 
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -81,9 +82,7 @@ export function InstalledPluginSettingsForm({ schema, values, discovered, onSubm
         />
       ))}
       {(bindings.missing_required ?? []).length > 0 && (
-        <p className="px-4 py-3 text-xs text-destructive" role="alert">
-          Missing required secrets: {(bindings.missing_required ?? []).join(", ")}
-        </p>
+        <NotificationMessage>Missing required secrets: {(bindings.missing_required ?? []).join(", ")}</NotificationMessage>
       )}
     </>
   );
@@ -234,7 +233,7 @@ function SecretField({
     <div className="grid gap-2">
       <select
         className="h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
-        aria-label="Secret reference source"
+        aria-label="Secret Reference Source"
         value={kind}
         onChange={(event) =>
           onChange(event.target.value === "environment" ? { kind: "environment", variable: "" } : { kind: "stored_secret", secret_id: "" })
@@ -246,7 +245,7 @@ function SecretField({
       <Input
         id={id}
         autoComplete="off"
-        placeholder={kind === "environment" ? "ENVIRONMENT_VARIABLE" : "Stored secret ID"}
+        placeholder={kind === "environment" ? "ENVIRONMENT_VARIABLE" : "Stored Secret ID"}
         value={reference?.kind === "environment" ? reference.variable : (reference?.secret_id ?? "")}
         onChange={(event) =>
           onChange(
@@ -260,11 +259,11 @@ function SecretField({
       />
       {kind === "stored_secret" && (
         <Input
-          aria-label="Secret value"
+          aria-label="Secret Value"
           type="password"
           autoComplete="new-password"
           disabled={saving}
-          placeholder={configured ? "Type a replacement and press Enter" : "Type the secret and press Enter"}
+          placeholder={configured ? "Type A Replacement And Press Enter" : "Type The Secret And Press Enter"}
           value={secret}
           onChange={(event) => setSecret(event.target.value)}
           onKeyDown={(event) => {

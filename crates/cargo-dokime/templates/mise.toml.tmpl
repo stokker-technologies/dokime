@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:a59de2b6aea7d296a3067ad5c26a732f20624bff47de9ff6603665e9f178e805
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:64ba9a1c25a38434c339f8bcd0410dd94ef0f45b7ab1fe46c700ac69ddcfa9a1
 # === Settings === #
 
 [settings]
@@ -9,14 +9,14 @@ lockfile = true
 [tools]
 # Languages And Runtimes
 go = "1.27.3"
-python = "3.15.0"
-rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools", profile = "minimal" }
+python = "3.15.2"
+rust = { version = "1.99.1", components = "clippy,rustfmt,llvm-tools", profile = "minimal" }
 
 # Package Managers
-uv = "0.13.0"
+uv = "0.13.5"
 
 # Rust Toolchain
-"aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
+"aqua:nextest-rs/nextest/cargo-nextest" = "0.9.149"
 "aqua:taiki-e/cargo-llvm-cov" = "0.9.1"
 "github:bnjbvr/cargo-machete" = "0.9.2"
 sccache = "0.19.0"
@@ -27,9 +27,9 @@ sccache = "0.19.0"
 taplo = "0.10.0"
 
 # Release And Signing
-gh = "2.102.0"
+gh = "2.103.2"
 git-cliff = "2.14.2"
-glab = "1.123.0"
+glab = "1.124.0"
 
 # Project Statistics
 "aqua:boyter/scc" = "4.1.0"
@@ -53,16 +53,14 @@ run = "uv sync --locked --project tools/python --all-groups"
 [tasks.format]
 description = "Format Every Language"
 usage = 'flag "--check"'
-depends = [
-  "format:toml {% if usage.check %}--check{% endif %}",
-  "format:rust {% if usage.check %}--check{% endif %}",
-  "format:python {% if usage.check %}--check{% endif %}",
+run = [
+  { tasks = ["format:toml {% if usage.check %}--check{% endif %}", "format:rust {% if usage.check %}--check{% endif %}", "format:python {% if usage.check %}--check{% endif %}"] },
 ]
 
 [tasks."format:python"]
 description = "Format Python"
 usage = 'flag "--check"'
-run = 'uv run --locked --project tools/python ruff format --force-exclude --exclude "**/.stkr/templates/**" "tools/python"{% if usage.check %} --check{% endif %}'
+run = 'uv run --locked --project tools/python ruff format --force-exclude --exclude="**/.stkr/templates/**" "tools/python"{% if usage.check %} --check{% endif %}'
 
 [tasks."format:rust"]
 description = "Format Rust"
@@ -83,8 +81,8 @@ depends = ["lint:rust", "lint:python"]
 [tasks."lint:python"]
 description = "Lint Python"
 run = [
-  'uv run --locked --project tools/python ruff check --force-exclude --exclude "**/.stkr/templates/**" "tools/python"',
-  'uv run --locked --project tools/python ty check --exclude "**/.stkr/templates/**" "tools/python"',
+  'uv run --locked --project tools/python ruff check --force-exclude --exclude="**/.stkr/templates/**" "tools/python"',
+  'uv run --locked --project tools/python ty check --exclude="**/.stkr/templates/**" "tools/python"',
 ]
 
 [tasks."lint:rust"]
@@ -157,13 +155,13 @@ run = "cargo dokime sidecar dev"
 description = "Test Every Layer"
 env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
-depends = ["test:rust --profile {{usage.profile}}"]
+run = [{ tasks = ["test:rust --profile {{usage.profile}}"] }]
 
 [tasks."test:rust"]
 description = "Test Rust"
 env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
-depends = ["test:rust:unit --profile {{usage.profile}}", "test:rust:integration --profile {{usage.profile}}"]
+run = [{ tasks = ["test:rust:unit --profile {{usage.profile}}", "test:rust:integration --profile {{usage.profile}}"] }]
 
 [tasks."test:rust:coverage"]
 description = "Measure Coverage Over Instrumented Lanes"
@@ -192,7 +190,7 @@ run = "uv run --locked --project tools/python python -m project_tools.test.run t
 [tasks.package]
 description = "Package Every Language"
 usage = 'flag "--profile <profile>" default="dev"'
-depends = ["package:rust --profile {{usage.profile}}"]
+run = [{ tasks = ["package:rust --profile {{usage.profile}}"] }]
 
 [tasks."package:rust"]
 description = "Package Rust"

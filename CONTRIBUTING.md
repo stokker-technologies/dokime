@@ -56,6 +56,8 @@ Debug assertions and overflow checks remain enabled.
 
 ## Tests And Checks
 
+Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Selected tests require their own generated inputs when they import them. The default unit lane restores the matched Product contracts and runs the complete suite.
+
 During implementation, run targeted checks for changed behavior. Once all agreed
 source work and targeted proof are complete, push the authorized candidate, verify its remote SHA and immediately run
 the full local gate alongside hosted CI:

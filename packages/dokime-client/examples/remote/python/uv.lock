@@ -4,15 +4,15 @@ requires-python = ">=3.13, <3.16"
 
 [[package]]
 name = "dokime-client"
-version = "0.1.0"
-source = { path = "../wheels/dokime_client-0.1.0-py3-none-any.whl" }
+version = "0.1.1"
+source = { path = "../wheels/dokime_client-0.1.1-py3-none-any.whl" }
 dependencies = [
     { name = "grpcio" },
     { name = "protobuf" },
     { name = "python-dotenv" },
 ]
 wheels = [
-    { filename = "dokime_client-0.1.0-py3-none-any.whl", hash = "sha256:75842afcf6a1120dd39eca5512f9351e65a0ec985b24a9a8d530fd3f3088d221" },
+    { filename = "dokime_client-0.1.1-py3-none-any.whl", hash = "sha256:724b303a91ef34dc30ef800b8ad228390d146d4dd075988171ee4bf7d18ab34c" },
 ]
 
 [package.metadata]
@@ -24,14 +24,14 @@ requires-dist = [
 
 [[package]]
 name = "dokime-remote-examples"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 dependencies = [
     { name = "dokime-client" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dokime-client", path = "../wheels/dokime_client-0.1.0-py3-none-any.whl" }]
+requires-dist = [{ name = "dokime-client", path = "../wheels/dokime_client-0.1.1-py3-none-any.whl" }]
 
 [[package]]
 name = "grpcio"

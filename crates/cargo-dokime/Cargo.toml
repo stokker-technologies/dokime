@@ -11,8 +11,13 @@ repository.workspace = true
 version = { workspace = true }
 
 [package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
-pkg-fmt = "bin"
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }.tar.gz"
+pkg-fmt = "tgz"
+bin-dir = "{ bin }{ binary-ext }"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }.zip"
+pkg-fmt = "zip"
 
 # === Package Targets === #
 
@@ -28,7 +33,7 @@ test = false
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["terminal", "configuration"] }
-dokime-packaging = { version = "0.1.0", path = "../dokime-packaging" }
+dokime-packaging = { version = "0.1.1", path = "../dokime-packaging" }
 
 # Git
 

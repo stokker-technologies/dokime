@@ -439,7 +439,7 @@ fn finish_package(
     let identity = manifest.identity(&payload.identity)?;
     let slug = &identity.slug;
     let name = match kind {
-        PackageType::Nsis => format!("{slug}-{}-windows-x86_64-setup.exe", manifest.installer.version),
+        PackageType::Nsis => format!("{slug}-{}-{}-setup.exe", manifest.installer.version, manifest.dokime.target),
         PackageType::Deb => format!("{slug}_{}_amd64.deb", manifest.installer.version),
         PackageType::Rpm => format!("{slug}-{}-1.x86_64.rpm", manifest.installer.version),
         _ => {

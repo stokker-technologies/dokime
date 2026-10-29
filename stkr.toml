@@ -6,7 +6,7 @@
 
 [project]
 name = "Dokime"
-platforms = ["linux", "windows"]
+platforms = ["unix", "windows"]
 
 [tools]
 # Verify Detached Updater Signatures With The Compiled Public Key.
@@ -142,7 +142,7 @@ outputs.python = ["target/build/{profile}/any/python"]
 
 [[ci.jobs]]
 id = "build"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 outputs.cli = ["target/build/{profile}/{target}/bin/dokime"]
 outputs.gui = ["target/build/{profile}/{target}/bin/dokime-gui"]
@@ -163,7 +163,7 @@ outputs.packaging = ["target/build/{profile}/{target}/product", "target/build/{p
 
 [[ci.jobs]]
 id = "build:rust:tests"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
@@ -172,7 +172,7 @@ outputs.bench = ["target/build/bench/{target}"]
 
 [[ci.jobs]]
 id = "build:rust:bench"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
 
@@ -233,32 +233,32 @@ inputs = ["build:python#python", "build#cli", "build#plugins"]
 
 [[ci.jobs]]
 id = "test:rust:acceptance"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:coverage"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "test:rust:integration"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:system"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:unit"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:typescript:system"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]
 
 [[ci.jobs]]
@@ -294,7 +294,7 @@ outputs.package = ["target/package/{profile}/any/python"]
 
 [[ci.jobs]]
 id = "package:rust"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 # --- Stage / Release --- #
@@ -321,17 +321,17 @@ inputs = ["package:rust#package", "package:python#package"]
 
 [[ci.jobs]]
 id = "release:publish:dry"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "release:rehearse"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "release:tag"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 # === === Hooks === === #
@@ -546,7 +546,6 @@ lock_commands = [
   [
     "uv",
     "lock",
-    "--offline",
   ],
   [
     "uv",
@@ -586,6 +585,12 @@ signature_checks = [
   ],
 ]
 
+[[release.plugins]]
+package = "dokime-host"
+requires_dokime = ">=0.1.0, <0.2.0"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+path = "target/package/{profile}/{target}/rust/plugins/host.dokime"
+
 [[release.package_signing]]
 language = "rust"
 platform = "windows"
@@ -597,14 +602,16 @@ path = "target/package/{profile}/{target}/rust/installers/dokime_{version}_amd64
 name = "{product}_{version}_amd64.deb"
 
 [[release.assets]]
+kind = "payload"
 target = "linux-x86_64"
-path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-unknown-linux-gnu-payload.zip"
-name = "{product}-{version}-x86_64-unknown-linux-gnu-payload.zip"
+path = "target/package/{profile}/{target}/rust/dokime-payload-{version}-x86_64-unknown-linux-gnu.zip"
+name = "{product}-payload-{version}-x86_64-unknown-linux-gnu.zip"
 
 [[release.assets]]
+kind = "payload"
 target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-pc-windows-msvc-payload.zip"
-name = "{product}-{version}-x86_64-pc-windows-msvc-payload.zip"
+path = "target/package/{profile}/{target}/rust/dokime-payload-{version}-x86_64-pc-windows-msvc.zip"
+name = "{product}-payload-{version}-x86_64-pc-windows-msvc.zip"
 
 [[release.assets]]
 target = "linux-x86_64"
@@ -613,14 +620,8 @@ name = "{product}-{version}-1.x86_64.rpm"
 
 [[release.assets]]
 target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-windows-x86_64-setup.exe"
-name = "{product}-{version}-windows-x86_64-setup.exe"
-
-[[release.assets]]
-target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-windows-x86_64-setup.exe.sig"
-name = "{product}-{version}-windows-x86_64-setup.exe.sig"
-signed_only = true
+path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-x86_64-pc-windows-msvc-setup.exe"
+name = "{product}-{version}-x86_64-pc-windows-msvc-setup.exe"
 
 [[release.assets]]
 target = "windows-x86_64"
@@ -628,27 +629,8 @@ path = "target/package/{profile}/{target}/rust/installers/latest.json"
 name = "latest.json"
 signed_only = true
 
-[[release.assets]]
-target = "linux-x86_64"
-path = "target/package/{profile}/{target}/rust/plugins/host.dokime"
-name = "host-{version}-{target}.dokime"
-
-[[release.assets]]
-target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/plugins/host.dokime"
-name = "host-{version}-{target}.dokime"
-
-[[release.assets]]
-target = "linux-x86_64"
-path = "target/package/{profile}/any/python/dokime_client-{version}-py3-none-any.whl"
-
-[[release.assets]]
-target = "linux-x86_64"
-path = "target/package/{profile}/any/python/dokime_client-{version}.tar.gz"
-profiles = ["release"]
-
 [version]
-value = "0.1.0"
+value = "0.1.1"
 files = [
   "Cargo.toml",
   "pyproject.toml",
@@ -681,7 +663,6 @@ language = "python"
 name = "dokime-remote-examples-{version}.zip"
 profiles = ["dev", "release"]
 targets = ["any"]
-release = true
 inputs = [
   { path = "target/build/{profile}/{target}/python/examples/remote/LICENSE", destination = "remote/LICENSE" },
   { path = "target/build/{profile}/{target}/python/examples/remote/README.md", destination = "remote/README.md" },

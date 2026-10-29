@@ -2,6 +2,43 @@
 
 Detailed concepts, supported interfaces and existing authoring examples. For installation, start with the [Quick Start](../README.md#quick-start).
 
+## Install Tools With Mise
+
+Dokime has no published release yet. After publication, select matching CLI and
+authoring-tool archives in your mise configuration. For Windows x86-64:
+
+```toml
+[tool_alias]
+dokime = "github:stokker-technologies/dokime"
+cargo-dokime = "github:stokker-technologies/dokime"
+
+[tools]
+dokime = { version = "0.1.0", asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
+cargo-dokime = { version = "0.1.0", asset_pattern = "cargo-dokime-*-x86_64-pc-windows-msvc.zip" }
+```
+
+For Linux x86-64, use `dokime-cli-*-x86_64-unknown-linux-gnu.tar.gz`
+and `cargo-dokime-*-x86_64-unknown-linux-gnu.tar.gz`. Each archive contains its command at the root,
+LICENSE, README and generated CHANGELOG; Unix commands retain executable modes.
+The [mise aliases](https://mise.jdx.dev/dev-tools/aliases.html) give each tool its
+own installation directory. Cargo-binstall metadata selects the same archive names, although this
+unpublished Cargo subcommand is distributed through release assets and mise.
+
+Release downloads include native installers, tool archives,
+`dokime-payload-<version>-<Rust-target>.zip` distributor inputs, shipped plugin
+`<package>-<version>-<Rust-target>.dokime` bundles and their `plugins.json` feed,
+`latest.json` for the desktop updater, CHANGELOG and SHA256SUMS. Installer
+signatures are embedded in `latest.json`; standalone `.sig` files are not
+downloads. OBC and remote examples remain candidate/source fixtures. Python
+distributions publish to PyPI. CI transports `upload.json` between publication
+and verification jobs; it is not a release download.
+
+`mise run release:rehearse` consumes existing release-profile packages for every
+configured target and runs staging and registry dry runs with credentials
+removed. It does not create a remote rehearsal release. The integration owner
+must re-register crates.io and PyPI Trusted Publishing to `release.yml`,
+environment `release`, before the first publication under this workflow.
+
 ## The Test Domain
 
 Definitions describe what can be tested. Execution captures what happened when
@@ -92,6 +129,12 @@ settings, with TLS and access-key authentication selected independently;
 browser-origin permission does not grant operation access. A GUI built with
 `DOKIME_TRANSPORT=grpc-web` is such a browser client.
 
+## Notifications
+
+Interface feedback appears in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.
+
+The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
+
 ## Native Remote Access
 
 Settings → Remote Access owns the saved listener settings and explicit restart.
@@ -135,6 +178,8 @@ capabilities. A grant must name the operation being called. Discovery and
 invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
+
+The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
 
 Settings → Backends and the CLI share `backends.json`. Each profile has a
 machine **Identifier** and a human **Label**. Import a pairing file as the primary
@@ -718,7 +763,7 @@ the plot instead of a legend: count, min, max, mean, median, std, and rms of
 each trace over the window shown, computed by the backend over the exact rows
 rather than the reduced points the plot draws. Clicking a row hides or shows its
 trace, a live plot's table also reads the value under the cursor, and the report
-freezes the table with its plot.
+freezes the table with its plot. Compatible time axes within one plot group share cursor movement; trace visibility and zoom remain specific to each chart. Drag a box to zoom. Hold Shift while dragging, or use the middle mouse button, to pan the held viewport; time plots pan horizontally, and XY plots pan both axes. Double-click or use Follow / Reset Zoom to resume the default view. Zoom and pan reselect points from retained input for the new viewport.
 An unavailable plot shows its diagnostic in a centered, tinted overlay. A terminal
 stream error replaces the displayed chart while retaining its last frame for recovery.
 
@@ -872,7 +917,7 @@ Using that directory requires no application compilation:
 
 ```sh
 cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-payload --output dist
-cargo dokime installer inspect dist/com-hilti-dokime-0.1.0-windows-x86_64-setup.exe --json
+cargo dokime installer inspect dist/com-hilti-dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe --json
 ```
 
 Pass `--plugin path/to/host.dokime` to include host telemetry, and repeat `--plugin`
@@ -881,7 +926,7 @@ includes no plugins. The Dokime packaging task selects `host.dokime`.
 
 Product `mise run package:rust --profile dev` invokes the matching built
 `cargo-dokime`, packages and inspects those outputs, and publishes a portable
-`dokime-<version>-<Rust-target>-payload.zip` beside the installers. The ZIP
+`dokime-payload-<version>-<Rust-target>.zip` beside the installers. The ZIP
 preserves the payload bytes and executable modes; downstream distributors can
 extract it and supply its directory through `--artifacts`.
 
@@ -1094,16 +1139,18 @@ input payload and compiled application identity. When installer signing is
 requested, it signs the modified executable before recording its final hash,
 then signs the finished installer. Installer artwork supplies the setup icon.
 
-The app's brand mark exposes the `.logo` class on both light and dark artwork,
-including its text fallback. Customize it in the pack's `theme/base.css`, for
-example:
+The connection screen and sidebar share a `.brand` block containing `.logo` artwork and a `.wordmark`. The text fallback also carries `.logo`. Customize this block in the pack's `theme/base.css`, for example:
 
 ```css
-.logo {
-  padding: 0.5rem 1rem;
-  object-fit: contain;
+.brand {
+  --brand-logo-size: 2.5rem;
+  --brand-flow: column;
+  --brand-align: center;
+  --brand-gap: 0.75rem;
 }
 ```
+
+The default classes `brand-row` / `brand-column` select flow and `brand-start` / `brand-center` select alignment. Organization themes can override their variables without changing components. The connection screen keeps its 2.5rem logo and the sidebar its 1.5rem logo by default.
 
 The root element carries `.light` or `.dark` for the active mode, so shared
 styles can target `.light .logo` and `.dark .logo` symmetrically. Alternatively,

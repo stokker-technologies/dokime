@@ -16,13 +16,16 @@ Locked 2026-10-29. One commit per item; targeted proof per item; Linux paths are
 ## 3. Spin-Down
 
 - [ ] 3.1 Deterministic test: one leased host stream runs only its observer; releasing it cancels the observe invocation.
+  Drafted (`domains::telemetry::sampling::host_observer_spins_down`, watching `operations().watch_residents()`): with lease-driven demand only `host.system` starts, but its resident takes about 540 s to retire after release and the runtime shutdown then fails (`harmos.shutdown` Unavailable). Blocked on that Harmos observer-cancellation defect; the draft is not landed.
 - [ ] 3.2 Confirm the plugin resident lease wants no stream while idle.
+  Finding: `submit_resident` holds only the sidecar service. Idle streams stay warm because `runtime/native_telemetry.rs::observe` keeps a `publication.watch()` on every stream of each exposed plugin, so every demand observer runs. Fix (drafted, lands with 3.1): leases own demand (first lease engages a watch, last release drops it), exposure re-engages held streams, and `dokime.plots.watch` holds viewer leases for the plots it serves.
 
 ## 3A. Shared Operations And Definitions Crate
 
 - [ ] 3A.1 `visibility = Shared` on adapters, radio/adapter set, power plan read/set and CPU load; `*.collect` stay private.
-- [ ] 3A.2 `dokime-host` `default = []`, `runtime` gates implementations and optional platform dependencies; bin requires `runtime`; sidecar build and packaging enable it.
+- [x] 3A.2 `dokime-host` `default = []`, `runtime` gates implementations and optional platform dependencies; bin requires `runtime`; sidecar build and packaging enable it.
 - [ ] 3A.3 No-feature guard; document the git-tag dependency for external plugin authors; proof: no-feature check, runtime build, bundle build, workspace check.
+  Done: the guard is the existing `build:rust:compatibility` `--workspace --lib --bins --no-default-features` lane plus every featureless workspace check; plugins README documents the git-tag dependency. Proof so far: `check -p dokime-host --no-default-features --all-targets` PASS, `test -p dokime-host --no-default-features --lib` 7 PASS, `test -p dokime-host --features runtime --lib --test integration` 14 + 6 PASS, workspace/all-targets check PASS. Open: shipping bundle build with `rust_plugin_features`.
 
 ## 4. Adapters (Read)
 

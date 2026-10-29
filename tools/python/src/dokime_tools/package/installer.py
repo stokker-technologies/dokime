@@ -37,6 +37,7 @@ from dokime_tools.package.staging import clear_output, stage_file
 
 TAURI = Path("crates/dokime-gui/src-tauri")
 UPDATER_TARGET = "windows-x86_64"
+INSTALLER_TARGET = "x86_64-pc-windows-msvc"
 PROJECT_URL = "https://github.com/stokker-technologies/dokime"
 
 # === Types === #
@@ -108,11 +109,11 @@ def check_package(
     check(root)
     expected = (expected or os.environ.get("EXPECTED_PACKAGE_VERSION") or _release_version(root)).strip().removeprefix("v")
     directory = paths.output(root, "package", profile) / "rust/installers" if dist is None else root / dist
-    candidates = list(directory.glob(f"dokime-*-{UPDATER_TARGET}-setup.exe"))
+    candidates = list(directory.glob(f"dokime-*-{INSTALLER_TARGET}-setup.exe"))
     if len(candidates) != 1:
         raise ValueError("expected exactly one Windows installer")
     installer = candidates[0]
-    if installer.name != f"dokime-{expected}-{UPDATER_TARGET}-setup.exe":
+    if installer.name != f"dokime-{expected}-{INSTALLER_TARGET}-setup.exe":
         raise ValueError("installer version does not match the expected version")
 
     signature_file = installer.with_suffix(".exe.sig")
@@ -122,11 +123,10 @@ def check_package(
         _verify_update(root, directory, installer, signature_file, expected)
 
 
-def verify_signature(root: Path, installer: Path, signature: Path) -> None:
+def verify_signature(root: Path, installer: Path, encoded_signature: str) -> None:
     """Verify Exact Installer Bytes Against The Shipped Updater Public Key."""
     config = json.loads((root / TAURI / "tauri.conf.json").read_text(encoding="utf-8"))
     encoded_key = config["plugins"]["updater"]["pubkey"].strip()
-    encoded_signature = signature.read_text(encoding="utf-8").strip()
     try:
         public_key = base64.b64decode(encoded_key, validate=True)
         signed = base64.b64decode(encoded_signature, validate=True)
@@ -150,6 +150,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["check", "bundle", "verify"])
     parser.add_argument("--profile", choices=["dev", "release"], default="dev")
+    parser.add_argument("--target", choices=["native", paths.target()], default="native")
     parser.add_argument("--dist-dir", type=Path)
     parser.add_argument("--expected-version")
     parser.add_argument("--require-signed", action="store_true")
@@ -241,14 +242,21 @@ def _run(command: list[str], root: Path, *, stdout=None) -> None:
 
 
 def _verify_update(root: Path, directory: Path, installer: Path, signature_file: Path, expected: str) -> None:
-    signature = signature_file.read_text(encoding="utf-8").strip()
     manifest = json.loads((directory / "latest.json").read_text(encoding="utf-8"))
     platform = manifest.get("platforms", {}).get(UPDATER_TARGET, {})
-    identity_matches = manifest.get("version") == expected and platform.get("signature") == signature
+    signature = platform.get("signature")
+    if not isinstance(signature, str) or not signature.strip():
+        raise ValueError("updater manifest must contain a signature")
+    signature = signature.strip()
+
+    if signature_file.exists() and signature_file.read_text(encoding="utf-8").strip() != signature:
+        raise ValueError("updater manifest must identify the exact installer and signature")
+    identity_matches = manifest.get("version") == expected
     named_installer = platform.get("url", "").rsplit("/", 1)[-1]
     if not identity_matches or named_installer != installer.name:
         raise ValueError("updater manifest must identify the exact installer and signature")
-    verify_signature(root, installer, signature_file)
+
+    verify_signature(root, installer, signature)
 
 
 def _signing_available() -> bool:

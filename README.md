@@ -42,6 +42,8 @@ The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
 Settings. The desktop remembers that choice; operators do not need a source checkout.
 
+Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+
 #### Examples
 
 ![Test templates and cases in the Dokime library](screenshots/library.png)
@@ -83,7 +85,7 @@ backend profiles and execution APIs; the [runnable examples](packages/dokime-cli
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(pinned to development revision `648b3c7b79dc15c858666d1117c2abc97253910c` until the next Harmos release)
+(currently pinned to the published `0.1.13` release)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -91,6 +93,27 @@ for contracts and managed plugin lifecycles.
 The test-only [OBC plugin](plugins/sidecars/obc/) simulates a charger without physical
 hardware. Follow its [procedure and measurement examples](docs/product-guide.md#run-the-procedure-and-capture-evidence)
 to see the public authoring API in context.
+
+Use the starter's `dokime` dependency with the `plugin-sidecar` feature. Authoring
+macros and contracts come through that facade. For example, the
+[capture template](plugins/sidecars/obc/src/suites/benchmarks/capture.rs) declares
+validated parameters and cartesian expansion with:
+
+```rust
+#[dokime::parameters]
+pub struct Parameters {
+    #[parameter(label = "Rows", default = 100_000, min = 1, max = 200_000)]
+    pub rows: u64,
+
+    #[parameter(label = "Member", default = 0, expansion = "cartesian")]
+    pub member: u64,
+}
+```
+
+The same plugin uses `#[dokime::observer]` for its
+[system measurements](plugins/sidecars/obc/src/observers/system.rs) and
+`#[dokime::criterion]` for its
+[pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
 
 Custom installers can declare `[installer] identifier = "com.hilti.dokime"` to
 keep their installation and storage separate from plain Dokime. They select bundles
@@ -107,6 +130,10 @@ for packaging options.
 Dokime is pre-1.0. Pin matching application, client and plugin revisions;
 public APIs and development storage formats may change. See the
 [product guide](docs/product-guide.md) for the detailed model and limitations.
+
+CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
+(Unix) archives. See [Install Tools With Mise](docs/product-guide.md#install-tools-with-mise)
+for archive selection and the release download inventory.
 
 ### Configuration
 

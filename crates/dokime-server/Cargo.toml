@@ -12,6 +12,7 @@
 name = "dokime-server"
 edition.workspace = true
 rust-version.workspace = true
+publish = false
 description.workspace = true
 license.workspace = true
 repository.workspace = true

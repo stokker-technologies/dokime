@@ -15,8 +15,9 @@
 
 // Standard Library Imports
 
-// Third Party Imports
 import { useId, useMemo, useState } from "react";
+// Third Party Imports
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
 import type { EvidenceAnalysisResult } from "@/lib/types";
@@ -50,7 +51,7 @@ export function AnalysisResult({ result, title, stateLabel, stateDetail }: Analy
     [result],
   );
   const entry = entries[selected] ?? entries[0];
-  if (!entry?.schema) return <p role="alert">Analysis output has no declared presentation.</p>;
+  if (!entry?.schema) return <NotificationMessage>Analysis output has no declared presentation.</NotificationMessage>;
   const { series, output, schema } = entry;
   const displayIndices = output.displayIndices?.length ? output.displayIndices : output.axis.map((_, index) => index);
   const label = `${series.label} · ${schema.label}`;

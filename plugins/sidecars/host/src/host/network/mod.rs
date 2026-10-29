@@ -11,20 +11,29 @@
 
 #[cfg(feature = "runtime")]
 mod observing;
-#[cfg(feature = "runtime")]
-pub use observing::State;
 
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
+
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 mod windows;
 
+/* === Re-Exports === */
+
+#[cfg(feature = "runtime")]
+pub use observing::State;
+
 /* === Imports === */
 
+// Standard Library Imports
+use std::time::Duration;
+
+// Third Party Imports
+
+// Local Imports
 use crate::HostTelemetryStream;
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime::telemetry::{TelemetryContract, TelemetryStream};
-use std::time::Duration;
 
 /* === Constants === */
 
@@ -34,6 +43,10 @@ pub const POLICY: OperationPolicy = OperationPolicy {
     attempt_timeout: BUDGET,
     retries: RetryPolicy::Never,
 };
+
+/* === Macros === */
+
+/* === Type Aliases === */
 
 /* === Structs === */
 
@@ -59,6 +72,10 @@ pub struct Collected {
     pub timestamp_micros: i64,
 }
 
+/* === Enums === */
+
+/* === Traits === */
+
 /* === Implementations === */
 
 impl dokime::StreamSpec for Network {
@@ -75,6 +92,10 @@ impl TelemetryStream for Network {
 }
 
 impl dokime::telemetry::OwnedStream for Network {}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 /* === Tests === */
 

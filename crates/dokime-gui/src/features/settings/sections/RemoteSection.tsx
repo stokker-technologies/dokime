@@ -15,17 +15,16 @@
 
 // Standard Library Imports
 
-// Third Party Imports
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import { toast } from "sonner";
-
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
+// Third Party Imports
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
@@ -41,6 +40,7 @@ import {
 } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import { toast } from "@/lib/notifications";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 
@@ -60,7 +60,9 @@ export function RemoteSection({ advanced = false }: { advanced?: boolean }) {
     return (
       <SettingsCard title="Remote Access">
         <SettingsRow label="Host Settings">
-          <p role="status">Open Remote Access in the host's connected desktop session to configure its listener.</p>
+          <NotificationMessage tone="info">
+            Open Remote Access in the host's connected desktop session to configure its listener.
+          </NotificationMessage>
         </SettingsRow>
       </SettingsCard>
     );
@@ -93,7 +95,7 @@ function ConnectedRemoteSection({
     return (
       <SettingsCard title="Remote Access">
         <SettingsRow label="Remote Settings">
-          <span role="status">Loading remote settings…</span>
+          <NotificationMessage tone="info">Loading remote settings…</NotificationMessage>
         </SettingsRow>
       </SettingsCard>
     );
@@ -309,7 +311,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
         title="Paired Clients"
         data={page?.clients ?? []}
         getRowId={(client) => client.identifier}
-        emptyText={busy ? "Loading paired clients…" : "No paired clients."}
+        emptyText={busy ? "Loading Paired Clients…" : "No Paired Clients"}
         columns={columns.columns([
           columns.accessor("label", { header: "Label" }),
           columns.accessor((client) => new Date(Number(client.createdAt)).toLocaleString(), { id: "created", header: "Created" }),
@@ -334,11 +336,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
           </Button>
         }
       />
-      {error && (
-        <p role="alert" className="p-4 text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      {error && <NotificationMessage>{error}</NotificationMessage>}
       <div className="flex gap-2 p-4">
         <Button disabled={busy || !request.cursor} variant="outline" onClick={() => setRequest({})}>
           First Page

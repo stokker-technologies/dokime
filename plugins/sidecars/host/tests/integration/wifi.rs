@@ -16,12 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
+use model::values::Value;
 
 // Local Imports
 use crate::support::*;
 use dokime_domain::model;
 use dokime_host::HostTelemetryStream;
-use model::values::Value;
 
 /* === Constants === */
 
@@ -42,6 +42,7 @@ use model::values::Value;
 /* === Private Functions === */
 
 /* === Tests === */
+
 // Native Collection Reports Either Scanned Networks Or An Explicit Availability State.
 #[test]
 fn wifi_scan_rows() {

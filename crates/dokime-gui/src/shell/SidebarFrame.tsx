@@ -15,14 +15,13 @@
 
 // Standard Library Imports
 
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 // Third Party Imports
 import type { ReactNode } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/ui-store";
-import { sidebarWidth } from "./navigation-model";
-import { selectLogo, useBrand } from "@/lib/brand";
 import { BrandMark } from "./BrandMark";
+import { sidebarWidth } from "./navigation-model";
 import { useSidebarState } from "./use-sidebar-state";
 
 // Local Imports
@@ -83,20 +82,9 @@ export function SidebarFrame({ children }: { children: ReactNode }) {
 
 // A Compact Brand Row Above Navigation.
 export function SidebarBrand({ collapsed }: { collapsed: boolean }) {
-  const brand = useBrand();
-  // Without artwork the wordmark alone stands for the brand.
-  const artwork = selectLogo(brand, "transparent", "light") ?? selectLogo(brand, "transparent", "dark");
-  if (collapsed) {
-    return (
-      <div className="flex min-w-0 justify-center px-2 py-3">
-        <BrandMark className="h-6 max-w-full object-contain" />
-      </div>
-    );
-  }
   return (
-    <div className="flex min-w-0 items-center gap-2 px-4 py-3" data-slot="sidebar-brand">
-      {artwork ? <BrandMark className="h-6 w-6 max-w-full object-contain" /> : null}
-      <span className="max-w-full truncate font-heading text-base font-semibold tracking-wide">{brand.label}</span>
+    <div className={collapsed ? "min-w-0 px-2 py-3" : "min-w-0 px-4 py-3"} data-slot="sidebar-brand">
+      <BrandMark className="sidebar-brand" logoOnly={collapsed} />
     </div>
   );
 }

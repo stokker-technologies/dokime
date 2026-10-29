@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:ba0d9adbc1a94341a56aab96b89183f223ced3029f36482ef1ace6eee640eead
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:920b68f1efcbb5ff024f3d0ee3906b8a7f15303fa2453889a0a5603157cf9714
 # ***
 #
 # Dokime
@@ -22,6 +22,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..process import spawn_flags
 from .. import temporary
 from ..build import paths
 from . import policy
@@ -45,7 +46,7 @@ MESSAGES = "compiler.json"
 def revision(directory: Path) -> str | None:
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
         cwd=directory,
         capture_output=True,
         text=True,
@@ -94,7 +95,7 @@ def binaries(directory: Path, profile: str) -> dict[str, str]:
         ]
         result = subprocess.run(
             command,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             cwd=directory,
             capture_output=True,
             text=True,
@@ -136,7 +137,7 @@ def install_wheels(directory: Path, profile: str, native: str | None = None) -> 
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             cwd=directory,
             check=True,
         )
@@ -223,7 +224,7 @@ def _digest(path: Path) -> str:
 def _toolchain(directory: Path) -> str:
     return subprocess.check_output(
         ["rustc", "-Vv"],
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
         cwd=directory,
         text=True,
     ).strip()

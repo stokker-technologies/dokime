@@ -15,9 +15,10 @@
 
 // Standard Library Imports
 
-// Third Party Imports
 import { AudioLines, Download, ExternalLink, Image as ImageIcon, Search, Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// Third Party Imports
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -186,13 +187,13 @@ export function MediaGallerySurface({
                 ) : selectedArtifact.nativeTransfer && mediaBlobType(selectedArtifact) ? (
                   <div className="grid justify-items-center gap-3 p-8 text-center text-sm text-muted-foreground">
                     {preview?.errors[selectedArtifact.artifact_id] ? (
-                      <p role="alert">{preview?.errors[selectedArtifact.artifact_id]}</p>
+                      <NotificationMessage>{preview?.errors[selectedArtifact.artifact_id]}</NotificationMessage>
                     ) : (
                       <p>Loading media preview…</p>
                     )}
                     {preview?.errors[selectedArtifact.artifact_id] ? (
                       <Button size="sm" type="button" variant="outline" onClick={() => preview?.retry(selectedArtifact.artifact_id)}>
-                        Retry preview
+                        Retry Preview
                       </Button>
                     ) : null}
                   </div>
@@ -251,14 +252,10 @@ export function MediaGallerySurface({
                     </>
                   ) : null}
                   {nativeOpenError?.artifactId === selectedArtifact.artifact_id ? (
-                    <p className="basis-full text-sm text-destructive" role="alert">
-                      {nativeOpenError.message}
-                    </p>
+                    <NotificationMessage>{nativeOpenError.message}</NotificationMessage>
                   ) : null}
                   {nativeDownloadError?.artifactId === selectedArtifact.artifact_id ? (
-                    <p className="basis-full text-sm text-destructive" role="alert">
-                      {nativeDownloadError.message}
-                    </p>
+                    <NotificationMessage>{nativeDownloadError.message}</NotificationMessage>
                   ) : null}
                 </div>
               </div>
@@ -379,7 +376,7 @@ function MediaGalleryCard({
             {artifact.nativeTransfer ? (
               <>
                 <Button
-                  aria-label={nativeOpenError ? `Retry open ${title}` : `Open ${title}`}
+                  aria-label={nativeOpenError ? `Retry Open ${title}` : `Open ${title}`}
                   disabled={nativeOpenBusy || nativeDownloadBusy}
                   size="icon-xs"
                   title={nativeOpenError ?? "Open artifact"}
@@ -390,7 +387,7 @@ function MediaGalleryCard({
                   <ExternalLink size={13} />
                 </Button>
                 <Button
-                  aria-label={nativeDownloadError ? `Retry download ${title}` : `Download ${title}`}
+                  aria-label={nativeDownloadError ? `Retry Download ${title}` : `Download ${title}`}
                   disabled={nativeOpenBusy || nativeDownloadBusy}
                   size="icon-xs"
                   title={nativeDownloadError ?? "Download artifact"}

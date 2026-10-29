@@ -45,7 +45,7 @@ export function SuiteTags({ className, tags }: { className?: string; tags: strin
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              aria-label={`${hidden.length} more tags: ${hidden.map(formatTagLabel).join(", ")}`}
+              aria-label={`${hidden.length} More Tags: ${hidden.map(formatTagLabel).join(", ")}`}
               className="shrink-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
             >

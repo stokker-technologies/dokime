@@ -30,7 +30,7 @@ resolver = "2"
 # === Workspace Package === #
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.99"
 description = "Dokime application and runtime packages."
@@ -42,17 +42,14 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Local
-dokime = { version = "0.1.0", path = "crates/dokime" }
-dokime-client = { version = "0.1.0", path = "crates/dokime-client" }
-dokime-domain = { version = "0.1.0", path = "crates/dokime-domain" }
-dokime-packaging = { version = "0.1.0", path = "crates/dokime-packaging" }
-dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-features = false }
-dokime-server = { version = "0.1.0", path = "crates/dokime-server" }
+dokime = { version = "0.1.1", path = "crates/dokime" }
+dokime-client = { version = "0.1.1", path = "crates/dokime-client" }
+dokime-domain = { version = "0.1.1", path = "crates/dokime-domain" }
+dokime-packaging = { version = "0.1.1", path = "crates/dokime-packaging" }
+dokime-runtime = { version = "0.1.1", path = "crates/dokime-runtime", default-features = false }
+dokime-server = { version = "0.1.1", path = "crates/dokime-server" }
 
 # Git
-harmos = "=0.1.13"
-harmos-packaging = "=0.1.13"
-harmos-sdk = "=0.1.13"
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -67,6 +64,9 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
+harmos = "=0.1.13"
+harmos-packaging = "=0.1.13"
+harmos-sdk = "=0.1.13"
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }

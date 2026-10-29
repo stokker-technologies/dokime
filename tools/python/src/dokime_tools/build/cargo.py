@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/build/cargo.py; sha256:f90777c3c8f941bdaef3f38c023607ec31ea0e98ff7c4daa5975ef8f22ba3c13
+# Rendered by stkr project update from templates/python/build/cargo.py; sha256:cc73285888f2f983fbe5b7c6c36450588e1388da7ef6448bb4cdb6c881327edd
 # ***
 #
 # Dokime
@@ -22,6 +22,7 @@ from typing import Any
 
 # Third Party Imports
 # Local Imports
+from ..process import spawn_flags
 from ..ci import summary
 from . import paths, storage
 
@@ -41,7 +42,7 @@ from . import paths, storage
 def clippy(directory: Path, arguments: Sequence[str], *, environment: Mapping[str, str] | None = None) -> None:
     storage.preflight(directory)
     # CI Product And Tests Producers Leave Clippy To Check / Rust, Whose lint:rust Covers Their Selections.
-    if os.environ.get("STKR_CI_CHECK_CLIPPY") == "1":
+    if os.environ.get("CHECK_CLIPPY") == "1":
         return
     selected = dict(os.environ if environment is None else environment, CARGO_BUILD_WARNINGS="deny")
     with summary.phase("Clippy"):
@@ -52,7 +53,7 @@ def clippy(directory: Path, arguments: Sequence[str], *, environment: Mapping[st
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             check=True,
         )
 
@@ -91,7 +92,7 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
             command,
             stdin=sys.stdin,
             stderr=sys.stderr,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             cwd=directory,
             stdout=output,
             check=False,
@@ -136,7 +137,7 @@ def focused(directory: Path, operation: str, arguments: Sequence[str]) -> int:
         stdin=sys.stdin,
         stdout=sys.stdout,
         stderr=sys.stderr,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
         check=False,
     ).returncode
 
@@ -145,7 +146,7 @@ def record_target(directory: Path, messages: Path, profile: str, native: str | N
     """Record The Actual Rust Target For Generic And Authored Product Builders."""
     compiler = subprocess.run(
         ["rustc", "-vV"],
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
         cwd=directory,
         capture_output=True,
         text=True,

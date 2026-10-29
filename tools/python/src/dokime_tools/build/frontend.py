@@ -55,8 +55,10 @@ INPUT_ROOTS = [
 # === Public Functions === #
 
 
-def is_stale(previous_hash: str | None, current_hash: str, source_exists: bool) -> bool:
-    return previous_hash != current_hash or not source_exists
+# The Stamp Records The Inputs And The Committed Template They Produced, So A Template
+# Changed By Checkout Or Hand Is Rendered Again Even When The Inputs Did Not Move.
+def is_stale(previous: str | None, current: str) -> bool:
+    return previous != current
 
 
 def ensure_report() -> None:
@@ -67,15 +69,16 @@ def ensure_report() -> None:
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")
-    current = digest.hexdigest()
+    inputs = digest.hexdigest()
     previous = STAMP.read_text(encoding="utf-8").strip() if STAMP.exists() else None
-    if is_stale(previous, current, REPORT.exists()):
+    if is_stale(previous, f"{inputs} {_template_digest()}"):
         STAMP.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="dokime-report-") as directory:
             output = Path(directory)
             render_report(output)
+            # Staging Rewrites The Tracked Template Only When Its Bytes Change.
             sync_output(output, REPORT.parent)
-        STAMP.write_text(current + "\n", encoding="utf-8")
+        STAMP.write_text(f"{inputs} {_template_digest()}\n", encoding="utf-8")
 
 
 def render_report(output: Path) -> None:
@@ -166,6 +169,10 @@ def main() -> None:
 
 
 # === Private Functions === #
+
+
+def _template_digest() -> str:
+    return hashlib.sha256(REPORT.read_bytes()).hexdigest() if REPORT.is_file() else "absent"
 
 
 def _files(root: Path) -> list[Path]:

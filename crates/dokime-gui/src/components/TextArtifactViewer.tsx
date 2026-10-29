@@ -11,6 +11,7 @@
 
 import { Clipboard, Download, FileText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -399,11 +400,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
           </div>
         </DialogHeader>
         <div className="grid min-h-0 gap-0">
-          {status.kind === "error" ? (
-            <div className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive" role="alert">
-              {status.message}
-            </div>
-          ) : null}
+          {status.kind === "error" ? <NotificationMessage>{status.message}</NotificationMessage> : null}
           <section
             ref={textRef}
             aria-label="Text File Contents"

@@ -113,7 +113,7 @@ export function RecordTimeline({
                 className={cn(FILTER_CONTROL_CLASS, "pl-8")}
                 id={recordSearchId}
                 onChange={(record) => setQuery(record.target.value)}
-                placeholder="Search records (* any text, ? one character)"
+                placeholder="Search Records (* Any Text, ? One Character)"
                 value={query}
               />
             </div>
@@ -139,7 +139,7 @@ export function RecordTimeline({
               ? `Showing ${visibleRecords.length} of ${records.length} records`
               : `${records.length} ${records.length === 1 ? "record" : "records"}`}
           </span>
-          <span className="justify-self-end">Newest first</span>
+          <span className="justify-self-end">Newest First</span>
         </div>
 
         {visibleRecords.length ? (
