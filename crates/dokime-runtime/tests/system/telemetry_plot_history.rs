@@ -8,7 +8,7 @@
  */
 
 // Telemetry Plot History At Full Scale: A 50,000-Row Plot And Seven Days Of Minute-Rate
-// History; `integration/domains/evidence/plots.rs` Guards Both Paths At 5,000 Rows And One Day.
+// History; `integration/domains/telemetry/plots.rs` Guards Both Paths At 4,000 Rows And One Day.
 
 /* === Modules === */
 
@@ -45,6 +45,5 @@ use crate::service_support::plots;
 
 #[tokio::test]
 async fn telemetry_plot_history() {
-    plots::sample_plot(50_000, 400).await;
-    plots::saved_windows(7).await;
+    plots::telemetry_history(50_000, 400, 7).await;
 }
