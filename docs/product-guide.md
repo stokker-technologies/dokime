@@ -877,9 +877,21 @@ installer as a replacement payload. Dokime has no published release yet; use
 matching candidate build artifacts until a payload release is available.
 
 Native assembly uses Tauri's bundler; Windows NSIS tooling is provisioned by that
-backend. Inspection requires `7z` for NSIS, both `dpkg-deb` and `bsdtar`
-(libarchive) for DEB, and `bsdtar` for RPM. Inspection extracts without installing
-or executing the application and compares the embedded distribution metadata with package bytes.
+backend. Inspection needs no external archive tool on any platform: the
+authoring tool reads NSIS installers, DEB packages with a gzip `data.tar.gz` and
+RPM packages with a gzip payload in-process, which are the formats packaging
+produces. Each regular file is extracted to its installed path: `$INSTDIR`
+for NSIS, the package root for DEB and RPM. Inspection then requires exactly one
+embedded distribution manifest, compares every listed file's SHA-256 with the
+extracted bytes, rejects any organization file the manifest does not list, and
+checks launcher and icon artwork. Links, special files, duplicate or escaping
+paths, NSIS files extracted anywhere except the installation directory or the
+installer's own `$PLUGINSDIR` and `$TEMP` helpers, and RPMs whose header or
+payload digest mismatches fail inspection. Nothing is installed or executed. An
+NSIS installer is a script: its destinations come from replaying the script's
+output directories in order, as 7-Zip lists them, so branches and runtime
+values are not evaluated. Signature checks with `--sign` still use `signtool`,
+`debsig-verify` or `rpmkeys`.
 Generated icons, configuration, organization staging and extraction files live
 in temporary directories; completed installers and requested inspection output
 persist.

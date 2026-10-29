@@ -407,7 +407,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,gh,git-cliff,glab,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
+        gh,git-cliff,glab,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       STKR_SCCACHE_BACKEND: disk
       STKR_SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
@@ -728,7 +728,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
       RELEASE_TOKEN: ${{ secrets.release_token }}
       GH_TOKEN: ${{ github.token }}
       CRATES_BOOTSTRAP_AVAILABLE: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
@@ -1077,7 +1077,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
       MISE_TASK_SKIP: package:python,package:rust
     if: >-
       ${{ inputs.ready && (github.event_name == 'pull_request' && github.base_ref ==
@@ -1399,7 +1399,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     if: "${{ inputs.ready && (github.event_name == 'push' && github.ref == 'refs/heads/dev' && startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
     environment: release
@@ -1773,7 +1773,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,gh,git-cliff,glab,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
+        gh,git-cliff,glab,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       STKR_SCCACHE_BACKEND: disk
       STKR_SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
@@ -2111,7 +2111,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
       MISE_TASK_SKIP: package:python,package:rust
     environment: release
     needs:
@@ -2438,7 +2438,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
       MISE_TASK_SKIP: package:python,package:rust
     environment: release
     needs:

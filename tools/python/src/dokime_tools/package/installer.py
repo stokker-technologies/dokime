@@ -26,7 +26,6 @@ from pathlib import Path
 from dokime_tools import temporary
 from dokime_tools.build import paths
 from dokime_tools.build.frontend import ROOT
-from dokime_tools.ci import bootstrap
 from dokime_tools.package import payload
 from dokime_tools.package.staging import clear_output, stage_file
 
@@ -230,13 +229,8 @@ def _record(command: list[str], path: Path, root: Path) -> None:
 
 
 def _run(command: list[str], root: Path, *, stdout=None) -> None:
-    environment = os.environ.copy()
-    if sys.platform == "win32":
-        directory = bootstrap.prepare_windows_installer(root)
-        environment["PATH"] = str(directory.resolve()) + os.pathsep + environment.get("PATH", "")
     subprocess.run(
         command,
-        env=environment,
         cwd=root,
         check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

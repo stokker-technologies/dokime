@@ -44,11 +44,16 @@ toml = { workspace = true }
 clap = { workspace = true }
 
 # Filesystem
+ar = { workspace = true }
+flate2 = { workspace = true }
+tar = { workspace = true }
 tempfile = { workspace = true }
 zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Parsing
 cargo_metadata = { workspace = true }
+nsis = { workspace = true }
+rpm = { workspace = true }
 syn = { workspace = true }
 
 # Concurrency

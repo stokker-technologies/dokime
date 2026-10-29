@@ -104,9 +104,13 @@ clap = { version = "4.6.7", features = ["derive"] }
 dotenv = { package = "dotenvy", version = "0.15.7" }
 
 # Filesystem
+ar = { version = "0.9.0" }
 file-id = { version = "0.2.3" }
+# Uses zlib-rs, the inflate backend the NSIS and ZIP readers already share.
+flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
 glob = { version = "0.3.4" }
 globset = { version = "0.4.20" }
+tar = { version = "0.4.46" }
 tempfile = { version = "3.27.0" }
 walkdir = { version = "2.5.0" }
 # Excludes every default compression and encryption backend; Dokime writes stored archives only.
@@ -115,9 +119,12 @@ zip = { version = "9.1.0", default-features = false }
 # Parsing
 cargo_metadata = { version = "0.23.1" }
 cssparser = { version = "0.38.0" }
+nsis = { version = "0.6.0" }
 proc-macro-crate = { version = "3.5.0" }
 proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }
+# Excludes PGP signing and the xz and zstd codecs; inspection reads the gzip payloads Dokime builds.
+rpm = { version = "0.30.2", default-features = false, features = ["gzip-compression", "payload"] }
 syn = { version = "3.0.9", features = ["extra-traits", "full"] }
 
 # Concurrency
