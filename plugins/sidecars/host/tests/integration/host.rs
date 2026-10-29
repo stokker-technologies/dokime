@@ -16,9 +16,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
+use model::telemetry::{TelemetryBatch, TelemetrySample};
+use model::telemetry::{ValidationMode, host_telemetry_contract};
 
 // Local Imports
 use crate::support::*;
@@ -26,8 +29,6 @@ use dokime::telemetry::TelemetryRow;
 use dokime::telemetry::validate_telemetry_sample;
 use dokime_domain::model;
 use dokime_host::HostTelemetryStream;
-use model::telemetry::{TelemetryBatch, TelemetrySample};
-use model::telemetry::{ValidationMode, host_telemetry_contract};
 
 /* === Constants === */
 
@@ -46,6 +47,7 @@ use model::telemetry::{ValidationMode, host_telemetry_contract};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn single_sample(batch: &TelemetryBatch) -> &TelemetrySample {
     assert_eq!(batch.samples.len(), 1);
     &batch.samples[0]

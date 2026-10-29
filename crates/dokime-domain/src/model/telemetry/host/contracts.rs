@@ -7,11 +7,22 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 use crate::model::identity::{Identifier, Metadata};
 use crate::model::telemetry::{HOST_STREAMS, HostTelemetryStream, TelemetryColumn, TelemetryContract, TelemetryRole};
 use crate::model::values::ValueType;
+
+/* === Constants === */
 
 /* === Macros === */
 
@@ -67,6 +78,16 @@ macro_rules! host_contracts {
 }
 
 crate::host_streams!(host_contracts);
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 /* === Public Functions === */
 

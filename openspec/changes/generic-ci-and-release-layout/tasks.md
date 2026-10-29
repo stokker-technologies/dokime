@@ -12,14 +12,14 @@
 
 - [x] 1.7 Merge the owner-selected next-release branch into this render worktree; reconcile product-owned tasks, host collection, package metadata, docs and skills, re-render managed outputs, preserve managed workflow deletions and restore every Check/Test hold with Release / Dry enabled. Normalize imported OpenSpec capability size and revision references without changing requirements.
 
-- [ ] 1.8 Normalize the imported Rust/Cargo skeletons reported by project check with the canonical formatter; preserve source behavior and re-prove affected native builds.
+- [x] 1.8 Normalize the imported Rust/Cargo skeletons reported by project check with the canonical formatter; preserve source behavior and re-prove affected native builds.
 
 ## Validation
 
 - [x] 2.1 Run changed installer tests: targeted Python integration selection passes all 25 selected installer/plugin cases, including payload bytes/modes, embedded signatures and declared package collection.
 - [x] 2.2 Run strict OpenSpec validation for all changes/specs; re-render workflows, restore all 15 Check/Test conditions with a (false) prefix, keep Release / Dry enabled and retired managed workflows absent. Actionlint passes.
 - [ ] 2.3 Prove native package/release dry and rehearsal using matching Product Build inputs; this checkout has no native product/target.txt and neither native release package. Task-graph package/rehearsal dry runs, Python candidate build/package, focused dokime-packaging compiler check and release:publish:dry pass; the latter staged no native target and proves registry publication only.
-- [ ] 2.4 Resolve project diagnostics after the merge: normalize imported source skeletons with the canonical formatter, retain the locked measure:report-save task and report its Hub task-category conflict; only the owner-held CI digest may remain as an intentional render difference.
+- [ ] 2.4 Resolve the remaining Hub task-category conflict: project check now rejects only mise.toml because the locked measure:report-save task has no canonical section. Imported source skeletons and OpenSpec metadata are repaired; the owner-held CI digest remains intentional.
 - [ ] 2.5 Prove shipped host-plugin bundle and plugins.json against the integrated producer (producer integrated from the owner-selected next-release branch; verify the actual native bundle and staged feed).
 
 ## Workflow Follow-Up
