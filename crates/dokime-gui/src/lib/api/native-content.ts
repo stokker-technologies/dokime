@@ -16,7 +16,6 @@
 import { UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES } from "@generated/desktop-protocol";
 
 import type { Row3 as ArtifactDownloadFrame } from "@generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb";
-import type { Row3 as FileDownloadFrame } from "@generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb";
 import type { Row3 as FileFollowFrame } from "@generated/dokime/v1/ContentMessages/FollowExecutionFile/messages_pb";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
@@ -41,7 +40,6 @@ const GUI_SMALL_PAGE_ITEMS = 100;
 
 type ArtifactScope = NonNullable<ArtifactMetadata["scope"]>;
 type ArtifactFrame = Wire<ArtifactDownloadFrame>;
-type ExecutionFileDownloadFrame = Wire<FileDownloadFrame>;
 type ExecutionFileFollowFrame = Wire<FileFollowFrame>;
 type ArtifactMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListArtifacts>>>["artifacts"][number];
 type ArtifactCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentListArtifacts>>>["cursor"]>;
@@ -201,62 +199,7 @@ export async function fetchNativeArtifactBytes(
   }
 }
 
-/** Download and verify one immutable execution-file snapshot through native IPC. */
-export async function fetchNativeExecutionFileBytes(
-  session: NativeContentSession,
-  executionId: string,
-  path: string,
-  signal?: AbortSignal,
-): Promise<Uint8Array> {
-  const id = executionId.trim();
-  const relativePath = path;
-  if (!id) throw new Error("Content.DownloadExecutionFile requires an execution ID.");
-  if (!relativePath.trim()) throw new Error("Content.DownloadExecutionFile requires a relative path.");
-  let reader: NativeStream<ExecutionFileDownloadFrame> | undefined;
-  let release: (() => void) | undefined;
-  let cancelPromise: Promise<void> | undefined;
-  const cancel = async (): Promise<void> => {
-    if (!reader) return;
-    cancelPromise ??= reader.cancel();
-    await cancelPromise;
-  };
-  if (signal?.aborted || !session.isCurrent()) {
-    throw new Error("Execution-file transfer cancelled.");
-  }
-  const abort = () => void cancel().catch(() => undefined);
-  signal?.addEventListener("abort", abort, { once: true });
-  try {
-    reader = await rpc.contentDownloadExecutionFile(session, {
-      executionId: id,
-      relativePath,
-    });
-    if (signal?.aborted || !session.isCurrent()) {
-      await cancel();
-      throw new Error("Execution-file transfer cancelled.");
-    }
-    release = session.own(() => void cancel().catch(() => undefined));
-    return await assembleExecutionFileBytes(reader, relativePath, () => !signal?.aborted && session.isCurrent());
-  } finally {
-    signal?.removeEventListener("abort", abort);
-    await cancel().catch(() => undefined);
-    release?.();
-  }
-}
-
 type NativeContentArtifact = Pick<ArtifactRecord, "artifact_id" | "group_id" | "label" | "path" | "scope">;
-
-/** Route registry artifacts and execution-file snapshots to their distinct native RPCs. */
-export async function fetchNativeContentBytes(
-  session: NativeContentSession,
-  artifact: Pick<ArtifactRecord, "artifact_id" | "group_id" | "path" | "scope">,
-  signal?: AbortSignal,
-): Promise<Uint8Array> {
-  if (artifact.group_id === "execution-files") {
-    const reference = nativeExecutionFileReference(artifact);
-    return fetchNativeExecutionFileBytes(session, reference.executionId, reference.relativePath, signal);
-  }
-  return fetchNativeArtifactBytes(session, artifact.artifact_id, signal);
-}
 
 /**
  * Save one verified native content item through the native file picker.
@@ -673,99 +616,5 @@ async function assembleArtifactBytes(reader: NativeStream<ArtifactFrame>, artifa
   const actualSha = await sha256Hex(bytes);
   if (!active()) throw new Error("Artifact transfer cancelled.");
   if (actualSha !== completeSha) throw new Error("Artifact digest verification failed.");
-  return bytes;
-}
-
-async function assembleExecutionFileBytes(
-  reader: NativeStream<ExecutionFileDownloadFrame>,
-  relativePath: string,
-  active: () => boolean,
-): Promise<Uint8Array> {
-  let metadataPath: string | undefined;
-  let metadataSize: number | undefined;
-  let expectedOffset = 0;
-  let completeSize: number | undefined;
-  let completeSha: string | undefined;
-  let completed = false;
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for await (const frame of reader) {
-    if (!active()) throw new Error("Content.DownloadExecutionFile was cancelled.");
-    if (completed) throw new Error("Content.DownloadExecutionFile continued after completion.");
-    const payload = frame.payload?.HarmosVariant;
-    if (!payload?.case || !payload.value.field0) throw new Error("Content transfer contained an incomplete frame.");
-    switch (payload.case) {
-      case "Metadata": {
-        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
-        const metadata = payload.value.field0;
-        if (metadataPath !== undefined || metadata.relativePath !== relativePath) {
-          throw new Error("Content.DownloadExecutionFile metadata identity is invalid.");
-        }
-        metadataPath = metadata.relativePath;
-        metadataSize = safeNumber(metadata.observedSizeBytes, "Content.DownloadExecutionFile observed size");
-        if (metadataSize > NATIVE_CONTENT_BYTES) {
-          throw new NativeApiLimitError("Content.DownloadExecutionFile", "execution file is too large");
-        }
-        break;
-      }
-      case "Chunk": {
-        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
-        if (metadataSize === undefined) {
-          throw new Error("Content.DownloadExecutionFile sent data before metadata.");
-        }
-        const chunk = payload.value.field0;
-        if (chunk.data.byteLength === 0) {
-          throw new Error("Content.DownloadExecutionFile chunk size is invalid.");
-        }
-        const offset = safeNumber(chunk.offset, "Content.DownloadExecutionFile chunk offset");
-        if (offset !== expectedOffset) {
-          throw new Error("Content.DownloadExecutionFile chunks are not contiguous.");
-        }
-        total += chunk.data.byteLength;
-        if (total > metadataSize || total > NATIVE_CONTENT_BYTES) {
-          throw new NativeApiLimitError("Content.DownloadExecutionFile", "execution file is too large");
-        }
-        chunks.push(chunk.data);
-        expectedOffset = total;
-        break;
-      }
-      case "Complete": {
-        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
-        if (metadataSize === undefined || completeSize !== undefined) {
-          throw new Error("Content.DownloadExecutionFile completed before metadata or twice.");
-        }
-        const completion = payload.value.field0;
-        completeSize = safeNumber(completion.sizeBytes, "Content.DownloadExecutionFile size");
-        if (completeSize > NATIVE_CONTENT_BYTES) {
-          throw new NativeApiLimitError("Content.DownloadExecutionFile", "execution file is too large");
-        }
-        completeSha = completion.sha256.toLowerCase();
-        if (!/^[0-9a-f]{64}$/u.test(completeSha)) {
-          throw new Error("Content.DownloadExecutionFile completion digest is invalid.");
-        }
-        completed = true;
-        break;
-      }
-      default:
-        throw new Error("Content.DownloadExecutionFile contained an unknown frame.");
-    }
-  }
-  if (metadataSize === undefined || completeSize === undefined || !completeSha || !completed) {
-    throw new Error("Content.DownloadExecutionFile ended before metadata and completion.");
-  }
-  if (metadataSize !== total || completeSize !== total) {
-    throw new Error("Content.DownloadExecutionFile size does not match its metadata.");
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  const actualSha = await sha256Hex(bytes);
-  if (!active()) throw new Error("Content.DownloadExecutionFile was cancelled.");
-  if (actualSha !== completeSha) {
-    throw new Error("Content.DownloadExecutionFile digest verification failed.");
-  }
   return bytes;
 }

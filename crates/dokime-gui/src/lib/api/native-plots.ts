@@ -239,46 +239,6 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
   });
 }
 
-/** Read bounded plot snapshots over the generation-owned native transport. */
-export async function queryNativePlotPayloads(
-  session: SessionIdentity,
-  requests: readonly PlotPayloadRequestInput[],
-  options: NativePlotReadOptions = {},
-): Promise<NativePlotPayloadEnvelope[]> {
-  boundedRequestCount(requests.length, "Plots.QuerySnapshots");
-  ensureActive(session, options.signal);
-  try {
-    const reply = await rpc.plotsQuerySnapshots(session, {
-      requests: requests.map((request) => toNativePlotRequest(request)),
-    });
-    ensureActive(session, options.signal);
-    return reply.envelopes.map(mapNativePlotEnvelope);
-  } catch (error) {
-    throw normalizeCancellation(error, session, options.signal);
-  }
-}
-
-/** Read one plot payload from a storage snapshot. */
-export async function fetchNativePlotPayload(
-  session: SessionIdentity,
-  request: PlotPayloadRequestInput,
-  options: NativePlotReadOptions = {},
-): Promise<PlotPayload> {
-  const [envelope] = await queryNativePlotPayloads(session, [request], options);
-  if (!envelope) {
-    throw new Error("Native plot snapshot response was empty.");
-  }
-  return envelope.payload;
-}
-
-export async function fetchNativePlotPayloadBatch(
-  session: SessionIdentity,
-  requests: readonly PlotPayloadRequestInput[],
-  options: NativePlotReadOptions = {},
-): Promise<PlotPayload[]> {
-  return (await queryNativePlotPayloads(session, requests, options)).map((envelope) => envelope.payload);
-}
-
 /**
  * Open the subscribed plot watch. Each request receives the server's
  * initial snapshots after subscription, so callers cannot miss a racing

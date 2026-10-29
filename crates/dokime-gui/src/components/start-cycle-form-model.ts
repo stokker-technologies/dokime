@@ -9,7 +9,7 @@
 
 /* === Local Imports === */
 
-import { formatListRaw, type ParseResult, parseParameterInput } from "@/lib/parameter-parser";
+import { formatListRaw, type ParseResult } from "@/lib/parameter-parser";
 import type { ParameterDefinition, SuiteTemplateEntry, TestCycleSelection } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
 
@@ -49,25 +49,6 @@ export type TestcasePayload = {
 };
 
 /* === Public Functions === */
-
-export function createDefaultPlanSelection({
-  suiteId,
-  suiteName,
-  template,
-}: {
-  suiteId: string;
-  suiteName: string;
-  template: SuiteTemplateEntry;
-}): TestCyclePlanSelectionDraft {
-  const payload = buildPayload(initialRows(template), initialFileRows(template));
-  return createPlanSelection({
-    suiteId,
-    suiteName,
-    template,
-    values: payload.values,
-    files: payload.files,
-  });
-}
 
 export function createPlanSelection({
   suiteId,
@@ -109,17 +90,6 @@ export function templateSelectionId(template: SuiteTemplateEntry): string {
   return typeof identifier === "string" && identifier.length > 0 ? identifier : template.template_id;
 }
 
-export function initialRows(template: SuiteTemplateEntry, draft?: TestcaseFormDraft): ParameterRowState[] {
-  return template.parameter_definitions.map((definition) => {
-    const raw = draft?.parameters[definition.name] ?? initialParameterRaw(definition);
-    return {
-      name: definition.name,
-      raw,
-      parsed: parseParameterInput(raw, definition),
-    };
-  });
-}
-
 export function initialFileRows(template: SuiteTemplateEntry, draft?: TestcaseFormDraft): FileRowState[] {
   return template.file_definitions.map((definition) => ({
     name: definition.name,
@@ -127,13 +97,6 @@ export function initialFileRows(template: SuiteTemplateEntry, draft?: TestcaseFo
     uploading: false,
     error: null,
   }));
-}
-
-export function formDraftFromRows(rows: ParameterRowState[], fileRows: FileRowState[]): TestcaseFormDraft {
-  return {
-    parameters: Object.fromEntries(rows.map((row) => [row.name, row.raw])),
-    files: Object.fromEntries(fileRows.map((row) => [row.name, row.path])),
-  };
 }
 
 export function buildPayload(rows: ParameterRowState[], fileRows: FileRowState[]): TestcasePayload {
@@ -177,15 +140,6 @@ export function formatValueForInput(value: unknown): string {
 
 export function formatPreview(values: unknown[], valueType: string): string {
   return values.map((v) => formatPreviewValue(v, valueType)).join(", ");
-}
-
-export function formatPreviewSummary(values: unknown[], valueType: string): string {
-  const head = values
-    .slice(0, 3)
-    .map((v) => formatPreviewValue(v, valueType))
-    .join(", ");
-  const tail = formatPreviewValue(values[values.length - 1], valueType);
-  return `${head}, ..., ${tail}`;
 }
 
 /* === Private Functions === */
@@ -254,15 +208,6 @@ function formatSelectionValues(values: unknown[]): string {
 
 /* === Parameter helpers === */
 
-export function choiceLabelMap(metadata: Record<string, unknown>): Record<string, unknown> {
-  const choiceLabels = metadata.choice_labels;
-  return choiceLabels && typeof choiceLabels === "object" && !Array.isArray(choiceLabels) ? (choiceLabels as Record<string, unknown>) : {};
-}
-
-export function metadataString(metadata: Record<string, unknown>, key: string): string | null {
-  return nonEmptyString(metadata[key]);
-}
-
 export function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -285,27 +230,6 @@ export function titleCaseWord(word: string): string {
     return upper === "WIFI" ? "WiFi" : upper;
   }
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-}
-
-export function definitionFor(template: SuiteTemplateEntry, name: string): ParameterDefinition {
-  const found = template.parameter_definitions.find((def) => def.name === name);
-  if (!found) {
-    throw new Error(`Unknown parameter ${name}`);
-  }
-  return found;
-}
-
-export function inputPlaceholder(valueType: string, expanded: boolean): string {
-  switch (valueType) {
-    case "int":
-    case "integer":
-      return expanded ? "e.g. 10  or  1, 3, 5  or  1..5" : "e.g. 10";
-    case "float":
-    case "number":
-      return expanded ? "e.g. 1.0  or  0.5, 1.0, 2.0  or  linspace(0,1,11)" : "e.g. 1.0";
-    default:
-      return expanded ? "values (comma-separated)" : "value";
-  }
 }
 
 export function parameterInputId(name: string): string {

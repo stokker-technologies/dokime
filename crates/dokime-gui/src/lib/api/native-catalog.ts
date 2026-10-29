@@ -261,7 +261,3 @@ function expressionValues(expression: NonNullable<ParameterSchema["expression"]>
     }
   }
 }
-
-export function valueObjectFromJson(values: Record<string, unknown>): ReturnType<typeof jsonToNativeValue> {
-  return jsonToNativeValue(values);
-}
