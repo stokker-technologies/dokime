@@ -334,48 +334,6 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
     owner.shutdown().await.unwrap();
 }
 
-// A Quiet Plot Watch Outlives The Client's Idle Deadline On Heartbeats.
-pub(crate) async fn quiet_plot_watch_outlives_the_idle_deadline() {
-    let root = tempfile::tempdir().unwrap();
-    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
-    let mut owner = runtime(root.path(), &prepared_owner).await;
-    let handle = owner.handle();
-    support::register_fixture_progress_and_idle_execution(&handle, support::fixture_suite(&["passed"])).await;
-    let id = Identifier::new("fixture.progress").unwrap();
-    publish(&handle, &id, 0, 10).await;
-    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
-    let target = dokime::client::Target::local(server.local_endpoint()).unwrap();
-    let client = dokime::client::Client::connect(target, None, None).await.unwrap();
-    let idle = std::time::Duration::from_millis(client.settings().request_timeout_ms);
-    let heartbeat = dokime_server::grpc::WATCH_HEARTBEAT;
-    let beats = usize::try_from(idle.as_millis() / heartbeat.as_millis()).unwrap();
-    let watch = client.plots_watch(contracts::plots::Watch { requests: vec![request(10_000)] }).await.unwrap();
-    let opened = loop {
-        let frame = watch.message().await.unwrap().expect("the plot watch opens");
-        if frame.kind != model::plots::wire::PlotStreamKind::Unspecified {
-            break frame;
-        }
-    };
-    assert_eq!(opened.kind, model::plots::wire::PlotStreamKind::Snapshot);
-    assert_eq!(served_points(&opened), 10);
-
-    // Nothing Is Saved, So Only Pending Notices Arrive Until One Heartbeat Past The Idle Deadline.
-    let quiet = tokio::time::Instant::now() + idle + heartbeat;
-    let mut notices = 0;
-    while let Ok(next) = tokio::time::timeout_at(quiet, watch.message()).await {
-        let frame = next.unwrap().expect("the quiet plot watch stays open");
-        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Unspecified, "a quiet watch sends only heartbeats");
-        assert!(frame.envelope.unwrap().payload.is_none(), "a heartbeat carries no data");
-        notices += 1;
-    }
-    assert!(notices >= beats, "the quiet plot watch delivered {notices} of {beats} heartbeats");
-    watch.close().await;
-    client.close_and_wait().await;
-    server.shutdown().await.unwrap();
-    drop(handle);
-    owner.shutdown().await.unwrap();
-}
-
 /* === Private Functions === */
 
 /* === Tests === */

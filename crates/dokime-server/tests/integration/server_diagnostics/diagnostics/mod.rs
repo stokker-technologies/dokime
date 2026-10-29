@@ -300,43 +300,6 @@ pub(crate) async fn log_stream_file() {
     drop(environment);
 }
 
-// A Quiet Log Watch Outlives The Client's Idle Deadline On Keepalives.
-pub(crate) async fn quiet_log_watch_outlives_the_idle_deadline() {
-    let (environment, server, _) = fixture().await;
-    let log = environment.root.path().join("application/logs/dokime.jsonl");
-    std::fs::create_dir_all(log.parent().unwrap()).unwrap();
-    std::fs::write(&log, format!("{}\n", record("ERROR", "failed"))).unwrap();
-    let target = dokime::client::Target::local(server.local_endpoint()).unwrap();
-    let client = dokime::client::Client::connect(target, None, None).await.unwrap();
-    let idle = std::time::Duration::from_millis(client.settings().request_timeout_ms);
-    let heartbeat = dokime_server::grpc::WATCH_HEARTBEAT;
-    let beats = usize::try_from(idle.as_millis() / heartbeat.as_millis()).unwrap();
-    let stream = client
-        .backend_watch_logs(contracts::backend::WatchLogs {
-            min_level: model::backend::wire::LogLevel::Error,
-            replay_lines: 500,
-        })
-        .await
-        .unwrap();
-    let replayed = stream.message().await.unwrap().expect("the ERROR record replays");
-    assert_eq!(replayed.level, model::backend::wire::LogLevel::Error);
-
-    // Nothing Is Logged, So Only Keepalives Arrive Until One Heartbeat Past The Idle Deadline.
-    let quiet = tokio::time::Instant::now() + idle + heartbeat;
-    let mut keepalives = 0;
-    while let Ok(next) = tokio::time::timeout_at(quiet, stream.message()).await {
-        let frame = next.unwrap().expect("the quiet log watch stays open");
-        assert_eq!(frame.level, model::backend::wire::LogLevel::Unspecified, "a quiet watch sends only keepalives");
-        assert!(frame.time.is_none() && frame.message.is_empty(), "a keepalive carries no record");
-        keepalives += 1;
-    }
-    assert!(keepalives >= beats, "the quiet log watch delivered {keepalives} of {beats} keepalives");
-    stream.close().await;
-    client.close_and_wait().await;
-    server.shutdown().await.unwrap();
-    drop(environment);
-}
-
 pub(crate) async fn level_filter_stream() {
     let (environment, server, client) = fixture().await;
     let log = environment.root.path().join("application/logs/dokime.jsonl");

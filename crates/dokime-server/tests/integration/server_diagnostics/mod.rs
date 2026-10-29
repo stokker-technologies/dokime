@@ -50,7 +50,6 @@ async fn server_diagnostics() {
     Box::pin(diagnostics::collected_archive_material()).await;
     Box::pin(diagnostics::collected_tail_preserves_selected_bytes()).await;
     Box::pin(diagnostics::log_stream_file()).await;
-    Box::pin(diagnostics::quiet_log_watch_outlives_the_idle_deadline()).await;
     Box::pin(diagnostics::level_filter_stream()).await;
     Box::pin(diagnostics::missing_file_live()).await;
     Box::pin(trace::trace_watch_replays()).await;

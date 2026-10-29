@@ -136,15 +136,18 @@ impl Tail {
         };
         let replay_lines = usize::try_from(replay_lines).expect("validated replay line count");
         let mut subscription = self.subscribe(watch.min_level, replay_lines).await?;
+        let mut heartbeat = tokio::time::Instant::now() + super::WATCH_HEARTBEAT;
         loop {
             // A Quiet Or Filtered Log Answers With A Keepalive Instead Of Going Silent; Waiting Is Cancel-Safe.
-            let frame = match tokio::time::timeout(super::WATCH_HEARTBEAT, subscription.next(watch.min_level, self.message_limit)).await {
+            let frame = match tokio::time::timeout_at(heartbeat, subscription.next(watch.min_level, self.message_limit)).await {
                 Ok(next) => match next? {
                     Some(frame) => frame,
                     None => return Ok(()),
                 },
                 Err(_) => subscription.keepalive(),
             };
+            // Start The Next Period Before Acknowledgement Backpressure Can Delay This Offer.
+            heartbeat = tokio::time::Instant::now() + super::WATCH_HEARTBEAT;
             output.send_owned(frame).await.map_err(memory_failure)?;
         }
     }

@@ -59,5 +59,4 @@ async fn telemetry_watch_plot() {
     Box::pin(plots::late_samples_keep_time_order()).await;
     Box::pin(plots::sealed_window_all()).await;
     Box::pin(plots::saved_frontier_refreshes_affected_plots()).await;
-    Box::pin(plots::quiet_plot_watch_outlives_the_idle_deadline()).await;
 }

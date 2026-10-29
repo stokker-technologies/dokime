@@ -20,6 +20,7 @@ mod server_diagnostics;
 mod server_pairing_remote;
 mod settings_backends;
 mod telemetry_watch_plot;
+mod watch_liveness;
 
 #[path = "../support/mod.rs"]
 mod support;

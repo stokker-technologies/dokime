@@ -278,8 +278,10 @@ impl Serve<contract::Watch> for Resources {
                         (current, result)
                     })
                     .buffer_unordered(usize::try_from(SERVER_PLOT_INITIAL_CONCURRENCY).expect("validated plot concurrency"));
+                let mut heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                 let mut reading = std::pin::pin!(with_keepalive(snapshots, Duration::from_millis(SERVER_PLOT_KEEPALIVE_MS)));
                 while let Some(event) = reading.next().await {
+                    heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                     match event {
                         Opening::Keepalive => self.send_pending(output, &waiting, &selections, &original, &epoch).await?,
                         Opening::Ready((current, result)) => {
@@ -305,7 +307,6 @@ impl Serve<contract::Watch> for Resources {
                 let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
                 let mut last_flush = Instant::now() - throttle;
                 let mut next_flush = (!dirty.is_empty()).then(|| Instant::now() + retry_delay);
-                let mut heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                 loop {
                     if requests.is_empty() {
                         return Ok(().into());
@@ -368,8 +369,8 @@ impl Serve<contract::Watch> for Resources {
                         }
                         () = tokio::time::sleep_until(heartbeat) => {
                             // A Quiet Watch Repeats Each Plot's Pending Notice, Which Leaves A Delivered Plot Unchanged.
-                            self.send_pending(output, &requests, &selections, &original, &epoch).await?;
                             heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
+                            self.send_pending(output, &requests, &selections, &original, &epoch).await?;
                         }
                     }
                     if next_flush.is_none() && !dirty.is_empty() {
