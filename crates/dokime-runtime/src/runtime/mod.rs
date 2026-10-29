@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub mod command;
+pub(crate) mod effects;
 mod embedded;
 pub mod error;
 pub(crate) mod handle;

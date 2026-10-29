@@ -65,6 +65,7 @@ pub(crate) struct Session {
     refusal: tokio::sync::Mutex<Option<ProviderExecutionFailure>>,
     changed: tokio::sync::watch::Sender<()>,
     command_admitted: std::sync::atomic::AtomicBool,
+    effects_closed: std::sync::atomic::AtomicBool,
 }
 
 struct Pages {
@@ -105,7 +106,20 @@ impl Session {
             refusal: tokio::sync::Mutex::new(None),
             changed: tokio::sync::watch::channel(()).0,
             command_admitted: std::sync::atomic::AtomicBool::new(false),
+            effects_closed: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+
+    pub(crate) fn close_effects(&self) {
+        self.effects_closed.store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    pub(crate) fn effects_closed(&self) -> bool {
+        self.effects_closed.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    pub(crate) fn effect_scope(&self) -> dokime_domain::model::execution::RecordScope {
+        self.execution.capture_scope()
     }
 
     pub(crate) fn source(&self) -> &str {

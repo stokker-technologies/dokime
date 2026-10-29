@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub(crate) mod document_reports;
+pub(crate) mod effects;
 pub(crate) mod evidence_publication;
 pub(crate) mod files;
 pub(crate) mod telemetry;

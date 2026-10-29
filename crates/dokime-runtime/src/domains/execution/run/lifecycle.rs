@@ -83,6 +83,7 @@ impl Finalization {
 impl ExecutionCleanup {
     pub(super) async fn finish(&mut self, context: &ExecutionFixtureContext) -> Result<(), ProviderExecutionFailure> {
         self.settle(context).await;
+        context.runtime.restore_effects(Some(self.execution.test_execution_id.as_str())).await.map_err(telemetry_failure)?;
 
         let publication_started = Instant::now();
         tracing::debug!(execution_id = %self.execution.test_execution_id, "execution publication flush started");
