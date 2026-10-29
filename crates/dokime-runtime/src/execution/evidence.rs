@@ -115,19 +115,6 @@ impl<Row> Samples<Row> {
         values.extend(self.iter().map(|row| field(&row)));
         values.into()
     }
-
-    pub fn into_rows(self) -> Vec<Row> {
-        let maximum = 64 * 1024 * 1024 / std::mem::size_of::<Row>().max(1);
-        assert!(self.rows.len() <= maximum, "criterion row collection exceeds bounded workspace");
-        let mut bytes = 0usize;
-        for row in self.rows.iter() {
-            bytes = bytes
-                .checked_add(crate::execution::evidence_rows::encoded_bytes(&row))
-                .filter(|bytes| *bytes <= 64 * 1024 * 1024)
-                .expect("criterion row collection exceeds bounded workspace");
-        }
-        self.iter().collect()
-    }
 }
 
 /* === Public Functions === */

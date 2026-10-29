@@ -244,11 +244,6 @@ impl Runtime {
         self.handle.clone()
     }
 
-    // What an unfinished stop was doing when its host stopped waiting.
-    pub fn shutdown_stage(&self) -> &'static str {
-        self.shutdown.stage
-    }
-
     pub async fn shutdown(&mut self) -> Result<RuntimeOverviewSnapshot> {
         let stopping: BoxFuture<'_, Result<RuntimeOverviewSnapshot>> = Box::pin(self.shutdown_inner());
         stopping.await

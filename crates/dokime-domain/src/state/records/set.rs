@@ -82,11 +82,6 @@ impl TestRecordSet {
         self.record_subscriptions_closed = false;
     }
 
-    pub fn retain_by_scope(&mut self, mut keep: impl FnMut(&RecordScope) -> bool) {
-        self.health.retain(|health| keep(&health.scope));
-        self.notes.retain(|note| keep(&note.scope));
-    }
-
     pub fn capture_owner(&self) -> Option<&crate::model::identity::TestExecutionId> {
         self.capture_owner.as_ref()
     }

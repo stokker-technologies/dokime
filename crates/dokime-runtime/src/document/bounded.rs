@@ -196,13 +196,6 @@ pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_dep
     Ok(counter.bytes)
 }
 
-pub fn preflight_document(definition: &DocumentDefinition, telemetry_rows: usize, limits: DocumentLimits) -> Result<usize, DocumentLimit> {
-    // Encoded Inspection Bounds Depth And Evaluation Work; Native Graph Admission
-    // Accounts Actual Capacities, Typed Slots And Nested Field Allocations.
-    let bytes = document_size(definition, limits.source_bytes, limits.depth)?;
-    preflight_definition(definition, telemetry_rows, limits, bytes)
-}
-
 pub(crate) fn validate_native_resolution(input: &BorrowedInput<'_>, limits: DocumentLimits) -> crate::Result<()> {
     SharedBindings::new(input.selection, input.data, limits)?.validate(input.definition)
 }
@@ -295,10 +288,6 @@ fn preflight_definition(
         return Err(DocumentLimit);
     }
     Ok(count)
-}
-
-pub fn resolve_document_bounded(input: DocumentResolveInput, limits: DocumentLimits) -> crate::Result<DocumentPayload> {
-    resolve_bounded(input, limits, false)
 }
 
 pub(crate) fn check_payload(payload: DocumentPayload, limits: DocumentLimits) -> crate::Result<DocumentPayload> {
