@@ -21,10 +21,11 @@ use std::process::Command;
 
 // Local Imports
 use crate::client_error::{Error, Result};
+use crate::paths::{DEFAULT_APPLICATION_ID, DistributionIdentity, distribution_identity};
 
 /* === Constants === */
 
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(target_os = "macos")]
 const PRODUCT: &str = "Dokime";
 
 /* === Macros === */
@@ -52,9 +53,14 @@ impl Program {
         }
 
         let file = format!("{}{}", self.name, std::env::consts::EXE_SUFFIX);
-        let beside = std::env::current_exe().ok().and_then(|path| path.parent().map(Path::to_owned));
+        let current_executable = std::env::current_exe()?;
+        let identity = distribution_identity(&current_executable, DEFAULT_APPLICATION_ID)?;
+        let beside = current_executable.parent().map(Path::to_owned);
         // DOKIME_HOME names the installation, so it replaces the platform's installation directories.
-        let installation = std::env::var_os("DOKIME_HOME").map_or_else(installed_directories, |home| vec![PathBuf::from(home)]);
+        let installation = match std::env::var_os("DOKIME_HOME") {
+            Some(home) => vec![PathBuf::from(home)],
+            None => installed_directories(&identity),
+        };
         let mut directories = beside.into_iter().chain(installation);
         directories
             .find_map(|directory| executable(&directory.join(&file)))
@@ -92,18 +98,26 @@ fn executable(path: &Path) -> Option<PathBuf> {
 }
 
 #[cfg(windows)]
-fn installed_directories() -> Vec<PathBuf> {
-    ["LOCALAPPDATA", "ProgramFiles"].into_iter().filter_map(std::env::var_os).map(|root| PathBuf::from(root).join(PRODUCT)).collect()
+fn installed_directories(identity: &DistributionIdentity) -> Vec<PathBuf> {
+    ["LOCALAPPDATA", "ProgramFiles"]
+        .into_iter()
+        .filter_map(std::env::var_os)
+        .map(|root| PathBuf::from(root).join(&identity.identifier))
+        .collect()
 }
 
 #[cfg(target_os = "macos")]
-fn installed_directories() -> Vec<PathBuf> {
+fn installed_directories(_identity: &DistributionIdentity) -> Vec<PathBuf> {
     vec![PathBuf::from(format!("/Applications/{PRODUCT}.app/Contents/MacOS"))]
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
-fn installed_directories() -> Vec<PathBuf> {
-    vec![PathBuf::from("/usr/bin"), PathBuf::from("/usr/local/bin")]
+fn installed_directories(identity: &DistributionIdentity) -> Vec<PathBuf> {
+    let mut directories = vec![PathBuf::from("/usr/lib").join(identity.slug())];
+    if identity.identifier == DEFAULT_APPLICATION_ID {
+        directories.extend([PathBuf::from("/usr/lib/dokime"), PathBuf::from("/usr/bin"), PathBuf::from("/usr/local/bin")]);
+    }
+    directories
 }
 
 /* === Tests === */

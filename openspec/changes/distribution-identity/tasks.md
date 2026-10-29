@@ -23,3 +23,8 @@ Triage: `ApplicationPaths` already owns basic root/data/plugins paths (`crates/d
 ## 2. Validation
 
 - [ ] 2.1 Targeted proof, then the native desktop walkthrough on Windows and Unix with a branded distribution.
+
+## Workflow Follow-Up
+
+- Implementation for 1.2 and coverage for 1.5 are present, but their closure remains blocked by an unexplained Windows NSIS inspection failure: `none of the supported compression methods succeeded`. Two subsequent current-fixture runs passed without a production decoder or compression change. Preserve this as a repair obligation; do not waive it as unrelated or infer that rerunning explains it. A failing fixture is retained on future failures for diagnosis.
+- Owner question: if diagnosis confirms a decoding dependency defect, authorize that repair beyond this identity slice or assign it to the decoder/installer owner. No dependency replacement, compression workaround or weakened inspection was introduced here. Native Windows and Unix walkthroughs remain open under 2.1.
