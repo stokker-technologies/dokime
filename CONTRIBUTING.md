@@ -75,8 +75,9 @@ policy changes retain full selection.
 
 The Tests producer alone enables
 `dokime-runtime/testing`: a Rust fixture surface for private receipt, spool,
-window and log owners, with no extra Harmos visibility. Integration exercises
-small histories; system uses seven days and real segment-sized log volume.
+window, log and report zoom owners, with no extra Harmos visibility. Integration
+exercises small histories; system uses seven days, 100,101 original report points
+and real segment-sized log volume.
 The GUI Tests feature `dokime-gui/testing` exposes the native Save workflow with
 a controlled picker result; its integration story uses real verified streams and
 atomic filesystem publication, including refusal and generation-change cleanup.

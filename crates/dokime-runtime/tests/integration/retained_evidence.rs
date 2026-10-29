@@ -43,6 +43,7 @@
 
 #[tokio::test]
 async fn retained_evidence() {
+    dokime_runtime::testing::report_points(128).await;
     dokime_runtime::testing::capture(2, 120);
     dokime_runtime::testing::records(2 * 120);
     dokime_runtime::testing::stream(2 * 120);
