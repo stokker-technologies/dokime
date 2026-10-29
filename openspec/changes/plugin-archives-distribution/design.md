@@ -37,8 +37,9 @@ or v1 fallback remains. Native archives are ZIP on Windows, tar.gz on Unix.
 
 ## Ownership And Integration
 
-Domain plugin release contracts own feed validation; the entry library provides
-shared archive integrity/extraction used by desktop and packaging. Desktop keeps
+Domain plugin release contracts own feed validation; the entry library's native
+surface provides shared archive integrity/extraction used by desktop and packaging.
+No separate archive feature adds another runtime feature configuration. Desktop keeps
 source/connection generation fences and explicit installation. Its discovery
 returns all compatible feed entries so any number of shipped plugins is usable.
 

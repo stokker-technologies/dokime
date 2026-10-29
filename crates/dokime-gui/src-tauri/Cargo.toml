@@ -43,7 +43,7 @@ testing = []
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["distribution", "native", "client", "diagnostics"] }
+dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 dokime-server = { workspace = true }
 
 # Git

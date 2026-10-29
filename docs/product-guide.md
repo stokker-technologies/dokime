@@ -1092,11 +1092,10 @@ definitions are available under `dokime::domain` in every feature set.
 | Feature | Default | Enables |
 | --- | --- | --- |
 | `plugin` | No | Native plugin support and authoring macros (`native`, `derive`). |
-| `distribution` | No | Shared release archive verification and selective plugin extraction. |
 | `client` | No | Remote access under `dokime::client` and connection/installation helpers. |
 | `diagnostics` | No | Captured error chains, span traces and backtraces. |
 | `terminal` | No | Shared terminal output used by command-line interfaces and packaging. |
-| `native` | No | Native runtime, storage, gRPC, sidecar SDK and plugin prelude. |
+| `native` | No | Native runtime, storage, gRPC, sidecar SDK, plugin prelude and release archive verification. |
 | `derive` | No | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
 | `fft` | No | Spectrum analyses on top of `native`. |

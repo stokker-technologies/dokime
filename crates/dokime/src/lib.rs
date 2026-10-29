@@ -9,7 +9,7 @@
 
 /* === Modules === */
 
-#[cfg(feature = "distribution")]
+#[cfg(feature = "native")]
 pub mod distribution;
 
 #[cfg(feature = "client")]

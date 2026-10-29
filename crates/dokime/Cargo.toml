@@ -23,11 +23,10 @@ version = { workspace = true }
 
 [features]
 default = []
-distribution = ["dep:flate2", "dep:harmos-packaging", "dep:sha2", "dep:tar", "dep:zip"]
 plugin-sidecar = ["native", "derive"]
 # Plugin Is An Alias For The Native Sidecar Authoring Surface.
 plugin = ["plugin-sidecar"]
-native = ["dokime-runtime/native"]
+native = ["dokime-runtime/native", "dep:flate2", "dep:harmos-packaging", "dep:sha2", "dep:tar", "dep:zip"]
 derive = ["dokime-runtime/derive"]
 diagnostics = ["dokime-domain/diagnostics"]
 storage = ["dokime-runtime/storage"]
