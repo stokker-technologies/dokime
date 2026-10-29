@@ -9,13 +9,17 @@
 
 /* Shared Destinations For Desktop Sidebar, Tablet Rail And Phone Tabs. */
 
-/* === External Imports === */
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
 
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
-import { type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-/* === Local Imports === */
+// Local Imports
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -23,13 +27,31 @@ import { Badge } from "@/components/ui/badge";
 import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
 import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
-import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { cycleRows } from "@/features/cycles-home/cycles-model";
+import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
 import { recordLevelVariant } from "@/lib/record-display";
 import { cycleIdOfPathname } from "@/shell/route-scope";
+import { sidebarCycles } from "@/shell/sidebar-cycles";
 import { SidebarRow } from "@/shell/sidebar-row";
 import { useSidebarState } from "@/shell/use-sidebar-state";
 import { SidebarFrame } from "./SidebarFrame";
+
+/* === Re-Exports === */
+
+/* === Constants === */
+
+const DESTINATIONS: Destination[] = [
+  { icon: ListChecks, label: "Cycles", prefix: "/cycles", to: "/cycles" },
+  { icon: Library, label: "Library", prefix: "/library", to: "/library" },
+  { icon: HistoryIcon, label: "History", prefix: "/history", to: "/history" },
+  { icon: Settings, label: "Settings", prefix: "/settings", to: "/settings" },
+];
+
+const SETTINGS_SECTION_ROUTE = /^\/settings\/([^/]+)/;
+
+/** The sidebar lists cycles, not their prompts; the Cycles entry counts those. */
+const NO_ATTENTION: ReadonlyMap<string, number> = new Map();
 
 /* === Types === */
 
@@ -49,17 +71,6 @@ type Destination = {
   prefix: string;
   to: "/cycles" | "/history" | "/library" | "/settings";
 };
-
-/* === Constants === */
-
-const DESTINATIONS: Destination[] = [
-  { icon: ListChecks, label: "Cycles", prefix: "/cycles", to: "/cycles" },
-  { icon: Library, label: "Library", prefix: "/library", to: "/library" },
-  { icon: HistoryIcon, label: "History", prefix: "/history", to: "/history" },
-  { icon: Settings, label: "Settings", prefix: "/settings", to: "/settings" },
-];
-
-const SETTINGS_SECTION_ROUTE = /^\/settings\/([^/]+)/;
 
 /* === Components === */
 
@@ -121,9 +132,10 @@ export function Sidebar(props: SidebarProps) {
   );
 }
 
-/* === Private Components === */
-
-/** The four destinations and the active one's children. Live application only. */
+/**
+ * The four destinations, the unsealed cycles under Cycles on every route, and
+ * the settings sections in the drawer. Live application only.
+ */
 function DestinationTree({ expanded = false }: { expanded?: boolean }) {
   const navigate = useNavigate();
   const sidebar = useSidebarState();
@@ -148,6 +160,10 @@ function DestinationTree({ expanded = false }: { expanded?: boolean }) {
   // makes, so the Cycles entry says an operator is needed before they look.
   const pendingPrompts = usePendingPromptsQuery().data ?? [];
   const promptLevel = highestPromptLevel(pendingPrompts);
+
+  // The Cycles home's own read, so the sidebar lists exactly the cycles it does.
+  const cycles = useCyclesQuery().data;
+  const listedCycles = useMemo(() => sidebarCycles(cycleRows(cycles ?? [], NO_ATTENTION), cycleId), [cycles, cycleId]);
 
   const activeIndex = DESTINATIONS.findIndex((destination) => isCurrent(pathname, destination.prefix));
   const active = activeIndex >= 0 ? (DESTINATIONS[activeIndex] ?? null) : null;
@@ -181,9 +197,26 @@ function DestinationTree({ expanded = false }: { expanded?: boolean }) {
     return row;
   };
 
-  let children: ReactNode = null;
+  const cycleChildren: ReactNode =
+    collapsed || listedCycles.length === 0
+      ? null
+      : listedCycles.map((cycle) =>
+          cycle.current ? (
+            <CycleSidebarCases cycleId={cycle.cycleId} key={cycle.cycleId} selection={selection} />
+          ) : (
+            <SidebarRow
+              key={cycle.cycleId}
+              label={cycle.label}
+              level="overview"
+              onSelect={() => void navigate({ params: { cycleId: cycle.cycleId }, to: "/cycles/$cycleId" })}
+              title={cycle.label}
+            />
+          ),
+        );
+
+  let settingsChildren: ReactNode = null;
   if (expanded && active?.to === "/settings") {
-    children = SETTINGS_SECTIONS.map((section) => (
+    settingsChildren = SETTINGS_SECTIONS.map((section) => (
       <SidebarRow
         active={section.id === settingsSection}
         key={section.id}
@@ -193,17 +226,23 @@ function DestinationTree({ expanded = false }: { expanded?: boolean }) {
         title={section.label}
       />
     ));
-  } else if (!collapsed && active?.to === "/cycles" && cycleId) {
-    children = <CycleSidebarCases selection={selection} cycleId={cycleId} />;
   }
 
   return (
     <ul className="flex min-h-0 flex-col gap-1 px-[var(--shell-gap)] pt-2 pb-2">
-      {DESTINATIONS.slice(0, 3).map(destinationRow)}
-      {children ? (
+      {DESTINATIONS.slice(0, 1).map(destinationRow)}
+      {cycleChildren ? (
+        <li className="flex min-h-0 flex-col">
+          <ChildRegion offsets={scrollOffsets} storageKey={`cycles:${cycleId ?? ""}`}>
+            {cycleChildren}
+          </ChildRegion>
+        </li>
+      ) : null}
+      {DESTINATIONS.slice(1, 3).map(destinationRow)}
+      {settingsChildren ? (
         <li className="flex min-h-0 flex-1 flex-col">
-          <ChildRegion offsets={scrollOffsets} storageKey={active?.to === "/cycles" ? `cycles:${cycleId}` : "/settings"}>
-            {children}
+          <ChildRegion offsets={scrollOffsets} storageKey="/settings">
+            {settingsChildren}
           </ChildRegion>
         </li>
       ) : (
@@ -215,10 +254,10 @@ function DestinationTree({ expanded = false }: { expanded?: boolean }) {
 }
 
 /**
- * The active destination's children, and the only thing in the tree that
- * scrolls. Its offset is restored when the region comes back so a collapse or
- * a trip to another destination does not send the operator to the top of a
- * long case list.
+ * A destination's children, and the only part of the tree that scrolls. Its
+ * offset is restored when the region comes back so a collapse or a trip to
+ * another destination does not send the operator to the top of a long case
+ * list.
  */
 function ChildRegion({
   children,
@@ -248,6 +287,10 @@ function ChildRegion({
     </ul>
   );
 }
+
+/* === Hooks === */
+
+/* === Public Functions === */
 
 /* === Private Functions === */
 
