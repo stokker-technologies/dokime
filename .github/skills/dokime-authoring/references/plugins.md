@@ -1,4 +1,4 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/plugins.md; sha256:fe7ab1e72080b08be4be9631424238236477d5b5936836efd328be4cab07506c -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/plugins.md; sha256:332d424c64c6c0aadf41f6afa63c153ec32e2f87ddb68623cc8d79ebc353b1f7 -->
 
 # Dokime Plugin
 
@@ -34,7 +34,7 @@ src/
       <template>.rs             Template Declaration
 ```
 
-Use unprefixed suite names and only populated modules. Keep declarations explicit, with no prelude modules or placeholder suites.
+Use unprefixed suite names and only populated modules. Keep the selected repository skeleton and all its section markers. Keep declarations explicit, with no prelude modules or placeholder suites.
 
 The host sidecar keeps one request definition per `host/<operation>/mod.rs`:
 request struct, id, policy, response and contract tests. Runtime implementations

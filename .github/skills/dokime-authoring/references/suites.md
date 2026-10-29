@@ -1,4 +1,4 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/suites.md; sha256:608dba1f7024b6564b2d3d351f7e45026d265225750e770155eabf6786f3507d -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/suites.md; sha256:3d168a2900bace35fd2dc8006eb09d418b7bcede7ba7d38720321fd5847aeb80 -->
 
 # Dokime Suite
 
@@ -43,3 +43,7 @@ Keep handles used only by steps in template state. Return observer-shared handle
 After submitting `WatchFile`, await `watch.armed().await?` before starting the producer. Readiness means the baseline and capture were admitted; an accessible empty directory is a valid baseline for `All` and `New`. The streaming `FileWatch` API reports the same boundary through its `Armed` frame. Join or cancel the watcher within the owning step.
 
 Selection is independent of capture policy: `All` follows baseline files and arrivals, `Latest` selects the newest baseline file and follows its rotation, and `New` captures later discoveries from byte zero. Use `wait_for_source_seconds` only when an absent source is expected. Its deadline precedes the capture duration; cancellation, permission failures and invalid paths remain failures. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access.
+
+## Layout
+
+Keep `suites/mod.rs` as the suite catalog and module declarations. Put each template in `suites/<suite>/<template>.rs`, with its suite declaration in `suites/<suite>/mod.rs`. Suite names carry no product prefix. Retain the repository skeleton and its section markers without an additional item-order rule.
