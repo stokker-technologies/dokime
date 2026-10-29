@@ -48,7 +48,6 @@ dokime-domain = { version = "0.1.0", path = "../../../crates/dokime-domain" }
 thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true }
 
 # Utilities
 starship-battery = { workspace = true }
