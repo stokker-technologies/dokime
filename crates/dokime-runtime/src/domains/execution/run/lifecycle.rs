@@ -24,6 +24,8 @@ use super::{
     ExecutionCleanup, ExecutionFixtureContext, ExecutionSignal, Finalization, HostCapture, Identifier, Instant, ProgressCleanup,
     ProviderExecutionFailure, StepLeaseBridge, TestExecution, close_record_subscriptions, failure, sampling_scope,
 };
+use crate::domains::telemetry::DeclaredLeases;
+use dokime_domain::model::execution::health::HealthSeverity;
 
 /* === Constants === */
 
@@ -200,22 +202,19 @@ impl HostCapture {
         if streams.is_empty() {
             return Self::default();
         }
-        match context.runtime.lease_streams(sampling_scope(execution), streams, source).await {
-            Ok(leases) => Self { leases },
+        // Each Stream Leases On Its Own, So One Refusal Never Leaves The Others Unsampled.
+        let declared = match context.runtime.lease_declared_streams(sampling_scope(execution), streams, source).await {
+            Ok(declared) => declared,
             Err(error) => {
-                let description = {
-                    let names = streams.iter().map(Identifier::to_string).collect::<Vec<_>>();
-                    names.join(", ")
-                };
-                tracing::warn!(
-                    plugin_id = source,
-                    streams = description,
-                    %error,
-                    "declared streams could not be leased"
-                );
-                Self::default()
+                let reason = error.to_string();
+                let refused = streams.iter().map(|stream| (stream.clone(), reason.clone())).collect();
+                DeclaredLeases { refused, ..DeclaredLeases::default() }
             }
+        };
+        for (stream, reason) in &declared.refused {
+            refuse_stream(context, execution, source, stream, reason).await;
         }
+        Self { leases: declared.leases }
     }
 
     pub(super) async fn release(&mut self, context: &ExecutionFixtureContext) -> Result<(), ProviderExecutionFailure> {
@@ -228,6 +227,22 @@ impl HostCapture {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+// A Refused Stream Is Told To The Operator As The Execution's Own Health Item, Not Only Logged.
+async fn refuse_stream(context: &ExecutionFixtureContext, execution: &TestExecution, source: &str, stream: &Identifier, reason: &str) {
+    tracing::warn!(plugin_id = source, stream = stream.as_str(), reason, "a declared stream could not be leased");
+    let scope = execution
+        .scope
+        .clone()
+        .with_cycle(execution.test_cycle_id.clone())
+        .with_test_case(execution.test_case_id.clone())
+        .with_test_execution(execution.test_execution_id.clone());
+    let message = format!("Telemetry stream {stream} is not sampled for this run");
+    let recorded = context.runtime.add_health_item(scope, HealthSeverity::Warning, message, Some(reason.to_owned())).await;
+    if let Err(error) = recorded {
+        tracing::error!(%error, stream = stream.as_str(), "a refused stream's health item was not recorded");
+    }
+}
 
 fn telemetry_failure(error: impl ToString) -> ProviderExecutionFailure {
     failure("sidecar_telemetry", error.to_string())

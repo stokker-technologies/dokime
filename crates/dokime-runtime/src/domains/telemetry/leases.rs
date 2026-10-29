@@ -101,6 +101,16 @@ struct Holder {
     pub requester: String,
 }
 
+// Each Declared Stream Leases On Its Own: A Sampled Stream Gets A Lease, A
+// Plugin-Published Stream Needs None, And A Stream That Cannot Be Leased Is
+// Refused Without Costing The Others Theirs.
+#[derive(Clone, Debug, Default)]
+pub struct DeclaredLeases {
+    pub leases: Vec<String>,
+    pub published: Vec<Identifier>,
+    pub refused: Vec<(Identifier, String)>,
+}
+
 pub(crate) struct LeasedRows {
     holders: BTreeMap<Identifier, Vec<Holder>>,
 }
@@ -113,6 +123,13 @@ struct Delivery {
 }
 
 /* === Enums === */
+
+// What A Stream Needs Before A Run Reads It.
+enum LeaseTarget {
+    Sampled { owner: String, interval: Duration },
+    // No Cadence: Its Owner Publishes It Without Being Sampled.
+    Published,
+}
 
 /* === Traits === */
 
@@ -360,7 +377,42 @@ impl StreamLeases {
 
 impl RuntimeHandle {
     pub async fn lease_streams(&self, scope: SamplingScope, streams: &[Identifier], requester: &str) -> Result<Vec<String>> {
-        let record_scope = self.state_read().capture_scope(&record_scope_from_sampling_scope(&scope)).map_err(Error::Operation)?;
+        let record_scope = self.lease_scope(&scope).await?;
+        let mut pending = PendingLeases {
+            table: self.stream_leases(),
+            ids: Vec::with_capacity(streams.len()),
+        };
+        for stream in streams {
+            let LeaseTarget::Sampled { owner, interval } = self.lease_target(stream)? else {
+                return Err(Error::Operation(format!("telemetry stream {stream} declares no cadence, so nothing samples it to lease")));
+            };
+            let (lease_id, _) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
+            pending.ids.push(lease_id);
+        }
+
+        Ok(std::mem::take(&mut pending.ids))
+    }
+
+    // Leases Every Sampled Stream Of A Declared Set Independently; Releasing
+    // `leases` Releases Exactly The Streams That Were Granted.
+    pub async fn lease_declared_streams(&self, scope: SamplingScope, streams: &[Identifier], requester: &str) -> Result<DeclaredLeases> {
+        let record_scope = self.lease_scope(&scope).await?;
+        let mut declared = DeclaredLeases::default();
+        for stream in streams {
+            match self.lease_target(stream) {
+                Ok(LeaseTarget::Sampled { owner, interval }) => {
+                    let (lease_id, _) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
+                    declared.leases.push(lease_id);
+                }
+                Ok(LeaseTarget::Published) => declared.published.push(stream.clone()),
+                Err(error) => declared.refused.push((stream.clone(), error.to_string())),
+            }
+        }
+        Ok(declared)
+    }
+
+    async fn lease_scope(&self, scope: &SamplingScope) -> Result<RecordScope> {
+        let record_scope = self.state_read().capture_scope(&record_scope_from_sampling_scope(scope)).map_err(Error::Operation)?;
         if let Some(id) = &record_scope.test_execution_id
             && self.execution_storage.acquisition(id).await.is_none()
         {
@@ -374,17 +426,7 @@ impl RuntimeHandle {
                 .ok_or_else(|| Error::Operation("lease execution is absent from its cycle".into()))?;
             self.execution_storage.acquire(&cycle, execution).await?;
         }
-        let mut pending = PendingLeases {
-            table: self.stream_leases(),
-            ids: Vec::with_capacity(streams.len()),
-        };
-        for stream in streams {
-            let (owner, interval) = self.stream_owner_and_cadence(stream)?;
-            let (lease_id, _) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
-            pending.ids.push(lease_id);
-        }
-
-        Ok(std::mem::take(&mut pending.ids))
+        Ok(record_scope)
     }
 
     pub async fn release_stream_leases(&self, leases: Vec<String>) -> Result<()> {
@@ -689,25 +731,25 @@ impl RuntimeHandle {
         }
     }
 
-    fn stream_owner_and_cadence(&self, stream: &Identifier) -> Result<(String, Duration)> {
+    fn lease_target(&self, stream: &Identifier) -> Result<LeaseTarget> {
         let state = self.state_read();
         let contract = state
             .telemetry_definitions
             .get(stream)
             .ok_or_else(|| Error::Operation(format!("telemetry stream {stream} is not published by any installed plugin")))?;
-        let interval = contract
-            .interval
-            .map(|interval| Duration::from_millis(interval.0.max(1)))
-            .ok_or_else(|| Error::Operation(format!("telemetry stream {stream} declares no cadence, so nothing samples it to lease")))?;
         let owner = state
             .installed_plugins
             .values()
             .find(|artifact| artifact.telemetry_contracts.iter().any(|declared| &declared.stream == stream))
-            .map(|artifact| artifact.source.clone());
-
-        owner
-            .map(|source| (source, interval))
-            .ok_or_else(|| Error::Operation(format!("telemetry stream {stream} is not owned by an installed plugin and cannot be leased")))
+            .map(|artifact| artifact.source.clone())
+            .ok_or_else(|| {
+                Error::Operation(format!("telemetry stream {stream} is not owned by an installed plugin and cannot be leased"))
+            })?;
+        let Some(interval) = contract.interval else {
+            return Ok(LeaseTarget::Published);
+        };
+        let interval = Duration::from_millis(interval.0.max(1));
+        Ok(LeaseTarget::Sampled { owner, interval })
     }
 
     pub(crate) fn streams_owned_by(&self, source: &str) -> Vec<Identifier> {

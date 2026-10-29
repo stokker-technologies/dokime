@@ -67,6 +67,7 @@ async fn plugin_store_leases() {
 #[tokio::test(flavor = "multi_thread")]
 async fn plugin_store_leases_concurrent() {
     leases::failed_group_holds().await;
+    leases::declared_streams_independent().await;
     leases::two_executions_rows().await;
     leases::two_holds_reading().await;
     leases::foreign_stream_refuses().await;

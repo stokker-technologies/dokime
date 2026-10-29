@@ -150,6 +150,11 @@ fn foreign_stream() -> Identifier {
     Identifier::new("gateway.rssi").expect("a fixture stream is addressable")
 }
 
+// Published By Its Owner Without A Cadence: Nothing Samples It, So Nothing Leases It.
+fn published_stream() -> Identifier {
+    Identifier::new("gateway.status").expect("a fixture stream is addressable")
+}
+
 fn gateway_artifact() -> InstalledPlugin {
     InstalledPlugin {
         source: "gateway".to_owned(),
@@ -161,6 +166,12 @@ fn gateway_artifact() -> InstalledPlugin {
                 .typed::<GatewayRow>()
                 .column(TelemetryColumn::declared("rssi", "RSSI", ValueType::Number, TelemetryRole::Value))
                 .every(200),
+            TelemetryContract::declared("gateway.status", "Gateway status").typed::<GatewayRow>().column(TelemetryColumn::declared(
+                "rssi",
+                "RSSI",
+                ValueType::Number,
+                TelemetryRole::Value,
+            )),
         ],
         ..Default::default()
     }
@@ -260,6 +271,34 @@ pub(crate) async fn failed_group_holds() {
     let facts = handle.stream_leases_for(&scope).await;
     assert_eq!(facts.iter().filter(|fact| fact.closed_at.is_none()).count(), 1);
     handle.release_stream_leases(retry).await.unwrap();
+    drop(handle);
+    runtime.shutdown().await.expect("the runtime stops");
+}
+
+// A Declared Set Leases Each Stream On Its Own: A Published Stream Needs No Lease, An Unknown
+// Stream Is Refused Alone, And Releasing The Grant Closes Exactly The Leased Stream.
+pub(crate) async fn declared_streams_independent() {
+    let root = tempdir().expect("a temporary root");
+    let mut runtime = runtime_with(root.path(), [gateway_artifact()], None).await;
+    let handle = runtime.handle();
+    let execution = admitted_execution(&handle, 0).await;
+    let scope = dokime_runtime::RecordScope::default().with_test_execution(execution.clone());
+    let unknown = Identifier::new("fixture.unregistered").unwrap();
+    let declared = [published_stream(), foreign_stream(), unknown.clone()];
+
+    let leased = handle.lease_declared_streams(scope_of(&execution), &declared, "bench").await.unwrap();
+    assert_eq!(leased.leases.len(), 1);
+    assert_eq!(leased.published, [published_stream()]);
+    assert_eq!(leased.refused.iter().map(|(stream, _)| stream).collect::<Vec<_>>(), [&unknown]);
+    assert!(handle.stream_lease_is_active(&leased.leases[0]).await);
+    let facts = handle.stream_leases_for(&scope).await;
+    assert_eq!(facts.len(), 1);
+    assert_eq!(facts[0].stream, foreign_stream());
+
+    handle.release_stream_leases(leased.leases.clone()).await.unwrap();
+    assert!(!handle.stream_lease_is_active(&leased.leases[0]).await);
+    let facts = handle.stream_leases_for(&scope).await;
+    assert!(facts.iter().all(|fact| fact.closed_at.is_some()));
     drop(handle);
     runtime.shutdown().await.expect("the runtime stops");
 }
