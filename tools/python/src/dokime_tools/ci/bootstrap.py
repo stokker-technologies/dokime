@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import tomllib
 import urllib.parse
@@ -274,7 +275,7 @@ def prepare_harmos(
         targets = {"Windows": "x86_64-pc-windows-msvc", "Linux": "x86_64-unknown-linux-gnu"}
         if identity["architecture"].lower() not in {"amd64", "x86_64"} or identity["platform"] not in targets:
             raise ValueError("published Harmos tools require native Windows or Linux x86_64")
-        suffix = ".exe" if identity["platform"] == "Windows" else ""
+        suffix = ".zip" if identity["platform"] == "Windows" else ".tar.gz"
         identity["asset"] = f"cargo-harmos-{identity['version']}-{targets[identity['platform']]}{suffix}"
         identity["release"] = f"https://github.com/stokker-technologies/harmos/releases/download/v{identity['version']}"
     else:
@@ -506,6 +507,7 @@ def _checkout_harmos_config(root: Path) -> Path | None:
 
 
 def _install_harmos_release(staged: Path, identity: dict[str, Any], binary: str) -> str:
+    # The Release Publishes One Archive Per Target; Its Digest Vouches For The Executable Inside.
     with tempfile.TemporaryDirectory(prefix="harmos-release-") as temporary:
         parent = Path(temporary)
         checksums = parent / "SHA256SUMS"
@@ -516,34 +518,35 @@ def _install_harmos_release(staged: Path, identity: dict[str, Any], binary: str)
             if len(fields) == 2 and fields[1].removeprefix("*") == identity["asset"]:
                 matches.append(fields[0])
         if len(matches) != 1 or re.fullmatch(r"[0-9a-f]{64}", matches[0]) is None:
-            raise ValueError("published Harmos checksums omit one exact executable digest")
-        expected = matches[0]
-        tool = f"github:stokker-technologies/harmos[asset_pattern={identity['asset']},bin={binary}]@{identity['version']}"
-        installed = parent / "installed"
-        environment = os.environ.copy()
-        environment.pop("MISE_ENABLE_TOOLS", None)
-        subprocess.run(
-            ["mise", "install-into", tool, str(installed)],
-            cwd=parent,
-            env=environment,
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            check=True,
-        )
-        executables = list(installed.rglob(binary))
-        if len(executables) != 1 or executables[0].is_symlink() or not executables[0].is_file():
-            raise ValueError("published Harmos package omitted its required CLI")
-        executable = executables[0]
-        if any(path.is_symlink() for path in executable.parents if path.is_relative_to(installed)):
-            raise ValueError("published Harmos executable has a linked parent")
-        if hashlib.sha256(executable.read_bytes()).hexdigest() != expected:
-            raise ValueError("published Harmos executable differs from SHA256SUMS")
+            raise ValueError("published Harmos checksums omit one exact archive digest")
+        archive = parent / identity["asset"]
+        urllib.request.urlretrieve(f"{identity['release']}/{identity['asset']}", archive)
+        if hashlib.sha256(archive.read_bytes()).hexdigest() != matches[0]:
+            raise ValueError("published Harmos archive differs from SHA256SUMS")
+        executable = _archived_executable(archive, binary)
         destination = staged / "bin" / binary
         destination.parent.mkdir()
-        shutil.copy2(executable, destination)
-        return expected
+        destination.write_bytes(executable)
+        if os.name != "nt":
+            destination.chmod(0o755)
+        return hashlib.sha256(executable).hexdigest()
+
+
+def _archived_executable(archive: Path, binary: str) -> bytes:
+    if archive.name.endswith(".zip"):
+        with zipfile.ZipFile(archive) as opened:
+            members = [member for member in opened.infolist() if not member.is_dir() and Path(member.filename).name == binary]
+            if len(members) != 1:
+                raise ValueError("published Harmos package omitted its required CLI")
+            return opened.read(members[0])
+    with tarfile.open(archive, "r:gz") as opened:
+        entries = [member for member in opened.getmembers() if Path(member.name).name == binary]
+        if len(entries) != 1 or not entries[0].isfile():
+            raise ValueError("published Harmos package omitted its required CLI")
+        extracted = opened.extractfile(entries[0])
+        if extracted is None:
+            raise ValueError("published Harmos package omitted its required CLI")
+        return extracted.read()
 
 
 def _webview_version() -> str | None:
@@ -587,7 +590,10 @@ def _registry_pin(root: Path, dependencies: dict[str, Any], requirement: object)
         raise ValueError("Harmos registry tools require an exact =version declaration")
     lock = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
 
+    # The Primary Crate Is Required; Sibling Crates Are Checked Only When Declared, As On The Git Path.
     for name in HARMOS_PACKAGES:
+        if name != HARMOS_PACKAGES[0] and name not in dependencies:
+            continue
         declared = dependencies.get(name)
         if isinstance(declared, str):
             declared = {"version": declared}

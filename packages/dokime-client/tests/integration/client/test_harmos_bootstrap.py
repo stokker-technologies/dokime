@@ -11,11 +11,16 @@
 # === Imports === #
 
 # Standard Library Imports
+import gzip
 import hashlib
+import io
 import json
 import os
+import re
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 # Third Party Imports
@@ -72,30 +77,19 @@ def processes(monkeypatch: pytest.MonkeyPatch):
         binary.parent.mkdir()
         binary.write_bytes(b"offline tool")
 
-    def release(command, **kwargs):
-        assert command[:2] == ["mise", "install-into"]
-        assert command[2].startswith("github:stokker-technologies/harmos[asset_pattern=cargo-harmos-")
-        assert kwargs["cwd"] == Path(command[3]).parent
-        assert "MISE_ENABLE_TOOLS" not in kwargs["env"]
-        calls.append(command)
-        version[0] = command[2].rsplit("@", 1)[1]
-        staged = Path(command[3])
-        binary = staged / "bin" / ("cargo-harmos.exe" if os.name == "nt" else "cargo-harmos")
-        binary.parent.mkdir(parents=True)
-        binary.write_bytes(b"offline tool")
-
     def retrieve(url, path):
-        assert url.endswith("/SHA256SUMS")
         selected = url.rsplit("/", 2)[1].removeprefix("v")
-        digest = hashlib.sha256(b"offline tool").hexdigest()
-        Path(path).write_text(
-            "".join(
-                f"{digest}  cargo-harmos-{selected}-{target}\n" for target in ("x86_64-pc-windows-msvc.exe", "x86_64-unknown-linux-gnu")
-            )
-        )
+        if url.endswith("/SHA256SUMS"):
+            Path(path).write_text(_checksums(selected))
+            return
+        asset = url.rsplit("/", 1)[1]
+        assert asset.startswith(f"cargo-harmos-{selected}-")
+        calls.append(["download", url])
+        version[0] = selected
+        Path(path).write_bytes(_archive(asset))
 
     def run(command, **kwargs):
-        return release(command, **kwargs) if command[:2] == ["mise", "install-into"] else refuse(command, **kwargs)
+        return refuse(command, **kwargs)
 
     monkeypatch.setattr(bootstrap.urllib.request, "urlretrieve", retrieve)
     monkeypatch.setattr(bootstrap.subprocess, "run", run)
@@ -142,6 +136,15 @@ def test_public_source_selection(tmp_path: Path, repository: str, monkeypatch: p
     assert capsys.readouterr().out == "crates-io-0.1.0\n"
     assert bootstrap.main(["--harmos-key", "--cargo-config", str(tmp_path / "unused-config")]) == 0
     assert capsys.readouterr().out == "crates-io-0.1.0\n"
+    assert processes[0] == []
+
+
+def test_undeclared_registry_sibling(tmp_path: Path, processes) -> None:
+    _manifest(tmp_path, '"=0.1.0"')
+    _lock(tmp_path)
+    manifest = tmp_path / "Cargo.toml"
+    manifest.write_text(manifest.read_text().replace('harmos-domain = "=0.1.0"\n', ""))
+    assert bootstrap.harmos_pin(tmp_path) == {"registry": "crates-io", "version": "0.1.0", "package": "cargo-harmos"}
     assert processes[0] == []
 
 
@@ -199,8 +202,8 @@ def test_prepared_artifact(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proc
     github_path = tmp_path / "github-path"
     monkeypatch.setenv("GITHUB_PATH", str(github_path))
     assert bootstrap.prepare_harmos(tmp_path, allow_install=True) == binary
-    assert calls[-1][:2] == ["mise", "install-into"]
-    assert calls[-1][2].endswith("]@0.1.0")
+    assert calls[-1][0] == "download"
+    assert "/v0.1.0/cargo-harmos-0.1.0-" in calls[-1][1]
     receipt = binary.parent.parent / "receipt.json"
     value = json.loads(receipt.read_text())
     assert value["identity"]["registry"] == "crates-io"
@@ -230,8 +233,8 @@ def test_prepared_artifact(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proc
         bootstrap.prepare_harmos(tmp_path, allow_install=False)
     assert len(calls) == 2
     assert bootstrap.prepare_harmos(tmp_path, allow_install=True) == binary
-    assert calls[-1][:2] == ["mise", "install-into"]
-    assert calls[-1][2].endswith("]@0.1.1")
+    assert calls[-1][0] == "download"
+    assert "/v0.1.1/cargo-harmos-0.1.1-" in calls[-1][1]
     assert len(calls) == 3
 
 
@@ -244,10 +247,12 @@ def test_release_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault:
 
     def checksums(url, path):
         retrieve(url, path)
+        if not url.endswith("/SHA256SUMS"):
+            return
         manifest = Path(path)
         text = manifest.read_text()
         if fault == "checksum":
-            text = text.replace(hashlib.sha256(b"offline tool").hexdigest(), "0" * 64)
+            text = re.sub(r"[0-9a-f]{64}", "0" * 64, text)
         elif fault == "manifest":
             text = "not a checksum manifest"
         elif fault == "duplicate":
@@ -304,10 +309,18 @@ def test_artifact_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proce
         bootstrap.prepare_harmos(tmp_path, allow_install=False)
     assert len(calls) == 1
 
-    def omit(command, **_kwargs):
-        assert command[:2] == ["mise", "install-into"]
+    retrieve = bootstrap.urllib.request.urlretrieve
 
-    monkeypatch.setattr(bootstrap.subprocess, "run", omit)
+    def omit(url, path):
+        retrieve(url, path)
+        target = Path(path)
+        if url.endswith("/SHA256SUMS"):
+            target.write_text(_checksums("0.1.0", member="README.md"))
+            return
+        archive = _archive(target.name, member="README.md")
+        target.write_bytes(archive)
+
+    monkeypatch.setattr(bootstrap.urllib.request, "urlretrieve", omit)
     with pytest.raises(ValueError, match="omitted its required CLI"):
         bootstrap.prepare_harmos(tmp_path, allow_install=True)
     assert binary.is_symlink()
@@ -439,6 +452,41 @@ def test_binding_consumer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
 
 # === Private Functions === #
+
+
+_ASSETS = ("x86_64-pc-windows-msvc.zip", "x86_64-unknown-linux-gnu.tar.gz")
+
+
+def _archive(asset: str, *, member: str | None = None) -> bytes:
+    # Deterministic Archives: Fixed Timestamps, So Their Digest Is Stable Across Calls.
+    windows = asset.endswith(".zip")
+    name = member or ("cargo-harmos.exe" if windows else "cargo-harmos")
+    return _zip(f"cargo-harmos/{name}") if windows else _tar_gz(f"cargo-harmos/{name}")
+
+
+def _zip(name: str) -> bytes:
+    buffer = io.BytesIO()
+    entry = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(entry, b"offline tool")
+    return buffer.getvalue()
+
+
+def _tar_gz(name: str) -> bytes:
+    buffer = io.BytesIO()
+    entry = tarfile.TarInfo(name)
+    entry.size = len(b"offline tool")
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        archive.addfile(entry, io.BytesIO(b"offline tool"))
+    return gzip.compress(buffer.getvalue(), mtime=0)
+
+
+def _checksums(version: str, *, member: str | None = None) -> str:
+    lines = []
+    for asset in _ASSETS:
+        digest = hashlib.sha256(_archive(asset, member=member)).hexdigest()
+        lines.append(f"{digest}  cargo-harmos-{version}-{asset}\n")
+    return "".join(lines)
 
 
 def _manifest(root: Path, declaration: str) -> None:
