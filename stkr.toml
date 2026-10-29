@@ -6,7 +6,7 @@
 
 [project]
 name = "Dokime"
-platforms = ["linux", "windows"]
+platforms = ["unix", "windows"]
 
 [tools]
 # Verify Detached Updater Signatures With The Compiled Public Key.
@@ -142,7 +142,7 @@ outputs.python = ["target/build/{profile}/any/python"]
 
 [[ci.jobs]]
 id = "build"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 outputs.cli = ["target/build/{profile}/{target}/bin/dokime"]
 outputs.gui = ["target/build/{profile}/{target}/bin/dokime-gui"]
@@ -163,7 +163,7 @@ outputs.packaging = ["target/build/{profile}/{target}/product", "target/build/{p
 
 [[ci.jobs]]
 id = "build:rust:tests"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
@@ -172,7 +172,7 @@ outputs.bench = ["target/build/bench/{target}"]
 
 [[ci.jobs]]
 id = "build:rust:bench"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
 
@@ -233,32 +233,32 @@ inputs = ["build:python#python", "build#cli", "build#plugins"]
 
 [[ci.jobs]]
 id = "test:rust:acceptance"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:coverage"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "test:rust:integration"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:system"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:unit"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:typescript:system"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]
 
 [[ci.jobs]]
@@ -294,7 +294,7 @@ outputs.package = ["target/package/{profile}/any/python"]
 
 [[ci.jobs]]
 id = "package:rust"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 # --- Stage / Release --- #
@@ -321,17 +321,17 @@ inputs = ["package:rust#package", "package:python#package"]
 
 [[ci.jobs]]
 id = "release:publish:dry"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "release:rehearse"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "release:tag"
-platform = "linux"
+platform = "unix"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 # === === Hooks === === #
