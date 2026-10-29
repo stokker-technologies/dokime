@@ -36,8 +36,8 @@ const config = JSON.parse(readFileSync(resolve(root, "tsconfig.json"), "utf8").r
 /* === Tests === */
 
 test("the embedded report cannot reach generated RPC or message modules", () => {
-  const vite = readFileSync(resolve(root, "vite.report.config.ts"), "utf8");
-  const input = vite.match(/input:\s*fileURLToPath\(new URL\("(.+?)", import.meta.url\)\)/)?.[1];
+  const vite = readFileSync(resolve(root, "vite.config.ts"), "utf8");
+  const input = vite.match(/input:[^\n]*?fileURLToPath\(new URL\("(.+?)", import.meta.url\)\)/)?.[1];
   assert.ok(input, "resolve the report HTML from the Vite entry configuration");
   const html = readFileSync(resolve(root, input), "utf8");
   const entries = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((match) => resolve(root, match[1].replace(/^\//, "")));

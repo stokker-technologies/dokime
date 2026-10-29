@@ -14,7 +14,9 @@ import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
-import { createLogger, defineConfig } from "vite";
+import { createLogger } from "vite";
+import { viteSingleFile } from "vite-plugin-singlefile";
+import { defineConfig } from "vitest/config";
 
 /* === Constants === */
 
@@ -76,23 +78,21 @@ function configureApiProxy(proxy: {
   });
 }
 
-export default defineConfig(() => ({
+// `--mode report` builds the single-file report template that the runtime embeds; Vitest runs in `test` mode.
+export default defineConfig(({ mode }) => ({
   customLogger: logger,
   root: projectRoot,
-  cacheDir: "node_modules/.vite/live",
+  cacheDir: `node_modules/.vite/${mode}`,
+  publicDir: mode === "report" ? false : "public",
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
-    __DOKIME_UI_MODE__: JSON.stringify("live"),
+    __DOKIME_UI_MODE__: JSON.stringify(mode === "report" ? "report" : "live"),
     __DOKIME_TRANSPORT__: JSON.stringify(transport),
   },
-  plugins: [
-    tanstackRouter({
-      target: "react",
-      autoCodeSplitting: true,
-    }),
-    react(),
-    tailwindcss(),
-  ],
+  plugins: {
+    report: [react(), tailwindcss(), viteSingleFile()],
+    test: [],
+  }[mode] ?? [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
   resolve: {
     dedupe: ["@bufbuild/protobuf"],
     alias: {
@@ -124,24 +124,35 @@ export default defineConfig(() => ({
   },
   build: {
     chunkSizeWarningLimit: 800,
-    outDir: "dist",
+    outDir: mode === "report" ? "../dokime-runtime/dist-report" : "dist",
     emptyOutDir: true,
     rolldownOptions: {
       checks: {
         pluginTimings: false,
       },
-      output: {
-        strictExecutionOrder: true,
-        codeSplitting: {
-          maxSize: 800_000,
-          groups: [
-            { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
-            { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
-            { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
-            { name: "document-surface", test: /\/src\/(?:components\/document|plots)\// },
-          ],
-        },
-      },
+      input: mode === "report" ? fileURLToPath(new URL("./report.html", import.meta.url)) : undefined,
+      output:
+        mode === "report"
+          ? undefined
+          : {
+              strictExecutionOrder: true,
+              codeSplitting: {
+                maxSize: 800_000,
+                groups: [
+                  { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
+                  { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
+                  { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
+                  { name: "document-surface", test: /\/src\/(?:components\/document|plots)\// },
+                ],
+              },
+            },
     },
+  },
+  test: {
+    environment: "node",
+    setupFiles: ["tests/setup.ts"],
+    include: ["tests/**/*.test.ts"],
+    testTimeout: 120_000,
+    hookTimeout: 120_000,
   },
 }));
