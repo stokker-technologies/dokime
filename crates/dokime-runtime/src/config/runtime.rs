@@ -43,7 +43,7 @@ pub struct RuntimeConfig {
     pub schema: harmos::config::SchemaSettings,
     pub session_id: SessionId,
     pub storage_root: PathBuf,
-    pub application_root: PathBuf,
+    pub application: crate::paths::ApplicationPaths,
 
     #[serde(skip, default = "super::storage_defaults")]
     pub storage: StorageSettings,
@@ -103,7 +103,7 @@ impl RuntimeConfig {
             storage_state: super::storage_state_defaults(),
             // Programmatic configurations keep one disposable tree; shipped
             // shells always name a separate application root.
-            application_root: storage_root.join("application"),
+            application: crate::paths::ApplicationPaths::new(storage_root.join("application")),
             hub_metadata,
 
             #[cfg(feature = "native")]
@@ -126,7 +126,7 @@ impl RuntimeConfig {
     }
 
     pub fn with_application_root(mut self, root: impl Into<PathBuf>) -> Self {
-        self.application_root = root.into();
+        self.application = crate::paths::ApplicationPaths::new(root);
         self
     }
 
@@ -166,10 +166,6 @@ impl RuntimeConfig {
         self
     }
 
-    pub(crate) fn paths(&self) -> crate::config::ApplicationPaths {
-        crate::config::ApplicationPaths::new(&self.application_root)
-    }
-
     pub fn with_action_dispatcher(
         mut self, plugin_id: dokime_domain::model::identity::Identifier, dispatcher: Arc<dyn ActionDispatcher>,
     ) -> Self {
@@ -186,7 +182,7 @@ impl fmt::Debug for RuntimeConfig {
             .field("session_id", &self.session_id)
             .field("storage_root", &self.storage_root)
             .field("storage", &self.storage)
-            .field("application_root", &self.application_root)
+            .field("application", &self.application)
             .field("hub_metadata", &self.hub_metadata)
             .field("installed_plugins", &self.installed_plugins)
             .field("plugins", &self.plugins)

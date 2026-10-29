@@ -41,6 +41,7 @@ const SECRET_KEYS: [&str; 4] = [AUTHORIZATION, "token", "secret", "password"];
 #[derive(Clone, Debug)]
 pub struct Backend {
     arguments: host::Args,
+    application: Option<dokime::paths::ApplicationPaths>,
     log: Option<PathBuf>,
 }
 
@@ -52,7 +53,13 @@ pub struct Backend {
 
 impl Backend {
     pub fn new(arguments: host::Args) -> Self {
-        Self { arguments, log: None }
+        Self { arguments, application: None, log: None }
+    }
+
+    #[must_use]
+    pub fn with_application(mut self, paths: dokime::paths::ApplicationPaths) -> Self {
+        self.application = Some(paths);
+        self
     }
 
     #[must_use]
@@ -66,7 +73,10 @@ impl Backend {
 
 pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Result<(host::Session, String), Error> {
     let launch = async {
-        let config = backend.arguments.configuration()?;
+        let mut config = backend.arguments.configuration()?;
+        if let Some(paths) = &backend.application {
+            config.application = Some(paths.clone());
+        }
         let network = backend.arguments.network.config()?;
         host::Session::start(&backend.arguments, config, network, on_phase).await
     };

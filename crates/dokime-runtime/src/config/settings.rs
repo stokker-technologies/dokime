@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
@@ -70,8 +70,7 @@ impl std::fmt::Debug for Settings {
 }
 
 impl Settings {
-    pub async fn open(application_root: impl Into<PathBuf>, database: State) -> Result<Self, Error> {
-        let paths = ApplicationPaths::new(application_root);
+    pub async fn open(paths: ApplicationPaths, database: State) -> Result<Self, Error> {
         database.initialize_settings().await?;
         database.read_application_settings().await?;
         database.read_application_metadata().await?;

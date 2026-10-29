@@ -231,7 +231,7 @@ pub(in crate::grpc) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize, config: &dokime::RuntimeConfig,
 ) -> Result<(), crate::grpc::Error> {
     let poll_interval = config.storage.filesystem.poll_interval;
-    let logs = crate::grpc::logs::Tail::new(super::hub_log_path(&config.application_root), poll_interval, maximum);
+    let logs = crate::grpc::logs::Tail::new(super::hub_log_path(&config.application), poll_interval, maximum);
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum, logs });
 
     setup.resource::<Host<wire::GetIdentity>>(Host::<wire::GetIdentity>::new(resources.clone()));

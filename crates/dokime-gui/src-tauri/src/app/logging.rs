@@ -50,14 +50,14 @@ pub(crate) fn active_log() -> Option<PathBuf> {
     ACTIVE_LOG.get().cloned()
 }
 
-pub(crate) fn init(identifier: &str, retained_files: usize) -> LoggingGuards {
+pub(crate) fn init(directory: &Path, retained_files: usize) -> LoggingGuards {
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
     let stderr_layer: BoxedLayer = fmt::layer().with_writer(stderr_writer).with_filter(env_filter()).boxed();
     let mut layers: Vec<BoxedLayer> = vec![stderr_layer];
 
     let mut file_guard = None;
     let mut log_path = None;
-    match app_log_dir(identifier).and_then(|dir| file_fmt_layer(&dir, retained_files)) {
+    match file_fmt_layer(directory, retained_files) {
         Ok((layer, guard, path)) => {
             layers.push(layer);
             file_guard = Some(guard);
@@ -85,29 +85,6 @@ pub(crate) fn init(identifier: &str, retained_files: usize) -> LoggingGuards {
 
 fn env_filter() -> EnvFilter {
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
-}
-
-fn app_log_dir(identifier: &str) -> Result<PathBuf, String> {
-    #[cfg(target_os = "macos")]
-    {
-        std::env::var_os("HOME")
-            .map(|home| PathBuf::from(home).join("Library/Logs").join(identifier))
-            .ok_or_else(|| "HOME is not set".to_owned())
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::env::var_os("LOCALAPPDATA")
-            .map(|dir| PathBuf::from(dir).join(identifier).join("logs"))
-            .ok_or_else(|| "%LOCALAPPDATA% is not set".to_owned())
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        std::env::var_os("XDG_DATA_HOME")
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
-            .map(|dir| dir.join(identifier).join("logs"))
-            .ok_or_else(|| "neither XDG_DATA_HOME nor HOME is set".to_owned())
-    }
 }
 
 fn file_fmt_layer(dir: &Path, retained_files: usize) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard, PathBuf), String> {

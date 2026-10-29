@@ -155,10 +155,10 @@ impl RuntimeHandle {
         drop(state);
         let mut frame = settings_frame_from_sources(sources);
         let config = self.config();
-        let paths = crate::paths::ApplicationPaths::new(&config.application_root);
+        let paths = &config.application;
         let plugins = config.plugin_lookup.clone().unwrap_or_else(|| paths.plugins());
         frame.bootstrap_paths = Some(dokime_domain::model::settings::wire::BootstrapPaths {
-            application: config.application_root.to_string_lossy().into_owned(),
+            application: paths.root.to_string_lossy().into_owned(),
             storage: config.storage_root.to_string_lossy().into_owned(),
             plugins: plugins.to_string_lossy().into_owned(),
             logs: paths.logs().to_string_lossy().into_owned(),

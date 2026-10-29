@@ -78,7 +78,7 @@ pub async fn desktop_media_prepare(
     ensure_generation_token(&generation)?;
     let lease = state.inner().lease(&generation).map_err(|error| format!("Native media preview lost its owning connection: {error:?}"))?;
     let key = cache_key(&source)?;
-    let media_root = media_root(&app)?;
+    let media_root = media_root(&app);
     let cache_dir = media_root.join(&generation);
     let cache_dir_for_dir = cache_dir.clone();
     tauri::async_runtime::spawn_blocking(move || ensure_private_directory(&cache_dir_for_dir))
@@ -99,19 +99,18 @@ pub async fn desktop_media_prepare(
 
 pub async fn desktop_media_release(_state: State<'_, ConnectionSession>, app: AppHandle, generation: String) -> Result<(), String> {
     ensure_generation_token(&generation)?;
-    release_generation(&media_root(&app)?, &generation).await
+    release_generation(&media_root(&app), &generation).await
 }
 
 pub(crate) async fn release_all(app: &AppHandle) {
-    if let Ok(media_root) = media_root(app) {
-        let _ = tokio::fs::remove_dir_all(&media_root).await;
-    }
+    let media_root = media_root(app);
+    let _ = tokio::fs::remove_dir_all(&media_root).await;
 }
 
 /* === Private Functions === */
 
-fn media_root(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app.path().app_cache_dir().map_err(|error| error.to_string())?.join("media"))
+fn media_root(app: &AppHandle) -> PathBuf {
+    app.state::<dokime::paths::ApplicationPaths>().cache().join("media")
 }
 
 async fn release_generation(media_root: &Path, generation: &str) -> Result<(), String> {
@@ -288,7 +287,7 @@ async fn try_respond(app: &AppHandle, request: &http::Request<Vec<u8>>) -> Resul
     // A stale generation (disconnected, superseded) cannot read a previous
     // connection's cache, even one still on disk pending eviction.
     app.state::<ConnectionSession>().lease(generation).map_err(|_| http::StatusCode::NOT_FOUND)?;
-    let path = media_root(app).map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)?.join(generation).join(&key);
+    let path = media_root(app).join(generation).join(&key);
     let metadata = tokio::fs::metadata(&path).await.map_err(|_| http::StatusCode::NOT_FOUND)?;
     let len = metadata.len();
     let content_type = tokio::fs::read_to_string(path.with_extension("type"))

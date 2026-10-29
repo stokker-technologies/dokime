@@ -84,7 +84,10 @@ pub fn validate(directory: &Path, expected: &Artifact) -> Result<Payload, Error>
         return Err(Error::Invalid("payload schema, version or target differs from the pinned Dokime artifact".into()));
     }
     let identity = &payload.identity;
-    if identity.identifier.is_empty() || identity.updater_public_key.is_empty() || !safe_identity(&identity.slug) {
+    if dokime::paths::DistributionIdentity::new(identity.identifier.clone()).is_err()
+        || identity.updater_public_key.is_empty()
+        || !safe_identity(&identity.slug)
+    {
         return Err(Error::Invalid("payload compiled identity is invalid".into()));
     }
     let suffix = if expected.target.contains("windows") { ".exe" } else { "" };
@@ -192,7 +195,7 @@ pub async fn download(artifact: &Artifact, destination: &Path) -> Result<(), Err
 
 /* === Private Functions === */
 
-fn safe_identity(value: &str) -> bool {
+pub(super) fn safe_identity(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
 }
 

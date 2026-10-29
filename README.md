@@ -115,10 +115,12 @@ The same plugin uses `#[dokime::observer]` for its
 `#[dokime::criterion]` for its
 [pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
 
-Custom installers include verified bundles from an organization pack's `plugins/`
-folder or repeatable `cargo dokime installer package --plugin <bundle>` arguments.
-Bundled plugins install on startup without replacing newer installed versions.
-See the [installer guide](docs/product-guide.md#native-installers)
+Custom installers can declare `[installer] identifier = "com.hilti.dokime"` to
+keep their installation and storage separate from plain Dokime. They include
+verified bundles from an organization pack's `plugins/` folder or repeatable
+`cargo dokime installer package --plugin <bundle>` arguments. Bundled plugins
+install on startup without replacing newer installed versions. See the
+[installer guide](docs/product-guide.md#native-installers)
 for packaging options.
 
 ## Quick Start
@@ -143,8 +145,9 @@ in the desktop application to change appearance, client timeouts, report plot
 defaults, telemetry cadence and remote listener preferences. Updates carry a
 revision; conflicting edits require refreshing before saving again.
 
-The application folder defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows
-or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
+The application folder derives from the installed distribution identifier, falling
+back to the compiled identifier when `distribution.json` is absent. Plain Dokime
+defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing the older JSON stream-row format require a fresh storage root. Dokime reports incompatible data and never resets an existing root.

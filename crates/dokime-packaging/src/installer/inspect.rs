@@ -135,8 +135,14 @@ pub fn inspect(package: &Path) -> Result<Inspection, Error> {
 }
 
 pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
-    let candidates = [root.join("distribution.json"), root.join("usr/lib/dokime/distribution.json")];
-    let found: Vec<_> = candidates.iter().filter(|p| p.is_file()).collect();
+    let mut candidates = vec![root.join("installer.json")];
+    let libraries = root.join("usr/lib");
+    if libraries.is_dir() {
+        for directory in std::fs::read_dir(libraries)? {
+            candidates.push(directory?.path().join("installer.json"));
+        }
+    }
+    let found: Vec<_> = candidates.iter().filter(|path| path.is_file()).collect();
     if found.len() != 1 {
         return Err(Error::Invalid("finished installer must contain exactly one distribution manifest".into()));
     }
@@ -148,7 +154,16 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
         return Err(Error::Invalid("distribution target does not match the native package format".into()));
     }
     super::native::validate_label(&metadata.label)?;
-    let organization = if windows { root.join("organization") } else { root.join("usr/lib/dokime/organization") };
+    let installed = if windows { root.to_owned() } else { root.join("usr/lib").join(&metadata.identity.slug) };
+    if found[0] != &installed.join("installer.json") {
+        return Err(Error::Invalid("installer inventory is outside its distribution directory".into()));
+    }
+    let executable = installed.join(if windows { "dokime.exe" } else { "dokime" });
+    let identity = dokime::paths::distribution_identity(&executable, &metadata.identity.identifier)?;
+    if identity.identifier != metadata.identity.identifier {
+        return Err(Error::Invalid("startup distribution identity differs from installer inventory".into()));
+    }
+    let organization = installed.join("organization");
     let pack = dokime::config::organization::resolve_with_base(Some(&organization), None).map_err(Error::Invalid)?;
     if pack.label() != metadata.label {
         return Err(Error::Invalid("embedded organization label differs from distribution metadata".into()));
@@ -178,11 +193,11 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
         }
     }
     if !windows {
-        let launcher = root.join("usr/share/applications").join(format!("{}.desktop", metadata.label));
+        let launcher = root.join("usr/share/applications").join(format!("{}.desktop", metadata.identity.slug));
         let contents = std::fs::read_to_string(launcher)?;
         let name = contents.lines().find_map(|line| line.strip_prefix("Name="));
         let executable = contents.lines().find_map(|line| line.strip_prefix("Exec="));
-        if name != Some(metadata.label.as_str()) || !executable.is_some_and(|value| value == "dokime-gui") {
+        if name != Some(metadata.label.as_str()) || !executable.is_some_and(|value| value == format!("{}-gui", metadata.identity.slug)) {
             return Err(Error::Invalid("desktop launcher name or executable differs from the packaged application".into()));
         }
         let icon = contents
@@ -279,7 +294,11 @@ pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
 }
 
 fn verify_inventory(root: &Path, metadata: &DistributionMetadata) -> Result<(), Error> {
-    let directory = if metadata.target.contains("windows") { root.join("organization") } else { root.join("usr/lib/dokime/organization") };
+    let directory = if metadata.target.contains("windows") {
+        root.join("organization")
+    } else {
+        root.join("usr/lib").join(&metadata.identity.slug).join("organization")
+    };
     let mut pending = vec![directory];
     while let Some(directory) = pending.pop() {
         for entry in std::fs::read_dir(directory)? {
@@ -433,14 +452,24 @@ fn validate_metadata(metadata: &DistributionMetadata) -> Result<(), Error> {
     if metadata.schema != 1 || metadata.version.is_empty() || metadata.dokime_version.is_empty() || metadata.label.is_empty() {
         return Err(Error::Invalid("invalid embedded distribution manifest".into()));
     }
-    let required = match metadata.target.as_str() {
-        "x86_64-pc-windows-msvc" => ["dokime.exe", "dokime-gui.exe", "organization/organization.toml", "LICENSE"],
-        "x86_64-unknown-linux-gnu" => {
-            ["usr/bin/dokime", "usr/bin/dokime-gui", "usr/lib/dokime/organization/organization.toml", "usr/lib/dokime/LICENSE"]
-        }
+    dokime::paths::DistributionIdentity::new(metadata.identity.identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
+    if !super::payload::safe_identity(&metadata.identity.slug) {
+        return Err(Error::Invalid("invalid distribution slug".into()));
+    }
+    let prefix = match metadata.target.as_str() {
+        "x86_64-pc-windows-msvc" => String::new(),
+        "x86_64-unknown-linux-gnu" => format!("usr/lib/{}/", metadata.identity.slug),
         _ => return Err(Error::Invalid("invalid embedded distribution target".into())),
     };
-    if required.iter().any(|name| !metadata.files.contains_key(*name)) {
+    let suffix = if metadata.target.contains("windows") { ".exe" } else { "" };
+    let required = [
+        format!("{prefix}dokime{suffix}"),
+        format!("{prefix}dokime-gui{suffix}"),
+        format!("{prefix}organization/organization.toml"),
+        format!("{prefix}LICENSE"),
+        format!("{prefix}distribution.json"),
+    ];
+    if required.iter().any(|name| !metadata.files.contains_key(name)) {
         return Err(Error::Invalid("distribution manifest omits required installed files".into()));
     }
     for (name, digest) in &metadata.files {
@@ -581,8 +610,8 @@ mod tests {
     }
 
     #[test]
-    fn complete_inventory() {
-        let files = ["dokime.exe", "dokime-gui.exe", "LICENSE", "organization/organization.toml"]
+    fn distribution_inventory() {
+        let files = ["dokime.exe", "dokime-gui.exe", "LICENSE", "organization/organization.toml", "distribution.json"]
             .into_iter()
             .map(|name| (name.into(), "00".repeat(32)))
             .collect();

@@ -325,7 +325,7 @@ pub async fn desktop_artifact_deliver(
     }
     let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
     ensure_document_session(&session, &generation).map_err(prepare)?;
-    let directory = app.path().app_cache_dir().map_err(|error| prepare(error.to_string()))?.join("documents");
+    let directory = app.state::<dokime::paths::ApplicationPaths>().cache().join("documents");
     let cache = directory.clone();
     tauri::async_runtime::spawn_blocking(move || ensure_private_directory(&cache))
         .await

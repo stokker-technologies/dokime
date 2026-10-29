@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+pub mod distribution;
 pub mod id;
 pub mod identities;
 mod pattern;

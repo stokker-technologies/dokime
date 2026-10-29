@@ -168,7 +168,8 @@ pub fn resolve_with_base(base_dir: Option<&Path>, override_dir: Option<&Path>) -
 
 pub fn installation_directory() -> Option<std::path::PathBuf> {
     let executable = std::env::current_exe().ok()?;
-    installation_candidates(&executable).into_iter().find(|directory| directory.join("organization.toml").is_file())
+    let directory = executable.parent()?.join("organization");
+    directory.join("organization.toml").is_file().then_some(directory)
 }
 
 /* === Private Functions === */
@@ -214,18 +215,6 @@ fn validate_installer(pack: &ResolvedPack) -> Result<(), String> {
     image::load_from_memory_with_format(bytes, image::ImageFormat::Png)
         .map_err(|_| "organization installer sidebar image must be a valid PNG image")?;
     Ok(())
-}
-
-fn installation_candidates(executable: &Path) -> Vec<std::path::PathBuf> {
-    let Some(parent) = executable.parent() else { return Vec::new() };
-    let candidates = vec![parent.join("organization")];
-    #[cfg(target_os = "linux")]
-    if parent == Path::new("/usr/bin") {
-        let mut candidates = candidates;
-        candidates.push("/usr/lib/dokime/organization".into());
-        return candidates;
-    }
-    candidates
 }
 
 fn merge(base: &mut toml::Value, overlay: toml::Value) {
@@ -291,16 +280,5 @@ mod tests {
         assert_eq!(base["array"].as_array().unwrap(), &[toml::Value::Integer(3)]);
         assert_eq!(base["table"]["left"].as_integer(), Some(9));
         assert_eq!(base["table"]["right"].as_integer(), Some(2));
-    }
-
-    #[test]
-    fn installation_locations() {
-        let development = installation_candidates(Path::new("/workspace/target/debug/dokime"));
-        assert_eq!(development, [std::path::PathBuf::from("/workspace/target/debug/organization")]);
-        #[cfg(target_os = "linux")]
-        assert_eq!(
-            installation_candidates(Path::new("/usr/bin/dokime")),
-            [std::path::PathBuf::from("/usr/bin/organization"), std::path::PathBuf::from("/usr/lib/dokime/organization"),]
-        );
     }
 }

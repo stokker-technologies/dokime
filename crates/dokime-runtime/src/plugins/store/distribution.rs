@@ -46,7 +46,7 @@ impl PluginStore {
             let error = PluginError::Invalid("bundled plugin directory has no parent".into());
             return Err(error);
         };
-        let metadata = read_bounded(&parent.join("distribution.json"), self.archive_bytes)?;
+        let metadata = read_bounded(&parent.join("installer.json"), self.archive_bytes)?;
         let distribution = digest(&metadata);
         let previous = self.settings.read(|document| document.bundled_distribution.clone()).await?;
         if previous.as_ref() == Some(&distribution) {

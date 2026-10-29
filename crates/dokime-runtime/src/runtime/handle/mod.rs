@@ -272,7 +272,7 @@ impl RuntimeHandle {
         let backend = Arc::new(crate::storage::Backend::primary_with(config.storage_root.clone(), config.local_storage).await?);
         let local_state = backend.local_state();
         launch.boot.lock().expect("startup owners are healthy").local = Some(local_state.clone());
-        let application_settings = crate::config::Settings::open(config.application_root.clone(), local_state.clone()).await?;
+        let application_settings = crate::config::Settings::open(config.application.clone(), local_state.clone()).await?;
         let node_identity = application_settings.read(|document| document.identity.clone()).await?;
         let plugin_preferences = PluginPreferences::new(application_settings.clone());
         let secrets =
@@ -400,7 +400,7 @@ impl RuntimeHandle {
             embedded_templates,
             sampling: Arc::new(sampling),
             evidence_admission: Default::default(),
-            evidence_exports: crate::domains::exports::evidence::Manager::new(config.application_root.join("cache/exports")),
+            evidence_exports: crate::domains::exports::evidence::Manager::new(config.application.cache().join("exports")),
             telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),
             telemetry_cursors: Arc::new(Mutex::new(crate::domains::telemetry::TelemetryCursors::default())),
             stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::new()),
