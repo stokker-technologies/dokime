@@ -95,6 +95,7 @@ async fn execution_seal_report() {
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seal_report_threaded() {
     storage::permanent_finalization_settles().await;
+    storage::unsealed_cycle_survives_restart().await;
 }
 
 // The Smoke Provider Stages Share One Embedded Fixture Binding.

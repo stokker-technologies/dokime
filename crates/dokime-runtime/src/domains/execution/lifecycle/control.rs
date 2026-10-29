@@ -81,6 +81,19 @@ impl RuntimeHandle {
         captured(self).ok_or_else(|| crate::runtime::Error::Operation("report lifecycle capture was not applied".into()))
     }
 
+    // The Unsealed Cycle Keeps Its Cause As Evidence While Its Members Stay Retryable.
+    pub(crate) async fn record_startup_seal_failure(&self, cycle: &TestCycleId, error: &Error) {
+        use crate::records::{BuiltinRecordType, RecordSeverity};
+
+        let record_type = BuiltinRecordType::TestCycleFinalizationFailed.identifier();
+        let mut request = dokime_domain::model::records::publication::RecordPublishRequest::new(record_type, RecordSeverity::Error);
+        request.scope = Some(dokime_domain::model::execution::RecordScope::default().with_cycle(cycle.clone()));
+        request.message = Some(format!("final cycle report was not sealed at startup: {error}"));
+        if let Err(failure) = self.publish_record(request).await {
+            tracing::error!(%cycle, %failure, "startup seal failure could not be recorded");
+        }
+    }
+
     pub async fn pause_execution(&self, id: TestExecutionId, context: CommandContext) -> Result<(), Error> {
         self.control_execution(id, Action::Pause, context).await
     }

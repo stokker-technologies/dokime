@@ -241,6 +241,62 @@ pub(crate) async fn terminal_capture_repaired() {
     owner.shutdown().await.unwrap();
 }
 
+// A diagnostic recorded after the report lifecycle froze never changes the frozen execution, and
+// a cycle that cannot be sealed at startup stays retryable instead of stopping the runtime boot.
+pub(crate) async fn unsealed_cycle_survives_restart() {
+    let root = tempdir().unwrap();
+    let refuse = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let fixture = || Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed"), refuse.clone()));
+    let (mut owner, runtime) = started_with_fixture(config(root.path()), fixture()).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(&runtime, suite.clone()).await;
+    let mut watch = runtime.watch_state();
+    let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    let terminal = watch
+        .wait_until(|snapshot| {
+            snapshot.state().run_requests.get(&receipt.command_id).is_some_and(|request| request.summary.phase.terminal())
+        })
+        .await
+        .expect("the state watch stays open");
+    let member = terminal.state().cycle_view(&test_cycle_id).unwrap().test_executions[0].clone();
+    let frozen = terminal.state().report_finalizations[&member.test_execution_id].lifecycle.clone().expect("the seal froze its lifecycle");
+    drop(terminal);
+    drop(watch);
+
+    // The Diagnostic Lands After The Freeze, As Host Sampling Failures Do On A Wedged Machine.
+    runtime.add_health_item(member.scope.clone(), dokime_domain::model::execution::HealthSeverity::Error, "late diagnostic".into(), None).await.unwrap();
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+    drop(owner);
+
+    // Still Unsealable: The Runtime Boots And Leaves The Cycle For A Later Seal.
+    let (mut owner, runtime) = started_with_fixture(config(root.path()), fixture()).await;
+    let reopened = runtime.watch_state().latest().state().cycle_view(&test_cycle_id).expect("the unsealed cycle stays live");
+    assert!(reopened.saved.is_none());
+    assert!(reopened.test_executions[0].saved.is_none());
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+    drop(owner);
+
+    // Once Reports Encode, Startup Seals The Member From Its Original Frozen Revision.
+    refuse.store(false, std::sync::atomic::Ordering::SeqCst);
+    let (mut owner, runtime) = started_with_fixture(config(root.path()), fixture()).await;
+    let sealed = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &test_cycle_id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(sealed.value.saved.is_some(), "startup seals the retried cycle");
+    let checkpoint = crate::service_support::native::checkpoint(&runtime, &member.test_execution_id).await;
+    let view = crate::service_support::native::open(&runtime, &checkpoint).await;
+    let seal = view.execution().saved.clone().expect("the member is sealed");
+    assert_eq!(seal.source.execution, frozen.execution, "the seal reproduces the frozen lifecycle revision");
+    assert_eq!(view.execution().status, member.status);
+    drop((view, sealed, runtime));
+    owner.shutdown().await.unwrap();
+}
+
 // A permanent finalization failure settles the run Failed with its cause and leaves the
 // recorded test outcome unchanged; a rerun on a runtime that can encode its report seals.
 pub(crate) async fn permanent_finalization_settles() {

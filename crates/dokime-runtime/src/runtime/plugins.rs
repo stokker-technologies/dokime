@@ -724,8 +724,14 @@ impl Runtime {
         if cycles.is_empty() {
             return Ok(());
         }
+        // One Unsealable Cycle Stays Retryable And Recorded; It Never Stops The Runtime From Booting.
         for cycle in cycles {
-            self.handle.seal_cycle_inner(cycle, crate::CommandContext::default()).await?;
+            let Err(error) = self.handle.seal_cycle_inner(cycle.clone(), crate::CommandContext::default()).await else { continue };
+            if self.handle.is_shutting_down() {
+                return Err(error);
+            }
+            tracing::error!(%cycle, %error, "cycle could not be sealed at startup; it stays open for a later seal");
+            self.handle.record_startup_seal_failure(&cycle, &error).await;
         }
         // The Stop Left These Active; Once Sealed They Are Served From Native History Like Any Earlier Session's.
         self.handle.commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() }).await.map_err(operation)?;
