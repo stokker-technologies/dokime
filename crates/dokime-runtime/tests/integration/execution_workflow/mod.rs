@@ -11,16 +11,16 @@
 
 /* === Modules === */
 
-pub(crate) mod steps;
-pub(crate) mod workflow;
 pub(crate) mod authoring;
 pub(crate) mod definition;
+pub(crate) mod embedded;
+pub(crate) mod prompts;
+pub(crate) mod queue;
+pub(crate) mod session;
 #[cfg(feature = "simulation")]
 pub(crate) mod simulation;
-pub(crate) mod embedded;
-pub(crate) mod session;
-pub(crate) mod queue;
-pub(crate) mod prompts;
+pub(crate) mod steps;
+pub(crate) mod workflow;
 
 /* === Re-Exports === */
 

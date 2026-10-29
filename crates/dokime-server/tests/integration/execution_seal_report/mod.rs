@@ -11,14 +11,14 @@
 
 /* === Modules === */
 
-mod planning;
 mod append;
+mod evidence;
+mod history;
+mod notes;
+mod planning;
 mod prompts;
 mod records;
-mod notes;
-mod evidence;
 mod traceability;
-mod history;
 
 /* === Re-Exports === */
 

@@ -11,9 +11,9 @@
 
 /* === Modules === */
 
-mod settings;
 mod appearance;
 mod authorization;
+mod settings;
 
 /* === Re-Exports === */
 

@@ -177,7 +177,6 @@ pub(super) async fn telemetry_batches_sample() {
 }
 
 pub(super) async fn record_history_ranges(runtime: &RuntimeHandle) {
-
     runtime.publish_product_record(product_calibration(ProductCalibrationPhase::Started)).await.unwrap();
     for index in 0..520 {
         runtime

@@ -18,9 +18,9 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::telemetry::validate_telemetry_sample;
 use dokime_domain::model;
 use dokime_host::{HostOptions, HostTelemetryStream, host_telemetry_contracts};
-use dokime::telemetry::validate_telemetry_sample;
 use model::telemetry::{TelemetryBatch, TelemetrySample, ValidationMode};
 use model::values::Value;
 

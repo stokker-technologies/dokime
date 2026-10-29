@@ -1186,7 +1186,11 @@ pub(crate) async fn step_failure_isolation() {
     let panic_detail = self::detail(&replies);
     assert_eq!(panic_detail.message, format!("step `start` failed in {TEMPLATE}"));
     assert_eq!(panic_detail.chain, vec!["plugin panicked: the probe blew up"]);
-    assert!(panic_detail.location.replace('\\', "/").contains("tests/integration/execution_workflow/workflow.rs"), "{}", panic_detail.location);
+    assert!(
+        panic_detail.location.replace('\\', "/").contains("tests/integration/execution_workflow/workflow.rs"),
+        "{}",
+        panic_detail.location
+    );
     assert!(!outcome(&replies).0.passed);
 
     // A Later Run Completes On The Same Workflow

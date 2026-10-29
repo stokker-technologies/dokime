@@ -21,10 +21,10 @@
 
 // Local Imports
 use crate::support::*;
-use dokime_domain::model;
-use dokime_host::HostTelemetryStream;
 use dokime::telemetry::TelemetryRow;
 use dokime::telemetry::validate_telemetry_sample;
+use dokime_domain::model;
+use dokime_host::HostTelemetryStream;
 use model::telemetry::{TelemetryBatch, TelemetrySample};
 use model::telemetry::{ValidationMode, host_telemetry_contract};
 

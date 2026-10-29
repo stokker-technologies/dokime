@@ -44,8 +44,7 @@ use model::execution::notes::NoteOwner;
 pub(super) async fn empty_cycle_datasets(owner: &Runtime) {
     let runtime = owner.handle();
     let metadata = Metadata::new(Identifier::new("notes.fixture").unwrap(), "Notes", None);
-    let cycle =
-        runtime.create_cycle(CycleDefinition { metadata, continue_automatically: false }, CommandContext::default()).await.unwrap();
+    let cycle = runtime.create_cycle(CycleDefinition { metadata, continue_automatically: false }, CommandContext::default()).await.unwrap();
     let request = CreateNote {
         epoch: runtime.process_epoch(),
         mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),

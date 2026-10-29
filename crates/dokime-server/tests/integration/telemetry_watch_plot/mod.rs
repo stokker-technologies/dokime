@@ -11,9 +11,9 @@
 
 /* === Modules === */
 
-mod telemetry;
-mod query;
 mod plots;
+mod query;
+mod telemetry;
 
 /* === Re-Exports === */
 

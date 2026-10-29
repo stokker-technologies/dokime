@@ -11,21 +11,21 @@
 
 /* === Modules === */
 
+pub(crate) mod artifacts;
+pub(crate) mod cancel;
+pub(crate) mod contention;
 pub(crate) mod cycles;
-pub(crate) mod records;
+pub(crate) mod diagnostics;
 pub(crate) mod lifecycle;
 pub(crate) mod planning;
+pub(crate) mod reboot;
+pub(crate) mod records;
+pub(crate) mod report_cancellation;
+pub(crate) mod report_publication;
+pub(crate) mod report_restart;
 pub(crate) mod run;
 pub(crate) mod storage;
 pub(crate) mod streams;
-pub(crate) mod artifacts;
-pub(crate) mod cancel;
-pub(crate) mod reboot;
-pub(crate) mod diagnostics;
-pub(crate) mod contention;
-pub(crate) mod report_publication;
-pub(crate) mod report_restart;
-pub(crate) mod report_cancellation;
 
 /* === Re-Exports === */
 

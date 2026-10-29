@@ -40,7 +40,6 @@ use dokime_domain::model;
 // the default document shows every section in one composed order.
 
 pub(super) async fn default_document_order(runtime: &RuntimeHandle) {
-
     let suite = suite_with_authored_document();
     register_custom_suite(runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(runtime, suite).await;

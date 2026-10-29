@@ -11,8 +11,8 @@
 
 /* === Modules === */
 
-mod plugins;
 mod plugin_admission;
+mod plugins;
 
 /* === Re-Exports === */
 

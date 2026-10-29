@@ -12,8 +12,8 @@
 /* === Modules === */
 
 mod content;
-mod media;
 mod file_watch;
+mod media;
 
 /* === Re-Exports === */
 
