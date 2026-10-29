@@ -23,6 +23,7 @@ version = { workspace = true }
 
 [features]
 default = []
+distribution = ["dep:flate2", "dep:harmos-packaging", "dep:sha2", "dep:tar", "dep:zip"]
 plugin-sidecar = ["native", "derive"]
 # Plugin Is An Alias For The Native Sidecar Authoring Surface.
 plugin = ["plugin-sidecar"]
@@ -55,6 +56,8 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos-packaging = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
 
 # Serialization
 serde_json = { workspace = true }
@@ -63,6 +66,9 @@ serde_json = { workspace = true }
 clap = { workspace = true }
 
 # Filesystem
+flate2 = { workspace = true, optional = true }
+tar = { workspace = true, optional = true }
+zip = { workspace = true, features = ["deflate-flate2-zlib-rs"], optional = true }
 
 # Parsing
 
