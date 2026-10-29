@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/check.yml; sha256:f71f56b847406b3b25c973d7549782a168d705fe10164d3dcd6fca6ab39f175c
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/check.yml; sha256:529eb6d411e726842b45f42350e804ef23d1213abae4e08428146cf441908458
 Check / Repository:
   stage: Check
   tags:
@@ -99,3 +99,10 @@ Review / Release:
     - target/ci/validated.env
     reports:
       dotenv: target/ci/validated.env
+  before_script:
+  - python3 .gitlab/actions/setup/run.py --platform unix
+  - mise trust --yes
+  - mise install --yes
+  - >-
+    provider_environment="$(python3 .gitlab/actions/setup/run.py --glab-version
+    1.124.0 --emit-shell)" || exit $?; eval "$provider_environment"

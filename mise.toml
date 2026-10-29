@@ -42,9 +42,7 @@ taplo = "0.10.0"
 protoc = "36.2"
 
 # Release And Signing
-gh = "2.102.0"
 git-cliff = "2.14.2"
-glab = "1.123.0"
 minisign = "0.12"
 
 # Project Statistics

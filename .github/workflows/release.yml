@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:a8a23fc66511c87e1d9bf1e9911a984a11b560bfbcf81639f54e658dbdc014aa
+# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:7dbc776d923c426e13a817bd249913caf13b36cda9fff1f328c46efbd129cbb9
 name: Release
 "on":
   workflow_dispatch: {}
@@ -98,7 +98,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
       RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       GH_TOKEN: ${{ github.token }}
       CRATES_BOOTSTRAP_AVAILABLE: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
@@ -185,7 +185,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       PROFILE: ${{ needs.validated.outputs.review_profile }}
       RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
@@ -333,7 +333,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
@@ -396,7 +396,7 @@ jobs:
       pull-requests: read
       actions: read
     env:
-      MISE_ENABLE_TOOLS: gh,python
+      MISE_ENABLE_TOOLS: python
     outputs:
       validated: ${{ steps.review.outputs.validated }}
       review_run: ${{ steps.review.outputs.review_run }}
@@ -887,7 +887,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
       MISE_TASK_SKIP: package:python,package:rust
       PROFILE: ${{ needs.validated.outputs.review_profile }}
       RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}

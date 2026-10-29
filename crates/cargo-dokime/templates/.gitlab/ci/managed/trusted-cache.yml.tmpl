@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/trusted-cache.yml; sha256:57884e03e950d1ae1a175511b11d76d5b8a805b25ced7adda635f4835d532228
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/trusted-cache.yml; sha256:81b4ab7072ab81c68d3c244c0d2739482ccf8159ad4671af86e8023293bfe3b6
 Check / Repository:
   cache:
   - key:
@@ -475,7 +475,7 @@ Release / Publish:
     - .cache/uv/
     policy: $CACHE_POLICY
   variables:
-    MISE_ENABLE_TOOLS: go,python,rust,uv,gh,git-cliff,glab
+    MISE_ENABLE_TOOLS: go,python,rust,uv,git-cliff,glab
     REVIEW_RESTORE: "true"
     REVIEW_PACKAGES: "[]"
     CACHE_POLICY: pull-push

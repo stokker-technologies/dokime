@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:4c38aad2fb3e60298e8d6b3ab7a48a027ca035cb5bcfbea9315354362d6ab367
+# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:f1d625e2e8ea02850eabf1dd4b320e2d5e29dff472509069821f0bfa1326d98d
 name: Release
 "on":
   workflow_dispatch: {}
@@ -98,7 +98,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: git-cliff,go,python,rust,sccache,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       COMPILER_CACHE_MODE: >-
@@ -159,7 +159,7 @@ jobs:
       pull-requests: read
       actions: read
     env:
-      MISE_ENABLE_TOOLS: gh,python
+      MISE_ENABLE_TOOLS: python
     outputs:
       validated: ${{ steps.review.outputs.validated }}
       review_run: ${{ steps.review.outputs.review_run }}

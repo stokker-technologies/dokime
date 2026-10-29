@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:7badd11293f9e53a22e6ee24e810d45db8284f93570a902e5561625b0fa2fc82
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:a65a16929ab89210d4ec21f081bfbfb634d04e39b05cbcf139a3fb795eee664e
 name: CI / Nightly
 "on":
   schedule:
@@ -341,7 +341,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache

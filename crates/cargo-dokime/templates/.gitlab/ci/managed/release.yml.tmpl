@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:ff50c60acdf4273f240cce4429a5918fd2d4559dc0a3bd64e6aa24855efec4ac
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:aea5012f225c616c1d9f3e3abbc2b1505485ae3250a3d25e97b26ca7d555c3c9
 Release / Publish:
   stage: Release
   tags:
@@ -14,7 +14,7 @@ Release / Publish:
   rules:
   - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v[0-9]/
   variables:
-    MISE_ENABLE_TOOLS: go,python,rust,uv,gh,git-cliff,glab
+    MISE_ENABLE_TOOLS: go,python,rust,uv,git-cliff,glab
     REVIEW_RESTORE: "true"
     REVIEW_PACKAGES: "[]"
   environment:
@@ -27,3 +27,10 @@ Release / Publish:
     artifacts: true
   resource_group: release-publication
   interruptible: false
+  before_script:
+  - python3 .gitlab/actions/setup/run.py --platform unix
+  - mise trust --yes
+  - mise install --yes
+  - >-
+    provider_environment="$(python3 .gitlab/actions/setup/run.py --glab-version
+    1.124.0 --emit-shell)" || exit $?; eval "$provider_environment"
