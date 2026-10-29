@@ -499,36 +499,6 @@ run = [
 
 # === CI === #
 
-[tasks.ci]
-description = "Run The CI Flow Locally"
-run = [
-  { task = "check" },
-  { task = "build" },
-  { task = "build:rust:tests" },
-  { task = "check:python:generated" },
-  { task = "check:typescript:generated" },
-  { task = "test" },
-  { task = "package" },
-  { task = "release:publish:dry" },
-]
-
-[tasks."ci:nightly"]
-description = "Run Full Nightly Release Artifacts, Tests, Coverage And Benchmarks"
-run = [
-  { task = "check" },
-  { task = "build --profile release" },
-  { task = "build:rust:tests --profile release" },
-  { task = "check:python:generated --profile release" },
-  { task = "check:typescript:generated --profile release" },
-  { task = "test --profile release" },
-  { task = "test:rust:starter --profile release" },
-  { task = "package --profile release" },
-  { task = "test:rust:coverage --profile release" },
-  { task = "test:python:coverage --profile release" },
-  { task = "build:rust:bench" },
-  { task = "bench" },
-]
-
 [tasks."ci:simulate"]
 description = "Simulate The Declared CI Graph Locally"
 usage = '''
@@ -539,10 +509,6 @@ flag "--executor <executor>"
 run = "{{vars.tools}} dokime_tools.ci.simulate {% if usage.pipeline %}--pipeline {{usage.pipeline}}{% endif %} {% if usage.platform %}--platform {{usage.platform}}{% endif %} {% if usage.executor %}--executor {{usage.executor}}{% endif %}"
 
 # === Release === #
-
-[tasks.release]
-description = "Prepare And Validate A Release"
-run = [{ task = "release:prepare" }, { task = "ci" }, { task = "build --profile release" }]
 
 [tasks."release:prepare"]
 description = "Prepare The Release Branch"
