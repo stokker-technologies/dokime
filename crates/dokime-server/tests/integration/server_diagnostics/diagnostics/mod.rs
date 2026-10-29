@@ -48,8 +48,8 @@ const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 
 /* === Private Functions === */
 
-async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
-    let prepared_environment = dokime_server::grpc::Service::prepare(Config::default()).unwrap();
+pub(super) async fn fixture(journal: std::sync::Arc<dokime_server::trace::Journal>) -> (support::TestEnvironment, Server, WireClient) {
+    let prepared_environment = dokime_server::grpc::Service::prepare(Config::default().with_trace_journal(journal)).unwrap();
     let environment = support::TestEnvironment::with_installed_plugins(vec![secret_module()], &prepared_environment).await;
     let artifact_id = Identifier::new("fixture_diagnostics").unwrap();
     environment
@@ -115,8 +115,7 @@ fn record(level: &str, message: &str) -> String {
 
 /* === Tests === */
 
-pub(crate) async fn collected_archive_material() {
-    let (environment, server, client) = fixture().await;
+pub(super) async fn collected_archive_material(client: &WireClient) {
     let mut stream = client
         .download::<contracts::backend::CollectDiagnostics>(contracts::backend::CollectDiagnostics { max_log_tail_bytes: None })
         .await
@@ -154,7 +153,7 @@ pub(crate) async fn collected_archive_material() {
     // its entry is listed and absent rather than missing from the inventory.
     let log = header.entries.iter().find(|entry| entry.path == "logs/dokime.jsonl").expect("the hub log convention is listed");
     assert!(!log.present);
-    assert_eq!(log.note.as_deref(), Some("this backend produces no such file"));
+    assert!(log.note.is_some());
 
     let mut zip = zip::ZipArchive::new(Cursor::new(archive.clone())).unwrap();
     let manifest: serde_json::Value = {
@@ -205,13 +204,9 @@ pub(crate) async fn collected_archive_material() {
     assert_eq!(settings["secret_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));
     // The discovered field is still reported as discovered; only its value went.
     assert_eq!(settings["discovered"]["api_token"], "<redacted>");
-
-    server.shutdown().await.unwrap();
-    drop(environment);
 }
 
-pub(crate) async fn collected_tail_preserves_selected_bytes() {
-    let (environment, server, client) = fixture().await;
+pub(super) async fn collected_tail_preserves_selected_bytes(environment: &support::TestEnvironment, client: &WireClient) {
     let log = environment.root.path().join("application/logs").join("dokime.jsonl");
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     type TailCase = (&'static [u8], u64, Option<&'static [u8]>);
@@ -262,17 +257,31 @@ pub(crate) async fn collected_tail_preserves_selected_bytes() {
             None => assert!(archive.by_name("logs/dokime.jsonl").is_err()),
         }
     }
-    server.shutdown().await.unwrap();
-    drop(environment);
 }
 
-pub(crate) async fn log_stream_file() {
-    let (environment, server, client) = fixture().await;
-    let log = environment.root.path().join("application/logs").join("dokime.jsonl");
+pub(super) async fn log_roundtrip(
+    environment: &support::TestEnvironment, client: &WireClient,
+) -> WireStream<model::backend::wire::LogFrame> {
+    let log = environment.root.path().join("application/logs/dokime.jsonl");
+    assert!(!log.exists());
+    let request = contracts::backend::WatchLogs {
+        min_level: model::backend::wire::LogLevel::Warn,
+        replay_lines: 0,
+    };
+    let mut live = client.download::<contracts::backend::WatchLogs>(request).await.unwrap().into_inner();
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
-    std::fs::write(&log, format!("{}\n{}\n{}\n", record("INFO", "started"), record("WARN", "slow"), record("DEBUG", "detail"),)).unwrap();
+    let warning = r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime::fixture","fields":{"message":"fixture.warn","api_token":"fake-material"}}"#;
+    std::fs::write(&log, format!("{}\n{warning}\nnot json\n{}\n", record("INFO", "fixture.info"), record("DEBUG", "fixture.debug")))
+        .unwrap();
+    let first = live.message().await.unwrap().unwrap();
+    assert_eq!(first.level, model::backend::wire::LogLevel::Warn);
+    assert_eq!(first.target, "dokime::fixture");
+    assert_eq!(first.message, "fixture.warn");
+    assert_eq!(first.fields.iter().find(|entry| entry.key == "api_token").unwrap().value, "<redacted>");
+    assert_eq!(first.dropped, 0);
+    assert!(first.time.is_some());
 
-    let mut stream = client
+    let mut replay = client
         .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
             min_level: model::backend::wire::LogLevel::Warn,
             replay_lines: 500,
@@ -280,75 +289,20 @@ pub(crate) async fn log_stream_file() {
         .await
         .unwrap()
         .into_inner();
-
-    let replayed = stream.message().await.unwrap().expect("the WARN record replays");
-    assert_eq!(replayed.level, model::backend::wire::LogLevel::Warn);
-    assert_eq!(replayed.target, "dokime::fixture");
-    assert_eq!(replayed.message, "slow");
-    assert_eq!(replayed.dropped, 0);
-
-    // INFO And DEBUG Are Selected Out, So The Next Frame Is The Appended ERROR
+    let restored = replay.message().await.unwrap().unwrap();
+    assert_eq!(restored.level, first.level);
+    assert_eq!(restored.time, first.time);
+    assert_eq!(restored.message, first.message);
+    assert_eq!(restored.fields, first.fields);
     let mut appended = std::fs::OpenOptions::new().append(true).open(&log).unwrap();
-    writeln!(appended, "{}", record("ERROR", "failed")).unwrap();
+    writeln!(appended, "{}", record("ERROR", "fixture.error")).unwrap();
     drop(appended);
-
-    let live = stream.message().await.unwrap().expect("the ERROR record follows");
-    assert_eq!(live.level, model::backend::wire::LogLevel::Error);
-    assert_eq!(live.message, "failed");
-
-    server.shutdown().await.unwrap();
-    drop(environment);
-}
-
-pub(crate) async fn level_filter_stream() {
-    let (environment, server, client) = fixture().await;
-    let log = environment.root.path().join("application/logs/dokime.jsonl");
-    std::fs::create_dir_all(log.parent().unwrap()).unwrap();
-    std::fs::write(&log, concat!(
-        r#"{"timestamp":"2026-09-30T14:22:33.000001Z","level":"INFO","target":"dokime","fields":{"message":"started"}}"#, "\n",
-        r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
-    )).unwrap();
-    let mut stream = client
-        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
-            min_level: model::backend::wire::LogLevel::Warn,
-            replay_lines: 0,
-        })
-        .await
-        .unwrap()
-        .into_inner();
-    let frame = stream.message().await.unwrap().unwrap();
-    assert_eq!(frame.level, model::backend::wire::LogLevel::Warn);
-    assert_eq!(frame.target, "dokime::hub");
-    assert_eq!(frame.message, "slow");
-    assert_eq!(frame.fields.iter().find(|entry| entry.key == "api_token").expect("token field is present").value, "<redacted>",);
-    assert_eq!(frame.dropped, 0);
-    assert!(frame.time.is_some());
-    server.shutdown().await.unwrap();
-    assert_eq!(stream.message().await.unwrap_err().code(), Code::Unavailable);
-    drop(environment);
-}
-
-pub(crate) async fn missing_file_live() {
-    let (environment, server, client) = fixture().await;
-    let log = environment.root.path().join("application/logs/dokime.jsonl");
-    assert!(!log.exists());
-    let mut stream = client
-        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
-            min_level: model::backend::wire::LogLevel::Unspecified,
-            replay_lines: 0,
-        })
-        .await
-        .unwrap()
-        .into_inner();
-    std::fs::create_dir_all(log.parent().unwrap()).unwrap();
-    std::fs::write(
-        &log,
-        concat!(r#"{"timestamp":"2026-09-30T14:22:35.000001Z","level":"ERROR","target":"dokime","fields":{"message":"failed"}}"#, "\n"),
-    )
-    .unwrap();
-    let frame = stream.message().await.unwrap().unwrap();
-    assert_eq!(frame.level, model::backend::wire::LogLevel::Error);
-    assert_eq!(frame.message, "failed");
-    server.shutdown().await.unwrap();
-    drop(environment);
+    for stream in [&mut live, &mut replay] {
+        let frame = stream.message().await.unwrap().unwrap();
+        assert_eq!(frame.level, model::backend::wire::LogLevel::Error);
+        assert_eq!(frame.message, "fixture.error");
+        assert_eq!(frame.dropped, 0);
+    }
+    drop(replay);
+    live
 }

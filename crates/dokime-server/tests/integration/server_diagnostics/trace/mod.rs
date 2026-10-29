@@ -9,7 +9,6 @@
 
 /* === Modules === */
 
-pub(crate) mod journal;
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -63,12 +62,7 @@ fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::
 
 /* === Tests === */
 
-pub(crate) async fn trace_watch_replays() {
-    let journal = Journal::new(dokime_server::trace::Limits::default());
-    let prepared_environment = dokime_server::grpc::Service::prepare(Config::default().with_trace_journal(journal.clone())).unwrap();
-    let environment = support::TestEnvironment::with_installed_plugins(Vec::new(), &prepared_environment).await;
-    let server = prepared_environment.ready().await.unwrap().listen().await.unwrap();
-    let client = connect(&server).await;
+pub(super) async fn roundtrip(environment: &support::TestEnvironment, client: &WireClient, journal: &std::sync::Arc<Journal>) {
     let execution = uuid::Uuid::now_v7().to_string();
     emit(journal.clone(), &execution, 3);
     let mut stream = client.download::<contracts::backend::WatchTrace>(request(&execution, 0, false)).await.unwrap().into_inner();
@@ -111,18 +105,16 @@ pub(crate) async fn trace_watch_replays() {
             .into_inner();
         assert_eq!(invalid.message().await.unwrap_err().code(), Code::OutOfRange);
     }
-    server.shutdown().await.unwrap();
-}
 
-pub(crate) async fn trace_watch_follows() {
-    let journal = Journal::new(dokime_server::trace::Limits::default());
-    let prepared_environment = dokime_server::grpc::Service::prepare(Config::default().with_trace_journal(journal.clone())).unwrap();
-    let _environment = support::TestEnvironment::with_installed_plugins(Vec::new(), &prepared_environment).await;
-    let server = prepared_environment.ready().await.unwrap().listen().await.unwrap();
-    let client = connect(&server).await;
-    let execution = uuid::Uuid::now_v7().to_string();
     emit(journal.clone(), &execution, 1);
-    let mut stream = client.download::<contracts::backend::WatchTrace>(request(&execution, 0, true)).await.unwrap().into_inner();
+    let mut stream = client
+        .download::<contracts::backend::WatchTrace>(contracts::backend::WatchTrace {
+            epoch: Some(first.epoch.clone()),
+            ..request(&execution, second.next_sequence, true)
+        })
+        .await
+        .unwrap()
+        .into_inner();
     let initial = stream.message().await.unwrap().unwrap();
     assert_eq!(initial.events.len(), 1);
     emit(journal.clone(), &execution, 1);
@@ -130,5 +122,15 @@ pub(crate) async fn trace_watch_follows() {
     assert_eq!(live.events.len(), 1);
     assert!(live.next_sequence > initial.next_sequence);
     drop(stream);
-    server.shutdown().await.unwrap();
+    let mut reconnect = client
+        .download::<contracts::backend::WatchTrace>(contracts::backend::WatchTrace {
+            epoch: Some(first.epoch.clone()),
+            ..request(&execution, initial.next_sequence, false)
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let recovered = reconnect.message().await.unwrap().unwrap();
+    assert_eq!(recovered.events, live.events);
+    assert!(reconnect.message().await.unwrap().is_none());
 }
