@@ -277,6 +277,9 @@ pub(crate) async fn permanent_finalization_settles() {
         "the watch stream carries the terminal diagnosis: {diagnosis:?}"
     );
     assert!(diagnosis.as_deref().is_some_and(|cause| cause.contains(UNENCODABLE)), "the diagnosis names the injected cause: {diagnosis:?}");
+    // Stopping The Unsealed Execution Retries Its Report And Answers With The Operator Code, Not The Internal Chain.
+    let stopped = runtime.stop_execution(failed_id.clone(), CommandContext::default()).await.unwrap_err();
+    assert_eq!(stopped.code(), Some("report_not_saved"), "{stopped:?}");
     drop(terminal);
     drop(watch);
     drop(runtime);

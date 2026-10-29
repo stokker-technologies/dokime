@@ -379,7 +379,10 @@ pub(super) async fn snapshot(acquisition: &mut Acquisition, finalizing: bool) ->
             }
         }
         let session = acquisition.storage.clone();
-        let frozen = match freeze(&session, source).await {
+        let frozen = freeze(&session, source)
+            .await
+            .inspect_err(|error| tracing::warn!(output = path.as_str(), file = %source.file.path().display(), %error, "native output freeze failed"));
+        let frozen = match frozen {
             Ok(frozen) => frozen,
             Err(failure) if finalizing => {
                 interrupt_source(&acquisition.storage, &acquisition.execution_id, path, source).await?;
@@ -423,7 +426,9 @@ fn output_state(closed: Option<SavedStreamState>) -> ExecutionFileStreamState {
 
 async fn finish_snapshot(storage: &Manager, path: &str, source: &mut NativeOutput) -> Result<()> {
     let pending = source.pending.as_mut().expect("original frozen snapshot retained");
-    let reference = pending.finish(storage).await?;
+    // Name The Output Whose Capture Failed; The Storage Error Carries No Path.
+    let finished = pending.finish(storage).await;
+    let reference = finished.inspect_err(|error| tracing::warn!(output = path, %error, "native output capture failed"))?;
     let descriptor = ExecutionOutput {
         relative_path: path.to_owned(),
         created_at: source.created_at.clone(),
