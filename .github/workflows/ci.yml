@@ -1905,7 +1905,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-build_product-${{ (github.event_name ==
+        ci-${{ github.workflow }}-build_product-${{ matrix.platform }}-${{ (github.event_name ==
         'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   build_tests:
@@ -2157,7 +2157,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-build_tests-${{ (github.event_name == 'pull_request'
+        ci-${{ github.workflow }}-build_tests-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
         || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   check_rust:
@@ -2376,7 +2376,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-check_rust-${{ (github.event_name == 'pull_request'
+        ci-${{ github.workflow }}-check_rust-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
         || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   package_rust:
@@ -2973,7 +2973,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-package_rust-${{ (github.event_name == 'pull_request'
+        ci-${{ github.workflow }}-package_rust-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
         || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_rust_acceptance:
@@ -3347,7 +3347,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_acceptance-${{ (github.event_name
+        ci-${{ github.workflow }}-validate_test_rust_acceptance-${{ matrix.platform }}-${{ (github.event_name
         == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id
         }}
       cancel-in-progress: true
@@ -3580,7 +3580,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_integration-${{ (github.event_name
+        ci-${{ github.workflow }}-validate_test_rust_integration-${{ matrix.platform }}-${{ (github.event_name
         == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id
         }}
       cancel-in-progress: true
@@ -3896,7 +3896,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_system-${{ (github.event_name ==
+        ci-${{ github.workflow }}-validate_test_rust_system-${{ matrix.platform }}-${{ (github.event_name ==
         'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_rust_unit:
@@ -4125,7 +4125,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_unit-${{ (github.event_name ==
+        ci-${{ github.workflow }}-validate_test_rust_unit-${{ matrix.platform }}-${{ (github.event_name ==
         'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_typescript_system:
@@ -4443,7 +4443,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_typescript_system-${{
+        ci-${{ github.workflow }}-validate_test_typescript_system-${{ matrix.platform }}-${{
         (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref ||
         github.run_id }}
       cancel-in-progress: true
