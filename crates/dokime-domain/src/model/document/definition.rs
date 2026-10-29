@@ -1820,7 +1820,7 @@ impl Plot {
 
     pub fn wifi_channel_occupancy(label: impl Into<String>) -> PlotDefinition {
         let mut plot = PlotDefinition::with_type(label, PlotType::WifiChannelOccupancy);
-        plot.stream = Some("host.wifi.channel_occupancy".to_owned());
+        plot.stream = Some("host.wifi.scan".to_owned());
         plot.x = Some("timestamp".to_owned());
         plot.y = vec!["network_count".to_owned()];
         plot.series_by = Some("wifi_channel".to_owned());
@@ -2354,8 +2354,8 @@ fn validate_wifi_channel_occupancy<E>(plot: &PlotDefinition, error: &impl Fn(std
         return Err(error(format_args!("wifi_channel_occupancy uses fixed host columns; remove axis and grouping expressions")));
     }
 
-    if plot.stream.as_deref() != Some("host.wifi.channel_occupancy") {
-        return Err(error(format_args!("wifi_channel_occupancy plots must use stream host.wifi.channel_occupancy")));
+    if plot.stream.as_deref() != Some("host.wifi.scan") {
+        return Err(error(format_args!("wifi_channel_occupancy plots must use stream host.wifi.scan")));
     }
     if plot.x.as_deref() != Some("timestamp") {
         return Err(error(format_args!("wifi_channel_occupancy plots must use timestamp as x field")));

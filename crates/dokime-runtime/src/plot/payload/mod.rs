@@ -64,7 +64,7 @@ use dokime_domain::model::values::datetime_seconds;
 
 /* === Constants === */
 
-const WIFI_CONTEXT_STREAM: &str = "host.wifi";
+const WIFI_CONTEXT_STREAM: &str = "host.wifi.link";
 const MARKER_COLORS: [&str; 8] = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899"];
 
 /* === Macros === */

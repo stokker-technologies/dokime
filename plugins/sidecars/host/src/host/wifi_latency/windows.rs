@@ -23,8 +23,7 @@ impl Operation for WifiLatency {
         let state = ctx.resource::<tokio::sync::Mutex<State>>().clone();
         let task = ctx.resource::<crate::Workers>().0.spawn_blocking(move || {
             let mut state = state.blocking_lock();
-            let options = state.options.clone();
-            let samples = state.collector.collect_latency_with_options(&options)?;
+            let samples = state.collector.collect()?;
             vec![samples]
                 .into_iter()
                 .map(|sample| {

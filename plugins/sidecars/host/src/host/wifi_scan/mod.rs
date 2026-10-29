@@ -38,13 +38,13 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 /* === Structs === */
 
 #[dokime::operation(
-    id = "host.wifi.channel_occupancy.collect",
+    id = "host.wifi.scan.collect",
     response = Samples,
     policy = POLICY,
     resources = [tokio::sync::Mutex<State>, crate::Workers]
 )]
 #[derive(Clone, Default, PartialEq)]
-pub struct WifiChannelOccupancy {}
+pub struct WifiScan {}
 
 #[dokime::message]
 #[derive(Clone, PartialEq)]
@@ -55,26 +55,26 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::WifiChannelOccupancy,
+    pub row: dokime::host::WifiScan,
     pub timestamp_micros: i64,
 }
 
 /* === Implementations === */
 
-impl dokime::StreamSpec for WifiChannelOccupancy {
-    type Row = dokime::host::WifiChannelOccupancy;
-    const ID: &'static str = "host.wifi.channel_occupancy";
+impl dokime::StreamSpec for WifiScan {
+    type Row = dokime::host::WifiScan;
+    const ID: &'static str = "host.wifi.scan";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::WifiChannelOccupancy as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <dokime::host::WifiScan as dokime::StreamSpec>::WINDOW;
 }
 
-impl TelemetryStream for WifiChannelOccupancy {
+impl TelemetryStream for WifiScan {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiChannelOccupancy).typed::<dokime::host::WifiChannelOccupancy>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiScan).typed::<dokime::host::WifiScan>()
     }
 }
 
-impl dokime::telemetry::OwnedStream for WifiChannelOccupancy {}
+impl dokime::telemetry::OwnedStream for WifiScan {}
 
 /* === Tests === */
 
@@ -85,17 +85,11 @@ mod tests {
 
     #[test]
     fn contract() {
-        let request = WifiChannelOccupancy {};
-        assert_eq!(<WifiChannelOccupancy as OperationDeclaration>::ID, "host.wifi.channel_occupancy.collect");
-        assert!(
-            <WifiChannelOccupancy as OperationDeclaration>::POLICY.timeout
-                >= <WifiChannelOccupancy as OperationDeclaration>::POLICY.attempt_timeout
-        );
-        assert!(!<WifiChannelOccupancy as OperationDeclaration>::POLICY.timeout.is_zero());
-        assert!(request == WifiChannelOccupancy::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(
-            WifiChannelOccupancy::contract().storage_schema,
-            <dokime::host::WifiChannelOccupancy as TelemetryStream>::contract().storage_schema
-        );
+        let request = WifiScan {};
+        assert_eq!(<WifiScan as OperationDeclaration>::ID, "host.wifi.scan.collect");
+        assert!(<WifiScan as OperationDeclaration>::POLICY.timeout >= <WifiScan as OperationDeclaration>::POLICY.attempt_timeout);
+        assert!(!<WifiScan as OperationDeclaration>::POLICY.timeout.is_zero());
+        assert!(request == WifiScan::decode(&request.encode()).expect("request round trip"));
+        assert_eq!(WifiScan::contract().storage_schema, <dokime::host::WifiScan as TelemetryStream>::contract().storage_schema);
     }
 }

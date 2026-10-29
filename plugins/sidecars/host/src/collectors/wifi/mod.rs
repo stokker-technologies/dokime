@@ -7,6 +7,10 @@
  * ***
  */
 
+// Three Wi-Fi Collectors, One Per Stream: The Link Queries The Current
+// Connection, The Scan Lists Nearby Networks And The Latency Probe Echoes A
+// Configured Target. None Reads Another's State.
+
 /* === Modules === */
 
 #[cfg(all(feature = "runtime", unix))]
@@ -27,7 +31,6 @@ pub use crate::platform::windows::wifi::WifiLink;
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -35,7 +38,9 @@ use std::{
 use sysinfo::Networks;
 
 // Local Imports
+use crate::platform::ScannedNetwork;
 use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
+use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
@@ -43,10 +48,7 @@ use dokime_domain::model::values::Value;
 const WIFI_CONGESTION_MODEL_24_GHZ: &str = "2.4ghz_adjacent_channel_v1";
 const WIFI_CONGESTION_MODEL_SAME_CHANNEL: &str = "same_channel_v1";
 const BITS_PER_MEGABIT: f64 = 1_000_000.0;
-const WIFI_5_GHZ_CHANNELS: &[u32] = &[
-    32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169,
-    173, 177,
-];
+const LOST_PERCENT: f64 = 100.0;
 
 /* === Macros === */
 
@@ -54,36 +56,35 @@ const WIFI_5_GHZ_CHANNELS: &[u32] = &[
 
 /* === Structs === */
 
-pub struct WifiCollector {
+pub struct WifiLinkCollector {
     sample_index: u64,
-    latency_sample_index: u64,
-    scan_index: u64,
     networks: Networks,
     last_network_refresh: Instant,
-    congestion_cache: Arc<Mutex<WifiCongestionCache>>,
     options: HostOptions,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct WifiChannelCount {
-    channel: u32,
-    network_count: u32,
+pub struct WifiScanCollector {
+    sample_index: u64,
+    last_active_scan: Option<Instant>,
+    options: HostOptions,
+}
+
+pub struct WifiLatencyCollector {
+    sample_index: u64,
+    options: HostOptions,
+}
+
+// What A Platform Scan Returned: Fresh From An Active Scan, Or The Cached List.
+pub(crate) struct ScanReport {
+    pub(crate) networks: Vec<ScannedNetwork>,
+    pub(crate) active: bool,
+    pub(crate) error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct WifiCongestionSummary {
-    active_channel: Option<u32>,
-    active_band: Option<String>,
-    same_channel_network_count: u32,
-    overlapping_network_count: u32,
-    overlap_weighted_network_count: f64,
+struct Congestion {
     score: Option<f64>,
     model: Option<&'static str>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct WifiCongestionCache {
-    latest: Option<WifiCongestionSummary>,
 }
 
 /* === Enums === */
@@ -92,51 +93,28 @@ pub(crate) struct WifiCongestionCache {
 
 /* === Implementations === */
 
-impl WifiCollector {
-    pub fn standalone(options: HostOptions) -> Self {
-        Self::new(options, WifiCongestionCache::shared())
-    }
-
-    pub(crate) fn new(options: HostOptions, congestion_cache: Arc<Mutex<WifiCongestionCache>>) -> Self {
+impl WifiLinkCollector {
+    pub fn new(options: HostOptions) -> Self {
         Self {
             sample_index: 0,
-            latency_sample_index: 0,
-            scan_index: 0,
             networks: Networks::new_with_refreshed_list(),
             last_network_refresh: Instant::now(),
-            congestion_cache,
             options,
         }
     }
 
-    pub fn collect_latency_with_options(&mut self, options: &HostOptions) -> Result<HostStreamSample> {
-        self.latency_sample_index += 1;
-        let host = options
-            .latency_host
-            .as_deref()
-            .or(self.options.latency_host.as_deref())
-            .filter(|host| !host.trim().is_empty())
-            .unwrap_or(crate::config::LATENCY_HOST)
-            .trim()
-            .to_owned();
+    pub fn collect(&mut self) -> Result<HostStreamSample> {
+        self.sample_index += 1;
         let mut values = BTreeMap::from([
-            ("sample_index".to_owned(), Value::Integer(self.latency_sample_index as i64)),
-            ("wifi_latency_host".to_owned(), Value::from(host.clone())),
+            ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
             ("probe_status".to_owned(), Value::from("unsupported")),
         ]);
-
-        match Self::round_trip_ms(&host, echo_timeout()) {
-            Ok(latency_ms) => {
-                values.insert("probe_status".to_owned(), Value::from("ok"));
-                values.insert("wifi_latency_ms".to_owned(), Value::from(latency_ms));
-            }
-            Err(error) => {
-                values.insert("probe_status".to_owned(), Value::from("error"));
-                values.insert("probe_error".to_owned(), Value::from(error));
-            }
+        let adapter = self.read_link(&mut values);
+        if let Some((received, sent)) = self.adapter_throughput(adapter.as_deref()) {
+            values.insert("wifi_rx_mbps".to_owned(), Value::from(received * 8.0 / BITS_PER_MEGABIT));
+            values.insert("wifi_tx_mbps".to_owned(), Value::from(sent * 8.0 / BITS_PER_MEGABIT));
         }
-
-        Ok(HostStreamSample::new(HostTelemetryStream::WifiLatency, values))
+        Ok(HostStreamSample::new(HostTelemetryStream::WifiLink, values))
     }
 
     fn adapter_throughput(&mut self, adapter: Option<&str>) -> Option<(f64, f64)> {
@@ -170,117 +148,130 @@ impl WifiCollector {
 
         matched.then_some((received as f64 / elapsed_s, transmitted as f64 / elapsed_s))
     }
+}
 
-    fn update_congestion_cache(&self, congestion: WifiCongestionSummary) {
-        self.congestion_cache.lock().expect("wifi congestion cache mutex is not poisoned").latest = Some(congestion);
+impl WifiScanCollector {
+    pub fn new(options: HostOptions) -> Self {
+        Self {
+            sample_index: 0,
+            last_active_scan: None,
+            options,
+        }
     }
 
-    fn insert_latest_congestion_fields(&self, values: &mut BTreeMap<String, Value>) {
-        let latest = self.congestion_cache.lock().expect("wifi congestion cache mutex is not poisoned").latest.clone();
-        let Some(congestion) = latest else {
-            return;
+    // One Row Per Observed Network; An Empty Or Failed Scan Is One Status Row.
+    pub fn collect(&mut self) -> Result<Vec<HostStreamSample>> {
+        self.sample_index += 1;
+        let now = Instant::now();
+        let minimum = self.options.minimum_scan_interval;
+        let active = self.last_active_scan.is_none_or(|last| now.duration_since(last) >= minimum);
+        let report = Self::scan(&self.options, active);
+        let timestamp = Timestamp::from_system_time(std::time::SystemTime::now());
+        let report = match report {
+            Ok(report) => report,
+            Err(error) => {
+                let values = self.status_row("error", Some(error));
+                return Ok(vec![HostStreamSample::with_timestamp(HostTelemetryStream::WifiScan, timestamp, values)]);
+            }
         };
-        maybe_insert(values, "active_wifi_channel", congestion.active_channel.map(|channel| Value::Integer(i64::from(channel))));
-        maybe_insert(values, "active_wifi_band", congestion.active_band.map(Value::from));
-        maybe_insert(values, "wifi_network_congestion_score", congestion.score.map(Value::from));
-        maybe_insert(values, "congestion_model", congestion.model.map(Value::from));
+        if report.active {
+            self.last_active_scan = Some(now);
+        }
+        let status = if report.active { "ok" } else { "cached" };
+        if report.networks.is_empty() {
+            let status = if report.error.is_some() { "error" } else { "unavailable" };
+            let values = self.status_row(status, report.error);
+            return Ok(vec![HostStreamSample::with_timestamp(HostTelemetryStream::WifiScan, timestamp, values)]);
+        }
+
+        let mut per_channel = BTreeMap::<u32, u32>::new();
+        for channel in report.networks.iter().filter_map(|network| network.channel) {
+            *per_channel.entry(channel).or_default() += 1;
+        }
+        let associated = report.networks.iter().find(|network| network.associated);
+        let active_channel = associated.and_then(|network| network.channel);
+        let active_ssid = associated.and_then(|network| network.ssid.clone());
+        let congestion = congestion(active_channel, &per_channel);
+        let total = report.networks.len();
+        let samples = report
+            .networks
+            .into_iter()
+            .map(|network| {
+                let mut values = BTreeMap::from([
+                    ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
+                    ("scan_status".to_owned(), Value::from(status)),
+                    ("associated".to_owned(), Value::from(network.associated)),
+                    ("scan_network_count".to_owned(), Value::Integer(total as i64)),
+                ]);
+                let channel_count = network.channel.and_then(|channel| per_channel.get(&channel)).copied().unwrap_or_default();
+                values.insert("network_count".to_owned(), Value::Integer(i64::from(channel_count)));
+                maybe_insert(&mut values, "scan_error", report.error.clone().map(Value::from));
+                maybe_insert(&mut values, "wifi_adapter", network.adapter.map(Value::from));
+                maybe_insert(&mut values, "wifi_ssid", network.ssid.map(Value::from));
+                maybe_insert(&mut values, "wifi_bssid", network.bssid.map(Value::from));
+                maybe_insert(&mut values, "wifi_signal_percent", network.signal_percent.map(Value::from));
+                maybe_insert(&mut values, "wifi_rssi_dbm", network.rssi_dbm.map(Value::from));
+                maybe_insert(&mut values, "wifi_channel", network.channel.map(|channel| Value::Integer(i64::from(channel))));
+                maybe_insert(&mut values, "wifi_band", network.channel.and_then(wifi_channel_band).map(Value::from));
+                maybe_insert(&mut values, "wifi_security", network.security.map(Value::from));
+                maybe_insert(&mut values, "active_wifi_channel", active_channel.map(|channel| Value::Integer(i64::from(channel))));
+                maybe_insert(&mut values, "active_wifi_band", active_channel.and_then(wifi_channel_band).map(Value::from));
+                maybe_insert(&mut values, "active_wifi_ssid", active_ssid.clone().map(Value::from));
+                maybe_insert(&mut values, "wifi_network_congestion_score", congestion.score.map(Value::from));
+                maybe_insert(&mut values, "congestion_model", congestion.model.map(Value::from));
+                HostStreamSample::with_timestamp(HostTelemetryStream::WifiScan, timestamp.clone(), values)
+            })
+            .collect();
+        Ok(samples)
+    }
+
+    fn status_row(&self, status: &str, error: Option<String>) -> BTreeMap<String, Value> {
+        let mut values = BTreeMap::from([
+            ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
+            ("scan_status".to_owned(), Value::from(status)),
+            ("scan_network_count".to_owned(), Value::Integer(0)),
+        ]);
+        maybe_insert(&mut values, "scan_error", error.map(Value::from));
+        values
     }
 }
 
-impl WifiCongestionCache {
-    pub(crate) fn shared() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::default()))
+impl WifiLatencyCollector {
+    pub fn new(options: HostOptions) -> Self {
+        Self { sample_index: 0, options }
+    }
+
+    // A Missing Reply Is Loss; Only A Probe That Cannot Run Is An Error.
+    pub fn collect(&mut self) -> Result<HostStreamSample> {
+        self.sample_index += 1;
+        let host =
+            self.options.latency_host.as_deref().map(str::trim).filter(|host| !host.is_empty()).unwrap_or(crate::config::LATENCY_HOST);
+        let mut values = BTreeMap::from([
+            ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
+            ("wifi_latency_host".to_owned(), Value::from(host)),
+        ]);
+        match Self::round_trip_ms(host, echo_timeout()) {
+            Ok(Some(latency_ms)) => {
+                values.insert("probe_status".to_owned(), Value::from("ok"));
+                values.insert("wifi_latency_ms".to_owned(), Value::from(latency_ms));
+                values.insert("wifi_packet_loss_percent".to_owned(), Value::from(0.0));
+            }
+            Ok(None) => {
+                values.insert("probe_status".to_owned(), Value::from("ok"));
+                values.insert("wifi_packet_loss_percent".to_owned(), Value::from(LOST_PERCENT));
+            }
+            Err(error) => {
+                values.insert("probe_status".to_owned(), Value::from("error"));
+                values.insert("probe_error".to_owned(), Value::from(error));
+            }
+        }
+        Ok(HostStreamSample::new(HostTelemetryStream::WifiLatency, values))
     }
 }
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
-fn wifi_congestion_summary(
-    active_channel: Option<u32>, active_band: Option<String>, channels: &[WifiChannelCount],
-) -> WifiCongestionSummary {
-    let Some(active_channel) = active_channel else {
-        return WifiCongestionSummary {
-            active_channel: None,
-            active_band,
-            same_channel_network_count: 0,
-            overlapping_network_count: 0,
-            overlap_weighted_network_count: 0.0,
-            score: None,
-            model: None,
-        };
-    };
-    let model = wifi_congestion_model(active_channel);
-    let mut same_channel_network_count = 0;
-    let mut overlapping_network_count = 0;
-    let mut overlap_weighted_network_count = 0.0;
-
-    for count in channels {
-        if count.channel == active_channel {
-            same_channel_network_count += count.network_count;
-        }
-        let weight = wifi_overlap_weight(active_channel, count.channel);
-        if weight > 0.0 {
-            overlapping_network_count += count.network_count;
-            overlap_weighted_network_count += f64::from(count.network_count) * weight;
-        }
-    }
-
-    WifiCongestionSummary {
-        active_channel: Some(active_channel),
-        active_band,
-        same_channel_network_count,
-        overlapping_network_count,
-        overlap_weighted_network_count,
-        score: Some((overlap_weighted_network_count * 10.0).min(100.0)),
-        model: Some(model),
-    }
-}
-
-fn insert_congestion_fields(
-    values: &mut BTreeMap<String, Value>, congestion: &WifiCongestionSummary, row_channel: Option<u32>, row_network_count: u32,
-) {
-    maybe_insert(values, "active_wifi_channel", congestion.active_channel.map(|channel| Value::Integer(i64::from(channel))));
-    maybe_insert(values, "active_wifi_band", congestion.active_band.clone().map(Value::from));
-    let active_channel = congestion.active_channel == row_channel;
-    values.insert("active_channel".to_owned(), Value::from(active_channel));
-    let overlap_weight = congestion.active_channel.zip(row_channel).map_or(0.0, |(active, channel)| wifi_overlap_weight(active, channel));
-    values.insert("overlap_weight".to_owned(), Value::from(overlap_weight));
-    values.insert("same_channel_network_count".to_owned(), Value::Integer(i64::from(congestion.same_channel_network_count)));
-    values.insert("overlapping_network_count".to_owned(), Value::Integer(i64::from(congestion.overlapping_network_count)));
-    values.insert("overlap_weighted_network_count".to_owned(), Value::from(congestion.overlap_weighted_network_count));
-    maybe_insert(values, "wifi_network_congestion_score", congestion.score.map(Value::from));
-    maybe_insert(values, "congestion_model", congestion.model.map(Value::from));
-    if active_channel && row_network_count == 0 {
-        values.insert("max_signal_percent".to_owned(), Value::Null);
-    }
-}
-
-fn dense_wifi_occupancy_channels(counts: &[WifiChannelCount], active_channel: Option<u32>) -> Vec<u32> {
-    let mut channels = BTreeMap::new();
-    for channel in 1..=14 {
-        channels.insert(channel, ());
-    }
-    for channel in WIFI_5_GHZ_CHANNELS {
-        channels.insert(*channel, ());
-    }
-    if active_channel.is_some_and(is_encoded_6ghz_channel) || counts.iter().any(|count| is_encoded_6ghz_channel(count.channel)) {
-        for channel in (1..=233).step_by(4) {
-            channels.insert(1_000 + channel, ());
-        }
-    }
-    if let Some(active_channel) = active_channel {
-        channels.insert(active_channel, ());
-    }
-    for count in counts {
-        channels.insert(count.channel, ());
-    }
-
-    channels.into_keys().collect()
-}
-
-fn wifi_channel_band(channel: u32) -> Option<String> {
+pub(crate) fn wifi_channel_band(channel: u32) -> Option<String> {
     match channel {
         1..=14 => Some("2.4GHz".to_owned()),
         32..=177 => Some("5GHz".to_owned()),
@@ -289,14 +280,30 @@ fn wifi_channel_band(channel: u32) -> Option<String> {
     }
 }
 
+/* === Private Functions === */
+
+// An Echo Waits Half Its Collection's Bound, So A Lost Reply Yields A Loss Sample Rather Than A Timed-Out Collection.
+fn echo_timeout() -> Duration {
+    crate::host::wifi_latency::POLICY.attempt_timeout / 2
+}
+
+// Networks On The Associated Channel Plus Overlapping 2.4 GHz Neighbours, Weighted By Overlap, Scaled To 0-100.
+fn congestion(active_channel: Option<u32>, per_channel: &BTreeMap<u32, u32>) -> Congestion {
+    let Some(active_channel) = active_channel else {
+        return Congestion { score: None, model: None };
+    };
+    let weighted =
+        per_channel.iter().map(|(channel, count)| f64::from(*count) * wifi_overlap_weight(active_channel, *channel)).sum::<f64>();
+    let model = if matches!(active_channel, 1..=14) { WIFI_CONGESTION_MODEL_24_GHZ } else { WIFI_CONGESTION_MODEL_SAME_CHANNEL };
+    Congestion {
+        score: Some((weighted * 10.0).min(100.0)),
+        model: Some(model),
+    }
+}
+
 fn is_encoded_6ghz_channel(channel: u32) -> bool {
     let display_channel = channel.saturating_sub(1_000);
     channel >= 1_000 && (1..=233).contains(&display_channel) && display_channel % 4 == 1
-}
-
-// An Echo Waits Half Its Collection's Bound, So A Lost Reply Yields An Error Sample Rather Than A Timed-Out Collection.
-fn echo_timeout() -> Duration {
-    crate::host::wifi_latency::POLICY.attempt_timeout / 2
 }
 
 fn wifi_overlap_weight(active_channel: u32, scanned_channel: u32) -> f64 {
@@ -310,15 +317,26 @@ fn wifi_overlap_weight(active_channel: u32, scanned_channel: u32) -> f64 {
     }
 }
 
-fn wifi_congestion_model(active_channel: u32) -> &'static str {
-    if matches!(active_channel, 1..=14) { WIFI_CONGESTION_MODEL_24_GHZ } else { WIFI_CONGESTION_MODEL_SAME_CHANNEL }
-}
-
 /* === Tests === */
 
-#[derive(Clone, Debug, Default, PartialEq)]
-struct ActiveWifiContext {
-    channel: Option<u32>,
-    band: Option<String>,
-    adapter: Option<String>,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn congestion_weighs_overlapping_channels() {
+        let per_channel = BTreeMap::from([(6, 2), (8, 1), (11, 4), (36, 3)]);
+        let congestion = congestion(Some(6), &per_channel);
+        assert_eq!(congestion.model, Some(WIFI_CONGESTION_MODEL_24_GHZ));
+        // Channel 6 Counts Fully, Channel 8 At 0.6, Channel 11 Not At All.
+        assert!((congestion.score.unwrap() - 26.0).abs() < 1e-9);
+        assert_eq!(super::congestion(None, &per_channel).score, None);
+    }
+
+    #[test]
+    fn six_gigahertz_channels_are_encoded() {
+        assert_eq!(wifi_channel_band(1_005).as_deref(), Some("6GHz"));
+        assert_eq!(wifi_channel_band(1_006), None);
+        assert_eq!(wifi_channel_band(36).as_deref(), Some("5GHz"));
+    }
 }

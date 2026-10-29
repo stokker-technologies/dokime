@@ -9,7 +9,7 @@
 
 /* === Imports === */
 
-use super::{Bluetooth, Network, System, Wifi, WifiChannelOccupancy, WifiLatency};
+use super::{Bluetooth, Network, System, WifiLatency, WifiLink, WifiScan};
 
 /* === Enums === */
 
@@ -17,9 +17,9 @@ use super::{Bluetooth, Network, System, Wifi, WifiChannelOccupancy, WifiLatency}
 pub enum Catalog {
     System(System),
     Network(Network),
-    Wifi(Wifi),
+    WifiLink(WifiLink),
+    WifiScan(WifiScan),
     WifiLatency(WifiLatency),
-    WifiChannelOccupancy(WifiChannelOccupancy),
     Bluetooth(Bluetooth),
 }
 

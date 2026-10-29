@@ -9,30 +9,28 @@
 
 /* === Imports === */
 
-use super::{Collected, Samples, State, WifiChannelOccupancy};
+use super::{Collected, Samples, State, WifiScan};
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::Refusal;
 use dokime::telemetry::TelemetryRow;
 
 /* === Implementations === */
 
-impl Operation for WifiChannelOccupancy {
+impl Operation for WifiScan {
     type Error = Refusal;
 
     async fn run(self, ctx: Context<'_, Self>) -> Result<Response<Samples>, Refusal> {
         let state = ctx.resource::<tokio::sync::Mutex<State>>().clone();
         let task = ctx.resource::<crate::Workers>().0.spawn_blocking(move || {
             let mut state = state.blocking_lock();
-            let options = state.options.clone();
-            let samples = state.collector.collect_channel_occupancy_with_options(&options)?;
+            let samples = state.collector.collect()?;
             samples
                 .into_iter()
                 .map(|sample| {
                     let timestamp = sample.timestamp.to_datetime().map_err(|error| crate::Error::Probe(error.to_string()))?;
                     let timestamp_micros =
                         i64::try_from(timestamp.unix_timestamp_nanos() / 1_000).map_err(|error| crate::Error::Probe(error.to_string()))?;
-                    let row = dokime::host::WifiChannelOccupancy::from_row(&sample.values)
-                        .map_err(|error| crate::Error::Probe(error.to_string()))?;
+                    let row = dokime::host::WifiScan::from_row(&sample.values).map_err(|error| crate::Error::Probe(error.to_string()))?;
                     Ok(Collected { row, timestamp_micros })
                 })
                 .collect::<crate::Result<Vec<_>>>()

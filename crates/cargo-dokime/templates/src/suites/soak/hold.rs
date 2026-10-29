@@ -172,8 +172,8 @@ pub enum ObserverStreams {
     // running instance and its tick.
     //
     // `host::System` is the machine itself: cpu, memory and battery. The other
-    // five — `host::Network`, `host::Wifi`, `host::WifiLatency`,
-    // `host::WifiChannelOccupancy`, `host::Bluetooth` — are what a bench adds
+    // five — `host::Network`, `host::WifiLink`, `host::WifiScan`, `host::WifiLatency`,
+    // `host::Bluetooth` — are what a bench adds
     // when it is correlating the machine's radios against the unit.
     subscribes = Inputs,
     // The inputs, named once. The struct above is the declaration; every stage

@@ -42,69 +42,49 @@ use model::values::Value;
 /* === Private Functions === */
 
 /* === Tests === */
-// Native Collection Reports Either Scan Data Or An Explicit Availability State.
+// Native Collection Reports Either Scanned Networks Or An Explicit Availability State.
 #[test]
-fn wifi_channel_data() {
-    let batch = collect_required_native_batch(HostTelemetryStream::WifiChannelOccupancy);
+fn wifi_scan_rows() {
+    let batch = collect_required_native_batch(HostTelemetryStream::WifiScan);
     validate_batch(&batch);
-    assert!(!batch.samples.is_empty(), "stream occupancy batches should contain scan samples");
-
+    assert!(!batch.samples.is_empty(), "a scan batch contains at least its status row");
     let first = &batch.samples[0];
-    assert_text_in(first, "scan_status", &["ok", "unavailable", "unsupported", "error"]);
-    if first.values.get("scan_status") != Some(&Value::Text("ok".into())) {
-        assert!(batch.samples.iter().all(|sample| sample.values.get("scan_status") == first.values.get("scan_status")));
-        assert_field(first, &Field::Integer("network_count"));
-        assert_field(first, &Field::Integer("scan_network_count"));
-        if first.values.get("scan_status") == Some(&Value::Text("error".into())) {
-            assert!(matches!(first.values.get("scan_error"), Some(Value::Text(message)) if !message.is_empty()));
-        }
+    assert_text_in(first, "scan_status", &["ok", "cached", "unavailable", "error"]);
+    assert_field(first, &Field::Integer("scan_network_count"));
+    if !matches!(first.values.get("scan_status"), Some(Value::Text(status)) if status == "ok" || status == "cached") {
+        assert_eq!(batch.samples.len(), 1, "an empty or failed scan is one status row");
         return;
     }
-
-    let scan_timestamp = batch.samples[0].timestamp.clone();
-    let Some(Value::Integer(sample_index)) = batch.samples[0].values.get("sample_index") else {
-        panic!("expected sample_index integer");
-    };
-    let mut occupied_samples = 0;
-    let mut reported_streams = Vec::new();
-
+    let total = batch.samples.len() as i64;
+    let associated = batch.samples.iter().filter(|sample| sample.values.get("associated") == Some(&Value::Bool(true))).count();
+    assert!(associated <= 1, "the host associates with at most one network");
     for sample in &batch.samples {
-        assert_eq!(sample.timestamp, scan_timestamp, "one occupancy batch should share one scan timestamp");
-        assert_text_in(sample, "scan_status", &["ok"]);
-        for field in [
-            Field::Integer("sample_index"),
-            Field::Integer("wifi_channel"),
-            Field::Integer("network_count"),
-            Field::Integer("scan_network_count"),
-            Field::Number("overlap_weight"),
-            Field::Integer("same_channel_network_count"),
-            Field::Integer("overlapping_network_count"),
-            Field::Number("overlap_weighted_network_count"),
-        ] {
-            assert_field(sample, &field);
-        }
-
-        let Some(Value::Integer(wifi_channel)) = sample.values.get("wifi_channel") else {
-            panic!("expected wifi_channel integer");
-        };
-        reported_streams.push(*wifi_channel);
-
-        let Some(Value::Integer(network_count)) = sample.values.get("network_count") else {
-            panic!("expected network_count integer");
-        };
-        let Some(Value::Integer(current_sample_index)) = sample.values.get("sample_index") else {
-            panic!("expected sample_index integer");
-        };
-        assert_eq!(current_sample_index, sample_index, "one occupancy batch should share one scan index");
-        if *network_count > 0 {
-            occupied_samples += 1;
-        }
+        assert_eq!(sample.timestamp, first.timestamp, "one scan shares one timestamp");
+        assert_eq!(sample.values.get("sample_index"), first.values.get("sample_index"));
+        assert_eq!(sample.values.get("scan_network_count"), Some(&Value::Integer(total)));
+        assert_field(sample, &Field::Integer("network_count"));
+        assert!(matches!(sample.values.get("associated"), Some(Value::Bool(_))));
     }
+}
 
-    assert!(occupied_samples <= batch.samples.len());
-    assert!(reported_streams.len() >= 45, "a stream occupancy scan should include dense 2.4 GHz and 5 GHz rows");
-    assert!(reported_streams.contains(&1));
-    assert!(reported_streams.contains(&14));
-    assert!(reported_streams.contains(&32));
-    assert!(reported_streams.contains(&177));
+// A Link Sample States Whether The Host Is Associated.
+#[test]
+fn wifi_link_association() {
+    let batch = collect_required_native_batch(HostTelemetryStream::WifiLink);
+    validate_batch(&batch);
+    let sample = &batch.samples[0];
+    if sample.values.get("probe_status") == Some(&Value::Text("ok".into())) {
+        assert!(matches!(sample.values.get("associated"), Some(Value::Bool(_))));
+    }
+}
+
+// A Missing Reply Is Loss, Never A Failed Collection.
+#[test]
+fn wifi_latency_loss() {
+    let batch = collect_required_native_batch(HostTelemetryStream::WifiLatency);
+    validate_batch(&batch);
+    let sample = &batch.samples[0];
+    if sample.values.get("probe_status") == Some(&Value::Text("ok".into())) {
+        assert_field(sample, &Field::Number("wifi_packet_loss_percent"));
+    }
 }

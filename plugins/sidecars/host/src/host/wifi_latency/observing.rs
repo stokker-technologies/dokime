@@ -18,8 +18,7 @@ use std::time::Duration;
 /* === Structs === */
 
 pub struct State {
-    pub(crate) collector: crate::collectors::wifi::WifiCollector,
-    pub(crate) options: crate::HostOptions,
+    pub(crate) collector: crate::collectors::wifi::WifiLatencyCollector,
 }
 
 /* === Implementations === */

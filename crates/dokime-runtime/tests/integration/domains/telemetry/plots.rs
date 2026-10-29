@@ -49,7 +49,7 @@ async fn snapshot_query_samples() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
-    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 30, None)).await.unwrap();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 30, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
 
     let envelopes = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot).await.unwrap();
@@ -80,7 +80,7 @@ async fn batch_replacement_requests() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
-    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 4, None)).await.unwrap();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 4, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let mut first = wifi_request(None, Some(10));
     first.plot_id = Some("first".to_owned());
@@ -105,7 +105,7 @@ async fn series_window_summaries() {
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     // `network_count` is the sample index, one sample per second from midnight.
-    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 10, None)).await.unwrap();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 10, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let midnight = 1_767_225_600.0;
     let mut whole = wifi_request(None, Some(3));
@@ -162,7 +162,7 @@ async fn wifi_occupancy_scans() {
     register_plot_suite(&runtime).await;
     // (second, channel, networks); 1005 encodes 6 GHz channel 5.
     let readings = [(0, 1, 2), (0, 6, 3), (0, 36, 0), (1, 6, 1), (1, 6, 5), (1, 36, 4), (1, 1005, 2), (2, 1, 0), (2, 6, 0)];
-    let stream = identifier("host.wifi.channel_occupancy");
+    let stream = identifier("host.wifi.scan");
     let samples = readings
         .iter()
         .enumerate()
@@ -218,7 +218,7 @@ async fn interval_raw_points() {
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     // `sample_index` and `network_count` both run 0..=9.
-    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 10, None)).await.unwrap();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 10, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let mut request = wifi_request(None, Some(0));
     request.plot_type = Some(dokime_runtime::document::PlotType::XyInterval);
@@ -254,7 +254,7 @@ async fn replacement_frame_domains() {
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
     // `network_count` is the sample index, one sample per second from midnight.
-    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 10, None)).await.unwrap();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 10, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let midnight = 1_767_225_600.0;
     let mut whole = wifi_request(None, Some(0));
@@ -328,7 +328,7 @@ async fn execution_plots_samples() {
     let mut section = dokime_runtime::document::DocumentSection::new("Settings");
     let mut plot = dokime_runtime::document::Plot::time_series("Captured Plot");
     plot.id("captured.plot");
-    plot.stream = Some("host.wifi.channel_occupancy".into());
+    plot.stream = Some("host.wifi.scan".into());
     plot.y = vec!["network_count".into(), "wifi_channel".into()];
     section.plot(plot);
     let mut wide = dokime_runtime::document::Plot::time_series("Wide Plot");
@@ -408,7 +408,7 @@ async fn execution_plots_samples() {
     assert_eq!(saved_plot.downsample, DownsampleTechnique::MinMax);
     drop(snapshot);
     for (scope, count) in [(None, 7), (Some(RecordScope::default().with_cycle(cycle.clone())), 5), (Some(execution.clone()), 2)] {
-        let receipt = runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", count, scope)).await.unwrap();
+        let receipt = runtime.publish_telemetry_batch(samples("host.wifi.scan", count, scope)).await.unwrap();
         runtime.storage().flush().await.unwrap();
         assert_eq!(receipt.accepted, count as u64);
         assert_eq!(receipt.dropped, 0);
@@ -432,7 +432,7 @@ async fn execution_plots_samples() {
     runtime.storage().flush().await.unwrap();
     assert_eq!(receipt.accepted, 3);
     assert_eq!(receipt.dropped, 0);
-    let mut exact_batch = samples("host.wifi.channel_occupancy", 2, Some(execution.clone()));
+    let mut exact_batch = samples("host.wifi.scan", 2, Some(execution.clone()));
     exact_batch.stream = Identifier::new("fixture.exact").unwrap();
     for (index, sample) in exact_batch.samples.iter_mut().enumerate() {
         sample.stream = Identifier::new("fixture.telemetry").unwrap();
@@ -652,7 +652,7 @@ async fn window_context_uses_latest_source_time_then_persisted_position() {
         .await
         .unwrap();
 
-    let mut primary = samples("host.wifi.channel_occupancy", 21, None);
+    let mut primary = samples("host.wifi.scan", 21, None);
     primary.samples.retain(|sample| matches!(sample.values.get("sample_index"), Some(Value::Integer(10 | 20))));
     runtime.publish_telemetry_batch(primary).await.unwrap();
     // Equal-Time Updates Pick The Later Position; An Older Timestamp Arriving Last Does Not Replace Them.
@@ -695,7 +695,7 @@ async fn distribution_query_budget() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
-    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 1000, None)).await.unwrap();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 1000, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
 
     // The histogram bins the column it declares on x; y is the count it computes.
@@ -781,7 +781,7 @@ async fn selected_analysis_provenance() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
-    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 100, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let definitions = runtime.analysis_definitions().await.unwrap();
     assert!(definitions.iter().any(|definition| definition.id == "dokime.analysis.mean"));
@@ -804,8 +804,8 @@ async fn selected_analysis_provenance() {
 
     let mut expressions = request.clone();
     expressions.y_keys.clear();
-    expressions.x_expression = Some(dokime_runtime::expressions::telemetry("host.wifi.channel_occupancy", "sample_index"));
-    expressions.y_expressions = vec![dokime_runtime::expressions::telemetry("host.wifi.channel_occupancy", "network_count")];
+    expressions.x_expression = Some(dokime_runtime::expressions::telemetry("host.wifi.scan", "sample_index"));
+    expressions.y_expressions = vec![dokime_runtime::expressions::telemetry("host.wifi.scan", "network_count")];
     let equivalent = runtime.query_plot_payloads(vec![expressions.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
     assert_eq!(equivalent[0].payload.computed.as_ref().unwrap(), result);
     expressions.y_expressions[0] = expressions.y_expressions[0].clone().mean();
@@ -823,7 +823,7 @@ async fn selected_original_coordinates() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
-    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 100, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let mut request = wifi_request(None, Some(1));
     request.analysis = Some(dokime_runtime::analysis::Selection {
@@ -850,7 +850,7 @@ async fn selected_fft_manager() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
-    let mut batch = samples("host.wifi.channel_occupancy", 64, None);
+    let mut batch = samples("host.wifi.scan", 64, None);
     for (index, sample) in batch.samples.iter_mut().enumerate() {
         sample.values.insert("network_count".into(), Value::Integer(if index % 2 == 0 { 1 } else { -1 }));
         *sample = typed_fixture_sample(sample.clone());
@@ -899,7 +899,7 @@ async fn selected_analysis_axes() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
-    let mut batch = samples("host.wifi.channel_occupancy", 100, None);
+    let mut batch = samples("host.wifi.scan", 100, None);
     // Saved Rows Come From The Typed Payload, So Each Edited Sample Is Encoded Again.
     for sample in &mut batch.samples {
         if let Some(Value::Integer(value)) = sample.values.get_mut("sample_index") {

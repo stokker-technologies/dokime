@@ -477,9 +477,9 @@ fn fixture_wifi_document(test_cycle_id: dokime_runtime::TestCycleId) -> Document
             plot_type: PlotType::WifiChannelOccupancy,
             input: PlotInput {
                 series_fields: vec!["network_count".to_owned()],
-                stream: Some("host.wifi.channel_occupancy".to_owned()),
+                stream: Some("host.wifi.scan".to_owned()),
                 series_by: Some("wifi_channel".to_owned()),
-                available_streams: vec![Identifier::new("host.wifi.channel_occupancy").unwrap()],
+                available_streams: vec![Identifier::new("host.wifi.scan").unwrap()],
                 ..fixture_plot_input(plot_id, scope.clone(), PlotType::WifiChannelOccupancy)
             },
         },
@@ -664,14 +664,14 @@ pub(super) async fn rendered_cycle_out() {
     let mut input = fixture_input("WiFi Cycle");
     let document = fixture_wifi_document(input.cycle.test_cycle_id.clone());
     insert_report_document(&mut input, "default", document);
-    input.plots.insert("wifi.channel_occupancy".to_owned(), fixture_plot_payload("host.wifi.channel_occupancy", "6", 4.0, 1));
+    input.plots.insert("wifi.channel_occupancy".to_owned(), fixture_plot_payload("host.wifi.scan", "6", 4.0, 1));
 
     let html = render(&input).await;
     let payload = parse(&html);
     let cycle_plot = &payload["plots"]["wifi.channel_occupancy"];
     let case_run = &payload["case_runs"][0];
 
-    assert_eq!(cycle_plot["stream"], "host.wifi.channel_occupancy");
+    assert_eq!(cycle_plot["stream"], "host.wifi.scan");
     assert_eq!(cycle_plot["series"][0]["key"], "6");
     assert_eq!(cycle_plot["series"][0]["points"][0]["y"], 4.0);
     assert_eq!(case_run["documents"].as_object().unwrap().len(), 0);

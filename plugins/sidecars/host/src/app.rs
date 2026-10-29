@@ -34,8 +34,8 @@ pub struct HostPlugin {
 /* === Implementations === */
 
 impl dokime::harmos::builtins::lifecycle::Policy for HostPlugin {
-    const INITIALIZATION_POLICY: OperationPolicy = host::wifi_channel_occupancy::POLICY;
-    const SHUTDOWN_POLICY: OperationPolicy = host::wifi_channel_occupancy::POLICY;
+    const INITIALIZATION_POLICY: OperationPolicy = host::wifi_scan::POLICY;
+    const SHUTDOWN_POLICY: OperationPolicy = host::wifi_scan::POLICY;
 }
 
 #[dokime::plugin(
@@ -64,7 +64,6 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         let settings = config.settings::<crate::Settings>();
         let settings = dokime::plugin::refusal(settings)?;
         let options = HostOptions::from(settings.probes);
-        let congestion = collectors::wifi::WifiCongestionCache::shared();
 
         let tracker = TaskTracker::new();
         let workers = Arc::new(Workers(tracker));
@@ -80,20 +79,21 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::network::State>>(state);
 
-        let collector = collectors::wifi::WifiCollector::new(options.clone(), congestion.clone());
-        let state = host::wifi::State { collector, options: options.clone() };
+        // Each Wi-Fi Stream Owns Its Collector, So No Observer Reads Another's State.
+        let collector = collectors::wifi::WifiLinkCollector::new(options.clone());
+        let state = host::wifi_link::State { collector };
         let state = Arc::new(Mutex::new(state));
-        setup.resource::<Mutex<host::wifi::State>>(state);
+        setup.resource::<Mutex<host::wifi_link::State>>(state);
 
-        let collector = collectors::wifi::WifiCollector::new(options.clone(), congestion.clone());
-        let state = host::wifi_latency::State { collector, options: options.clone() };
+        let collector = collectors::wifi::WifiScanCollector::new(options.clone());
+        let state = host::wifi_scan::State { collector };
+        let state = Arc::new(Mutex::new(state));
+        setup.resource::<Mutex<host::wifi_scan::State>>(state);
+
+        let collector = collectors::wifi::WifiLatencyCollector::new(options.clone());
+        let state = host::wifi_latency::State { collector };
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::wifi_latency::State>>(state);
-
-        let collector = collectors::wifi::WifiCollector::new(options.clone(), congestion);
-        let state = host::wifi_channel_occupancy::State { collector, options: options.clone() };
-        let state = Arc::new(Mutex::new(state));
-        setup.resource::<Mutex<host::wifi_channel_occupancy::State>>(state);
 
         let collector = collectors::bluetooth::BluetoothCollector::new(options);
         let state = host::bluetooth::State { collector };

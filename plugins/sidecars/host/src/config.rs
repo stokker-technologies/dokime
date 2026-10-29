@@ -9,13 +9,6 @@
 
 /* === Modules === */
 
-#[cfg(all(feature = "runtime", target_os = "windows"))]
-mod windows {
-    pub(crate) const WIFI_SCAN_WINDOW: std::time::Duration = std::time::Duration::from_millis(4_000);
-}
-#[cfg(all(feature = "runtime", target_os = "windows"))]
-pub(crate) use windows::WIFI_SCAN_WINDOW;
-
 #[cfg(feature = "runtime")]
 mod defaults {
     pub(crate) const NETWORK_LINK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(5_000);
@@ -29,6 +22,7 @@ pub(crate) use defaults::{BLUETOOTH_DEEP_REFRESH, NETWORK_LINK_INTERVAL};
 /* === Imports === */
 
 // Standard Library Imports
+use std::time::Duration;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
@@ -38,6 +32,8 @@ use serde::{Deserialize, Serialize};
 /* === Constants === */
 
 pub(crate) const LATENCY_HOST: &str = "1.1.1.1";
+// An Active Wi-Fi Scan Disturbs The Link, So Scans Never Start Closer Together Than This.
+pub(crate) const MINIMUM_SCAN_INTERVAL_S: u32 = 30;
 
 /* === Macros === */
 
@@ -60,6 +56,8 @@ pub struct Probes {
     pub bluetooth_adapter_name: Option<String>,
     #[setting(label = "Latency Host", default = LATENCY_HOST)]
     pub latency_host: String,
+    #[setting(label = "Minimum Scan Interval (s)", default = MINIMUM_SCAN_INTERVAL_S, min = 1, max = 3_600, step = 1)]
+    pub minimum_scan_interval_s: u32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +65,7 @@ pub struct HostOptions {
     pub wifi_adapter_name: Option<String>,
     pub bluetooth_adapter_name: Option<String>,
     pub latency_host: Option<String>,
+    pub minimum_scan_interval: Duration,
 }
 
 /* === Enums === */
@@ -79,6 +78,7 @@ impl From<Probes> for HostOptions {
             wifi_adapter_name: probes.wifi_adapter_name.and_then(selected),
             bluetooth_adapter_name: probes.bluetooth_adapter_name.and_then(selected),
             latency_host: selected(probes.latency_host),
+            minimum_scan_interval: Duration::from_secs(u64::from(probes.minimum_scan_interval_s)),
         }
     }
 }
@@ -108,5 +108,6 @@ mod tests {
         assert_eq!(options.wifi_adapter_name.as_deref(), Some("wlan-test"));
         assert_eq!(options.bluetooth_adapter_name, None);
         assert_eq!(options.latency_host.as_deref(), Some(LATENCY_HOST));
+        assert_eq!(options.minimum_scan_interval, Duration::from_secs(u64::from(MINIMUM_SCAN_INTERVAL_S)));
     }
 }

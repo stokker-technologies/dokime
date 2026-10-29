@@ -8,7 +8,8 @@
  */
 
 // Native host collection: every stream reads this machine through the
-// collectors' own platform probes (nmcli, iw, ping, bluetoothctl and friends).
+// collectors' own platform probes (native APIs on Windows; nmcli, iw, ping and
+// bluetoothctl on Linux).
 
 /* === Modules === */
 
@@ -80,7 +81,7 @@ fn host_stream_row() {
                 Field::Array("local_addresses"),
             ],
         ),
-        (HostTelemetryStream::Wifi, &["ok", "unavailable", "unsupported", "error"], &[Field::Integer("sample_index")]),
+        (HostTelemetryStream::WifiLink, &["ok", "unavailable", "unsupported", "error"], &[Field::Integer("sample_index")]),
         (HostTelemetryStream::WifiLatency, &["ok", "error"], &[Field::Integer("sample_index")]),
         (HostTelemetryStream::Bluetooth, &["ok", "stale", "unsupported", "error"], &[Field::Integer("sample_index")]),
     ];

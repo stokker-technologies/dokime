@@ -37,7 +37,8 @@ use std::time::Duration;
 /* === Public Functions === */
 
 // ping Waits For The Echo; Its Process Is Bounded By The Collection It Serves.
-pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<f64, String> {
+// The Round Trip In Milliseconds, Or None When No Reply Arrived Within The Wait.
+pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<Option<f64>, String> {
     let mut command = dokime_domain::process::command("ping");
     command.args(["-c", "1", "-W", &timeout.as_secs().max(1).to_string(), host]);
     let bound = crate::host::wifi_latency::POLICY.attempt_timeout;
@@ -46,11 +47,15 @@ pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<f64, String> {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let output_text = format!("{stdout}\n{stderr}");
 
-    if !output.status.success() {
-        return Err(output_text.trim().to_owned());
+    // ping Exits 1 When No Reply Arrived And 2 When It Could Not Probe.
+    match output.status.code() {
+        Some(0) => {}
+        Some(1) => return Ok(None),
+        _ => return Err(output_text.trim().to_owned()),
     }
 
-    parse_ping_latency_ms(&output_text).ok_or_else(|| format!("ping latency was not found in command output for {host}"))
+    let latency = parse_ping_latency_ms(&output_text).ok_or_else(|| format!("ping latency was not found in command output for {host}"))?;
+    Ok(Some(latency))
 }
 
 /* === Private Functions === */

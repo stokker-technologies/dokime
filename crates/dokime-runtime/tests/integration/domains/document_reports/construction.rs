@@ -417,7 +417,7 @@ pub(super) async fn document_routes_samples() {
     let mut group = TelemetrySummaryGroupDefinition::new("captured", "Captured Sample");
     group.tile(TelemetrySummaryTileDefinition::new(
         "Sample Index",
-        dokime_runtime::expressions::telemetry("host.wifi.channel_occupancy", "sample_index"),
+        dokime_runtime::expressions::telemetry("host.wifi.scan", "sample_index"),
     ));
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
@@ -437,13 +437,13 @@ pub(super) async fn document_routes_samples() {
 
     // Later uncaptured publications must not replace the execution's value.
     for (scope, count) in [(Some(execution.scope.clone()), 2), (Some(RecordScope::default().with_cycle(cycle_id.clone())), 5), (None, 7)] {
-        let receipt = runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", count, scope)).await.unwrap();
+        let receipt = runtime.publish_telemetry_batch(samples("host.wifi.scan", count, scope)).await.unwrap();
         assert_eq!(receipt.accepted, count as u64);
     }
 
     runtime.storage().flush_until(&runtime.storage().cursor_accepted()).await.unwrap();
     let monitoring = TelemetrySelection {
-        streams: vec![Identifier::new("host.wifi.channel_occupancy").unwrap().into()],
+        streams: vec![Identifier::new("host.wifi.scan").unwrap().into()],
         ..Default::default()
     };
     assert_eq!(runtime.collect_telemetry(&monitoring).await.unwrap().len(), 14);
@@ -503,7 +503,7 @@ pub(super) async fn repeated_sections_follow() {
     let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
 
     // Declare A Section Repeated Per Channel, Without An Explicit Order
-    let channel = dokime_runtime::expressions::telemetry("host.wifi.channel_occupancy", "wifi_channel");
+    let channel = dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_channel");
     let mut section = DocumentSection::new("Channels");
     section.note("One section per channel the scan saw.");
     section.each(channel.clone(), "Channel {value}").only(channel.ne(13));
@@ -520,7 +520,7 @@ pub(super) async fn repeated_sections_follow() {
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
     let execution = &cycle.test_executions[0];
     let channels = [11, 1, 13, 6];
-    let mut batch = samples("host.wifi.channel_occupancy", channels.len(), Some(execution.scope.clone()));
+    let mut batch = samples("host.wifi.scan", channels.len(), Some(execution.scope.clone()));
     for (sample, channel) in batch.samples.iter_mut().zip(channels) {
         sample.values.insert("wifi_channel".to_owned(), Value::Integer(channel));
         // Saved Rows Come From The Typed Payload, So The Edited Sample Is Encoded Again.

@@ -45,15 +45,16 @@ pub enum Field {
 
 /* === Public Functions === */
 pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBatch {
-    use dokime_host::collectors::{bluetooth::BluetoothCollector, network::NetworkCollector, system::SystemCollector, wifi::WifiCollector};
+    use dokime_host::collectors::bluetooth::BluetoothCollector;
+    use dokime_host::collectors::wifi::{WifiLatencyCollector, WifiLinkCollector, WifiScanCollector};
+    use dokime_host::collectors::{network::NetworkCollector, system::SystemCollector};
     let options = HostOptions::default();
-    let mut wifi = WifiCollector::standalone(options.clone());
     let rows = match stream {
         HostTelemetryStream::System => vec![SystemCollector::new().collect().unwrap()],
         HostTelemetryStream::Network => vec![NetworkCollector::new().collect().unwrap()],
-        HostTelemetryStream::Wifi => vec![wifi.collect_link_with_options(&options).unwrap()],
-        HostTelemetryStream::WifiLatency => vec![wifi.collect_latency_with_options(&options).unwrap()],
-        HostTelemetryStream::WifiChannelOccupancy => wifi.collect_channel_occupancy_with_options(&options).unwrap(),
+        HostTelemetryStream::WifiLink => vec![WifiLinkCollector::new(options).collect().unwrap()],
+        HostTelemetryStream::WifiScan => WifiScanCollector::new(options).collect().unwrap(),
+        HostTelemetryStream::WifiLatency => vec![WifiLatencyCollector::new(options).collect().unwrap()],
         HostTelemetryStream::Bluetooth => vec![BluetoothCollector::new(options).collect().unwrap()],
     };
     let samples = rows

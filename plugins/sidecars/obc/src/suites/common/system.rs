@@ -35,9 +35,9 @@ use dokime::prelude::*;
 pub enum SystemInputs {
     System(host::System),
     Network(host::Network),
-    Wifi(host::Wifi),
+    WifiLink(host::WifiLink),
     WifiLatency(host::WifiLatency),
-    WifiChannelOccupancy(host::WifiChannelOccupancy),
+    WifiScan(host::WifiScan),
     Bluetooth(host::Bluetooth),
 }
 
@@ -71,16 +71,23 @@ pub fn section(owner: &str) -> Section {
         [host::System::battery_state_of_charge_ratio()],
     ));
     section.plot(series(owner, "battery_temperature", "Battery Temperature", "°C", 1, [host::System::battery_temperature_c()]));
-    section.plot(series(owner, "wifi_rssi", "Wi-Fi RSSI", "dBm", 0, [host::Wifi::wifi_rssi_dbm()]));
+    section.plot(series(owner, "wifi_rssi", "Wi-Fi RSSI", "dBm", 0, [host::WifiLink::wifi_rssi_dbm()]));
     section.plot(series(
         owner,
         "wifi_phy_rate",
         "Wi-Fi PHY Rate",
         "Mbps",
         1,
-        [host::Wifi::wifi_rx_phy_mbps(), host::Wifi::wifi_tx_phy_mbps()],
+        [host::WifiLink::wifi_rx_phy_mbps(), host::WifiLink::wifi_tx_phy_mbps()],
     ));
-    section.plot(series(owner, "wifi_throughput", "Wi-Fi Throughput", "Mbps", 2, [host::Wifi::wifi_rx_mbps(), host::Wifi::wifi_tx_mbps()]));
+    section.plot(series(
+        owner,
+        "wifi_throughput",
+        "Wi-Fi Throughput",
+        "Mbps",
+        2,
+        [host::WifiLink::wifi_rx_mbps(), host::WifiLink::wifi_tx_mbps()],
+    ));
     // The Scan Itself: Every Channel With Its Network Count And Strongest Signal
     let mut occupancy = Plot::wifi_channel_occupancy("Wi-Fi Channel Occupancy");
     occupancy.id(format!("{owner}.system.wifi_channel_occupancy"));

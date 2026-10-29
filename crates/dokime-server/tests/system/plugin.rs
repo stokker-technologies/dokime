@@ -49,8 +49,7 @@ const STEADY_PROMPT: &str = "obc.charger.steady.check";
 const STEADY_ACCEPTANCE: &str = "obc.charger.steady.acceptance";
 const STEADY_SUMMARY: &str = "charger/steady-state-summary.json";
 const HOST_FAST_STREAM: &str = "host.system";
-const HOST_STREAMS: &[&str] =
-    &["host.system", "host.network", "host.wifi", "host.wifi.latency", "host.wifi.channel_occupancy", "host.bluetooth"];
+const HOST_STREAMS: &[&str] = &["host.system", "host.network", "host.wifi.link", "host.wifi.latency", "host.wifi.scan", "host.bluetooth"];
 
 /* === Macros === */
 

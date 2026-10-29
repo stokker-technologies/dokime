@@ -9,6 +9,11 @@
 
 /* === Modules === */
 
+#[cfg(all(feature = "runtime", unix))]
+mod unix;
+#[cfg(all(feature = "runtime", target_os = "windows"))]
+mod windows;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -53,6 +58,7 @@ struct RouteContext {
     default_interface: Option<String>,
     default_gateway: Option<String>,
     local_addresses: Vec<String>,
+    internet: Option<bool>,
 }
 
 #[derive(Clone)]
@@ -118,6 +124,7 @@ impl NetworkCollector {
         ]);
         maybe_insert(&mut values, "default_interface", route.default_interface.map(Value::from));
         maybe_insert(&mut values, "default_gateway", route.default_gateway.map(Value::from));
+        maybe_insert(&mut values, "internet", route.internet.map(Value::from));
         maybe_insert(&mut values, "radio_link", primary.as_ref().map(|network| Value::from(network.name.clone())));
         maybe_insert(&mut values, "network_mtu", primary.as_ref().map(|network| Value::Integer(network.mtu as i64)));
         maybe_insert(&mut values, "network_mac", primary.as_ref().and_then(|network| network.mac.clone()).map(Value::from));
@@ -135,7 +142,11 @@ impl NetworkCollector {
             self.last_route_refresh.map(|last_refresh| now.duration_since(last_refresh) >= self.route_refresh_interval).unwrap_or(true);
 
         if should_refresh {
-            self.route = route_context();
+            // The OS Connectivity State Changes With The Route, So Both Refresh Together.
+            self.route = RouteContext {
+                internet: Self::internet(),
+                ..route_context()
+            };
             self.last_route_refresh = Some(now);
         }
 
@@ -177,6 +188,7 @@ fn route_context() -> RouteContext {
         default_interface,
         default_gateway,
         local_addresses,
+        internet: None,
     }
 }
 

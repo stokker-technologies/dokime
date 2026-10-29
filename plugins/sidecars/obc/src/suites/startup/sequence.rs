@@ -212,9 +212,9 @@ pub enum Subscriptions {
     ToolConnectionAcquired(ToolConnectionAcquired),
     System(host::System),
     Network(host::Network),
-    Wifi(host::Wifi),
+    WifiLink(host::WifiLink),
     WifiLatency(host::WifiLatency),
-    WifiChannelOccupancy(host::WifiChannelOccupancy),
+    WifiScan(host::WifiScan),
     Bluetooth(host::Bluetooth),
 }
 

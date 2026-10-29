@@ -114,7 +114,7 @@ impl WifiLinkReport {
 
 /* === Public Functions === */
 
-pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String> {
+pub(crate) fn nmcli_wifi_rows(rescan: bool, timeout: Duration) -> Result<Vec<NmcliWifiRow>, String> {
     let mut command = dokime_domain::process::command("nmcli");
     command.args([
         "-t",
@@ -126,8 +126,8 @@ pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String>
         "--rescan",
         if rescan { "yes" } else { "no" },
     ]);
-    let output = crate::collectors::run_command_bounded(command, crate::host::wifi_channel_occupancy::POLICY.attempt_timeout)
-        .map_err(|error| format!("nmcli could not be started: {error}"))?;
+    let output =
+        crate::collectors::run_command_bounded(command, timeout).map_err(|error| format!("nmcli could not be started: {error}"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }
@@ -136,7 +136,7 @@ pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String>
 }
 
 pub(crate) fn wireless_link(interface: &str) -> Option<WifiLinkReport> {
-    match iw_links(crate::host::wifi::POLICY.attempt_timeout) {
+    match iw_links(crate::host::wifi_link::POLICY.attempt_timeout) {
         Ok(mut links) => links.remove(interface),
         Err(_) => {
             let wireless = fs::read_to_string(PROC_NET_WIRELESS).ok()?;

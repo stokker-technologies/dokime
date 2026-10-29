@@ -27,7 +27,8 @@ use std::{
 use windows::Win32::{
     Foundation::HANDLE,
     NetworkManagement::IpHelper::{
-        ICMP_ECHO_REPLY, ICMPV6_ECHO_REPLY_LH, IP_SUCCESS, Icmp6CreateFile, Icmp6SendEcho2, IcmpCloseHandle, IcmpCreateFile, IcmpSendEcho2,
+        ICMP_ECHO_REPLY, ICMPV6_ECHO_REPLY_LH, IP_REQ_TIMED_OUT, IP_SUCCESS, Icmp6CreateFile, Icmp6SendEcho2, IcmpCloseHandle,
+        IcmpCreateFile, IcmpSendEcho2,
     },
     Networking::WinSock::{AF_INET6, IN6_ADDR, IN6_ADDR_0, SOCKADDR_IN6},
 };
@@ -64,7 +65,8 @@ impl Drop for IcmpHandle {
 
 /* === Public Functions === */
 
-pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<f64, String> {
+// The Round Trip In Milliseconds, Or None When No Reply Arrived Within The Wait.
+pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<Option<f64>, String> {
     let address = (host, 0)
         .to_socket_addrs()
         .map_err(|error| format!("{host} could not be resolved: {error}"))?
@@ -77,11 +79,12 @@ pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<f64, String> {
         IpAddr::V6(address) => echo_v6(address, timeout_ms),
     }
     .map_err(|error| format!("echo to {host} failed: {error}"))?;
+    // Any Status Other Than Success (Timeout, Unreachable, TTL Expired) Is A Lost Echo.
     if status != IP_SUCCESS {
-        return Err(format!("echo to {host} failed with ICMP status {status}"));
+        return Ok(None);
     }
     // A Sub-Millisecond Reply Reports 1 ms, As ping's "time<1ms" Did.
-    Ok(f64::from(round_trip.max(1)))
+    Ok(Some(f64::from(round_trip.max(1))))
 }
 
 /* === Private Functions === */
@@ -98,7 +101,7 @@ fn echo_v4(address: Ipv4Addr, timeout_ms: u32) -> windows::core::Result<(u32, u3
         IcmpSendEcho2(handle.0, None, None, None, destination, request, PAYLOAD.len() as u16, None, output, reply.len() as u32, timeout_ms)
     };
     if replies == 0 {
-        return Err(windows::core::Error::from_thread());
+        return lost_or_failed();
     }
     // SAFETY: A successful call wrote one ICMP_ECHO_REPLY at the start of the buffer.
     let reply = unsafe { reply.as_ptr().cast::<ICMP_ECHO_REPLY>().read_unaligned() };
@@ -126,11 +129,19 @@ fn echo_v6(address: Ipv6Addr, timeout_ms: u32) -> windows::core::Result<(u32, u3
         Icmp6SendEcho2(handle.0, None, None, None, &source, &destination, request, request_size, None, output, reply_size, timeout_ms)
     };
     if replies == 0 {
-        return Err(windows::core::Error::from_thread());
+        return lost_or_failed();
     }
     // SAFETY: A successful call wrote one ICMPV6_ECHO_REPLY at the start of the buffer.
     let reply = unsafe { reply.as_ptr().cast::<ICMPV6_ECHO_REPLY_LH>().read_unaligned() };
     Ok((reply.Status, reply.RoundTripTime))
+}
+
+fn lost_or_failed() -> windows::core::Result<(u32, u32)> {
+    let error = windows::core::Error::from_thread();
+    if error.code() == windows::core::HRESULT::from_win32(IP_REQ_TIMED_OUT) {
+        return Ok((IP_REQ_TIMED_OUT, 0));
+    }
+    Err(error)
 }
 
 /* === Tests === */
@@ -139,7 +150,7 @@ fn echo_v6(address: Ipv6Addr, timeout_ms: u32) -> windows::core::Result<(u32, u3
 mod tests {
     #[test]
     fn loopback_echo_answers_without_a_process() {
-        let latency = super::round_trip_ms("127.0.0.1", std::time::Duration::from_secs(1)).expect("loopback answers an echo");
-        assert!(latency >= 1.0);
+        let latency = super::round_trip_ms("127.0.0.1", std::time::Duration::from_secs(1)).expect("loopback echo runs");
+        assert!(latency.expect("loopback answers") >= 1.0);
     }
 }

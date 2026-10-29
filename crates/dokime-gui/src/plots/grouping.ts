@@ -258,11 +258,11 @@ function plotContext({
   stream: string;
   telemetry?: Record<string, TelemetryStream> | null;
 }): Record<string, unknown> | undefined {
-  if (stream !== "host.wifi.channel_occupancy") {
+  if (stream !== "host.wifi.scan") {
     return undefined;
   }
-  const occupancySamples = telemetry?.["host.wifi.channel_occupancy"]?.samples ?? [];
-  const wifiSamples = telemetry?.["host.wifi"]?.samples ?? [];
+  const occupancySamples = telemetry?.["host.wifi.scan"]?.samples ?? [];
+  const wifiSamples = telemetry?.["host.wifi.link"]?.samples ?? [];
   const latestOccupancy = occupancySamples[occupancySamples.length - 1];
   const latestWifi = wifiSamples[wifiSamples.length - 1];
   const latest = latestOccupancy ?? latestWifi;
@@ -287,7 +287,7 @@ function plotContextSummary({
   if (!latest) {
     return undefined;
   }
-  if (stream === "host.wifi") {
+  if (stream === "host.wifi.link") {
     return compactContext([
       textContext("SSID", latest.wifi_ssid),
       textContext("Radio", latest.wifi_radio ?? latest.wifi_state),
@@ -361,7 +361,7 @@ function plotState({
   }
 
   const latest = latestSample(telemetry, stream);
-  if (stream === "host.wifi.channel_occupancy") {
+  if (stream === "host.wifi.scan") {
     const scanStatus = normalizedText(latest?.scan_status);
     const scanError = firstText(latest?.scan_error);
     if (scanStatus === "error") {

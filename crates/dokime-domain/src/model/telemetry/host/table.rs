@@ -101,17 +101,19 @@ macro_rules! host_streams {
                     network_mtu: Integer, State, "Network MTU", Option<i64>;
                     network_mac: Text, State, "Network MAC", Option<String>;
                     network_operational_state: Text, State, "Network State", Option<String>;
+                    internet: Boolean, State, "Internet", Option<bool>;
                 }
             }
-            Wifi {
-                id: "host.wifi",
-                label: "Host WiFi",
+            WifiLink {
+                id: "host.wifi.link",
+                label: "Host WiFi Link",
                 columns: {
                     sample_index: Integer, Counter, "Sample Index", Option<i64>;
                     probe_status: Text, State, "Probe Status", Option<String>;
                     probe_error: Text, State, "Probe Error", Option<String>;
                     wifi_adapter: Text, State, "WiFi Adapter", Option<String>;
                     wifi_state: Text, State, "WiFi State", Option<String>;
+                    associated: Boolean, State, "Associated", Option<bool>;
                     wifi_ssid: Text, State, "WiFi SSID", Option<String>;
                     wifi_bssid: Text, State, "WiFi BSSID", Option<String>;
                     wifi_profile: Text, State, "WiFi Profile", Option<String>;
@@ -126,9 +128,29 @@ macro_rules! host_streams {
                     wifi_tx_mbps: Number, Throughput, "WiFi TX Throughput (Mbps)", Option<f64>;
                     wifi_channel: Integer, State, "WiFi Channel", Option<i64>;
                     wifi_band: Text, State, "WiFi Band", Option<String>;
-                    wifi_network_count: Integer, Value, "WiFi Networks", Option<i64>;
+                }
+            }
+            WifiScan {
+                id: "host.wifi.scan",
+                label: "Host WiFi Scan",
+                columns: {
+                    sample_index: Integer, Counter, "Sample Index", Option<i64>;
+                    scan_status: Text, State, "Scan Status", Option<String>;
+                    scan_error: Text, State, "Scan Error", Option<String>;
+                    wifi_adapter: Text, State, "WiFi Adapter", Option<String>;
+                    wifi_ssid: Text, State, "WiFi SSID", Option<String>;
+                    wifi_bssid: Text, State, "WiFi BSSID", Option<String>;
+                    wifi_signal_percent: Number, Value, "WiFi Signal", Option<f64>;
+                    wifi_rssi_dbm: Number, Value, "WiFi RSSI", Option<f64>;
+                    wifi_channel: Integer, State, "WiFi Channel", Option<i64>;
+                    wifi_band: Text, State, "WiFi Band", Option<String>;
+                    wifi_security: Text, State, "WiFi Security", Option<String>;
+                    associated: Boolean, State, "Associated", Option<bool>;
+                    network_count: Integer, Value, "Channel Networks", Option<i64>;
+                    scan_network_count: Integer, Value, "Scan Networks", Option<i64>;
                     active_wifi_channel: Integer, State, "Active WiFi Channel", Option<i64>;
                     active_wifi_band: Text, State, "Active WiFi Band", Option<String>;
+                    active_wifi_ssid: Text, State, "Active WiFi SSID", Option<String>;
                     wifi_network_congestion_score: Number, Value, "WiFi Congestion", Option<f64>;
                     congestion_model: Text, State, "Congestion Model", Option<String>;
                 }
@@ -142,30 +164,7 @@ macro_rules! host_streams {
                     probe_error: Text, State, "Probe Error", Option<String>;
                     wifi_latency_host: Text, State, "WiFi Latency Host", Option<String>;
                     wifi_latency_ms: Number, Latency, "WiFi Latency", Option<f64>;
-                }
-            }
-            WifiChannelOccupancy {
-                id: "host.wifi.channel_occupancy",
-                label: "Host WiFi Network Occupancy",
-                columns: {
-                    sample_index: Integer, Counter, "Sample Index", Option<i64>;
-                    scan_status: Text, State, "Scan Status", Option<String>;
-                    scan_error: Text, State, "Scan Error", Option<String>;
-                    wifi_adapter: Text, State, "WiFi Adapter", Option<String>;
-                    wifi_channel: Integer, State, "WiFi Channel", Option<i64>;
-                    wifi_band: Text, State, "WiFi Band", Option<String>;
-                    network_count: Integer, Value, "Network Count", Option<i64>;
-                    scan_network_count: Integer, Value, "Scan Network Count", Option<i64>;
-                    active_channel: Boolean, State, "Active Channel", Option<bool>;
-                    active_wifi_channel: Integer, State, "Active WiFi Channel", Option<i64>;
-                    active_wifi_band: Text, State, "Active WiFi Band", Option<String>;
-                    overlap_weight: Number, Value, "Overlap Weight", Option<f64>;
-                    same_channel_network_count: Integer, Value, "Same Channel Networks", Option<i64>;
-                    overlapping_network_count: Integer, Value, "Overlapping Networks", Option<i64>;
-                    overlap_weighted_network_count: Number, Value, "Overlap Weighted Networks", Option<f64>;
-                    max_signal_percent: Number, Value, "Max Signal", Option<f64>;
-                    wifi_network_congestion_score: Number, Value, "WiFi Congestion", Option<f64>;
-                    congestion_model: Text, State, "Congestion Model", Option<String>;
+                    wifi_packet_loss_percent: Number, Value, "WiFi Packet Loss", Option<f64>;
                 }
             }
             Bluetooth {

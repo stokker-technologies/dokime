@@ -133,9 +133,9 @@ pub fn fixture_schema(stream: &str) -> Option<Schema> {
         "fixture.telemetry" | "synthetic.samples" => FixtureValueRow::DEFINITION,
         "tracking" | "plt400.ract.tracking.tracking" => TrackingRow::DEFINITION,
         "host.system" => SystemRow::DEFINITION,
-        "host.wifi" => WifiRow::DEFINITION,
+        "host.wifi.link" => WifiRow::DEFINITION,
         "host.wifi.latency" => LatencyRow::DEFINITION,
-        "host.wifi.channel_occupancy" => OccupancyRow::DEFINITION,
+        "host.wifi.scan" => OccupancyRow::DEFINITION,
         "host.bluetooth" => BluetoothRow::DEFINITION,
         _ => return None,
     };
@@ -163,9 +163,9 @@ pub fn typed_fixture_sample(mut sample: dokime_runtime::telemetry::TelemetrySamp
         "fixture.telemetry" | "synthetic.samples" => fixture_payload::<FixtureValueRow>(&sample),
         "tracking" | "plt400.ract.tracking.tracking" => fixture_payload::<TrackingRow>(&sample),
         "host.system" => fixture_payload::<SystemRow>(&sample),
-        "host.wifi" => fixture_payload::<WifiRow>(&sample),
+        "host.wifi.link" => fixture_payload::<WifiRow>(&sample),
         "host.wifi.latency" => fixture_payload::<LatencyRow>(&sample),
-        "host.wifi.channel_occupancy" => fixture_payload::<OccupancyRow>(&sample),
+        "host.wifi.scan" => fixture_payload::<OccupancyRow>(&sample),
         "host.bluetooth" => fixture_payload::<BluetoothRow>(&sample),
         stream => panic!("fixture stream has no explicit typed row: {stream}"),
     };
@@ -262,7 +262,7 @@ pub fn fixture_host_contracts() -> Vec<TelemetryContract> {
             ],
         ),
         fixture_host_contract(
-            "host.wifi",
+            "host.wifi.link",
             "Host WiFi",
             vec![
                 fixture_host_column("wifi_signal_percent", "WiFi Signal"),
@@ -275,8 +275,8 @@ pub fn fixture_host_contracts() -> Vec<TelemetryContract> {
         ),
         fixture_host_contract("host.wifi.latency", "Host WiFi Latency", vec![fixture_host_column("wifi_latency_ms", "WiFi Latency")]),
         fixture_host_contract(
-            "host.wifi.channel_occupancy",
-            "Host WiFi Channel Occupancy",
+            "host.wifi.scan",
+            "Host WiFi Scan",
             vec![
                 fixture_host_column("active_wifi_channel", "Active WiFi Channel"),
                 fixture_host_column("wifi_channel", "WiFi Channel"),
@@ -392,12 +392,12 @@ pub fn conflicting_tracking_contract() -> TelemetryContract {
 
 pub fn wifi_occupancy_contract() -> TelemetryContract {
     TelemetryContract {
-        stream: identifier("host.wifi.channel_occupancy"),
+        stream: identifier("host.wifi.scan"),
         schema_version: 1,
-        metadata: metadata("host.wifi.channel_occupancy", "WiFi Occupancy"),
+        metadata: metadata("host.wifi.scan", "WiFi Occupancy"),
         template_id: None,
         owner: None,
-        storage_schema: fixture_schema("host.wifi.channel_occupancy"),
+        storage_schema: fixture_schema("host.wifi.scan"),
         columns: vec![
             TelemetryColumn::new(metadata("sample_index", "Sample Index"), ValueType::Integer, TelemetryRole::Value),
             TelemetryColumn::new(metadata("wifi_channel", "WiFi Channel"), ValueType::Integer, TelemetryRole::Value),

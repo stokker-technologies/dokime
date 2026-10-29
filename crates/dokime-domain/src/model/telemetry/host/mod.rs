@@ -33,9 +33,9 @@ use crate::model::identity::Identifier;
 pub const HOST_STREAMS: &[HostTelemetryStream] = &[
     HostTelemetryStream::System,
     HostTelemetryStream::Network,
-    HostTelemetryStream::Wifi,
+    HostTelemetryStream::WifiLink,
+    HostTelemetryStream::WifiScan,
     HostTelemetryStream::WifiLatency,
-    HostTelemetryStream::WifiChannelOccupancy,
     HostTelemetryStream::Bluetooth,
 ];
 
@@ -59,9 +59,9 @@ pub struct UnknownHostStream(pub String);
 pub enum HostTelemetryStream {
     System,
     Network,
-    Wifi,
+    WifiLink,
+    WifiScan,
     WifiLatency,
-    WifiChannelOccupancy,
     Bluetooth,
 }
 
@@ -70,12 +70,13 @@ pub enum HostTelemetryStream {
 /* === Implementations === */
 
 impl HostTelemetryStream {
+    // The One Source Of Each Host Stream's Default Cadence.
     pub const fn interval(self) -> crate::model::time::DurationMillis {
         crate::model::time::DurationMillis(match self {
-            Self::System | Self::Network => 1_000,
-            Self::Wifi | Self::Bluetooth => 5_000,
+            Self::System | Self::Network | Self::WifiLink => 1_000,
+            Self::Bluetooth => 5_000,
             Self::WifiLatency => 10_000,
-            Self::WifiChannelOccupancy => 30_000,
+            Self::WifiScan => 60_000,
         })
     }
 
@@ -83,9 +84,9 @@ impl HostTelemetryStream {
         match self {
             Self::System => "host.system",
             Self::Network => "host.network",
-            Self::Wifi => "host.wifi",
+            Self::WifiLink => "host.wifi.link",
+            Self::WifiScan => "host.wifi.scan",
             Self::WifiLatency => "host.wifi.latency",
-            Self::WifiChannelOccupancy => "host.wifi.channel_occupancy",
             Self::Bluetooth => "host.bluetooth",
         }
     }
@@ -94,9 +95,9 @@ impl HostTelemetryStream {
         match self {
             Self::System => "Host System",
             Self::Network => "Host Network",
-            Self::Wifi => "Host WiFi",
+            Self::WifiLink => "Host WiFi Link",
+            Self::WifiScan => "Host WiFi Scan",
             Self::WifiLatency => "Host WiFi Latency",
-            Self::WifiChannelOccupancy => "Host WiFi Network Occupancy",
             Self::Bluetooth => "Host Bluetooth",
         }
     }
@@ -113,9 +114,9 @@ impl TryFrom<&str> for HostTelemetryStream {
         match value {
             "host.system" | "system" => Ok(Self::System),
             "host.network" | "network" => Ok(Self::Network),
-            "host.wifi" | "wifi" => Ok(Self::Wifi),
+            "host.wifi.link" | "wifi_link" => Ok(Self::WifiLink),
+            "host.wifi.scan" | "wifi_scan" => Ok(Self::WifiScan),
             "host.wifi.latency" | "wifi_latency" | "latency" => Ok(Self::WifiLatency),
-            "host.wifi.channel_occupancy" | "wifi_channel_occupancy" | "channel_occupancy" => Ok(Self::WifiChannelOccupancy),
             "host.bluetooth" | "bluetooth" => Ok(Self::Bluetooth),
             other => Err(UnknownHostStream(other.to_owned())),
         }

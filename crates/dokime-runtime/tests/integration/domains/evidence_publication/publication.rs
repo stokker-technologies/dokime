@@ -28,7 +28,7 @@ use {
 };
 
 /* === Constants === */
-const WIFI: &str = "host.wifi.channel_occupancy";
+const WIFI: &str = "host.wifi.scan";
 
 /* === Macros === */
 

@@ -9,7 +9,7 @@
 
 /* === Imports === */
 
-use super::WifiChannelOccupancy;
+use super::WifiLink;
 use crate::{Error, HostPlugin, HostTelemetryStream};
 use dokime::harmos::operations::Host;
 use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};
@@ -18,19 +18,18 @@ use std::time::Duration;
 /* === Structs === */
 
 pub struct State {
-    pub(crate) collector: crate::collectors::wifi::WifiCollector,
-    pub(crate) options: crate::HostOptions,
+    pub(crate) collector: crate::collectors::wifi::WifiLinkCollector,
 }
 
 /* === Implementations === */
 
-impl Observer<Publisher<HostPlugin>> for WifiChannelOccupancy {
+impl Observer<Publisher<HostPlugin>> for WifiLink {
     type Error = Error;
-    const ID: &'static str = "host.wifi.channel_occupancy";
+    const ID: &'static str = "host.wifi.link";
     const STREAMS: &'static [dokime::harmos::sidecar::inventory::publications::Entry] =
         &[dokime::harmos::sidecar::inventory::publications::Entry::of::<Self>()];
     const ACTIVATION: Activation = Activation::Demand;
-    const INTERVAL: Duration = Duration::from_millis(HostTelemetryStream::WifiChannelOccupancy.interval().0);
+    const INTERVAL: Duration = Duration::from_millis(HostTelemetryStream::WifiLink.interval().0);
 
     async fn initialize(_: &dokime::harmos::ExecutionContext) -> Result<Self, Error> {
         Ok(Self {})
@@ -47,7 +46,7 @@ impl Observer<Publisher<HostPlugin>> for WifiChannelOccupancy {
     }
 }
 
-impl dokime::harmos::sidecar::inventory::observers::Declared for WifiChannelOccupancy {
+impl dokime::harmos::sidecar::inventory::observers::Declared for WifiLink {
     const ENTRY: dokime::harmos::sidecar::inventory::observers::Entry = dokime::harmos::sidecar::inventory::observers::Entry {
         id: <Self as Observer<Publisher<HostPlugin>>>::ID,
         description: <Self as Observer<Publisher<HostPlugin>>>::DESCRIPTION,

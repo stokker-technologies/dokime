@@ -19,7 +19,8 @@ use std::{
     ffi::c_void,
     ops::RangeInclusive,
     ptr::{addr_of, null_mut},
-    slice, thread,
+    slice,
+    sync::mpsc::{Receiver, SyncSender, sync_channel},
     time::Duration,
 };
 
@@ -32,19 +33,22 @@ use windows::{
             DOT11_AUTH_ALGO_RSNA_PSK, DOT11_AUTH_ALGO_WPA, DOT11_AUTH_ALGO_WPA_NONE, DOT11_AUTH_ALGO_WPA_PSK, DOT11_AUTH_ALGO_WPA3,
             DOT11_AUTH_ALGO_WPA3_ENT, DOT11_AUTH_ALGO_WPA3_SAE, DOT11_AUTH_ALGORITHM, DOT11_CIPHER_ALGO_CCMP, DOT11_CIPHER_ALGO_CCMP_256,
             DOT11_CIPHER_ALGO_GCMP, DOT11_CIPHER_ALGO_GCMP_256, DOT11_CIPHER_ALGO_NONE, DOT11_CIPHER_ALGO_TKIP, DOT11_CIPHER_ALGO_WEP,
-            DOT11_CIPHER_ALGO_WEP40, DOT11_CIPHER_ALGO_WEP104, DOT11_CIPHER_ALGORITHM, DOT11_PHY_TYPE, DOT11_SSID, WLAN_API_VERSION_2_0,
-            WLAN_BSS_ENTRY, WLAN_BSS_LIST, WLAN_CONNECTION_ATTRIBUTES, WLAN_INTERFACE_INFO, WLAN_INTERFACE_INFO_LIST, WLAN_INTERFACE_STATE,
-            WlanCloseHandle, WlanEnumInterfaces, WlanFreeMemory, WlanGetNetworkBssList, WlanOpenHandle, WlanQueryInterface, WlanScan,
-            dot11_BSS_type_any, wlan_interface_state_ad_hoc_network_formed, wlan_interface_state_associating,
-            wlan_interface_state_authenticating, wlan_interface_state_connected, wlan_interface_state_disconnected,
-            wlan_interface_state_disconnecting, wlan_interface_state_discovering, wlan_interface_state_not_ready,
-            wlan_intf_opcode_current_connection, wlan_intf_opcode_rssi,
+            DOT11_CIPHER_ALGO_WEP40, DOT11_CIPHER_ALGO_WEP104, DOT11_CIPHER_ALGORITHM, DOT11_PHY_TYPE, DOT11_SSID, L2_NOTIFICATION_DATA,
+            WLAN_API_VERSION_2_0, WLAN_AVAILABLE_NETWORK, WLAN_AVAILABLE_NETWORK_LIST, WLAN_BSS_ENTRY, WLAN_BSS_LIST,
+            WLAN_CONNECTION_ATTRIBUTES, WLAN_INTERFACE_INFO, WLAN_INTERFACE_INFO_LIST, WLAN_INTERFACE_STATE, WLAN_NOTIFICATION_SOURCE_ACM,
+            WLAN_NOTIFICATION_SOURCE_NONE, WlanCloseHandle, WlanEnumInterfaces, WlanFreeMemory, WlanGetAvailableNetworkList,
+            WlanGetNetworkBssList, WlanOpenHandle, WlanQueryInterface, WlanRegisterNotification, WlanScan, dot11_BSS_type_any,
+            wlan_interface_state_ad_hoc_network_formed, wlan_interface_state_associating, wlan_interface_state_authenticating,
+            wlan_interface_state_connected, wlan_interface_state_disconnected, wlan_interface_state_disconnecting,
+            wlan_interface_state_discovering, wlan_interface_state_not_ready, wlan_intf_opcode_current_connection, wlan_intf_opcode_rssi,
+            wlan_notification_acm_scan_complete, wlan_notification_acm_scan_fail,
         },
     },
     core::GUID,
 };
 
 // Local Imports
+use crate::platform::ScannedNetwork;
 use crate::{Error, HostOptions, Result};
 
 /* === Constants === */
@@ -68,26 +72,21 @@ pub struct WifiLink {
     pub auth: Option<String>,
     pub cipher: Option<String>,
     pub channel: Option<u32>,
-    pub band: Option<String>,
     pub signal_percent: Option<f64>,
     pub rssi_dbm: Option<f64>,
     pub rx_phy_mbps: Option<f64>,
     pub tx_phy_mbps: Option<f64>,
 }
 
-#[derive(Clone, Debug)]
-pub struct WifiChannelOccupancy {
-    pub adapter: Option<String>,
-    pub channel: u32,
-    pub band: Option<String>,
-    pub active_channel: Option<u32>,
-    pub active_band: Option<String>,
-    pub network_count: u32,
-    pub max_signal_percent: Option<f64>,
-}
-
+// The Scan Waiter Lives As Long As The Client: Closing The Handle Ends Its Notifications.
 struct WlanClient {
     handle: HANDLE,
+    scan: Option<Box<ScanWait>>,
+}
+
+struct ScanWait {
+    interface: GUID,
+    done: SyncSender<()>,
 }
 
 #[derive(Clone, Debug)]
@@ -129,7 +128,7 @@ impl WlanClient {
             return Err(Error::Probe(format!("WlanOpenHandle failed with {code}")));
         }
 
-        Ok(Self { handle })
+        Ok(Self { handle, scan: None })
     }
 
     fn interfaces(&self) -> Result<Vec<WifiInterface>> {
@@ -197,15 +196,33 @@ impl WlanClient {
         rssi_dbm
     }
 
-    fn bss_entries(&self, interface: &WifiInterface, request_scan: bool, scan_wait: Duration) -> Result<Vec<WLAN_BSS_ENTRY>> {
-        if request_scan {
-            let scan = unsafe { WlanScan(self.handle, &interface.guid, None, None, None) };
-            if scan != 0 {
-                return Err(Error::Probe(format!("WlanScan failed with {scan}")));
-            }
-            thread::sleep(scan_wait);
+    // WlanScan Completes Asynchronously; Its ACM Notification Ends The Wait Early.
+    fn scan(&mut self, interface: &WifiInterface, window: Duration) -> Result<()> {
+        let (done, finished): (SyncSender<()>, Receiver<()>) = sync_channel(1);
+        let wait = self.scan.insert(Box::new(ScanWait { interface: interface.guid, done }));
+        let context = std::ptr::from_ref::<ScanWait>(wait).cast::<c_void>();
+        // SAFETY: The context is owned by this client and outlives the handle whose notifications reach it.
+        let code = unsafe {
+            WlanRegisterNotification(self.handle, WLAN_NOTIFICATION_SOURCE_ACM, true, Some(scan_notification), Some(context), None, None)
+        };
+        if code != 0 {
+            return Err(Error::Probe(format!("WlanRegisterNotification failed with {code}")));
         }
+        // SAFETY: The interface GUID is valid for this call.
+        let scan = unsafe { WlanScan(self.handle, &interface.guid, None, None, None) };
+        let outcome = if scan == 0 {
+            let _ = finished.recv_timeout(window);
+            Ok(())
+        } else {
+            Err(Error::Probe(format!("WlanScan failed with {scan}")))
+        };
+        // SAFETY: Unregistering takes no context; the waiter stays alive until the handle closes.
+        let _ = unsafe { WlanRegisterNotification(self.handle, WLAN_NOTIFICATION_SOURCE_NONE, true, None, None, None, None) };
+        outcome
+    }
 
+    // The Driver's Current BSS List, Without Starting A Scan.
+    fn bss_entries(&self, interface: &WifiInterface) -> Result<Vec<WLAN_BSS_ENTRY>> {
         let mut list: *mut WLAN_BSS_LIST = null_mut();
         let code = unsafe { WlanGetNetworkBssList(self.handle, &interface.guid, None, dot11_BSS_type_any, false, None, &mut list) };
         if code != 0 {
@@ -214,7 +231,6 @@ impl WlanClient {
         if list.is_null() {
             return Ok(Vec::new());
         }
-
         let entries = unsafe {
             let count = (*list).dwNumberOfItems as usize;
             let first = addr_of!((*list).wlanBssEntries).cast::<WLAN_BSS_ENTRY>();
@@ -223,12 +239,34 @@ impl WlanClient {
         unsafe {
             WlanFreeMemory(list.cast::<c_void>());
         }
-
         Ok(entries)
     }
-}
 
-/* === Public Functions === */
+    // Security Per SSID From The Available-Network List; BSS Entries Do Not Carry It.
+    fn security(&self, interface: &WifiInterface) -> BTreeMap<Vec<u8>, String> {
+        let mut list: *mut WLAN_AVAILABLE_NETWORK_LIST = null_mut();
+        let code = unsafe { WlanGetAvailableNetworkList(self.handle, &interface.guid, 0, None, &mut list) };
+        if code != 0 || list.is_null() {
+            return BTreeMap::new();
+        }
+        let networks = unsafe {
+            let count = (*list).dwNumberOfItems as usize;
+            let first = addr_of!((*list).Network).cast::<WLAN_AVAILABLE_NETWORK>();
+            slice::from_raw_parts(first, count).to_vec()
+        };
+        unsafe {
+            WlanFreeMemory(list.cast::<c_void>());
+        }
+        networks.iter().filter_map(network_security_entry).collect()
+    }
+
+    // The Associated Entry's Frequency From The Cached BSS List; It Also Distinguishes 6 GHz Channels.
+    fn associated_channel(&self, interface: &WifiInterface, bssid: &[u8; 6]) -> Option<u32> {
+        let entries = self.bss_entries(interface).ok()?;
+        let entry = entries.into_iter().find(|entry| entry.dot11Bssid == *bssid)?;
+        channel_from_frequency(entry.ulChCenterFrequency)
+    }
+}
 
 pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let client = WlanClient::open()?;
@@ -248,7 +286,6 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
             auth: None,
             cipher: None,
             channel: None,
-            band: None,
             signal_percent: None,
             rssi_dbm: None,
             rx_phy_mbps: None,
@@ -264,6 +301,7 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let bssid = mac_string(&association.dot11Bssid);
     // Read The Signal Before The Interface Gives Up Its Description
     let rssi_dbm = client.rssi_dbm(&interface);
+    let channel = client.associated_channel(&interface, &association.dot11Bssid);
     Ok(Some(WifiLink {
         adapter: Some(interface.description),
         state,
@@ -273,8 +311,7 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
         radio: Some(phy_type(association.dot11PhyType).to_owned()),
         auth: Some(auth_algorithm(security.dot11AuthAlgorithm).to_owned()),
         cipher: Some(cipher_algorithm(security.dot11CipherAlgorithm).to_owned()),
-        channel: None,
-        band: None,
+        channel,
         signal_percent: Some(f64::from(association.wlanSignalQuality)),
         rssi_dbm,
         rx_phy_mbps: Some(association.ulRxRate as f64 / 1_000.0),
@@ -282,42 +319,47 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     }))
 }
 
-pub fn scan_channel_occupancy(options: &HostOptions, scan_wait: Duration) -> Result<Vec<WifiChannelOccupancy>> {
-    let client = WlanClient::open()?;
+// Every BSS The Driver Reports; With A Window, After An Active Scan That Completes Within It.
+pub fn scan_networks(options: &HostOptions, scan_window: Option<Duration>) -> Result<Vec<ScannedNetwork>> {
+    let mut client = WlanClient::open()?;
     let interfaces = client.interfaces()?;
     let Some(interface) = select_interface(&interfaces, options) else {
         return Ok(Vec::new());
     };
-    let entries = client.bss_entries(&interface, true, scan_wait)?;
-    if entries.is_empty() {
-        return Ok(Vec::new());
-    }
-    let active_channel = active_channel_from_scan(&client, &interface, &entries)?;
-    let active_band = active_channel.and_then(wifi_band);
-
-    let mut channels: BTreeMap<u32, WifiChannelOccupancy> = BTreeMap::new();
-    for entry in entries {
-        let Some(channel) = channel_from_frequency(entry.ulChCenterFrequency) else {
-            continue;
-        };
-        let item = channels.entry(channel).or_insert(WifiChannelOccupancy {
-            adapter: Some(interface.description.clone()),
-            channel,
-            band: wifi_band(channel),
-            active_channel,
-            active_band: active_band.clone(),
-            network_count: 0,
-            max_signal_percent: None,
-        });
-        item.network_count += 1;
-        let signal = f64::from(entry.uLinkQuality);
-        item.max_signal_percent = Some(item.max_signal_percent.map_or(signal, |max| max.max(signal)));
+    if let Some(window) = scan_window {
+        client.scan(&interface, window)?;
     }
 
-    Ok(channels.into_values().collect())
+    let entries = client.bss_entries(&interface)?;
+    let connected = interface.state == wlan_interface_state_connected;
+    let attributes = if connected { client.current_connection(&interface)? } else { None };
+    let associated = attributes.map(|attributes| attributes.wlanAssociationAttributes.dot11Bssid);
+    let security = client.security(&interface);
+    let scanned = |entry: &WLAN_BSS_ENTRY| scanned_network(entry, &interface, &security, associated);
+    Ok(entries.iter().map(scanned).collect())
 }
 
-/* === Private Functions === */
+fn scanned_network(
+    entry: &WLAN_BSS_ENTRY, interface: &WifiInterface, security: &BTreeMap<Vec<u8>, String>, associated: Option<[u8; 6]>,
+) -> ScannedNetwork {
+    let rssi_dbm = f64::from(entry.lRssi);
+    let ssid = ssid_bytes(&entry.dot11Ssid);
+    ScannedNetwork {
+        adapter: Some(interface.description.clone()),
+        ssid: ssid_string(&entry.dot11Ssid),
+        bssid: Some(mac_string(&entry.dot11Bssid)),
+        signal_percent: Some(f64::from(entry.uLinkQuality)),
+        rssi_dbm: RSSI_RANGE_DBM.contains(&rssi_dbm).then_some(rssi_dbm),
+        channel: channel_from_frequency(entry.ulChCenterFrequency),
+        security: ssid.and_then(|ssid| security.get(ssid).cloned()),
+        associated: associated == Some(entry.dot11Bssid),
+    }
+}
+
+fn network_security_entry(network: &WLAN_AVAILABLE_NETWORK) -> Option<(Vec<u8>, String)> {
+    let ssid = ssid_bytes(&network.dot11Ssid)?.to_vec();
+    Some((ssid, network_security(network).to_owned()))
+}
 
 fn select_interface(interfaces: &[WifiInterface], options: &HostOptions) -> Option<WifiInterface> {
     if let Some(adapter) = &options.wifi_adapter_name {
@@ -361,28 +403,29 @@ fn channel_from_frequency(value: u32) -> Option<u32> {
     }
 }
 
-fn wifi_band(channel: u32) -> Option<String> {
-    match channel {
-        1..=14 => Some("2.4GHz".to_owned()),
-        32..=177 => Some("5GHz".to_owned()),
-        1_000..=2_000 => Some("6GHz".to_owned()),
-        _ => None,
+// Only A Finished Or Failed Scan On The Waited Interface Ends The Wait.
+unsafe extern "system" fn scan_notification(data: *mut L2_NOTIFICATION_DATA, context: *mut c_void) {
+    // SAFETY: WLAN passes valid notification data and the context registered by `WlanClient::scan`.
+    let (Some(data), Some(wait)) = (unsafe { data.as_ref() }, unsafe { context.cast::<ScanWait>().as_ref() }) else {
+        return;
+    };
+    let code = data.NotificationCode as i32;
+    let finished = code == wlan_notification_acm_scan_complete.0 || code == wlan_notification_acm_scan_fail.0;
+    if data.NotificationSource == WLAN_NOTIFICATION_SOURCE_ACM && data.InterfaceGuid == wait.interface && finished {
+        let _ = wait.done.try_send(());
     }
 }
 
-fn active_channel_from_scan(client: &WlanClient, interface: &WifiInterface, entries: &[WLAN_BSS_ENTRY]) -> Result<Option<u32>> {
-    if interface.state != wlan_interface_state_connected {
-        return Ok(None);
-    }
-    let Some(attributes) = client.current_connection(interface)? else {
-        return Ok(None);
-    };
-    let association = attributes.wlanAssociationAttributes;
+fn ssid_bytes(value: &DOT11_SSID) -> Option<&[u8]> {
+    let len = usize::try_from(value.uSSIDLength).ok()?.min(value.ucSSID.len());
+    (len > 0).then(|| &value.ucSSID[..len])
+}
 
-    Ok(entries
-        .iter()
-        .find(|entry| entry.dot11Bssid == association.dot11Bssid)
-        .and_then(|entry| channel_from_frequency(entry.ulChCenterFrequency)))
+fn network_security(network: &WLAN_AVAILABLE_NETWORK) -> &'static str {
+    if !network.bSecurityEnabled.as_bool() {
+        return "open";
+    }
+    auth_algorithm(network.dot11DefaultAuthAlgorithm)
 }
 
 fn interface_state(state: WLAN_INTERFACE_STATE) -> &'static str {
@@ -400,13 +443,16 @@ fn interface_state(state: WLAN_INTERFACE_STATE) -> &'static str {
 }
 
 fn phy_type(value: DOT11_PHY_TYPE) -> &'static str {
+    // DOT11_PHY_TYPE: ofdm (a), hrdsss (b), erp (g), ht (n), vht (ac), dmg (ad), he (ax), eht (be).
     match value.0 {
-        4 => "802.11g",
-        5 => "802.11a",
-        6 => "802.11n",
-        7 => "802.11ac",
-        8 => "802.11ad",
-        9 => "802.11ax",
+        4 => "802.11a",
+        5 => "802.11b",
+        6 => "802.11g",
+        7 => "802.11n",
+        8 => "802.11ac",
+        9 => "802.11ad",
+        10 => "802.11ax",
+        11 => "802.11be",
         _ => "unknown",
     }
 }

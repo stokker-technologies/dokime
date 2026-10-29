@@ -1,11 +1,18 @@
 # Dokime Plugins
 
 `sidecars/host/` supplies the six host telemetry streams through the supervised
-plugin ingest boundary. Its single catalog contains the collection operations,
-stream declarations and demand-driven observers. Operation definitions own the
-policies; Windows and Unix implementations are selected at module declarations.
-Its Collection settings retain the Wi-Fi/Bluetooth adapter selectors and latency
-host. Empty adapter selectors use the native default. Native repeated fields
+plugin ingest boundary: `host.system`, `host.network` (with OS-reported
+`internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row
+per nearby network), `host.wifi.latency` (round trip and loss to the latency host)
+and `host.bluetooth`. Its single catalog contains the collection operations,
+stream declarations and demand-driven observers; each stream has its own observer,
+which runs only while a lease holds that stream. Operation definitions own the
+policies and `HostTelemetryStream::interval()` owns the default cadences; Windows
+and Unix implementations are selected at module declarations. Windows probes use
+native APIs and start no processes. Its Collection settings retain the
+Wi-Fi/Bluetooth adapter selectors and latency host, plus the minimum interval
+between active Wi-Fi scans; a scan due sooner reports the cached network list.
+Empty adapter selectors use the native default. Native repeated fields
 carry lists; acquisition timestamps travel in framework publication metadata.
 The runtime decodes these rows through the same codec as other plugins.
 Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
