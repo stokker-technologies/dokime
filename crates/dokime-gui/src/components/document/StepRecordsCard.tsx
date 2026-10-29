@@ -9,28 +9,18 @@
 
 /* === External Imports === */
 
-import { ChevronDown, ListChecks, LoaderCircle } from "lucide-react";
+import { ChevronDown, LoaderCircle } from "lucide-react";
 import { type ComponentProps, useState } from "react";
 
 /* === Local Imports === */
 
-import { DocumentCard } from "@/components/document/DocumentCard";
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatDuration } from "@/lib/format";
-import type { DocumentCardLayout, StepExecutionRecord, StepFailureDetail } from "@/lib/types";
+import type { StepExecutionRecord, StepFailureDetail } from "@/lib/types";
 
 /* === Types === */
-
-type StepRecordsCardProps = {
-  records: StepExecutionRecord[];
-  emptyMessage?: string;
-  eyebrow?: string;
-  layout?: DocumentCardLayout;
-  maxItems?: number | null;
-  title?: string;
-};
 
 type BadgeVariant = ComponentProps<typeof Badge>["variant"];
 
@@ -45,21 +35,6 @@ const RECORD_TYPE_ORDER: Record<StepExecutionRecord["record_type"], number> = {
 };
 
 /* === Components === */
-
-export function StepRecordsCard({
-  records,
-  emptyMessage = "No step records yet.",
-  eyebrow = "Step",
-  layout,
-  maxItems,
-  title = "Steps",
-}: StepRecordsCardProps) {
-  return (
-    <DocumentCard contentClassName="p-3" eyebrow={eyebrow} icon={<ListChecks size={20} />} layout={layout} title={title}>
-      <StepRecordList records={records} emptyMessage={emptyMessage} maxItems={maxItems} />
-    </DocumentCard>
-  );
-}
 
 export function StepRecordList({
   records,

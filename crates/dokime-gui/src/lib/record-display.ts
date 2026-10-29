@@ -10,15 +10,10 @@
 /* === Local Imports === */
 
 import { formatNumber, formatTime } from "@/lib/format";
-import type { RecordDisplay, RecordIconKey, RecordTone, ValueFormat } from "@/lib/types";
+import type { RecordDisplay, RecordTone, ValueFormat } from "@/lib/types";
 import { cn, isRecord, numericValue } from "@/lib/utils";
 
 /* === Types === */
-
-type RecordDisplaySource = {
-  icon?: string | null;
-  tone?: string | null;
-};
 
 /** A datetime value on the wire: the one-key tagged map `{"$datetime": "<rfc3339>"}`. */
 type DatetimeValue = { $datetime: string };
@@ -37,13 +32,6 @@ export function recordToneShellClass(tone: RecordTone, className?: string): stri
     tone === "neutral" && "border-border bg-muted/30 text-muted-foreground",
     className,
   );
-}
-
-export function mapRecordDisplay(display: RecordDisplaySource | null | undefined, severity: string): RecordDisplay {
-  return {
-    icon: recordIconKey(display?.icon),
-    tone: recordTone(display?.tone, severity),
-  };
 }
 
 export function fallbackRecordDisplay(severity: string): RecordDisplay {
@@ -135,49 +123,7 @@ export function formatRecordValue(value: unknown, format?: ValueFormat | null): 
   return JSON.stringify(value);
 }
 
-export function recordToneMarkerColor(tone: RecordTone): string | null {
-  if (tone === "danger") return "var(--destructive)";
-  if (tone === "warning") return "var(--warning)";
-  if (tone === "success") return "var(--success)";
-  if (tone === "info") return "var(--info)";
-  if (tone === "accent") return "var(--accent-foreground)";
-  if (tone === "muted") return "var(--muted-foreground)";
-  return null;
-}
-
 /* === Private Functions === */
-
-function recordIconKey(value: string | null | undefined): RecordIconKey {
-  if (
-    value === "activity" ||
-    value === "alert-triangle" ||
-    value === "archive" ||
-    value === "bell" ||
-    value === "check-circle" ||
-    value === "circle-dashed" ||
-    value === "clipboard-check" ||
-    value === "clock" ||
-    value === "cpu" ||
-    value === "file-text" ||
-    value === "flag" ||
-    value === "gauge" ||
-    value === "heart-pulse" ||
-    value === "help-circle" ||
-    value === "message-square-text" ||
-    value === "package" ||
-    value === "plug" ||
-    value === "radio-tower" ||
-    value === "rotate-ccw" ||
-    value === "shield-alert" ||
-    value === "target" ||
-    value === "timer-reset" ||
-    value === "wrench" ||
-    value === "zap"
-  ) {
-    return value;
-  }
-  return "clock";
-}
 
 function recordTone(value: string | null | undefined, severity: string): RecordTone {
   if (

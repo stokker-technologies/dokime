@@ -13,8 +13,6 @@ export type UiSurfaceMode = "live" | "report";
 
 /* === Constants === */
 
-export const UI_SURFACE_MODE: UiSurfaceMode = __DOKIME_UI_MODE__;
-
 /* === Public Functions === */
 
 export function currentUiSurfaceMode(): UiSurfaceMode {

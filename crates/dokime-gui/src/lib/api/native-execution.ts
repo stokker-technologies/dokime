@@ -74,10 +74,6 @@ export async function fetchNativeTestCycleDetail(
   };
 }
 
-export async function fetchNativeTestCycleExecutions(session: SessionIdentity, cycleId: string): Promise<TestExecution[]> {
-  return (await fetchNativeTestCycleDetail(session, cycleId)).executions;
-}
-
 /** Load steps, criteria, parameters, and result data for one selected execution. */
 export async function fetchNativeTestExecutionDetail(session: SessionIdentity, executionId: string): Promise<TestExecution> {
   const native = await loadNativeExecution(session, executionId);

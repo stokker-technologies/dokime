@@ -194,10 +194,6 @@ export type StartTestCycleResponse = {
   plan: TestCyclePlan;
 };
 
-export type DeleteTestCycleCasesRequest = {
-  case_ids: string[];
-};
-
 export type PreviewTestCycleRequest = {
   /** The cycle the cases would join; their labels continue its numbering. */
   cycle_id?: string | null;

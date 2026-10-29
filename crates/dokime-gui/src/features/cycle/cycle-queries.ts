@@ -213,8 +213,6 @@ export function useCycleCommands(cycleId: string) {
   };
 }
 
-export type CycleCommands = ReturnType<typeof useCycleCommands>;
-
 /** Append A Fresh Attempt And Select It For Explicit Start */
 export function useRerunCase(cycleId: string) {
   const commands = useCycleCommands(cycleId);

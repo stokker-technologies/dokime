@@ -56,10 +56,6 @@ export function useNativeSessionOptional() {
 export function useNativeAppearance() {
   return useContext(Appearance)?.resource ?? null;
 }
-export function useRefreshNativeAppearance() {
-  return useContext(Appearance)?.refresh ?? (() => undefined);
-}
-
 /* === Private Functions === */
 
 /* === Entry Point === */

@@ -14,10 +14,6 @@ type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
 type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
 type NativeStoreHistory = NonNullable<NativeStorageCursor["history"]>;
 
-export type ActorId = string;
-
-export type ArtifactId = string;
-
 export type PluginRuntimeSecretBindings = {
   bindings?: { [key in string]: RedactedSecretBinding };
   missing_required?: string[];
@@ -60,31 +56,6 @@ export type CycleHistorySummary = {
   finished_at: string | null;
   updated_at: string;
   duration_s: number | null;
-};
-
-export type DebugLevel = "debug" | "info" | "warning" | "error";
-
-export type DokimeActorIdentity = {
-  actor_id: ActorId;
-  display_name: string;
-};
-
-export type DokimeIdentity = {
-  node: DokimeNodeIdentity;
-  actor: DokimeActorIdentity | null;
-};
-
-export type DokimeNodeIdentity = {
-  node_id: NodeId;
-  hostname_label: string | null;
-  created_at: Timestamp;
-  updated_at: Timestamp;
-};
-
-export type ErrorCause = {
-  message: string;
-  code: string | null;
-  source: string | null;
 };
 
 export type ExecutionAvailability = "live" | "stored" | "interrupted" | "uncheckpointed";
@@ -216,36 +187,6 @@ export type Installation = {
   last_boot: PluginLastBoot | null;
 };
 
-export type InstalledPluginErrorRecord = {
-  plugin_id: Identifier;
-  contribution_id: Identifier | null;
-  phase: InstalledPluginPhase;
-  level: DebugLevel;
-  message: string;
-  code: string | null;
-  source: string | null;
-  cause_chain: ErrorCause[];
-  stacktrace_attachment: ArtifactId | null;
-  trace_id: TraceId | null;
-  scope: RecordScope | null;
-  session_id: SessionId | null;
-  test_cycle_id: TestCycleId | null;
-  test_execution_id: TestExecutionId | null;
-  recorded_at: Timestamp;
-};
-
-export type InstalledPluginPhase = "entrypoint" | "action" | "sidecar" | "provider" | "initialize" | "run" | "finalize" | "interrupt";
-
-export type Metadata = {
-  uuid?: string;
-  created_at?: Timestamp;
-  id?: string;
-  identifier: Identifier;
-  label: string;
-  description?: string | null;
-  tags?: string[];
-};
-
 export type MultipleChoice = {
   id: string;
   title: string;
@@ -255,8 +196,6 @@ export type MultipleChoice = {
   /** The id of the plugin route that fills this dropdown at run time. */
   provider?: string | null;
 };
-
-export type NodeId = string;
 
 export type Number = {
   id: string;
@@ -568,7 +507,5 @@ export type ThemeVariant = {
 };
 
 export type Timestamp = string;
-
-export type TraceId = string;
 
 export type Value = "Null" | boolean | number | number | null | string | Value[] | { [key in string]: Value };
