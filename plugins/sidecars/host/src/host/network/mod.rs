@@ -68,7 +68,7 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::Network,
+    pub row: crate::Network,
     pub timestamp_micros: i64,
 }
 
@@ -79,15 +79,15 @@ pub struct Collected {
 /* === Implementations === */
 
 impl dokime::StreamSpec for Network {
-    type Row = dokime::host::Network;
+    type Row = crate::Network;
     const ID: &'static str = "host.network";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::Network as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <crate::Network as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for Network {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::Network).typed::<dokime::host::Network>()
+        crate::host_telemetry_contract(HostTelemetryStream::Network).typed::<crate::Network>()
     }
 }
 
@@ -111,6 +111,6 @@ mod tests {
         assert!(<Network as OperationDeclaration>::POLICY.timeout >= <Network as OperationDeclaration>::POLICY.attempt_timeout);
         assert!(!<Network as OperationDeclaration>::POLICY.timeout.is_zero());
         assert!(request == Network::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(Network::contract().storage_schema, <dokime::host::Network as TelemetryStream>::contract().storage_schema);
+        assert_eq!(Network::contract().storage_schema, <crate::Network as TelemetryStream>::contract().storage_schema);
     }
 }

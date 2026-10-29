@@ -73,7 +73,7 @@ export function programSource(program: RuntimeInstalledPluginRecord, brandLabel:
   const owner = program.owner;
   const origin =
     owner?.kind === "host"
-      ? `${brandLabel} Host`
+      ? `${brandLabel} Built-in`
       : owner?.kind === "bundle"
         ? (owner.path ?? owner.package)
         : owner?.kind === "embedded"

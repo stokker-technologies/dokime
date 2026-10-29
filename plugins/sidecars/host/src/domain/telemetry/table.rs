@@ -23,7 +23,6 @@
 
 /* === Macros === */
 
-#[macro_export]
 macro_rules! host_streams {
     ($expand:ident) => {
         $expand! {
@@ -187,6 +186,8 @@ macro_rules! host_streams {
         }
     };
 }
+
+pub(super) use host_streams;
 
 /* === Type Aliases === */
 

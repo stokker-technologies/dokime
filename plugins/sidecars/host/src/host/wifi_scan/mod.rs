@@ -68,7 +68,7 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::WifiScan,
+    pub row: crate::WifiScan,
     pub timestamp_micros: i64,
 }
 
@@ -79,15 +79,15 @@ pub struct Collected {
 /* === Implementations === */
 
 impl dokime::StreamSpec for WifiScan {
-    type Row = dokime::host::WifiScan;
+    type Row = crate::WifiScan;
     const ID: &'static str = "host.wifi.scan";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::WifiScan as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <crate::WifiScan as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for WifiScan {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiScan).typed::<dokime::host::WifiScan>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiScan).typed::<crate::WifiScan>()
     }
 }
 
@@ -111,6 +111,6 @@ mod tests {
         assert!(<WifiScan as OperationDeclaration>::POLICY.timeout >= <WifiScan as OperationDeclaration>::POLICY.attempt_timeout);
         assert!(!<WifiScan as OperationDeclaration>::POLICY.timeout.is_zero());
         assert!(request == WifiScan::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(WifiScan::contract().storage_schema, <dokime::host::WifiScan as TelemetryStream>::contract().storage_schema);
+        assert_eq!(WifiScan::contract().storage_schema, <crate::WifiScan as TelemetryStream>::contract().storage_schema);
     }
 }

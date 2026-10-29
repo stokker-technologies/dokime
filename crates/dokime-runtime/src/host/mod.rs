@@ -9,19 +9,9 @@
 
 /* === Modules === */
 
-pub mod streams;
-
 /* === Re-Exports === */
 
-pub use streams::{Bluetooth, Network, System, WifiLatency, WifiLink, WifiScan};
-
-// The host's own vocabulary for its streams, which its collector and its
-// contracts are written against. A template names the types above instead.
-pub use dokime_domain::model::telemetry::HOST_STREAMS;
-pub use dokime_domain::model::telemetry::HostTelemetryStream;
-pub use dokime_domain::model::telemetry::host_stream_identifiers;
-
-// The records the host itself files, beside the streams it samples.
+// Application Lifecycle Records, Independent Of The Host Telemetry Plugin.
 pub use crate::records::host::{
     ProcessExited, StepHandleCancelled, TargetAcquired, TargetLost, TestCycleCompleted, ToolConnectionAcquired, ToolConnectionLost,
 };

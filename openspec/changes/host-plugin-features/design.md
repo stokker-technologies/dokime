@@ -92,7 +92,7 @@ dokime-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v
 
 ## Host Is An Ordinary Plugin
 
-Locked 2026-10-29, clarified by the owner on 2026-10-29 for 6A.1. `dokime-host` ships as ordinary per-target `.dokime` bundles; the runtime neither links nor boot-installs it. `PluginOwner::Host` stays for catalogs registered by the embedding application, with GUI `<brand> Built-in` and server `Built-in` labels. It does not identify the host plugin. `StreamOwner::Host` and built-in sampling remain removed.
+Locked 2026-10-29, clarified by the owner on 2026-10-29 for 6A.1. `dokime-host` ships as ordinary per-target `.dokime` bundles; the runtime production library neither links nor boot-installs it. `PluginOwner::Host` stays for catalogs registered by the embedding application, with GUI `<brand> Built-in` and server `Built-in` labels. It does not identify the host plugin. `StreamOwner::Host` and built-in sampling remain removed.
 
 `state::is_host_stream` is removed: each `host.*` subscription without a publisher receives the same visible refusal as any other unpublished stream, independently of other subscriptions and their leases. Host rows, contracts, cadences, document defaults and the Wi-Fi occupancy binding move to `dokime-host` definitions; all runtime fixtures, GUI bindings, OBC suites, templates and guidance migrate without `dokime::host` stream re-exports. Application lifecycle records remain owned by Dokime. Default features remain definitions only, `runtime` gates implementations, and `publish = false` stays; external plugins use a git release tag. Clean breaks retain schema v1 and never reset existing storage.
 

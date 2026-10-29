@@ -45,6 +45,7 @@ repository = "https://github.com/stokker-technologies/dokime"
 dokime = { version = "0.1.1", path = "crates/dokime" }
 dokime-client = { version = "0.1.1", path = "crates/dokime-client" }
 dokime-domain = { version = "0.1.1", path = "crates/dokime-domain" }
+dokime-host = { path = "plugins/sidecars/host", default-features = false }
 dokime-packaging = { version = "0.1.1", path = "crates/dokime-packaging" }
 dokime-runtime = { version = "0.1.1", path = "crates/dokime-runtime", default-features = false }
 dokime-server = { version = "0.1.1", path = "crates/dokime-server" }

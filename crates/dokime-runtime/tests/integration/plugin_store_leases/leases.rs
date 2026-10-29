@@ -284,12 +284,14 @@ pub(crate) async fn declared_streams_independent() {
     let execution = admitted_execution(&handle, 0).await;
     let scope = dokime_runtime::RecordScope::default().with_test_execution(execution.clone());
     let unknown = Identifier::new("fixture.unregistered").unwrap();
-    let declared = [published_stream(), foreign_stream(), unknown.clone()];
+    let missing_host = Identifier::new("host.system").unwrap();
+    let declared = [published_stream(), foreign_stream(), unknown.clone(), missing_host.clone()];
 
     let leased = handle.lease_declared_streams(scope_of(&execution), &declared, "bench").await.unwrap();
     assert_eq!(leased.leases.len(), 1);
     assert_eq!(leased.published, [published_stream()]);
-    assert_eq!(leased.refused.iter().map(|(stream, _)| stream).collect::<Vec<_>>(), [&unknown]);
+    assert_eq!(leased.refused.iter().map(|(stream, _)| stream).collect::<Vec<_>>(), [&unknown, &missing_host]);
+    assert!(leased.refused.iter().all(|(stream, refusal)| refusal.contains(stream.as_str())));
     assert!(handle.stream_lease_is_active(&leased.leases[0]).await);
     let facts = handle.stream_leases_for(&scope).await;
     assert_eq!(facts.len(), 1);

@@ -19,7 +19,7 @@
 // Local Imports
 use super::{identifier, metadata};
 use dokime_runtime::records::{RecordContract, RecordField, RecordSeverity};
-use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow};
 use dokime_runtime::{Identifier, Value, ValueType};
 use harmos::{
     Message,
@@ -71,55 +71,6 @@ pub struct TrackingRow {
     pub connection_acquired_distance_m: Option<f64>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SystemRow {
-    pub cpu_load_percent: Option<f64>,
-    pub memory_pressure_percent: Option<f64>,
-    pub battery_percent: Option<f64>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WifiRow {
-    pub wifi_signal_percent: Option<f64>,
-    pub wifi_rx_phy_mbps: Option<f64>,
-    pub wifi_tx_phy_mbps: Option<f64>,
-    pub wifi_rx_mbps: Option<f64>,
-    pub wifi_tx_mbps: Option<f64>,
-    pub wifi_network_congestion_score: Option<f64>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LatencyRow {
-    pub wifi_latency_ms: Option<f64>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct OccupancyRow {
-    pub sample_index: Option<i64>,
-    pub active_wifi_channel: Option<i64>,
-    pub wifi_channel: Option<i64>,
-    pub network_count: Option<i64>,
-    pub scan_network_count: Option<i64>,
-    pub wifi_network_congestion_score: Option<f64>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BluetoothRow {
-    pub bluetooth_adapter_count: Option<f64>,
-    pub bluetooth_connected_device_count: Option<f64>,
-    pub bluetooth_present_device_count: Option<f64>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -132,11 +83,12 @@ pub fn fixture_schema(stream: &str) -> Option<Schema> {
     let definition = match stream {
         "fixture.telemetry" | "synthetic.samples" => FixtureValueRow::DEFINITION,
         "tracking" | "plt400.ract.tracking.tracking" => TrackingRow::DEFINITION,
-        "host.system" => SystemRow::DEFINITION,
-        "host.wifi.link" => WifiRow::DEFINITION,
-        "host.wifi.latency" => LatencyRow::DEFINITION,
-        "host.wifi.scan" => OccupancyRow::DEFINITION,
-        "host.bluetooth" => BluetoothRow::DEFINITION,
+        "host.system" => dokime_host::System::DEFINITION,
+        "host.network" => dokime_host::Network::DEFINITION,
+        "host.wifi.link" => dokime_host::WifiLink::DEFINITION,
+        "host.wifi.latency" => dokime_host::WifiLatency::DEFINITION,
+        "host.wifi.scan" => dokime_host::WifiScan::DEFINITION,
+        "host.bluetooth" => dokime_host::Bluetooth::DEFINITION,
         _ => return None,
     };
     Some(Schema::from_declaration(definition, &settings).unwrap())
@@ -162,11 +114,12 @@ pub fn typed_fixture_sample(mut sample: dokime_runtime::telemetry::TelemetrySamp
     let bytes = match sample.stream.as_str() {
         "fixture.telemetry" | "synthetic.samples" => fixture_payload::<FixtureValueRow>(&sample),
         "tracking" | "plt400.ract.tracking.tracking" => fixture_payload::<TrackingRow>(&sample),
-        "host.system" => fixture_payload::<SystemRow>(&sample),
-        "host.wifi.link" => fixture_payload::<WifiRow>(&sample),
-        "host.wifi.latency" => fixture_payload::<LatencyRow>(&sample),
-        "host.wifi.scan" => fixture_payload::<OccupancyRow>(&sample),
-        "host.bluetooth" => fixture_payload::<BluetoothRow>(&sample),
+        "host.system" => dokime_host::System::from_row(&sample.values).unwrap().encode(),
+        "host.network" => dokime_host::Network::from_row(&sample.values).unwrap().encode(),
+        "host.wifi.link" => dokime_host::WifiLink::from_row(&sample.values).unwrap().encode(),
+        "host.wifi.latency" => dokime_host::WifiLatency::from_row(&sample.values).unwrap().encode(),
+        "host.wifi.scan" => dokime_host::WifiScan::from_row(&sample.values).unwrap().encode(),
+        "host.bluetooth" => dokime_host::Bluetooth::from_row(&sample.values).unwrap().encode(),
         stream => panic!("fixture stream has no explicit typed row: {stream}"),
     };
     sample.storage_payload = Some(bytes);
@@ -246,79 +199,8 @@ pub fn tracking_record_contracts() -> Vec<RecordContract> {
 
 pub fn suite_telemetry_contracts() -> Vec<TelemetryContract> {
     let mut contracts = vec![tracking_contract()];
-    contracts.extend(fixture_host_contracts());
+    contracts.extend(dokime_host::host_telemetry_contracts());
     contracts
-}
-
-pub fn fixture_host_contracts() -> Vec<TelemetryContract> {
-    vec![
-        fixture_host_contract(
-            "host.system",
-            "Host System",
-            vec![
-                fixture_host_column("cpu_load_percent", "CPU Load"),
-                fixture_host_column("memory_pressure_percent", "Memory Pressure"),
-                fixture_host_column("battery_percent", "Battery"),
-            ],
-        ),
-        fixture_host_contract(
-            "host.wifi.link",
-            "Host WiFi",
-            vec![
-                fixture_host_column("wifi_signal_percent", "WiFi Signal"),
-                fixture_host_column("wifi_rx_phy_mbps", "WiFi RX PHY"),
-                fixture_host_column("wifi_tx_phy_mbps", "WiFi TX PHY"),
-                fixture_host_column("wifi_rx_mbps", "WiFi RX Throughput"),
-                fixture_host_column("wifi_tx_mbps", "WiFi TX Throughput"),
-                fixture_host_column("wifi_network_congestion_score", "WiFi Congestion"),
-            ],
-        ),
-        fixture_host_contract("host.wifi.latency", "Host WiFi Latency", vec![fixture_host_column("wifi_latency_ms", "WiFi Latency")]),
-        fixture_host_contract(
-            "host.wifi.scan",
-            "Host WiFi Scan",
-            vec![
-                fixture_host_column("active_wifi_channel", "Active WiFi Channel"),
-                fixture_host_column("wifi_channel", "WiFi Channel"),
-                fixture_host_column("network_count", "Network Count"),
-                fixture_host_column("scan_network_count", "Scan Network Count"),
-                fixture_host_column("wifi_network_congestion_score", "WiFi Congestion"),
-            ],
-        ),
-        fixture_host_contract(
-            "host.bluetooth",
-            "Host Bluetooth",
-            vec![
-                fixture_host_column("bluetooth_adapter_count", "Bluetooth Adapters"),
-                fixture_host_column("bluetooth_connected_device_count", "Connected Bluetooth Devices"),
-                fixture_host_column("bluetooth_present_device_count", "Present Bluetooth Devices"),
-            ],
-        ),
-    ]
-}
-
-pub fn fixture_host_contract(stream: &str, label: &str, columns: Vec<TelemetryColumn>) -> TelemetryContract {
-    TelemetryContract {
-        stream: identifier(stream),
-        schema_version: 1,
-        metadata: metadata(stream, label),
-        template_id: None,
-        owner: None,
-        columns,
-        storage_schema: fixture_schema(stream),
-        default_x: Some("timestamp".to_owned()),
-        // A host stream declares its cadence the way the real ones do, so a
-        // fixture is leasable on the same terms.
-        interval: Some(dokime_runtime::DurationMillis(1_000)),
-        allow_extra_fields: true,
-        scalar: false,
-        validation_mode: None,
-        foreign: false,
-    }
-}
-
-pub fn fixture_host_column(name: &str, label: &str) -> TelemetryColumn {
-    TelemetryColumn::new(metadata(name, label), ValueType::Number, TelemetryRole::Value).optional()
 }
 
 pub fn tracking_contract() -> TelemetryContract {
@@ -391,25 +273,11 @@ pub fn conflicting_tracking_contract() -> TelemetryContract {
 }
 
 pub fn wifi_occupancy_contract() -> TelemetryContract {
-    TelemetryContract {
-        stream: identifier("host.wifi.scan"),
-        schema_version: 1,
-        metadata: metadata("host.wifi.scan", "WiFi Occupancy"),
-        template_id: None,
-        owner: None,
-        storage_schema: fixture_schema("host.wifi.scan"),
-        columns: vec![
-            TelemetryColumn::new(metadata("sample_index", "Sample Index"), ValueType::Integer, TelemetryRole::Value),
-            TelemetryColumn::new(metadata("wifi_channel", "WiFi Channel"), ValueType::Integer, TelemetryRole::Value),
-            TelemetryColumn::new(metadata("network_count", "Network Count"), ValueType::Integer, TelemetryRole::Value),
-        ],
-        default_x: Some("sample_index".to_owned()),
-        interval: None,
-        allow_extra_fields: false,
-        scalar: false,
-        validation_mode: None,
-        foreign: false,
-    }
+    let mut contract = dokime_host::host_telemetry_contract(dokime_host::HostTelemetryStream::WifiScan);
+    contract.default_x = Some("sample_index".to_owned());
+    contract.interval = None;
+    contract.allow_extra_fields = false;
+    contract
 }
 
 /* === Private Functions === */

@@ -21,7 +21,8 @@
 
 // Third Party Imports
 use model::telemetry::{TelemetryBatch, TelemetrySample};
-use model::telemetry::{ValidationMode, host_telemetry_contract};
+use model::telemetry::ValidationMode;
+use dokime_host::host_telemetry_contract;
 
 // Local Imports
 use crate::support::*;
@@ -112,6 +113,6 @@ fn collected_battery_columns() {
             assert!(declared.contains(&key.as_str()), "{key} is not declared");
         }
         validate_telemetry_sample(Some(&contract), &sample, ValidationMode::Strict).unwrap();
-        dokime::host::System::from_row(&sample.values).unwrap();
+        dokime_host::System::from_row(&sample.values).unwrap();
     }
 }

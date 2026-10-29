@@ -26,11 +26,13 @@ feature adds the operation implementations, platform dependencies and the
 sidecar executable, which the product build enables. It is never published to
 crates.io; the host ships as the `host.dokime` plugin artifact. A plugin outside
 this repository calls host operations through the definitions from a Dokime
-release tag:
+release tag, matching the tag used for its `dokime` SDK dependency:
 
 ```toml
 dokime-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v0.2.0", default-features = false }
 ```
+
+Host stream rows and contracts live in `dokime_host::domain::telemetry` (the rows are also exported at the crate root). Host document defaults and `wifi_channel_occupancy` live in `dokime_host::domain::document`. Dokime itself owns no host stream definitions; its `dokime::host` module contains only application lifecycle records. Install the host bundle before admitting templates that subscribe to `host.*`: absent publishers receive the ordinary per-stream refusal, and valid leases remain independent. Application-registered catalogs retain `PluginOwner::Host` and appear as Built-in.
 
 Its sidecar owner is `host_telemetry`; `host` names application-owned operations
 in Harmos. The bundle remains `host.dokime`, with `host.*` stream and operation IDs.

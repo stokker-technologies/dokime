@@ -34,7 +34,7 @@ import {
 } from "@/lib/statistics";
 import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
 import { formatCursorX } from "@/plots/axis";
-import { groupRepeatsPlotTitle } from "@/plots/grouping";
+import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
   type HistogramColumn,
@@ -875,4 +875,44 @@ test("Pan Listener Ownership", () => {
   assert.equal(removed.defaultPrevented, false);
   view.dispatchEvent(mouse("mousemove", { buttons: 4, clientX: 0, clientY: 50 }));
   assert.equal(onPan.mock.calls.length, 2);
+});
+
+test("Declared Occupancy Context", () => {
+  const plot: DocumentViewPlot = {
+    plot_id: "occupancy",
+    title: "Occupancy",
+    stream: "fixture.scan",
+    plot_type: "wifi_channel_occupancy",
+    style: "points",
+    x_scale: "linear",
+    y_scale: "linear",
+    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    x: "timestamp",
+    y: ["network_count"],
+  };
+  const telemetry = {
+    "fixture.scan": {
+      stream: "fixture.scan",
+      summary: {},
+      samples: [{ active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" }],
+      max_samples: 1,
+      total_samples: 1,
+      dropped_samples: 0,
+      updated_at: "2026-10-29T00:00:00Z",
+    },
+    "host.wifi.link": {
+      stream: "host.wifi.link",
+      summary: {},
+      samples: [{ wifi_channel: 6, wifi_ssid: "link" }],
+      max_samples: 1,
+      total_samples: 1,
+      dropped_samples: 0,
+      updated_at: "2026-10-29T00:00:00Z",
+    },
+  };
+  const spec = documentPlotSpec({ plot, telemetry, payload: null, title: "Occupancy", position: 0 });
+  assert.deepEqual(spec.context, { active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" });
+  delete (telemetry as Partial<typeof telemetry>)["fixture.scan"];
+  const absent = documentPlotSpec({ plot, telemetry, payload: null, title: "Occupancy", position: 0 });
+  assert.deepEqual(absent.context, {});
 });

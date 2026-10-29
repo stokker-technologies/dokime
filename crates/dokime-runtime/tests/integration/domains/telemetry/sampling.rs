@@ -238,3 +238,35 @@ async fn host_plugin_stream() {
     runtime.release_stream_leases(leases).await.unwrap();
     owner.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn host_publishers_required() {
+    use crate::service_support::prelude::fixture_suite;
+    use dokime_runtime::InstalledPlugin;
+    use dokime_runtime::definition::{Subscription, SuiteSet};
+    use dokime_runtime::domains::TestSuiteDefinition;
+
+    let streams =
+        ["host.system", "host.network", "host.wifi.link", "host.wifi.scan", "host.wifi.latency", "host.bluetooth", "fixture.unpublished"];
+    for stream in streams {
+        let root = tempfile::tempdir().unwrap();
+        let mut suite = fixture_suite(&["passed"]);
+        suite.test_case_templates[0].subscriptions = vec![Subscription::Stream(Identifier::new(stream).unwrap())];
+        let reader = InstalledPlugin {
+            source: "fixture.reader".into(),
+            enabled: true,
+            suites: SuiteSet::new([TestSuiteDefinition::new("fixture.reader", suite).unwrap()]),
+            ..Default::default()
+        };
+        let metadata = Metadata::new(Identifier::new("fixture.absent_host").unwrap(), "Absent Host", None);
+        let config = crate::service_support::budgets::runtime_config(root.path(), metadata).with_installed_plugins([reader]);
+        let error = match Runtime::start(config).await {
+            Ok(mut owner) => {
+                owner.shutdown().await.unwrap();
+                panic!("unpublished subscription {stream} was admitted");
+            }
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains(stream), "{error}");
+    }
+}

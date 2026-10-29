@@ -11,7 +11,6 @@
 
 pub mod contract;
 pub mod evidence;
-pub mod host;
 pub mod row;
 pub mod sampling;
 pub mod stream;
@@ -30,12 +29,6 @@ pub use contract::TelemetryFilter;
 pub use contract::TelemetryRole;
 pub use evidence::TelemetryBatch;
 pub use evidence::TelemetrySample;
-pub use host::HOST_STREAMS;
-pub use host::HostTelemetryStream;
-pub use host::UnknownHostStream;
-pub use host::host_stream_identifiers;
-pub use host::host_telemetry_contract;
-pub use host::host_telemetry_contracts;
 pub use row::TelemetryRow;
 pub use sampling::SamplingScope;
 pub use sampling::TelemetryCaptureLease;

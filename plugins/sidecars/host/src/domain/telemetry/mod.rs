@@ -10,9 +10,12 @@
 /* === Modules === */
 
 pub mod contracts;
-pub mod table;
+mod rows;
+mod table;
 
 /* === Re-Exports === */
+
+pub use rows::{Bluetooth, Network, System, WifiLatency, WifiLink, WifiScan};
 
 pub use contracts::host_telemetry_contract;
 pub use contracts::host_telemetry_contracts;
@@ -26,7 +29,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::identity::Identifier;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -41,15 +44,12 @@ pub const HOST_STREAMS: &[HostTelemetryStream] = &[
 
 /* === Macros === */
 
-product_error!(UnknownHostStream, formatter {
-    Self(named) => write!(formatter, "unsupported host telemetry stream: {named}"),
-});
-
 /* === Type Aliases === */
 
 /* === Structs === */
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("unsupported host telemetry stream: {0}")]
 pub struct UnknownHostStream(pub String);
 
 /* === Enums === */
@@ -71,8 +71,8 @@ pub enum HostTelemetryStream {
 
 impl HostTelemetryStream {
     // The One Source Of Each Host Stream's Default Cadence.
-    pub const fn interval(self) -> crate::model::time::DurationMillis {
-        crate::model::time::DurationMillis(match self {
+    pub const fn interval(self) -> dokime_domain::model::time::DurationMillis {
+        dokime_domain::model::time::DurationMillis(match self {
             Self::System | Self::Network | Self::WifiLink => 1_000,
             Self::Bluetooth => 5_000,
             Self::WifiLatency => 10_000,
@@ -80,7 +80,7 @@ impl HostTelemetryStream {
         })
     }
 
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::System => "host.system",
             Self::Network => "host.network",

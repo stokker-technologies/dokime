@@ -51,7 +51,7 @@ pub(super) fn plain(
     let output = harmos::storage::ReadBatch::new(());
     let payload = output.try_map(|_| {
         let series = plain_series(&selected, telemetry, request)?;
-        Ok::<_, Error>(super::payload_from_series(telemetry, &selected, records, request, generated_at, context, series))
+        Ok::<_, Error>(super::payload_from_series(&selected, records, request, generated_at, context, series))
     })?;
     Ok(payload)
 }

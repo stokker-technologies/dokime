@@ -2576,6 +2576,7 @@ name = "dokime-macros"
 version = "0.1.1"
 dependencies = [
  "dokime",
+ "dokime-host",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
@@ -2643,6 +2644,7 @@ dependencies = [
  "criterion",
  "cssparser 0.38.0",
  "dokime-domain",
+ "dokime-host",
  "dokime-macros",
  "dokime-operations",
  "file-id",
@@ -2698,6 +2700,7 @@ dependencies = [
  "criterion",
  "dokime",
  "dokime-cli",
+ "dokime-host",
  "dokime-packaging",
  "futures-util",
  "harmos-packaging",
@@ -6126,6 +6129,7 @@ name = "obc-plugin"
 version = "0.1.1"
 dependencies = [
  "dokime",
+ "dokime-host",
  "futures-util",
  "harmos-sdk",
  "obc-runtime",

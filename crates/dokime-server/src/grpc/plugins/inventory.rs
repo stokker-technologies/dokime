@@ -63,7 +63,7 @@ pub(super) fn page(
         let owner = state.plugin_owners.get(id);
         let label = match owner {
             Some(PluginOwner::Bundle { package, .. }) => package.as_str(),
-            Some(PluginOwner::Host) => "Dokime",
+            Some(PluginOwner::Host) => "Built-in",
             _ => id.as_str(),
         };
         artifacts.try_reserve(1).map_err(|_| Status::resource_exhausted("plugin page allocation refused"))?;

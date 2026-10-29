@@ -21,6 +21,8 @@ Apply `stkr-architecture` and `stkr-rust-architecture` for the shared tier model
 
 The entry library and library/SDK crates permit Cargo publication; registry availability is a release result. CLI, desktop shell, server executable and Cargo subcommand owners declare `publish = false` and ship through installers and target-specific tool archives.
 
+Host plugin rows, contracts, cadences and document defaults belong to the definitions-only default of `dokime-host`, consumed explicitly without runtime re-exports. Application lifecycle records remain in `dokime::host`. `PluginOwner::Host` identifies embedding application catalogs, presented as Built-in.
+
 Declare product contracts once in `dokime-domain`; implement handlers in `dokime-runtime`. Interfaces consume `dokime` and expose the same operation contracts through their hosts without redeclaration or forwarding implementations. Host-free consumers depend on `dokime-domain` directly.
 
 Dokime admits native plugins: supervised processes over piped stdio. Embed a product runtime through its entry library by default; use a separately hosted runtime sidecar on the same machine only when process isolation is required. Requirements select operations by contract and shared visibility; ambiguous providers are refused.
