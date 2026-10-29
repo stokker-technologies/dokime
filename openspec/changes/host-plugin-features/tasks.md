@@ -23,8 +23,9 @@ Locked 2026-10-29. One commit per item; targeted proof per item; Linux paths are
 ## 3A. Shared Operations And Definitions Crate
 
 - [ ] 3A.1 `visibility = Shared` on adapters, radio/adapter set, power plan read/set and CPU load; `*.collect` stay private.
-- [ ] 3A.2 `dokime-host` `default = []`, `runtime` gates implementations and optional platform dependencies; bin requires `runtime`; sidecar build and packaging enable it.
+- [x] 3A.2 `dokime-host` `default = []`, `runtime` gates implementations and optional platform dependencies; bin requires `runtime`; sidecar build and packaging enable it.
 - [ ] 3A.3 No-feature guard; document the git-tag dependency for external plugin authors; proof: no-feature check, runtime build, bundle build, workspace check.
+  Done: the guard is the existing `build:rust:compatibility` `--workspace --lib --bins --no-default-features` lane plus every featureless workspace check; plugins README documents the git-tag dependency. Proof so far: `check -p dokime-host --no-default-features --all-targets` PASS, `test -p dokime-host --no-default-features --lib` 7 PASS, `test -p dokime-host --features runtime --lib --test integration` 14 + 6 PASS, workspace/all-targets check PASS. Open: shipping bundle build with `rust_plugin_features`.
 
 ## 4. Adapters (Read)
 

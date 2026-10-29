@@ -20,6 +20,18 @@ canonical payload bytes. If their value map omits `timestamp`, the runtime
 infers it from the sample instant using the contract's column type: `Datetime`
 preserves the full instant, while `Number` carries seconds since the Unix epoch.
 Explicitly supplied timestamp values remain subject to contract validation.
+`dokime-host` is one crate: with no features it is the light definitions crate
+(operation requests and responses, ids, policies and stream rows); the `runtime`
+feature adds the operation implementations, platform dependencies and the
+sidecar executable, which the product build enables. It is never published to
+crates.io; the host ships as the `host.dokime` plugin artifact. A plugin outside
+this repository calls host operations through the definitions from a Dokime
+release tag:
+
+```toml
+dokime-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v0.2.0", default-features = false }
+```
+
 Its sidecar owner is `host_telemetry`; `host` names application-owned operations
 in Harmos. The bundle remains `host.dokime`, with `host.*` stream and operation IDs.
 The host sidecar declares no automatic restart: a process fault deactivates it

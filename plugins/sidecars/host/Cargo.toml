@@ -32,8 +32,10 @@ required-features = ["runtime"]
 # === Features === #
 
 [features]
-default = ["runtime"]
-runtime = []
+# Definitions (requests, responses, ids, policies, stream rows) build with no features;
+# `runtime` adds the operation implementations and their platform dependencies.
+default = []
+runtime = ["dep:getifs", "dep:serde_json", "dep:starship-battery", "dep:sysinfo", "dep:tokio", "dep:tokio-util", "dep:windows"]
 
 # === Dependencies === #
 
@@ -50,12 +52,12 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
-starship-battery = { workspace = true }
-sysinfo = { workspace = true }
+starship-battery = { workspace = true, optional = true }
+sysinfo = { workspace = true, optional = true }
 
 # Serialization
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, optional = true }
 
 # Configuration
 
@@ -66,11 +68,11 @@ serde_json = { workspace = true }
 # Concurrency
 
 # Async
-tokio = { workspace = true, features = ["process"] }
-tokio-util = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["process"], optional = true }
+tokio-util = { workspace = true, features = ["rt"], optional = true }
 
 # Networking
-getifs = { workspace = true }
+getifs = { workspace = true, optional = true }
 
 # Storage
 
@@ -126,7 +128,7 @@ tempfile = { workspace = true }
 # Logging
 
 # Utilities
-windows = { workspace = true, features = [
+windows = { workspace = true, optional = true, features = [
   "Win32_Foundation",
   "Win32_NetworkManagement_IpHelper",
   "Win32_NetworkManagement_Ndis",

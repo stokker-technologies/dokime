@@ -59,6 +59,8 @@ PYTHONDONTWRITEBYTECODE = "1"
 
 [vars]
 rust_desktop_features = "tauri/custom-protocol"
+# The Host Plugin Builds Its Sidecar Only With Its Runtime; Its Definitions Need No Features.
+rust_plugin_features = "dokime-host/runtime"
 rust_release_features = "dokime/media-native"
 rust_extended_features = "dokime/fault-injection,dokime-server/fault-injection"
 python = "uv run --locked --project tools/python"
