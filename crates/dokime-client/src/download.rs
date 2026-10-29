@@ -113,10 +113,7 @@ impl Client {
             .max_evidence_bytes
             .filter(|limit| *limit > 0)
             .ok_or(Error::Invalid("backend did not declare evidence export capacity"))?;
-        let stream = self
-            .content_download_evidence(contracts::content::DownloadEvidence { subject: Some(subject.clone()) })
-            .await
-            .map_err(Error::Request)?;
+        let stream = self.stream(contracts::content::DownloadEvidence { subject: Some(subject.clone()) }).await.map_err(Error::Request)?;
         let result = receive_with(
             || stream.message(),
             destination,
@@ -149,7 +146,7 @@ impl Client {
         &self, request: contracts::content::DownloadArtifact, destination: PathBuf,
     ) -> Result<Download<dokime_domain::model::content::wire::ArtifactMetadata>, Error> {
         let identity = request.artifact_id.clone();
-        let stream = self.content_download_artifact(request).await.map_err(Error::Request)?;
+        let stream = self.stream(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -177,7 +174,7 @@ impl Client {
         &self, request: contracts::content::DownloadExecutionFile, destination: PathBuf,
     ) -> Result<Download<dokime_domain::model::content::wire::ExecutionFileDownloadMetadata>, Error> {
         let identity = request.relative_path.clone();
-        let stream = self.content_download_execution_file(request).await.map_err(Error::Request)?;
+        let stream = self.stream(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -205,7 +202,7 @@ impl Client {
         &self, request: contracts::history::DownloadCheckpointArtifact, destination: PathBuf, expected: (u64, String),
     ) -> Result<Download<dokime_domain::model::content::wire::ArtifactMetadata>, Error> {
         let id = request.artifact_id.clone();
-        let stream = self.history_download_checkpoint_artifact(request).await.map_err(Error::Request)?;
+        let stream = self.stream(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,

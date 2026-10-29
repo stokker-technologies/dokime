@@ -54,13 +54,7 @@ pub fn benchmark(criterion: &mut Criterion) {
     for concurrency in [1_usize, 64] {
         group.throughput(Throughput::Elements(concurrency as u64));
         group.bench_function(BenchmarkId::from_parameter(concurrency), |bencher| {
-            bencher.iter(|| {
-                black_box(
-                    runtime
-                        .block_on(try_join_all((0..concurrency).map(|_| client.observation_get_runtime_shell(request.clone()))))
-                        .unwrap(),
-                )
-            });
+            bencher.iter(|| black_box(runtime.block_on(try_join_all((0..concurrency).map(|_| client.call(request.clone())))).unwrap()));
         });
     }
     group.finish();

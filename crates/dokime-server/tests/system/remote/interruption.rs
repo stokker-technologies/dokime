@@ -195,7 +195,7 @@ impl Gate {
             filter: Some(filter),
             ..Default::default()
         };
-        let reply = self.client.execution_list_cycles(request).await.map_err(|error| std::io::Error::other(error.to_string()))?;
+        let reply = self.client.call(request).await.map_err(|error| std::io::Error::other(error.to_string()))?;
         let cycle = reply.cycles.into_iter().find(|cycle| cycle.metadata.as_ref().is_some_and(|metadata| metadata.label == self.label));
         let Some(cycle) = cycle else {
             return Ok(false);
@@ -275,7 +275,7 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
 /* === Private Functions === */
 
 async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHandle) {
-    let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+    let changes = client.stream(dokime::client::contracts::observation::WatchRuntime::default()).await.unwrap();
     let parameters = vec![RegisteredSelectionParametersEntry {
         key: "require_confirmation".into(),
         value: Some(SelectionValues {
@@ -704,7 +704,7 @@ async fn first_sample(client: &Client, id: TestExecutionId) {
 }
 
 async fn admitted(client: &Client, id: TestExecutionId) {
-    let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+    let changes = client.stream(dokime::client::contracts::observation::WatchRuntime::default()).await.unwrap();
     let execution = client.execution(id);
     let waiting = async {
         loop {
