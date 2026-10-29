@@ -44,9 +44,9 @@ see [Native Installers](docs/product-guide.md#native-installers) for downstream
 organization distributions and signing prerequisites.
 
 For coupled Harmos development, keep registry dependencies declared and place the
-local Cargo patch in an untracked `.cargo/config.toml`. Preparation and frontend
-tasks use that same explicit patch for the Harmos authoring tool. CI refuses
-local overrides; remove the patch and pin the published dependency before delivery.
+local Cargo patch in an untracked `.cargo/config.toml`. Cargo applies it to every
+build, including the binding generator in `cargo-dokime`; remove the patch and pin
+the published dependency before delivery.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.
