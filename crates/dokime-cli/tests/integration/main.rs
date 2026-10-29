@@ -7,11 +7,16 @@
  * ***
  */
 
-// In-process command stories, one module per command domain.
+// CLI Admission Stories With One Fixture Per Behavior.
 
 /* === Modules === */
 
-mod commands;
+mod backend_profiles;
+mod execution_inputs;
+mod operation_inputs;
+
+#[path = "../support/configuration.rs"]
+mod configuration;
 
 /* === Re-Exports === */
 
