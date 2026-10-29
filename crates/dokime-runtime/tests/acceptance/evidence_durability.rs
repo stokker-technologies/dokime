@@ -56,11 +56,15 @@ impl Drop for Writer {
 async fn evidence_durability() {
     if let Ok(phase) = std::env::var("DOKIME_EVIDENCE_CRASH_PHASE") {
         let root = std::env::var_os("DOKIME_EVIDENCE_CRASH_ROOT").unwrap();
-        crash_writer(root.into(), phase).await;
+        if phase == "checkpoint" {
+            crate::managed_support::checkpoint_crash_writer(root.into()).await;
+        } else {
+            crash_writer(root.into(), phase).await;
+        }
         return;
     }
     let root = tempfile::tempdir().unwrap();
-    for phase in ["row", "capture", "frontier", "saved"] {
+    for phase in ["row", "capture", "frontier", "saved", "checkpoint"] {
         let directory = root.path().join(phase);
         std::fs::create_dir(&directory).unwrap();
         let executable = std::env::current_exe().unwrap();
@@ -83,6 +87,10 @@ async fn evidence_durability() {
         assert!(ready);
         writer.0.kill().unwrap();
         writer.0.wait().unwrap();
-        recovered_after_crash(directory, phase == "saved").await;
+        if phase == "checkpoint" {
+            crate::managed_support::checkpoint_recovered(directory).await;
+        } else {
+            recovered_after_crash(directory, phase == "saved").await;
+        }
     }
 }

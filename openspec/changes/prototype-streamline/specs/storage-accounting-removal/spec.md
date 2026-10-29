@@ -43,3 +43,23 @@ Native evidence rows, capture membership and their saved frontier SHALL commit t
 - **WHEN** the writer process stops after committing evidence but before acknowledging the caller
 - **THEN** reopening exposes the committed rows, membership and frontier
 - **AND** an exact retry preserves that evidence without duplication
+
+### Requirement: Durable Checkpoint Publication
+
+Checkpoint publication SHALL preserve the durable evidence dependency and all uncovered recovery entries. A refused or uncertain publication SHALL be recoverable without resetting storage.
+
+#### Scenario: Publication Fails Before Replacement
+
+- **WHEN** checkpoint encoding exceeds its configured bound
+- **THEN** the prior checkpoint and its complete recovery tail remain readable
+
+#### Scenario: The Journal Cannot Reopen After Replacement
+
+- **WHEN** reopening the named journal fails after checkpoint and journal replacement
+- **THEN** a fresh owner recovers the published checkpoint and exactly the uncovered tail
+- **AND** an exact checkpoint retry preserves that boundary
+
+#### Scenario: Evidence Dependency Is Not Durable
+
+- **WHEN** a checkpoint refers beyond the saved evidence frontier
+- **THEN** the manager refuses to publish or restore that checkpoint

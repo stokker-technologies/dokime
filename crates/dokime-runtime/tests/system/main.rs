@@ -16,10 +16,14 @@
 #[path = "../support/engine/evidence_durability.rs"]
 pub mod evidence_support;
 
+#[path = "../support/engine/managed_durability.rs"]
+pub mod managed_support;
+
 #[cfg(feature = "testing")]
 mod retained_evidence;
 
 mod evidence_durability;
+mod managed_durability;
 
 mod execution_read_contention;
 mod execution_sampling;

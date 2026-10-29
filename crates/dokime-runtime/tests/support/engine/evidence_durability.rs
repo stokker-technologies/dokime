@@ -254,18 +254,18 @@ async fn open(root: &std::path::Path) -> Backend<()> {
     backend
 }
 
-fn position(store: &Backend<()>, sequence: u64) -> StorageCursor {
+pub(crate) fn position(store: &Backend<()>, sequence: u64) -> StorageCursor {
     StorageCursor {
         history: store.history().clone(),
         sequence,
     }
 }
 
-fn record_schema() -> harmos::schema::graph::Schema {
+pub(crate) fn record_schema() -> harmos::schema::graph::Schema {
     harmos::schema::graph::Schema::from_declaration(RecordRow::DEFINITION, &Default::default()).unwrap()
 }
 
-async fn assert_counts(store: &Backend<()>, count: usize) {
+pub(crate) async fn assert_counts(store: &Backend<()>, count: usize) {
     let counts = store
         .local_state()
         .call(|connection| {
@@ -282,7 +282,7 @@ async fn assert_counts(store: &Backend<()>, count: usize) {
     assert_eq!(counts, (expected, expected, expected * 2));
 }
 
-fn record_batch(store: &Backend<()>, first: usize, count: usize) -> Vec<StoredRecord> {
+pub(crate) fn record_batch(store: &Backend<()>, first: usize, count: usize) -> Vec<StoredRecord> {
     use dokime_runtime::storage::records;
     let execution = TestExecutionId::from_seed(EXECUTION);
     let other = TestExecutionId::from_seed(OTHER);
@@ -324,7 +324,7 @@ fn record_batch(store: &Backend<()>, first: usize, count: usize) -> Vec<StoredRe
         .collect::<Vec<_>>()
 }
 
-fn announce_and_wait() -> ! {
+pub(crate) fn announce_and_wait() -> ! {
     use std::io::Write;
     println!("\n{CRASH_READY}");
     std::io::stdout().flush().unwrap();
