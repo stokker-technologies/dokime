@@ -17,8 +17,9 @@
 
 /* === External Imports === */
 
-import { type RowData, useTable } from "@tanstack/react-table";
-import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
+import { type Column, type RowData, useTable } from "@tanstack/react-table";
+import { ArrowRight, ChevronLeft, ChevronRight, Eye, type LucideIcon, MoreHorizontal } from "lucide-react";
+import { Children, type MouseEvent, type ReactNode, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
@@ -26,19 +27,25 @@ import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHe
 import { type ActiveFilter, DataTableToolbar } from "@/components/data-table/DataTableToolbar";
 import {
   type DataTableColumns,
+  type DataTableFeatures,
   type DataTableProps,
   dataTableColumns,
   dataTableFeatures,
   facetFilter,
   filterSummary,
 } from "@/components/data-table/data-table-model";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
+/* === Types === */
+
+/** A row command: an icon button named by its label, which its tooltip repeats. */
+export type DataTableRowAction = { label: string; icon: LucideIcon; onSelect: () => void; disabled?: boolean };
 
 /* === Constants === */
 
@@ -51,6 +58,15 @@ const DEFAULT_COLUMN = { sortUndefined: "last" } as const;
 /** Clicks on a row's own controls belong to those controls, not to the row. */
 const INNER_CONTROL = "a, button, input, label, select, textarea, [role=checkbox], [role=switch]";
 
+/** Fits a row's icon commands, centered under the header. */
+const ACTIONS_WIDTH = "w-24";
+
+/** Room a header needs beyond its name: the cell padding, then a sort glyph
+    and a filter button when the column has them. */
+const HEADER_PADDING_REM = 1.75;
+const HEADER_SORT_REM = 1;
+const HEADER_FILTER_REM = 1.75;
+
 /* === Components === */
 
 export function DataTable<TData extends RowData>({
@@ -60,11 +76,13 @@ export function DataTable<TData extends RowData>({
   columns,
   data,
   defaultSort,
+  description,
   emptyText,
   getRowId,
   onRowClick,
   search,
   selection,
+  title,
 }: DataTableProps<TData>) {
   const [inspectedId, setInspectedId] = useState<string | null>(null);
   // Resolve Columns
@@ -78,10 +96,12 @@ export function DataTable<TData extends RowData>({
           : /^(count|calls|cases|caseCount|executionCount|records|attempts|enabled)$/.test(id)
             ? "w-24"
             : id === "actions"
-              ? "w-36"
+              ? ACTIONS_WIDTH
               : undefined;
       const width = column.meta?.width ?? inferredWidth;
-      column = { ...column, meta: { ...column.meta, width } };
+      // Commands sit centered in their own column, header included.
+      const align = id === "actions" ? "center" : column.meta?.align;
+      column = { ...column, meta: { ...column.meta, align, width } };
       const filter = column.meta?.filter;
       if (filter === "facet") return { ...column, filterFn: facetFilter };
       if (filter === "text") return { ...column, filterFn: "includesString" };
@@ -93,12 +113,13 @@ export function DataTable<TData extends RowData>({
         helper.display({
           id: "actions",
           header: "Actions",
-          meta: { width: "w-36", align: "end" },
+          meta: { width: ACTIONS_WIDTH, align: "center" },
           cell: ({ row }) => (
             <DataTableRowActions
               label={row.id}
               primary={{
                 label: onRowClick ? "Open" : "Inspect",
+                icon: onRowClick ? ArrowRight : Eye,
                 onSelect: () => (onRowClick ? onRowClick(row.original) : setInspectedId(row.id)),
               }}
             />
@@ -160,6 +181,7 @@ export function DataTable<TData extends RowData>({
   // navigation then reads as one grid with it.
   return (
     <div
+      data-slot="data-table"
       className={cn(
         "grid min-w-0 content-start [--table-row-height:var(--list-row-height)] rounded-lg border bg-card text-card-foreground overflow-hidden",
         "[--table-inset:1rem]",
@@ -168,12 +190,14 @@ export function DataTable<TData extends RowData>({
     >
       <DataTableToolbar
         actions={actions}
+        description={description}
         filters={activeFilters}
         onClear={(id) => table.getColumn(id)?.setFilterValue(undefined)}
         onClearAll={() => table.resetColumnFilters()}
         search={
           search ?? { label: "Filter Rows", value: table.state.globalFilter ?? "", onChange: (value) => table.setGlobalFilter(value) }
         }
+        title={title}
       />
 
       <Table aria-label={ariaLabel} className="table-fixed" style={{ minWidth: `${Math.max(480, 180 + (columnCount - 1) * 100)}px` }}>
@@ -183,6 +207,9 @@ export function DataTable<TData extends RowData>({
               {group.headers.map((header) => {
                 const meta = header.column.columnDef.meta;
                 const sorted = header.column.getIsSorted();
+                const width = meta?.width ?? (header.column.id === flexibleColumn ? undefined : "w-36");
+                const length = widthLength(width);
+                const reserved = length && header.column.id !== "select" ? `max(${length}, ${headerReserve(header.column)})` : length;
                 return (
                   <TableHead
                     aria-sort={
@@ -191,11 +218,13 @@ export function DataTable<TData extends RowData>({
                     className={cn(
                       "h-[var(--table-row-height)] pt-0 pb-px",
                       EDGE_CELL,
-                      meta?.width ?? (header.column.id === flexibleColumn ? undefined : "w-36"),
+                      length ? undefined : width,
                       meta?.align === "end" && "text-right",
+                      meta?.align === "center" && "text-center",
                       "bg-muted/50",
                     )}
                     key={header.id}
+                    style={reserved ? { width: reserved } : undefined}
                   >
                     {header.isPlaceholder ? null : <DataTableColumnHeader header={header} />}
                   </TableHead>
@@ -224,6 +253,7 @@ export function DataTable<TData extends RowData>({
                         "pt-0 pb-px",
                         EDGE_CELL,
                         meta?.align === "end" && "text-right",
+                        meta?.align === "center" && "text-center",
                         cell.column.id !== "select" && "overflow-hidden",
                       )}
                       key={cell.id}
@@ -262,8 +292,8 @@ export function DataTable<TData extends RowData>({
         </TableBody>
       </Table>
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t px-[var(--table-inset)] py-3 text-sm text-muted-foreground">
-        <span>{table.getFilteredRowModel().rows.length} Rows</span>
-        <div className="flex items-center gap-3">
+        <span className="tabular-nums">{table.getFilteredRowModel().rows.length} Rows</span>
+        <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
             Rows Per Page
             <select
@@ -279,14 +309,30 @@ export function DataTable<TData extends RowData>({
               ))}
             </select>
           </label>
-          <Button size="sm" variant="outline" disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()}>
+          <Button
+            className="h-[var(--control-height)]"
+            disabled={!table.getCanPreviousPage()}
+            onClick={() => table.previousPage()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <ChevronLeft data-icon="inline-start" />
             Previous
           </Button>
-          <span>
+          <span className="tabular-nums">
             {table.state.pagination.pageIndex + 1} / {Math.max(1, table.getPageCount())}
           </span>
-          <Button size="sm" variant="outline" disabled={!table.getCanNextPage()} onClick={() => table.nextPage()}>
+          <Button
+            className="h-[var(--control-height)]"
+            disabled={!table.getCanNextPage()}
+            onClick={() => table.nextPage()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
             Next
+            <ChevronRight data-icon="inline-end" />
           </Button>
         </div>
       </footer>
@@ -320,33 +366,64 @@ export function DataTable<TData extends RowData>({
   );
 }
 
-export function DataTableRowActions({
-  label,
-  primary,
-  children,
-}: {
-  label: string;
-  primary: { label: string; onSelect: () => void; disabled?: boolean };
-  children?: ReactNode;
-}) {
+/** A row's commands: the primary one as an icon button, then a menu holding
+    only the commands without a button of their own. The menu button is left
+    out when nothing remains for it. */
+export function DataTableRowActions({ label, primary, children }: { label: string; primary: DataTableRowAction; children?: ReactNode }) {
+  const Icon = primary.icon;
+  const overflow = Children.toArray(children);
+  // Its own provider, so a table outside the shell (the report) still renders.
   return (
-    <div className="flex items-center justify-end gap-1">
-      <Button size="sm" variant="outline" disabled={primary.disabled} onClick={primary.onSelect}>
-        {primary.label}
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="icon-sm" variant="ghost" aria-label={`Actions for ${label}`}>
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem disabled={primary.disabled} onSelect={primary.onSelect}>
-            {primary.label}
-          </DropdownMenuItem>
-          {children}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <TooltipProvider>
+      <div className="flex items-center justify-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-label={primary.label}
+              disabled={primary.disabled}
+              onClick={primary.onSelect}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{primary.label}</TooltipContent>
+        </Tooltip>
+        {overflow.length ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button aria-label={`Actions for ${label}`} size="icon-sm" type="button" variant="ghost">
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">{overflow}</DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
+    </TooltipProvider>
   );
+}
+
+/* === Private Functions === */
+
+/** A Tailwind width class as a CSS length, so a header reserve can widen it. */
+function widthLength(width: string | undefined): string | undefined {
+  const scale = width?.match(/^w-(\d+(?:\.\d+)?)$/);
+  if (scale) return `${Number(scale[1]) / 4}rem`;
+  return width?.match(/^w-\[(.+)\]$/)?.[1];
+}
+
+/** The width a header needs to show its whole name beside its controls, so a
+    short name such as Priority never clips. `ch` resolves at the header's own
+    font size; one spare `ch` covers wide glyphs. */
+function headerReserve<TData extends RowData>(column: Column<DataTableFeatures, TData, unknown>): string {
+  const definition = column.columnDef;
+  const name = typeof definition.header === "string" ? definition.header : (definition.meta?.label ?? "");
+  const controls =
+    HEADER_PADDING_REM +
+    (column.getCanSort() ? HEADER_SORT_REM : 0) +
+    (definition.meta?.filter && column.getCanFilter() ? HEADER_FILTER_REM : 0);
+  return `calc(${name.length + 1}ch + ${controls}rem)`;
 }

@@ -18,6 +18,7 @@
 
 /* === External Imports === */
 
+import { Settings2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 /* === Local Imports === */
@@ -89,11 +90,15 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
   column.display({
     id: "actions",
     header: "Actions",
-    meta: { width: "w-48", align: "end" },
     cell: ({ row }) => (
       <DataTableRowActions
         label={row.original.name}
-        primary={{ label: "Settings", disabled: !row.original.onOpenSettings, onSelect: () => row.original.onOpenSettings?.() }}
+        primary={{
+          label: "Settings",
+          icon: Settings2,
+          disabled: !row.original.onOpenSettings,
+          onSelect: () => row.original.onOpenSettings?.(),
+        }}
       >
         {row.original.trailing}
       </DataTableRowActions>

@@ -7,8 +7,9 @@
  * ***
  */
 
-/* The bar above a table: its search box and actions on one baseline, then
- * one chip per active column filter and a way to clear them all.
+/* The bar above a table: its title on the left, its search box and actions
+ * on the right of the same row, then one chip per active column filter and a
+ * way to clear them all. On a narrow table the controls wrap under the title.
  *
  * Each line is one sidebar row tall, after the sidebar's own 8px top pad and
  * with its 2px gap, so the table header below lands on a navigation row.
@@ -32,38 +33,49 @@ export type ActiveFilter = { id: string; text: string };
 
 type DataTableToolbarProps = {
   actions?: ReactNode;
+  description?: ReactNode;
   filters: ActiveFilter[];
   onClear: (id: string) => void;
   onClearAll: () => void;
   search?: DataTableSearch;
+  title?: ReactNode;
 };
 
 /* === Components === */
 
-export function DataTableToolbar({ actions, filters, onClear, onClearAll, search }: DataTableToolbarProps) {
-  if (!search && !actions && !filters.length) {
+export function DataTableToolbar({ actions, description, filters, onClear, onClearAll, search, title }: DataTableToolbarProps) {
+  const heading = title || description;
+  if (!heading && !search && !actions && !filters.length) {
     return null;
   }
 
   return (
     <div className="grid gap-2 border-b px-[var(--table-inset)] py-3">
-      {search || actions ? (
-        <div className="flex flex-wrap items-center justify-between gap-[var(--shell-gap)]">
-          {search ? (
-            <div className="relative w-64 min-w-32 max-w-full">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                aria-label={search.label}
-                className="h-[var(--control-height)] pl-8"
-                onChange={(event) => search.onChange(event.target.value)}
-                placeholder={search.label}
-                value={search.value}
-              />
+      {heading || search || actions ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {heading ? (
+            <div className="min-w-48 flex-1">
+              {title ? <h2 className="text-sm font-semibold">{title}</h2> : null}
+              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
             </div>
-          ) : (
-            <span />
-          )}
-          {actions ? <div className="flex flex-wrap items-center gap-[var(--shell-gap)]">{actions}</div> : null}
+          ) : null}
+          {search || actions ? (
+            <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-[var(--shell-gap)]">
+              {search ? (
+                <div className="relative w-64 min-w-32 max-w-full">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    aria-label={search.label}
+                    className="h-[var(--control-height)] pl-8"
+                    onChange={(event) => search.onChange(event.target.value)}
+                    placeholder={search.label}
+                    value={search.value}
+                  />
+                </div>
+              ) : null}
+              {actions}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

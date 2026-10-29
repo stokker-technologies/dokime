@@ -11,6 +11,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -19,9 +20,9 @@ import { toast } from "sonner";
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
@@ -260,9 +261,11 @@ function cycleColumns(onOpen: (id: string) => void, onUnarchive: ((cycleId: stri
     column.display({
       id: "actions",
       header: "Actions",
-      meta: { width: "w-36", align: "end" },
       cell: ({ row }) => (
-        <DataTableRowActions label={row.original.label} primary={{ label: "Open", onSelect: () => onOpen(row.original.cycleId) }}>
+        <DataTableRowActions
+          label={row.original.label}
+          primary={{ label: "Open", icon: ArrowRight, onSelect: () => onOpen(row.original.cycleId) }}
+        >
           {onUnarchive ? <DropdownMenuItem onSelect={() => onUnarchive(row.original.cycleId)}>Unarchive</DropdownMenuItem> : null}
         </DataTableRowActions>
       ),

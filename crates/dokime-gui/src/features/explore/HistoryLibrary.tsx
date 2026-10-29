@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { Cloud, Database, GitCompare, HardDrive } from "lucide-react";
+import { ArrowRight, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
 import { useMemo } from "react";
 
 /* === Local Imports === */
@@ -119,9 +119,11 @@ export function HistoryLibrary({
         column.display({
           id: "actions",
           header: "Actions",
-          meta: { width: "w-36", align: "end" },
           cell: ({ row }) => (
-            <DataTableRowActions label={row.original.title} primary={{ label: "Open", onSelect: () => onOpenEntry(row.original.target) }}>
+            <DataTableRowActions
+              label={row.original.title}
+              primary={{ label: "Open", icon: ArrowRight, onSelect: () => onOpenEntry(row.original.target) }}
+            >
               {archived ? <DropdownMenuItem onSelect={() => onUnarchive(row.original)}>Unarchive</DropdownMenuItem> : null}
             </DataTableRowActions>
           ),

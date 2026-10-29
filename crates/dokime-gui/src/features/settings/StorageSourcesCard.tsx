@@ -18,6 +18,7 @@
 /* === External Imports === */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowUp } from "lucide-react";
 import { useMemo } from "react";
 
 /* === Local Imports === */
@@ -130,13 +131,17 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
     const actions = column.display({
       id: "actions",
       header: "Actions",
-      meta: { width: "w-44" },
       cell: ({ row }) => {
         const index = sources.findIndex((source) => source.identifier === row.original.identifier);
         return (
           <DataTableRowActions
             label={sourceLabel(row.original.identifier)}
-            primary={{ label: "Move Up", disabled: !canReorder || isPending || index === 0, onSelect: () => move(index, -1) }}
+            primary={{
+              label: "Move Up",
+              icon: ArrowUp,
+              disabled: !canReorder || isPending || index === 0,
+              onSelect: () => move(index, -1),
+            }}
           >
             <DropdownMenuItem disabled={!canReorder || isPending || index === sources.length - 1} onSelect={() => move(index, 1)}>
               Move Down
@@ -149,10 +154,16 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
   }, [canEnable, canReorder, changedIdentifier, isPending, isSuccess, mutate, sources]);
 
   return (
-    <SettingsCard
-      description="Higher rows have priority when resolving conflicting edits. Changing priority does not move data."
-      title="Storage Sources"
-    >
+    <SettingsCard>
+      <DataTable
+        aria-label="Storage source priority"
+        columns={columns}
+        data={sources}
+        description="Higher rows have priority when resolving conflicting edits. Changing priority does not move data."
+        emptyText="No storage sources are configured."
+        getRowId={sourceId}
+        title="Storage Sources"
+      />
       {query.isPending ? (
         <SettingsRow label="Status">
           <span className="text-sm text-muted-foreground" role="status">
@@ -176,13 +187,6 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
           </span>
         </SettingsRow>
       ) : null}
-      <DataTable
-        aria-label="Storage source priority"
-        columns={columns}
-        data={sources}
-        emptyText="No storage sources are configured."
-        getRowId={sourceId}
-      />
 
       {/* An unavailable feature is a note, not a row with an empty value. */}
       <p className="px-4 py-3 text-xs text-muted-foreground [[data-density=touch]_&]:px-6">Remote synchronization is not available yet.</p>

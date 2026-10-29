@@ -3066,7 +3066,7 @@ async function remoteAccessJourney() {
   const revoke = await until("first paired client", () =>
     session.find(
       "xpath",
-      "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]//button[normalize-space(.)='Revoke']",
+      "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]//button[@aria-label='Revoke']",
     ),
   );
   await session.click(revoke);
@@ -3238,7 +3238,7 @@ async function settingsJourney(session, notes) {
     async () => {
       const state = await session.execute(`
         const buttons = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr button')]
-          .filter(button => button.textContent.trim() === 'Settings');
+          .filter(button => button.getAttribute('aria-label') === 'Settings');
         const configurable = buttons.filter(button => !button.disabled);
         return {rows: buttons.length, configurable: configurable.length,
           host: configurable[0]?.closest('tr')?.cells[0]?.innerText.trim().endsWith(' Host'), text: document.body.innerText};
@@ -3262,9 +3262,7 @@ async function settingsJourney(session, notes) {
     );
   }
   if (plugins.configurable) {
-    await session.click(
-      await session.find("xpath", "//table[@aria-label='Plugins']//button[normalize-space(.)='Settings' and not(@disabled)]"),
-    );
+    await session.click(await session.find("xpath", "//table[@aria-label='Plugins']//button[@aria-label='Settings' and not(@disabled)]"));
     await until(
       "plugin page",
       async () =>
@@ -3309,7 +3307,7 @@ async function settingsJourney(session, notes) {
     await session.clickNamed("button", "Save Secret");
     await until("shared keyring entry saved", () => session.exists("button", `Actions for ${name}`));
     assert.ok(
-      await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='Edit' and not(@disabled)]`),
+      await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='Edit' and not(@disabled)]`),
       "The saved secret remains editable",
     );
     assert.ok(!(await session.text()).includes(value), "stored secret values stay masked");
@@ -3329,10 +3327,7 @@ async function settingsJourney(session, notes) {
   assert.ok(endpoint);
   const field = (label) => session.find("css selector", `[aria-label="${label}"]`);
   const rowAction = (name, action) =>
-    session.find(
-      "xpath",
-      `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='${action === "Select" ? "Connect" : action}']`,
-    );
+    session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='${action === "Select" ? "Connect" : action}']`);
   const add = async (name, identity = "") => {
     await session.clickNamed("button", "Add Backend");
     await session.type(await field("Backend Identifier"), name);

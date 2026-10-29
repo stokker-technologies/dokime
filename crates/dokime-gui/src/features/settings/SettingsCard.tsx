@@ -43,7 +43,8 @@ export function SettingsCard({ actions, children, className, description, footer
           {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
         </header>
       ) : null}
-      <div className="flex-1 divide-y">{children}</div>
+      {/* A table in the body is the card's own list: the card draws its edge. */}
+      <div className="flex-1 divide-y [&>[data-slot=data-table]]:rounded-none [&>[data-slot=data-table]]:border-0">{children}</div>
       {footer ? <footer className="border-t bg-muted/20 px-4 py-3">{footer}</footer> : null}
     </section>
   );

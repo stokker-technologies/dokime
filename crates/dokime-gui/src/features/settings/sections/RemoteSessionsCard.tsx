@@ -90,15 +90,7 @@ export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
   const next = query.data?.nextCursor;
   const page = pager.cursors.length;
   return (
-    <SettingsCard
-      title="Recent Remote Sessions"
-      description="Admitted and refused remote clients, newest first. A session ends after a minute without calls; the host keeps the last 500."
-    >
-      {query.error ? (
-        <p className="px-4 py-3 text-sm text-destructive" role="alert">
-          {query.error instanceof Error ? query.error.message : "Remote sessions are unavailable."}
-        </p>
-      ) : null}
+    <SettingsCard>
       <DataTable
         aria-label="Recent Remote Sessions"
         actions={
@@ -118,9 +110,16 @@ export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
         }
         columns={COLUMNS}
         data={rows}
+        description="Admitted and refused remote clients, newest first. A session ends after a minute without calls; the host keeps the last 500."
         emptyText={query.isPending ? "Loading remote sessions…" : "No remote sessions yet."}
         getRowId={rowKey}
+        title="Recent Remote Sessions"
       />
+      {query.error ? (
+        <p className="px-4 py-3 text-sm text-destructive" role="alert">
+          {query.error instanceof Error ? query.error.message : "Remote sessions are unavailable."}
+        </p>
+      ) : null}
     </SettingsCard>
   );
 }
