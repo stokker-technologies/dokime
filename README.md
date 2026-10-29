@@ -53,7 +53,8 @@ Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#
 
 Use `dokime` to run a server or control an existing backend. Use
 `cargo dokime sidecar` to create, build and inspect plugins, and
-`cargo dokime installer` to package prebuilt binaries with an organization pack. The [CLI reference](docs/product-guide.md#cli-reference)
+`cargo dokime installer` to package prebuilt binaries with an organization pack.
+`cargo dokime bindings` exports protobuf contracts and Python clients. The [CLI reference](docs/product-guide.md#cli-reference)
 contains the complete workflow.
 
 #### Examples

@@ -1283,6 +1283,14 @@ A missing feed or target is reported without substituting a different package.
 
 ## Generated Clients
 
+Export the operation catalog's language-neutral protobuf contract without a running backend:
+
+```sh
+cargo dokime bindings proto --output target/contracts/proto
+```
+
+The output contains `.proto` files, `descriptors.bin`, `contracts.json` and their manifest.
+
 The server contract producer generates the protobuf descriptors of every public operation;
 `mise run build` regenerates the Python package's contract files from them with
 `cargo dokime bindings python`, which wraps Harmos's Python exporter, and refuses a stale tracked
