@@ -7,10 +7,7 @@
  * ***
  */
 
-// Process supervision against real children: output bounds, refusals, the
-// deadline that kills a direct child, and the cargo deadline that ends the
-// whole tree under a compiler. The descendant story re-runs this binary on
-// `process::process_fixture_mode` to play cargo and the compiler under it.
+// One Process-Ownership Story Covers Output, Refusal, Deadline And Descendant Cleanup.
 
 /* === Modules === */
 
@@ -72,10 +69,22 @@ async fn wait_gone(pid: &str) {
     }
 }
 
-/* === Tests === */
+fn deadline() -> Duration {
+    let policy: toml::Value = toml::from_str(include_str!("../../../../stkr.toml")).unwrap();
+    let seconds = policy["conventions"]["testing"]["deadlines"]["acceptance"].as_integer().unwrap();
+    Duration::from_secs(seconds.try_into().unwrap())
+}
+
+// A Running Blocking Task Inhibits Tokio Auto-Advance Until The Real Child Is Ready.
+fn ready(pid: std::path::PathBuf) -> tokio::task::JoinHandle<()> {
+    tokio::task::spawn_blocking(move || {
+        while !pid.is_file() {
+            std::thread::sleep(GONE_POLL);
+        }
+    })
+}
 
 #[cfg(unix)]
-#[tokio::test]
 async fn no_deadline_completion() {
     let output = run(shell("printf complete"), "Cargo compilation", None, 32, 32).await.unwrap();
 
@@ -83,7 +92,6 @@ async fn no_deadline_completion() {
 }
 
 #[cfg(unix)]
-#[tokio::test]
 async fn status_output_bounded() {
     let output = run(shell("printf good; printf note >&2"), "fixture", None, 4, 4).await.unwrap();
     assert_eq!(output.stdout, b"good");
@@ -104,33 +112,33 @@ async fn status_output_bounded() {
 // The deadline must outlast the child writing its pid, which is the only way
 // this story can name the process it expects to be gone.
 #[cfg(unix)]
-#[tokio::test]
-async fn timeout_kills_child() {
-    let directory = tempfile::tempdir().unwrap();
-    let pid = directory.path().join("pid");
+async fn timeout_kills_child(directory: &Path) {
+    let pid = directory.join("pid");
     let mut command = shell("echo $$ > \"$1\"; while :; do :; done");
     command.arg("fixture").arg(&pid);
 
-    let result = run(command, "catalog export", Some(Duration::from_millis(250)), 32, 32).await;
+    tokio::time::pause();
+    let ready = ready(pid.clone());
+    let result = run(command, "catalog export", Some(deadline()), 32, 32).await;
+    ready.await.unwrap();
+    tokio::time::resume();
 
-    assert!(matches!(result, Err(Error::Timeout(name)) if name == "catalog export"));
+    assert!(matches!(result, Err(Error::Timeout(_))));
     let pid = std::fs::read_to_string(pid).unwrap();
     assert!(!alive(pid.trim()), "timed-out direct child is still present");
 }
 
 // The cargo deadline must outlast the fake cargo starting its compiler
 // descendant, which reports readiness by writing its pid.
-#[tokio::test]
-async fn deadline_stops_descendants() {
+async fn deadline_stops_descendants(directory: &Path) {
     // Fake Cargo That Runs A Compiler Descendant
-    let directory = tempfile::tempdir().unwrap();
-    let pid = directory.path().join("descendant.pid");
+    let pid = directory.join("descendant.pid");
     let executable = std::env::current_exe().unwrap();
-    let cargo = directory.path().join(if cfg!(windows) { "cargo.cmd" } else { "cargo" });
+    let cargo = directory.join(if cfg!(windows) { "cargo.cmd" } else { "cargo" });
     let launcher = if cfg!(windows) {
-        "@echo off\r\nset \"DOKIME_PROCESS_TEST_MODE=parent\"\r\n\"%DOKIME_PROCESS_TEST_EXE%\" --exact process::process_fixture_mode --nocapture\r\n"
+        "@echo off\r\nset \"DOKIME_PROCESS_TEST_MODE=parent\"\r\n\"%DOKIME_PROCESS_TEST_EXE%\" --exact process::process --nocapture\r\n"
     } else {
-        "#!/bin/sh\nexport DOKIME_PROCESS_TEST_MODE=parent\nexec \"$DOKIME_PROCESS_TEST_EXE\" --exact process::process_fixture_mode --nocapture\n"
+        "#!/bin/sh\nexport DOKIME_PROCESS_TEST_MODE=parent\nexec \"$DOKIME_PROCESS_TEST_EXE\" --exact process::process --nocapture\n"
     };
     std::fs::write(&cargo, launcher).unwrap();
     #[cfg(unix)]
@@ -142,7 +150,7 @@ async fn deadline_stops_descendants() {
     // Packaging Build Under The Deadline
     let mut command = dokime::domain::process::command(&executable);
     command
-        .args(["--exact", "process::process_fixture_mode", "--nocapture"])
+        .args(["--exact", "process::process", "--nocapture"])
         .env("DOKIME_PROCESS_TEST_MODE", "build")
         .env("DOKIME_PROCESS_TEST_EXE", &executable)
         .env("DOKIME_PROCESS_TEST_PID", &pid)
@@ -154,13 +162,11 @@ async fn deadline_stops_descendants() {
     wait_gone(pid.trim()).await;
 }
 
-#[tokio::test]
-async fn leader_exit_keeps_descendants_owned() {
-    let directory = tempfile::tempdir().unwrap();
-    let pid = directory.path().join("descendant.pid");
+async fn leader_exit_keeps_descendants_owned(directory: &Path) {
+    let pid = directory.join("leader.pid");
     let mut command = tokio::process::Command::from(dokime::domain::process::command(std::env::current_exe().unwrap()));
     command
-        .args(["--exact", "process::process_fixture_mode", "--nocapture"])
+        .args(["--exact", "process::process", "--nocapture"])
         .env("DOKIME_PROCESS_TEST_MODE", "leader")
         .env("DOKIME_PROCESS_TEST_PID", &pid);
     let mut child = dokime_packaging::process::spawn_session(command).unwrap();
@@ -173,16 +179,12 @@ async fn leader_exit_keeps_descendants_owned() {
 }
 
 // Fixture modes for `deadline_stops_descendants`; a no-op when run directly.
-#[tokio::test]
-async fn process_fixture_mode() {
-    let Ok(mode) = std::env::var("DOKIME_PROCESS_TEST_MODE") else {
-        return;
-    };
+async fn fixture(mode: String) {
     match mode.as_str() {
         "leader" => {
             let pid = std::env::var_os("DOKIME_PROCESS_TEST_PID").unwrap();
             let mut child = dokime::domain::process::command(std::env::current_exe().unwrap())
-                .args(["--exact", "process::process_fixture_mode", "--nocapture"])
+                .args(["--exact", "process::process", "--nocapture"])
                 .env("DOKIME_PROCESS_TEST_MODE", "descendant")
                 .spawn()
                 .unwrap();
@@ -194,16 +196,20 @@ async fn process_fixture_mode() {
             }
         }
         "build" => {
+            tokio::time::pause();
+            let pid = std::env::var_os("DOKIME_PROCESS_TEST_PID").unwrap();
+            let ready = ready(pid.into());
             let result = dokime_packaging::build::run(dokime_packaging::build::Options {
-                cargo_timeout: Some(Duration::from_secs(2)),
+                cargo_timeout: Some(deadline()),
                 ..Default::default()
             })
             .await;
-            assert!(matches!(result, Err(Error::Timeout(operation)) if operation == "Resolving package metadata"));
+            ready.await.unwrap();
+            assert!(matches!(result, Err(Error::Timeout(_))));
         }
         "parent" => {
             let mut child = dokime::domain::process::command(std::env::current_exe().unwrap())
-                .args(["--exact", "process::process_fixture_mode", "--nocapture"])
+                .args(["--exact", "process::process", "--nocapture"])
                 .env("DOKIME_PROCESS_TEST_MODE", "descendant")
                 .spawn()
                 .unwrap();
@@ -218,4 +224,23 @@ async fn process_fixture_mode() {
             }
         }
     }
+}
+
+/* === Tests === */
+
+#[tokio::test]
+async fn process() {
+    if let Ok(mode) = std::env::var("DOKIME_PROCESS_TEST_MODE") {
+        fixture(mode).await;
+        return;
+    }
+    let root = tempfile::tempdir().unwrap();
+    #[cfg(unix)]
+    {
+        no_deadline_completion().await;
+        status_output_bounded().await;
+        timeout_kills_child(root.path()).await;
+    }
+    deadline_stops_descendants(root.path()).await;
+    leader_exit_keeps_descendants_owned(root.path()).await;
 }

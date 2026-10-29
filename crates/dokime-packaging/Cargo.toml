@@ -76,6 +76,10 @@ tauri-bundler = { workspace = true }
 
 # === Dev Dependencies === #
 
+[dev-dependencies]
+# Async
+tokio = { workspace = true, features = ["test-util"] }
+
 # === Target Dependencies === #
 
 [target.'cfg(unix)'.dependencies]

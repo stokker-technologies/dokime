@@ -37,6 +37,15 @@ pub enum Error {
     #[error("{0}")]
     Invalid(String),
 
+    #[error("payload digest mismatch: {member}")]
+    PayloadDigest { member: String },
+
+    #[error("payload organization member is not integrity indexed: {member}")]
+    UnindexedPayload { member: String },
+
+    #[error("--sign requires explicit signing configuration")]
+    SigningConfiguration,
+
     #[error("{0} exceeded its execution timeout")]
     Timeout(String),
 

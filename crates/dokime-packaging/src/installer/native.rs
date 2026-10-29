@@ -310,7 +310,7 @@ pub fn validate_signing(manifest: &Manifest, requested: bool) -> Result<(), Erro
     }
 
     let Some(signing) = &manifest.signing else {
-        let error = Error::Invalid("--sign requires explicit signing configuration".into());
+        let error = Error::SigningConfiguration;
         return Err(error);
     };
     if signing.installer.is_none() && signing.updater.is_none() {

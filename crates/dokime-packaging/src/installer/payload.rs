@@ -102,7 +102,7 @@ pub fn validate(directory: &Path, expected: &Artifact) -> Result<Payload, Error>
             return Err(Error::Invalid(format!("payload entry is not a regular file: {name}")));
         }
         if &digest(&std::fs::read(path)?) != expected {
-            return Err(Error::Invalid(format!("payload digest mismatch: {name}")));
+            return Err(Error::PayloadDigest { member: name.clone() });
         }
     }
     let mut pending = vec![directory.join("organization")];
@@ -124,7 +124,7 @@ pub fn validate(directory: &Path, expected: &Artifact) -> Result<Payload, Error>
                 .to_string_lossy()
                 .replace('\\', "/");
             if !kind.is_file() || !payload.files.contains_key(&name) {
-                return Err(Error::Invalid(format!("payload organization member is not integrity indexed: {name}")));
+                return Err(Error::UnindexedPayload { member: name });
             }
         }
     }
