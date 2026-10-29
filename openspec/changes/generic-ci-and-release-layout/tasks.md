@@ -18,12 +18,12 @@
 
 - [x] 2.1 Run changed installer tests: targeted Python integration selection passes all 25 selected installer/plugin cases, including payload bytes/modes, embedded signatures and declared package collection.
 - [x] 2.2 Run strict OpenSpec validation for all changes/specs; re-render workflows, restore all 15 Check/Test conditions with a (false) prefix, keep Release / Dry enabled and retired managed workflows absent. Actionlint passes.
-- [ ] 2.3 Prove native package/release dry and rehearsal using matching Product Build inputs; this checkout has no native product/target.txt and neither native release package. Task-graph package/rehearsal dry runs, Python candidate build/package, focused dokime-packaging compiler check and release:publish:dry pass; the latter staged no native target and proves registry publication only.
+- [x] 2.3 Complete the requested local-platform release dry task against matching packaged Windows Product exports: package:rust --profile dev --target native and release:publish:dry pass, including archive/installer/payload assembly, eight staged downloads and registry dry runs without uploads. All-target release:rehearse reports missing release-profile packages; keep that rehearsal and required Unix validation with the combined integration owner.
 - [ ] 2.4 Resolve the remaining Hub task-category conflict: project check now rejects only mise.toml because the locked measure:report-save task has no canonical section. Imported source skeletons and OpenSpec metadata are repaired; the owner-held CI digest remains intentional.
-- [ ] 2.5 Prove shipped host-plugin bundle and plugins.json against the integrated producer (producer integrated from the owner-selected next-release branch; verify the actual native bundle and staged feed).
+- [x] 2.5 Prove the Windows shipped host bundle and staged plugins.json: actual bundle inspection reports dokime-host version 0.1.0 and the Windows MSVC ABI; target/release-assets/any/plugins.json and upload.json contain its matching public asset, digest and size, with no OBC, examples, Python artifacts or standalone signatures.
 
 ## Workflow Follow-Up
 
 - Hub adoption task 2.1 remains owned by the Hub integration checkout; report this worktree's commits and remaining proof without editing that checkout.
 - The integrated producer owns dokime-host and plugins/host.dokime. All-target rehearsal also requires the Unix package artifact; local Windows proof cannot replace it.
-- Full native validation and delivery remain with the integration owner; this worker never pushes. Native package/feed proof and the existing Hub skeleton conflict remain open; no final all-platform proof or delivery is authorized.
+- Full native validation and delivery remain with the integration owner; this worker never pushes. Local Windows package/feed/dry-run proof passes; the Hub skeleton conflict remains open. No final all-platform proof or delivery is authorized.
