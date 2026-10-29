@@ -154,6 +154,8 @@ unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }
 
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
+
 # Storage
 rusqlite = { version = "0.40.2", features = ["bundled", "functions", "limits"] }
 

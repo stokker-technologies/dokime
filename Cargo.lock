@@ -2539,6 +2539,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "windows",
+ "zbus",
 ]
 
 [[package]]

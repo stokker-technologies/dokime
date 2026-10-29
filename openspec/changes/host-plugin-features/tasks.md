@@ -50,11 +50,12 @@ Assigned source inventory: `host/adapters` owns the Public inventory query and n
 
 Assigned source inventory: host radio/adapter operation definitions, native handlers and focused refusal/inversion tests; generic backend lifecycle/context owners. Triage: Harmos `state::Invertible` reverses pure state only; Dokime currently has no durable run-effect journal or trusted remote-connection context in `ExecutionScope`. The locked recovery/guard requirement authorizes the generic backend lifecycle: journal pending inverses before native changes, restore under run cleanup and before exposing startup, and get the backend PID from a trusted backend response for OS-owned active socket matching. Implementing this is within the assigned items; no owner decision is pending. Inventory extends to domain pending-effect contracts, operation declarations, state encoding, transactions and runtime run/startup owners, their focused tests and native host controls. Keep schema v1, with no compatibility or automatic storage reset.
 
-- [ ] 5.1 `host.network.radio.set` (Windows.Devices.Radios / NM radio switches).
-- [ ] 5.2 `host.network.adapter.set` with the administrator refusal.
-- [ ] 5.3 Invertible transactions, run-end inversion, crash recovery, evidence timestamps.
-  Backend foundation: `runtime/effects.rs`, `transactions/effects.rs` and execution cleanup durably prepare inverses, restore in reverse order after run settlement and before startup exposes plugins, and retain timestamped execution records. Targeted Windows `domains::effects::` passes 2 stories covering pass/fail/cancel, nested inverses, structured start evidence, standalone callbacks, failed recovery and retry. Native host transaction integration closes with 5.1–5.4.
-- [ ] 5.4 Active-connection guard with explicit step override.
+- [x] 5.1 `host.network.radio.set` (Windows.Devices.Radios / NM radio switches).
+- [x] 5.2 `host.network.adapter.set` with the administrator refusal.
+- [x] 5.3 Invertible transactions, run-end inversion, crash recovery, evidence timestamps.
+  Backend foundation: `runtime/effects.rs`, `transactions/effects.rs` and execution cleanup durably prepare inverses, restore in reverse order after run settlement and before startup exposes plugins, and retain timestamped execution records. Targeted Windows `domains::effects::` passes 2 stories covering pass/fail/cancel, nested inverses, structured start evidence, standalone callbacks, failed recovery and retry. Native control transactions and the owned generation caller integrate the same journal; cancellation retains the serialization gate until the native attempt settles.
+- [x] 5.4 Active-connection guard with explicit step override.
+  Evidence: `host/controls` owns Public radio/adapter operations, native Windows Radios/SetupAPI and Linux NetworkManager/BlueZ/ioctl paths, exact-state Harmos inverses, administrator refusal without elevation, and trusted-backend-PID TCP matching. Windows `controls::` passes 2 lib tests (inverse restoration and native power write) plus 1 integration story (real established socket mapping, refusal and step-only override); backend lifecycle/recovery proof passes 2 stories above. Native radio state changes wait on StateChanged within the operation policy. Linux runs in CI only.
 
 ## 6. Remaining Host Features
 

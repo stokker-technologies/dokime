@@ -11,6 +11,7 @@
 
 pub mod bluetooth;
 pub mod command;
+pub mod devices;
 pub mod connectivity;
 pub mod echo;
 pub mod power;

@@ -40,6 +40,7 @@ type Observing = ObserverAttachment<Publisher<HostPlugin>>;
 pub struct Workers(pub(crate) TaskTracker);
 
 pub struct HostPlugin {
+    controls: Arc<host::controls::State>,
     workers: Arc<Workers>,
     observers: Option<Arc<Observing>>,
 }
@@ -59,7 +60,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for HostPlugin {
     id = "host_telemetry",
     description = "Native host telemetry collected through the supervised plugin boundary.",
     restart = "never",
-    requires(dokime::harmos::builtins::streams::Publish),
+    requires(dokime::harmos::builtins::streams::Publish, dokime::operations::effects::ReadEnvironment, dokime::operations::effects::PrepareEffect, dokime::operations::effects::ConfirmEffect),
     contributions(dokime::RunStart<host::adapters::CaptureAdapters>, dokime::Evidence<host::Catalog>, dokime::Settings<crate::Settings>),
     observers = host::observers::Observers
 )]
@@ -81,6 +82,9 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         let settings = config.settings::<crate::Settings>();
         let settings = dokime::plugin::refusal(settings)?;
         let options = HostOptions::from(settings.probes);
+
+        let controls = Arc::new(host::controls::State::new());
+        setup.resource::<host::controls::State>(controls.clone());
 
         let tracker = TaskTracker::new();
         let workers = Arc::new(Workers(tracker));
@@ -124,10 +128,15 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         setup.resource::<Mutex<host::bluetooth::State>>(state);
 
         let observers = ObserverAttachment::from_catalog::<host::observers::Observers>(<Self as Declared>::STREAMS)?;
-        Ok(Self { workers, observers: Some(observers) })
+        Ok(Self {
+            controls,
+            workers,
+            observers: Some(observers),
+        })
     }
 
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn initialize(&mut self, host: &Supervisor) -> Result<(), Refusal> {
+        dokime::plugin::refusal(self.controls.attach(host.clone()))?;
         Ok(())
     }
 
