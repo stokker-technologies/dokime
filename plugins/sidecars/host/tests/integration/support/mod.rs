@@ -20,7 +20,7 @@
 // Local Imports
 use dokime_domain::model;
 use dokime_host::{HostOptions, HostTelemetryStream, host_telemetry_contracts};
-use dokime_runtime::telemetry::validate_telemetry_sample;
+use dokime::telemetry::validate_telemetry_sample;
 use model::telemetry::{TelemetryBatch, TelemetrySample, ValidationMode};
 use model::values::Value;
 
@@ -59,12 +59,13 @@ pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBa
     let samples = rows
         .into_iter()
         .map(|row| {
-            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.identifier(), 1, row.timestamp, "host");
+            let mut sample = TelemetrySample::new(dokime::model::identity::new_id(), stream.identifier(), 1, row.timestamp, "host");
             sample.values = row.values;
+            sample.values.insert("timestamp".into(), Value::from(sample.timestamp.clone()));
             sample
         })
         .collect();
-    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream.identifier(), samples)
+    TelemetryBatch::new(dokime::model::identity::new_id(), stream.identifier(), samples)
 }
 
 pub fn validate_batch(batch: &TelemetryBatch) {

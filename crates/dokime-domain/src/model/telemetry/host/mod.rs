@@ -16,7 +16,6 @@ pub mod table;
 
 pub use contracts::host_telemetry_contract;
 pub use contracts::host_telemetry_contracts;
-pub use contracts::{PreparedHostPayload, prepare_host_telemetry_payload};
 
 /* === Imports === */
 

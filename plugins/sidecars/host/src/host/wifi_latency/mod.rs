@@ -49,7 +49,14 @@ pub struct WifiLatency {}
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Samples {
-    pub rows: Vec<dokime::host::WifiLatency>,
+    pub rows: Vec<Collected>,
+}
+
+#[dokime::message]
+#[derive(Clone, PartialEq)]
+pub struct Collected {
+    pub row: dokime::host::WifiLatency,
+    pub timestamp_micros: i64,
 }
 
 /* === Implementations === */

@@ -49,7 +49,14 @@ pub struct Network {}
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Samples {
-    pub rows: Vec<dokime::host::Network>,
+    pub rows: Vec<Collected>,
+}
+
+#[dokime::message]
+#[derive(Clone, PartialEq)]
+pub struct Collected {
+    pub row: dokime::host::Network,
+    pub timestamp_micros: i64,
 }
 
 /* === Implementations === */

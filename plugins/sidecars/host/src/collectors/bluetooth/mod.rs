@@ -68,7 +68,8 @@ impl BluetoothCollector {
         self.sample_index += 1;
         let mut values = BTreeMap::from([
             ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
-            ("probe_status".to_owned(), Value::from("unsupported")),
+            ("probe_status".to_owned(), Value::from("unavailable")),
+            ("bluetooth_device_names".to_owned(), Value::Array(Vec::new())),
         ]);
 
         let now = Instant::now();

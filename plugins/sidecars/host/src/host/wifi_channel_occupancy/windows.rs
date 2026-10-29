@@ -9,7 +9,7 @@
 
 /* === Imports === */
 
-use super::{Samples, State, WifiChannelOccupancy};
+use super::{Collected, Samples, State, WifiChannelOccupancy};
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::Refusal;
 use dokime::telemetry::TelemetryRow;
@@ -28,7 +28,12 @@ impl Operation for WifiChannelOccupancy {
             samples
                 .into_iter()
                 .map(|sample| {
-                    dokime::host::WifiChannelOccupancy::from_row(&sample.values).map_err(|error| crate::Error::Probe(error.to_string()))
+                    let timestamp = sample.timestamp.to_datetime().map_err(|error| crate::Error::Probe(error.to_string()))?;
+                    let timestamp_micros =
+                        i64::try_from(timestamp.unix_timestamp_nanos() / 1_000).map_err(|error| crate::Error::Probe(error.to_string()))?;
+                    let row = dokime::host::WifiChannelOccupancy::from_row(&sample.values)
+                        .map_err(|error| crate::Error::Probe(error.to_string()))?;
+                    Ok(Collected { row, timestamp_micros })
                 })
                 .collect::<crate::Result<Vec<_>>>()
         });

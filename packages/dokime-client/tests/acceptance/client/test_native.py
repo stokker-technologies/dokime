@@ -67,6 +67,9 @@ def native(
 ) -> Iterator[Host]:
     bundle = artifact("fixtures/plugins/obc-plugin.dokime")
     root = tmp_path_factory.mktemp("native")
+    plugins = root / "plugins"
+    plugins.mkdir()
+    shutil.copyfile(artifact("plugins/host.dokime"), plugins / "host.dokime")
     env_file = root / "empty.env"
     env_file.touch()
     log = root / "backend.log"
@@ -87,7 +90,8 @@ def native(
                 str(env_file),
                 "--plugin",
                 str(bundle),
-                "--no-seed-validation-artifact",
+                "--plugins-root",
+                str(plugins),
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,

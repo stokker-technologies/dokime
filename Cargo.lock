@@ -2557,10 +2557,8 @@ dependencies = [
 name = "dokime-host"
 version = "0.1.0"
 dependencies = [
- "criterion",
  "dokime",
  "dokime-domain",
- "dokime-runtime",
  "getifs",
  "serde",
  "serde_json",
@@ -2571,7 +2569,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
- "uuid",
  "windows",
 ]
 

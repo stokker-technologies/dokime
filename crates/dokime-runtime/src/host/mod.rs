@@ -13,8 +13,6 @@ pub mod streams;
 
 /* === Re-Exports === */
 
-pub use dokime_domain::model::telemetry::host::contracts::HostTextList;
-pub use dokime_domain::model::telemetry::host::contracts::HostTimestamp;
 pub use streams::{Bluetooth, Network, System, Wifi, WifiChannelOccupancy, WifiLatency};
 
 // The host's own vocabulary for its streams, which its collector and its

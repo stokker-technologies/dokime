@@ -49,7 +49,14 @@ pub struct Bluetooth {}
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Samples {
-    pub rows: Vec<dokime::host::Bluetooth>,
+    pub rows: Vec<Collected>,
+}
+
+#[dokime::message]
+#[derive(Clone, PartialEq)]
+pub struct Collected {
+    pub row: dokime::host::Bluetooth,
+    pub timestamp_micros: i64,
 }
 
 /* === Implementations === */

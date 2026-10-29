@@ -23,8 +23,8 @@
 use crate::support::*;
 use dokime_domain::model;
 use dokime_host::HostTelemetryStream;
-use dokime_runtime::telemetry::TelemetryRow;
-use dokime_runtime::telemetry::validate_telemetry_sample;
+use dokime::telemetry::TelemetryRow;
+use dokime::telemetry::validate_telemetry_sample;
 use model::telemetry::{TelemetryBatch, TelemetrySample};
 use model::telemetry::{ValidationMode, host_telemetry_contract};
 
@@ -109,6 +109,6 @@ fn collected_battery_columns() {
             assert!(declared.contains(&key.as_str()), "{key} is not declared");
         }
         validate_telemetry_sample(Some(&contract), &sample, ValidationMode::Strict).unwrap();
-        dokime_runtime::host::System::from_row(&sample.values).unwrap();
+        dokime::host::System::from_row(&sample.values).unwrap();
     }
 }

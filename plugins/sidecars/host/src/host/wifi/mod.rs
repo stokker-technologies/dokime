@@ -49,7 +49,14 @@ pub struct Wifi {}
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Samples {
-    pub rows: Vec<dokime::host::Wifi>,
+    pub rows: Vec<Collected>,
+}
+
+#[dokime::message]
+#[derive(Clone, PartialEq)]
+pub struct Collected {
+    pub row: dokime::host::Wifi,
+    pub timestamp_micros: i64,
 }
 
 /* === Implementations === */

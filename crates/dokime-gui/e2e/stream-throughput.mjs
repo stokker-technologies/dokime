@@ -48,6 +48,7 @@ const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
 const backendBinary = process.env.DOKIME_E2E_CLI ?? join(targetRoot, "debug/dokime");
 const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
 const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
+const hostBundle = process.env.DOKIME_E2E_HOST_PLUGIN ?? join(targetRoot, "debug/plugins/host.dokime");
 const origin = process.platform === "win32" ? "http://tauri.localhost" : "tauri://localhost";
 const STREAM = "mini.charger.startup.samples";
 const TEMPLATE = "Start-Up Sequence";
@@ -132,6 +133,8 @@ async function startBackend(work) {
       "--grpc-web",
       "--allowed-origin",
       origin,
+      "--plugin",
+      hostBundle,
       "--plugin",
       pluginBundle,
       "--port",

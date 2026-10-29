@@ -5,7 +5,9 @@ plugin ingest boundary. Its single catalog contains the collection operations,
 stream declarations and demand-driven observers. Operation definitions own the
 policies; Windows and Unix implementations are selected at module declarations.
 Its Collection settings retain the Wi-Fi/Bluetooth adapter selectors and latency
-host. Empty adapter selectors use the native default.
+host. Empty adapter selectors use the native default. Native repeated fields
+carry lists; acquisition timestamps travel in framework publication metadata.
+The runtime decodes these rows through the same codec as other plugins.
 
 `sidecars/obc/` is the test-only onboard charger plugin. Its `runtime/` crate owns
 the simulated testbench. It is built explicitly for tests and is never included

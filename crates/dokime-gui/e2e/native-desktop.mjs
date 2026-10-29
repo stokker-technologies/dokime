@@ -111,7 +111,9 @@ const executableSuffix = process.platform === "win32" ? ".exe" : "";
 let backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
 let cliBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
-const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
+const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "fixtures/plugins/obc-plugin.dokime");
+
+const hostBundle = join(built, "plugins/host.dokime");
 
 const densities = {
   desktop: { density: "comfortable", height: 1000, width: 1600 },
@@ -408,6 +410,8 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
     [
       "server",
       "--shutdown-stdin",
+      "--plugin",
+      hostBundle,
       ...(launchPlugin ? ["--plugin", pluginBundle] : []),
       "--port",
       String(port),

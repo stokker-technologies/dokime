@@ -13,10 +13,13 @@ name = "dokime-host"
 publish = false
 edition.workspace = true
 rust-version.workspace = true
-description.workspace = true
+description = "Collects host telemetry through the supervised Dokime plugin boundary."
 license.workspace = true
 repository.workspace = true
 version = { workspace = true }
+
+[package.metadata.dokime]
+debuginfo = false
 
 # === Package Targets === #
 
@@ -50,7 +53,6 @@ tracing = { workspace = true }
 # Utilities
 starship-battery = { workspace = true }
 sysinfo = { workspace = true }
-uuid = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -83,7 +85,6 @@ getifs = { workspace = true }
 
 [dev-dependencies]
 # Local
-dokime-runtime = { path = "../../../crates/dokime-runtime" }
 
 # Git
 
@@ -113,7 +114,6 @@ tempfile = { workspace = true }
 # UI
 
 # Testing
-criterion = { workspace = true }
 
 # === Target Dependencies === #
 

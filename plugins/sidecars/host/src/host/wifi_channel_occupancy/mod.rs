@@ -49,7 +49,14 @@ pub struct WifiChannelOccupancy {}
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Samples {
-    pub rows: Vec<dokime::host::WifiChannelOccupancy>,
+    pub rows: Vec<Collected>,
+}
+
+#[dokime::message]
+#[derive(Clone, PartialEq)]
+pub struct Collected {
+    pub row: dokime::host::WifiChannelOccupancy,
+    pub timestamp_micros: i64,
 }
 
 /* === Implementations === */

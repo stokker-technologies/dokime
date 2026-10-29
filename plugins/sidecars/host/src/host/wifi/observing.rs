@@ -38,9 +38,11 @@ impl Observer<Publisher<HostPlugin>> for Wifi {
 
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<HostPlugin>>) -> Result<(), Error> {
         let response = ctx.host().supervisor().call::<Self>(Self {}).await.map_err(|error| Error::Probe(error.to_string()))?;
-        for row in &response.rows {
-            ctx.publish_on::<Self>(row).await.map_err(|error| Error::Probe(error.to_string()))?;
+        let mut batch = ctx.host().batch::<Self>();
+        for sample in &response.rows {
+            batch.push_at(sample.row.clone(), sample.timestamp_micros);
         }
+        ctx.host().publish_batch_on::<Self>(&batch).await.map_err(|error| Error::Probe(error.to_string()))?;
         Ok(())
     }
 }

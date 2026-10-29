@@ -77,7 +77,6 @@ macro_rules! host_streams {
                     power_plan_guid: Text, State, "Power Plan GUID", Option<String>;
                     power_mode: Text, State, "Power Mode", Option<String>;
                     power_mode_performance_bias: Integer, Value, "Power Mode Performance Bias", Option<i64>;
-                    timestamp: Datetime, Value, "Timestamp", Option<$crate::model::telemetry::host::contracts::HostTimestamp>;
                 }
             }
             Network {
@@ -90,7 +89,7 @@ macro_rules! host_streams {
                     radio_link: Text, State, "Radio Link", Option<String>;
                     default_interface: Text, State, "Default Interface", Option<String>;
                     default_gateway: Text, State, "Default Gateway", Option<String>;
-                    local_addresses: Array, State, "Local Addresses", Option<$crate::model::telemetry::host::contracts::HostTextList>;
+                    local_addresses: Array, State, "Local Addresses", Vec<String>;
                     local_address_count: Integer, Value, "Local Address Count", Option<i64>;
                     network_interface_count: Integer, Value, "Network Interface Count", Option<i64>;
                     network_recv_mb_per_second: Number, Throughput, "Network RX", Option<f64>;
@@ -102,7 +101,6 @@ macro_rules! host_streams {
                     network_mtu: Integer, State, "Network MTU", Option<i64>;
                     network_mac: Text, State, "Network MAC", Option<String>;
                     network_operational_state: Text, State, "Network State", Option<String>;
-                    timestamp: Datetime, Value, "Timestamp", Option<$crate::model::telemetry::host::contracts::HostTimestamp>;
                 }
             }
             Wifi {
@@ -133,7 +131,6 @@ macro_rules! host_streams {
                     active_wifi_band: Text, State, "Active WiFi Band", Option<String>;
                     wifi_network_congestion_score: Number, Value, "WiFi Congestion", Option<f64>;
                     congestion_model: Text, State, "Congestion Model", Option<String>;
-                    timestamp: Datetime, Value, "Timestamp", Option<$crate::model::telemetry::host::contracts::HostTimestamp>;
                 }
             }
             WifiLatency {
@@ -145,7 +142,6 @@ macro_rules! host_streams {
                     probe_error: Text, State, "Probe Error", Option<String>;
                     wifi_latency_host: Text, State, "WiFi Latency Host", Option<String>;
                     wifi_latency_ms: Number, Latency, "WiFi Latency", Option<f64>;
-                    timestamp: Datetime, Value, "Timestamp", Option<$crate::model::telemetry::host::contracts::HostTimestamp>;
                 }
             }
             WifiChannelOccupancy {
@@ -170,7 +166,6 @@ macro_rules! host_streams {
                     max_signal_percent: Number, Value, "Max Signal", Option<f64>;
                     wifi_network_congestion_score: Number, Value, "WiFi Congestion", Option<f64>;
                     congestion_model: Text, State, "Congestion Model", Option<String>;
-                    timestamp: Datetime, Value, "Timestamp", Option<$crate::model::telemetry::host::contracts::HostTimestamp>;
                 }
             }
             Bluetooth {
@@ -187,8 +182,7 @@ macro_rules! host_streams {
                     bluetooth_recv_mb_per_second: Number, Throughput, "Bluetooth RX", Option<f64>;
                     bluetooth_sent_mb_per_second: Number, Throughput, "Bluetooth TX", Option<f64>;
                     bluetooth_radio_state: Text, State, "Bluetooth Radio State", Option<String>;
-                    bluetooth_device_names: Array, State, "Bluetooth Devices", Option<$crate::model::telemetry::host::contracts::HostTextList>;
-                    timestamp: Datetime, Value, "Timestamp", Option<$crate::model::telemetry::host::contracts::HostTimestamp>;
+                    bluetooth_device_names: Array, State, "Bluetooth Devices", Vec<String>;
                 }
             }
         }

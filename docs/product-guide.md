@@ -996,7 +996,9 @@ definitions are available under `dokime::domain` in every feature set.
 The application stores state checkpoints and their journal through Harmos's file
 state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
-fresh storage root. Existing data is never silently reset.
+fresh storage root. Host payloads now use native repeated fields and framework
+publication timestamps; the earlier wrapped host row layout also requires a fresh
+root. Schemas remain v1 during development. Existing data is never silently reset.
 
 For remote automation, enable the entry library's client surface:
 
