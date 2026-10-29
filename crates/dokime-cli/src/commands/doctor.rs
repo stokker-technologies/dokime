@@ -22,7 +22,8 @@ use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::storage::{
-    BackendFailure, ByteRange, CaptureConsistency, FileMetadata, Identifier, StorageBackend, StorageBackends, StorageFuture, Worker, WorkerOwner,
+    BackendFailure, ByteRange, CaptureConsistency, FileMetadata, Identifier, StorageBackend, StorageBackends, StorageFuture, Worker,
+    WorkerOwner,
 };
 
 // Local Imports
@@ -84,7 +85,9 @@ impl WorkerOwner for WorkerTask {
     fn stop(&self) -> StorageFuture<'_, ()> {
         Box::pin(async move {
             let Some(task) = self.0.lock().await.take() else { return Ok(()) };
-            let joined = task.await.map_err(|error| dokime::harmos::storage::Error::backend("doctor storage worker", BackendFailure::Permanent, error));
+            let joined = task
+                .await
+                .map_err(|error| dokime::harmos::storage::Error::backend("doctor storage worker", BackendFailure::Permanent, error));
             joined?
         })
     }
@@ -106,7 +109,10 @@ async fn storage(args: StorageArgs, configuration: dokime::config::Config) -> cr
     println!("Dokime Storage Diagnostics");
     println!("executable: {}", std::env::current_exe().map(|path| path.display().to_string()).unwrap_or_default());
     for name in ["TEMP", "TMP", "LOCALAPPDATA", "APPDATA", "USERPROFILE", "DOKIME_APPLICATION_ROOT", "DOKIME_OUTPUT_ROOT"] {
-        println!("{name}: {}", std::env::var_os(name).map(|value| value.to_string_lossy().into_owned()).unwrap_or_else(|| "(unset)".into()));
+        println!(
+            "{name}: {}",
+            std::env::var_os(name).map(|value| value.to_string_lossy().into_owned()).unwrap_or_else(|| "(unset)".into())
+        );
     }
     println!("temp root: {}", temp_root.display());
     println!("data root: {}", data_root.display());

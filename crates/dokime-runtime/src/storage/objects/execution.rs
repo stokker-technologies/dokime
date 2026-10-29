@@ -306,7 +306,11 @@ impl Execution {
     pub fn differing_fields(&self, other: &Self) -> Vec<&'static str> {
         let fields = [
             ("saved", self.saved != other.saved),
-            ("identity", (&self.test_cycle_id, &self.test_execution_id, &self.test_case_id) != (&other.test_cycle_id, &other.test_execution_id, &other.test_case_id)),
+            (
+                "identity",
+                (&self.test_cycle_id, &self.test_execution_id, &self.test_case_id)
+                    != (&other.test_cycle_id, &other.test_execution_id, &other.test_case_id),
+            ),
             ("suite", self.suite != other.suite),
             ("status", (&self.status, &self.mode) != (&other.status, &other.mode)),
             ("snapshot", self.snapshot != other.snapshot),
@@ -316,7 +320,11 @@ impl Execution {
             ("documents", self.documents != other.documents),
             ("records", self.records != other.records),
             ("timing", (&self.started_at, &self.finished_at) != (&other.started_at, &other.finished_at)),
-            ("steps", (&self.steps, &self.step_attempts, &self.active_step_attempt) != (&other.steps, &other.step_attempts, &other.active_step_attempt)),
+            (
+                "steps",
+                (&self.steps, &self.step_attempts, &self.active_step_attempt)
+                    != (&other.steps, &other.step_attempts, &other.active_step_attempt),
+            ),
             ("capture_phase", self.capture_phase != other.capture_phase),
             ("traceability", self.traceability != other.traceability),
             ("result", self.result != other.result),

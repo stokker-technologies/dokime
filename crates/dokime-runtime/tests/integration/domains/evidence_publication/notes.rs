@@ -19,9 +19,9 @@
 use model::execution::notes::NoteOwner;
 
 // Local Imports
-use dokime_domain::model::identity::CommandId;
 use crate::service_support::prelude::*;
 use dokime_domain::model;
+use dokime_domain::model::identity::CommandId;
 use dokime_runtime::domains::evidence::notes::{CreateNote, NotePublication};
 
 /* === Constants === */
