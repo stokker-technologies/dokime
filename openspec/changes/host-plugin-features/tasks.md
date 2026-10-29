@@ -4,7 +4,7 @@ Locked 2026-10-29. One commit per item; targeted proof per item; Linux paths are
 
 ## 1. Windowless Child Processes
 
-- [ ] 1.1 Port `fix/windows-console-windows` (c2b7a334): `dokime_domain::process::command`, Clippy ban, every spawn routed, native power plan, native echo at half the latency bound, git identity once per collector.
+- [x] 1.1 Merge `fix/windows-console-windows` (dev fd5e3939, merge da224f98): `dokime_domain::process::command`, Clippy ban, every spawn routed (packaging included), native power plan, native echo at half the latency bound, git identity once per collector. Proof: locked workspace/all-targets check and Clippy pass (dokime-cli Clippy blocked only by another writer's redundant closures, since fixed upstream); host lib 11 and integration 4 pass.
 
 ## 2. Wi-Fi And Network Streams
 
