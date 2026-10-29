@@ -12,7 +12,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dokime-client"
-version = "0.1.0"
+version = "0.1.1"
 readme = "README.md"
 description = "Async remote control and evidence collection for Dokime."
 requires-python = ">=3.13,<3.16"

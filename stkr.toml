@@ -647,7 +647,7 @@ path = "target/package/{profile}/any/python/dokime_client-{version}.tar.gz"
 profiles = ["release"]
 
 [version]
-value = "0.1.0"
+value = "0.1.1"
 files = [
   "Cargo.toml",
   "pyproject.toml",
