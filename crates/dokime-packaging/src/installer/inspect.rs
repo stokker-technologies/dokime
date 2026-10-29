@@ -171,7 +171,10 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
         let executable = root.join("dokime-gui.exe");
         super::windows::verify(&executable, &icon)?;
         if metadata.installer_signed {
-            run(dokime::domain::process::command("signtool").args(["verify", "/pa"]).arg(&executable), "GUI executable Authenticode verification failed")?;
+            run(
+                dokime::domain::process::command("signtool").args(["verify", "/pa"]).arg(&executable),
+                "GUI executable Authenticode verification failed",
+            )?;
         }
     }
     if !windows {
@@ -215,12 +218,14 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
     verify_inventory(root, &metadata)?;
     let installer_signature = if metadata.installer_signed {
         match package.extension().and_then(|value| value.to_str()) {
-            Some("exe") => {
-                run(dokime::domain::process::command("signtool").args(["verify", "/pa"]).arg(package), "installer Authenticode verification failed")?
-            }
-            Some("deb") => {
-                run(dokime::domain::process::command("debsig-verify").arg(package), "DEB signature verification requires trusted debsig-verify policy")?
-            }
+            Some("exe") => run(
+                dokime::domain::process::command("signtool").args(["verify", "/pa"]).arg(package),
+                "installer Authenticode verification failed",
+            )?,
+            Some("deb") => run(
+                dokime::domain::process::command("debsig-verify").arg(package),
+                "DEB signature verification requires trusted debsig-verify policy",
+            )?,
             Some("rpm") => verify_rpm_signature(package)?,
             _ => return Err(Error::Invalid("unsupported signed package".into())),
         }
