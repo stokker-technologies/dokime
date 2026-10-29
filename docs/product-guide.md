@@ -1077,16 +1077,18 @@ input payload and compiled application identity. When installer signing is
 requested, it signs the modified executable before recording its final hash,
 then signs the finished installer. Installer artwork supplies the setup icon.
 
-The app's brand mark exposes the `.logo` class on both light and dark artwork,
-including its text fallback. Customize it in the pack's `theme/base.css`, for
-example:
+The connection screen and sidebar share a `.brand` block containing `.logo` artwork and a `.wordmark`. The text fallback also carries `.logo`. Customize this block in the pack's `theme/base.css`, for example:
 
 ```css
-.logo {
-  padding: 0.5rem 1rem;
-  object-fit: contain;
+.brand {
+  --brand-logo-size: 2.5rem;
+  --brand-flow: column;
+  --brand-align: center;
+  --brand-gap: 0.75rem;
 }
 ```
+
+The default classes `brand-row` / `brand-column` select flow and `brand-start` / `brand-center` select alignment. Organization themes can override their variables without changing components. The connection screen keeps its 2.5rem logo and the sidebar its 1.5rem logo by default.
 
 The root element carries `.light` or `.dark` for the active mode, so shared
 styles can target `.light .logo` and `.dark .logo` symmetrically. Alternatively,

@@ -11,17 +11,16 @@
 
 /* === External Imports === */
 
-import { Check } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
+import { Check } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /* === Local Imports === */
 
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
-import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { BackendsTable } from "@/features/settings/BackendsTable";
-import { defaultBrand } from "@/lib/brand";
+import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { commands } from "@/lib/desktop/commands";
 import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
@@ -105,8 +104,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
     <main className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6">
       <div className="grid w-full max-w-140 min-w-0 gap-6 text-center">
         <header className="grid justify-items-center gap-4">
-          <BrandMark className="h-10" />
-          <h1 className="font-heading text-3xl leading-none font-semibold">{defaultBrand.label}</h1>
+          <BrandMark className="connection-brand brand-column" heading />
 
           <p className="text-sm text-muted-foreground" {...(busy ? { role: "status" } : {})}>
             {stateSentence({ busy, error: Boolean(error), launch, reset })}
