@@ -1,8 +1,10 @@
 # Remote CLI Workflows
 
+Scripts: `packages/dokime-client/examples/remote/cli/`. Commands below run from that folder.
+
 Control the simulated OBC device, run independent attempts with live observations,
 and answer a confirmation using an installed Dokime CLI on another computer.
-Start with the [shared candidate-artifact walkthrough](../README.md) to obtain
+Start with the [shared candidate-artifact walkthrough](overview.md) to obtain
 the matching CLI and host plugin, configure the host and transfer secrets.
 A matching published release combination is not claimed; native execution and
 interruption behavior still require platform validation.
@@ -17,7 +19,7 @@ third-party builds.
 
 **For this candidate walkthrough**, set `$INSTALL_DOKIME = $false` first and
 install the matching candidate with the native installer described in the
-[shared guide](../README.md#install-dokime). This also provides a tools-only
+[shared guide](overview.md#install-dokime). This also provides a tools-only
 setup for Python users. Both launchers read that same editable option.
 
 From the extracted `cli/` directory, run the batch launcher in a normal,
@@ -109,7 +111,7 @@ dokime backend add --pairing ../lab.dokime-pair --identifier lab
 ```
 
 Edit the globals at the top of each script before running it. Names, grouping,
-order and meanings match the [Python examples](../python/README.md):
+order and meanings match the [Python examples](python.md):
 
 | Group | Parameters |
 | --- | --- |
