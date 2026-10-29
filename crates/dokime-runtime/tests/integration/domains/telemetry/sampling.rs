@@ -265,7 +265,10 @@ async fn host_observer_spins_down() {
         residents.borrow().keys().filter(|key| is_host_observer(&key.definition)).map(|key| key.definition.clone()).collect::<Vec<_>>();
     assert_eq!(held, [system.to_string()], "only the leased stream's observer ran");
 
-    let plot = dokime_runtime::runtime::query::PlotPayloadRequest { stream: system.to_string(), ..Default::default() };
+    let plot = dokime_runtime::runtime::query::PlotPayloadRequest {
+        stream: system.to_string(),
+        ..Default::default()
+    };
     let viewing = runtime.view_plot_streams(&[plot], "fixture.plot").await;
     runtime.release_stream_leases(leases).await.unwrap();
     assert!(residents.borrow().iter().any(|(key, status)| key.definition == system.as_str() && status.leases > 0));

@@ -20,9 +20,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-use model::telemetry::{TelemetryBatch, TelemetrySample};
-use model::telemetry::ValidationMode;
 use dokime_host::host_telemetry_contract;
+use model::telemetry::ValidationMode;
+use model::telemetry::{TelemetryBatch, TelemetrySample};
 
 // Local Imports
 use crate::support::*;
