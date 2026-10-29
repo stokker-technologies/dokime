@@ -14,7 +14,7 @@
   </picture>
 </p>
 
-[Website](https://stokkertechnologies.ch/en/open-source/dokime) · [Getting Started](#quick-start) · [Tutorials](packages/dokime-client/examples/remote/README.md) · [Examples](docs/product-guide.md#examples) · [Documentation](docs/product-guide.md)
+[Website](https://stokkertechnologies.ch/en/open-source/dokime) · [Getting Started](#quick-start) · [Tutorials](docs/remote/overview.md) · [Examples](docs/product-guide.md#examples) · [Documentation](docs/product-guide.md)
 
 **Run repeatable engineering tests. Keep the evidence.**
 
@@ -68,7 +68,7 @@ dokime operation list --backend lab
 
 The async Python client controls a running backend and reads live or saved
 evidence. The distribution is `dokime-client`; imports use `dokime_client`.
-Follow the [locked remote tutorial](packages/dokime-client/examples/remote/python/README.md) for a complete example.
+Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
 
 #### Examples
 
@@ -79,7 +79,7 @@ uv add ./dokime_client-0.1.0-py3-none-any.whl
 ```
 
 The [Python client guide](packages/dokime-client/README.md) covers authentication,
-backend profiles and execution APIs; the [runnable examples](packages/dokime-client/examples/remote/python/) retain their complete setup.
+backend profiles and execution APIs; the [runnable examples](docs/remote/python.md) retain their complete setup.
 
 ### Rust
 
@@ -90,7 +90,7 @@ for contracts and managed plugin lifecycles.
 
 #### Examples
 
-The test-only [OBC plugin](plugins/sidecars/obc/) simulates a charger without physical
+The test-only [OBC plugin](docs/obc-plugin.md) simulates a charger without physical
 hardware. Follow its [procedure and measurement examples](docs/product-guide.md#run-the-procedure-and-capture-evidence)
 to see the public authoring API in context.
 
@@ -125,9 +125,9 @@ for packaging options.
 
 ## Quick Start
 
-1. **Download An Installer.** Choose a matching successful [CI candidate](https://github.com/stokker-technologies/dokime/actions). Dokime has no published release yet; the [download walkthrough](packages/dokime-client/examples/remote/README.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
+1. **Download An Installer.** Choose a matching successful [CI candidate](https://github.com/stokker-technologies/dokime/actions). Dokime has no published release yet; the [download walkthrough](docs/remote/overview.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
 2. **Inspect Host Telemetry.** The installer includes `host.dokime`, selected explicitly by the Dokime packaging task. Host streams arrive through the supervised plugin boundary.
-3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](plugins/sidecars/obc/#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
+3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](docs/obc-plugin.md#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
 4. **Write Your Plugin.** Start with the [plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
 
 Dokime is pre-1.0. Pin matching application, client and plugin revisions;
