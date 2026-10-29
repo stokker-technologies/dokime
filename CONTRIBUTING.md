@@ -91,6 +91,18 @@ Report missing local executors and local failures; repair every failed required
 job. Hosted required checks and reviews gate integration. Create or update the
 authorized ready PR and enable auto-merge without waiting for local completion.
 
+### System Story Reports
+
+Report-producing system stories automatically save and reopen their final sealed
+execution reports during shared fixture teardown or desktop journey finalization.
+The finalizer verifies execution identity, the durable seal/checkpoint and artifact
+inventory/content. No separate report-saving story or command is needed. Stories
+which do not produce execution reports have explicit reasons in
+`crates/dokime-runtime/tests/support/system_reports.json`.
+Native shutdown stories exercise their stop boundary first; finalization runs on
+their recovered session's ordinary teardown. Filtered desktop runs name their
+selected journeys in JUnit; full walkthrough validation remains a separate obligation.
+
 ### Storage Benchmarks
 
 The runtime's `integration-storage` Criterion target uses the actual SQLite

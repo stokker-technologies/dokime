@@ -27,6 +27,7 @@ use tokio::sync::Barrier;
 // Local Imports
 use super::prelude::*;
 use super::smoke::{Behaviour, PULSE_DISPLAY_POINTS, PULSE_PLOT, PULSE_STREAM, SOURCE, SUITE, Smoke};
+use super::system_reports::Runtime;
 use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::CommandId;
@@ -112,11 +113,12 @@ pub async fn large_case_seals(size: Sampling) {
 pub async fn whole_capture_seals(size: Sampling) {
     replay_diagnostics();
     let root = tempdir().unwrap();
-    let behaviour = Behaviour::new(size.rows, size.spectrum_rows, false);
+    let behaviour = Behaviour::new(size.rows, size.spectrum_rows, false).artifacts(false);
     let (mut runtime, handle, _) = smoke_runtime(root.path(), behaviour, Some(size.page_bytes)).await;
     let execution_id = run_case(&handle, "spectrum.whole").await;
     let html = super::native::report(&handle, &execution_id).await;
     let payload = super::reports::parse(&html);
+    assert_eq!(payload["snapshot"]["artifacts"].as_array().unwrap().len(), 2);
     let plots = &payload["case_runs"][0]["plots"];
     assert_eq!(
         plots[PULSE_PLOT]["series"][0]["raw_points"],

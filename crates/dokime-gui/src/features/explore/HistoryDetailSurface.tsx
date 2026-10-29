@@ -113,7 +113,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
   }
 
   return (
-    <div className="grid content-start">
+    <div aria-busy={query.isPending} className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
         {query.isPending ? <p>Loading executions…</p> : null}
         {query.isError ? <NotificationMessage>Unable to load history: {query.error?.message}</NotificationMessage> : null}
