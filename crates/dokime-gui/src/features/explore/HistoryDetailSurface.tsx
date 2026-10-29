@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -115,15 +116,11 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
     <div className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
         {query.isPending ? <p>Loading executions…</p> : null}
-        {query.isError ? (
-          <p role="alert" className="text-destructive">
-            Unable to load history: {query.error?.message}
-          </p>
-        ) : null}
+        {query.isError ? <NotificationMessage>Unable to load history: {query.error?.message}</NotificationMessage> : null}
         {query.coverage && !query.coverage.discovery_complete ? (
-          <p role="status">History is incomplete. Some executions may be unavailable.</p>
+          <NotificationMessage tone="info">History is incomplete. Some executions may be unavailable.</NotificationMessage>
         ) : null}
-        {deleteNotice ? <p role="status">{deleteNotice}</p> : null}
+        {deleteNotice ? <NotificationMessage tone="info">{deleteNotice}</NotificationMessage> : null}
         {unrun ? (
           <section aria-label="Case never run" className="grid gap-2 rounded-lg border p-3">
             <h2 className="font-medium">This case was never run</h2>
@@ -179,11 +176,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         />
         {/* The cases with nothing behind them are one line, not rows: the
             count stays visible without pretending each is inspectable. */}
-        {!unrun && entry?.unrun_count ? (
-          <p className="text-sm text-muted-foreground" role="status">
-            {unrunCaption(entry.unrun_count)}
-          </p>
-        ) : null}
+        {!unrun && entry?.unrun_count ? <NotificationMessage tone="info">{unrunCaption(entry.unrun_count)}</NotificationMessage> : null}
         {entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0 ? (
           <p>This sealed cycle contains no executions.</p>
         ) : null}
@@ -216,10 +209,10 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
             <p className="text-sm text-muted-foreground">Retry this deletion to confirm its result.</p>
           ) : null}
           {deleteError ? (
-            <div className="grid gap-1" role="alert">
+            <NotificationMessage>
               <p>Unable to delete this execution: {deleteError}</p>
               <p className="text-sm text-muted-foreground">Resolve the issue, then retry deletion.</p>
-            </div>
+            </NotificationMessage>
           ) : null}
           <DialogFooter>
             <Button
@@ -272,28 +265,15 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
     enabled: !!checkpoint,
     staleTime: Number.POSITIVE_INFINITY,
   });
-  if (query.isPending) return <p role="status">Opening checkpoint…</p>;
-  if (query.isError)
-    return (
-      <p role="alert" className="text-destructive">
-        Unable to open checkpoint: {query.error.message}
-      </p>
-    );
+  if (query.isPending) return <NotificationMessage tone="info">Opening checkpoint…</NotificationMessage>;
+  if (query.isError) return <NotificationMessage>Unable to open checkpoint: {query.error.message}</NotificationMessage>;
   const resolvedCheckpoint = query.data.checkpoint ?? checkpoint;
   if (!resolvedCheckpoint) {
-    return (
-      <p role="alert" className="text-destructive">
-        Unable to open checkpoint: the checkpoint identity is missing.
-      </p>
-    );
+    return <NotificationMessage>Unable to open checkpoint: the checkpoint identity is missing.</NotificationMessage>;
   }
   const execution = query.data.document?.execution;
   if (!execution) {
-    return (
-      <p role="alert" className="text-destructive">
-        Unable to open checkpoint: the execution document is missing.
-      </p>
-    );
+    return <NotificationMessage>Unable to open checkpoint: the execution document is missing.</NotificationMessage>;
   }
   return (
     <section className="grid gap-3 rounded-lg border bg-card p-4" aria-label="Captured execution">
@@ -362,11 +342,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
         {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
         {busy ? "Opening…" : "Open Report"}
       </Button>
-      {error ? (
-        <span role="alert" className="text-xs text-destructive">
-          {error}
-        </span>
-      ) : null}
+      {error ? <NotificationMessage>{error}</NotificationMessage> : null}
     </div>
   );
 }

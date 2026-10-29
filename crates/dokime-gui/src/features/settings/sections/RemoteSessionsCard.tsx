@@ -19,11 +19,11 @@ import { useQuery } from "@tanstack/react-query";
 // Third Party Imports
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
-
 // Local Imports
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/features/settings/SettingsCard";
@@ -116,9 +116,7 @@ export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
         title="Recent Remote Sessions"
       />
       {query.error ? (
-        <p className="px-4 py-3 text-sm text-destructive" role="alert">
-          {query.error instanceof Error ? query.error.message : "Remote sessions are unavailable."}
-        </p>
+        <NotificationMessage>{query.error instanceof Error ? query.error.message : "Remote sessions are unavailable."}</NotificationMessage>
       ) : null}
     </SettingsCard>
   );

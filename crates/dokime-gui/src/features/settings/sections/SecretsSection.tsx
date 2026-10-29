@@ -15,19 +15,19 @@
 
 // Standard Library Imports
 
-// Third Party Imports
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { useId, useState } from "react";
-
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
+// Third Party Imports
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/features/settings/SettingsCard";
@@ -156,12 +156,12 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
         <p className="text-sm text-muted-foreground">
           All plugins on this host can look up these identifiers. Values stay in its OS keyring.
         </p>
-        {(error || query.error) && (
-          <p role="alert" className="text-sm text-destructive">
-            {error ?? query.error?.message}
-          </p>
+        {(error || query.error) && <NotificationMessage>{error ?? query.error?.message}</NotificationMessage>}
+        {snapshot?.cleanupPending && (
+          <NotificationMessage source="Secrets" title="Keyring Cleanup Pending" tone="info">
+            The change is active, but an obsolete keyring slot could not be removed.
+          </NotificationMessage>
         )}
-        {snapshot?.cleanupPending && <p role="status">The change is active, but an obsolete keyring slot could not be removed.</p>}
         <DataTable
           aria-label="Secrets"
           actions={

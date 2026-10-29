@@ -10,6 +10,7 @@
 /* === External Imports === */
 
 import { memo, type ReactNode, useMemo } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -235,7 +236,7 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   }
   if (plot.plotType === "time_series")
     return <TimeSeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
-  return <p role="alert">Unsupported document plot type: {plot.plotType}</p>;
+  return <NotificationMessage>Unsupported document plot type: {plot.plotType}</NotificationMessage>;
 }
 
 function livePlotSpec({

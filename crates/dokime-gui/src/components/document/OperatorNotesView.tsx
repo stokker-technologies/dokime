@@ -17,6 +17,7 @@
 
 import { Pencil, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -159,11 +160,7 @@ function NoteEditor({
           <MarkdownText text={draft.markdown} />
         </div>
       )}
-      {failure ? (
-        <p className="text-sm text-destructive" role="alert">
-          {failure.message}
-        </p>
-      ) : null}
+      {failure ? <NotificationMessage>{failure.message}</NotificationMessage> : null}
       <div className="flex justify-end gap-2">
         <Button disabled={pending} onClick={onCancel} size="sm" type="button" variant="ghost">
           Cancel

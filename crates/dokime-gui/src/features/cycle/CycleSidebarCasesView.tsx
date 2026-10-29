@@ -59,7 +59,7 @@ import {
   X,
 } from "lucide-react";
 import { type KeyboardEvent, type RefObject, useCallback, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 // Local Imports
 

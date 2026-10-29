@@ -13,13 +13,15 @@
 
 import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
 import { useEffect, useRef, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "@/lib/notifications";
 import { preferencesError, usePreferences, useSavePreferences } from "./application-preferences";
 import { SettingsCard } from "./SettingsCard";
-import { createDebouncedWriter } from "./settings-autosave";
 import { SettingsRow } from "./SettingsRow";
+import { createDebouncedWriter } from "./settings-autosave";
 
 /* === Types === */
 
@@ -163,12 +165,12 @@ function ScopedPreferences({
   return (
     <SettingsCard title={scope === "local" ? "Local Preferences" : "Backend Preferences"}>
       {query.isPending ? (
-        <p role="status" className="p-4 text-sm text-muted-foreground">
-          Loading Settings…
-        </p>
+        <NotificationMessage source="Settings" tone="info">
+          Loading settings.
+        </NotificationMessage>
       ) : query.error ? (
         <div className="grid justify-items-start gap-3 p-4 text-sm">
-          <p role="alert">{preferencesError(query.error)}</p>
+          <NotificationMessage>{preferencesError(query.error)}</NotificationMessage>
           <Button variant="outline" onClick={() => void query.refetch()}>
             Retry
           </Button>
@@ -233,6 +235,7 @@ function PreferencesForm({
                 };
           const saved = await saveRef.current({ previous, settings });
           baseline.current = saved;
+          toast.success("Settings Saved", { source: "Settings" });
           if (version.current === input.version) setEdited(new Set());
         } catch (error) {
           // A Newer Edit Supersedes A Rejected Draft Without Advancing Its Revision.
@@ -306,11 +309,7 @@ function PreferencesForm({
         description={field.help}
         htmlFor={`${scope}-${name}`}
         error={error}
-        status={
-          <span role="status" data-state={error ? "error" : edited.has(name) ? state : "saved"} className="text-xs text-muted-foreground">
-            {error ? "Error" : edited.has(name) ? (state === "saving" ? "Saving…" : "Error") : "Saved"}
-          </span>
-        }
+        status={<span data-state={error ? "error" : edited.has(name) ? state : "saved"} className="inline-block min-h-5" />}
       >
         {field.kind === "boolean" ? (
           <Switch id={`${scope}-${name}`} aria-label={field.label} checked={Boolean(value)} onCheckedChange={change} />
@@ -376,9 +375,7 @@ function PreferencesForm({
       )}
       {(failure || save.error) && (
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <p role="alert" className="text-sm text-destructive">
-            {preferencesError(failure ?? save.error)}
-          </p>
+          <NotificationMessage>{preferencesError(failure ?? save.error)}</NotificationMessage>
           <Button
             variant="outline"
             onClick={async () => {

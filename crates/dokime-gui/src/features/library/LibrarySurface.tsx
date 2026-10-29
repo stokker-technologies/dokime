@@ -11,6 +11,7 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -136,9 +137,9 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
   return (
     <PageShell actions={actions} trail={["Library"]}>
-      {active.failed ? <p role="alert">Open cycles could not be read. Reconnect and try again.</p> : null}
+      {active.failed ? <NotificationMessage>Open cycles could not be read. Reconnect and try again.</NotificationMessage> : null}
 
-      {suitesQuery.isError ? <p role="alert">The suite catalog could not be read.</p> : null}
+      {suitesQuery.isError ? <NotificationMessage>The suite catalog could not be read.</NotificationMessage> : null}
       <DataTable
         aria-label="Library"
         columns={columns}

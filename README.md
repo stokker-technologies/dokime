@@ -42,6 +42,8 @@ The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
 Settings. The desktop remembers that choice; operators do not need a source checkout.
 
+Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+
 #### Examples
 
 ![Test templates and cases in the Dokime library](screenshots/library.png)

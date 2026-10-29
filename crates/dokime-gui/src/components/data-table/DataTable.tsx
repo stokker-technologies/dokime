@@ -27,7 +27,6 @@ import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHe
 import { type ActiveFilter, DataTableToolbar } from "@/components/data-table/DataTableToolbar";
 import {
   type DataTableColumns,
-  type DataTableFeatures,
   type DataTableProps,
   dataTableColumns,
   dataTableFeatures,

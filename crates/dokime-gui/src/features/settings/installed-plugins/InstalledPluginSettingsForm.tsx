@@ -8,6 +8,7 @@
  */
 
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -81,9 +82,7 @@ export function InstalledPluginSettingsForm({ schema, values, discovered, onSubm
         />
       ))}
       {(bindings.missing_required ?? []).length > 0 && (
-        <p className="px-4 py-3 text-xs text-destructive" role="alert">
-          Missing required secrets: {(bindings.missing_required ?? []).join(", ")}
-        </p>
+        <NotificationMessage>Missing required secrets: {(bindings.missing_required ?? []).join(", ")}</NotificationMessage>
       )}
     </>
   );

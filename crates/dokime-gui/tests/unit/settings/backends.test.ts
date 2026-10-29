@@ -18,16 +18,16 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { backendValidation } from "@/features/settings/BackendsTable";
 import { beforeEach, test, vi } from "vitest";
-
 // Local Imports
 import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
+import { NotificationMessage } from "@/components/NotificationMessage";
+import { Button } from "@/components/ui/button";
+import { backendValidation } from "@/features/settings/BackendsTable";
+import { commands } from "@/lib/desktop/commands";
 import type { DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
-import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */
 
@@ -285,7 +285,7 @@ function descendants(node: unknown): ReactElement<TestElementProps>[] {
   return [node, ...Children.toArray(node.props.children).flatMap(descendants)];
 }
 
-test("Startup Failure Has One Alert With A Log Path And An Explicit Retry", async () => {
+test("Startup Recovery Feedback", async () => {
   const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
     "@/app/native-session/ConnectionScreen",
   );
@@ -294,9 +294,16 @@ test("Startup Failure Has One Alert With A Log Path And An Explicit Retry", asyn
     launch: { target: null, expectedBackendId: null, localBackendAvailable: true, error: null },
     launchError: { kind: "startup", diagnostics },
   });
-  const alerts = descendants(tree).filter((element) => element.props.role === "alert");
-  assert.equal(alerts.length, 1);
-  const contents = descendants(alerts[0]);
+  const notices = descendants(tree).filter((element) => element.type === NotificationMessage);
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].props.children, diagnostics.cause);
+  const recovery = descendants(tree).find(
+    (element) =>
+      element.type === "div" &&
+      Children.toArray(element.props.children).some((child) => isValidElement(child) && child.type === NotificationMessage),
+  );
+  assert.ok(recovery);
+  const contents = descendants(recovery);
   assert.equal(contents.filter((element) => element.props.value === diagnostics.log).length, 1);
   const actions = contents.filter((element) => element.type === Button);
   assert.equal(actions.length, 1);

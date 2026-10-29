@@ -33,7 +33,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -71,8 +71,8 @@ import { stepLabel } from "./ExecutionControl";
 import { ExecutionSections } from "./ExecutionSections";
 import { executionPagePrompts } from "./execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
-import { NodeSummary } from "./NodeSummary";
 import type { ArchiveAction, CycleMenu, ExecutionMenu } from "./NodeMenu";
+import { NodeSummary } from "./NodeSummary";
 import { answerablePrompts } from "./prompt-banner-model";
 import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
 

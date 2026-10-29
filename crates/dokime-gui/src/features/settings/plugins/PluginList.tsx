@@ -17,8 +17,9 @@
 
 /* === External Imports === */
 
-import type { ReactNode } from "react";
 import { Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -73,11 +74,7 @@ export function PluginList({
     const switchable = entry.state === "installed" || entry.state === "disabled";
 
     return {
-      alert: status.reason ? (
-        <p className="whitespace-pre-line text-xs text-destructive" role="alert">
-          {status.reason}
-        </p>
-      ) : null,
+      alert: status.reason ? <NotificationMessage>{status.reason}</NotificationMessage> : null,
       badge: <Badge variant={status.variant}>{status.label}</Badge>,
       enabled: switchable
         ? {

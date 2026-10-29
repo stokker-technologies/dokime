@@ -12,6 +12,7 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileUp, Loader2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -67,11 +68,7 @@ export function PluginDropZone({ disabled, error, filename, onDrop, onPick, prog
           </Button>
         </div>
       </fieldset>
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error ? <NotificationMessage>{error}</NotificationMessage> : null}
     </div>
   );
 }

@@ -18,11 +18,12 @@ import { Plug } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { connectionError } from "@/app/native-session/errors";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { commands } from "@/lib/desktop/commands";
 import { preferencesCommands } from "@/lib/desktop/settings";
@@ -107,12 +108,12 @@ export function BackendsTable({
     <SettingsCard className="w-full text-left">
       {(connectionFailure || Boolean(error)) && (
         <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
-          <div role="alert" className="text-destructive">
+          <NotificationMessage>
             {connectionFailure || preferencesError(error)}
             {connectionFailure && (endpoint || failedProfile) && (
               <p className="mt-2 break-all font-mono text-xs">{endpoint || failedProfile?.endpoint}</p>
             )}
-          </div>
+          </NotificationMessage>
           <Button
             className="justify-self-start"
             size="sm"
@@ -133,11 +134,7 @@ export function BackendsTable({
           </Button>
         </div>
       )}
-      {!document && !error && (
-        <p role="status" className="p-4 text-sm text-muted-foreground">
-          Loading backends…
-        </p>
-      )}
+      {!document && !error && <NotificationMessage tone="info">Loading backends…</NotificationMessage>}
       <DataTable
         aria-label="Saved Backends"
         data={document?.profiles ?? []}
@@ -205,11 +202,7 @@ export function BackendsTable({
               Confirm Delete
             </Button>
           </div>
-          {Boolean(error) && (
-            <p role="alert" className="text-sm text-destructive">
-              {preferencesError(error)}
-            </p>
-          )}
+          {Boolean(error) && <NotificationMessage>{preferencesError(error)}</NotificationMessage>}
         </DialogContent>
       </Dialog>
       {adding && (
@@ -325,16 +318,11 @@ function AddBackend({
                 id={`${fieldId}-identifier`}
                 aria-label="Backend Identifier"
                 aria-invalid={submitted && Boolean(validation.identifier)}
-                aria-describedby={submitted && validation.identifier ? `${fieldId}-identifier-error` : undefined}
                 required
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
               />
-              {submitted && validation.identifier && (
-                <span id={`${fieldId}-identifier-error`} className="text-xs text-destructive">
-                  {validation.identifier}
-                </span>
-              )}
+              {submitted && validation.identifier && <NotificationMessage>{validation.identifier}</NotificationMessage>}
             </label>
             <label htmlFor={`${fieldId}-label`}>
               Label
@@ -348,17 +336,12 @@ function AddBackend({
                 aria-label="Backend Endpoint"
                 required
                 aria-invalid={submitted && Boolean(validation.endpoint)}
-                aria-describedby={submitted && validation.endpoint ? `${fieldId}-endpoint-error` : undefined}
                 placeholder="http://lab.example:8765"
                 type="url"
                 value={endpoint}
                 onChange={(event) => setEndpoint(event.target.value)}
               />
-              {submitted && validation.endpoint && (
-                <span id={`${fieldId}-endpoint-error`} className="text-xs text-destructive">
-                  {validation.endpoint}
-                </span>
-              )}
+              {submitted && validation.endpoint && <NotificationMessage>{validation.endpoint}</NotificationMessage>}
             </label>
             <div className="mt-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose}>
@@ -367,7 +350,7 @@ function AddBackend({
               <Button type="submit">{busy ? "Saving…" : "Add Backend"}</Button>
             </div>
           </fieldset>
-          {Boolean(error) && <p role="alert">{preferencesError(error)}</p>}
+          {Boolean(error) && <NotificationMessage>{preferencesError(error)}</NotificationMessage>}
         </form>
       </DialogContent>
     </Dialog>

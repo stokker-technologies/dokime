@@ -11,7 +11,7 @@
 
 import { Braces, Copy, Download } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 

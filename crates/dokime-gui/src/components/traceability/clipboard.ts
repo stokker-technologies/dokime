@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 

@@ -12,7 +12,7 @@
  * The title and its pencil sit inline in one cell of the header grid, so the header
  * keeps its tracks whether the pencil shows or not. The pencil turns the label
  * into an input of the same type size: Enter saves through the runtime, Escape
- * drops the draft, and a refusal stays beside the input instead of a toast.
+ * drops the draft, and a refusal goes to notifications while retaining the input.
  * `label-editor-model` owns what each key does. Without `onRename` — the
  * frozen report, a sealed or archived subject, a case that never ran — the
  * title is plain text.
@@ -25,6 +25,7 @@ import { useState } from "react";
 
 /* === Local Imports === */
 
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CLOSED_LABEL_DRAFT, type LabelDraft, labelEditorKey, openLabelEdit, refuseLabel, updateLabelText } from "./label-editor-model";
@@ -83,7 +84,6 @@ export function EditableLabel({ label, prefix = "", subject, onRename, initially
       <div className="grid min-w-0 grid-cols-[auto_minmax(0,auto)_auto_minmax(0,auto)] items-center gap-x-2">
         {prefix ? <span className={`${TITLE_CLASS} whitespace-pre`}>{prefix}</span> : <span />}
         <Input
-          aria-describedby={draft.error ? "label-editor-error" : undefined}
           aria-invalid={Boolean(draft.error)}
           aria-label={`${subject} Label`}
           autoFocus
@@ -107,9 +107,9 @@ export function EditableLabel({ label, prefix = "", subject, onRename, initially
           <Check />
         </Button>
         {draft.error ? (
-          <p aria-live="polite" className="min-w-0 truncate text-xs text-destructive" id="label-editor-error" title={draft.error}>
+          <NotificationMessage source="Label" title="Label Could Not Save">
             {draft.error}
-          </p>
+          </NotificationMessage>
         ) : (
           <span />
         )}

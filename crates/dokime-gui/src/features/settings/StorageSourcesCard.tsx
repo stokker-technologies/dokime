@@ -20,6 +20,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp } from "lucide-react";
 import { useMemo } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -166,9 +167,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
       />
       {query.isPending ? (
         <SettingsRow label="Status">
-          <span className="text-sm text-muted-foreground" role="status">
-            Loading storage sources…
-          </span>
+          <NotificationMessage tone="info">Loading storage sources…</NotificationMessage>
         </SettingsRow>
       ) : null}
       {error ? (
@@ -182,9 +181,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
             ) : null
           }
         >
-          <span className="text-sm text-destructive" role="alert">
-            {error instanceof Error ? error.message : String(error)}
-          </span>
+          <NotificationMessage>{error instanceof Error ? error.message : String(error)}</NotificationMessage>
         </SettingsRow>
       ) : null}
 

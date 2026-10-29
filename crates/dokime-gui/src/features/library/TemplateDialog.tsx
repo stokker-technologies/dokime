@@ -21,7 +21,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { toast } from "sonner";
+import { NotificationMessage } from "@/components/NotificationMessage";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -260,7 +261,9 @@ export function TemplateDialog({
         <div>
           {!parametersReady ? (
             <div role="status">
-              {parametersError ?? "Loading remembered parameters…"}
+              <NotificationMessage source="Parameters" tone={parametersError ? "error" : "info"}>
+                {parametersError ?? "Loading remembered parameters…"}
+              </NotificationMessage>
               {parametersError ? (
                 <Button type="button" variant="ghost" onClick={() => void useParameterOverridesStore.persist.rehydrate()}>
                   Retry
@@ -302,11 +305,7 @@ export function TemplateDialog({
       <div className="mx-4">
         <ActiveCycleInline cycle={activeCycle} hasOpenCycles={hasOpenCycles} onChange={onChangeCycle} onNewCycle={onNewCycle} />
       </div>
-      {error ? (
-        <p className="px-4 text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error ? <NotificationMessage>{error}</NotificationMessage> : null}
     </div>
   );
 
@@ -332,9 +331,9 @@ export function TemplateDialog({
             Next
           </Button>
           {problems ? (
-            <span className="text-center text-xs text-destructive">
+            <NotificationMessage>
               {problems} {problems === 1 ? "problem" : "problems"}
-            </span>
+            </NotificationMessage>
           ) : null}
         </span>
       ) : (

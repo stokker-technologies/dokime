@@ -11,7 +11,7 @@
 
 import { Download, TriangleAlert } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useSettingsFrameQuery } from "../settings-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
@@ -29,6 +28,7 @@ import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/
 import { bootOrganization, organizationPack } from "@/lib/brand";
 import { organizationPackError } from "@/lib/desktop/organization";
 import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
+import { useSettingsFrameQuery } from "../settings-queries";
 
 /* === Re-Exports === */
 

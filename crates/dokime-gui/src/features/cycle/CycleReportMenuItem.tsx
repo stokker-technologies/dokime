@@ -20,7 +20,7 @@
 /* === External Imports === */
 
 import { Download } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 

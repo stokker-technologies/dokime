@@ -21,6 +21,7 @@
 
 import { AlertTriangle, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -81,7 +82,7 @@ export function PromptPanel({ prompt, submittingAction = null, values, emergency
 
 function StatusPromptDialog({ emergencyAction, prompt }: { emergencyAction?: ReactNode; prompt: PromptRequest }) {
   return (
-    <div aria-live="polite" aria-labelledby="active-prompt-title" className="grid min-w-0 gap-4" role="status">
+    <NotificationMessage tone="info">
       <div className="flex min-w-0 gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <LoaderCircle className="animate-spin" size={18} />
@@ -97,7 +98,7 @@ function StatusPromptDialog({ emergencyAction, prompt }: { emergencyAction?: Rea
         </div>
       </div>
       {emergencyAction ? <div className="flex justify-end border-t pt-3">{emergencyAction}</div> : null}
-    </div>
+    </NotificationMessage>
   );
 }
 
@@ -233,9 +234,7 @@ function PromptDialog({
                 }}
               />
               {fieldErrors[field.name] && (attempted || touched.has(field.name)) ? (
-                <p className="text-xs text-destructive" role="status">
-                  {fieldErrors[field.name]}
-                </p>
+                <NotificationMessage tone="info">{fieldErrors[field.name]}</NotificationMessage>
               ) : null}
             </div>
           ))}

@@ -12,7 +12,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
+import { NotificationMessage } from "@/components/NotificationMessage";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -24,12 +25,12 @@ import { PluginList } from "@/features/settings/plugins/PluginList";
 import { programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
 import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import {
+  useInstallPluginMutation,
   usePluginReleaseMutation,
   usePluginsQuery,
   useRemovePluginMutation,
   useRestartAppMutation,
   useSetPluginEnabledMutation,
-  useInstallPluginMutation,
 } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -99,7 +100,7 @@ export function PluginsSection() {
         setRestartPrompt(true);
       }
     } catch {
-      // Mutation error is rendered beside the drop zone.
+      // Mutation failure is delivered through notifications.
     } finally {
       setUploadingFilename(null);
     }
@@ -173,9 +174,9 @@ export function PluginsSection() {
             <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
               <div>
                 <p className="font-medium">Plugins could not be loaded</p>
-                <p className="mt-1 text-sm text-destructive" role="alert">
+                <NotificationMessage>
                   {errorMessage(pluginsQuery.error ?? programsQuery.error, "Try loading the plugin registry again.")}
-                </p>
+                </NotificationMessage>
               </div>
               <Button
                 onClick={() => {
@@ -256,9 +257,7 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {restartMutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}
-            </p>
+            <NotificationMessage>{errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}</NotificationMessage>
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setRestartPrompt(false)}>
@@ -291,9 +290,7 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
-            <p className="text-sm text-destructive" role="alert">
-              {errorMessage(removeMutation.error, "The plugin could not be removed.")}
-            </p>
+            <NotificationMessage>{errorMessage(removeMutation.error, "The plugin could not be removed.")}</NotificationMessage>
           ) : null}
           <DialogFooter>
             <Button disabled={removeMutation.isPending} onClick={() => setRemoveCandidate(null)} type="button" variant="outline">

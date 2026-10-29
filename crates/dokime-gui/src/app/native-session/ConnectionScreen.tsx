@@ -17,10 +17,12 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /* === Local Imports === */
 
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
 import { BackendsTable } from "@/features/settings/BackendsTable";
 import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
+import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
@@ -183,8 +185,10 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
           )}
         </div>
         {!busy && diagnostics && (
-          <div role="alert" className="grid gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-left text-sm">
-            <p className="whitespace-pre-wrap break-words">{diagnostics.cause || connectionError(error)}</p>
+          <div className="grid gap-3 text-left text-sm">
+            <NotificationMessage source="Startup" title="Backend Could Not Start">
+              {diagnostics.cause || connectionError(error)}
+            </NotificationMessage>
             {diagnostics.log && <PathPill value={diagnostics.log} />}
             <Button variant="outline" onClick={() => void owner.select({ kind: "owned_local" })}>
               Retry
