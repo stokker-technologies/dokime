@@ -116,7 +116,6 @@ pub enum TelemetryFailure {
     SchemaVersionMismatch { stream: String, expected: u32, actual: u32 },
     MissingColumn { stream: String, column: String },
     InvalidColumn { stream: String, column: String },
-    InvalidTimestamp { stream: String, column: String },
     UnexpectedColumns { stream: String, columns: Vec<String> },
     IncompatibleContract(String),
 }
@@ -170,9 +169,6 @@ impl fmt::Display for TelemetryFailure {
             }
             Self::InvalidColumn { stream, column } => {
                 write!(f, "telemetry stream {stream:?} column {column:?} does not match its declared schema")
-            }
-            Self::InvalidTimestamp { stream, column } => {
-                write!(f, "telemetry stream {stream:?} has an invalid timestamp in column {column:?}")
             }
             Self::UnexpectedColumns { stream, columns } => write!(f, "telemetry stream {stream:?} does not declare columns: {columns:?}"),
             Self::IncompatibleContract(message) => {

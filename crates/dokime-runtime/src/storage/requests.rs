@@ -152,23 +152,6 @@ impl Request {
         Ok(bytes)
     }
 
-    pub fn projection_memory(&self) -> Result<usize> {
-        if !self.commands.is_empty() {
-            return Err(Error::Invalid("parent object embeds command history"));
-        }
-        let strings = [&self.request_id, &self.node_id, &self.cycle_id, &self.accepted_at, &self.fingerprint];
-        let mut bytes = strings.into_iter().fold(std::mem::size_of::<RunReceipt>(), |bytes, value| bytes.saturating_add(value.capacity()));
-        for value in [&self.provider_started_at, &self.finished_at, &self.submitted_by, &self.interruption] {
-            bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
-        }
-        if let Some(claim) = &self.last_claim {
-            bytes = bytes.saturating_add(claim.case_id.capacity()).saturating_add(claim.execution_id.capacity());
-        }
-        let commands = harmos::btree_map_memory::<CommandId, StepCommandReceipt>(0)
-            .saturating_sub(std::mem::size_of::<std::collections::BTreeMap<CommandId, StepCommandReceipt>>());
-        Ok(bytes.saturating_add(commands))
-    }
-
     pub fn pending_on(&self, node: &str) -> bool {
         self.node_id == node && !self.terminal
     }
@@ -242,16 +225,6 @@ impl Command {
             receipt.detail.as_deref().map_or(0, str::len),
         ];
         Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
-    }
-
-    pub fn projection_memory(&self) -> usize {
-        let strings = [&self.command_id, &self.execution_id, &self.accepted_at, &self.updated_at];
-        let mut bytes =
-            strings.into_iter().fold(std::mem::size_of::<StepCommandReceipt>(), |bytes, value| bytes.saturating_add(value.capacity()));
-        for value in [&self.step_id, &self.attempt_id, &self.detail] {
-            bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
-        }
-        bytes
     }
 
     pub fn request_id(&self) -> &str {

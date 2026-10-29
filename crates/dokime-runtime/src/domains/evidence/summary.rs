@@ -147,31 +147,6 @@ impl EvidenceSummaries {
         })
     }
 
-    pub fn record_record(&mut self, record: &RecordEntry) {
-        let index = match self.records.binary_search_by(|summary| {
-            summary.record_type.as_str().cmp(record.record_type.as_str()).then(summary.source.cmp(&record.source))
-        }) {
-            Ok(index) => index,
-            Err(index) => {
-                self.records.insert(
-                    index,
-                    RecordSummary {
-                        record_type: record.record_type.clone(),
-                        source: record.source.clone(),
-                        total: 0,
-                        latest_sequence: 0,
-                        updated_at: record.timestamp.clone(),
-                    },
-                );
-                index
-            }
-        };
-        let entry = &mut self.records[index];
-        entry.total += 1;
-        entry.latest_sequence = record.sequence;
-        entry.updated_at.clone_from(&record.timestamp);
-    }
-
     pub fn record_telemetry_sample(&mut self, sample: &TelemetrySample) {
         let index = match self
             .telemetry_streams

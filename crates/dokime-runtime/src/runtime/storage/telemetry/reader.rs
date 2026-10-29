@@ -64,10 +64,6 @@ struct TypedRead {
 /* === Implementations === */
 
 impl TelemetryReader {
-    pub(crate) async fn open(view: &ExecutionView, settings: &harmos::config::SchemaSettings) -> Result<Self> {
-        Self::selected(view, None, None, 0, settings).await
-    }
-
     pub(in crate::runtime::storage) async fn open_page(
         view: &ExecutionView, stream: &Identifier, after: u64, settings: &harmos::config::SchemaSettings,
     ) -> Result<Self> {
