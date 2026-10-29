@@ -1,8 +1,9 @@
+<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/SKILL.md; sha256:1359fbb50b5325978c91f7addbdf18f0f6298d407532c6e483855bfa1c7992e0 -->
+
 ---
 name: dokime-authoring
 description: Author Dokime plugins, suites, steps, criteria, evidence and documents.
 ---
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/SKILL.md; sha256:fb3026567b7ae7566492a4482adec55cdfcca21605ce352e056291ff2500d61b -->
 
 # Dokime Authoring
 
@@ -10,4 +11,4 @@ description: Author Dokime plugins, suites, steps, criteria, evidence and docume
 - [Suites](references/suites.md): declarations, lifecycle capabilities and shared handles.
 - [Documents](references/documents.md): captured evidence, records, streams and reports.
 
-Depend on `dokime` with feature `plugin-sidecar` for Dokime authoring. Import product contracts through `dokime::domain`; declare each plugin-owned contract once in its `domain/` owner. Host stream rows use `dokime_host::{System, Network, WifiLink, WifiScan, WifiLatency, Bluetooth}` from a definitions-only git-tag dependency. Host document defaults and the occupancy plot binding live in `dokime_host::domain::document`. Install the host bundle before registering templates that subscribe to its streams; missing publishers receive ordinary per-stream refusals.
+Depend on `dokime` with feature `plugin-sidecar` for Dokime authoring. Import product data through `dokime::domain` and operation declarations through `dokime::operations`; declare each plugin-owned contract once in its `domain/` owner. Host stream rows use `dokime_host::{System, Network, WifiLink, WifiScan, WifiLatency, Bluetooth}` from a definitions-only git-tag dependency. Host document defaults and the occupancy plot binding live in `dokime_host::domain::document`. Install the host bundle before registering templates that subscribe to its streams; missing publishers receive ordinary per-stream refusals.

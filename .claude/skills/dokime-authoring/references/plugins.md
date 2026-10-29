@@ -1,4 +1,4 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/plugins.md; sha256:332d424c64c6c0aadf41f6afa63c153ec32e2f87ddb68623cc8d79ebc353b1f7 -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/plugins.md; sha256:c624b1c642388be530febb6263339d256486f1486b23b38bfec802cd0fac0217 -->
 
 # Dokime Plugin
 
@@ -6,9 +6,9 @@ A Dokime plugin is a native process launched and supervised by the host over pip
 
 Embed the product runtime through the product entry library by default. Declare its handler catalog in the plugin's `const CATALOGS`; the plugin owns suites, templates, observers, listeners and its own records and streams.
 
-When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and depends only on that product's domain crate, beside its Dokime authoring dependency.
+When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and consumes that product's portable contract crates, beside its Dokime authoring dependency. Dokime data contracts live in `dokime-domain`; its operation declarations live in `dokime-operations` without the `runtime` feature.
 
-Declare operation requests and replies, records, streams, prompts and settings once in their domain owner. Runtime handlers implement those contracts. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
+Declare records, streams, prompts and settings once in their domain owner. Dokime declares each operation, its policy and family catalog in `dokime-operations`; its `runtime`-gated implementation dispatches through host-provided resources. Plugin-provided operations follow their own operation families and one definition per operation. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
 
 A template lists its calls in its `requires` catalog. Its plugin's own `Private` or `Public` operations can answer without a plugin-level requirement. Calls to another plugin require a `Public` operation and a declared plugin requirement. `Host` operations cannot satisfy a template call.
 
