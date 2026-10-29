@@ -172,7 +172,7 @@ wheels = [
 
 [[package]]
 name = "dokime-client"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/dokime-client" }
 dependencies = [
     { name = "grpcio" },
@@ -189,7 +189,7 @@ requires-dist = [
 
 [[package]]
 name = "dokime-rust-workspace"
-version = "0.1.1"
+version = "0.1.2"
 source = { virtual = "." }
 
 [package.dev-dependencies]
