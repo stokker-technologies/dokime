@@ -165,10 +165,7 @@ fn linux_wifi_scan_rows() -> Result<(Vec<crate::platform::unix::wifi::NmcliWifiR
 }
 
 impl WifiCollector {
-    pub(super) fn ping_command(host: &str) -> Command {
-        let timeout = crate::config::PING_REPLY_TIMEOUT;
-        let mut command = Command::new("ping");
-        command.args(["-c", "1", "-W", &timeout.as_secs().max(1).to_string(), host]);
-        command
+    pub(super) fn round_trip_ms(host: &str, timeout: Duration) -> std::result::Result<f64, String> {
+        crate::platform::unix::echo::round_trip_ms(host, timeout)
     }
 }

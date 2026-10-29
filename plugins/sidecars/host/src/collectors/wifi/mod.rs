@@ -27,7 +27,6 @@ pub use crate::platform::windows::wifi::WifiLink;
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
-    process::Command,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -126,7 +125,7 @@ impl WifiCollector {
             ("probe_status".to_owned(), Value::from("unsupported")),
         ]);
 
-        match ping_latency_ms(&host, crate::host::wifi_latency::POLICY.attempt_timeout) {
+        match Self::round_trip_ms(&host, echo_timeout()) {
             Ok(latency_ms) => {
                 values.insert("probe_status".to_owned(), Value::from("ok"));
                 values.insert("wifi_latency_ms".to_owned(), Value::from(latency_ms));
@@ -295,36 +294,9 @@ fn is_encoded_6ghz_channel(channel: u32) -> bool {
     channel >= 1_000 && (1..=233).contains(&display_channel) && display_channel % 4 == 1
 }
 
-fn ping_latency_ms(host: &str, timeout: Duration) -> Result<f64, String> {
-    let output =
-        super::run_command_bounded(WifiCollector::ping_command(host), timeout).map_err(|error| format!("ping command failed: {error}"))?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let output_text = format!("{stdout}\n{stderr}");
-
-    if !output.status.success() {
-        return Err(output_text.trim().to_owned());
-    }
-
-    parse_ping_latency_ms(&output_text).ok_or_else(|| format!("ping latency was not found in command output for {host}"))
-}
-
-fn parse_ping_latency_ms(output: &str) -> Option<f64> {
-    let lower = output.to_ascii_lowercase();
-    for marker in ["time=", "time<"] {
-        let Some(marker_index) = lower.find(marker) else {
-            continue;
-        };
-        let start = marker_index + marker.len();
-        let number = lower[start..]
-            .chars()
-            .skip_while(|value| value.is_whitespace())
-            .take_while(|value| value.is_ascii_digit() || *value == '.')
-            .collect::<String>();
-        let value = number.parse::<f64>().ok()?;
-        return Some(if marker == "time<" { value.max(0.5) } else { value });
-    }
-    None
+// An Echo Waits Half Its Collection's Bound, So A Lost Reply Yields An Error Sample Rather Than A Timed-Out Collection.
+fn echo_timeout() -> Duration {
+    crate::host::wifi_latency::POLICY.attempt_timeout / 2
 }
 
 fn wifi_overlap_weight(active_channel: u32, scanned_channel: u32) -> f64 {

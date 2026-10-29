@@ -18,12 +18,11 @@ pub(crate) use windows::WIFI_SCAN_WINDOW;
 
 #[cfg(feature = "runtime")]
 mod defaults {
-    pub(crate) const PING_REPLY_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2_000);
     pub(crate) const NETWORK_LINK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(5_000);
     pub(crate) const BLUETOOTH_DEEP_REFRESH: std::time::Duration = std::time::Duration::from_millis(300_000);
 }
 #[cfg(feature = "runtime")]
-pub(crate) use defaults::{BLUETOOTH_DEEP_REFRESH, NETWORK_LINK_INTERVAL, PING_REPLY_TIMEOUT};
+pub(crate) use defaults::{BLUETOOTH_DEEP_REFRESH, NETWORK_LINK_INTERVAL};
 
 /* === Re-Exports === */
 

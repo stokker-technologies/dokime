@@ -14,8 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -58,9 +56,7 @@ fn installation(programs: &[&Path]) -> tempfile::TempDir {
 
 fn dokime(directory: &Path) -> Command {
     let executable = directory.join(format!("dokime{}", std::env::consts::EXE_SUFFIX));
-    let mut command = Command::new(executable);
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    let mut command = dokime::domain::process::command(executable);
     // The story's own directory is the whole installation: a Dokime installed on the host is never found.
     command.env("DOKIME_HOME", directory);
     command

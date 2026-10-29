@@ -15,36 +15,15 @@ use super::*;
 
 impl SystemCollector {
     pub(super) fn power_profile_context() -> PowerProfileContext {
-        let mut command = Command::new("powercfg");
-        command.arg("/getactivescheme");
-        let Ok(output) = crate::collectors::run_command_bounded(command, system_probe_timeout()) else {
+        let Some((guid, name)) = crate::platform::windows::power::active_scheme() else {
             return PowerProfileContext::default();
         };
-        if !output.status.success() {
-            return PowerProfileContext::default();
+        PowerProfileContext {
+            mode: name.as_deref().map(power_mode_label),
+            performance_bias: name.as_deref().map(power_performance_bias),
+            plan_name: name,
+            plan_guid: Some(guid),
         }
-        let text = String::from_utf8_lossy(&output.stdout);
-        parse_windows_power_scheme(&text)
-    }
-}
-
-fn parse_windows_power_scheme(text: &str) -> PowerProfileContext {
-    let plan_guid = text
-        .split_whitespace()
-        .find(|part| part.chars().filter(|character| *character == '-').count() == 4)
-        .map(|part| part.trim_matches(['(', ')']).to_owned());
-    let plan_name = text
-        .split_once('(')
-        .and_then(|(_, tail)| tail.split_once(')').map(|(name, _)| name.trim().to_owned()))
-        .filter(|value| !value.is_empty());
-    let mode = plan_name.as_deref().map(power_mode_label);
-    let performance_bias = plan_name.as_deref().map(power_performance_bias);
-
-    PowerProfileContext {
-        plan_name,
-        plan_guid,
-        mode,
-        performance_bias,
     }
 }
 

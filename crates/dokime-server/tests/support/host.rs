@@ -69,10 +69,8 @@ impl Host {
         std::fs::create_dir_all(root).unwrap();
         let stderr = root.join("host.stderr.log");
         let diagnostics = std::fs::File::create(&stderr).unwrap();
-        let mut command = Command::new(super::artifacts::host_binary());
+        let mut command = Command::from(dokime::domain::process::command(super::artifacts::host_binary()));
         command.arg("server");
-        #[cfg(windows)]
-        command.creation_flags(0x0800_0000);
         command
             .args(["--dev-control", "--shutdown-stdin", "--port", "0", "--output-root"])
             .arg(root.join("data"))
@@ -159,7 +157,7 @@ impl Host {
         let stdin = self.child.stdin.take();
         if signal {
             let pid = self.child.id().unwrap().to_string();
-            let status = Command::new("kill").args(["-INT", &pid]).status().await.unwrap();
+            let status = Command::from(dokime::domain::process::command("kill")).args(["-INT", &pid]).status().await.unwrap();
             assert!(status.success());
         } else {
             drop(stdin);

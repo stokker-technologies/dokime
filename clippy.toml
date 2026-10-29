@@ -1,0 +1,15 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Child Processes === #
+
+# Every Child Process Starts Through dokime_domain::process::command, Which Opens No Windows Console Window.
+disallowed-methods = [
+  { path = "std::process::Command::new", reason = "start child processes with dokime_domain::process::command (dokime::domain::process::command)" },
+  { path = "tokio::process::Command::new", reason = "start async child processes with tokio::process::Command::from(dokime_domain::process::command(..))" },
+]

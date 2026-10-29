@@ -219,7 +219,7 @@ fn trace(root: &Path, stage: &str) {
 
 fn python(root: &Path) -> Command {
     let interpreter = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
-    let mut command = Command::new(root.join(interpreter));
+    let mut command = dokime::domain::process::command(root.join(interpreter));
     command.current_dir(root).arg(root.join("packages/dokime-client/tests/acceptance/client/execution_matrix.py"));
     command
 }
@@ -236,7 +236,7 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
         .unwrap();
     let harness = Harness::new(session.clone());
     let mut child = Process(
-        Command::new("node")
+        dokime::domain::process::command("node")
             .env("DOKIME_TEST_GENERATION", session.status().generation)
             .arg(root.join("crates/dokime-gui/src-tauri/tests/fixtures/test-execution-matrix.mjs"))
             .arg(root.join(CONTRACT))

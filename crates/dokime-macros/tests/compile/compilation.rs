@@ -17,8 +17,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 
 // Third Party Imports
 
@@ -193,9 +191,7 @@ fn compile_configured(source: &str, configuration: Option<&str>) -> (std::proces
     std::fs::create_dir_all(&directory).unwrap();
     let stem = std::path::Path::new(source).file_stem().unwrap().to_str().unwrap();
     let output = directory.join(format!("{stem}{}", std::env::consts::EXE_SUFFIX));
-    let mut rustc = std::process::Command::new("rustc");
-    #[cfg(windows)]
-    rustc.creation_flags(0x0800_0000);
+    let mut rustc = sdk::domain::process::command("rustc");
     // Fixtures build as a plugin crate's runtime build, where Harmos serves operations.
     rustc.args(["--cfg", "feature=\"runtime\""]);
     if let Some(configuration) = configuration {
@@ -587,9 +583,7 @@ fn shared_stream_once() {
     .expect("shared producers produce a valid artifact");
     assert_eq!(declaration.streams.iter().filter(|stream| stream.id == "shared.sample").count(), 1,);
     assert_eq!(declaration.observers.len(), 2);
-    let mut command = std::process::Command::new(&output);
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    let mut command = sdk::domain::process::command(&output);
     let ran = command.output().unwrap();
     std::fs::remove_file(output).unwrap();
     assert!(ran.status.success(), "{}", String::from_utf8_lossy(&ran.stderr));

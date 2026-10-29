@@ -19,7 +19,7 @@ mod windows;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, process::Command};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use starship_battery::{
@@ -55,6 +55,14 @@ pub struct SystemCollector {
     system: System,
     components: Components,
     battery_manager: Option<BatteryManager>,
+    git_identity: Option<GitIdentity>,
+}
+
+// Git Identity Is Static Context, Read Once Rather Than Per Sample.
+#[derive(Default)]
+struct GitIdentity {
+    name: Option<String>,
+    email: Option<String>,
 }
 
 #[derive(Default)]
@@ -84,6 +92,7 @@ impl SystemCollector {
             system: System::new_all(),
             components: Components::new_with_refreshed_list(),
             battery_manager: BatteryManager::new().ok(),
+            git_identity: None,
         }
     }
 
@@ -130,8 +139,9 @@ impl SystemCollector {
         maybe_insert(&mut values, "cpu_frequency_mhz", first_cpu.map(|cpu| Value::Integer(cpu.frequency() as i64)));
         maybe_insert(&mut values, "host_name", System::host_name().map(Value::from));
         maybe_insert(&mut values, "user", std::env::var("USERNAME").or_else(|_| std::env::var("USER")).ok().map(Value::from));
-        maybe_insert(&mut values, "git_user_name", git_config_value("user.name").map(Value::from));
-        maybe_insert(&mut values, "git_user_email", git_config_value("user.email").map(Value::from));
+        let git = self.git_identity.get_or_insert_with(git_identity);
+        maybe_insert(&mut values, "git_user_name", git.name.clone().map(Value::from));
+        maybe_insert(&mut values, "git_user_email", git.email.clone().map(Value::from));
         maybe_insert(&mut values, "os_name", System::name().map(Value::from));
         maybe_insert(&mut values, "os_version", System::long_os_version().map(Value::from));
         maybe_insert(&mut values, "kernel_version", System::kernel_version().map(Value::from));
@@ -153,16 +163,35 @@ impl SystemCollector {
 
 /* === Private Functions === */
 
-fn git_config_value(key: &str) -> Option<String> {
-    let mut command = Command::new("git");
-    command.args(["config", "--get", key]);
-    let output = super::run_command_bounded(command, system_probe_timeout()).ok()?;
+fn git_identity() -> GitIdentity {
+    let mut command = dokime_domain::process::command("git");
+    command.args(["config", "--get-regexp", r"^user\.(name|email)$"]);
+    let Ok(output) = super::run_command_bounded(command, system_probe_timeout()) else {
+        return GitIdentity::default();
+    };
     if !output.status.success() {
-        return None;
+        return GitIdentity::default();
     }
-    let value = String::from_utf8(output.stdout).ok()?;
-    let value = value.trim();
-    (!value.is_empty()).then(|| value.to_owned())
+    parse_git_identity(&String::from_utf8_lossy(&output.stdout))
+}
+
+// The Last Value Of A Key Wins, As With `git config --get`.
+fn parse_git_identity(text: &str) -> GitIdentity {
+    let mut identity = GitIdentity::default();
+    for line in text.lines() {
+        let Some((key, value)) = line.split_once(' ') else {
+            continue;
+        };
+        let value = value.trim().to_owned();
+        let slot = match key {
+            "user.name" => &mut identity.name,
+            "user.email" => &mut identity.email,
+            _ => continue,
+        };
+        let present = !value.is_empty();
+        *slot = present.then_some(value);
+    }
+    identity
 }
 
 // A System Probe Is Bounded By The Collection It Serves.
@@ -205,3 +234,17 @@ fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn git_identity_takes_the_last_value_of_each_key() {
+        let output = "user.name First
+user.email first@example.invalid
+user.name Second Name
+";
+        let identity = super::parse_git_identity(output);
+        assert_eq!(identity.name.as_deref(), Some("Second Name"));
+        assert_eq!(identity.email.as_deref(), Some("first@example.invalid"));
+    }
+}

@@ -40,7 +40,7 @@ use dokime::domain::model;
 /* === Private Functions === */
 
 fn command() -> std::process::Command {
-    let mut command = std::process::Command::new(crate::support::artifacts::host_binary());
+    let mut command = dokime::domain::process::command(crate::support::artifacts::host_binary());
     command.arg("server");
     command
 }

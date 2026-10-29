@@ -171,7 +171,7 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
         let executable = root.join("dokime-gui.exe");
         super::windows::verify(&executable, &icon)?;
         if metadata.installer_signed {
-            run(Command::new("signtool").args(["verify", "/pa"]).arg(&executable), "GUI executable Authenticode verification failed")?;
+            run(dokime::domain::process::command("signtool").args(["verify", "/pa"]).arg(&executable), "GUI executable Authenticode verification failed")?;
         }
     }
     if !windows {
@@ -216,10 +216,10 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
     let installer_signature = if metadata.installer_signed {
         match package.extension().and_then(|value| value.to_str()) {
             Some("exe") => {
-                run(Command::new("signtool").args(["verify", "/pa"]).arg(package), "installer Authenticode verification failed")?
+                run(dokime::domain::process::command("signtool").args(["verify", "/pa"]).arg(package), "installer Authenticode verification failed")?
             }
             Some("deb") => {
-                run(Command::new("debsig-verify").arg(package), "DEB signature verification requires trusted debsig-verify policy")?
+                run(dokime::domain::process::command("debsig-verify").arg(package), "DEB signature verification requires trusted debsig-verify policy")?
             }
             Some("rpm") => verify_rpm_signature(package)?,
             _ => return Err(Error::Invalid("unsupported signed package".into())),
@@ -260,7 +260,7 @@ pub(crate) fn run(command: &mut Command, requirement: &str) -> Result<(), Error>
 /* === Private Functions === */
 
 pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
-    let result = Command::new("rpmkeys")
+    let result = dokime::domain::process::command("rpmkeys")
         .arg("--checksig")
         .arg(package)
         .env("LC_ALL", "C")

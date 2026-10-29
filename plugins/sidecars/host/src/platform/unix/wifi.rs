@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, fs, ops::RangeInclusive, process::Command, time::Duration};
+use std::{collections::BTreeMap, fs, ops::RangeInclusive, time::Duration};
 
 // Third Party Imports
 
@@ -115,7 +115,7 @@ impl WifiLinkReport {
 /* === Public Functions === */
 
 pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String> {
-    let mut command = Command::new("nmcli");
+    let mut command = dokime_domain::process::command("nmcli");
     command.args([
         "-t",
         "-f",
@@ -180,7 +180,7 @@ fn iw_links(timeout: Duration) -> Result<BTreeMap<String, WifiLinkReport>, Strin
 }
 
 fn iw_output(args: &[&str], timeout: Duration) -> Result<String, String> {
-    let mut command = Command::new("iw");
+    let mut command = dokime_domain::process::command("iw");
     command.args(args);
     let output = crate::collectors::run_command_bounded(command, timeout).map_err(|error| format!("iw could not be started: {error}"))?;
     if !output.status.success() {

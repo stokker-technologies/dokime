@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, process::Command, time::Duration};
+use std::{collections::BTreeMap, time::Duration};
 
 // Third Party Imports
 
@@ -70,7 +70,7 @@ pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions, timeout: Duration)
 /* === Private Functions === */
 
 fn bluetoothctl_output(args: &[&str], timeout: Duration) -> Result<String, String> {
-    let mut command = Command::new("bluetoothctl");
+    let mut command = dokime_domain::process::command("bluetoothctl");
     command.args(args);
     let output =
         crate::collectors::run_command_bounded(command, timeout).map_err(|error| format!("bluetoothctl could not be started: {error}"))?;

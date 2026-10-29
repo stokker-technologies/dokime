@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::process::Command;
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -174,12 +173,7 @@ fn file_hash(path: std::path::PathBuf) -> Option<String> {
 }
 
 fn command(binary: &str, args: &[&str]) -> Option<String> {
-    let mut command = Command::new(binary);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
-    }
+    let mut command = dokime_domain::process::command(binary);
     let output = command.args(args).current_dir(env!("CARGO_MANIFEST_DIR")).output().ok()?;
     output.status.success().then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }

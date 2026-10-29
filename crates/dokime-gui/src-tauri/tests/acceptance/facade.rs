@@ -14,9 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 // Third Party Imports
 use crate::support::wire::WireMessage;
 use serde_json::json;
@@ -65,9 +63,7 @@ async fn typescript_facade_bridge() {
     let artifact_id = artifact::seed(&fixture.runtime.handle(), &fixture.artifacts).await;
     let harness = Harness::new(fixture.session.clone());
     let snapshot = fixture.session.status();
-    let mut command = Command::new("node");
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    let mut command = dokime::domain::process::command("node");
     let mut child = command
         .env("DOKIME_TEST_GENERATION", &snapshot.generation)
         .env("DOKIME_TEST_BACKEND_ID", &snapshot.backend.as_ref().unwrap().backend_id)

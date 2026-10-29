@@ -16,7 +16,7 @@
 // Standard Library Imports
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 
 // Third Party Imports
 
@@ -39,7 +39,7 @@ pub struct ChildStory(Child);
 /* === Implementations === */
 impl ChildStory {
     pub fn spawn(story: &str, environment: &[(&str, &OsStr)]) -> Self {
-        let child = Command::new(std::env::current_exe().expect("current test executable"))
+        let child = dokime_domain::process::command(std::env::current_exe().expect("current test executable"))
             .args(["--exact", story, "--nocapture"])
             .envs(environment.iter().copied())
             .stdout(Stdio::piped())

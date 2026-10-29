@@ -13,7 +13,7 @@
 mod macros;
 mod error;
 pub mod model;
-
+pub mod process;
 pub mod state;
 
 /* === Re-Exports === */
