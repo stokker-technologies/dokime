@@ -44,9 +44,7 @@ thiserror = { workspace = true }
 # Logging
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
-tracing-chrome = { workspace = true }
 tracing-error = { workspace = true }
-tracing-flame = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Utilities

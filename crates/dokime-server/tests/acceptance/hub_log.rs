@@ -47,7 +47,7 @@ fn hub_log(root: &Path) -> std::path::PathBuf {
 fn serve_writes_records() {
     let root = tempfile::tempdir().unwrap();
 
-    if !isolated("serve_writes_records", None) {
+    if !isolated("serve_writes_records") {
         return;
     }
 
@@ -80,7 +80,7 @@ fn serve_writes_records() {
 }
 
 // Configure global subscribers and environment only in a child process.
-fn isolated(name: &str, profile: Option<&str>) -> bool {
+fn isolated(name: &str) -> bool {
     if std::env::var("DOKIME_LOG_TEST").as_deref() == Ok(name) {
         return true;
     }
@@ -90,11 +90,7 @@ fn isolated(name: &str, profile: Option<&str>) -> bool {
         .args(["--exact", &test, "--nocapture"])
         .env("DOKIME_LOG_TEST", name)
         .env("RUST_LOG", "info")
-        .env_remove("DOKIME_LOG_FORMAT")
-        .env_remove("DOKIME_DEV_PROFILE");
-    if let Some(profile) = profile {
-        command.env("DOKIME_DEV_PROFILE", profile);
-    }
+        .env_remove("DOKIME_LOG_FORMAT");
     let output = command.output().unwrap();
     assert!(
         output.status.success() && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
@@ -107,7 +103,7 @@ fn isolated(name: &str, profile: Option<&str>) -> bool {
 
 #[test]
 fn reopened_log_rotates() {
-    if !isolated("reopened_log_rotates", None) {
+    if !isolated("reopened_log_rotates") {
         return;
     }
     let root = tempfile::tempdir().unwrap();
@@ -130,7 +126,7 @@ fn reopened_log_rotates() {
 
 #[test]
 fn plain_rolling_file() {
-    if !isolated("plain_rolling_file", None) {
+    if !isolated("plain_rolling_file") {
         return;
     }
     let root = tempfile::tempdir().unwrap();
@@ -144,39 +140,4 @@ fn plain_rolling_file() {
         .collect();
     assert_eq!(files.len(), 1, "exactly one plain rolling file");
     assert!(std::fs::read_to_string(files[0].path()).unwrap().contains("boot phase reached storage"));
-    assert!(!root.path().join("diagnostics/profiles").exists());
-}
-
-#[cfg(debug_assertions)]
-#[test]
-fn profiling_prunes_runs() {
-    if !isolated("profiling_prunes_runs", Some("yes")) {
-        return;
-    }
-    let root = tempfile::tempdir().unwrap();
-    let profiles = root.path().join("diagnostics/profiles");
-    for stamp in 1..=5 {
-        std::fs::create_dir_all(profiles.join(format!("dev-{stamp}"))).unwrap();
-    }
-    std::fs::create_dir_all(profiles.join("keep-me")).unwrap();
-    let guards = dokime_server::host::install_logging(&dokime::paths::ApplicationPaths::new(root.path()), false).unwrap();
-    let span = tracing::info_span!("profile_fixture");
-    {
-        let _entered = span.enter();
-        tracing::info!("profile activity");
-    }
-    drop(span);
-    drop(guards);
-    let runs: Vec<_> = std::fs::read_dir(&profiles)
-        .unwrap()
-        .map(Result::unwrap)
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with("dev-"))
-        .collect();
-    assert_eq!(runs.len(), 3);
-    assert!(profiles.join("dev-4").is_dir());
-    assert!(profiles.join("dev-5").is_dir());
-    assert!(profiles.join("keep-me").is_dir());
-    let current = runs.iter().find(|entry| entry.path().join("server.trace.json").exists()).unwrap();
-    assert!(current.path().join("server.folded").is_file());
-    let _: serde_json::Value = serde_json::from_slice(&std::fs::read(current.path().join("server.trace.json")).unwrap()).unwrap();
 }

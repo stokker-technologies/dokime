@@ -59,9 +59,7 @@ thiserror = { version = "2.0.21" }
 # Logging
 tracing = { version = "0.1.44" }
 tracing-appender = { version = "0.2.5" }
-tracing-chrome = { version = "0.7.2" }
 tracing-error = { version = "0.2.1" }
-tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities

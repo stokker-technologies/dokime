@@ -17,10 +17,7 @@ mod network;
 pub mod version;
 
 #[cfg(debug_assertions)]
-mod profiles;
-
 /* === Re-Exports === */
-
 pub use args::{Args, NetworkArgs};
 pub use error::{Error, Result};
 
