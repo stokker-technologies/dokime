@@ -178,7 +178,7 @@ unftp-core = { workspace = true }
 unftp-sbe-fs = { workspace = true }
 
 # Storage
-rusqlite = { workspace = true }
+rusqlite = { workspace = true, features = ["hooks"] }
 
 # UI
 

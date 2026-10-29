@@ -13,6 +13,11 @@
 
 /* === Modules === */
 
+#[path = "../support/engine/evidence_durability.rs"]
+pub mod evidence_support;
+
+mod evidence_durability;
+
 mod execution_read_contention;
 mod execution_sampling;
 mod telemetry_plot_history;

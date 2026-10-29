@@ -14,6 +14,11 @@
 
 /* === Modules === */
 
+#[path = "../support/engine/evidence_durability.rs"]
+pub mod evidence_support;
+
+mod evidence_durability;
+
 mod domains;
 mod engine_artifacts;
 mod execution_seal_report;
