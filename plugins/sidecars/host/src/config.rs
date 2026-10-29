@@ -12,7 +12,7 @@
 /* === Re-Exports === */
 
 #[cfg(feature = "runtime")]
-pub(crate) use defaults::{BLUETOOTH_DEEP_REFRESH, NETWORK_LINK_INTERVAL};
+pub(crate) use defaults::BLUETOOTH_DEEP_REFRESH;
 
 /* === Imports === */
 
@@ -112,7 +112,6 @@ mod defaults {
 
     /* === Constants === */
 
-    pub(crate) const NETWORK_LINK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(5_000);
     pub(crate) const BLUETOOTH_DEEP_REFRESH: std::time::Duration = std::time::Duration::from_millis(300_000);
 
     /* === Macros === */

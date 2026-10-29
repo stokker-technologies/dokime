@@ -4,8 +4,8 @@
 plugin ingest boundary: `host.system`, `host.network` (with OS-reported
 `internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row
 per nearby network), `host.wifi.latency` (round trip and loss to the latency host)
-and `host.bluetooth`. Its single catalog contains the collection operations,
-stream declarations and demand-driven observers; each stream has its own observer,
+and `host.bluetooth`. Separate operation, stream and observer catalogs share
+the same declarations; each stream has its own demand-driven observer,
 which runs only while a lease holds that stream. Operation definitions own the
 policies and `HostTelemetryStream::interval()` owns the default cadences; Windows
 and Unix implementations are selected at module declarations. Windows probes use
@@ -14,6 +14,16 @@ Wi-Fi/Bluetooth adapter selectors and latency host, plus the minimum interval
 between active Wi-Fi scans; a scan due sooner reports the cached network list.
 Empty adapter selectors use the native default. Native repeated fields
 carry lists; acquisition timestamps travel in framework publication metadata.
+`host.network` carries aggregate counters, `internet`, and the default-route
+adapter id. Timestamped `link_up`, `link_down`, `address_added`, `address_removed`
+and `default_route_changed` rows come from Windows IP Helper callbacks or Linux
+route netlink notifications, held only for the observer's lease. A receive
+overrun fails observation visibly; inventory is never polled to infer events.
+The Public `dokime_host::host::adapters::Adapters` query (`host.network.adapters`)
+returns adapter identity, kind, MAC, status, MTU, speed, IPv4/IPv6 prefixes and
+scope, gateways, DNS servers, DHCP state and default-route ownership. Linux
+uses `getifaddrs`, kernel routes and NetworkManager's per-device DNS/DHCP data;
+DHCP is unknown when NetworkManager does not manage an interface.
 The runtime decodes these rows through the same codec as other plugins.
 Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
 canonical payload bytes. If their value map omits `timestamp`, the runtime

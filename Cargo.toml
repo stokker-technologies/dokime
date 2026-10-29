@@ -138,7 +138,6 @@ tokio-stream = { version = "=0.1.19" }
 tokio-util = { version = "=0.7.20" }
 
 # Networking
-getifs = { version = "0.7.0" }
 # Excludes the aws-lc-rs TLS, Prometheus metrics and proxy-protocol defaults; the test FTP server needs none of them.
 libunftp = { version = "0.23.1", default-features = false }
 rcgen = { version = "0.14.10" }

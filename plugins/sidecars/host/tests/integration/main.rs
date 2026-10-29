@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod adapters;
 #[cfg(target_os = "linux")]
 mod bluetooth;
 mod collectors;
