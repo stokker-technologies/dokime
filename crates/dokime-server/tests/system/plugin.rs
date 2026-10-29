@@ -972,7 +972,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
             .await
             .unwrap();
         for sample in page.samples {
-            assert_eq!(sample.source, "host", "host rows arrive from the sidecar owner");
+            assert_eq!(sample.source, "host_telemetry", "host rows arrive from the sidecar owner");
             host_instants.entry(*stream).or_default().push(sample.timestamp.expect("a host row carries its instant"));
         }
     }

@@ -229,7 +229,10 @@ async fn host_plugin_stream() {
     };
     until_telemetry(&runtime, || async {
         let samples = runtime.collect_telemetry(&selection).await.unwrap();
-        streams.iter().all(|stream| samples.iter().any(|sample| &sample.stream == stream && sample.source == "host")).then_some(())
+        streams
+            .iter()
+            .all(|stream| samples.iter().any(|sample| &sample.stream == stream && sample.source == "host_telemetry"))
+            .then_some(())
     })
     .await;
     runtime.release_stream_leases(leases).await.unwrap();

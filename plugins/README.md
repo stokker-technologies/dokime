@@ -8,6 +8,10 @@ Its Collection settings retain the Wi-Fi/Bluetooth adapter selectors and latency
 host. Empty adapter selectors use the native default. Native repeated fields
 carry lists; acquisition timestamps travel in framework publication metadata.
 The runtime decodes these rows through the same codec as other plugins.
+Its sidecar owner is `host_telemetry`; `host` names application-owned operations
+in Harmos. The bundle remains `host.dokime`, with `host.*` stream and operation IDs.
+The host sidecar declares no automatic restart: a process fault deactivates it
+until an explicit reload or the next startup.
 
 `sidecars/obc/` is the test-only onboard charger plugin. Its `runtime/` crate owns
 the simulated testbench. It is built explicitly for tests and is never included
