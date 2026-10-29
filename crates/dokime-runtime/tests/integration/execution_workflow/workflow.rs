@@ -49,6 +49,7 @@ const ARTIFACT_EVIDENCE_BYTES: &[u8] = b"metric,value\npulse,1\n";
 const WATCHED_REWRITE: &[u8] = b"rewritten\n";
 
 const INTERVAL_MS: u64 = 5;
+const RECORD_TIMEOUT: &str = "probe.record_timeout";
 static DIRECTORY_OBSERVED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 static ARTIFACT_GATE_FILLED: AtomicBool = AtomicBool::new(false);
 static CLEANUP_RELEASE: tokio::sync::Notify = tokio::sync::Notify::const_new();
@@ -283,6 +284,8 @@ impl fmt::Display for ProbeError {
         match self {
             Self::Declined(action) => write!(formatter, "the operator answered {action:?}"),
             Self::Unmeasurable => formatter.write_str("the probe could not measure"),
+            #[cfg(feature = "native")]
+            Self::Sdk(dokime_runtime::Error::Deadline(_)) => formatter.write_str(RECORD_TIMEOUT),
             Self::Sdk(error) => write!(formatter, "SDK operation failed: {error}"),
         }
     }
@@ -1713,7 +1716,7 @@ pub(crate) async fn record_nobody_error() {
     let outcome = replies.iter().find_map(|reply| reply.outcome.clone()).expect("the run terminates");
     assert!(!outcome.passed);
     let message = outcome.message.unwrap_or_default();
-    assert!(message.contains("deadline elapsed"), "the deadline reaches the plugin's own error: {message}");
+    assert!(message.contains(RECORD_TIMEOUT), "{message}");
     workflow.shutdown().await;
 }
 
