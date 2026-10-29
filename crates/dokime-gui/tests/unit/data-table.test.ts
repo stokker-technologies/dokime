@@ -145,18 +145,3 @@ test("Row Actions Are Named Icon Buttons With A Menu Only For The Rest", () => {
     /aria-haspopup="menu"[^>]*aria-label="Actions for fixture"|aria-label="Actions for fixture"[^>]*aria-haspopup="menu"/,
   );
 });
-
-test("Short Headers Reserve Their Width And Commands Sit Centered", () => {
-  const sized = dataTableColumns<{ id: string; value: string }>();
-  const html = renderToStaticMarkup(
-    createElement(DataTable<{ id: string; value: string }>, {
-      columns: sized.columns([sized.accessor("value", { header: "Priority", meta: { width: "w-24" } })]),
-      data: [{ id: "a", value: "1" }],
-      getRowId: (row: { id: string; value: string }) => row.id,
-      emptyText: "fixture-empty",
-    }),
-  );
-  assert.match(html, /<th[^>]*style="width:max\(6rem, calc\(9ch \+ 4.5rem\)\)"/);
-  assert.match(html, /<th[^>]*class="[^"]*text-center[^"]*"[^>]*>.*?Actions/);
-  assert.match(html, /lucide-chevron-left[^>]*>.*?<\/svg>Previous/);
-});

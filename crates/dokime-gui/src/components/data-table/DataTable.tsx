@@ -17,7 +17,7 @@
 
 /* === External Imports === */
 
-import { type Column, type RowData, useTable } from "@tanstack/react-table";
+import { type RowData, useTable } from "@tanstack/react-table";
 import { ArrowRight, ChevronLeft, ChevronRight, Eye, type LucideIcon, MoreHorizontal } from "lucide-react";
 import { Children, type MouseEvent, type ReactNode, useMemo, useState } from "react";
 
@@ -60,12 +60,6 @@ const INNER_CONTROL = "a, button, input, label, select, textarea, [role=checkbox
 
 /** Fits a row's icon commands, centered under the header. */
 const ACTIONS_WIDTH = "w-24";
-
-/** Room a header needs beyond its name: the cell padding, then a sort glyph
-    and a filter button when the column has them. */
-const HEADER_PADDING_REM = 1.75;
-const HEADER_SORT_REM = 1;
-const HEADER_FILTER_REM = 1.75;
 
 /* === Components === */
 
@@ -161,7 +155,6 @@ export function DataTable<TData extends RowData>({
   // Derive View State
   const rows = table.getRowModel().rows;
   const columnCount = table.getAllLeafColumns().length;
-  const flexibleColumn = table.getAllLeafColumns().find((column) => column.id !== "select" && !column.columnDef.meta?.width)?.id;
   const inspected = table.getCoreRowModel().rows.find((row) => row.id === inspectedId);
   const activeFilters: ActiveFilter[] = table.state.columnFilters.map((filter) => ({
     id: filter.id,
@@ -200,16 +193,16 @@ export function DataTable<TData extends RowData>({
         title={title}
       />
 
-      <Table aria-label={ariaLabel} className="table-fixed" style={{ minWidth: `${Math.max(480, 180 + (columnCount - 1) * 100)}px` }}>
+      <Table aria-label={ariaLabel} className="w-full min-w-full table-fixed">
         <TableHeader className="bg-muted/50 border-b">
           {table.getHeaderGroups().map((group) => (
             <TableRow className="hover:bg-transparent" key={group.id}>
               {group.headers.map((header) => {
                 const meta = header.column.columnDef.meta;
                 const sorted = header.column.getIsSorted();
-                const width = meta?.width ?? (header.column.id === flexibleColumn ? undefined : "w-36");
-                const length = widthLength(width);
-                const reserved = length && header.column.id !== "select" ? `max(${length}, ${headerReserve(header.column)})` : length;
+                const length = widthLength(meta?.width);
+                // Fixed Columns Share The Available Width With Flexible Content.
+                const reserved = length ? `min(${length}, calc(100% / ${columnCount + 1}))` : undefined;
                 return (
                   <TableHead
                     aria-sort={
@@ -218,7 +211,6 @@ export function DataTable<TData extends RowData>({
                     className={cn(
                       "h-[var(--table-row-height)] pt-0 pb-px",
                       EDGE_CELL,
-                      length ? undefined : width,
                       meta?.align === "end" && "text-right",
                       meta?.align === "center" && "text-center",
                       "bg-muted/50",
@@ -375,7 +367,7 @@ export function DataTableRowActions({ label, primary, children }: { label: strin
   // Its own provider, so a table outside the shell (the report) still renders.
   return (
     <TooltipProvider>
-      <div className="flex items-center justify-center gap-1">
+      <div className="flex flex-wrap items-center justify-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -408,22 +400,9 @@ export function DataTableRowActions({ label, primary, children }: { label: strin
 
 /* === Private Functions === */
 
-/** A Tailwind width class as a CSS length, so a header reserve can widen it. */
+/** A Tailwind width hint as a CSS length, capped against the table's container. */
 function widthLength(width: string | undefined): string | undefined {
   const scale = width?.match(/^w-(\d+(?:\.\d+)?)$/);
   if (scale) return `${Number(scale[1]) / 4}rem`;
   return width?.match(/^w-\[(.+)\]$/)?.[1];
-}
-
-/** The width a header needs to show its whole name beside its controls, so a
-    short name such as Priority never clips. `ch` resolves at the header's own
-    font size; one spare `ch` covers wide glyphs. */
-function headerReserve<TData extends RowData>(column: Column<DataTableFeatures, TData, unknown>): string {
-  const definition = column.columnDef;
-  const name = typeof definition.header === "string" ? definition.header : (definition.meta?.label ?? "");
-  const controls =
-    HEADER_PADDING_REM +
-    (column.getCanSort() ? HEADER_SORT_REM : 0) +
-    (definition.meta?.filter && column.getCanFilter() ? HEADER_FILTER_REM : 0);
-  return `calc(${name.length + 1}ch + ${controls}rem)`;
 }

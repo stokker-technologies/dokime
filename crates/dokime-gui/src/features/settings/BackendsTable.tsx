@@ -148,7 +148,7 @@ export function BackendsTable({
           dataTableColumns<Profile>().accessor("label", { header: "Label", meta: { filter: "text" } }),
           dataTableColumns<Profile>().accessor("endpoint", {
             header: "Endpoint",
-            meta: { filter: "text", width: "w-[40%]", truncate: true },
+            meta: { filter: "text", truncate: true },
           }),
           dataTableColumns<Profile>().accessor((profile) => (document?.default === profile.identifier ? "Last Used" : "—"), {
             id: "lastUsed",
