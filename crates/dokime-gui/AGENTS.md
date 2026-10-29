@@ -9,8 +9,8 @@ live operator shell and the self-contained report renderer.
 - Brand values live in `../../organization/organization.toml` and are compiled into
   `dokime-runtime` (its `domains::installed_plugins::brand::theme` module). Preserve committed frontend assets under
   `src/generated/organization/`; runtime appearance owns the compiled stylesheet.
-- Treat `../dokime-runtime/dist-report/report.html` as generated output. The report
-  build owns it.
+- Treat `../dokime-runtime/dist-report/report.html` as generated, untracked output.
+  `mise run prepare:report` writes it and the runtime build embeds and packages it.
 
 ## Project Shape
 

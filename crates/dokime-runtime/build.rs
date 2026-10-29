@@ -60,7 +60,7 @@ fn embed_report_template() {
     println!("cargo:rerun-if-changed={}", source.display());
 
     if !source.is_file() {
-        eprintln!("the report template is missing; run `mise run prepare:report` and commit the generated resources");
+        eprintln!("the report template is missing; run `mise run prepare:report` to generate it");
         std::process::exit(1);
     }
 

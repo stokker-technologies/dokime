@@ -17,7 +17,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build.frontend import REPORT, ROOT, ensure_report, render_report
+from dokime_tools.build.frontend import ROOT, ensure_report
 from dokime_tools.package.staging import stage_file, sync_output
 
 # Type Checking Imports
@@ -45,12 +45,8 @@ def refresh() -> None:
         sync_output(output, DISTRIBUTION)
 
 
+# The Report Template Is Generated Build Output, So Only The Committed Brand Bundle Is Checked.
 def check() -> None:
-    with tempfile.TemporaryDirectory(prefix="dokime-resources-") as directory:
-        output = Path(directory)
-        render_report(output)
-        _compare(output, REPORT.parent)
-
     expected = {source.relative_to(BRAND): source.read_bytes() for source in _brand_files()}
     _compare_files(expected, DISTRIBUTION)
 
@@ -82,17 +78,12 @@ def _brand_files() -> list[Path]:
     return files
 
 
-def _compare(source: Path, destination: Path) -> None:
-    expected = {file.relative_to(source): file.read_bytes() for file in source.rglob("*") if file.is_file()}
-    _compare_files(expected, destination)
-
-
 def _compare_files(expected: dict[Path, bytes], destination: Path) -> None:
     actual = {file.relative_to(destination): file.read_bytes() for file in destination.rglob("*") if file.is_file()}
     changed = sorted(str(path) for path in expected.keys() | actual.keys() if expected.get(path) != actual.get(path))
     if changed:
         raise ValueError(
-            f"stale runtime resources in {destination}: {', '.join(changed)}; run `mise run prepare:report` and commit the output"
+            f"stale runtime resources in {destination}: {', '.join(changed)}; run `mise run prepare:report` and commit the brand bundle"
         )
 
 
