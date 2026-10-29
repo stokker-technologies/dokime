@@ -33,6 +33,7 @@ from dokime_tools.prepare import bindings
 # === Constants === #
 
 REVISION = "1" * 40
+BARE_REPOSITORY = bootstrap.HARMOS_REPOSITORY.removesuffix(".git")
 
 # === Types === #
 
@@ -119,16 +120,18 @@ def test_standalone_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert result.returncode == 0, result.stderr
 
 
-def test_public_source_selection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, processes) -> None:
-    _manifest(tmp_path, f'{{ git = "{bootstrap.HARMOS_REPOSITORY}", rev = "{REVISION}" }}')
+@pytest.mark.parametrize("repository", [bootstrap.HARMOS_REPOSITORY, BARE_REPOSITORY])
+def test_public_source_selection(tmp_path: Path, repository: str, monkeypatch: pytest.MonkeyPatch, capsys, processes) -> None:
+    _manifest(tmp_path, f'{{ git = "{repository}", rev = "{REVISION}" }}')
     assert bootstrap.harmos_pin(tmp_path) == {"git": bootstrap.HARMOS_REPOSITORY, "rev": REVISION, "package": "cargo-harmos"}
     monkeypatch.chdir(tmp_path)
     assert bootstrap.main(["--harmos-key"]) == 0
     assert capsys.readouterr().out == REVISION + "\n"
 
-    _manifest(tmp_path, f'{{ git = "{bootstrap.HARMOS_REPOSITORY}", branch = "release/next" }}')
-    source = f"git+{bootstrap.HARMOS_REPOSITORY}?branch=release%2Fnext#{REVISION}"
+    _manifest(tmp_path, f'{{ git = "{repository}", branch = "release/next" }}')
+    source = f"git+{repository}?branch=release%2Fnext#{REVISION}"
     _lock(tmp_path, source=source)
+    assert bootstrap.harmos_pin(tmp_path)["git"] == bootstrap.HARMOS_REPOSITORY
     assert bootstrap.harmos_pin(tmp_path)["rev"] == REVISION
     assert bootstrap.harmos_pin(tmp_path)["branch"] == "release/next"
 
@@ -311,7 +314,7 @@ def test_artifact_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proce
     assert receipt.read_bytes() == original
 
 
-@pytest.mark.parametrize("namespace", [bootstrap.HARMOS_REPOSITORY, "crates-io"])
+@pytest.mark.parametrize("namespace", [bootstrap.HARMOS_REPOSITORY, BARE_REPOSITORY, "crates-io"])
 @pytest.mark.parametrize("checkout_config", [False, True])
 def test_local_override(tmp_path: Path, namespace: str, checkout_config: bool, monkeypatch: pytest.MonkeyPatch, processes) -> None:
     calls, source = processes
@@ -451,9 +454,7 @@ def _lock(root: Path, *, source: str = bootstrap.CRATES_SOURCE, version: str = "
 
 
 def _override(root: Path, namespace: str) -> tuple[Path, Path]:
-    declaration = (
-        f'{{ git = "{bootstrap.HARMOS_REPOSITORY}", rev = "{REVISION}" }}' if namespace == bootstrap.HARMOS_REPOSITORY else '"=0.1.0"'
-    )
+    declaration = f'{{ git = "{namespace}", rev = "{REVISION}" }}' if namespace != "crates-io" else '"=0.1.0"'
     _manifest(root, declaration)
     checkout = root / "external"
     for package in ("harmos", "cargo-harmos"):
