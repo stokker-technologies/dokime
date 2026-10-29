@@ -492,8 +492,8 @@ pub(crate) async fn application_preferences_reopen_and_reject_stale_or_invalid_u
             .is_err()
     );
     assert_eq!(handle.read_application_settings().await.unwrap(), saved);
-    assert!(!config.application_root.join("settings.json").exists());
-    assert!(!config.application_root.join("config.toml").exists());
+    assert!(!config.application.root.join("settings.json").exists());
+    assert!(!config.application.root.join("config.toml").exists());
     drop(handle);
     runtime.shutdown().await.unwrap();
 

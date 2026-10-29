@@ -231,7 +231,7 @@ impl UpdateState {
 /* === Public Functions === */
 
 pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let root = super::settings::application_root(&app.config().identifier)?.join("release-sources");
+    let root = app.state::<dokime::paths::ApplicationPaths>().root.clone().join("release-sources");
     let path = root.join("selection.json");
     let mut policy = app.state::<OrganizationState>().update_policy()?;
     let mut error = None;

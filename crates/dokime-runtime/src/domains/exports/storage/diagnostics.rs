@@ -65,14 +65,17 @@ pub enum DiagnosticFileFormat {
 
 /* === Public Functions === */
 
-pub fn path_conventions(application_root: &Path) -> Vec<DiagnosticPathConvention> {
-    let hub_log = format!("{LOGS_DIR}/{HUB_LOG_FILENAME}");
+pub fn path_conventions(paths: &crate::paths::ApplicationPaths) -> Vec<DiagnosticPathConvention> {
+    let application_root = &paths.root;
+    let hub_log = DiagnosticPathConvention {
+        key: DiagnosticPathKey::HubLog,
+        format: DiagnosticFileFormat::Jsonl,
+        absolute_path: Some(path_to_string(&paths.logs().join(HUB_LOG_FILENAME))),
+        relative_path: format!("{LOGS_DIR}/{HUB_LOG_FILENAME}"),
+    };
     let collect_bundle = format!("{DIAGNOSTICS_DIR}/{DIAGNOSTICS_COLLECT_BUNDLE_FILENAME}");
 
-    vec![
-        root_path_convention(DiagnosticPathKey::HubLog, DiagnosticFileFormat::Jsonl, application_root, hub_log),
-        root_path_convention(DiagnosticPathKey::CollectBundle, DiagnosticFileFormat::Zip, application_root, collect_bundle),
-    ]
+    vec![hub_log, root_path_convention(DiagnosticPathKey::CollectBundle, DiagnosticFileFormat::Zip, application_root, collect_bundle)]
 }
 
 /* === Private Functions === */

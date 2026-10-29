@@ -38,6 +38,9 @@ pub enum Error {
     Identifier(#[from] harmos::IdentifierError),
 
     #[error("{0}")]
+    Distribution(#[from] crate::model::identity::distribution::DistributionIdentityError),
+
+    #[error("{0}")]
     Id(#[from] crate::model::identity::id::HubIdError),
 
     #[error("{0}")]

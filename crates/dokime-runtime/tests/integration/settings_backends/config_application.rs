@@ -50,7 +50,7 @@ pub(crate) fn explicit_root_local() {
     .resolve()
     .unwrap();
     assert_eq!(config.output_root, root.path().join("data"));
-    assert_eq!(config.application_root.as_deref(), Some(root.path()));
+    assert_eq!(config.application.as_ref().map(|paths| paths.root.as_path()), Some(root.path()));
     assert_eq!(config.plugin_lookup, None);
     assert!(!root.path().join("settings.json").exists());
     assert!(!root.path().join("config.toml").exists());

@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 // Local Imports
 use crate::native_session::backend::Backend;
@@ -38,7 +38,8 @@ use crate::native_session::backend::Backend;
 /* === Public Functions === */
 
 pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
-    let root = super::settings::application_root(&app.config().identifier).map_err(|error| error.to_string())?;
+    let paths = app.state::<dokime::paths::ApplicationPaths>().inner().clone();
+    let root = paths.root.clone();
     let args = dokime_server::host::Args {
         shutdown_stdin: false,
         dev_control: false,
@@ -55,9 +56,9 @@ pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
         application_root: Some(root),
         env_file: None,
         plugins: Vec::new(),
-        plugins_root: std::env::var_os("DOKIME_PLUGINS_DIR").map(std::path::PathBuf::from),
+        plugins_root: std::env::var_os("DOKIME_PLUGINS_DIR").filter(|value| !value.is_empty()).map(std::path::PathBuf::from),
     };
-    Ok(Backend::new(args).with_log(super::logging::active_log()))
+    Ok(Backend::new(args).with_application(paths).with_log(super::logging::active_log()))
 }
 
 /* === Private Functions === */

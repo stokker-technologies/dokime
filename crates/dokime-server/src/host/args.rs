@@ -76,7 +76,7 @@ pub struct Args {
 
     #[arg(
         long,
-        help = "Keep settings, logs, installed plugins, and default data beneath this root. Defaults to `DOKIME_APPLICATION_ROOT` or the per-user directory. `dokime server` writes its rolling boot/diagnostic log under `<root>/logs`."
+        help = "Keep settings, installed plugins, and default data beneath this root. Defaults to `DOKIME_APPLICATION_ROOT` or the distribution's per-user directory. Explicit roots keep logs under `<root>/logs`; Unix defaults use XDG state home."
     )]
     pub application_root: Option<PathBuf>,
 

@@ -51,7 +51,7 @@ fn serve_writes_records() {
         return;
     }
 
-    let guards = dokime_server::host::install_logging(root.path(), false).unwrap();
+    let guards = dokime_server::host::install_logging(&dokime::paths::ApplicationPaths::new(root.path()), false).unwrap();
     tracing::info!(target: "dokime::hub", phase = "storage", "backend reached storage");
     tracing::warn!(target: "dokime::hub", attempts = 3, "plugin handshake retried");
     // Flushes the non-blocking worker's queue; the file is only whole after.
@@ -116,7 +116,7 @@ fn reopened_log_rotates() {
     let file = std::fs::File::create(&path).unwrap();
     file.set_len(32 * 1024 * 1024).unwrap();
     drop(file);
-    let guards = dokime_server::host::install_logging(root.path(), false).unwrap();
+    let guards = dokime_server::host::install_logging(&dokime::paths::ApplicationPaths::new(root.path()), false).unwrap();
     tracing::info!("first record");
     tracing::info!("second record");
     drop(guards);
@@ -134,7 +134,7 @@ fn plain_rolling_file() {
         return;
     }
     let root = tempfile::tempdir().unwrap();
-    let guards = dokime_server::host::install_logging(root.path(), false).unwrap();
+    let guards = dokime_server::host::install_logging(&dokime::paths::ApplicationPaths::new(root.path()), false).unwrap();
     tracing::info!("boot phase reached storage");
     drop(guards);
     let files: Vec<_> = std::fs::read_dir(root.path().join("logs"))
@@ -159,7 +159,7 @@ fn profiling_prunes_runs() {
         std::fs::create_dir_all(profiles.join(format!("dev-{stamp}"))).unwrap();
     }
     std::fs::create_dir_all(profiles.join("keep-me")).unwrap();
-    let guards = dokime_server::host::install_logging(root.path(), false).unwrap();
+    let guards = dokime_server::host::install_logging(&dokime::paths::ApplicationPaths::new(root.path()), false).unwrap();
     let span = tracing::info_span!("profile_fixture");
     {
         let _entered = span.enter();

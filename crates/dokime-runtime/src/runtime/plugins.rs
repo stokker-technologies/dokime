@@ -792,7 +792,7 @@ fn graph<'a>(
 }
 
 fn extraction_root(config: &crate::RuntimeConfig) -> PathBuf {
-    config.paths().cache().join("plugins")
+    config.application.cache().join("plugins")
 }
 
 fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {

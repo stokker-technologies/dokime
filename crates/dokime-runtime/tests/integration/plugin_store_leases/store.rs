@@ -40,7 +40,7 @@ use dokime_runtime::plugins::{PluginError, PluginLastBoot, PluginState, PluginSt
 /* === Private Functions === */
 async fn store(root: &Path) -> (PluginStore, dokime_runtime::storage::sqlite::State) {
     let database = dokime_runtime::storage::sqlite::State::open(&root.join("data")).await.unwrap();
-    let settings = Settings::open(root, database.clone()).await.unwrap();
+    let settings = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root), database.clone()).await.unwrap();
     (PluginStore::with_archive_limit(settings, Default::default(), 285_212_672), database)
 }
 
@@ -112,7 +112,7 @@ pub(crate) async fn direct_installation() {
     let root = tempfile::tempdir().unwrap();
     let (store, store_database) = store(root.path()).await;
     inspect(&bytes, &Default::default()).unwrap();
-    let limited_settings = Settings::open(root.path(), store_database.clone()).await.unwrap();
+    let limited_settings = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), store_database.clone()).await.unwrap();
     let limited = PluginStore::with_archive_limit(limited_settings, Default::default(), bytes.len() - 1);
     assert!(limited.install(&bytes, &[], &BTreeSet::new()).await.is_err());
     assert!(store.list().await.unwrap().is_empty());
@@ -311,7 +311,7 @@ pub(crate) async fn bounded_pages_unknown() {
 pub(crate) async fn startup_reclaims_extraction() {
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::config(root.path());
-    let extraction = config.application_root.join("cache/plugins");
+    let extraction = config.application.root.join("cache/plugins");
     let orphan = extraction.join(uuid::Uuid::from_u128(2).to_string());
     let staging = extraction.join("harmos-plugin-not-a-uuid");
     fs::create_dir_all(&orphan).unwrap();
@@ -352,7 +352,7 @@ pub(crate) async fn unauthorized_files_kept() {
     drop(store);
     let database = dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap();
     database.call(|connection| connection.execute("UPDATE application_metadata SET body=X'7b' WHERE id=1", [])).await.unwrap();
-    assert!(Settings::open(root.path(), database.clone()).await.is_err());
+    assert!(Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), database.clone()).await.is_err());
     let body: Vec<u8> = database
         .call(|connection| connection.query_row("SELECT body FROM application_metadata WHERE id=1", [], |row| row.get(0)))
         .await

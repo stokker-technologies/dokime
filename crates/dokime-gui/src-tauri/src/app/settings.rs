@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{env, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 // Third Party Imports
 use serde::Serialize;
@@ -32,7 +32,7 @@ use dokime::paths::ApplicationPaths;
 /* === Structs === */
 
 pub struct DesktopSettingsState {
-    parameters: Result<PathBuf, String>,
+    parameters: PathBuf,
     serial: Arc<tokio::sync::Mutex<()>>,
 }
 
@@ -58,25 +58,18 @@ impl From<String> for DesktopSettingsError {
 /* === Public Functions === */
 
 pub fn setup(app: &tauri::App) {
-    let parameters = application_root(&app.config().identifier).map(|root| root.join("parameters.json")).map_err(|error| error.to_string());
+    let parameters = app.state::<ApplicationPaths>().root.join("parameters.json");
     app.manage(DesktopSettingsState {
         parameters,
         serial: Arc::new(tokio::sync::Mutex::new(())),
     });
 }
 
-pub fn application_root(identifier: &str) -> std::io::Result<PathBuf> {
-    match env::var_os("DOKIME_APPLICATION_ROOT").filter(|value| !value.is_empty()) {
-        Some(root) => Ok(PathBuf::from(root)),
-        None => ApplicationPaths::resolve(identifier).map(|paths| paths.root),
-    }
-}
-
 pub async fn desktop_parameters_read(
     state: State<'_, DesktopSettingsState>,
 ) -> Result<Option<crate::parameters::Values>, DesktopSettingsError> {
     let serial = state.serial.clone().lock_owned().await;
-    let path = state.parameters.clone()?;
+    let path = state.parameters.clone();
     tokio::task::spawn_blocking(move || {
         let _serial = serial;
         crate::parameters::load(&path)
@@ -90,7 +83,7 @@ pub async fn desktop_parameters_write(
     state: State<'_, DesktopSettingsState>, values: crate::parameters::Values,
 ) -> Result<(), DesktopSettingsError> {
     let serial = state.serial.clone().lock_owned().await;
-    let path = state.parameters.clone()?;
+    let path = state.parameters.clone();
     tokio::task::spawn_blocking(move || {
         let _serial = serial;
         crate::parameters::save(&path, &values)

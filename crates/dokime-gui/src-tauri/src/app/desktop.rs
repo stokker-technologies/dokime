@@ -330,7 +330,7 @@ pub async fn desktop_artifact_deliver(
     let directory = match &selected {
         Some((destination, _)) => destination.parent().ok_or_else(|| prepare("Destination has no parent".into()))?.to_path_buf(),
         None => {
-            let cache = app.path().app_cache_dir().map_err(|error| prepare(error.to_string()))?.join("documents");
+            let cache = app.state::<dokime::paths::ApplicationPaths>().cache().join("documents");
             let directory = cache.clone();
             tauri::async_runtime::spawn_blocking(move || ensure_private_directory(&directory))
                 .await
