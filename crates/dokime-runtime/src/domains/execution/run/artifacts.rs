@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -19,9 +20,11 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
+
 // Local Imports
 use super::{ExecutionFixtureContext, failure};
 use crate::artifacts::ArtifactUploadInput;
@@ -32,24 +35,13 @@ use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const MAX_TRANSFER_BYTES: u64 = MAX_ARTIFACT_BYTES;
-
-const MAX_EXECUTION_ARTIFACT_BYTES: u64 = 8 * 1024 * 1024 * 1024;
-const MAX_TRANSFERS: usize = 32;
-
-const MAX_REPLAY_FINGERPRINTS: usize = 1024;
-const MAX_EXECUTION_ARTIFACT_CHUNKS: usize = 262_144;
-
-const MAX_INCOMPLETE_TRANSFERS: usize = 16;
-const MAX_TRANSFER_ID_BYTES: usize = 128;
-const MAX_ARTIFACT_NAME_BYTES: usize = 255;
-const MAX_ARTIFACT_MIME_BYTES: usize = 255;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct ArtifactBridge {
     state: Arc<Mutex<Transfers>>,
 }
@@ -103,6 +95,7 @@ struct ChunkFingerprint {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TransferState {
     Open,
@@ -112,6 +105,7 @@ enum TransferState {
 }
 
 /* === Traits === */
+
 trait SpillStorage {
     type File: Read + Write + Seek;
 
@@ -122,9 +116,12 @@ trait SpillStorage {
 }
 
 /* === Implementations === */
+
 impl ArtifactBridge {
     pub(super) fn new(spill_root: PathBuf) -> Self {
-        Self { state: Arc::new(Mutex::new(Transfers::new(spill_root))) }
+        Self {
+            state: Arc::new(Mutex::new(Transfers::new(spill_root))),
+        }
     }
 
     pub(super) async fn accept(
@@ -238,7 +235,10 @@ impl Transfers {
             if read == 0 {
                 break;
             }
-            upload.send(&buffer[..read]).await.map_err(|error| artifact_failure(error.to_string()))?;
+            let mut bytes = std::mem::take(&mut buffer);
+            bytes.truncate(read);
+            upload.send(bytes).await.map_err(|error| artifact_failure(error.to_string()))?;
+            buffer.resize(MAX_ARTIFACT_CHUNK_BYTES, 0);
         }
         let record = upload.finish().await.map_err(|error| artifact_failure(error.to_string()))?;
         let mut created = RecordPublishRequest::new(crate::records::BuiltinRecordType::ArtifactCreated.identifier(), RecordSeverity::Info);
@@ -300,19 +300,17 @@ impl<S: SpillStorage> Transfers<S> {
             validate_chunk(chunk)?;
             let replay = self.transfers.get(&chunk.transfer_id).is_some_and(|transfer| chunk.sequence < transfer.next_sequence);
             let admitted = if replay { 0 } else { chunk.bytes.len() as u64 };
-            if !replay && self.accepted_chunks >= MAX_EXECUTION_ARTIFACT_CHUNKS {
+            if !replay && self.accepted_chunks as u64 >= 262_144 {
                 return Err(artifact_failure("execution exceeded its artifact chunk limit"));
             }
-            if self.received_bytes.saturating_add(admitted) > MAX_EXECUTION_ARTIFACT_BYTES {
-                return Err(artifact_failure(format!(
-                    "sidecar execution streamed more than its {MAX_EXECUTION_ARTIFACT_BYTES} artifact byte limit"
-                )));
+            if self.received_bytes.saturating_add(admitted) > 8 * 1024 * 1024 * 1024 {
+                return Err(artifact_failure("sidecar execution exceeded its configured artifact byte limit"));
             }
             self.storage.prepare().map_err(|error| artifact_failure(format!("could not prepare the artifact spill directory: {error}")))?;
             match self.transfers.get_mut(&chunk.transfer_id) {
                 Some(transfer) => {
                     let was_open = transfer.state == TransferState::Open;
-                    transfer.ingest(&self.storage, chunk)?;
+                    transfer.ingest(&self.storage, chunk, 1024)?;
                     if was_open && transfer.state != TransferState::Open {
                         self.incomplete_transfers -= 1;
                     }
@@ -326,7 +324,7 @@ impl<S: SpillStorage> Transfers<S> {
                     }
                     self.reserve_new_transfer(chunk)?;
                     let mut transfer = Transfer::new(chunk);
-                    if let Err(error) = transfer.ingest(&self.storage, chunk) {
+                    if let Err(error) = transfer.ingest(&self.storage, chunk, 1024) {
                         self.release_new_transfer(chunk);
                         return Err(error);
                     }
@@ -348,15 +346,19 @@ impl<S: SpillStorage> Transfers<S> {
         let transfer = self.transfers.get(transfer_id).expect("an aborting chunk belongs to a transfer this bridge accepted");
         let received = transfer.received;
         self.received_bytes = self.received_bytes.saturating_sub(received);
-        DiscardedArtifact { transfer_id: transfer_id.to_owned(), name: transfer.name.clone(), received }
+        DiscardedArtifact {
+            transfer_id: transfer_id.to_owned(),
+            name: transfer.name.clone(),
+            received,
+        }
     }
 
     fn reserve_new_transfer(&mut self, chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
-        if self.transfer_count >= MAX_TRANSFERS {
-            return Err(artifact_failure(format!("sidecar execution exceeded the {MAX_TRANSFERS} artifact transfer limit")));
+        if self.transfer_count as u64 >= 32 {
+            return Err(artifact_failure("sidecar execution exceeded its configured artifact transfer limit"));
         }
-        if !chunk.last && self.incomplete_transfers >= MAX_INCOMPLETE_TRANSFERS {
-            return Err(artifact_failure(format!("sidecar execution exceeded the {MAX_INCOMPLETE_TRANSFERS} incomplete artifact limit")));
+        if !chunk.last && self.incomplete_transfers as u64 >= 16 {
+            return Err(artifact_failure("sidecar execution exceeded its configured incomplete artifact limit"));
         }
         self.transfer_count += 1;
         if !chunk.last {
@@ -443,7 +445,7 @@ impl<S: SpillStorage> Transfer<S> {
         self.digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>()
     }
 
-    fn ingest(&mut self, storage: &S, chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
+    fn ingest(&mut self, storage: &S, chunk: &ArtifactChunk, replay_chunks: u64) -> Result<(), ProviderExecutionFailure> {
         self.validate_identity(chunk)?;
         if chunk.sequence < self.next_sequence {
             return self.validate_replay(chunk);
@@ -468,9 +470,9 @@ impl<S: SpillStorage> Transfer<S> {
         // limit is spending the run's capacity whether or not they are stored.
         let assembled = if chunk.replace { 0 } else { self.received };
         let received = assembled + chunk.bytes.len() as u64;
-        if received > MAX_TRANSFER_BYTES {
+        if received > MAX_ARTIFACT_BYTES {
             return Err(artifact_failure(format!(
-                "artifact `{}` streamed more than its {MAX_TRANSFER_BYTES} byte transfer limit",
+                "artifact `{}` streamed more than its {MAX_ARTIFACT_BYTES} byte transfer limit",
                 chunk.transfer_id
             )));
         }
@@ -479,7 +481,7 @@ impl<S: SpillStorage> Transfer<S> {
         // fingerprint is dropped as the newest arrives, so an artifact that
         // has sent more pieces than the window holds simply cannot replay
         // that far back — see `validate_replay`.
-        if self.chunks.len() >= MAX_REPLAY_FINGERPRINTS {
+        if self.chunks.len() as u64 >= replay_chunks {
             self.chunks.pop_front();
             self.fingerprint_base += 1;
         }
@@ -534,33 +536,14 @@ impl<S: SpillStorage> Transfer<S> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_chunk(chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
     if chunk.transfer_id.trim().is_empty() {
         return Err(artifact_failure("artifact transfer identity is empty"));
     }
-    if chunk.transfer_id.len() > MAX_TRANSFER_ID_BYTES {
-        return Err(artifact_failure(format!("artifact transfer identity exceeds the {MAX_TRANSFER_ID_BYTES} byte limit")));
-    }
-    if chunk.name.trim().is_empty() {
-        return Err(artifact_failure(format!("artifact `{}` has an empty name", chunk.transfer_id)));
-    }
-    if chunk.name.len() > MAX_ARTIFACT_NAME_BYTES {
-        return Err(artifact_failure(format!("artifact `{}` name exceeds the {MAX_ARTIFACT_NAME_BYTES} byte limit", chunk.transfer_id)));
-    }
+    crate::artifacts::name::validate(&chunk.name).map_err(|error| artifact_failure(error.to_string()))?;
     if chunk.mime.trim().is_empty() {
         return Err(artifact_failure(format!("artifact `{}` has an empty media type", chunk.transfer_id)));
-    }
-    if chunk.mime.len() > MAX_ARTIFACT_MIME_BYTES {
-        return Err(artifact_failure(format!(
-            "artifact `{}` media type exceeds the {MAX_ARTIFACT_MIME_BYTES} byte limit",
-            chunk.transfer_id
-        )));
-    }
-    if chunk.bytes.len() > MAX_ARTIFACT_CHUNK_BYTES {
-        return Err(artifact_failure(format!(
-            "artifact `{}` chunk {} exceeds the {} byte limit",
-            chunk.transfer_id, chunk.sequence, MAX_ARTIFACT_CHUNK_BYTES
-        )));
     }
     if chunk.bytes.is_empty() && !chunk.last {
         return Err(artifact_failure(format!("artifact `{}` has an empty non-terminal chunk", chunk.transfer_id)));

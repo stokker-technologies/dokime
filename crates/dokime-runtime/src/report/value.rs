@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod serialization;
 
 /* === Re-Exports === */
@@ -24,10 +25,9 @@ use serde::{
 };
 
 // Local Imports
-use crate::{runtime::Error, runtime::Result};
+use crate::runtime::Result;
 
 /* === Constants === */
-const MAX_DEPTH: usize = 128;
 
 /* === Macros === */
 
@@ -36,6 +36,7 @@ const MAX_DEPTH: usize = 128;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Clone, Debug)]
 pub enum Value {
     Null,
@@ -51,35 +52,13 @@ pub enum Value {
 /* === Traits === */
 
 /* === Implementations === */
-impl Value {
-    pub fn from_serializable<T: ?Sized + Serialize>(source: &T) -> Result<Self> {
-        serialization::build(source, std::num::NonZeroUsize::MAX)
-    }
 
-    pub(super) fn memory_at(&self, depth: usize) -> usize {
-        if depth > MAX_DEPTH {
-            return usize::MAX;
-        }
-        let heap = match self {
-            Self::Null | Self::Bool(_) | Self::Integer(_) | Self::Unsigned(_) | Self::Number(_) => 0,
-            Self::String(text) => text.capacity(),
-            Self::Array(values) => values.iter().fold(values.capacity().saturating_mul(std::mem::size_of::<Self>()), |bytes, value| {
-                excess(bytes, value.memory_at(depth + 1), std::mem::size_of::<Self>())
-            }),
-            Self::Object(values) => {
-                // An Empty Map May Retain Its Original Root After Removal.
-                let nodes = harmos::btree_map_memory::<String, Self>(values.len().max(1));
-                if nodes == usize::MAX {
-                    return usize::MAX;
-                }
-                values.iter().fold(nodes.saturating_sub(std::mem::size_of::<BTreeMap<String, Self>>()), |bytes, (key, value)| {
-                    excess(bytes.saturating_add(key.capacity()), value.memory_at(depth + 1), std::mem::size_of::<Self>())
-                })
-            }
-        };
-        std::mem::size_of::<Self>().saturating_add(heap)
+impl Value {
+    pub fn from_serializable<T: ?Sized + Serialize>(source: &T, maximum_depth: usize) -> Result<Self> {
+        serialization::build(source, maximum_depth)
     }
 }
+
 // Dynamic JSON Keeps Its Existing Numeric Equality Across Import Paths.
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
@@ -100,11 +79,6 @@ impl PartialEq for Value {
     }
 }
 
-impl harmos::MemorySize for Value {
-    fn memory_size(&self) -> usize {
-        self.memory_at(0)
-    }
-}
 impl Serialize for Value {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         match self {
@@ -120,6 +94,7 @@ impl Serialize for Value {
         }
     }
 }
+
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         struct Owned;
@@ -175,55 +150,9 @@ impl<'de> Deserialize<'de> for Value {
         deserializer.deserialize_any(Owned)
     }
 }
-impl TryFrom<serde_json::Value> for Value {
-    type Error = Error;
-    fn try_from(value: serde_json::Value) -> Result<Self> {
-        from_json(value, 0)
-    }
-}
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
-    if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-}
-// Standalone JSON Imports Only; Native Capture Producers Construct Owned Values Directly.
-fn from_json(value: serde_json::Value, depth: usize) -> Result<Value> {
-    if depth > MAX_DEPTH {
-        return Err(Error::InvalidReportInputs("report value nesting exceeds limit".into()));
-    }
-    Ok(match value {
-        serde_json::Value::Null => Value::Null,
-        serde_json::Value::Bool(value) => Value::Bool(value),
-        serde_json::Value::Number(value) => {
-            if let Some(value) = value.as_i64() {
-                Value::Integer(value)
-            } else if let Some(value) = value.as_u64() {
-                Value::Unsigned(value)
-            } else if let Some(value) = value.as_f64().filter(|value| value.is_finite()) {
-                Value::Number(value)
-            } else {
-                return Err(Error::InvalidReportInputs("report number is not a finite native scalar".into()));
-            }
-        }
-        serde_json::Value::String(value) => Value::String(value),
-        serde_json::Value::Array(values) => {
-            let mut owned = Vec::new();
-            owned.try_reserve_exact(values.len()).map_err(|_| Error::InvalidReportInputs("report array allocation failed".into()))?;
-            for value in values {
-                owned.push(from_json(value, depth + 1)?);
-            }
-            Value::Array(owned)
-        }
-        serde_json::Value::Object(values) => {
-            let mut owned = BTreeMap::new();
-            for (key, value) in values {
-                owned.insert(key, from_json(value, depth + 1)?);
-            }
-            Value::Object(owned)
-        }
-    })
-}
 
 /* === Tests === */

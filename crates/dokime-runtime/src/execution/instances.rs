@@ -18,6 +18,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
@@ -36,15 +37,13 @@ use tokio::task::JoinHandle;
 // Local Imports
 use crate::host::StepHandleCancelled;
 use dokime_domain::model::files::wire::FileWatchSourcePayload;
-use dokime_domain::operations::files::WatchFile;
-use dokime_domain::operations::process::RunProcess;
+use dokime_operations::files::WatchFile;
+use dokime_operations::process::RunProcess;
 
 /* === Constants === */
+
 // The JSON-RPC server error code of a refusal raised on the step side.
 const STEP_REFUSAL: i64 = -32_000;
-
-// How long the sweep waits for one cancelled instance to settle.
-const SETTLE: Duration = Duration::from_secs(30);
 
 // Local instance ids count down from the top, apart from the host's.
 const LOCAL_IDS: u64 = u64::MAX;
@@ -52,11 +51,12 @@ const LOCAL_IDS: u64 = u64::MAX;
 /* === Macros === */
 
 /* === Type Aliases === */
-type HostInstance<O> = <Supervisor as Host>::Instance<O>;
 
+type HostInstance<O> = <Supervisor as Host>::Instance<O>;
 type Sweeping<'a> = Pin<Box<dyn Future<Output = Option<StepHandleCancelled>> + Send + 'a>>;
 
 /* === Structs === */
+
 // The running execution as a child process and a warning name it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExecutionIdentity {
@@ -75,8 +75,11 @@ pub struct StepIdentity {
 }
 
 // The live instances of one execution's current step.
-#[derive(Clone, Default)]
-pub(crate) struct Handles(Arc<Mutex<Ledger>>);
+#[derive(Clone)]
+pub(crate) struct Handles {
+    ledger: Arc<Mutex<Ledger>>,
+    settlement: Duration,
+}
 
 #[derive(Default)]
 struct Ledger {
@@ -89,9 +92,11 @@ pub struct StepInstance<O: OperationDeclaration> {
     id: Id,
     slot: Arc<Slot<O>>,
     released: bool,
+    readiness: Option<Readiness>,
 }
 
 struct Slot<O: OperationDeclaration> {
+    settlement: Duration,
     running: tokio::sync::Mutex<Option<Running<O>>>,
     kind: &'static str,
     name: String,
@@ -104,21 +109,38 @@ pub(crate) struct LocalRun {
     // A served built-in settles itself when cancelled; a harness answer that
     // never looks at the signal is aborted instead.
     cooperative: bool,
+    readiness: watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>,
 }
 
 /* === Enums === */
+
+enum Readiness {
+    // A Host-Routed Watch Is Found By The Ticket It Was Submitted With.
+    Host(Supervisor, Option<u64>),
+    Local(watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>),
+}
+
 enum Running<O: OperationDeclaration> {
     Host(HostInstance<O>),
     Local(LocalRun),
 }
 
 /* === Traits === */
+
 trait Sweep: Send + Sync {
     fn sweep(&self, step: String) -> Sweeping<'_>;
 }
 
 /* === Implementations === */
+
 impl Handles {
+    pub(crate) fn new() -> Self {
+        Self {
+            ledger: Arc::new(Mutex::new(Ledger::default())),
+            settlement: Duration::from_secs(30),
+        }
+    }
+
     pub(crate) fn begin(&self, step: StepIdentity) {
         self.locked().step = Some(step);
     }
@@ -149,17 +171,26 @@ impl Handles {
     }
 
     fn locked(&self) -> std::sync::MutexGuard<'_, Ledger> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+        self.ledger.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
 impl LocalRun {
-    pub(crate) fn spawn<F>(serve: impl FnOnce(watch::Receiver<bool>) -> F, cooperative: bool) -> Self
+    pub(crate) fn spawn<F>(
+        serve: impl FnOnce(watch::Receiver<bool>, watch::Sender<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>) -> F,
+        cooperative: bool,
+    ) -> Self
     where
         F: Future<Output = Result<Vec<u8>, String>> + Send + 'static,
     {
         let (cancel, cancelled) = watch::channel(false);
-        Self { task: tokio::spawn(serve(cancelled)), cancel, cooperative }
+        let (ready, readiness) = watch::channel(None);
+        Self {
+            task: tokio::spawn(serve(cancelled, ready)),
+            cancel,
+            cooperative,
+            readiness,
+        }
     }
 
     fn request_cancel(&self) {
@@ -190,22 +221,37 @@ impl LocalRun {
 }
 
 impl<O: OperationDeclaration> StepInstance<O> {
-    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8]) -> Self {
+    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8], host: Supervisor, ticket: Option<u64>) -> Self {
         let id = instance.id();
-        Self::tracked(handles, id, Running::Host(instance), request)
+        let mut handle = Self::tracked(handles, id, Running::Host(instance), request);
+        handle.readiness = Some(Readiness::Host(host, ticket));
+        handle
     }
 
     pub(crate) fn local(handles: &Handles, run: LocalRun, request: &[u8]) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(LOCAL_IDS);
         let id = Id::new(NEXT.fetch_sub(1, Ordering::Relaxed));
-        Self::tracked(handles, id, Running::Local(run), request)
+        let readiness = run.readiness.clone();
+        let mut handle = Self::tracked(handles, id, Running::Local(run), request);
+        handle.readiness = Some(Readiness::Local(readiness));
+        handle
     }
 
     fn tracked(handles: &Handles, id: Id, running: Running<O>, request: &[u8]) -> Self {
         let (kind, name) = label::<O>(request);
-        let slot = Arc::new(Slot { running: tokio::sync::Mutex::new(Some(running)), kind, name });
+        let slot = Arc::new(Slot {
+            settlement: handles.settlement,
+            running: tokio::sync::Mutex::new(Some(running)),
+            kind,
+            name,
+        });
         handles.track(Arc::clone(&slot) as Arc<dyn Sweep>);
-        Self { id, slot, released: false }
+        Self {
+            id,
+            slot,
+            released: false,
+            readiness: None,
+        }
     }
 
     pub fn id(&self) -> Id {
@@ -238,8 +284,10 @@ impl<O: OperationDeclaration> StepInstance<O> {
             Some(Running::Host(instance)) => instance.join().await,
             Some(Running::Local(run)) => {
                 let bytes = run.join(O::ID).await?;
-                let response = O::Response::decode(bytes.as_slice())
-                    .map_err(|error| CallError::Malformed { method: O::ID, message: error.to_string() })?;
+                let response = O::Response::decode(bytes.as_slice()).map_err(|error| CallError::Malformed {
+                    method: O::ID,
+                    message: error.to_string(),
+                })?;
                 Ok(Response::new(response))
             }
             None => Err(refused(format!("`{}` was cancelled when its step ended", O::ID))),
@@ -256,6 +304,33 @@ impl<O: OperationDeclaration> StepInstance<O> {
     pub fn detach(mut self) -> Id {
         self.released = true;
         self.id
+    }
+}
+
+impl StepInstance<WatchFile> {
+    pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, CallError> {
+        match self.readiness.as_ref() {
+            Some(Readiness::Host(_, None)) => Err(refused("file watch was submitted without a readiness ticket")),
+            Some(Readiness::Host(host, Some(ticket))) => {
+                let response = host
+                    .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed {
+                        instance_id: *ticket,
+                    })
+                    .await?;
+                Ok(response.into_owned())
+            }
+            Some(Readiness::Local(signal)) => {
+                let mut signal = signal.clone();
+                loop {
+                    let value = signal.borrow_and_update().clone();
+                    if let Some(value) = value {
+                        return value.map_err(refused);
+                    }
+                    signal.changed().await.map_err(|_| refused("file watch stopped before capture was armed; inspect its outcome"))?;
+                }
+            }
+            None => Err(refused("file watch has no readiness binding")),
+        }
     }
 }
 
@@ -311,14 +386,14 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
                         // Settled on its own; dropping the handle releases it.
                         return None;
                     }
-                    tokio::time::timeout(SETTLE, instance.cancel_and_join()).await.is_ok()
+                    tokio::time::timeout(self.settlement, instance.cancel_and_join()).await.is_ok()
                 }
                 Running::Local(run) => {
                     if run.task.is_finished() {
                         return None;
                     }
                     run.request_cancel();
-                    tokio::time::timeout(SETTLE, run.join(O::ID)).await.is_ok()
+                    tokio::time::timeout(self.settlement, run.join(O::ID)).await.is_ok()
                 }
             };
             if !settled {
@@ -328,14 +403,22 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
                     "an instance cancelled at step end did not settle in time"
                 );
             }
-            Some(StepHandleCancelled { step, kind: self.kind.to_owned(), name: self.name.clone() })
+            Some(StepHandleCancelled {
+                step,
+                kind: self.kind.to_owned(),
+                name: self.name.clone(),
+            })
         })
     }
 }
 
 /* === Public Functions === */
+
 pub(crate) fn refused(message: impl Into<String>) -> CallError {
-    CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) }
+    CallError::Refused {
+        code: STEP_REFUSAL,
+        failure: refusal_failure(message),
+    }
 }
 
 pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
@@ -343,8 +426,14 @@ pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
 }
 
 /* === Private Functions === */
+
 fn swept() -> Status {
-    Status { phase: Phase::Settled, outcome: Some(Outcome::Cancelled), cancellation_requested: true, attempt: 1 }
+    Status {
+        phase: Phase::Settled,
+        outcome: Some(Outcome::Cancelled),
+        cancellation_requested: true,
+        attempt: 1,
+    }
 }
 
 // What a warning calls the instance: the program a process runs, the

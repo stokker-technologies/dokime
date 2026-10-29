@@ -32,6 +32,9 @@ import {
   metaHelper,
   type RowData,
   rowSortingFeature,
+  rowPaginationFeature,
+  createPaginatedRowModel,
+  globalFilteringFeature,
   sortFn_alphanumeric,
   sortFn_basic,
   sortFn_datetime,
@@ -89,13 +92,9 @@ export type DataTableProps<TData extends RowData> = {
   defaultSort?: ColumnSort;
   emptyText: string;
   getRowId: (row: TData) => string;
-  /** `shell` aligns the outer cells with the page inset; `cell` keeps 12px. */
-  inset?: "cell" | "shell";
   onRowClick?: (row: TData) => void;
   search?: DataTableSearch;
   selection?: DataTableSelection<TData>;
-  /** Sticky headers need the page to scroll the table, not the table itself. */
-  stickyHeader?: boolean;
 };
 
 export type DataTableFeatures = typeof dataTableFeatures;
@@ -103,6 +102,9 @@ export type DataTableFeatures = typeof dataTableFeatures;
 /* === Constants === */
 
 export const dataTableFeatures = tableFeatures({
+  rowPaginationFeature,
+  paginatedRowModel: createPaginatedRowModel(),
+  globalFilteringFeature,
   columnFilteringFeature,
   filteredRowModel: createFilteredRowModel(),
   filterFns: { includesString: filterFn_includesString },

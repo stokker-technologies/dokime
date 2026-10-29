@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +37,7 @@ use dokime_domain::model::identity::Metadata;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn identifier(value: &str) -> Identifier {
     Identifier::new(value).unwrap_or_else(|error| panic!("invalid artifact identifier {value}: {error}"))
 }

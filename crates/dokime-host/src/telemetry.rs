@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -23,20 +25,23 @@ use dokime_domain::model::telemetry::TelemetryContract;
 
 /* === Constants === */
 
+const SYSTEM_INTERVAL_MS: u64 = 1_000;
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct HostTelemetryCollectorImpl {
     host: Host,
     options: HostOptions,
-    config: HostTelemetryConfig,
 }
 
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait HostTelemetryCollector: Send + Sync + 'static {
     fn interval(&self, stream: &str) -> std::time::Duration;
 
@@ -44,17 +49,19 @@ pub trait HostTelemetryCollector: Send + Sync + 'static {
 }
 
 /* === Implementations === */
+
 impl HostTelemetryCollectorImpl {
     fn new(config: HostTelemetryConfig) -> Self {
-        Self { host: Host::new(config.clone()), options: config.options.clone(), config }
+        let options = config.options.clone();
+        Self { host: Host::new(config), options }
     }
 }
 
 impl HostTelemetryCollector for HostTelemetryCollectorImpl {
     fn interval(&self, stream: &str) -> std::time::Duration {
         HostTelemetryStream::try_from(stream)
-            .map(|stream| std::time::Duration::from_millis(self.config.interval_for(stream).0.max(1)))
-            .unwrap_or(std::time::Duration::from_secs(1))
+            .map(|stream| std::time::Duration::from_millis(interval_ms(stream)))
+            .unwrap_or(std::time::Duration::from_millis(SYSTEM_INTERVAL_MS))
     }
 
     fn collect(&self, stream: &str) -> Result<Option<TelemetryBatch>, String> {
@@ -64,6 +71,7 @@ impl HostTelemetryCollector for HostTelemetryCollectorImpl {
 }
 
 /* === Public Functions === */
+
 pub fn contracts() -> Vec<TelemetryContract> {
     host_telemetry_contracts()
 }
@@ -72,6 +80,27 @@ pub fn collector(config: HostTelemetryConfig) -> Arc<dyn HostTelemetryCollector>
     Arc::new(HostTelemetryCollectorImpl::new(config))
 }
 
+// How Long One Collection Of A Stream May Run; Its Probes And Its Sampler Share This Policy.
+pub fn collection_timeout(stream: &str) -> std::time::Duration {
+    let milliseconds = match stream {
+        "host.wifi" => 10000,
+        "host.wifi.latency" => 4000,
+        "host.wifi.channel_occupancy" => 12000,
+        "host.bluetooth" => 6000,
+        _ => 2000,
+    };
+    std::time::Duration::from_millis(milliseconds)
+}
+
 /* === Private Functions === */
+
+pub(crate) fn interval_ms(stream: HostTelemetryStream) -> u64 {
+    match stream {
+        HostTelemetryStream::System | HostTelemetryStream::Network => 1_000,
+        HostTelemetryStream::Wifi | HostTelemetryStream::Bluetooth => 5_000,
+        HostTelemetryStream::WifiLatency => 10_000,
+        HostTelemetryStream::WifiChannelOccupancy => 30_000,
+    }
+}
 
 /* === Tests === */

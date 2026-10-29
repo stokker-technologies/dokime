@@ -8,22 +8,27 @@
  */
 
 /* === Modules === */
+
 mod presentation;
 mod storage;
 
 /* === Re-Exports === */
+
 pub use presentation::SettingsCardRefreshPolicy;
 pub use storage::StorageSource;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     time::Duration,
 };
+
 // Third Party Imports
 use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::RuntimeHandle;
 use crate::domains::{DispatchContext, StatusResponse};
@@ -35,16 +40,20 @@ use dokime_domain::model::values::Value;
 use presentation::{SettingsCardContribution, SettingsSectionContribution};
 
 /* === Constants === */
+
+const LIVE_STATUS_TIMEOUT_MS: u64 = 2_000;
+
 pub const IDENTITY_SETTINGS_SECTION_ID: &str = "identity";
-const LIVE_STATUS_TIMEOUT: Duration = Duration::from_secs(2);
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeSettingsFrame {
+    pub bootstrap_paths: Option<dokime_domain::model::settings::wire::BootstrapPaths>,
     pub sections: Vec<RuntimeSettingsSection>,
     pub cards: Vec<RuntimeSettingsCard>,
 }
@@ -53,8 +62,10 @@ pub struct RuntimeSettingsFrame {
 pub struct RuntimeSettingsSection {
     pub section_id: Identifier,
     pub label: String,
+
     #[serde(default)]
     pub description: Option<String>,
+
     pub owner: RuntimeSettingsSectionOwner,
     pub order: i32,
 }
@@ -65,11 +76,15 @@ pub struct RuntimeSettingsCard {
     pub card_id: Identifier,
     pub section_id: Identifier,
     pub label: String,
+
     #[serde(default)]
     pub description: Option<String>,
+
     pub body: HostCardBody,
+
     #[serde(default)]
     pub refresh: SettingsCardRefreshPolicy,
+
     pub state: RuntimeSettingsCardState,
     pub order: i32,
 }
@@ -84,6 +99,7 @@ struct SettingsSource {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RuntimeSettingsSectionOwner {
@@ -105,40 +121,58 @@ pub enum RuntimeSettingsCardState {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn settings_frame(&self) -> RuntimeSettingsFrame {
-        let plugins = self.installed_plugins();
-        let sources = join_all(plugins.values().map(|module| {
+        let state = self.state_read();
+        let plugins = &state.installed_plugins;
+        let timeout_ms = LIVE_STATUS_TIMEOUT_MS;
+        let sources = join_all(plugins.values().map(|module| async move {
             let plugin_id = Identifier::new(&module.source).expect("installed source is valid");
             let (sections, cards) = presentation(module);
-            let (state, dispatch_context) = self.settings_card_posture(module);
+            let (state, dispatch_context) = self.settings_card_posture(module).await;
             let dispatcher = (module.enabled && module.settings_status.is_some() && !cards.is_empty() && dispatch_context.is_some())
                 .then(|| self.action_dispatcher(&plugin_id))
                 .flatten();
-            async move {
-                let live_status = match dispatcher {
-                    Some(dispatcher) => Some(
-                        tokio::time::timeout(LIVE_STATUS_TIMEOUT, dispatcher.status())
-                            .await
-                            .map_err(|_| "request exceeded the 2 second timeout".to_owned())
-                            .and_then(|status| status.map_err(|error| error.to_string())),
-                    ),
-                    None => None,
-                };
-                SettingsSource { plugin_id, sections, cards, state, live_status }
+            let live_status = match dispatcher {
+                Some(dispatcher) => Some(
+                    tokio::time::timeout(Duration::from_millis(timeout_ms), dispatcher.status())
+                        .await
+                        .map_err(|_| format!("request exceeded the {timeout_ms} ms timeout"))
+                        .and_then(|status| status.map_err(|error| error.to_string())),
+                ),
+                None => None,
+            };
+            SettingsSource {
+                plugin_id,
+                sections,
+                cards,
+                state,
+                live_status,
             }
-        }))
-        .await;
-        settings_frame_from_sources(sources)
+        }));
+        let sources = sources.await;
+        drop(state);
+        let mut frame = settings_frame_from_sources(sources);
+        let config = self.config();
+        let paths = crate::paths::ApplicationPaths::new(&config.application_root);
+        let plugins = config.plugin_lookup.clone().unwrap_or_else(|| paths.plugins());
+        frame.bootstrap_paths = Some(dokime_domain::model::settings::wire::BootstrapPaths {
+            application: config.application_root.to_string_lossy().into_owned(),
+            storage: config.storage_root.to_string_lossy().into_owned(),
+            plugins: plugins.to_string_lossy().into_owned(),
+            logs: paths.logs().to_string_lossy().into_owned(),
+        });
+        frame
     }
 
-    fn settings_card_posture(&self, module: &crate::InstalledPlugin) -> (RuntimeSettingsCardState, Option<DispatchContext>) {
+    async fn settings_card_posture(&self, module: &crate::InstalledPlugin) -> (RuntimeSettingsCardState, Option<DispatchContext>) {
         if !module.enabled {
             return (RuntimeSettingsCardState::Disabled, None);
         }
 
-        match self.action_dispatch_context(module) {
-            Ok(context) if context.credentials_configured => (RuntimeSettingsCardState::Ready, Some(context)),
+        match self.action_dispatch_context(module).await {
+            Ok(context) if context.secrets_configured => (RuntimeSettingsCardState::Ready, Some(context)),
             Ok(context) => (RuntimeSettingsCardState::Disconnected, Some(context)),
             Err(_) => (RuntimeSettingsCardState::Error, None),
         }
@@ -148,6 +182,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn presentation(module: &crate::InstalledPlugin) -> (Vec<SettingsSectionContribution>, Vec<SettingsCardContribution>) {
     let section_id = Identifier::new(&module.source).expect("valid installed source");
     let metadata =
@@ -236,7 +271,7 @@ fn settings_frame_from_sources(sources: Vec<SettingsSource>) -> RuntimeSettingsF
         left.order.cmp(&right.order).then_with(|| left.label.cmp(&right.label)).then_with(|| left.card_id.cmp(&right.card_id))
     });
 
-    RuntimeSettingsFrame { sections, cards }
+    RuntimeSettingsFrame { bootstrap_paths: None, sections, cards }
 }
 
 fn apply_live_status(
@@ -254,8 +289,11 @@ fn apply_live_status(
         }
         Some(Ok(status)) => {
             let (state, label, tone) = live_state(&status.state);
-            if let Some(HostCardBlock::Status { label: card_label, tone: card_tone, detail }) =
-                body.blocks.iter_mut().find(|block| matches!(block, HostCardBlock::Status { .. }))
+            if let Some(HostCardBlock::Status {
+                label: card_label,
+                tone: card_tone,
+                detail,
+            }) = body.blocks.iter_mut().find(|block| matches!(block, HostCardBlock::Status { .. }))
             {
                 *card_label = label.to_owned();
                 *card_tone = tone;

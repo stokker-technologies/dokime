@@ -13,6 +13,11 @@
 
 /* === Re-Exports === */
 
+pub use super::application::{
+    Appearance, ApplicationSettings, ClientPreferences, Density, ReportDefaults, SettingsScope, SettingsSnapshot, TelemetryPreferences,
+    ThemeMode, UpdateSettings,
+};
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -32,59 +37,6 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-// The points and strategy a plot draws with when neither its author nor its
-// operator chose, live and in every report.
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReportPreference {
-    pub plot_points: u32,
-    pub plot_downsample: crate::model::document::DownsampleTechnique,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct AppearancePreference {
-    pub theme_mode: ThemeMode,
-    pub theme_family: Option<String>,
-    pub density: Density,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ApplicationSettings {
-    pub appearance: Option<AppearancePreference>,
-    pub report: Option<ReportPreference>,
-    pub application_root: String,
-
-    // Absent when settings.json names none and the default applies.
-    #[row(description = "Absent when settings.json names none and the default applies.")]
-    pub configured_data_root: Option<String>,
-
-    pub default_data_root: String,
-
-    // The data root this backend process is using.
-    #[row(description = "The data root this backend process is using.")]
-    pub effective_data_root: String,
-
-    pub restart_required: bool,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct StoragePolicy {
-    pub compaction_interval_ms: u64,
-    pub local_retention_ms: Option<u64>,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct StoragePolicyView {
-    pub revision: u64,
-    pub configured: Option<StoragePolicy>,
-    pub effective: Option<StoragePolicy>,
-    pub restart_required: bool,
-}
-
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StorageSource {
@@ -103,8 +55,18 @@ pub struct StorageSources {
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingsFrame {
+    pub bootstrap_paths: Option<BootstrapPaths>,
     pub sections: Vec<SettingsSection>,
     pub cards: Vec<SettingsCard>,
+}
+
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct BootstrapPaths {
+    pub application: String,
+    pub storage: String,
+    pub plugins: String,
+    pub logs: String,
 }
 
 #[harmos_domain::message]
@@ -205,7 +167,7 @@ pub struct OnDemandRefresh {}
 pub struct PluginRuntimeSettings {
     pub settings: Option<SettingsCatalog>,
     pub values: Option<Value>,
-    pub credential_bindings: Option<PluginRuntimeCredentialBindings>,
+    pub secret_bindings: Option<PluginRuntimeSecretBindings>,
 
     // Values a plugin's discovery routes computed, by setting id, for the fields
     // nobody saved. A value here is shown on the card with a `Discovered` marker
@@ -308,45 +270,27 @@ pub struct SecretReference {
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PluginRuntimeCredentialBindingsBindingsEntry {
+pub struct PluginRuntimeSecretBindingsBindingsEntry {
     pub key: String,
-    pub value: Option<RedactedCredentialBinding>,
+    pub value: Option<RedactedSecretBinding>,
 }
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PluginRuntimeCredentialBindings {
-    pub bindings: Vec<PluginRuntimeCredentialBindingsBindingsEntry>,
+pub struct PluginRuntimeSecretBindings {
+    pub bindings: Vec<PluginRuntimeSecretBindingsBindingsEntry>,
     pub missing_required: Vec<String>,
 }
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RedactedCredentialBinding {
-    pub credential_id: String,
-    pub backend: CredentialBackendKind,
+pub struct RedactedSecretBinding {
+    pub secret_id: String,
+    pub backend: SecretBackendKind,
     pub configured: bool,
 }
 
 /* === Enums === */
-
-#[harmos_domain::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ThemeMode {
-    Unspecified,
-    System,
-    Light,
-    Dark,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Density {
-    Unspecified,
-    Comfortable,
-    Compact,
-    Touch,
-}
 
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -373,11 +317,9 @@ pub enum SettingsCardState {
 
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CredentialBackendKind {
+pub enum SecretBackendKind {
     Unspecified,
     OsKeyring,
-    Memory,
-    LocalFile,
 }
 
 #[harmos_domain::message]
@@ -419,7 +361,7 @@ pub enum SettingContributionKind {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum SecretReferenceKind {
     Environment(String),
-    StoredCredential(String),
+    StoredSecret(String),
 }
 
 /* === Traits === */

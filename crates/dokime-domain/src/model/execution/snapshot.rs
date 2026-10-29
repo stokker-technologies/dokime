@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::definition::{MaterializedParameter, ParameterDefinition, ParameterSource, TestCase, TestCaseTemplate, TestSuite};
 use crate::model::document::DocumentDefinition;
@@ -32,6 +35,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, PartialEq, thiserror::Error)]
 #[error("parameter {name:?}: {reason}")]
 pub struct SnapshotError {
@@ -42,8 +46,10 @@ pub struct SnapshotError {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ExecutionPluginIdentity {
     pub source: String,
+
     #[serde(default)]
     pub version: Option<String>,
+
     pub implementation: ExecutionImplementation,
 }
 
@@ -52,16 +58,21 @@ pub struct ExecutionPluginIdentity {
 pub struct ExecutionSnapshot {
     case: TestCase,
     template: Option<TestCaseTemplate>,
+
     #[serde(default)]
     parameter_definitions: Vec<ParameterDefinition>,
+
     plugin: Option<ExecutionPluginIdentity>,
+
     #[serde(default)]
     host_version: Option<String>,
+
     parameters: BTreeMap<String, MaterializedParameter>,
     documents: BTreeMap<DocumentId, DocumentDefinition>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ExecutionImplementation {
@@ -72,6 +83,7 @@ pub enum ExecutionImplementation {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for ExecutionSnapshot {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -127,7 +139,15 @@ impl ExecutionSnapshot {
         plugin: Option<ExecutionPluginIdentity>, host_version: Option<String>, parameters: BTreeMap<String, MaterializedParameter>,
         documents: BTreeMap<DocumentId, DocumentDefinition>,
     ) -> Self {
-        Self { case, template, parameter_definitions, plugin, host_version, parameters, documents }
+        Self {
+            case,
+            template,
+            parameter_definitions,
+            plugin,
+            host_version,
+            parameters,
+            documents,
+        }
     }
 
     pub fn materialize(
@@ -135,7 +155,10 @@ impl ExecutionSnapshot {
         plugin: Option<ExecutionPluginIdentity>, settings: BTreeMap<String, Value>,
     ) -> Result<Self, SnapshotError> {
         if case.suite_id.trim().is_empty() {
-            return Err(SnapshotError { name: "suite_id".into(), reason: "suite registration ID is required".into() });
+            return Err(SnapshotError {
+                name: "suite_id".into(),
+                reason: "suite registration ID is required".into(),
+            });
         }
 
         let template = suite
@@ -152,7 +175,10 @@ impl ExecutionSnapshot {
             .collect::<Vec<_>>();
         let mut parameters = BTreeMap::new();
         for (key, value) in &case.parameters {
-            let identifier = Identifier::new(key).map_err(|error| SnapshotError { name: key.clone(), reason: error.to_string() })?;
+            let identifier = Identifier::new(key).map_err(|error| SnapshotError {
+                name: key.clone(),
+                reason: error.to_string(),
+            })?;
             let parameter = definitions
                 .iter()
                 .find(|definition| definition.metadata.identifier.as_str() == key)
@@ -188,9 +214,15 @@ impl ExecutionSnapshot {
         }
         for (key, value) in settings {
             if parameters.contains_key(&key) {
-                return Err(SnapshotError { name: key, reason: "plugin setting collides with a case parameter".into() });
+                return Err(SnapshotError {
+                    name: key,
+                    reason: "plugin setting collides with a case parameter".into(),
+                });
             }
-            let identifier = Identifier::new(&key).map_err(|error| SnapshotError { name: key.clone(), reason: error.to_string() })?;
+            let identifier = Identifier::new(&key).map_err(|error| SnapshotError {
+                name: key.clone(),
+                reason: error.to_string(),
+            })?;
             parameters.insert(
                 key.clone(),
                 MaterializedParameter {
@@ -202,7 +234,15 @@ impl ExecutionSnapshot {
                 },
             );
         }
-        Ok(Self { case: case.clone(), template, parameter_definitions: definitions, plugin, host_version: None, parameters, documents })
+        Ok(Self {
+            case: case.clone(),
+            template,
+            parameter_definitions: definitions,
+            plugin,
+            host_version: None,
+            parameters,
+            documents,
+        })
     }
 
     pub fn with_host_version(mut self, version: Option<String>) -> Self {

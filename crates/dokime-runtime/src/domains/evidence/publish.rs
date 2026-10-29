@@ -10,14 +10,17 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::PublishRecord;
 pub use dokime_domain::model::records::publication::PublishReceipt;
 pub use dokime_domain::model::records::publication::PublishStatus;
 pub use dokime_domain::model::records::publication::RecordPublishRequest;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use tracing::Instrument;
 
@@ -46,6 +49,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn publish_product_record(&self, draft: ProductRecordDraft) -> Result<PublishReceipt, Error> {
         self.publish_record(draft.into()).await
@@ -105,18 +109,23 @@ impl RuntimeHandle {
         Ok(PublishReceipt::accepted(1, BTreeMap::new(), receipt.frontier.0))
     }
 
-    pub async fn publish_telemetry_batch(&self, batch: TelemetryBatch) -> Result<PublishReceipt, Error> {
+    pub async fn publish_telemetry_batch(&self, batch: TelemetryBatch) -> Result<harmos::storage::ReadBatch<PublishReceipt>, Error> {
         wait_for_telemetry_batch_cycles(self, &batch).await;
-        self.publish_telemetry_to_streams(batch, crate::model::time::now_utc()).await
+        self.publish_telemetry_to_streams(batch, crate::model::time::now_utc(), crate::domains::telemetry::Payloads::Unchecked).await
     }
 }
 
 /* === Public Functions === */
+
 pub(crate) fn validation_rejection(message: impl Into<String>, path: impl Into<String>, expected: Option<String>) -> Error {
     Error::validation(
         "validation_failed",
         message,
-        vec![ValidationIssue { path: path.into(), message: "producer payload failed validation".to_owned(), expected }],
+        vec![ValidationIssue {
+            path: path.into(),
+            message: "producer payload failed validation".to_owned(),
+            expected,
+        }],
     )
 }
 
@@ -132,6 +141,7 @@ pub(crate) fn retain_running_samples(state: &RuntimeState, batch: &mut Telemetry
 }
 
 /* === Private Functions === */
+
 async fn wait_for_telemetry_batch_cycles(runtime: &RuntimeHandle, batch: &TelemetryBatch) {
     let mut cycle_ids: Vec<TestCycleId> = Vec::new();
     for sample in &batch.samples {

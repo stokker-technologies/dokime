@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod capture;
 mod host;
 pub(crate) mod leases;
@@ -16,15 +17,20 @@ pub(crate) mod sampling;
 mod streams;
 
 /* === Re-Exports === */
-pub(crate) use crate::streams::TelemetryRow;
+
 pub(crate) use capture::Sampling;
 pub use capture::{Sampler, SamplerSession, SettlementError};
 pub use host::{HostTelemetryCollector, HostTelemetrySource};
 pub use leases::LeaseFact;
 pub(crate) use leases::StreamLeases;
-pub use streams::telemetry_stream_id;
+#[cfg(test)]
+pub(crate) use streams::admission::share_scopes;
+pub(crate) use streams::admission::slots as telemetry_slots;
+pub(crate) use streams::{Payloads, PreparedSample, TelemetryCursors};
+pub use streams::{telemetry_stream_id, telemetry_stream_id_len};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

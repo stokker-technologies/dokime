@@ -41,7 +41,7 @@ def locate(messages: Path) -> Path:
         if reason == "compiler-artifact":
             target = event["target"]
             # The server build script exports the operation contracts it serves.
-            if target["name"] == "dokime-server" and "bin" in target["kind"]:
+            if target["name"] == "dokime_server" and "lib" in target["kind"]:
                 artifacts.add(event["package_id"])
         elif reason == "build-script-executed":
             package = event["package_id"]

@@ -205,7 +205,7 @@ export function DocumentViewBlock({ action, card, children, chrome = "normal", c
     <section
       className={cn(
         "document-card grid min-w-0",
-        chrome === "normal" && "gap-3 rounded-md border bg-background/60 p-3",
+        chrome === "normal" && "gap-3 rounded-lg border bg-background/60 p-3",
         chrome === "embedded" && "gap-3",
         chrome === "flat" && "gap-2",
       )}
@@ -214,7 +214,7 @@ export function DocumentViewBlock({ action, card, children, chrome = "normal", c
       style={documentCardLayoutStyle(card.layout)}
     >
       {showHeader ? (
-        <header className={cn("grid min-w-0 gap-0.5", chrome === "embedded" && "px-0.5")}>
+        <header className={cn("grid min-w-0 gap-1", chrome === "embedded" && "px-1")}>
           {/* An eyebrow that only repeats the title below it introduces the
               same card twice. */}
           {sameLabel(documentCardEyebrow(card), card.title) ? null : (
@@ -275,10 +275,10 @@ function DocumentSectionBlock({
   if (chrome === "grouped") {
     return (
       <section
-        className="grid min-w-0 gap-4 rounded-md border border-border/70 border-l-4 border-l-primary/70 bg-muted/15 px-4 py-3"
+        className="grid min-w-0 gap-4 rounded-lg border border-border/70 border-l-4 border-l-primary/70 bg-muted/15 px-4 py-3"
         data-section-id={section.metadata.identifier}
       >
-        <header className="grid min-w-0 gap-0.5 border-b border-border/60 pb-2">
+        <header className="grid min-w-0 gap-1 border-b border-border/60 pb-2">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
             <SectionAction sectionId={section.metadata.identifier} />
@@ -294,7 +294,7 @@ function DocumentSectionBlock({
 
   return (
     <section className="grid min-w-0 gap-3">
-      <header className="grid min-w-0 gap-0.5">
+      <header className="grid min-w-0 gap-1">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
           <SectionAction sectionId={section.metadata.identifier} />

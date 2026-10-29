@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{process::Command, time::Duration};
+
 // Third Party Imports
 use serde::Deserialize;
+
 // Local Imports
 use crate::{Error, HostOptions, Result};
 
@@ -26,6 +29,7 @@ use crate::{Error, HostOptions, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct BluetoothSnapshot {
     pub adapter_name: Option<String>,
@@ -40,10 +44,13 @@ pub struct BluetoothSnapshot {
 struct BluetoothPnPEntity {
     #[serde(alias = "Name", alias = "FriendlyName")]
     name: Option<String>,
+
     #[serde(rename = "Status")]
     status: Option<String>,
+
     #[serde(rename = "Present")]
     present: Option<bool>,
+
     #[serde(rename = "ConfigManagerErrorCode")]
     config_manager_error_code: Option<u32>,
 }
@@ -55,8 +62,9 @@ struct BluetoothPnPEntity {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub fn snapshot(options: &HostOptions) -> Result<BluetoothSnapshot> {
-    let output = bluetooth_pnp_json()?;
+
+pub fn snapshot(options: &HostOptions, timeout: Duration) -> Result<BluetoothSnapshot> {
+    let output = bluetooth_pnp_json(timeout)?;
     let devices = bluetooth_devices_from_json(&output)?;
     let present = devices.iter().filter(|device| device.present.unwrap_or(false)).collect::<Vec<_>>();
     let adapter_filter = options.bluetooth_adapter_name.as_ref().map(|value| value.to_lowercase());
@@ -84,12 +92,13 @@ pub fn snapshot(options: &HostOptions) -> Result<BluetoothSnapshot> {
 }
 
 /* === Private Functions === */
-fn bluetooth_pnp_json() -> Result<String> {
+
+fn bluetooth_pnp_json(timeout: Duration) -> Result<String> {
     let script =
         "Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName,Status,Present,ConfigManagerErrorCode | ConvertTo-Json -Compress";
     let mut command = Command::new("powershell");
     command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script]);
-    super::command::run_bounded(command, Duration::from_secs(10)).map_err(|error| Error::Probe(error.to_string()))
+    super::command::run_bounded(command, timeout).map_err(|error| Error::Probe(error.to_string()))
 }
 
 fn bluetooth_devices_from_json(output: &str) -> Result<Vec<BluetoothPnPEntity>> {

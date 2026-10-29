@@ -24,13 +24,15 @@ use dokime_domain::model::execution::ExecutionCheckpoint;
 use dokime_domain::model::execution::PageCursor;
 
 /* === Constants === */
-const PAGE_SIZE: u32 = 100;
+
+const PAGE_ITEMS: u64 = 100;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Pages {
     checkpoint: ExecutionCheckpoint,
     position: u64,
@@ -42,6 +44,7 @@ struct Pages {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestExecutionHandle {
     pub async fn context_at(
         &self, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
@@ -82,7 +85,11 @@ impl TestExecutionHandle {
         let original = validate_checkpoint(&self.id, &checkpoint)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
-            let mut pages = Pages { checkpoint: original, position: 0, after: String::new() };
+            let mut pages = Pages {
+                checkpoint: original,
+                position: 0,
+                after: String::new(),
+            };
             loop {
                 let result = async {
                     handle.client.verify(false).await?;
@@ -90,12 +97,12 @@ impl TestExecutionHandle {
                         .client
                         .history_list_checkpoint_records(contracts::history::ListCheckpointRecords {
                             checkpoint: Some(checkpoint.clone()),
-                            limit: PAGE_SIZE,
+                            limit: PAGE_ITEMS as u32,
                             after: pages.after.clone(),
                         })
                         .await?;
                     same_checkpoint(&checkpoint, page.checkpoint.as_ref())?;
-                    records(&page)?;
+                    records(&page, PAGE_ITEMS as usize)?;
                     let more = pages.advance("records", "", page.next_after.as_deref())?;
                     Ok((page, more))
                 }
@@ -138,7 +145,11 @@ impl TestExecutionHandle {
                     return Err(invalid("saved telemetry inventory has empty or duplicate streams"));
                 }
                 for table in tables {
-                    let mut pages = Pages { checkpoint: original.clone(), position: 0, after: String::new() };
+                    let mut pages = Pages {
+                        checkpoint: original.clone(),
+                        position: 0,
+                        after: String::new(),
+                    };
                     loop {
                         handle.client.verify(false).await?;
                         let page = handle
@@ -146,12 +157,12 @@ impl TestExecutionHandle {
                             .history_list_checkpoint_telemetry(contracts::history::ListCheckpointTelemetry {
                                 checkpoint: Some(checkpoint.clone()),
                                 table: table.clone(),
-                                limit: PAGE_SIZE,
+                                limit: PAGE_ITEMS as u32,
                                 after: pages.after.clone(),
                             })
                             .await?;
                         same_checkpoint(&checkpoint, page.checkpoint.as_ref())?;
-                        samples(&table, &page)?;
+                        samples(&table, &page, PAGE_ITEMS as usize)?;
                         let more = pages.advance("telemetry", &table, page.next_after.as_deref())?;
                         if sender.send(Ok(page)).await.is_err() {
                             return Ok(());
@@ -190,6 +201,7 @@ impl Pages {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn same_checkpoint(
     expected: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
     actual: Option<&dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint>,
@@ -200,24 +212,24 @@ fn same_checkpoint(
     Ok(())
 }
 
-fn records(page: &dokime_domain::model::history::wire::CheckpointRecordPage) -> Result<()> {
+fn records(page: &dokime_domain::model::history::wire::CheckpointRecordPage, limit: usize) -> Result<()> {
     if !page.issues.is_empty() || page.issues_truncated {
         return Err(invalid("historical records are incomplete; history reported issues"));
     }
-    if page.records.len() > PAGE_SIZE as usize || page.records.iter().any(|row| row.epoch.is_empty() || row.record.is_none()) {
+    if page.records.len() > limit || page.records.iter().any(|row| row.epoch.is_empty() || row.record.is_none()) {
         return Err(invalid("saved record page exceeds its bound or lacks source identity"));
     }
     Ok(())
 }
 
-fn samples(table: &str, page: &dokime_domain::model::history::wire::CheckpointTelemetryPage) -> Result<()> {
+fn samples(table: &str, page: &dokime_domain::model::history::wire::CheckpointTelemetryPage, limit: usize) -> Result<()> {
     if page.table != table {
         return Err(invalid("history returned a different telemetry stream"));
     }
     if !page.issues.is_empty() || page.issues_truncated {
         return Err(invalid("historical samples are incomplete; history reported issues"));
     }
-    if page.rows.len() > PAGE_SIZE as usize
+    if page.rows.len() > limit
         || page.rows.iter().any(|row| row.epoch.is_empty() || row.sample.as_ref().is_none_or(|sample| sample.stream != table))
     {
         return Err(invalid("saved sample page exceeds its bound or lacks original stream identity"));

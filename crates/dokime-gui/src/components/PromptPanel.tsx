@@ -10,12 +10,17 @@
 /* One pending prompt, printed in place: its state, title, instruction, fields
  * and actions, with no box of its own. The surface that hosts it decides the
  * frame; the prompt's own "Run Paused" line already says the run waits.
+ *
+ * A prompt whose answer is one decision (`promptDecision`) has no checkbox:
+ * its footer offers No and Yes, and either submits the whole prompt with that
+ * value. A field states its validation error only once it was touched or a
+ * submit was attempted.
  */
 
 /* === External Imports === */
 
 import { AlertTriangle, LoaderCircle, Plus, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 /* === Local Imports === */
 
@@ -26,7 +31,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatNumber } from "@/lib/format";
-import { type PromptValue, type PromptValues, promptFieldDefault, promptFieldError } from "@/lib/prompts";
+import {
+  isWithdrawingAction,
+  type PromptValue,
+  type PromptValues,
+  promptDecision,
+  promptFieldDefault,
+  promptFieldError,
+} from "@/lib/prompts";
 import type { PromptField, PromptRequest } from "@/lib/types";
 import { occurrenceKeys } from "@/lib/utils";
 
@@ -37,7 +49,8 @@ type PromptPanelProps = {
   submittingAction?: string | null;
   values: PromptValues;
   emergencyAction?: ReactNode;
-  onAction: (action: string) => void;
+  /** Submits `action`; `values` overrides the draft, as the Yes and No buttons do. */
+  onAction: (action: string, values?: PromptValues) => void;
   onValueChange: (field: PromptField, value: PromptValue) => void;
 };
 
@@ -166,11 +179,26 @@ function PromptDialog({
   submittingAction: string | null;
   values: PromptValues;
   emergencyAction?: ReactNode;
-  onAction: (action: string) => void;
+  onAction: (action: string, values?: PromptValues) => void;
   onValueChange: (field: PromptField, value: PromptValue) => void;
 }) {
-  const fieldErrors = Object.fromEntries(prompt.fields.map((field) => [field.name, promptFieldError(field, values[field.name])]));
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
+  const [attempted, setAttempted] = useState(false);
+  const decision = promptDecision(prompt);
+  const fields = decision ? prompt.fields.filter((field) => field.name !== decision.field.name) : prompt.fields;
+  const fieldErrors = Object.fromEntries(fields.map((field) => [field.name, promptFieldError(field, values[field.name])]));
   const invalidFields = Object.values(fieldErrors).some(Boolean);
+  const touch = (field: PromptField) => setTouched((current) => (current.has(field.name) ? current : new Set([...current, field.name])));
+  /* An answer is refused while a field is invalid; the attempt is what shows
+     the errors. Withdrawing never waits on the fields. */
+  const submit = (action: string, overrides?: PromptValues) => {
+    if (!isWithdrawingAction(action) && invalidFields) {
+      setAttempted(true);
+      return;
+    }
+    onAction(action, overrides);
+  };
+  const withdrawing = prompt.actions.filter((action) => isWithdrawingAction(action.id));
 
   return (
     <section aria-labelledby="active-prompt-title" className="grid min-w-0 gap-4">
@@ -187,15 +215,24 @@ function PromptDialog({
         </div>
       </div>
 
-      {prompt.fields.length ? (
+      {decision ? <p className="text-sm font-medium [overflow-wrap:anywhere]">{decision.field.label}</p> : null}
+
+      {fields.length ? (
         <div className="grid gap-3">
-          {prompt.fields.map((field) => (
-            <div className="grid gap-1.5" key={field.name}>
+          {fields.map((field) => (
+            <div className="grid gap-2" key={field.name}>
               <Label className="text-xs font-bold uppercase text-muted-foreground" htmlFor={promptFieldId(field)}>
                 {field.label}
               </Label>
-              <PromptFieldControl field={field} value={values[field.name]} onChange={onValueChange} />
-              {fieldErrors[field.name] ? (
+              <PromptFieldControl
+                field={field}
+                value={values[field.name]}
+                onChange={(changed, value) => {
+                  touch(changed);
+                  onValueChange(changed, value);
+                }}
+              />
+              {fieldErrors[field.name] && (attempted || touched.has(field.name)) ? (
                 <p className="text-xs text-destructive" role="status">
                   {fieldErrors[field.name]}
                 </p>
@@ -205,21 +242,45 @@ function PromptDialog({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap justify-between gap-2 border-t pt-3">
-        <div>{emergencyAction}</div>
-        <div className="flex flex-wrap justify-end gap-2">
-          {prompt.actions.map((action) => (
+      {decision ? (
+        <div className="flex flex-wrap justify-between gap-2 border-t pt-3">
+          <div className="flex flex-wrap gap-2">
+            {emergencyAction}
+            {withdrawing.map((action) => (
+              <Button disabled={submittingAction !== null} key={action.id} onClick={() => submit(action.id)} variant="outline">
+                {action.label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
-              key={action.id}
-              variant={action.emphasis}
-              disabled={submittingAction !== null || (invalidFields && !["cancel", "abort"].includes(action.id))}
-              onClick={() => onAction(action.id)}
+              disabled={submittingAction !== null}
+              onClick={() => submit(decision.action, { ...values, [decision.field.name]: false })}
+              variant="secondary"
             >
-              {submittingAction === action.id ? "Submitting..." : action.label}
+              {submittingAction === decision.action ? "Submitting..." : "No"}
             </Button>
-          ))}
+            <Button
+              disabled={submittingAction !== null}
+              onClick={() => submit(decision.action, { ...values, [decision.field.name]: true })}
+              variant="primary"
+            >
+              {submittingAction === decision.action ? "Submitting..." : "Yes"}
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-wrap justify-between gap-2 border-t pt-3">
+          <div>{emergencyAction}</div>
+          <div className="flex flex-wrap justify-end gap-2">
+            {prompt.actions.map((action) => (
+              <Button disabled={submittingAction !== null} key={action.id} onClick={() => submit(action.id)} variant={action.emphasis}>
+                {submittingAction === action.id ? "Submitting..." : action.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -250,7 +311,7 @@ function PromptMessage({ message }: { message: string }) {
         </p>
       ) : null}
       {technicalSections.length ? (
-        <div className="grid gap-1.5 rounded-md border bg-muted/35 p-3">
+        <div className="grid gap-2 rounded-lg border bg-muted/35 p-3">
           <p className="text-xs font-bold uppercase text-muted-foreground">Technical Detail</p>
           <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
             {technicalSections.join("\n\n")}
@@ -258,7 +319,7 @@ function PromptMessage({ message }: { message: string }) {
         </div>
       ) : null}
       {hasAction ? (
-        <p className="rounded-md border border-destructive/20 bg-destructive/5 p-3 font-medium text-foreground [overflow-wrap:anywhere]">
+        <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 font-medium text-foreground [overflow-wrap:anywhere]">
           <InlinePathText text={lastSection} />
         </p>
       ) : null}

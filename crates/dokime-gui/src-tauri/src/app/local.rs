@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tauri::AppHandle;
+
 // Local Imports
-use crate::native_session::backend::{self, Backend};
-use dokime_runtime::paths::ApplicationPaths;
+use crate::native_session::backend::Backend;
 
 /* === Constants === */
 
@@ -35,33 +36,29 @@ use dokime_runtime::paths::ApplicationPaths;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
-    let backend = Backend::new(backend::locate()?, arguments());
-    // A desktop launch has no console for the backend's stderr; its log lives
-    // with the rest of this application's data, so an unresolved root keeps
-    // only the in-memory diagnostics tail.
-    Ok(match super::settings::application_root(&app.config().identifier) {
-        Ok(root) => backend.with_logs(ApplicationPaths::new(root).logs()),
-        Err(_) => backend,
-    })
-}
 
-pub(crate) fn arguments() -> Vec<String> {
-    [
-        // EOF on the control pipe is this desktop's stop signal, and the
-        // development control protocol is what publishes the endpoint to
-        // attach to instead of printing a terminal banner.
-        "--shutdown-stdin",
-        "--dev-control",
-        "--host",
-        "127.0.0.1",
-        // An owned session takes any free port, so it never competes with a
-        // backend started for plugin development on the default one.
-        "--port",
-        "0",
-    ]
-    .map(str::to_owned)
-    .to_vec()
+pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
+    let root = super::settings::application_root(&app.config().identifier).map_err(|error| error.to_string())?;
+    let args = dokime_server::host::Args {
+        shutdown_stdin: false,
+        dev_control: false,
+        network: dokime_server::host::NetworkArgs {
+            host: std::net::Ipv4Addr::LOCALHOST.into(),
+            port: Some(0),
+            message_limit_mib: None,
+            grpc_web: false,
+            allowed_origins: Vec::new(),
+        },
+        title: None,
+        label: None,
+        output_root: None,
+        application_root: Some(root),
+        env_file: None,
+        plugins: Vec::new(),
+        plugins_root: std::env::var_os("DOKIME_PLUGINS_DIR").map(std::path::PathBuf::from),
+        no_seed_validation_artifact: false,
+    };
+    Ok(Backend::new(args).with_log(super::logging::active_log()))
 }
 
 /* === Private Functions === */

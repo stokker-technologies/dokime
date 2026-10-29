@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::{ActionDispatcherError, OptionProviderOption};
 use dokime_domain::model::values::Value;
@@ -25,13 +28,19 @@ use dokime_domain::model::values::Value;
 
 /* === Macros === */
 
+json_message!(StatusResponse);
+
+json_message!(OptionsResponse);
+
 /* === Type Aliases === */
+
 pub type ActionDispatcherFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ActionDispatcherError>> + Send + 'a>>;
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DispatchContext {
-    pub credentials_configured: bool,
+    pub secrets_configured: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -48,6 +57,7 @@ pub struct OptionsResponse {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait ActionDispatcher: Send + Sync + 'static {
     fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, StatusResponse>;
 
@@ -61,13 +71,17 @@ pub trait ActionDispatcher: Send + Sync + 'static {
 }
 
 /* === Implementations === */
+
 impl StatusResponse {
     pub fn ready() -> Self {
         Self::new("ready")
     }
 
     pub fn new(state: impl Into<String>) -> Self {
-        Self { state: state.into(), fields: BTreeMap::new() }
+        Self {
+            state: state.into(),
+            fields: BTreeMap::new(),
+        }
     }
 
     pub fn field(mut self, name: impl Into<String>, value: impl Into<Value>) -> Self {
@@ -75,8 +89,6 @@ impl StatusResponse {
         self
     }
 }
-
-json_message!(StatusResponse);
 
 impl OptionsResponse {
     pub fn of(options: impl IntoIterator<Item = OptionProviderOption>) -> Self {
@@ -98,11 +110,12 @@ impl FromIterator<OptionProviderOption> for OptionsResponse {
     }
 }
 
-json_message!(OptionsResponse);
-
 impl From<crate::Error> for ActionDispatcherError {
     fn from(error: crate::Error) -> Self {
-        Self::Refused { code: -32000, message: crate::diagnostics::redacted(&error.to_string()) }
+        Self::Refused {
+            code: -32000,
+            message: crate::diagnostics::redacted(&error.to_string()),
+        }
     }
 }
 

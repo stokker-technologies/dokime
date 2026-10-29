@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,7 +20,7 @@ use crate::support::wire::WireMessage;
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -38,9 +39,10 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn client(root: &std::path::Path) -> (impl Sized, WireClient) {
     let owner = runtime(root).await;
-    let config = Config::default().with_bearer_auth(vec![grant(Role::Read)]).unwrap();
+    let config = keyed();
     let server = Server::start(owner.handle(), config).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
@@ -58,7 +60,7 @@ async fn aggregate_answers_asked() {
             filters: Vec::new(),
             group_by: vec!["status".to_owned()],
             aggregates: vec![model::query::wire::QueryAggregate {
-                aggregate: harmos::Aggregate::Count,
+                aggregate: dokime::harmos::Aggregate::Count,
                 column: String::new(),
                 alias: "total".to_owned(),
             }],
@@ -85,7 +87,7 @@ async fn unknown_column_exist() {
             filters: Vec::new(),
             group_by: vec!["step_id".to_owned()],
             aggregates: vec![model::query::wire::QueryAggregate {
-                aggregate: harmos::Aggregate::Mean,
+                aggregate: dokime::harmos::Aggregate::Mean,
                 column: "duration_ms".to_owned(),
                 alias: "mean".to_owned(),
             }],
@@ -109,20 +111,29 @@ async fn percentile_rank_bounded() {
         source: model::query::wire::QuerySource::Steps,
         filters: Vec::new(),
         group_by: Vec::new(),
-        aggregates: vec![model::query::wire::QueryAggregate { aggregate, column: "duration_ms".to_owned(), alias: "statistic".to_owned() }],
+        aggregates: vec![model::query::wire::QueryAggregate {
+            aggregate,
+            column: "duration_ms".to_owned(),
+            alias: "statistic".to_owned(),
+        }],
         limit: 0,
     };
 
     for rank in [101, 255] {
-        let status =
-            client.unary::<contracts::query::Aggregate>(authenticated(request(harmos::Aggregate::Percentile(rank)))).await.unwrap_err();
+        let status = client
+            .unary::<contracts::query::Aggregate>(authenticated(request(dokime::harmos::Aggregate::Percentile(rank))))
+            .await
+            .unwrap_err();
 
         assert_eq!(status.code(), tonic::Code::InvalidArgument, "{rank}");
         assert!(status.message().contains("rank exceeds 100"), "{rank}");
     }
 
-    let reply =
-        client.unary::<contracts::query::Aggregate>(authenticated(request(harmos::Aggregate::Percentile(95)))).await.unwrap().into_inner();
+    let reply = client
+        .unary::<contracts::query::Aggregate>(authenticated(request(dokime::harmos::Aggregate::Percentile(95))))
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(reply.columns, ["statistic"]);
     assert!(reply.complete);
 }
@@ -163,7 +174,7 @@ async fn detailed_status_directory() {
             source: model::query::wire::QuerySource::Steps,
             group_by: vec![format!("{home}/evidence")],
             aggregates: vec![model::query::wire::QueryAggregate {
-                aggregate: harmos::Aggregate::Count,
+                aggregate: dokime::harmos::Aggregate::Count,
                 column: String::new(),
                 alias: "total".into(),
             }],

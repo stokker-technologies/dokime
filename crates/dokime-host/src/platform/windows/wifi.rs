@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -21,6 +22,7 @@ use std::{
     slice, thread,
     time::Duration,
 };
+
 // Third Party Imports
 use windows::{
     Win32::{
@@ -41,10 +43,12 @@ use windows::{
     },
     core::GUID,
 };
+
 // Local Imports
 use crate::{Error, HostOptions, Result};
 
 /* === Constants === */
+
 const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 
 /* === Macros === */
@@ -52,6 +56,7 @@ const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct WifiLink {
     pub adapter: Option<String>,
@@ -97,6 +102,7 @@ struct WifiInterface {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl WifiLink {
     pub fn rssi_dbm_from_query(bytes: &[u8]) -> Option<f64> {
         let bytes = <[u8; 4]>::try_from(bytes.get(..4)?).ok()?;
@@ -191,13 +197,13 @@ impl WlanClient {
         rssi_dbm
     }
 
-    fn bss_entries(&self, interface: &WifiInterface, request_scan: bool) -> Result<Vec<WLAN_BSS_ENTRY>> {
+    fn bss_entries(&self, interface: &WifiInterface, request_scan: bool, scan_wait: Duration) -> Result<Vec<WLAN_BSS_ENTRY>> {
         if request_scan {
             let scan = unsafe { WlanScan(self.handle, &interface.guid, None, None, None) };
             if scan != 0 {
                 return Err(Error::Probe(format!("WlanScan failed with {scan}")));
             }
-            thread::sleep(Duration::from_secs(4));
+            thread::sleep(scan_wait);
         }
 
         let mut list: *mut WLAN_BSS_LIST = null_mut();
@@ -223,6 +229,7 @@ impl WlanClient {
 }
 
 /* === Public Functions === */
+
 pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let client = WlanClient::open()?;
     let interfaces = client.interfaces()?;
@@ -275,13 +282,13 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     }))
 }
 
-pub fn scan_channel_occupancy(options: &HostOptions) -> Result<Vec<WifiChannelOccupancy>> {
+pub fn scan_channel_occupancy(options: &HostOptions, scan_wait: Duration) -> Result<Vec<WifiChannelOccupancy>> {
     let client = WlanClient::open()?;
     let interfaces = client.interfaces()?;
     let Some(interface) = select_interface(&interfaces, options) else {
         return Ok(Vec::new());
     };
-    let entries = client.bss_entries(&interface, true)?;
+    let entries = client.bss_entries(&interface, true, scan_wait)?;
     if entries.is_empty() {
         return Ok(Vec::new());
     }
@@ -311,6 +318,7 @@ pub fn scan_channel_occupancy(options: &HostOptions) -> Result<Vec<WifiChannelOc
 }
 
 /* === Private Functions === */
+
 fn select_interface(interfaces: &[WifiInterface], options: &HostOptions) -> Option<WifiInterface> {
     if let Some(adapter) = &options.wifi_adapter_name {
         let adapter = adapter.to_lowercase();

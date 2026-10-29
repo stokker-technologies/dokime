@@ -8,7 +8,9 @@
  */
 
 /* === Modules === */
+
 pub(super) mod artifacts;
+pub(super) mod evidence;
 mod execution;
 pub(super) mod files;
 mod follow;
@@ -18,98 +20,96 @@ mod upload;
 pub(super) mod window;
 
 /* === Re-Exports === */
+
 pub(super) use upload::{artifact_scope, content_failure};
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
-use dokime_runtime::{
+use dokime::{
     RuntimeHandle,
     artifacts::{ArtifactRecord, ArtifactStatus},
 };
 
 /* === Constants === */
-pub(super) const MAX_CONTENT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-const MAX_TRANSFER_CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    artifacts::register(runtime, maximum)
+
+pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    evidence::register(runtime, maximum).await?;
+    artifacts::register(runtime, maximum).await
 }
 
-pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
-    // Reserve Both The Wire Envelope And The Retained Stream Frame.
-    let chunk = dokime_domain::model::content::wire::ArtifactChunk { offset: u64::MAX, data: Vec::new() };
-    let overhead = [
-        transfer_frame_memory(dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(chunk.clone())),
-        }),
-        transfer_frame_memory(dokime_domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk.clone())),
-        }),
-        transfer_frame_memory(dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(chunk.clone())),
-        }),
-        transfer_frame_memory(dokime_domain::model::content::wire::ExecutionFileFollowFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk.clone())),
-        }),
-        transfer_frame_memory(dokime_domain::model::content::wire::AppearanceAssetFrame {
-            payload: Some(dokime_domain::model::content::wire::AppearanceAssetFramePayload::Chunk(chunk.clone())),
-        }),
-    ]
-    .into_iter()
-    .fold(32, usize::max);
-    MAX_TRANSFER_CHUNK_BYTES.min(max_message_bytes.saturating_sub(overhead))
+pub(super) fn download_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> Result<usize, Status> {
+    let bytes = runtime.storage().info().map_err(super::bundle::native_failure)?.file_batch_bytes;
+    let bytes = usize::try_from(bytes).map_err(|_| Status::resource_exhausted("native file batch size overflows"))?;
+    Ok(bytes.min(maximum).min(1_048_576))
 }
 
-pub(super) fn metadata_memory(record: &ArtifactRecord) -> Result<usize, Status> {
-    artifact_digest(record)?;
+pub(super) fn transfer_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> Result<usize, Status> {
+    use dokime::domain::model::{content::wire as content, plugins::wire as plugins};
+    let cap = download_chunk_bytes(runtime, maximum)?;
+    let artifact = content::UploadArtifactFrame {
+        payload: Some(content::UploadArtifactFramePayload::Chunk(content::ArtifactChunk { offset: u64::MAX, data: Vec::new() })),
+    };
+    let plugin = plugins::InstallPluginFrame {
+        frame: Some(plugins::InstallPluginFrameFrame::Chunk(plugins::InstallPluginChunk { offset: u64::MAX, data: Vec::new() })),
+    };
+    let artifact =
+        input_allowance::<dokime::operations::content::UploadArtifact>(&artifact, &["payload", "Chunk", "field_0", "data"], cap, maximum)?;
+    let plugin = input_allowance::<dokime::operations::plugins::Install>(&plugin, &["frame", "Chunk", "field_0", "data"], cap, maximum)?;
+    Ok(artifact.min(plugin))
+}
+
+pub(super) fn output_chunk_bytes<T: dokime::harmos::domain::Portable>(template: &T, cap: usize, maximum: usize) -> Result<usize, Status> {
+    dokime::harmos::grpc::output_payload_limit(template, &["payload", "Chunk", "field_0", "data"], cap, maximum)
+        .map_err(|error| Status::internal(error.to_string()))
+}
+
+pub(super) fn output_frame_len<T: dokime::harmos::domain::Portable>(frame: &T) -> Result<usize, Status> {
+    dokime::harmos::grpc::output_item_len(frame).map_err(|error| Status::internal(error.to_string()))
+}
+
+pub(super) fn encoding_failure(source: Status) -> dokime::harmos::Error {
+    if source.code() == tonic::Code::ResourceExhausted {
+        return dokime::harmos::Error::ResourceExhausted { resource: "gRPC frame encoding" };
+    }
+    dokime::harmos::Error::Backend {
+        operation: "encode gRPC frame",
+        kind: dokime::harmos::BackendFailure::Permanent,
+        source: Box::new(source),
+    }
+}
+
+pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, Status> {
     if record.status == ArtifactStatus::Staged {
         return Err(Status::data_loss("invalid stored artifact metadata"));
     }
-    let mut bytes = std::mem::size_of::<dokime_domain::model::content::wire::ArtifactMetadata>()
-        .saturating_add(record.artifact_id.as_str().len())
-        .saturating_add(record.upload_id.as_str().len())
-        .saturating_add(record.filename.len())
-        .saturating_add(record.content_type.as_ref().map_or(0, String::len))
-        .saturating_add(64);
-    for id in [
-        record.scope.test_cycle_id.as_ref().map(|id| id.as_str()),
-        record.scope.test_case_id.as_ref().map(|id| id.as_str()),
-        record.scope.test_execution_id.as_ref().map(|id| id.as_str()),
-    ]
-    .into_iter()
-    .flatten()
-    {
-        bytes = bytes.saturating_add(id.len());
-    }
-    if bytes == usize::MAX {
-        return Err(Status::resource_exhausted("artifact metadata construction overflows"));
-    }
-    Ok(bytes)
-}
-
-pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, Status> {
-    metadata_memory(record)?;
     let invalid = || Status::data_loss("invalid stored artifact metadata");
     let sha256 = artifact_digest(record)?.to_owned();
     let created =
         time::OffsetDateTime::parse(record.created_at.as_str(), &time::format_description::well_known::Rfc3339).map_err(|_| invalid())?;
-    Ok(dokime_domain::model::content::wire::ArtifactMetadata {
+    Ok(dokime::domain::model::content::wire::ArtifactMetadata {
         artifact_id: record.artifact_id.as_str().to_owned(),
         upload_id: record.upload_id.as_str().to_owned(),
-        scope: Some(dokime_domain::model::content::wire::ArtifactScope {
+        scope: Some(dokime::domain::model::content::wire::ArtifactScope {
             cycle_id: record.scope.test_cycle_id.as_ref().map(|id| id.as_str().to_owned()),
             case_id: record.scope.test_case_id.as_ref().map(|id| id.as_str().to_owned()),
             execution_id: record.scope.test_execution_id.as_ref().map(|id| id.as_str().to_owned()),
@@ -119,12 +119,12 @@ pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime_domain::model::
         size_bytes: record.size_bytes,
         sha256,
         state: match record.status {
-            ArtifactStatus::Complete => dokime_domain::model::content::wire::ArtifactState::Complete,
-            ArtifactStatus::Cancelled => dokime_domain::model::content::wire::ArtifactState::Cancelled,
-            ArtifactStatus::Rejected => dokime_domain::model::content::wire::ArtifactState::Rejected,
+            ArtifactStatus::Complete => dokime::domain::model::content::wire::ArtifactState::Complete,
+            ArtifactStatus::Cancelled => dokime::domain::model::content::wire::ArtifactState::Cancelled,
+            ArtifactStatus::Rejected => dokime::domain::model::content::wire::ArtifactState::Rejected,
             ArtifactStatus::Staged => return Err(invalid()),
         },
-        created_at: Some(dokime_domain::model::identity::wire::Timestamp {
+        created_at: Some(dokime::domain::model::identity::wire::Timestamp {
             seconds: created.unix_timestamp(),
             nanos: created.nanosecond() as i32,
         }),
@@ -132,12 +132,11 @@ pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime_domain::model::
 }
 
 /* === Private Functions === */
-fn transfer_frame_memory<T: harmos::domain::Portable>(frame: T) -> usize {
-    let retained = std::mem::size_of::<T>().saturating_add(std::mem::size_of::<harmos::operations::StreamItem<T>>());
-    let decoded = T::decoding_memory(&frame.encode_to_vec())
-        .unwrap_or(usize::MAX)
-        .saturating_add(std::mem::size_of::<harmos::grpc::InputEnvelope<T, T>>());
-    retained.max(decoded)
+
+fn input_allowance<O: dokime::harmos::operations::OperationDeclaration>(
+    template: &<O::Input as dokime::harmos::operations::Direction>::Item, path: &[&str], cap: usize, maximum: usize,
+) -> Result<usize, Status> {
+    dokime::harmos::grpc::input_payload_limit::<O>(template, path, cap, maximum).map_err(|error| Status::internal(error.to_string()))
 }
 
 fn artifact_digest(record: &ArtifactRecord) -> Result<&str, Status> {

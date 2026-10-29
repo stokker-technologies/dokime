@@ -8,13 +8,16 @@
  */
 
 /* === Modules === */
+
 pub mod connections;
+pub mod device;
 pub mod readiness;
 pub mod status;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -30,19 +33,14 @@ pub mod status;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime_runtime::catalog]
-pub enum Implemented {
-    StatusProbe(status::StatusProbe),
-    ReadinessProbe(readiness::ReadinessProbe),
-    ConnectionListing(connections::ConnectionListing),
-}
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Operations {
     #[nested]
     Bench(crate::domain::operations::Operations),
+
     #[nested]
-    Analyses(crate::analyses::Implemented),
+    Analyses(crate::analyses::Analyses),
 }
 
 /* === Traits === */

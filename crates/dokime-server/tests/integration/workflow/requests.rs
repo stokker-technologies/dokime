@@ -12,19 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
-const READER: &str = "owner-reader-token-012345678901234567890123456";
-const OTHER: &str = "other-reader-token-012345678901234567890123456";
-const OTHER_CONTROL: &str = "other-control-token-012345678901234567890123456";
-const ADMIN: &str = "admin-reader-token-012345678901234567890123456";
 
 /* === Macros === */
 
@@ -41,28 +38,31 @@ const ADMIN: &str = "admin-reader-token-012345678901234567890123456";
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn config() -> Config {
-    Config::local()
-        .with_bearer_auth(vec![
-            grant(Role::Control),
-            BearerGrant::new("fixture".into(), Role::Read, READER).unwrap(),
-            BearerGrant::new("other".into(), Role::Read, OTHER).unwrap(),
-            BearerGrant::new("other".into(), Role::Control, OTHER_CONTROL).unwrap(),
-            BearerGrant::new("administrator".into(), Role::Admin, ADMIN).unwrap(),
-        ])
-        .unwrap()
-}
 
 async fn started(gate: &Gate) {
     gate.started.notified().await;
 }
 
+fn start(owner: &Runtime, cycle: &str) -> contracts::execution::StartExecution {
+    let cycle = dokime::TestCycleId::from_uuid(cycle).unwrap();
+    let execution_id = owner.handle().watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string();
+    contracts::execution::StartExecution {
+        execution_id,
+        mode: model::execution::wire::ExecutionMode::Automatic,
+    }
+}
+
+async fn receipt(handle: &dokime::RuntimeHandle, id: &str) -> impl std::ops::Deref<Target = model::execution::request::RunReceipt> + use<> {
+    let id = model::identity::CommandId::from_uuid(id).unwrap();
+    handle.run_request(&id).await.unwrap().unwrap()
+}
+
 #[tokio::test]
-async fn commands_owner_receipts() {
+async fn command_receipts_survive_restart() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), config()).await.unwrap();
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
     let execution_id = client
@@ -78,11 +78,9 @@ async fn commands_owner_receipts() {
         .clone();
     let admission = accepted(
         client
-            .unary::<contracts::execution::RunExecution>(authenticated(contracts::execution::RunExecution {
+            .unary::<contracts::execution::StartExecution>(authenticated(contracts::execution::StartExecution {
                 execution_id: execution_id.clone(),
                 mode: model::execution::wire::ExecutionMode::Interactive,
-                context: None,
-                idempotency_key: Some("interactive-command-owner".into()),
             }))
             .await
             .unwrap()
@@ -104,14 +102,10 @@ async fn commands_owner_receipts() {
         action: model::execution::wire::ExecutionCommandAction::Next,
         step_id: None,
     };
-    assert_eq!(
-        client.unary::<contracts::execution::SubmitExecutionCommand>(auth(command.clone(), OTHER_CONTROL)).await.unwrap_err().code(),
-        Code::NotFound
-    );
     let mut unknown = command.clone();
     unknown.request_id = uuid::Uuid::now_v7().to_string();
     assert_eq!(
-        client.unary::<contracts::execution::SubmitExecutionCommand>(auth(unknown, OTHER_CONTROL)).await.unwrap_err().code(),
+        client.unary::<contracts::execution::SubmitExecutionCommand>(authenticated(unknown)).await.unwrap_err().code(),
         Code::NotFound
     );
     let receipt = client.unary::<contracts::execution::SubmitExecutionCommand>(authenticated(command.clone())).await.unwrap().into_inner();
@@ -120,16 +114,13 @@ async fn commands_owner_receipts() {
         client.unary::<contracts::execution::SubmitExecutionCommand>(authenticated(command.clone())).await.unwrap().into_inner(),
         receipt
     );
-    let lookup =
-        contracts::execution::GetExecutionCommand { request_id: command.request_id.clone(), command_id: command.command_id.clone() };
+    let lookup = contracts::execution::GetExecutionCommand {
+        request_id: command.request_id.clone(),
+        command_id: command.command_id.clone(),
+    };
     assert_eq!(
-        client.unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), READER)).await.unwrap().into_inner(),
+        client.unary::<contracts::execution::GetExecutionCommand>(authenticated(lookup.clone())).await.unwrap().into_inner(),
         receipt
-    );
-    assert_eq!(client.unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), ADMIN)).await.unwrap().into_inner(), receipt);
-    assert_eq!(
-        client.unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), OTHER)).await.unwrap_err().code(),
-        Code::NotFound
     );
     let mut conflicting = command.clone();
     conflicting.action = model::execution::wire::ExecutionCommandAction::Finish;
@@ -139,10 +130,11 @@ async fn commands_owner_receipts() {
     );
     gate.release.notify_one();
     let terminal = support::on_state_change(&owner.handle(), async || {
-        let response = client.unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), READER)).await;
+        let response = client.unary::<contracts::execution::GetExecutionCommand>(authenticated(lookup.clone())).await;
         if let Err(error) = &response {
-            let request_id = dokime_domain::model::identity::CommandId::from_uuid(command.request_id.clone()).unwrap();
+            let request_id = dokime::domain::model::identity::CommandId::from_uuid(command.request_id.clone()).unwrap();
             let original = owner.handle().run_request(&request_id).await;
+            let original = original.as_ref().map(|receipt| receipt.as_deref());
             panic!("command lookup failed: {error}; original receipt: {original:?}");
         }
         let receipt = response.unwrap().into_inner();
@@ -158,61 +150,56 @@ async fn commands_owner_receipts() {
     owner.shutdown().await.unwrap();
 
     let mut rebooted = runtime(root.path()).await;
-    let server = Server::start(rebooted.handle(), config()).await.unwrap();
+    let server = Server::start(rebooted.handle(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    assert_eq!(client.unary::<contracts::execution::GetExecutionCommand>(auth(lookup, READER)).await.unwrap().into_inner(), terminal);
+    assert_eq!(client.unary::<contracts::execution::GetExecutionCommand>(authenticated(lookup)).await.unwrap().into_inner(), terminal);
     assert_eq!(client.unary::<contracts::execution::SubmitExecutionCommand>(authenticated(command)).await.unwrap().into_inner(), terminal);
     server.shutdown().await.unwrap();
     rebooted.shutdown().await.unwrap();
 }
 
 #[tokio::test]
-async fn keyed_runs_restart() {
+async fn execution_admissions_restart() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), config()).await.unwrap();
-    let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
-    let request = contracts::execution::RunCycle { idempotency_key: Some("operator-operation-1".into()), ..run(&cycle_id) };
-    let admission = accepted(client.unary::<contracts::execution::RunCycle>(authenticated(request.clone())).await.unwrap().into_inner());
+    let request = start(&owner, &cycle_id);
+    let admission =
+        accepted(client.unary::<contracts::execution::StartExecution>(authenticated(request.clone())).await.unwrap().into_inner());
     started(&gate).await;
-    // A different correlation label is not a different operation or identity.
-    let mut retry = request.clone();
-    retry.context = Some(model::execution::wire::MutationContext { correlation_id: Some(uuid::Uuid::now_v7().to_string()) });
-    let duplicate = accepted(client.unary::<contracts::execution::RunCycle>(authenticated(retry)).await.unwrap().into_inner());
+    // The Attempt UUID Resolves The Same Admission Without A Caller Request Key.
+    let duplicate =
+        accepted(client.unary::<contracts::execution::StartExecution>(authenticated(request.clone())).await.unwrap().into_inner());
     assert_eq!(duplicate.command_id, admission.command_id);
     assert_eq!(duplicate.accepted_at, admission.accepted_at);
-    let running = lookup(&mut client, &admission.command_id, READER).await.unwrap();
-    assert_eq!(running.phase, model::execution::wire::RunRequestPhase::Running);
-    assert_eq!(running.submitted_by.as_deref(), Some("fixture"));
-    assert_eq!(running.planned_count, 1);
-    assert_eq!(running.prepared_count, 1);
-    assert_eq!(running.claimed_count, 1);
-    assert_eq!(running.finished_count, 0);
-    assert!(running.provider_started_at.is_some());
-    assert!(running.finished_at.is_none());
-    assert_eq!(lookup(&mut client, &admission.command_id, OTHER).await.unwrap_err().code(), Code::NotFound);
-    assert_eq!(lookup(&mut client, &uuid::Uuid::now_v7().to_string(), OTHER).await.unwrap_err().code(), Code::NotFound);
-    assert_eq!(lookup(&mut client, &admission.command_id, ADMIN).await.unwrap(), running);
+    let running = receipt(&owner.handle(), &admission.command_id).await;
+    assert_eq!(running.summary.phase, model::execution::request::RunPhase::Running);
+    assert_eq!(running.submitted_by.as_deref(), Some("remote"));
+    assert_eq!(running.summary.planned, 1);
+    assert_eq!(running.summary.prepared, 1);
+    assert_eq!(running.claimed, 1);
+    assert_eq!(running.summary.finished, 0);
+    assert!(running.summary.provider_started_at.is_some());
+    assert!(running.summary.finished_at.is_none());
+    let unknown = model::identity::CommandId::from_uuid(uuid::Uuid::now_v7().to_string()).unwrap();
+    assert!(owner.handle().run_request(&unknown).await.unwrap().is_none());
     let claim = running.last_claim.as_ref().unwrap();
-    let conflict = client
-        .unary::<contracts::execution::RunExecution>(authenticated(contracts::execution::RunExecution {
+    let existing = client
+        .unary::<contracts::execution::StartExecution>(authenticated(contracts::execution::StartExecution {
             mode: Default::default(),
-            execution_id: claim.execution_id.clone(),
-            context: None,
-            idempotency_key: request.idempotency_key.clone(),
+            execution_id: claim.execution_id.to_string(),
         }))
         .await
         .unwrap()
         .into_inner();
-    assert!(
-        matches!(conflict.outcome, Some(model::execution::wire::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")
-    );
+    assert!(matches!(existing.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))));
     let other_cycle = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
     let conflict = client
-        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
-            cycle_id: other_cycle.clone(),
+        .unary::<contracts::execution::StartExecution>(authenticated(contracts::execution::StartExecution {
+            mode: model::execution::wire::ExecutionMode::Interactive,
             ..request.clone()
         }))
         .await
@@ -223,76 +210,182 @@ async fn keyed_runs_restart() {
     );
     assert_eq!(
         owner.handle().watch_state().latest().state().cycles.values().map(|cycle| cycle.execution_ids.len()).sum::<usize>(),
-        2 // Both cycles own a planned execution; conflicting admission starts neither again.
+        2 // Both Cycles Own An Attempt; Conflicting Options Cannot Start Another.
     );
     gate.release.notify_one();
     let completed = support::on_state_change(&owner.handle(), async || {
-        let receipt = lookup(&mut client, &admission.command_id, READER).await.unwrap();
-        (receipt.phase == model::execution::wire::RunRequestPhase::Completed).then_some(receipt)
+        let receipt = receipt(&owner.handle(), &admission.command_id).await;
+        (receipt.summary.phase == model::execution::request::RunPhase::Completed).then_some(receipt)
     })
     .await;
-    assert_eq!(completed.finished_count, 1);
-    assert_eq!(completed.failed_count, 0);
-    assert!(completed.finished_at.is_some());
+    assert_eq!(completed.summary.finished, 1);
+    assert_eq!(completed.summary.failed, 0);
+    assert!(completed.summary.finished_at.is_some());
     assert!(completed.interruption.is_none());
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 
     let mut rebooted = runtime(root.path()).await;
-    let restored = rebooted.handle().watch_state().latest();
-    assert_eq!(restored.state().cycles.len(), 1);
-    let plan = restored.state().cycle_views().next().unwrap();
-    assert_eq!(plan.test_cycle_id.as_str(), other_cycle);
-    assert_eq!(plan.test_executions.len(), 1);
-    assert_eq!(plan.test_executions[0].status, dokime_domain::model::execution::result::ExecutionStatus::Interrupted);
-    assert!(plan.test_executions[0].started_at.is_none());
-    assert!(plan.test_executions[0].finished_at.is_some());
-    let next = Server::start(rebooted.handle(), config()).await.unwrap();
-    let mut client = WireClient::connect(next.local_endpoint()).await.unwrap();
-    assert_eq!(lookup(&mut client, &admission.command_id, READER).await.unwrap(), completed);
-    assert_eq!(lookup(&mut client, &admission.command_id, OTHER).await.unwrap_err().code(), Code::NotFound);
-    let retried = accepted(client.unary::<contracts::execution::RunCycle>(authenticated(request)).await.unwrap().into_inner());
+    let handle = rebooted.handle();
+    assert!(handle.watch_state().latest().state().cycles.is_empty(), "shutdown seals every old cycle");
+    let other_id = dokime::domain::model::identity::TestCycleId::from_uuid(other_cycle).unwrap();
+    let stored_cycle_owner =
+        dokime::storage::objects::cycle::read(handle.storage(), &other_id, dokime::harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
+    let stored_cycle = &stored_cycle_owner.value;
+    assert_eq!(stored_cycle.test_cycle_id, other_id);
+    assert_eq!(stored_cycle.phase, dokime::domain::model::execution::result::CyclePhase::Sealed);
+    assert!(stored_cycle.saved.is_some());
+    assert_eq!(stored_cycle.execution_ids.len(), 1);
+    let execution_id = &stored_cycle.execution_ids[0];
+    let stored_execution_owner =
+        dokime::storage::objects::execution::read(handle.storage(), execution_id, dokime::harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
+    let stored_execution = &stored_execution_owner.value;
+    assert_eq!(stored_execution.status, dokime::domain::model::execution::result::ExecutionStatus::Cancelled);
+    assert!(stored_execution.started_at.is_none());
+    assert!(stored_execution.finished_at.is_some());
+    assert!(stored_execution.saved.is_some());
+    let next = Server::start(rebooted.handle(), keyed()).await.unwrap();
+    let client = WireClient::connect(next.local_endpoint()).await.unwrap();
+    let repeated = receipt(&handle, &admission.command_id).await;
+    assert_eq!(&*repeated, &*completed);
+    let retried = accepted(client.unary::<contracts::execution::StartExecution>(authenticated(request)).await.unwrap().into_inner());
     assert_eq!(retried.command_id, admission.command_id);
     assert_eq!(retried.accepted_at, admission.accepted_at);
-    let restored = rebooted.handle().watch_state().latest();
-    assert_eq!(restored.state().cycles.len(), 1);
-    let plan = restored.state().cycle_views().next().unwrap();
-    assert_eq!(plan.test_cycle_id.as_str(), other_cycle);
-    assert_eq!(plan.test_executions.len(), 1);
-    assert_eq!(plan.test_executions[0].status, dokime_domain::model::execution::result::ExecutionStatus::Interrupted);
-    assert!(plan.test_executions[0].started_at.is_none());
-    assert!(plan.test_executions[0].finished_at.is_some());
+    assert!(handle.watch_state().latest().state().cycles.is_empty());
+    let restored_cycle_owner =
+        dokime::storage::objects::cycle::read(handle.storage(), &other_id, dokime::harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
+    let restored_cycle = &restored_cycle_owner.value;
+    let restored_execution_owner =
+        dokime::storage::objects::execution::read(handle.storage(), execution_id, dokime::harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
+    let restored_execution = &restored_execution_owner.value;
+    assert_eq!(restored_cycle, stored_cycle, "replay preserves the other cycle's durable seal");
+    assert_eq!(restored_execution, stored_execution, "replay cannot start or rewrite the other execution");
     next.shutdown().await.unwrap();
     rebooted.shutdown().await.unwrap();
 }
 
 #[tokio::test]
-async fn invalid_run_admission() {
+async fn pairing_revocation_preserves_execution_receipts() {
+    let root = tempfile::tempdir().unwrap();
+    let gate = Arc::new(Gate::default());
+    let mut owner = fixture(root.path(), gate.clone()).await;
+    let handle = owner.handle();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let native = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let settings = model::remote::RemoteListenerSettings {
+        enabled: true,
+        address: "127.0.0.1:0".into(),
+        tls_enabled: false,
+        authentication_enabled: true,
+        certificate_names: vec![],
+    };
+    let listening = native
+        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings) })
+        .await
+        .unwrap()
+        .into_inner();
+    let endpoint = format!("http://{}", listening.listening_address.unwrap());
+    let first = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
+            label: "Revoked Client".into(),
+            endpoint: endpoint.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let second = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
+            label: "Surviving Client".into(),
+            endpoint: endpoint.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let key = first.pairing.access_key.unwrap();
+    let surviving_key = second.pairing.access_key.unwrap();
+    let client = WireClient::connect(endpoint).await.unwrap();
+    let cycle = support::planned_cycle(&client, auth(create(), &key), selection_plan(&owner)).await.unwrap();
+    let cycle_id = dokime::domain::model::identity::TestCycleId::from_uuid(cycle.clone()).unwrap();
+    let request = start(&owner, &cycle);
+
+    let admission = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key)).await.unwrap();
+    let admission = accepted(admission.into_inner());
+    started(&gate).await;
+    let running = receipt(&handle, &admission.command_id).await;
+    assert_eq!(running.summary.phase, model::execution::request::RunPhase::Running);
+    assert_eq!(running.submitted_by.as_deref(), Some(first.client.as_ref().unwrap().identifier.as_str()));
+    let selection = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids.clone();
+
+    // Revoke One Principal While Its Authenticated Stream Is Open.
+    let mut watching = client
+        .download::<contracts::observation::WatchRuntime>(auth(contracts::observation::WatchRuntime { cursor: None }, &key))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(watching.message().await.unwrap().is_some());
+    native
+        .unary::<contracts::remote::RevokePairedClient>(contracts::remote::RevokePairedClient {
+            identifier: first.client.unwrap().identifier,
+        })
+        .await
+        .unwrap();
+    while let Ok(Some(frame)) = watching.message().await {
+        assert!(!frame.shutting_down, "revocation leaves the runtime alive");
+    }
+    let refused = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key)).await.unwrap_err();
+    assert_eq!(refused.code(), Code::Unauthenticated);
+    let unchanged = receipt(&handle, &admission.command_id).await;
+    assert_eq!(&*unchanged, &*running);
+
+    let reply = client.unary::<contracts::execution::StartExecution>(auth(request, &surviving_key)).await.unwrap();
+    let replay = accepted(reply.into_inner());
+    assert_eq!(replay.command_id, admission.command_id);
+    assert_eq!(replay.accepted_at, admission.accepted_at);
+    assert_eq!(handle.watch_state().latest().state().cycles[&cycle_id].execution_ids, selection);
+    assert_eq!(handle.watch_state().latest().state().run_requests.len(), 1);
+    gate.release.notify_one();
+    let completed = support::on_state_change(&handle, async || {
+        let receipt = receipt(&handle, &admission.command_id).await;
+        (receipt.summary.phase == model::execution::request::RunPhase::Completed).then_some(receipt)
+    })
+    .await;
+    assert_eq!(completed.claimed, 1);
+    assert_eq!(completed.summary.finished, 1);
+    assert_eq!(completed.summary.failed, 0);
+
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn invalid_execution_admission() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate).await;
-    let server = Server::start(owner.handle(), config()).await.unwrap();
-    let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let id = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
-    for key in ["".into(), " ".into(), "bad\nkey".into(), "x".repeat(257)] {
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    for execution_id in ["".into(), " ".into(), "bad\nidentifier".into(), "x".repeat(257)] {
         let error = client
-            .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
-                idempotency_key: Some(key),
-                ..run(&id)
+            .unary::<contracts::execution::StartExecution>(authenticated(contracts::execution::StartExecution {
+                execution_id,
+                mode: model::execution::wire::ExecutionMode::Automatic,
             }))
             .await
             .unwrap_err();
         assert_eq!(error.code(), Code::InvalidArgument);
     }
-    assert_eq!(lookup(&mut client, "invalid", READER).await.unwrap_err().code(), Code::InvalidArgument);
-    let denied = client
-        .unary::<contracts::execution::RunCycle>(auth(
-            contracts::execution::RunCycle { idempotency_key: Some("valid".into()), ..run(&id) },
-            READER,
-        ))
-        .await
-        .unwrap_err();
-    assert_eq!(denied.code(), Code::PermissionDenied);
     assert!(owner.handle().watch_state().latest().state().run_requests.is_empty());
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

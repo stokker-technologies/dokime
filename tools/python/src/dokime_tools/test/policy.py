@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/policy.py; sha256:bb20f5e511dc722bfd69bebba1f9dfde0b88eefa53b174046bffa6a3ad6afab1
+# Rendered by stkr project update from templates/python/test/policy.py; sha256:6200255a81aa8087dcb5ff997c34c7526bac864ad188c1a3c96903a86aeb57f7
 # ***
 #
 # Dokime
@@ -6,15 +6,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-
 """Testing Policy From `stkr.toml [conventions.testing]` And The Expected Lane Set.
 
 Keys, all optional:
 
     [conventions.testing]
     limits = { unit = 512, integration = 256, acceptance = 128, system = 64 }
-    deadlines = { unit = 10, integration = 120, acceptance = 900, system = 900 }
-    hosts = ["dist/build/{profile}/app"]
+    deadlines = { unit = 30, integration = 120, acceptance = 900, system = 900 }
     bench_regression_percent = 20
 
     [[conventions.testing.overrides]]
@@ -29,12 +27,10 @@ JavaScript workspace packages each have their own scope; other tests share the p
 Exceeding one is a curation finding in the
 index, never a failure. Deadlines are the per-story maximum of a lane in seconds. An override
 replaces the deadline of the stories it selects: for Rust `select` is a nextest filterset, for
-the other languages a glob over `<file>::<story>`. Hosts are artifacts acceptance and system
-lanes need; `{profile}`, `{platform}`, `{architecture}`, `{target}` and `{exe}` expand to the lane profile,
-native operating system, CPU architecture, producer target and executable suffix. Declared hosts require a
-fixture stamp whose immutable file map covers every host before a lane can run.
+the other languages a glob over `<file>::<story>`. Acceptance and system lanes receive the whole
+Product and Tests builds of their profile and target, so lanes declare no inputs.
 
-The expected lanes are the `test:<category>:<language>` leaf tasks of `mise.toml`.
+The expected lanes are the `test:<language>:<category>` leaf tasks of `mise.toml`.
 """
 
 # === Imports === #
@@ -62,11 +58,10 @@ BENCH_CATEGORIES = ("unit", "integration", "system")
 LANGUAGES = ("rust", "python", "typescript", "javascript")
 PROFILES = ("dev", "release")
 LIMITS = {"unit": 512, "integration": 256, "acceptance": 128, "system": 64}
-DEADLINES = {"unit": 10, "integration": 120, "acceptance": 900, "system": 900}
+DEADLINES = {"unit": 30, "integration": 120, "acceptance": 900, "system": 900}
 
-# Liveness Guard: About Three Recorded Durations, Never Below Ten Seconds.
-MEASURED_FACTOR = 3
-MEASURED_FLOOR = 10
+# Minimum Correctness-Test Hang Guard; Performance Belongs To Benchmarks.
+MINIMUM_TIMEOUT = 30
 COVERAGE_FACTOR = 5
 OVERRIDE_KEYS = {"category", "language", "select", "timeout_seconds", "reason"}
 
@@ -93,20 +88,11 @@ class Policy:
     limits: dict[str, int]
     deadlines: dict[str, int]
     overrides: tuple[Override, ...]
-    hosts: tuple[str, ...]
     bench_regression_percent: float = 20
 
     def deadline(self, category: str, coverage: bool = False) -> int:
         """The lane maximum per story, multiplied for instrumented runs."""
         return self.deadlines[category] * (COVERAGE_FACTOR if coverage else 1)
-
-    def story(self, category: str, recorded: float | None) -> int:
-        """The liveness deadline of one story from its last recorded duration."""
-        lane = self.deadlines[category]
-        if category not in ("acceptance", "system") or recorded is None:
-            return lane
-        measured = max(MEASURED_FACTOR * recorded, MEASURED_FLOOR)
-        return min(lane, int(measured + 0.999))
 
     def selected(self, category: str, language: str) -> list[Override]:
         return [entry for entry in self.overrides if entry.category == category and entry.language == language]
@@ -138,10 +124,12 @@ def load(directory: Path) -> Policy:
         raise TestError("[conventions.testing] must be a table")
 
     limits = _numbers(testing.get("limits", {}), "limits", LIMITS, 0)
-    deadlines = _numbers(testing.get("deadlines", {}), "deadlines", DEADLINES, 1)
-    hosts = testing.get("hosts", [])
-    if not isinstance(hosts, list) or not all(isinstance(host, str) for host in hosts):
-        raise TestError("conventions.testing.hosts must be a list of paths")
+    deadlines = _numbers(testing.get("deadlines", {}), "deadlines", DEADLINES, MINIMUM_TIMEOUT)
+    retired = [key for key in ("hosts", "lanes") if key in testing]
+    if retired:
+        raise TestError(
+            f"conventions.testing.{retired[0]} is retired; acceptance and system lanes receive the whole Product and Tests builds"
+        )
 
     overrides = []
     for entry in testing.get("overrides", []):
@@ -149,13 +137,18 @@ def load(directory: Path) -> Policy:
             raise TestError("each override declares " + ", ".join(sorted(OVERRIDE_KEYS)))
         if entry["category"] not in CATEGORIES or entry["language"] not in LANGUAGES:
             raise TestError(f"override names an unknown lane: {entry}")
-        if not _positive(entry["timeout_seconds"]) or not str(entry["reason"]).strip():
-            raise TestError(f"override needs a positive timeout and a reason: {entry}")
+        if not _positive(entry["timeout_seconds"], MINIMUM_TIMEOUT) or not str(entry["reason"]).strip():
+            raise TestError(f"override needs a timeout of at least 30 seconds and a reason: {entry}")
         overrides.append(Override(**entry))
     threshold = testing.get("bench_regression_percent", 20)
     if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not math.isfinite(threshold) or threshold <= 0:
         raise TestError("bench_regression_percent must be finite and positive")
-    return Policy(limits, deadlines, tuple(overrides), tuple(hosts), float(threshold))
+    return Policy(
+        limits,
+        deadlines,
+        tuple(overrides),
+        float(threshold),
+    )
 
 
 def lanes(directory: Path) -> list[tuple[str, str]]:
@@ -165,9 +158,8 @@ def lanes(directory: Path) -> list[tuple[str, str]]:
     expected = []
     for name in tasks:
         parts = name.split(":")
-        if len(parts) == 3 and parts[0] == "test":
-            if parts[1] in CATEGORIES and parts[2] in LANGUAGES:
-                expected.append((parts[1], parts[2]))
+        if len(parts) == 3 and parts[0] == "test" and parts[2] in CATEGORIES and parts[1] in LANGUAGES:
+            expected.append((parts[2], parts[1]))
     return sorted(expected, key=lambda lane: (CATEGORIES.index(lane[0]), lane[1]))
 
 

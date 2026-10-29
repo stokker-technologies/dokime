@@ -8,8 +8,10 @@
  */
 
 /* === Modules === */
-pub mod error;
+
 pub mod objects;
+pub(crate) mod projection;
+mod read_rows;
 pub mod records;
 pub mod reports;
 pub mod requests;
@@ -18,9 +20,9 @@ pub mod telemetry;
 mod values;
 
 /* === Re-Exports === */
-// `plugins/store.rs` belongs to the parallel settings consolidation and still
-// names the SQLite owner by its former module path.
-pub use sqlite as local;
+
+pub use read_rows::{ReadRows, RowsIter};
+pub(crate) use values::{datetime_memory, encode_datetime};
 
 /* === Imports === */
 
@@ -31,46 +33,90 @@ pub use sqlite as local;
 // Local Imports
 
 /* === Constants === */
-const STATE_SNAPSHOT_BYTES: usize = 1024 * 1024;
-// Integrity envelope, positions and histories around one encoded state record.
-const STATE_ENVELOPE_BYTES: usize = 64 * 1024;
-// One recovery entry may take at most this share of a checkpoint: what it
-// changes must still fit the snapshot beside the rest of state.
-const STATE_ENTRY_SHARE: usize = 2;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Manager = harmos::storage::StorageManager<objects::Objects>;
 pub type Backend = sqlite::Backend<objects::Objects>;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("settings revision conflict: expected {expected}, actual {actual}")]
+    SettingsConflict { expected: u64, actual: u64 },
+
+    #[error("invalid application settings: {0}")]
+    InvalidSettings(String),
+
+    #[error("local state filesystem: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("local state is closed")]
+    Closed,
+
+    #[error("local state is already owned by another runtime")]
+    Owned,
+
+    #[error("local state SQLite: {0}")]
+    Sqlite(#[from] rusqlite::Error),
+
+    #[error("local state task: {0}")]
+    Task(#[from] tokio::task::JoinError),
+
+    #[error("storage root is incompatible with this build: {0}; choose a fresh root")]
+    Incompatible(String),
+
+    #[error("invalid storage catalog operation: {0}")]
+    Catalog(String),
+
+    #[error("SQLite data: {0}")]
+    Data(&'static str),
+
+    #[error("SQLite integrity: {0}")]
+    Corrupt(&'static str),
+
+    #[error("SQLite identity conflict: {0}")]
+    Conflict(&'static str),
+
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Publication(#[from] harmos::filesystem::Error),
+
     #[error(transparent)]
     Runtime(#[from] harmos::Error),
+
     #[error(transparent)]
     HarmosStorage(#[from] harmos::storage::Error),
+
     #[error(transparent)]
     HarmosDomain(#[from] harmos::domain::Error),
+
     #[error(transparent)]
     Saved(#[from] dokime_domain::model::execution::saved::SavedEvidenceError),
+
     #[error("invalid persisted evidence: {0}")]
     Invalid(&'static str),
+
     #[error(transparent)]
     Decode(#[from] harmos::MessageError),
-    #[error(transparent)]
-    Serialization(#[from] serde_json::Error),
+
     #[error(transparent)]
     Timestamp(#[from] time::error::Parse),
+
     #[error(transparent)]
     DatetimeFormat(#[from] time::error::Format),
+
     #[error(transparent)]
     Identifier(#[from] harmos::IdentifierError),
+
     #[error(transparent)]
     Contract(#[from] dokime_domain::Error),
 }
@@ -80,37 +126,50 @@ pub enum Error {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub fn snapshot_policy() -> harmos::state::SnapshotPolicy {
-    harmos::state::SnapshotPolicy {
-        schema: harmos::storage::SchemaKey {
-            payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1,
-            id: harmos::Identifier::new("dokime.runtime.state").unwrap(),
-            version: 1.try_into().unwrap(),
-        },
-        every: 1024.try_into().unwrap(),
-        max_bytes: STATE_SNAPSHOT_BYTES.try_into().unwrap(),
-    }
-}
 
-pub fn state_settings() -> harmos::config::StorageStateSettings {
-    let policy = snapshot_policy();
-    let checkpoint = policy.max_bytes.get().div_ceil(3).saturating_mul(4).saturating_add(STATE_ENVELOPE_BYTES);
-    let bytes = |bytes: usize| std::num::NonZeroUsize::new(bytes).expect("the envelope keeps encoded records nonempty");
-    harmos::config::StorageStateSettings { max_entry_bytes: bytes(checkpoint / STATE_ENTRY_SHARE), max_checkpoint_bytes: bytes(checkpoint) }
-}
-
-pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileReference) -> Result<Vec<u8>> {
+pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileReference) -> Result<harmos::storage::ReadBatch<Vec<u8>>> {
     let mut reader = storage
-        .read_file(harmos::storage::operations::ReadFile {
-            file: file.clone(),
+        .read_file(harmos::storage::FileRead {
+            source: harmos::storage::FileSource::Stored(file.clone()),
             range: harmos::storage::ByteRange { offset: 0, limit: None },
         })
         .await?;
-    let mut bytes = Vec::new();
-    while let Some(batch) = reader.next().await? {
-        bytes.extend_from_slice(&batch.bytes);
+    let length = usize::try_from(file.length).map_err(|_| Error::Invalid("file length exceeds native address space"))?;
+    let first = reader.next().await?;
+    if let Some(first) = first {
+        if first.offset() != 0 || first.bytes().len() > length {
+            return Err(Error::Invalid("first file page exceeds immutable length"));
+        }
+        if first.bytes().len() == length {
+            let bytes = first.try_map(|batch| Ok::<_, Error>(batch.bytes))?;
+            if reader.next().await?.is_some() || reader.completion()?.bytes != file.length {
+                return Err(Error::Invalid("file completion differs from immutable length"));
+            }
+            return Ok(bytes);
+        }
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(length).map_err(|_| Error::Invalid("file byte allocation failed"))?;
+        bytes.extend_from_slice(first.bytes());
+        drop(first);
+        while let Some(batch) = reader.next().await? {
+            if batch.offset() != u64::try_from(bytes.len()).map_err(|_| Error::Invalid("file byte offset overflows"))? {
+                return Err(Error::Invalid("file pages are not contiguous"));
+            }
+            if bytes.len().checked_add(batch.bytes().len()).is_none_or(|end| end > length) {
+                return Err(Error::Invalid("file pages exceed immutable length"));
+            }
+            bytes.extend_from_slice(batch.bytes());
+        }
+        let completion = reader.completion()?;
+        if completion.bytes != file.length || bytes.len() != length {
+            return Err(Error::Invalid("file completion differs from immutable length"));
+        }
+        return Ok(harmos::storage::ReadBatch::new(bytes));
     }
-    Ok(bytes)
+    if length != 0 || reader.completion()?.bytes != 0 {
+        return Err(Error::Invalid("empty file completion differs from immutable length"));
+    }
+    Ok(harmos::storage::ReadBatch::new(Vec::new()))
 }
 
 /* === Private Functions === */

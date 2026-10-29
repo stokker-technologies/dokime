@@ -8,24 +8,29 @@
  */
 
 /* === Modules === */
+
 pub mod contracts;
 pub mod table;
 
 /* === Re-Exports === */
+
 pub use contracts::host_telemetry_contract;
 pub use contracts::host_telemetry_contracts;
-pub use contracts::host_telemetry_payload;
+pub use contracts::{PreparedHostPayload, prepare_host_telemetry_payload};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::Identifier;
 
 /* === Constants === */
+
 pub const HOST_STREAMS: &[HostTelemetryStream] = &[
     HostTelemetryStream::System,
     HostTelemetryStream::Network,
@@ -36,6 +41,7 @@ pub const HOST_STREAMS: &[HostTelemetryStream] = &[
 ];
 
 /* === Macros === */
+
 product_error!(UnknownHostStream, formatter {
     Self(named) => write!(formatter, "unsupported host telemetry stream: {named}"),
 });
@@ -43,10 +49,12 @@ product_error!(UnknownHostStream, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnknownHostStream(pub String);
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HostTelemetryStream {
@@ -61,6 +69,7 @@ pub enum HostTelemetryStream {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl HostTelemetryStream {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -87,15 +96,6 @@ impl HostTelemetryStream {
     pub fn identifier(self) -> Identifier {
         identifier(self.as_str())
     }
-
-    pub fn interval_ms(self) -> u64 {
-        match self {
-            Self::System | Self::Network => 1_000,
-            Self::Wifi | Self::Bluetooth => 5_000,
-            Self::WifiLatency => 10_000,
-            Self::WifiChannelOccupancy => 30_000,
-        }
-    }
 }
 
 impl TryFrom<&str> for HostTelemetryStream {
@@ -115,11 +115,13 @@ impl TryFrom<&str> for HostTelemetryStream {
 }
 
 /* === Public Functions === */
+
 pub fn host_stream_identifiers() -> Vec<Identifier> {
     HOST_STREAMS.iter().map(|stream| stream.identifier()).collect()
 }
 
 /* === Private Functions === */
+
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).expect("built-in host telemetry identifiers are valid")
 }

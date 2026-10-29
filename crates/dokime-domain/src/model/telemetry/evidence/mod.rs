@@ -8,14 +8,17 @@
  */
 
 /* === Modules === */
+
 mod batch;
 mod record;
 
 /* === Re-Exports === */
+
 pub use batch::TelemetryBatch;
 pub use record::TelemetrySample;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

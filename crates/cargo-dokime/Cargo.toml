@@ -1,5 +1,8 @@
+# === Package === #
+
 [package]
 name = "cargo-dokime"
+publish = false
 edition.workspace = true
 rust-version.workspace = true
 description = "Build, develop and inspect Dokime plugins"
@@ -7,15 +10,27 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
+pkg-fmt = "bin"
+
+# === Package Targets === #
+
+[[bin]]
+name = "cargo-dokime"
+path = "src/main.rs"
+test = false
+
+# === Features === #
+
+# === Dependencies === #
+
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain" }
-dokime-packaging = { path = "../dokime-packaging" }
-dokime = { path = "../dokime" }
+dokime = { workspace = true, features = ["terminal", "configuration"] }
+dokime-packaging = { version = "0.1.0", path = "../dokime-packaging" }
 
 # Git
-harmos = { workspace = true, features = ["plugin"] }
-harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -24,6 +39,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos-packaging = { workspace = true }
 semver = { workspace = true }
 sha2 = { workspace = true }
 
@@ -40,8 +56,40 @@ dotenv = { workspace = true }
 glob = { workspace = true }
 tempfile = { workspace = true }
 
+# Parsing
+
+# Concurrency
+
 # Async
 tokio = { workspace = true, features = ["process"] }
 
 # Networking
 url = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

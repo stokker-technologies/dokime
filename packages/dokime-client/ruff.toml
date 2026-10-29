@@ -1,0 +1,19 @@
+# Rendered by stkr project update from templates/tools/ruff.toml; sha256:139d3bfb781f20c75e80c2dc63ba06e4dc4c8ea3709d9f96184b62700c9b209e
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Formatting === #
+
+# Width 140 matches every Hub-rendered formatter: wide displays are the norm and two files still sit side by side in a
+# diff on a 4K display.
+line-length = 140
+# Templates Are Rendered Before Source Formatting
+extend-exclude = ["**/.stkr/templates/**"]
+force-exclude = true
+# The package's own pyproject.toml keeps every other setting.
+extend = "pyproject.toml"

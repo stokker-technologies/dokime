@@ -60,7 +60,7 @@ const run = promisify(execFile);
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 
-const backendBinary = process.env.DOKIME_SHOTS_BACKEND ?? join(root, "target/debug/dokime-server");
+const backendBinary = process.env.DOKIME_SHOTS_BACKEND ?? join(root, "target/debug/dokime");
 
 const shellBinary = process.env.DOKIME_SHOTS_SHELL ?? join(root, "target/debug/dokime-gui");
 
@@ -93,11 +93,11 @@ const touch = { density: "touch", height: 1200, width: 1920 };
 const benchOperator = "Bench Operator";
 
 /** The suite the captures compose from, and a longer observation so the plots fill. */
-const SUITE = "Steady Charging";
+const SUITE = "Charger Steady State";
 
 const OBSERVATION_DURATION = "6";
 
-const PROTECTION_SUITE = "Overcurrent Protection";
+const PROTECTION_SUITE = "Charger Protection";
 
 const OPERATOR_NOTE = "Trace steady, no fault indicated.";
 
@@ -164,6 +164,7 @@ async function startBackend(work) {
   const child = spawn(
     backendBinary,
     [
+      "server",
       "--plugin",
       pluginBundle,
       "--port",
@@ -611,22 +612,8 @@ async function setDensity(session, variant) {
   await session.goto(before);
 }
 
-/**
- * Start the open cycle.
- *
- * Start Cycle is the control for this, and the capture uses it when the cockpit
- * offers it. A cycle whose cases all arrive with a pre-dispatch attempt leaves
- * the header without it, and then the row menus are the only way in.
- */
+/** Start Explicitly Selected Attempts From Their Row Menus */
 async function startRun(session) {
-  const queued = await session
-    .named("button", "Start Cycle")
-    .then(() => true)
-    .catch(() => false);
-  if (queued) {
-    await session.clickNamed("button", "Start Cycle");
-    return;
-  }
   const labels = await session.execute(`
     return [...document.querySelectorAll('nav[aria-label=Navigation] button[aria-label^="Actions For "]')].map(
       (button) => button.getAttribute('aria-label'),
@@ -634,7 +621,7 @@ async function startRun(session) {
   `);
   for (const label of labels) {
     await session.clickNamed("button", label);
-    await session.clickNamed("menuitem", "Run Case");
+    await session.clickNamed("menuitem", "Start Execution");
     await delay(800);
   }
 }

@@ -12,16 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::RuntimeConfig;
-use dokime_runtime::runtime::command::CommandContext;
-use dokime_runtime::{RecordScope, TestCycleId};
+use dokime::RuntimeConfig;
+use dokime::domain::model;
+use dokime::runtime::command::CommandContext;
+use dokime::{RecordScope, TestCycleId};
 use model::execution::HealthSeverity;
 use model::execution::OperatorNoteRequest;
 
@@ -42,7 +43,8 @@ use model::execution::OperatorNoteRequest;
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn cycle(runtime: &dokime_runtime::RuntimeHandle) -> TestCycleId {
+
+async fn cycle(runtime: &dokime::RuntimeHandle) -> TestCycleId {
     let suite = support::fixture_suite(&["passed"]);
     support::register_fixture_execution(runtime, suite.clone()).await;
     support::cycle_with_cases(
@@ -70,7 +72,14 @@ async fn scoped_annotation_workflow() {
     let first = cycle(&handle).await;
     let second = cycle(&handle).await;
     let epoch = handle.process_epoch().to_string();
-    handle.add_operator_note(OperatorNoteRequest { scope: None, author: None, message: "session context".into() }).await.unwrap();
+    handle
+        .add_operator_note(OperatorNoteRequest {
+            scope: None,
+            author: None,
+            message: "session context".into(),
+        })
+        .await
+        .unwrap();
     handle
         .add_health_item(
             RecordScope::default().with_cycle(first.clone()),
@@ -84,17 +93,7 @@ async fn scoped_annotation_workflow() {
         .add_health_item(RecordScope::default().with_cycle(second.clone()), HealthSeverity::Error, "unrelated warning".into(), None)
         .await
         .unwrap();
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![
-                grant(Role::Control),
-                BearerGrant::new("other-operator".into(), Role::Read, "other-operator-token-for-notes-tests").unwrap(),
-            ])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let notes = WireClient::new(stream.clone());
     let health = WireClient::new(stream);
@@ -111,7 +110,7 @@ async fn scoped_annotation_workflow() {
     let receipt = notes.unary::<contracts::notes::CreateNote>(authenticated(create.clone())).await.unwrap().into_inner();
     assert_eq!(receipt.epoch, epoch);
     assert_eq!(receipt.publication, model::notes::wire::NotePublication::NoExistingDatasets);
-    assert_eq!(receipt.note.as_ref().unwrap().author.as_deref(), Some("fixture"));
+    assert_eq!(receipt.note.as_ref().unwrap().author.as_deref(), Some("remote"));
     assert_eq!(receipt, notes.unary::<contracts::notes::CreateNote>(authenticated(create.clone())).await.unwrap().into_inner());
     let mut changed = create.clone();
     changed.message.replace_range(..1, "y");
@@ -208,7 +207,10 @@ async fn scoped_annotation_workflow() {
     assert_eq!(case_receipt.note.as_ref().unwrap().scope.as_ref().unwrap().case_id.as_deref(), Some(case_id.as_str()));
     let case_notes = notes
         .unary::<contracts::notes::ListNotes>(authenticated(contracts::notes::ListNotes {
-            selection: Some(model::notes::wire::AnnotationSelection { owner: Some(case_owner), include_context: false }),
+            selection: Some(model::notes::wire::AnnotationSelection {
+                owner: Some(case_owner),
+                include_context: false,
+            }),
             ..Default::default()
         }))
         .await
@@ -246,7 +248,7 @@ async fn sealed_refuses_notes() {
             .unwrap();
     let handle = owner.handle();
     let id = cycle(&handle).await;
-    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let notes = WireClient::connect(server.local_endpoint()).await.unwrap();
     let create = contracts::notes::CreateNote {
         epoch: handle.process_epoch().to_string(),
@@ -255,14 +257,24 @@ async fn sealed_refuses_notes() {
         message: "before the seal".into(),
     };
     let filed = notes.unary::<contracts::notes::CreateNote>(authenticated(create.clone())).await.unwrap().into_inner().note.unwrap();
-    handle.run_cycle_cases(id.clone(), CommandContext::default()).await;
+    let execution_id = handle.watch_state().latest().state().cycles[&id].execution_ids[0].clone();
+    handle.start_execution(execution_id, model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     gate.started.notified().await;
     gate.release.notify_one();
     handle
         .watch_state()
-        .wait_until(|snapshot| snapshot.state().cycle_view(&id).is_some_and(|cycle| cycle.saved.is_some()))
+        .wait_until(|snapshot| {
+            snapshot.state().cycle_view(&id).is_some_and(|cycle| cycle.test_executions.iter().all(|execution| execution.saved.is_some()))
+        })
         .await
         .expect("the runtime state watch stays open");
+    notes
+        .unary::<contracts::execution::SealCycle>(authenticated(contracts::execution::SealCycle {
+            cycle_id: id.to_string(),
+            context: None,
+        }))
+        .await
+        .unwrap();
     let mut late = create;
     late.mutation_id = uuid::Uuid::now_v7().to_string();
     late.message = "after the seal".into();

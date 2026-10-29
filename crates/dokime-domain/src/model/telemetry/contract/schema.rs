@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
@@ -30,11 +33,16 @@ use crate::model::values::ValueType;
 
 /* === Constants === */
 
+const TIMESTAMP: &str = "timestamp";
+const TIMESTAMP_LABEL: &str = "Timestamp";
+const TIMESTAMP_DESCRIPTION: &str = "The instant this row was measured.";
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryContract {
     pub stream: Identifier,
@@ -46,7 +54,6 @@ pub struct TelemetryContract {
     pub storage_schema: Option<harmos_domain::schema::graph::Schema>,
     pub default_x: Option<String>,
     pub interval: Option<crate::model::time::DurationMillis>,
-    pub plot_window: Option<crate::model::time::DurationMillis>,
     pub allow_extra_fields: bool,
     pub scalar: bool,
     pub validation_mode: Option<ValidationMode>,
@@ -63,11 +70,13 @@ pub struct TelemetryColumn {
     pub required: bool,
     pub nullable: bool,
     pub default: Option<Value>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<ValueFormat>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelemetryRole {
@@ -82,6 +91,7 @@ pub enum TelemetryRole {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for TelemetryContract {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -146,7 +156,6 @@ impl TelemetryContract {
             storage_schema: None,
             default_x: None,
             interval: None,
-            plot_window: None,
             allow_extra_fields: true,
             scalar: false,
             validation_mode: None,
@@ -204,28 +213,37 @@ impl TelemetryContract {
     }
 
     pub fn normalized(&self) -> Self {
-        let mut normalized = self.clone();
-
-        if !normalized.columns.iter().any(|column| column.metadata.identifier.as_str() == "timestamp") {
-            normalized.columns.insert(
-                0,
-                TelemetryColumn::new(
-                    Metadata::new(
-                        Identifier::new("timestamp").expect("timestamp is a valid identifier"),
-                        "Timestamp",
-                        Some("The instant this row was measured.".to_owned()),
-                    ),
-                    ValueType::Datetime,
-                    TelemetryRole::Value,
+        let missing_timestamp = !self.columns.iter().any(|column| column.metadata.identifier.as_str() == TIMESTAMP);
+        let count = self.columns.len().checked_add(usize::from(missing_timestamp)).expect("normalized telemetry columns overflow");
+        let mut columns = Vec::with_capacity(count);
+        if missing_timestamp {
+            columns.push(TelemetryColumn::new(
+                Metadata::new(
+                    Identifier::new(TIMESTAMP).expect("timestamp is a valid identifier"),
+                    TIMESTAMP_LABEL,
+                    Some(TIMESTAMP_DESCRIPTION.to_owned()),
                 ),
-            );
+                ValueType::Datetime,
+                TelemetryRole::Value,
+            ));
         }
 
-        if normalized.default_x.is_none() {
-            normalized.default_x = Some("timestamp".to_owned());
+        columns.extend(self.columns.iter().cloned());
+        Self {
+            stream: self.stream.clone(),
+            schema_version: self.schema_version,
+            metadata: self.metadata.clone(),
+            template_id: self.template_id.clone(),
+            owner: self.owner.clone(),
+            columns,
+            storage_schema: self.storage_schema.clone(),
+            default_x: self.default_x.clone().or_else(|| Some(TIMESTAMP.to_owned())),
+            interval: self.interval,
+            allow_extra_fields: self.allow_extra_fields,
+            scalar: self.scalar,
+            validation_mode: self.validation_mode,
+            foreign: self.foreign,
         }
-
-        normalized
     }
 
     pub fn stream_schema(&self) -> Self {
@@ -247,7 +265,17 @@ impl TelemetryColumn {
     }
 
     pub fn new(metadata: Metadata, value_type: ValueType, role: TelemetryRole) -> Self {
-        Self { metadata, value_type, role, unit: None, display_unit: None, required: true, nullable: false, default: None, format: None }
+        Self {
+            metadata,
+            value_type,
+            role,
+            unit: None,
+            display_unit: None,
+            required: true,
+            nullable: false,
+            default: None,
+            format: None,
+        }
     }
 
     pub fn optional(mut self) -> Self {
@@ -277,3 +305,24 @@ impl TelemetryColumn {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalization_reserves_timestamp_and_preserves_authored_columns() {
+        let mut contract = TelemetryContract::declared("fixture.normalization", "Fixture");
+        contract.columns.clear();
+        contract.default_x = None;
+        contract.columns.push(TelemetryColumn::declared("reading", "Reading", ValueType::Number, TelemetryRole::Value));
+        let authored = contract.columns.clone();
+        let normalized = contract.normalized();
+        assert_eq!(normalized.columns.len(), authored.len() + 1);
+        assert_eq!(normalized.columns[0].metadata.identifier.as_str(), TIMESTAMP);
+        assert_eq!(&normalized.columns[1..], authored.as_slice());
+        assert_eq!(normalized.default_x.as_deref(), Some(TIMESTAMP));
+        assert_eq!(contract.columns, authored);
+        assert_eq!(normalized.normalized(), normalized);
+    }
+}

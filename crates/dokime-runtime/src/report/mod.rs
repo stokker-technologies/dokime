@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod analysis;
 pub mod asset;
 pub(crate) mod cycle;
@@ -20,14 +21,19 @@ pub(crate) mod query;
 mod render;
 mod renderer;
 pub mod saved;
+mod scope;
 pub mod value;
 
 /* === Re-Exports === */
+
+pub use crate::execution::evidence_rows::EvidenceRows;
 pub use input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument};
 pub use renderer::Renderer;
 pub(crate) use saved::{CapturedExecutionReportInput, PreparedExecutionReport};
+pub(crate) use scope::Scope;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

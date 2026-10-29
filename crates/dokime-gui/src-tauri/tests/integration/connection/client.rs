@@ -12,15 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::{future::Future, net::Ipv4Addr, sync::Arc};
+use std::{future::Future, net::Ipv4Addr, sync::Arc, time::Duration};
 // Third Party Imports
 use tokio::sync::Notify;
 // Local Imports
 use super::fixture::{Gate, Listener, Service, UploadInput, server_health};
-use dokime_client::contracts::{backend, catalog};
-use dokime_client::{Client, Error, Target};
-use dokime_domain::model;
+use crate::wire::WireMessage;
+use dokime::client::contracts::{backend, catalog};
+use dokime::client::{Client, Error, Target};
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -39,6 +41,28 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn install_with_deadline(client: Client, mode: &str) -> String {
+    let frame = model::plugins::wire::InstallPluginFrame::default();
+    if mode == "prepared" {
+        let upload = client.plugins_install_open().unwrap();
+        upload.send(frame).await.unwrap();
+        return upload.finish().await.unwrap().install_id;
+    }
+    if mode == "typed" {
+        return client.plugins_install(tokio_stream::iter([frame])).await.unwrap().install_id;
+    }
+
+    // Canonical Empty Request And Input Item Envelopes, As Sent By The WebView.
+    let input = tokio_stream::iter([vec![0x0a, 0], vec![0x12, 0]]);
+    let deadline = Duration::from_secs(10);
+    let mut reply = client.stream_raw("/dokime.v1.Plugins/Install", input, deadline).await.unwrap();
+    let bytes = reply.message().await.unwrap().unwrap();
+    let (installed, _) = model::plugins::wire::PluginInstallation::from_wire(&bytes).unwrap();
+    assert!(reply.message().await.unwrap().is_none());
+    installed.install_id.clone()
+}
+
 async fn assert_pending<F: Future + Unpin>(future: &mut F) {
     tokio::task::yield_now().await;
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
@@ -46,6 +70,57 @@ async fn assert_pending<F: Future + Unpin>(future: &mut F) {
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn uploads_use_stream_deadlines() {
+    for mode in ["raw", "typed", "prepared"] {
+        let mut service = Service::new("stream-deadline");
+        service.methods.push("/dokime.v1.Plugins/Install".into());
+        let gate = Arc::new(Gate::new());
+        service.upload_gate = Some(gate.clone());
+        let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
+        let target = Target::local(&server.endpoint).unwrap();
+        let client = Client::connect(target, None, None).await.unwrap();
+
+        let uploading = client.with_timeout(Duration::from_millis(10));
+        let mut task = tokio::spawn(async move { install_with_deadline(uploading, mode).await });
+        tokio::select! {
+            _ = gate.entered.notified() => {},
+            result = &mut task => panic!("{mode} upload ended before the gated response: {result:?}"),
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        gate.release.add_permits(1);
+        assert_eq!(task.await.unwrap(), "1", "{mode} upload honors its stream deadline");
+
+        client.close_and_wait().await;
+        server_health(&server.endpoint).await;
+    }
+}
+
+#[tokio::test]
+async fn raw_stream_deadline_expires() {
+    let mut service = Service::new("stream-deadline");
+    service.methods.push("/dokime.v1.Plugins/Install".into());
+    let gate = Arc::new(Gate::new());
+    service.upload_gate = Some(gate.clone());
+    let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
+    let target = Target::local(&server.endpoint).unwrap();
+    let client = Client::connect(target, None, None).await.unwrap();
+
+    let input = tokio_stream::iter([vec![0x0a, 0], vec![0x12, 0]]);
+    let pending = client.stream_raw("/dokime.v1.Plugins/Install", input, Duration::from_secs(2));
+    tokio::pin!(pending);
+    tokio::select! {
+        _ = gate.entered.notified() => {},
+        result = &mut pending => panic!("upload ended before the gated response: {result:?}"),
+    }
+    assert!(matches!(pending.await, Err(Error::Rpc(status)) if status.code() == tonic::Code::DeadlineExceeded));
+
+    gate.release.add_permits(1);
+    client.close_and_wait().await;
+    server_health(&server.endpoint).await;
+}
+
 #[tokio::test]
 async fn client_close_cancels() {
     let server = Listener::start(Service::new("shared"), false, Ipv4Addr::LOCALHOST).await;
@@ -122,7 +197,10 @@ async fn stream_close_releases() {
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
         let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
         let stream = client
-            .backend_watch_logs(backend::WatchLogs { min_level: model::backend::wire::LogLevel::Unspecified, replay_lines: 0 })
+            .backend_watch_logs(backend::WatchLogs {
+                min_level: model::backend::wire::LogLevel::Unspecified,
+                replay_lines: 0,
+            })
             .await
             .unwrap();
         assert!(stream.message().await.unwrap().is_some());
@@ -153,7 +231,10 @@ async fn stream_clones_close() {
     let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
     let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
     let stream = client
-        .backend_watch_logs(backend::WatchLogs { min_level: model::backend::wire::LogLevel::Unspecified, replay_lines: 0 })
+        .backend_watch_logs(backend::WatchLogs {
+            min_level: model::backend::wire::LogLevel::Unspecified,
+            replay_lines: 0,
+        })
         .await
         .unwrap();
     let other = stream.clone();
@@ -177,7 +258,7 @@ async fn stream_clones_close() {
 async fn upload_stop_releases() {
     for action in ["reply", "caller", "client"] {
         let mut service = Service::new("shared");
-        service.methods.push("/dokime.v1.Plugins/Stage".into());
+        service.methods.push("/dokime.v1.Plugins/Install".into());
         let gate = Arc::new(Gate::new());
         if action != "reply" {
             service.upload_gate = Some(gate.clone());
@@ -187,7 +268,7 @@ async fn upload_stop_releases() {
         let dropped = Arc::new(Notify::new());
         let input = UploadInput { first: true, dropped: dropped.clone() };
         let retained = client.clone();
-        let task = tokio::spawn(async move { retained.plugins_stage(input).await });
+        let task = tokio::spawn(async move { retained.plugins_install(input).await });
 
         match action {
             "reply" => {
@@ -216,7 +297,7 @@ async fn upload_stop_releases() {
 async fn upload_operation_closes() {
     for action in ["finish", "cancel", "client", "waiter"] {
         let mut service = Service::new("shared");
-        service.methods.push("/dokime.v1.Plugins/Stage".into());
+        service.methods.push("/dokime.v1.Plugins/Install".into());
         service.upload_drain = true;
         // An Empty Canonical Input Envelope Requires Two Framing Bytes.
         service.max_request_bytes = 2;
@@ -226,9 +307,9 @@ async fn upload_operation_closes() {
         }
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
         let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
-        let upload = client.plugins_stage_open().unwrap();
-        let oversized = model::plugins::wire::StagePluginFrame {
-            frame: Some(model::plugins::wire::StagePluginFrameFrame::Header(model::plugins::wire::StagePluginHeader {
+        let upload = client.plugins_install_open().unwrap();
+        let oversized = model::plugins::wire::InstallPluginFrame {
+            frame: Some(model::plugins::wire::InstallPluginFrameFrame::Header(model::plugins::wire::InstallPluginHeader {
                 size_bytes: 1,
                 sha256: String::new(),
             })),
@@ -236,11 +317,11 @@ async fn upload_operation_closes() {
         assert!(matches!(upload.send(oversized).await,
             Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange));
         let retained = upload.clone();
-        upload.send(model::plugins::wire::StagePluginFrame::default()).await.unwrap();
+        upload.send(model::plugins::wire::InstallPluginFrame::default()).await.unwrap();
         drop(upload);
 
         if action == "finish" {
-            retained.send(model::plugins::wire::StagePluginFrame::default()).await.unwrap();
+            retained.send(model::plugins::wire::InstallPluginFrame::default()).await.unwrap();
             assert_eq!(retained.finish().await.unwrap().install_id, "2");
             assert!(matches!(retained.finish().await, Err(Error::Closed)));
         } else {
@@ -268,7 +349,7 @@ async fn upload_operation_closes() {
             gate.release.add_permits(1);
         }
 
-        assert!(matches!(retained.send(model::plugins::wire::StagePluginFrame::default()).await, Err(Error::Closed)));
+        assert!(matches!(retained.send(model::plugins::wire::InstallPluginFrame::default()).await, Err(Error::Closed)));
         retained.close().await;
         retained.close().await;
         server_health(&server.endpoint).await;

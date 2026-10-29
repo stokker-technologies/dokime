@@ -35,20 +35,24 @@ use dokime_domain::model::values::ValueFormat;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Declarations = BTreeMap<Identifier, BTreeMap<u32, RecordContract>>;
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Contracts {
     types: Vec<Type>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Type {
     key: String,
     versions: Vec<Contract>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Contract {
@@ -64,6 +68,7 @@ struct Contract {
     validation_mode: Option<u32>,
     allow_extra_fields: bool,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Field {
@@ -83,7 +88,6 @@ struct Field {
 
 /* === Implementations === */
 
-impl Contracts {}
 impl TryFrom<&Declarations> for Contracts {
     type Error = Error;
     fn try_from(values: &Declarations) -> Result<Self> {
@@ -93,11 +97,15 @@ impl TryFrom<&Declarations> for Contracts {
             for contract in versions.values() {
                 contracts.push(contract.try_into()?);
             }
-            types.push(Type { key: text(key.as_str())?, versions: contracts });
+            types.push(Type {
+                key: text(key.as_str())?,
+                versions: contracts,
+            });
         }
         Ok(Self { types })
     }
 }
+
 impl TryFrom<Contracts> for Declarations {
     type Error = Error;
     fn try_from(value: Contracts) -> Result<Self> {
@@ -114,7 +122,7 @@ impl TryFrom<Contracts> for Declarations {
         Ok(types)
     }
 }
-impl Contract {}
+
 impl TryFrom<&RecordContract> for Contract {
     type Error = Error;
     fn try_from(value: &RecordContract) -> Result<Self> {
@@ -137,6 +145,7 @@ impl TryFrom<&RecordContract> for Contract {
         })
     }
 }
+
 impl TryFrom<Contract> for RecordContract {
     type Error = Error;
     fn try_from(value: Contract) -> Result<Self> {
@@ -151,14 +160,17 @@ impl TryFrom<Contract> for RecordContract {
             template_id: value.template_id.map(TemplateId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
             owner: value.owner.map(SuiteId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
             default_severity: severity(value.default_severity)?,
-            display: RecordDisplay { icon: icon(value.icon)?, tone: tone(value.tone)? },
+            display: RecordDisplay {
+                icon: icon(value.icon)?,
+                tone: tone(value.tone)?,
+            },
             fields,
             validation_mode: value.validation_mode.map(validation_mode).transpose()?,
             allow_extra_fields: value.allow_extra_fields,
         })
     }
 }
-impl Field {}
+
 impl TryFrom<&RecordField> for Field {
     type Error = Error;
     fn try_from(value: &RecordField) -> Result<Self> {
@@ -178,6 +190,7 @@ impl TryFrom<&RecordField> for Field {
         })
     }
 }
+
 impl TryFrom<Field> for RecordField {
     type Error = Error;
     fn try_from(value: Field) -> Result<Self> {
@@ -205,23 +218,20 @@ impl TryFrom<Field> for RecordField {
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
+
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| invalid("record declaration allocation failed"))?;
-    if values.capacity() > count {
-        return Err(invalid("record declaration slots exceed admission"));
-    }
     Ok(values)
 }
+
 fn text(source: &str) -> Result<String> {
     let mut value = String::new();
     value.try_reserve_exact(source.len()).map_err(|_| invalid("record declaration text allocation failed"))?;
-    if value.capacity() > source.len() {
-        return Err(invalid("record declaration text exceeds admission"));
-    }
     value.push_str(source);
     Ok(value)
 }
+
 fn severity_code(value: &RecordSeverity) -> u32 {
     match value {
         RecordSeverity::Debug => 1,
@@ -230,6 +240,7 @@ fn severity_code(value: &RecordSeverity) -> u32 {
         RecordSeverity::Error => 4,
     }
 }
+
 fn severity(value: u32) -> Result<RecordSeverity> {
     match value {
         1 => Ok(RecordSeverity::Debug),
@@ -239,6 +250,7 @@ fn severity(value: u32) -> Result<RecordSeverity> {
         _ => Err(invalid("unknown captured record severity")),
     }
 }
+
 fn tone_code(value: &RecordTone) -> u32 {
     match value {
         RecordTone::Info => 1,
@@ -250,6 +262,7 @@ fn tone_code(value: &RecordTone) -> u32 {
         RecordTone::Neutral => 7,
     }
 }
+
 fn tone(value: u32) -> Result<RecordTone> {
     match value {
         1 => Ok(RecordTone::Info),
@@ -262,6 +275,7 @@ fn tone(value: u32) -> Result<RecordTone> {
         _ => Err(invalid("unknown captured record tone")),
     }
 }
+
 fn icon_code(value: &RecordIconKey) -> u32 {
     match value {
         RecordIconKey::Activity => 1,
@@ -290,6 +304,7 @@ fn icon_code(value: &RecordIconKey) -> u32 {
         RecordIconKey::Clock => 24,
     }
 }
+
 fn icon(value: u32) -> Result<RecordIconKey> {
     match value {
         1 => Ok(RecordIconKey::Activity),

@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     any::{Any, type_name},
     collections::BTreeMap,
     time::Duration,
 };
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
 // Local Imports
 use crate::definition::ParameterSource;
 use crate::records::BuiltinRecordType;
@@ -42,12 +45,15 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionFileTarget {
     pub relative_path: String,
     pub absolute_path: String,
+
     #[serde(default)]
     pub text_hint: bool,
+
     #[serde(default)]
     pub streamed: bool,
 }
@@ -55,11 +61,15 @@ pub struct ExecutionFileTarget {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileRegexMatch {
     pub full_match: String,
+
     #[serde(default)]
     pub captures: Vec<Option<String>>,
+
     #[serde(default)]
     pub named_captures: BTreeMap<String, String>,
+
     pub byte_offset: u64,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line_number: Option<u64>,
 }
@@ -101,6 +111,7 @@ struct RuntimeResourceEntry {
 }
 
 /* === Enums === */
+
 #[derive(Debug, Error)]
 pub enum StepContextError {
     #[error("resource {resource_id} is not stored")]
@@ -125,6 +136,7 @@ pub enum StepContextError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SidecarStepContext {
     pub fn new(runtime: RuntimeHandle, scope: RecordScope) -> Self {
         Self::with_source(runtime, scope, "runtime.step")
@@ -274,7 +286,13 @@ impl<T> RuntimeResource<T> {
         resource_id: impl Into<String>, resource_kind: impl Into<String>, resource_name: impl Into<String>, value: T,
         details: BTreeMap<String, Value>,
     ) -> Self {
-        Self { resource_id: resource_id.into(), resource_kind: resource_kind.into(), resource_name: resource_name.into(), value, details }
+        Self {
+            resource_id: resource_id.into(),
+            resource_kind: resource_kind.into(),
+            resource_name: resource_name.into(),
+            value,
+            details,
+        }
     }
 
     fn into_parts(self) -> (RuntimeResourceMetadata, T) {
@@ -292,7 +310,12 @@ impl<T> RuntimeResource<T> {
 
 impl RuntimeResourceStore {
     fn new(runtime: RuntimeHandle, scope: RecordScope, source: impl Into<String>) -> Self {
-        Self { runtime, scope, source: source.into(), entries: BTreeMap::new() }
+        Self {
+            runtime,
+            scope,
+            source: source.into(),
+            entries: BTreeMap::new(),
+        }
     }
 
     pub fn source(&self) -> &str {
@@ -394,7 +417,10 @@ impl RuntimeResourceStore {
             return Ok(None);
         };
         if !existing.handle.is::<T>() {
-            return Err(StepContextError::ResourceTypeMismatch { resource_id: resource_id.to_owned(), expected_type: type_name::<T>() });
+            return Err(StepContextError::ResourceTypeMismatch {
+                resource_id: resource_id.to_owned(),
+                expected_type: type_name::<T>(),
+            });
         }
         let mut metadata = existing.metadata.clone();
         merge_details(&mut metadata.details, details);
@@ -447,7 +473,11 @@ impl RuntimeResourceStore {
 
 impl StepContextError {
     fn record_rejected(operation: &'static str, error: crate::runtime::Error) -> Self {
-        Self::RecordRejected { operation, code: error.code().unwrap_or("internal").to_owned(), message: error.to_string() }
+        Self::RecordRejected {
+            operation,
+            code: error.code().unwrap_or("internal").to_owned(),
+            message: error.to_string(),
+        }
     }
 }
 
@@ -460,6 +490,7 @@ impl From<crate::runtime::Error> for StepContextError {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn leased_host_sampling(
     runtime: &RuntimeHandle, scope: SamplingScope, params: TelemetrySamplingRequest,
 ) -> crate::runtime::Result<TelemetryCaptureLease> {

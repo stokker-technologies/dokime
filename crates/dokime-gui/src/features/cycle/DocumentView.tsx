@@ -11,7 +11,7 @@
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { DocumentWorkspaceView } from "@/components/document/DocumentWorkspaceView";
 import { DocumentViewPresentation, type DocumentViewProps } from "./DocumentViewPresentation";
-import { documentSurface, type DocumentSurfaceOptions } from "./document-view-model";
+import { type DocumentSurfaceOptions, documentSurface } from "./document-view-model";
 import { useDocumentView } from "./use-document-view";
 
 /* === Components === */

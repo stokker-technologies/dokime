@@ -11,6 +11,7 @@
 
 /* === Modules === */
 mod bundle;
+mod installer;
 
 /* === Re-Exports === */
 

@@ -8,27 +8,27 @@
  */
 
 /* === Modules === */
-mod assembly;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::{Cursor, Read as _, Write as _};
 // Third Party Imports
 use sha2::Digest as _;
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use {
-    dokime_runtime::Identifier, dokime_runtime::InstalledPlugin, dokime_runtime::Value,
-    dokime_runtime::domains::installed_plugins::PluginCredentialSecretUpdate, dokime_runtime::settings::SecretSetting,
-    dokime_runtime::settings::SettingValues, dokime_runtime::settings::Settings, dokime_runtime::settings::SettingsEntry,
-    dokime_runtime::settings::TextArea,
+    dokime::Identifier, dokime::InstalledPlugin, dokime::Value, dokime::domains::installed_plugins::PluginSecretUpdate,
+    dokime::settings::SecretSetting, dokime::settings::SettingValues, dokime::settings::Settings, dokime::settings::SettingsEntry,
+    dokime::settings::TextArea,
 };
 
 /* === Constants === */
-const SECRET: &str = "diagnostics-fake-credential-material";
+
+const SECRET: &str = "diagnostics-fake-secret-material";
 
 const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 
@@ -47,14 +47,15 @@ const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let environment = support::TestEnvironment::with_installed_plugins(vec![secret_module()]).await;
-    let artifact_id = Identifier::new("fixture.diagnostics").unwrap();
+    let artifact_id = Identifier::new("fixture_diagnostics").unwrap();
     environment
         .runtime
-        .save_plugin_credential_secret(&artifact_id, "fixture.token", PluginCredentialSecretUpdate { secret: SECRET.to_owned() })
+        .save_plugin_secret(&artifact_id, "fixture.token", PluginSecretUpdate { secret: SECRET.to_owned() })
         .await
-        .expect("the fixture credential is declared and storable");
+        .expect("the fixture secret is declared and storable");
     environment
         .runtime
         .record_discovered_settings(
@@ -70,7 +71,7 @@ async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
 
 fn secret_module() -> InstalledPlugin {
     InstalledPlugin {
-        source: "fixture.diagnostics".to_owned(),
+        source: "fixture_diagnostics".to_owned(),
         version: "test".to_owned(),
         description: "Fixture Diagnostics".to_owned(),
         enabled: true,
@@ -84,7 +85,7 @@ fn secret_module() -> InstalledPlugin {
                     required: true,
                 }),
                 // Declared as free text, so nothing reduces it to a reference:
-                // its name is the only thing that says it holds a credential.
+                // its name is the only thing that says it holds a secret.
                 SettingsEntry::TextArea(TextArea {
                     id: "api_token".to_owned(),
                     title: "API token".to_owned(),
@@ -107,7 +108,7 @@ fn secret_module() -> InstalledPlugin {
 
 fn record(level: &str, message: &str) -> String {
     format!(
-        r#"{{"timestamp":"2026-09-30T14:22:33.000001Z","level":"{level}","target":"dokime_runtime::fixture","fields":{{"message":"{message}"}}}}"#
+        r#"{{"timestamp":"2026-09-30T14:22:33.000001Z","level":"{level}","target":"dokime::fixture","fields":{{"message":"{message}"}}}}"#
     )
 }
 
@@ -166,6 +167,9 @@ async fn collected_archive_material() {
     assert_eq!(listed.len(), header.entries.len());
     for entry in listed {
         let path = entry["path"].as_str().unwrap();
+        let declared = header.entries.iter().find(|entry| entry.path == path).unwrap();
+        assert_eq!(entry["note"].as_str(), declared.note.as_deref());
+        assert_eq!(entry["present"].as_bool(), Some(declared.present));
         if entry["present"] == serde_json::Value::Bool(true) {
             let mut member = zip.by_name(path).expect("a present entry is in the archive");
             let mut bytes = Vec::new();
@@ -173,13 +177,9 @@ async fn collected_archive_material() {
             assert_eq!(bytes.len() as u64, entry["size_bytes"].as_u64().unwrap());
         }
     }
-    for required in [
-        "backend/identity.json",
-        "backend/health.json",
-        "diagnostics/snapshot.json",
-        "settings/settings-frame.json",
-        "settings/artifacts/fixture.diagnostics.json",
-    ] {
+    for required in
+        ["backend/identity.json", "backend/health.json", "settings/settings-frame.json", "settings/artifacts/fixture_diagnostics.json"]
+    {
         assert!(zip.by_name(required).is_ok(), "{required} is archived");
     }
 
@@ -197,15 +197,72 @@ async fn collected_archive_material() {
         }
     }
     // The binding is still there to read: redaction removed the material, not
-    // the evidence that a credential is configured.
+    // the evidence that a secret is configured.
     let settings: serde_json::Value = {
-        let mut entry = zip.by_name("settings/artifacts/fixture.diagnostics.json").unwrap();
+        let mut entry = zip.by_name("settings/artifacts/fixture_diagnostics.json").unwrap();
         serde_json::from_reader(&mut entry).unwrap()
     };
-    assert_eq!(settings["credential_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));
+    assert_eq!(settings["secret_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));
     // The discovered field is still reported as discovered; only its value went.
     assert_eq!(settings["discovered"]["api_token"], "<redacted>");
 
+    server.shutdown().await.unwrap();
+    drop(environment);
+}
+
+#[tokio::test]
+async fn collected_tail_preserves_selected_bytes() {
+    let (environment, server, client) = fixture().await;
+    let log = environment.root.path().join("application/logs").join("dokime.jsonl");
+    std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+    type TailCase = (&'static [u8], u64, Option<&'static [u8]>);
+    let cases: &[TailCase] = &[
+        (b"older\npart\xe2\x82\xac\nkept\xff", 8, Some(b"kept\xff")),
+        (b"prefix\xfftail", 5, Some(b"\xfftail")),
+        (b"", 8, Some(b"")),
+        (b"ignored", 0, None),
+    ];
+    for (input, maximum, expected) in cases {
+        std::fs::write(&log, input).unwrap();
+        let mut stream = client
+            .download::<contracts::backend::CollectDiagnostics>(contracts::backend::CollectDiagnostics {
+                max_log_tail_bytes: Some(*maximum),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let mut archive = Vec::new();
+        let mut selected = None;
+        while let Some(frame) = stream.message().await.unwrap() {
+            match frame.payload.unwrap() {
+                model::backend::wire::DiagnosticsBundleFramePayload::Header(header) => {
+                    selected = header.entries.into_iter().find(|entry| entry.path == "logs/dokime.jsonl");
+                }
+                model::backend::wire::DiagnosticsBundleFramePayload::Chunk(chunk) => {
+                    assert_eq!(chunk.offset, archive.len() as u64);
+                    archive.extend_from_slice(&chunk.data);
+                }
+                model::backend::wire::DiagnosticsBundleFramePayload::Complete(completion) => {
+                    assert_eq!(completion.size_bytes, archive.len() as u64);
+                    let hash = sha2::Sha256::digest(&archive).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+                    assert_eq!(completion.sha256, hash);
+                }
+            }
+        }
+        let selected = selected.unwrap();
+        assert_eq!(selected.present, expected.is_some());
+        assert_eq!(selected.size_bytes, expected.map_or(0, |bytes| bytes.len() as u64));
+        let mut archive = zip::ZipArchive::new(Cursor::new(archive)).unwrap();
+        assert_eq!(archive.by_index(0).unwrap().name().unwrap(), "manifest.json");
+        match expected {
+            Some(expected) => {
+                let mut bytes = Vec::new();
+                archive.by_name("logs/dokime.jsonl").unwrap().read_to_end(&mut bytes).unwrap();
+                assert_eq!(bytes, *expected);
+            }
+            None => assert!(archive.by_name("logs/dokime.jsonl").is_err()),
+        }
+    }
     server.shutdown().await.unwrap();
     drop(environment);
 }
@@ -228,7 +285,7 @@ async fn log_stream_file() {
 
     let replayed = stream.message().await.unwrap().expect("the WARN record replays");
     assert_eq!(replayed.level, model::backend::wire::LogLevel::Warn);
-    assert_eq!(replayed.target, "dokime_runtime::fixture");
+    assert_eq!(replayed.target, "dokime::fixture");
     assert_eq!(replayed.message, "slow");
     assert_eq!(replayed.dropped, 0);
 
@@ -245,6 +302,44 @@ async fn log_stream_file() {
     drop(environment);
 }
 
+// A Quiet Log Watch Outlives The Client's Idle Deadline On Keepalives.
+#[tokio::test]
+async fn quiet_log_watch_outlives_the_idle_deadline() {
+    let (environment, server, _) = fixture().await;
+    let log = environment.root.path().join("application/logs/dokime.jsonl");
+    std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+    std::fs::write(&log, format!("{}\n", record("ERROR", "failed"))).unwrap();
+    let target = dokime::client::Target::local(server.local_endpoint()).unwrap();
+    let client = dokime::client::Client::connect(target, None, None).await.unwrap();
+    let idle = std::time::Duration::from_millis(client.settings().request_timeout_ms);
+    let heartbeat = dokime_server::grpc::WATCH_HEARTBEAT;
+    let beats = usize::try_from(idle.as_millis() / heartbeat.as_millis()).unwrap();
+    let stream = client
+        .backend_watch_logs(contracts::backend::WatchLogs {
+            min_level: model::backend::wire::LogLevel::Error,
+            replay_lines: 500,
+        })
+        .await
+        .unwrap();
+    let replayed = stream.message().await.unwrap().expect("the ERROR record replays");
+    assert_eq!(replayed.level, model::backend::wire::LogLevel::Error);
+
+    // Nothing Is Logged, So Only Keepalives Arrive Until One Heartbeat Past The Idle Deadline.
+    let quiet = tokio::time::Instant::now() + idle + heartbeat;
+    let mut keepalives = 0;
+    while let Ok(next) = tokio::time::timeout_at(quiet, stream.message()).await {
+        let frame = next.unwrap().expect("the quiet log watch stays open");
+        assert_eq!(frame.level, model::backend::wire::LogLevel::Unspecified, "a quiet watch sends only keepalives");
+        assert!(frame.time.is_none() && frame.message.is_empty(), "a keepalive carries no record");
+        keepalives += 1;
+    }
+    assert!(keepalives >= beats, "the quiet log watch delivered {keepalives} of {beats} keepalives");
+    stream.close().await;
+    client.close_and_wait().await;
+    server.shutdown().await.unwrap();
+    drop(environment);
+}
+
 #[tokio::test]
 async fn level_filter_stream() {
     let (environment, server, client) = fixture().await;
@@ -252,7 +347,7 @@ async fn level_filter_stream() {
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     std::fs::write(&log, concat!(
         r#"{"timestamp":"2026-09-30T14:22:33.000001Z","level":"INFO","target":"dokime","fields":{"message":"started"}}"#, "\n",
-        r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime_runtime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
+        r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
     )).unwrap();
     let mut stream = client
         .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
@@ -264,7 +359,7 @@ async fn level_filter_stream() {
         .into_inner();
     let frame = stream.message().await.unwrap().unwrap();
     assert_eq!(frame.level, model::backend::wire::LogLevel::Warn);
-    assert_eq!(frame.target, "dokime_runtime::hub");
+    assert_eq!(frame.target, "dokime::hub");
     assert_eq!(frame.message, "slow");
     assert_eq!(frame.fields.iter().find(|entry| entry.key == "api_token").expect("token field is present").value, "<redacted>",);
     assert_eq!(frame.dropped, 0);

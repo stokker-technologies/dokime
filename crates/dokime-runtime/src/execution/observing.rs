@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, PoisonError};
+
 // Third Party Imports
 use tokio::sync::{oneshot, watch};
 use tracing::{Instrument, instrument::WithSubscriber};
+
 // Local Imports
 use super::log::Level;
 use super::tick::Cadence;
@@ -40,6 +43,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Scope<O, I> {
     pub executions: Executions,
     pub token: String,
@@ -77,6 +81,7 @@ pub(crate) struct ExecutionPublisher {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionPublisher {
     pub(crate) fn record(&self, request: RecordPublishRequest) -> crate::Result<()> {
         let closed = self.closed.lock().unwrap_or_else(PoisonError::into_inner);
@@ -87,7 +92,9 @@ impl ExecutionPublisher {
         // backend directly, so a record type nothing declared has to be refused
         // here rather than assumed away by whoever called.
         let Some(&version) = self.schemas.get(request.record_type.as_str()) else {
-            return Err(crate::Error::Publish(PublishFailure::Undeclared { declared_as: request.record_type.to_string() }));
+            return Err(crate::Error::Publish(PublishFailure::Undeclared {
+                declared_as: request.record_type.to_string(),
+            }));
         };
         let accepted =
             lock(&self.executions).get_mut(&self.token).is_some_and(|state| state.observer_record(request, &self.source, version));
@@ -107,6 +114,7 @@ impl Drop for Observers {
 }
 
 /* === Public Functions === */
+
 pub(super) fn start<T: SidecarTemplate>(
     scope: Scope<T::Own, T::Parameters>, declared: Vec<DeclaredObserver>, records: &[crate::records::RecordContract], tasks: &Tasks,
 ) -> Observers {
@@ -163,6 +171,7 @@ pub(super) async fn settle(mut observers: Observers) {
 }
 
 /* === Private Functions === */
+
 async fn watching<T: SidecarTemplate>(
     scope: Arc<Scope<T::Own, T::Parameters>>, declared: DeclaredObserver, publisher: Arc<ExecutionPublisher>,
     mut stop: watch::Receiver<bool>,

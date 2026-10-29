@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::storage::{FileReference, ObjectVersion, StorageCursor};
 use tokio::sync::Mutex;
+
 // Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
 use crate::RuntimeHandle;
@@ -39,6 +42,7 @@ use dokime_domain::model::identity::TestCycleId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct PendingCycle {
     snapshot: CycleSnapshot,
     executions: Arc<Vec<ExecutionSeal>>,
@@ -53,15 +57,25 @@ pub(crate) struct Materialization {
 }
 
 pub(crate) struct CompletedCycle {
-    pub header: TestCycle,
-    pub executions: Vec<ExecutionSeal>,
+    pub header: CompletedHeader,
 }
+
+pub(crate) struct CompletedHeader(harmos::storage::ReadBatch<TestCycle>);
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl std::ops::Deref for CompletedHeader {
+    type Target = TestCycle;
+
+    fn deref(&self) -> &TestCycle {
+        &self.0
+    }
+}
+
 impl super::executions::ExecutionStorage {
     pub(crate) async fn cycle_finalization_intent(&self, id: &TestCycleId) -> Result<Option<crate::transactions::CycleReportFinalization>> {
         Ok(self.state_manager.state().read(|state| state.cycle_report_finalizations.get(id).cloned()).await?.value)
@@ -133,7 +147,9 @@ impl super::executions::ExecutionStorage {
         let pending = owner.lock().await;
         for member in &pending.snapshot.source().execution_ids {
             if let Some(acquisition) = self.acquisition(member).await {
-                acquisition.lock().await.cycle_context = None;
+                let mut acquisition = acquisition.lock().await;
+                acquisition.cycle_context = None;
+                acquisition.cycle_member = None;
             }
         }
     }
@@ -149,7 +165,8 @@ impl RuntimeHandle {
         if cycle.saved.is_none() {
             return Err(invalid("unsealed cycle cannot release its history"));
         }
-        let key_bytes = std::num::NonZeroUsize::new(1024).unwrap();
+        let key_bytes =
+            std::num::NonZeroUsize::new(cycle.test_cycle_id.as_str().len()).ok_or_else(|| invalid("cycle identity is empty"))?;
         let cycle_schema = <ObjectDefinitions as Member<Cycle>>::ENTRY.schema()?;
         let key = ObjectKey::new(cycle.test_cycle_id.as_str(), key_bytes)?;
         self.storage().release_object_history(&cycle_schema, &key, through).await?;
@@ -157,8 +174,8 @@ impl RuntimeHandle {
     }
 
     async fn recover_saved_cycle(&self, intent: &crate::transactions::CycleReportFinalization) -> Result<Option<Arc<CompletedCycle>>> {
-        let Some(revision) =
-            crate::storage::objects::cycle::read(self.storage(), &intent.source.test_cycle_id, ObjectVersion::Latest).await?
+        let session = self.storage().clone();
+        let Some(revision) = crate::storage::objects::cycle::read(&session, &intent.source.test_cycle_id, ObjectVersion::Latest).await?
         else {
             return Ok(None);
         };
@@ -169,7 +186,6 @@ impl RuntimeHandle {
             return Err(invalid("durable cycle seal differs from its frozen finalization intent"));
         }
         seal.validate(&revision.value).map_err(crate::storage::Error::from)?;
-        let mut executions = Vec::with_capacity(seal.executions.len());
         for member in &seal.executions {
             let execution = ExecutionView::open(self.storage(), &member.execution_id, ObjectVersion::Exact(member.version.clone()))
                 .await?
@@ -177,11 +193,13 @@ impl RuntimeHandle {
             if execution.revision()?.position != member.position {
                 return Err(invalid("durable cycle member revision differs"));
             }
-            let member_seal = execution.execution().saved.as_ref().ok_or_else(|| invalid("durable cycle member is unsealed"))?;
-            executions.push(member_seal.clone());
+            if execution.execution().saved.is_none() {
+                return Err(invalid("durable cycle member is unsealed"));
+            }
         }
         self.release_cycle_history(&revision.value, &revision.position).await?;
-        Ok(Some(Arc::new(CompletedCycle { header: revision.value, executions })))
+        let header = revision.try_map(|revision| Ok::<_, Error>(revision.value))?;
+        Ok(Some(Arc::new(CompletedCycle { header: CompletedHeader(header) })))
     }
 
     pub(crate) async fn finish_saved_cycle(&self, source: &CycleView, operation: &Operation) -> Result<Arc<CompletedCycle>> {
@@ -208,7 +226,7 @@ impl RuntimeHandle {
             drop(order);
             runtime
                 .operations()
-                .call(crate::operations::reports::MaterializeReport {
+                .call::<crate::operations::reports::MaterializeReport>(crate::operations::reports::MaterializeReport {
                     subject: dokime_domain::model::reports::wire::ReportSubject::Cycle(id.to_string()),
                     at,
                 })
@@ -218,7 +236,7 @@ impl RuntimeHandle {
             if let Some(completed) = &pending.completed {
                 return Ok(completed.clone());
             }
-            let completed = runtime.seal_cycle(&pending, &operation).await?;
+            let completed = runtime.publish_cycle_seal(&pending, &operation).await?;
             pending.completed = Some(completed.clone());
             Ok(completed)
         })
@@ -271,7 +289,7 @@ impl RuntimeHandle {
     }
 
     // Seal A Cycle Whose Report File Is Published: Save The Seal And The Header.
-    async fn seal_cycle(&self, pending: &PendingCycle, operation: &Operation) -> Result<Arc<CompletedCycle>> {
+    async fn publish_cycle_seal(&self, pending: &PendingCycle, operation: &Operation) -> Result<Arc<CompletedCycle>> {
         operation.phase("Writing Report");
         operation.indeterminate();
         let report = pending.report.clone().ok_or_else(|| invalid("cycle materialization did not publish a file"))?;
@@ -304,19 +322,30 @@ impl RuntimeHandle {
                 inputs: &inputs,
                 file: &seal.report,
             },
+            self.schema_settings(),
         )?
         .finish()
         .await?;
 
         operation.phase("Saving Seal");
-        let mut cycle = (**pending.snapshot.source()).clone();
-        cycle.saved = Some(seal);
-        let receipt = self.storage().write_object(&Cycle::try_from(&cycle)?).await?;
+        let source = &**pending.snapshot.source();
+        let cycle = harmos::storage::ReadBatch::new(()).try_map(|_| {
+            let mut cycle = source.clone();
+            cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealed;
+            cycle.saved = Some(seal);
+            Ok::<_, Error>(cycle)
+        })?;
+        let prepared = cycle.try_map(|cycle| {
+            let row = Cycle::try_from(&cycle)?;
+            Ok::<_, Error>((cycle, row))
+        })?;
+        let receipt = self.storage().write_object(&prepared.1).await?;
         let saved = self.storage().flush_until(&receipt.position).await?;
         if !saved.covers(&receipt.position)? {
             return Err(invalid("cycle seal is not saved"));
         }
-        let completed = Arc::new(CompletedCycle { header: cycle, executions: (*pending.executions).clone() });
+        let header = prepared.try_map(|(cycle, _row)| Ok::<_, Error>(cycle))?;
+        let completed = Arc::new(CompletedCycle { header: CompletedHeader(header) });
         self.release_cycle_history(&completed.header, &saved).await?;
         Ok(completed)
     }
@@ -327,6 +356,7 @@ impl super::executions::ExecutionStorage {
         &self, source: Arc<TestCycle>, at: &StorageCursor, operation: &Operation,
     ) -> Result<PendingCycle> {
         operation.phase("Collecting Sealed Members");
+        let session = self.storage.clone();
         let mut revisions = Vec::with_capacity(source.execution_ids.len());
         let mut executions = Vec::with_capacity(source.execution_ids.len());
         let mut appearance = None;
@@ -362,7 +392,7 @@ impl super::executions::ExecutionStorage {
         };
         // The Native Seal May Have Committed Before Managed Adoption Failed.
         // Current-Report Opens Reuse That Exact File Rather Than Publishing Again.
-        let latest = crate::storage::objects::cycle::read(&self.storage, &source.test_cycle_id, ObjectVersion::Latest).await?;
+        let latest = crate::storage::objects::cycle::read(&session, &source.test_cycle_id, ObjectVersion::Latest).await?;
         let published = match latest.as_ref().and_then(|latest| latest.value.saved.as_ref()) {
             Some(seal) => {
                 let latest = &latest.as_ref().expect("selected saved cycle").value;
@@ -381,13 +411,37 @@ impl super::executions::ExecutionStorage {
             Arc::new(appearance),
             &self.state_manager.state().read(|state| state.identity.node.node_id.clone()).await?.value,
         )?;
-        Ok(PendingCycle { snapshot, executions: Arc::new(executions), report: published, completed: None })
+        Ok(PendingCycle {
+            snapshot,
+            executions: Arc::new(executions),
+            report: published,
+            completed: None,
+        })
     }
 }
 
 /* === Public Functions === */
 
+pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
+    TestCycle {
+        saved,
+        test_cycle_id: cycle.test_cycle_id.clone(),
+        session_id: cycle.session_id.clone(),
+        metadata: cycle.metadata.clone(),
+        phase: cycle.phase,
+        lifecycle: cycle.lifecycle,
+        created_at: cycle.created_at.clone(),
+        started_at: cycle.started_at.clone(),
+        updated_at: cycle.updated_at.clone(),
+        execution_ids: cycle.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect(),
+        records: cycle.records.clone(),
+        continue_automatically: cycle.continue_automatically,
+        result: cycle.result.clone(),
+    }
+}
+
 /* === Private Functions === */
+
 fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
     left.test_cycle_id == right.test_cycle_id
         && left.session_id == right.session_id
@@ -398,27 +452,12 @@ fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
         && left.updated_at == right.updated_at
         && left.execution_ids == right.execution_ids
         && left.records == right.records
-        && left.continue_on_failure == right.continue_on_failure
+        && left.continue_automatically == right.continue_automatically
         && left.result == right.result
 }
 
-pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
-    TestCycle {
-        saved,
-        test_cycle_id: cycle.test_cycle_id.clone(),
-        session_id: cycle.session_id.clone(),
-        metadata: cycle.metadata.clone(),
-        lifecycle: cycle.lifecycle,
-        created_at: cycle.created_at.clone(),
-        started_at: cycle.started_at.clone(),
-        updated_at: cycle.updated_at.clone(),
-        execution_ids: cycle.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect(),
-        records: cycle.records.clone(),
-        continue_on_failure: cycle.continue_on_failure,
-        result: cycle.result.clone(),
-    }
-}
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
+
 /* === Tests === */

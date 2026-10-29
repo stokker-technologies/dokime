@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
+
 // Third Party Imports
 
 // Local Imports
@@ -24,13 +26,13 @@ use super::directory::Directories;
 use crate::transport::{ArtifactChunk, MAX_ARTIFACT_CHUNK_BYTES};
 
 /* === Constants === */
-const IMPORT_READ_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Artifacts {
     sink: Arc<dyn ArtifactSink>,
@@ -51,6 +53,7 @@ pub struct ArtifactWriter {
 }
 
 /* === Enums === */
+
 enum Ending {
     Open,
     Complete,
@@ -58,11 +61,13 @@ enum Ending {
 }
 
 /* === Traits === */
+
 pub trait ArtifactSink: Send + Sync {
     fn push(&self, chunk: ArtifactChunk);
 }
 
 /* === Implementations === */
+
 impl Artifacts {
     pub fn new(token: impl Into<String>, sink: Arc<dyn ArtifactSink>) -> Self {
         let token: Arc<str> = Arc::from(token.into());
@@ -100,10 +105,12 @@ impl Artifacts {
         Ok(self.locked().root()?)
     }
 
+    #[cfg(feature = "native")]
     pub(crate) fn scan(&self) -> Vec<String> {
         self.locked().scan()
     }
 
+    #[cfg(feature = "native")]
     pub(crate) fn sweep(&self) -> Vec<String> {
         self.locked().sweep()
     }
@@ -130,20 +137,32 @@ impl Artifacts {
         let mime = inferred_mime(&name)?;
         let mut source = std::fs::File::open(path.as_ref())?;
         let mut writer = self.opened(name, mime)?;
-        let mut buffer = vec![0; IMPORT_READ_BYTES];
         loop {
-            let count = match source.read(&mut buffer) {
-                Ok(0) => break,
+            let buffered = writer.buffer.len();
+            let remaining = MAX_ARTIFACT_CHUNK_BYTES - buffered;
+            if let Err(error) = writer.buffer.try_reserve_exact(remaining) {
+                writer.abandon();
+                return Err(io::Error::other(error).into());
+            }
+            writer.buffer.resize(MAX_ARTIFACT_CHUNK_BYTES, 0);
+            let read = source.read(&mut writer.buffer[buffered..]);
+            let count = match read {
                 Ok(count) => count,
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
                 Err(error) => {
+                    writer.buffer.truncate(buffered);
+                    if error.kind() == io::ErrorKind::Interrupted {
+                        continue;
+                    }
                     writer.abandon();
                     return Err(error.into());
                 }
             };
-            if let Err(error) = writer.write_all(&buffer[..count]) {
-                writer.abandon();
-                return Err(error);
+            writer.buffer.truncate(buffered + count);
+            if count == 0 {
+                break;
+            }
+            if writer.buffer.len() == MAX_ARTIFACT_CHUNK_BYTES {
+                writer.emit(Ending::Open);
             }
         }
         writer.finish()
@@ -254,6 +273,7 @@ impl Drop for ArtifactWriter {
 }
 
 /* === Public Functions === */
+
 pub(super) fn transfer_identity(token: &str, ordinals: &AtomicU64) -> String {
     let ordinal = ordinals.fetch_add(1, Ordering::Relaxed);
 
@@ -308,6 +328,7 @@ pub(crate) fn inferred_mime(name: &str) -> io::Result<String> {
 }
 
 /* === Private Functions === */
+
 fn closed(operation: &str) -> io::Error {
     io::Error::new(io::ErrorKind::BrokenPipe, format!("cannot {operation} an artifact that has already been closed"))
 }

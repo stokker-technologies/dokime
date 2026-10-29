@@ -18,10 +18,12 @@ use std::future::Future;
 use std::time::Duration;
 
 // Third Party Imports
-use futures_util::{FutureExt, StreamExt};
 
 // Local Imports
+use dokime_domain::model::execution::result::CyclePhase;
 use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultStatus;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::TestCycleId;
@@ -64,14 +66,12 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Option<T>>,
 {
-    let mut rows = runtime.watch_plot_telemetry(&[]).await.unwrap().pop().expect("the durable telemetry stream is watchable");
+    let mut saved = runtime.storage().cursor_saved();
     loop {
         if let Some(value) = check().await {
             return value;
         }
-        rows.next().await.expect("the telemetry stream closes only with the runtime");
-        // Coalesce Rows That Arrived Together Into One Re-Check.
-        while let Some(Some(_)) = rows.next().now_or_never() {}
+        saved = runtime.storage().wait_saved_after(&saved).await.unwrap();
     }
 }
 
@@ -116,6 +116,20 @@ pub async fn wait_for_cycle_lifecycle(
     snapshot.state().cycle_views().find(|cycle| &cycle.test_cycle_id == test_cycle_id).unwrap()
 }
 
+// An Active cycle whose every member has settled, idle again; their aggregate outcome is `result`.
+pub async fn wait_for_cycle_outcome(
+    runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, outcome: ResultStatus,
+) -> dokime_domain::model::execution::result::CycleView {
+    wait_for_idle_cycle(runtime, test_cycle_id, outcome, true).await
+}
+
+// An Active cycle idle again after its runs, with planned members still waiting to start.
+pub async fn wait_for_cycle_idle(
+    runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, outcome: ResultStatus,
+) -> dokime_domain::model::execution::result::CycleView {
+    wait_for_idle_cycle(runtime, test_cycle_id, outcome, false).await
+}
+
 pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime_domain::model::identity::CommandId) {
     // TODO(source-hook): RequestStorage publishes no receipt change; a watch on the durable run receipt would replace this poll.
     loop {
@@ -155,5 +169,27 @@ pub fn latest_execution_for_case<'a>(
 }
 
 /* === Private Functions === */
+
+async fn wait_for_idle_cycle(
+    runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, outcome: ResultStatus, settled: bool,
+) -> dokime_domain::model::execution::result::CycleView {
+    let idle = |state: &RuntimeState| {
+        let live =
+            state.run_requests.values().any(|request| &request.summary.cycle_id == test_cycle_id && !request.summary.phase.terminal());
+        let planned = |cycle: &dokime_domain::model::execution::result::CycleView| {
+            cycle.test_executions.iter().any(|execution| execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none())
+        };
+        !live
+            && state.cycle_views().any(|cycle| {
+                &cycle.test_cycle_id == test_cycle_id
+                    && cycle.phase == CyclePhase::Active
+                    && cycle.lifecycle == CycleStatus::Ready
+                    && cycle.result.as_ref().is_some_and(|result| result.status == outcome)
+                    && !(settled && planned(&cycle))
+            })
+    };
+    let snapshot = until_state(runtime, idle).await;
+    snapshot.state().cycle_views().find(|cycle| &cycle.test_cycle_id == test_cycle_id).unwrap()
+}
 
 /* === Tests === */

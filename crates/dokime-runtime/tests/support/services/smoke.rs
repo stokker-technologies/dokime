@@ -35,10 +35,10 @@ use dokime_runtime::transport::{
 };
 
 /* === Constants === */
-pub const SOURCE: &str = "fixture-suites";
+pub const SOURCE: &str = "fixture_suites";
 pub const SUITE: &str = "fixture.checks";
 
-pub const PULSE_STREAM: &str = "fixture-suites.pulse";
+pub const PULSE_STREAM: &str = "fixture_suites.pulse";
 
 pub const PULSE_PLOT: &str = "fixture.checks.smoke.pulse";
 
@@ -84,7 +84,7 @@ struct Check {
 // In-Process Pushes Have No IPC Backpressure, So The Window Holds Every Row The
 // Largest Story Pushes Before Ingest Takes Them In.
 #[dokime_runtime::stream(
-    id = "fixture-suites.pulse",
+    id = "fixture_suites.pulse",
     window = 32_768,
     label = "Fixture Pulse",
     description = "A stream the smoke step fills only when asked to."
@@ -94,7 +94,7 @@ struct Pulse {
 }
 
 #[dokime_runtime::stream(
-    id = "fixture-suites.spectrum",
+    id = "fixture_suites.spectrum",
     window = 32_768,
     label = "Fixture Spectrum",
     description = "A stream drawn by a frequency plot that transforms the whole capture at once."
@@ -181,14 +181,14 @@ impl Check {
     fn document() -> dokime_runtime::prelude::Document {
         let mut plot = dokime_runtime::prelude::Plot::time_series("Pulse");
         plot.id(PULSE_PLOT);
-        plot.y(dokime_runtime::expressions::telemetry("fixture-suites.pulse", "value"));
+        plot.y(dokime_runtime::expressions::telemetry("fixture_suites.pulse", "value"));
         plot.display_points = Some(PULSE_DISPLAY_POINTS);
         plot.downsample = dokime_runtime::document::DownsampleTechnique::MinMax;
         let mut section = dokime_runtime::prelude::Section::new("Pulse");
         section.plot(plot);
         let mut spectrum = dokime_runtime::prelude::Plot::fft("Spectrum");
         spectrum.id("fixture.checks.smoke.spectrum");
-        spectrum.y(dokime_runtime::expressions::telemetry("fixture-suites.spectrum", "value"));
+        spectrum.y(dokime_runtime::expressions::telemetry("fixture_suites.spectrum", "value"));
         spectrum.fft.sample_rate_hz = Some(SPECTRUM_SAMPLE_RATE_HZ);
         section.plot(spectrum);
         let mut document = dokime_runtime::prelude::Document::new("default", "Fixture Smoke");

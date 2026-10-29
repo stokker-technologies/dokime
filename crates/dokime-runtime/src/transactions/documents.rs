@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::document::{DocumentAddition, DocumentCardBody, DownsampleTechnique};
 use crate::{runtime::Error, state::RuntimeState};
@@ -34,7 +36,8 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "dokime.documents.execution.add", version = 1, irreversible)]
+
+#[harmos::transaction(id = "dokime.documents.execution.add", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddExecutionDocumentParts {
     pub scope: RecordScope,
@@ -42,7 +45,7 @@ pub struct AddExecutionDocumentParts {
     pub occurred_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.documents.plot.settings", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.documents.plot.settings", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpdatePlotSettings {
     pub cycle_id: TestCycleId,
@@ -59,6 +62,7 @@ pub struct UpdatePlotSettings {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for AddExecutionDocumentParts {
     type Error = String;
 
@@ -66,7 +70,7 @@ impl Transaction<RuntimeState> for AddExecutionDocumentParts {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        add_execution_document_parts(&mut state.clone(), self.clone()).map_err(|error| error.to_string())
+        check_document_additions(state, self).map_err(|error| error.to_string())
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -110,9 +114,6 @@ impl UpdatePlotSettings {
         if state.shutting_down {
             return Err(Error::conflict("document_closed", "runtime is shutting down"));
         }
-        if self.display_points.is_some_and(|points| points > 100_000) {
-            return Err(Error::Operation("display_points must not exceed 100000".into()));
-        }
         let execution = state
             .executions
             .get(&self.execution_id)
@@ -155,7 +156,9 @@ impl UpdatePlotSettings {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn add_execution_document_parts(state: &mut RuntimeState, update: AddExecutionDocumentParts) -> Result<(), Error> {
+    check_document_additions(state, &update)?;
     let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("document addition scope missing cycle"))?;
     let test_execution_id = update.scope.test_execution_id.clone().ok_or_else(|| not_found("document addition scope missing execution"))?;
     let execution = state
@@ -172,6 +175,21 @@ fn add_execution_document_parts(state: &mut RuntimeState, update: AddExecutionDo
 
     state.cycles.get_mut(&test_cycle_id).expect("the cycle was found above").touch_at(update.occurred_at);
 
+    Ok(())
+}
+
+fn check_document_additions(state: &RuntimeState, update: &AddExecutionDocumentParts) -> Result<(), Error> {
+    let cycle_id = update.scope.test_cycle_id.as_ref().ok_or_else(|| not_found("document addition scope missing cycle"))?;
+    let execution_id = update.scope.test_execution_id.as_ref().ok_or_else(|| not_found("document addition scope missing execution"))?;
+    let execution = state
+        .executions
+        .get(execution_id)
+        .filter(|execution| &execution.test_cycle_id == cycle_id && state.cycles.contains_key(cycle_id))
+        .ok_or_else(|| not_found("execution not found"))?;
+    let default_id = DocumentId::from_identifier(crate::documents::DEFAULT_DOCUMENT_ID).map_err(|error| not_found(error.to_string()))?;
+    if !execution.documents.contains_key(&default_id) {
+        return Err(not_found("execution has no default document"));
+    }
     Ok(())
 }
 

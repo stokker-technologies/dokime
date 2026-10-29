@@ -7,46 +7,30 @@
  * ***
  */
 
-/* The one sidebar.
- *
- * A tree, not a rail beside another rail: the four destinations stay reachable
- * and the one the operator is in opens its children underneath at the same row
- * height and on the same three columns. Only the child region scrolls — the
- * destinations above it and below it are pinned — so a cycle with forty cases
- * never pushes Settings out of the window. Collapsed, it keeps the
- * destinations as icons and each tooltip states how many children are waiting
- * behind them, and the child region's scroll position comes back with them.
- * The collapse toggle is not here: it sits in the status bar's first cell, on
- * the sidebar's own column.
- *
- * With `live={false}` the same tree carries a frozen report. A report is one
- * cycle and nothing else, so the destinations — which would navigate to
- * surfaces the file does not contain — give way to that cycle's outline, and
- * the mark above it stays exactly where it is.
- */
+/* Shared Destinations For Desktop Sidebar, Tablet Rail And Phone Tabs. */
 
 /* === External Imports === */
 
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
-import { type ReactNode, type RefObject, useLayoutEffect, useRef } from "react";
+import { type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 /* === Local Imports === */
 
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
-import { useCycleDetailQuery } from "@/features/cycle/cycle-queries";
 import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
 import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
 import { recordLevelVariant } from "@/lib/record-display";
-import { cn } from "@/lib/utils";
-import { SidebarFrame } from "./SidebarFrame";
 import { cycleIdOfPathname } from "@/shell/route-scope";
 import { SidebarRow } from "@/shell/sidebar-row";
 import { useSidebarState } from "@/shell/use-sidebar-state";
+import { useBackendStatus } from "./backend-status";
+import { SidebarFrame } from "./SidebarFrame";
 
 /* === Types === */
 
@@ -81,25 +65,72 @@ const SETTINGS_SECTION_ROUTE = /^\/settings\/([^/]+)/;
 /* === Components === */
 
 export function Sidebar(props: SidebarProps) {
+  const { mode } = useSidebarState();
+  const [drawer, setDrawer] = useState(false);
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (props.live !== false && mode === "phone")
+    return (
+      <nav aria-label="Navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background">
+        {DESTINATIONS.map(({ icon: Icon, ...destination }) => (
+          <button
+            key={destination.to}
+            type="button"
+            aria-current={isCurrent(pathname, destination.prefix) ? "page" : undefined}
+            className="grid min-h-16 justify-items-center content-center gap-1 text-xs aria-[current=page]:text-primary"
+            onClick={() => void navigate({ to: destination.to })}
+          >
+            <Icon className="size-5" />
+            {destination.label}
+          </button>
+        ))}
+      </nav>
+    );
   return (
-    <SidebarFrame>
-      {props.live === false ? (
-        <ul className="grid min-h-0 content-start gap-0.5 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
-          <CycleSidebarCases selection={props.selection} cycleId={props.cycleId} live={false} onSelect={props.onSelect} />
-        </ul>
-      ) : (
-        <DestinationTree />
-      )}
-    </SidebarFrame>
+    <>
+      <SidebarFrame>
+        {props.live === false ? (
+          <ul className="grid min-h-0 content-start gap-1 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
+            <CycleSidebarCases selection={props.selection} cycleId={props.cycleId} live={false} onSelect={props.onSelect} />
+          </ul>
+        ) : (
+          <>
+            <DestinationTree />
+            {mode === "tablet" ? (
+              <Button variant="ghost" className="min-h-11" onClick={() => setDrawer(true)}>
+                More
+              </Button>
+            ) : null}
+          </>
+        )}
+      </SidebarFrame>
+      {props.live !== false && mode === "tablet" ? (
+        <Sheet open={drawer} onOpenChange={setDrawer}>
+          <SheetContent
+            side="left"
+            className="w-80"
+            onClick={(event) => {
+              if ((event.target as Element).closest("button")) setDrawer(false);
+            }}
+          >
+            <SheetTitle>Navigation</SheetTitle>
+            <DestinationTree expanded />
+          </SheetContent>
+        </Sheet>
+      ) : null}
+    </>
   );
 }
 
 /* === Private Components === */
 
 /** The four destinations and the active one's children. Live application only. */
-function DestinationTree() {
+function DestinationTree({ expanded = false }: { expanded?: boolean }) {
   const navigate = useNavigate();
-  const { collapsed } = useSidebarState();
+  const backend = useBackendStatus();
+  const sidebar = useSidebarState();
+  const collapsed = sidebar.collapsed && !expanded;
+  const railLabels = sidebar.mode === "tablet" && !expanded;
   const { selection, pathname } = useRouterState({
     select: (state) => ({
       selection: state.location.search as { caseId?: string; executionId?: string },
@@ -115,21 +146,10 @@ function DestinationTree() {
   const onSettings = isCurrent(pathname, "/settings");
   const settingsSection = onSettings ? (SETTINGS_SECTION_ROUTE.exec(pathname)?.[1] ?? DEFAULT_SETTINGS_SECTION) : null;
 
-  // The one read is the shared query of the surface it describes, so the tree
-  // adds no traffic beyond the destination the operator is actually in.
-  const cycleDetail = useCycleDetailQuery(cycleId ?? "", cycleId !== null);
-  const caseCount = cycleDetail.data?.plan?.cases.length ?? 0;
-
   // Every open prompt, whichever cycle asked it: the same read the status bar
   // makes, so the Cycles entry says an operator is needed before they look.
   const pendingPrompts = usePendingPromptsQuery().data ?? [];
   const promptLevel = highestPromptLevel(pendingPrompts);
-
-  const childCount = (destination: Destination): number => {
-    if (destination.to === "/settings") return SETTINGS_SECTIONS.length;
-    if (destination.to === "/cycles") return cycleId ? caseCount : 0;
-    return 0;
-  };
 
   const activeIndex = DESTINATIONS.findIndex((destination) => isCurrent(pathname, destination.prefix));
   const active = activeIndex >= 0 ? (DESTINATIONS[activeIndex] ?? null) : null;
@@ -140,6 +160,7 @@ function DestinationTree() {
       <SidebarRow
         active={current}
         collapsed={collapsed}
+        railLabel={railLabels}
         icon={destination.icon}
         key={destination.to}
         label={destination.label}
@@ -159,20 +180,11 @@ function DestinationTree() {
         ) : null}
       </SidebarRow>
     );
-    if (!collapsed) return row;
-    return (
-      <Tooltip key={destination.to}>
-        <TooltipTrigger asChild>{row}</TooltipTrigger>
-        <TooltipContent side="right">
-          {childCountLabel(destination, childCount(destination))}
-          {destination.to === "/cycles" && pendingPrompts.length > 0 ? ` · ${pendingPromptCountLabel(pendingPrompts.length)}` : null}
-        </TooltipContent>
-      </Tooltip>
-    );
+    return row;
   };
 
   let children: ReactNode = null;
-  if (!collapsed && active?.to === "/settings") {
+  if (expanded && active?.to === "/settings") {
     children = SETTINGS_SECTIONS.map((section) => (
       <SidebarRow
         active={section.id === settingsSection}
@@ -188,21 +200,27 @@ function DestinationTree() {
   }
 
   return (
-    <ul className="flex min-h-0 flex-col gap-0.5 px-[var(--shell-gap)] pt-2 pb-2">
-      {DESTINATIONS.slice(0, Math.max(activeIndex, 0)).map(destinationRow)}
-
-      {active ? (
-        <li className={cn("flex flex-col gap-0.5", children ? "min-h-0" : "shrink-0")}>
-          <ul className="shrink-0">{destinationRow(active)}</ul>
-          {children ? (
-            <ChildRegion offsets={scrollOffsets} storageKey={active.to === "/cycles" ? `cycles:${cycleId}` : active.to}>
-              {children}
-            </ChildRegion>
-          ) : null}
+    <ul className="flex min-h-0 flex-col gap-1 px-[var(--shell-gap)] pt-2 pb-2">
+      {DESTINATIONS.slice(0, 3).map(destinationRow)}
+      {children ? (
+        <li className="flex min-h-0 flex-1 flex-col">
+          <ChildRegion offsets={scrollOffsets} storageKey={active?.to === "/cycles" ? `cycles:${cycleId}` : "/settings"}>
+            {children}
+          </ChildRegion>
         </li>
-      ) : null}
-
-      {DESTINATIONS.slice(activeIndex + 1).map(destinationRow)}
+      ) : (
+        <li className="flex-1" />
+      )}
+      {DESTINATIONS.slice(3).map(destinationRow)}
+      <li className="truncate px-3 py-2 text-xs text-muted-foreground" title={backend.detail ?? undefined} role="status">
+        {collapsed ? (
+          <span role="img" aria-label={backend.connection}>
+            ●
+          </span>
+        ) : (
+          `${backend.label ?? "Backend"} · ${backend.connection}`
+        )}
+      </li>
     </ul>
   );
 }
@@ -231,7 +249,7 @@ function ChildRegion({
 
   return (
     <ul
-      className="grid min-h-0 content-start gap-0.5 overflow-y-auto"
+      className="grid min-h-0 content-start gap-1 overflow-y-auto"
       onScroll={(event) => {
         offsets.current[storageKey] = event.currentTarget.scrollTop;
       }}
@@ -246,11 +264,4 @@ function ChildRegion({
 
 function isCurrent(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
-}
-
-/** The collapsed tooltip has to say what the hidden children are. */
-function childCountLabel(destination: Destination, count: number): string {
-  if (count === 0) return destination.label;
-  const noun = destination.to === "/settings" ? "section" : "case";
-  return `${destination.label} — ${count} ${noun}${count === 1 ? "" : "s"}`;
 }

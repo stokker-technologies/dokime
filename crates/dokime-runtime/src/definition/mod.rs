@@ -8,20 +8,25 @@
  */
 
 /* === Modules === */
+
 pub mod authoring;
 pub mod conditions;
+
 #[cfg(feature = "host")]
 pub mod cycle;
+
 #[cfg(feature = "host")]
 pub mod registry;
 
 /* === Re-Exports === */
+
 pub use authoring::{
     AuthoredMetadata, Criterion, DeclaredSuite, DeclaredTemplate, Parameter, ParameterDefault, RustTemplate, Step, StepBinding,
     TemplateAuthoringError, TemplateContext, criterion as authored_criterion, format as authored_format, metadata as authored_metadata,
     unit as authored_unit,
 };
 pub use conditions::{RuntimeCondition, RuntimeConditionEvaluation, evaluate_runtime_condition};
+
 #[cfg(feature = "host")]
 pub use cycle::TestCycleInstance;
 pub use dokime_domain::model::definition::CaseMaterializationError;
@@ -29,7 +34,6 @@ pub use dokime_domain::model::definition::CaseMaterializationOptions;
 pub use dokime_domain::model::definition::CaseMaterializationOutput;
 pub use dokime_domain::model::definition::CaseMaterializationSelection;
 pub use dokime_domain::model::definition::CriterionDefinition;
-pub use dokime_domain::model::definition::DEFAULT_MATERIALIZED_CASE_CAP;
 pub use dokime_domain::model::definition::DynamicDefaultKey;
 pub use dokime_domain::model::definition::ExecutionPhaseDefinition;
 pub use dokime_domain::model::definition::FileDefinition;
@@ -64,10 +68,12 @@ pub use dokime_domain::model::definition::registry::SuiteSnapshot;
 pub use dokime_domain::model::definition::resolve_parameter_spaces;
 pub use dokime_domain::model::definition::suite;
 pub use dokime_domain::model::definition::template_identifier;
+
 #[cfg(feature = "host")]
 pub use registry::SuiteRegistry;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

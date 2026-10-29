@@ -132,8 +132,8 @@ function ArtifactFileBrowser({
 
   return (
     <>
-      <div className="artifact-tree overflow-hidden rounded-md border bg-background text-sm" data-testid="artifact-tree">
-        <header className="grid min-h-8 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b bg-muted/35 px-2.5 py-1.5 text-xs">
+      <div className="artifact-tree overflow-hidden rounded-lg border bg-background text-sm" data-testid="artifact-tree">
+        <header className="grid min-h-8 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b bg-muted/35 px-3 py-2 text-xs">
           <strong>Explorer</strong>
           <span className="text-muted-foreground">
             {count} {count === 1 ? "item" : "items"}
@@ -185,7 +185,7 @@ function ArtifactFileBrowser({
 
 function ArtifactEmptyState({ message }: { message: string }) {
   return (
-    <div className="grid min-h-24 place-content-center rounded-md border border-dashed bg-muted/20 px-3 py-5 text-center text-sm text-muted-foreground">
+    <div className="grid min-h-24 place-content-center rounded-lg border border-dashed bg-muted/20 px-3 py-4 text-center text-sm text-muted-foreground">
       {message}
     </div>
   );
@@ -224,7 +224,7 @@ function ArtifactFolder({
   return (
     <div>
       <button
-        className="grid min-h-7 w-full grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="grid min-h-7 w-full grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2 px-2 py-1 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         type="button"
         onClick={() => setExpanded((current) => !current)}
@@ -325,7 +325,7 @@ function ArtifactFile({
       {previewText ? (
         <button
           aria-label={[artifact.fileName, fileLabel].filter(Boolean).join(" ")}
-          className="artifact grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="artifact grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           title={title}
           type="button"
           onClick={() => onOpenTextArtifact(artifact)}
@@ -337,7 +337,7 @@ function ArtifactFile({
       ) : primaryHref ? (
         <a
           aria-label={[artifact.fileName, fileLabel].filter(Boolean).join(" ")}
-          className="artifact grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-md px-2 py-1 transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="artifact grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           href={primaryHref}
           rel="noreferrer"
           target="_blank"
@@ -350,7 +350,7 @@ function ArtifactFile({
       ) : nativeOpenEnabled && nativeTransfer && !previewText ? (
         <button
           aria-label={[artifact.fileName, fileLabel].filter(Boolean).join(" ")}
-          className="artifact grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="artifact grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           disabled={nativeOpenBusy || nativeDownloadBusy}
           title={nativeOpenError ?? title}
           type="button"
@@ -361,7 +361,7 @@ function ArtifactFile({
           <span className="text-xs tabular-nums text-muted-foreground">{size}</span>
         </button>
       ) : (
-        <div className="grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-md px-2 py-1" title={title}>
+        <div className="grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1" title={title}>
           <ArtifactIcon mediaType={artifact.media_type} />
           <span className="min-w-0 truncate">{artifact.fileName}</span>
           <span className="text-xs tabular-nums text-muted-foreground">{size}</span>
@@ -369,10 +369,10 @@ function ArtifactFile({
       )}
 
       {nativeDownloadEnabled && nativeTransfer ? (
-        <span className="flex items-center gap-0.5">
+        <span className="flex items-center gap-1">
           <Button
             aria-label={nativeDownloadError ? `Retry download ${fileLabel}` : `Download ${fileLabel}`}
-            className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             disabled={nativeDownloadBusy || nativeOpenBusy}
             size="icon-sm"
             title={nativeDownloadError ?? "Download artifact"}
@@ -385,7 +385,7 @@ function ArtifactFile({
         </span>
       ) : secondaryHref ? (
         <a
-          className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           download
           href={secondaryHref}
           title={opensLocalFile ? "Download artifact" : "Open download link"}

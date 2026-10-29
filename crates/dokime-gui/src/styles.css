@@ -16,11 +16,23 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 /* Local Imports */
-@import "../../../branding/generated/theme.css";
+@import "./generated/organization/theme.css";
 
 /* === Variables === */
 
 /* Variants */
+
+@theme {
+  --breakpoint-tablet: 37.5rem;
+  --layout-sidebar-case: calc(var(--spacing) * 10) minmax(0, 1fr) auto;
+  --layout-sidebar-destination: calc(var(--spacing) * 6) minmax(0, 1fr) auto;
+  --layout-settings-row: minmax(0, 1fr) calc(var(--spacing) * 80);
+  --layout-step-record: calc(var(--spacing) * 8) minmax(0, 1fr) auto var(--pill-width);
+  --layout-plot-window: auto minmax(0, 1fr) calc(var(--spacing) * 24);
+  --layout-record-label: calc(var(--spacing) * 18) minmax(0, 1fr);
+  --layout-record-value: calc(var(--spacing) * 18) max-content;
+  --layout-comparison: minmax(0, 1fr) calc(var(--spacing) * 6) minmax(0, 1fr);
+}
 
 @theme inline {
   --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
@@ -181,12 +193,12 @@
   /* The application menu bar: one thin row of menu titles above the shell,
      28px on a desk and 40px at touch. */
   --menu-bar-height: 1.75rem;
-  --status-bar-height: 1.75rem;
+  --status-bar-height: 2rem;
   --settings-row-py: 0.75rem;
   /* The settings content column: one label width and one value measure so
      every row's control starts and ends on the same two lines. */
   --settings-row-height: 2.5rem;
-  --settings-label-width: 16.25rem;
+  --settings-label-width: 20rem;
   --settings-value-max: 40rem;
 
   /* Live shell rhythm. Every shell region shares the same inset and gap so the
@@ -198,8 +210,11 @@
   --sidebar-width: clamp(14rem, 24vw, 22rem);
   --sidebar-width-collapsed: 3.5rem;
   --sidebar-indent: 0.75rem;
+  /* The open sidebar's logo: a sixth of the window, legible on short
+     windows and never towering on tall ones. */
+  --sidebar-logo-height: clamp(4rem, 16.67vh, 10rem);
   /* The tree's own rhythm: 36px at every desktop density, 48px at touch. */
-  --sidebar-row-height: 2.25rem;
+  --sidebar-row-height: 2.5rem;
   /* The cycle explorer's one-line rows: 28px on a desk, 44px at touch, with
      the same width for every trailing action column and one indent step. */
   --tree-row-height: 1.75rem;
@@ -209,7 +224,7 @@
      12px apart. Every bar that hosts a button — the page bar, the Cycles and
      Library filter rows, the evidence toolbar — reads these three, so none of
      them can drift: 32px control + 2 x 8px = 48px. */
-  --bar-control-height: 2rem;
+  --bar-control-height: var(--control-height);
   --bar-pad-y: 0.5rem;
   --bar-gap: 0.75rem;
   /* The one top-bar height. The sidebar's brand bar, the page title bar and
@@ -227,68 +242,121 @@
   --section-gap: var(--shell-inset);
   --prose-measure: 72ch;
   --control-height: 2rem;
-  --control-height-primary: 2.25rem;
-  --list-row-height: 2.25rem;
+  --control-height-primary: var(--control-height);
+  --list-row-height: 2.5rem;
   /* One pill: 22px tall, 10px of horizontal air, 12px text on a 20px line
      inside the 1px border, and one column wide enough for the longest status
      word this app can print — "Disconnected", measured at 75px in IBM Plex
      Sans 500 at 12px — so no status ever clips or crowds its own edges. */
-  --pill-height: 1.375rem;
-  --pill-pad-x: 0.625rem;
+  --pill-height: 1.5rem;
+  --pill-pad-x: 0.5rem;
   --pill-text: 0.75rem;
   --pill-leading: 1.25rem;
-  --pill-width: 6.125rem;
+  --pill-width: 6rem;
 }
 
 :root[data-density="compact"] {
-  --status-bar-height: 1.5rem;
+  --status-bar-height: 2rem;
   --settings-row-py: 0.5rem;
   --settings-row-height: 2.25rem;
-  --bar-control-height: 1.75rem;
-  --bar-pad-y: 0.375rem;
-  --bar-gap: 0.625rem;
+  --bar-control-height: var(--control-height);
+  --bar-pad-y: 0.5rem;
+  --bar-gap: 0.75rem;
   --page-bar-height: 2.5rem;
   --shell-inset: 0.75rem;
-  --shell-gap: 0.375rem;
-  --control-height: 1.75rem;
-  --control-height-primary: 2rem;
-  --list-row-height: 2rem;
-  --sidebar-indent: 0.625rem;
-  --sidebar-row-height: 2.25rem;
-  --pill-height: 1.25rem;
-  --pill-leading: 1.125rem;
+  --shell-gap: 0.5rem;
+  --control-height: 2rem;
+  --control-height-primary: var(--control-height);
+  --list-row-height: 2.5rem;
+  --sidebar-indent: 0.75rem;
+  --sidebar-row-height: 2.5rem;
+  --pill-height: 1.5rem;
+  --pill-leading: 1.25rem;
 }
 
-/* Touch: 56px primary run controls, 48px for every other control, list row,
-   and the status bar; 12px gaps; a 16px base; a 56px page bar. */
+/* Touch Density Uses The Shared Control Height And Larger Text. */
 :root[data-density="touch"] {
   --menu-bar-height: 2.5rem;
-  --status-bar-height: 3rem;
+  --status-bar-height: 2rem;
   --settings-row-py: 1rem;
   --settings-row-height: 3rem;
   --nav-rail-width: 6rem;
   --sidebar-width: clamp(16rem, 28vw, 24rem);
-  --sidebar-indent: 0.875rem;
-  --sidebar-row-height: 3rem;
+  --sidebar-indent: 0.75rem;
+  --sidebar-row-height: 2.5rem;
   --tree-row-height: 2.75rem;
   --tree-action-width: 2.75rem;
   --tree-indent: 1.25rem;
   /* 48px control with 8px above and below. */
-  --bar-control-height: 3rem;
+  --bar-control-height: var(--control-height);
   --bar-pad-y: 0.5rem;
   --bar-gap: 0.75rem;
   --page-bar-height: 4rem;
   --shell-inset: 1rem;
-  --shell-gap: 0.75rem;
+  --shell-gap: 0.5rem;
   --shell-text-base: 1rem;
-  --control-height: 3rem;
-  --control-height-primary: 3.5rem;
-  --list-row-height: 3rem;
-  --pill-height: 1.75rem;
-  --pill-pad-x: 0.75rem;
+  --control-height: 2rem;
+  --control-height-primary: var(--control-height);
+  --list-row-height: 2.5rem;
+  --pill-height: 1.5rem;
+  --pill-pad-x: 0.5rem;
   --pill-text: 0.875rem;
-  --pill-leading: 1.625rem;
-  --pill-width: 7.125rem;
+  --pill-leading: 1.25rem;
+  --pill-width: 6rem;
+}
+
+/* The Same Controls At Every Density; Narrow Screens Always Use Touch Targets. */
+:root[data-density="touch"] {
+  --control-height: 2.75rem;
+  --list-row-height: 3rem;
+  --sidebar-row-height: 3rem;
+  --status-bar-height: 2.75rem;
+}
+@media (max-width: 1023px) {
+  :root,
+  :root[data-density] {
+    --control-height: 2.75rem;
+    --control-height-primary: var(--control-height);
+    --bar-control-height: var(--control-height);
+    --list-row-height: 3rem;
+    --sidebar-row-height: 3rem;
+    --tree-row-height: 2.75rem;
+    --tree-action-width: 2.75rem;
+    --status-bar-height: 2.75rem;
+    --menu-bar-height: 2.75rem;
+    --page-bar-height: 4rem;
+    --shell-inset: 1rem;
+  }
+  [role="menuitem"],
+  [role="option"],
+  [data-slot="dropdown-menu-trigger"] {
+    min-height: var(--control-height);
+  }
+  [data-slot="checkbox"],
+  [data-slot="switch"] {
+    position: relative;
+  }
+  [data-slot="checkbox"]::after,
+  [data-slot="switch"]::after {
+    content: "";
+    position: absolute;
+    inset: -0.75rem;
+  }
+}
+[data-slot="button"],
+[data-slot="input"],
+[data-slot="select-trigger"],
+[data-slot="toggle-group-item"] {
+  height: var(--control-height);
+}
+[data-slot="button"][data-size^="icon"] {
+  width: var(--control-height);
+}
+[data-slot="card"],
+[data-slot="dialog-content"],
+[data-slot="input"],
+[data-slot="select-trigger"] {
+  border-radius: var(--radius-lg);
 }
 
 /* === Base Styles === */
@@ -397,8 +465,8 @@
 /* 20-24px icons wherever a control ships the 16px default. */
 :root[data-density="touch"] [data-slot="button"] svg:not([class*="size-["]),
 :root[data-density="touch"] [data-slot="select-trigger"] svg:not([class*="size-["]) {
-  width: 1.375rem;
-  height: 1.375rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 /* The slider's hit area, not just its 4px track: a live plot window that
@@ -650,11 +718,11 @@
   }
 
   .document-card[data-density="spacious"] [data-slot="card-content"] {
-    @apply p-5;
+    @apply p-4;
   }
 
   .plot-empty {
-    @apply min-h-[18rem];
+    @apply min-h-72;
   }
 }
 
@@ -831,3 +899,31 @@
 }
 
 /* === Animations === */
+
+/* Shared Card And Table Rhythm. */
+[data-slot="table-head"] {
+  height: var(--list-row-height);
+}
+[data-slot="table-row"] {
+  height: var(--list-row-height);
+}
+[data-slot="card-header"],
+[data-slot="card-content"],
+[data-slot="card-footer"] {
+  padding: calc(var(--spacing) * 4);
+}
+[data-slot="button"] svg,
+[data-slot="select-trigger"] svg {
+  width: calc(var(--spacing) * 4);
+  height: calc(var(--spacing) * 4);
+}
+@media (max-width: 1023px) {
+  [data-slot="button"][data-size^="icon"] {
+    width: var(--control-height);
+    height: var(--control-height);
+  }
+  button:not([data-slot]),
+  select:not([data-slot]) {
+    min-height: var(--control-height);
+  }
+}

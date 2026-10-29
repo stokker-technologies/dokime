@@ -16,7 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{borrow::Cow, collections::BTreeMap, num::NonZeroUsize};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    num::NonZeroUsize,
+    sync::{Arc, Mutex, PoisonError},
+};
 
 // Third Party Imports
 use arrow_array::{Array, StringArray, StructArray, TimestampNanosecondArray, UInt32Array, UInt64Array};
@@ -37,6 +42,7 @@ use crate::storage::Result;
 use crate::storage::records::ScopeRow;
 use crate::storage::values;
 use crate::telemetry::TelemetryContract;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::values::Value;
@@ -48,11 +54,25 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct TypedCodec {
     schema: SchemaKey,
-    graph: Schema,
+    graph: Arc<Schema>,
     validator: Validator,
+}
+
+// Composed Codecs Reused Across Admission Batches, Keyed By Stream And Schema Version.
+// Each entry keeps the payload graph it was built from, so a redefined graph rebuilds it.
+#[derive(Default)]
+pub struct CodecCache {
+    entries: Mutex<BTreeMap<(Identifier, u32), CachedCodec>>,
+}
+
+struct CachedCodec {
+    payload: Schema,
+    codec: Arc<TypedCodec>,
+    registered: bool,
 }
 
 #[harmos::message]
@@ -68,6 +88,7 @@ struct Metadata {
     timestamp_value: Vec<values::Cell>,
     received_at: String,
     source: String,
+    signals: Vec<String>,
     scope: Option<ScopeRow>,
     summary: Vec<values::Cell>,
     metadata: Vec<values::Cell>,
@@ -78,13 +99,18 @@ struct Metadata {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TypedCodec {
     pub fn new(stream: &Identifier, version: u32, payload: &Schema, settings: &harmos::config::SchemaSettings) -> Result<Self> {
         let version = std::num::NonZeroU32::new(version).ok_or(Error::Invalid("typed telemetry schema version must be positive"))?;
-        let validator = Validator::from_schema(payload, settings)
-            .map_err(|_| Error::Invalid("typed telemetry graph is invalid or exceeds schema limits"))?;
-        let metadata = Schema::from_declaration(Metadata::DEFINITION, settings)
-            .map_err(|_| Error::Invalid("telemetry metadata graph exceeds schema limits"))?;
+        let validation = Validator::from_schema(payload, settings);
+        let invalid_graph = Error::Invalid("typed telemetry graph is invalid or exceeds schema limits");
+        let validator = validation.map_err(|_| invalid_graph)?;
+        let declaration = Schema::from_declaration(Metadata::DEFINITION, settings);
+        let invalid_metadata = Error::Invalid("telemetry metadata graph exceeds schema limits");
+        let metadata = declaration.map_err(|_| invalid_metadata)?;
+
+        // Compose Metadata And Payload Definitions
         let payload_offset =
             metadata.definitions.len().checked_add(1).ok_or(Error::Invalid("telemetry graph definition count overflows"))?;
         let mut definitions = vec![vec![
@@ -97,131 +123,173 @@ impl TypedCodec {
             Field {
                 name: Cow::Borrowed("values"),
                 tag: 2,
-                kind: Kind::Message { definition: payload.root + payload_offset },
+                kind: Kind::Message {
+                    definition: payload.root + payload_offset,
+                },
                 cardinality: Cardinality::Required,
             },
         ]];
         for (graph, offset) in [(&metadata, 1), (payload, payload_offset)] {
-            for fields in &graph.definitions {
-                let mut fields = fields.clone();
-                for field in &mut fields {
-                    if let Kind::Message { definition } = &mut field.kind {
-                        *definition = definition.checked_add(offset).ok_or(Error::Invalid("telemetry graph reference overflows"))?;
-                    }
-                }
-                definitions.push(fields);
-            }
+            append_definitions(&mut definitions, graph, offset)?;
         }
+
+        // Validate And Name The Composed Graph
         let graph = Schema { root: 0, definitions };
-        graph.prepare(settings).map_err(|_| Error::Invalid("composed telemetry graph exceeds schema limits"))?;
+        let prepared = graph.prepare(settings);
+        let invalid_composition = Error::Invalid("composed telemetry graph exceeds schema limits");
+        prepared.map_err(|_| invalid_composition)?;
+        let identifier = format!("dokime.telemetry.{}", stream.as_str());
         let schema = SchemaKey {
-            id: Identifier::new(format!("dokime.telemetry.{}", stream.as_str()))?,
+            id: Identifier::new(identifier)?,
             version,
             payload_encoding: PayloadEncoding::PostcardV1,
         };
-        Ok(Self { schema, graph, validator })
+        Ok(Self {
+            schema,
+            graph: Arc::new(graph),
+            validator,
+        })
     }
 
     pub fn schema(&self) -> &SchemaKey {
         &self.schema
     }
-    pub fn graph(&self) -> &Schema {
+    pub fn graph(&self) -> &Arc<Schema> {
         &self.graph
     }
 
-    pub fn encoding_memory(&self, entry: &TelemetryEntry) -> Result<usize> {
-        let metadata = Sample::encoding_memory(&entry.sample)?;
-        let payload = entry.sample.storage_payload.as_ref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
-        metadata
-            .checked_add(entry.epoch.as_str().len())
-            .and_then(|bytes| payload.len().checked_mul(2).and_then(|payload| bytes.checked_add(payload)))
-            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Metadata>()))
-            .ok_or(Error::Invalid("typed telemetry encoding memory overflows"))
+    // Staged Rows Carry Payloads Their Admission Already Checked Or Decoded With This Codec.
+    pub(crate) fn encode_staged(
+        &self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample, scope: Option<&RecordScope>,
+    ) -> Result<Vec<u8>> {
+        let metadata = self.metadata(epoch, ordinal, sample, scope)?;
+        let payload = sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
+        let length = metadata.encoded_size().checked_add(payload.len()).ok_or(Error::Invalid("typed telemetry frame length overflows"))?;
+        let bytes = encode_metadata(metadata, payload, length)?;
+        Ok(bytes)
     }
 
     pub fn encode(&self, entry: &TelemetryEntry, maximum: usize) -> Result<Vec<u8>> {
-        let sample = &entry.sample;
+        let payload =
+            entry.sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
+        self.check_payload(payload)?;
+        let metadata = self.metadata(&entry.epoch, entry.ordinal, &entry.sample, entry.sample.scope.as_ref())?;
+        let length = metadata
+            .encoded_size()
+            .checked_add(payload.len())
+            .filter(|length| *length <= maximum)
+            .ok_or(Error::Invalid("typed telemetry frame exceeds byte limit"))?;
+        encode_metadata(metadata, payload, length)
+    }
+
+    // The One Payload Pass For A Row Whose Values Arrived Beside Its Bytes.
+    pub(crate) fn check_payload(&self, payload: &[u8]) -> Result<()> {
+        payload_pass();
+        let validation = self.validator.validate(payload);
+        validation.map_err(|_| Error::Invalid("typed telemetry row does not match its declared graph"))
+    }
+
+    // The One Payload Pass For A Row Whose Values Are Projected From Its Bytes.
+    pub(crate) fn decode_payload(&self, payload: &[u8]) -> Result<BTreeMap<String, Value>> {
+        let stream =
+            self.schema.id.as_str().strip_prefix("dokime.telemetry.").ok_or(Error::Invalid("typed telemetry schema is unnamed"))?;
+        payload_pass();
+        decode_stream_values(stream, &self.validator, payload)
+    }
+
+    fn metadata(
+        &self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample, scope: Option<&RecordScope>,
+    ) -> Result<Metadata> {
         if sample.schema_version != self.schema.version.get()
-            || self.schema.id.as_str() != format!("dokime.telemetry.{}", sample.stream.as_str())
+            || self.schema.id.as_str().strip_prefix("dokime.telemetry.") != Some(sample.stream.as_str())
         {
             return Err(Error::Invalid("typed telemetry sample differs from registered stream schema"));
         }
-        let payload = sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
-        self.validator.validate(payload).map_err(|_| Error::Invalid("typed telemetry row does not match its declared graph"))?;
+        let epoch = sample::copy_text(epoch.as_str())?;
+        let sample_id = sample::copy_text(sample.sample_id.as_str())?;
+        let stream = sample::copy_text(sample.stream.as_str())?;
+        let timestamp = sample::copy_text(sample.timestamp.as_str())?;
+
+        // Encode The Timestamp Projection Before The Remaining Metadata
+        let timestamp_values = sample.values.get("timestamp").map(|value| {
+            let entry = ("timestamp".to_owned(), value.clone());
+            BTreeMap::from([entry])
+        });
+        let timestamp_values = timestamp_values.unwrap_or_default();
+        let timestamp_value = values::encode(&timestamp_values)?;
+        drop(timestamp_values);
         let metadata = Metadata {
-            epoch: sample::copy_text(entry.epoch.as_str())?,
-            ordinal: entry.ordinal,
-            sample_id: sample::copy_text(sample.sample_id.as_str())?,
-            stream: sample::copy_text(sample.stream.as_str())?,
+            epoch,
+            ordinal,
+            sample_id,
+            stream,
             schema_version: sample.schema_version,
             sequence: sample.sequence,
-            timestamp: sample::copy_text(sample.timestamp.as_str())?,
-            timestamp_value: values::encode(
-                &sample.values.get("timestamp").map(|value| BTreeMap::from([("timestamp".to_owned(), value.clone())])).unwrap_or_default(),
-            )?,
+            timestamp,
+            timestamp_value,
             received_at: sample::copy_text(sample.received_at.as_str())?,
             source: sample::copy_text(sample.source.as_str())?,
-            scope: sample.scope.as_ref().map(ScopeRow::from),
+            signals: sample.values.iter().filter(|(_, value)| !matches!(value, Value::Null)).map(|(key, _)| key.clone()).collect(),
+            scope: scope.map(ScopeRow::from),
             summary: values::encode(&sample.summary)?,
             metadata: values::encode(&sample.metadata)?,
         };
         sample.timestamp.to_datetime()?;
         sample.received_at.to_datetime()?;
-        let length = metadata
-            .encoded_len()
-            .checked_add(payload.len())
-            .filter(|length| *length <= maximum)
-            .ok_or(Error::Invalid("typed telemetry frame exceeds byte limit"))?;
-        let mut bytes = Vec::new();
-        bytes.try_reserve_exact(length).map_err(|_| Error::Invalid("typed telemetry allocation failed"))?;
-        // Postcard Struct Fields Are Sequential; Nested Messages Add No Length Prefix.
-        metadata.encode_into(&mut bytes);
-        bytes.extend_from_slice(payload);
-        Ok(bytes)
+        Ok(metadata)
     }
 
-    pub fn decoding_memory(&self, bytes: &[u8]) -> Result<usize> {
-        let mut reader = Reader::new(bytes);
-        let metadata = <Metadata as PostcardValue>::memory(&mut reader)?;
-        let payload = reader.remaining();
-        let projected = projection_memory(&self.validator, payload)?;
-        metadata
-            .checked_mul(3)
-            .and_then(|bytes| bytes.checked_add(projected))
-            .and_then(|bytes| bytes.checked_add(payload.len()))
-            .ok_or(Error::Invalid("typed telemetry decoding memory overflows"))
+    pub(crate) fn decode_stored(&self, row: &harmos::storage::StoredRow) -> Result<TelemetryEntry> {
+        let entry = self.decode(&row.record.payload, usize::MAX)?;
+        let sample = &entry.sample;
+        let scope = sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str());
+        let timestamp: std::time::SystemTime = sample.timestamp.to_datetime()?.into();
+        if row.record.schema != self.schema
+            || row.stream.as_str() != sample.stream.as_str()
+            || row.record.item.as_str() != sample.sample_id.as_str()
+            || row.record.source.as_ref().map(|id| id.as_str()) != Some(entry.epoch.as_str())
+            || row.record.scope.as_ref().map(|id| id.as_str()) != scope
+            || row.sequence != entry.ordinal
+            || row.record.source_time != Some(timestamp)
+        {
+            return Err(Error::Invalid("typed telemetry row differs from storage envelope"));
+        }
+        Ok(entry)
     }
 
     pub fn decode(&self, bytes: &[u8], maximum: usize) -> Result<TelemetryEntry> {
         if bytes.len() > maximum {
             return Err(Error::Invalid("typed telemetry frame exceeds byte limit"));
         }
-        let allowance =
-            NonZeroUsize::new(self.decoding_memory(bytes)?).ok_or(Error::Invalid("typed telemetry decoding allowance is empty"))?;
+
+        // Decode And Verify Canonical Metadata
         let mut reader = Reader::new(bytes);
         let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
         let payload = reader.remaining();
         let metadata_length = bytes.len() - payload.len();
-        if metadata.encode_to_vec() != bytes[..metadata_length] || metadata.epoch.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        let canonical_metadata = metadata.encode();
+        if canonical_metadata != bytes[..metadata_length] {
+            return Err(Error::Invalid("stored telemetry metadata is not canonical"));
+        }
+        drop(canonical_metadata);
+        let is_uppercase = |byte: u8| byte.is_ascii_uppercase();
+        let uppercase_epoch = metadata.epoch.bytes().any(is_uppercase);
+        if uppercase_epoch {
             return Err(Error::Invalid("stored telemetry metadata is not canonical"));
         }
         let mut decoded = decode_stream_values(&metadata.stream, &self.validator, payload)?;
-        let mut timestamp = values::decode(&metadata.timestamp_value)?;
+        let timestamp = values::decode(&metadata.timestamp_value)?;
         if timestamp.len() > 1 || timestamp.keys().any(|key| key != "timestamp") {
             return Err(Error::Invalid("stored telemetry timestamp projection is invalid"));
         }
-        if let Some(timestamp) = timestamp.remove("timestamp") {
-            if decoded.get("timestamp").is_some_and(|value| !same_timestamp(value, &timestamp)) {
-                return Err(Error::Invalid("stored telemetry timestamp differs from its payload"));
-            }
-            decoded.insert("timestamp".to_owned(), timestamp);
-        }
+        restore_timestamp(&mut decoded, timestamp)?;
         if metadata.schema_version != self.schema.version.get()
             || self.schema.id.as_str() != format!("dokime.telemetry.{}", metadata.stream)
         {
             return Err(Error::Invalid("stored telemetry metadata differs from its schema"));
         }
-        let mut sample = Sample {
+        // Restore The Sample Under The Decoding Allowance
+        let sample = Sample {
             sample_id: metadata.sample_id,
             stream: metadata.stream,
             schema_version: metadata.schema_version,
@@ -233,43 +301,195 @@ impl TypedCodec {
             values: values::encode(&Default::default())?,
             summary: metadata.summary,
             metadata: metadata.metadata,
-        }
-        .into_sample(allowance)?;
+        };
+        let mut sample = sample.into_sample()?;
         sample.values = decoded;
         sample.storage_payload = Some(payload.to_vec());
-        Ok(TelemetryEntry { epoch: SessionId::from_uuid(metadata.epoch)?, ordinal: metadata.ordinal, sample })
+        Ok(TelemetryEntry {
+            epoch: SessionId::from_uuid(metadata.epoch)?,
+            ordinal: metadata.ordinal,
+            sample,
+        })
+    }
+}
+
+impl CodecCache {
+    pub(crate) fn registered(&self, contract: &TelemetryContract) -> Result<Arc<TypedCodec>> {
+        let entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        let entry = entries
+            .iter()
+            .find(|((stream, version), _)| stream == &contract.stream && *version == contract.schema_version)
+            .map(|(_, entry)| entry)
+            .ok_or(Error::Invalid("telemetry producer schema is not registered"))?;
+        if !entry.registered || contract.storage_schema.as_ref() != Some(&entry.payload) {
+            return Err(Error::Invalid("telemetry producer schema differs from its registered graph"));
+        }
+        Ok(Arc::clone(&entry.codec))
+    }
+
+    pub fn codec(&self, contract: &TelemetryContract, settings: &harmos::config::SchemaSettings) -> Result<Arc<TypedCodec>> {
+        let reuse = |entry: &mut CachedCodec| entry.codec.clone();
+        self.with_entry(contract, settings, reuse)
+    }
+
+    // The Codec Whose Schema This Process Has Not Yet Saved, If Any.
+    pub fn unregistered(&self, contract: &TelemetryContract, settings: &harmos::config::SchemaSettings) -> Result<Option<Arc<TypedCodec>>> {
+        self.with_entry(contract, settings, |entry| {
+            let codec = (!entry.registered).then_some(&entry.codec);
+            codec.cloned()
+        })
+    }
+
+    pub fn mark_registered(&self, contract: &TelemetryContract, saved: &Arc<TypedCodec>) {
+        let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        let key = (contract.stream.clone(), contract.schema_version);
+        if let Some(entry) = entries.get_mut(&key)
+            && Arc::ptr_eq(&entry.codec, saved)
+        {
+            entry.registered = true;
+        }
+    }
+
+    fn with_entry<T>(
+        &self, contract: &TelemetryContract, settings: &harmos::config::SchemaSettings, use_entry: impl FnOnce(&mut CachedCodec) -> T,
+    ) -> Result<T> {
+        let payload = contract.storage_schema.as_ref().ok_or(Error::Invalid("captured telemetry has no typed storage schema"))?;
+        let key = (contract.stream.clone(), contract.schema_version);
+        let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        if entries.get(&key).is_none_or(|entry| &entry.payload != payload) {
+            let payload = payload.clone();
+            let codec = codec(contract, settings)?;
+            let entry = CachedCodec {
+                payload,
+                codec: Arc::new(codec),
+                registered: false,
+            };
+            entries.insert(key.clone(), entry);
+        }
+        let entry = entries.get_mut(&key).expect("codec entry inserted");
+        Ok(use_entry(entry))
     }
 }
 
 /* === Public Functions === */
-pub fn codec(contract: &TelemetryContract) -> Result<TypedCodec> {
+
+pub fn codec(contract: &TelemetryContract, settings: &harmos::config::SchemaSettings) -> Result<TypedCodec> {
     let schema = contract.storage_schema.as_ref().ok_or(Error::Invalid("captured telemetry has no typed storage schema"))?;
-    TypedCodec::new(&contract.stream, contract.schema_version, schema, &harmos::config::SchemaSettings::default())
+    TypedCodec::new(&contract.stream, contract.schema_version, schema, settings)
 }
 
-pub fn decode_batch(codec: &TypedCodec, batch: &ArrowBatch) -> Result<Vec<TelemetryEntry>> {
-    let encoded = encode_batch(codec, batch)?;
-    let entries = encoded.iter().map(|row| codec.decode(row, usize::MAX)).collect::<Result<Vec<_>>>()?;
-    let storage = batch
-        .as_record_batch()
-        .column_by_name("_storage")
-        .and_then(|column| column.as_any().downcast_ref::<StructArray>())
-        .ok_or(Error::Invalid("raw telemetry query has no storage envelope"))?;
-    for (row, entry) in entries.iter().enumerate() {
-        check_envelope(codec, storage, row, entry)?;
+pub fn stored_codecs_where(
+    batch: ArrowBatch, settings: &harmos::config::SchemaSettings, selected: impl Fn(&str, u32) -> bool,
+) -> Result<harmos::storage::ReadBatch<Vec<TypedCodec>>> {
+    // Decode The Selected Graphs
+    let decoded = batch.try_map(|batch| {
+        let (ids, versions, definitions) = schema_columns(&batch)?;
+        let mut schemas = Vec::new();
+        let allocation = schemas.try_reserve_exact(batch.num_rows());
+        let allocation_failed = Error::Invalid("telemetry schema allocation failed");
+        allocation.map_err(|_| allocation_failed)?;
+        let selected_row = |row: &usize| {
+            let id = ids.value(*row);
+            let version = versions.value(*row);
+            selected(id, version)
+        };
+        for row in (0..batch.num_rows()).filter(selected_row) {
+            schema_encoding(&batch, row)?;
+            let schema = SchemaKey {
+                id: harmos::Identifier::new(ids.value(row))?,
+                version: std::num::NonZeroU32::new(versions.value(row)).ok_or(Error::Invalid("telemetry schema version is zero"))?,
+                payload_encoding: PayloadEncoding::PostcardV1,
+            };
+            let definition = definitions.value(row);
+            let graph = Schema::decode(definition)?;
+            schemas.push((schema, graph));
+        }
+        Ok::<_, Error>(schemas)
+    })?;
+    // Compile The Values Roots
+    decoded.try_map(|schemas| {
+        let mut codecs = Vec::new();
+        let allocation = codecs.try_reserve_exact(schemas.len());
+        let allocation_failed = Error::Invalid("telemetry codec allocation failed");
+        allocation.map_err(|_| allocation_failed)?;
+        for (schema, graph) in schemas {
+            let definition = values_definition(&graph)?;
+            let at_values = |validator: Validator| validator.at(definition);
+            let construction = Validator::from_schema(&graph, settings).and_then(at_values);
+            let invalid_schema = Error::Invalid("stored telemetry schema is invalid");
+            let validator = construction.map_err(|_| invalid_schema)?;
+            let graph = Arc::new(graph);
+            codecs.push(TypedCodec { schema, graph, validator });
+        }
+        Ok(codecs)
+    })
+}
+
+pub(crate) fn selected_schema(id: &str, streams: &[dokime_domain::model::identity::IdentifierPattern]) -> bool {
+    let Some(stream) = id.strip_prefix("dokime.telemetry.") else {
+        return false;
+    };
+    if streams.is_empty() {
+        return true;
     }
-    Ok(entries)
+    let matches = |pattern: &dokime_domain::model::identity::IdentifierPattern| pattern.matches(stream);
+    streams.iter().any(matches)
 }
 
-pub fn encode_batch(codec: &TypedCodec, batch: &ArrowBatch) -> Result<Vec<Vec<u8>>> {
-    let payload = batch
-        .as_record_batch()
-        .column_by_name("payload")
-        .ok_or(Error::Invalid("query has no telemetry payload column"))?
-        .as_any()
-        .downcast_ref::<StructArray>()
-        .ok_or(Error::Invalid("query telemetry payload is not a typed struct"))?;
-    Ok(harmos::storage::arrow::encode_payloads(codec.graph(), payload, PayloadEncoding::PostcardV1, NonZeroUsize::MAX)?)
+fn schema_encoding(batch: &arrow_array::RecordBatch, row: usize) -> Result<()> {
+    for (field, expected) in [("payload_encoding", "postcard_v1"), ("schema_encoding", "harmos.graph.postcard.v1")] {
+        check_schema_encoding(batch, row, field, expected)?;
+    }
+    Ok(())
+}
+
+fn schema_columns(batch: &arrow_array::RecordBatch) -> Result<(&StringArray, &UInt32Array, &arrow_array::BinaryArray)> {
+    let ids =
+        batch.column_by_name("schema_id").and_then(as_array::<StringArray>).ok_or(Error::Invalid("schema query has no identifiers"))?;
+    let versions =
+        batch.column_by_name("schema_version").and_then(as_array::<UInt32Array>).ok_or(Error::Invalid("schema query has no versions"))?;
+    let definitions = batch
+        .column_by_name("definition")
+        .and_then(as_array::<arrow_array::BinaryArray>)
+        .ok_or(Error::Invalid("schema query has no definitions"))?;
+    Ok((ids, versions, definitions))
+}
+
+pub fn decode_positioned(codec: &TypedCodec, batch: ArrowBatch) -> Result<harmos::storage::ReadBatch<Vec<(u64, TelemetryEntry)>>> {
+    payload_column(batch.as_record_batch())?;
+    let maximum = NonZeroUsize::MAX;
+    let encoded = batch.try_map(|batch| {
+        let payload = payload_column(&batch)?;
+        let rows = harmos::storage::arrow::encode_payloads(codec.graph(), payload, maximum)?;
+        Ok::<_, Error>((batch, rows))
+    })?;
+    encoded.try_map(|(batch, rows)| {
+        let storage = batch
+            .column_by_name("_storage")
+            .and_then(as_array::<StructArray>)
+            .ok_or(Error::Invalid("raw telemetry query has no storage envelope"))?;
+        let mut entries = Vec::new();
+        let allocation = entries.try_reserve_exact(rows.len());
+        let allocation_failed = Error::Invalid("typed telemetry allocation failed");
+        allocation.map_err(|_| allocation_failed)?;
+        for (index, row) in rows.iter().enumerate() {
+            let entry = codec.decode(row, usize::MAX)?;
+            check_envelope(codec, storage, index, &entry)?;
+            let positions = storage
+                .column_by_name("position")
+                .and_then(as_array::<UInt64Array>)
+                .ok_or(Error::Invalid("typed telemetry positions are absent"))?;
+            if positions.is_null(index) {
+                return Err(Error::Invalid("typed telemetry position is null"));
+            }
+            entries.push((positions.value(index), entry));
+        }
+        Ok(entries)
+    })
+}
+
+fn payload_column(batch: &arrow_array::RecordBatch) -> Result<&StructArray> {
+    batch.column_by_name("payload").and_then(as_array::<StructArray>).ok_or(Error::Invalid("query telemetry payload is not a typed struct"))
 }
 
 pub fn decode_stream_values(stream: &str, validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<String, Value>> {
@@ -277,22 +497,120 @@ pub fn decode_stream_values(stream: &str, validator: &Validator, bytes: &[u8]) -
     if let Ok(host) = dokime_domain::model::telemetry::HostTelemetryStream::try_from(stream)
         && host.as_str() == stream
     {
-        dokime_domain::model::telemetry::host::contracts::project_host_values(host, &mut values)
-            .map_err(|_| Error::Invalid("host telemetry values are invalid"))?;
+        let projection = dokime_domain::model::telemetry::host::contracts::project_host_values(host, &mut values);
+        let invalid_host = Error::Invalid("host telemetry values are invalid");
+        projection.map_err(|_| invalid_host)?;
     }
     Ok(values)
 }
 
 pub fn decode_values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<String, Value>> {
-    projected_values(validator, bytes).map_err(|_| Error::Invalid("typed telemetry payload projection failed"))
+    let projection = projected_values(validator, bytes);
+    let invalid_projection = Error::Invalid("typed telemetry payload projection failed");
+    projection.map_err(|_| invalid_projection)
+}
+
+pub(crate) fn index_metadata(bytes: &[u8]) -> Result<(Option<ScopeRow>, String, Vec<String>)> {
+    let mut reader = Reader::new(bytes);
+    let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
+    let length = bytes.len() - reader.remaining().len();
+    if metadata.encode() != bytes[..length] {
+        return Err(Error::Invalid("stored telemetry metadata is not canonical"));
+    }
+    Ok((metadata.scope, metadata.source, metadata.signals))
 }
 
 /* === Private Functions === */
+
+// Counts Admission Payload Passes On This Thread So Tests Can Prove Each Row Is Read Once.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static PAYLOAD_PASSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn payload_pass() {
+    #[cfg(test)]
+    PAYLOAD_PASSES.with(|passes| passes.set(passes.get() + 1));
+}
+
+fn append_definitions(target: &mut Vec<Vec<Field>>, graph: &Schema, offset: usize) -> Result<()> {
+    for fields in &graph.definitions {
+        let fields = shifted_fields(fields, offset)?;
+        target.push(fields);
+    }
+    Ok(())
+}
+
+fn shifted_fields(fields: &[Field], offset: usize) -> Result<Vec<Field>> {
+    let mut fields = fields.to_vec();
+    let messages = fields.iter_mut().filter_map(|field| {
+        let Kind::Message { definition } = &mut field.kind else {
+            return None;
+        };
+        Some(definition)
+    });
+    for definition in messages {
+        *definition = definition.checked_add(offset).ok_or(Error::Invalid("telemetry graph reference overflows"))?;
+    }
+    Ok(fields)
+}
+
+fn restore_timestamp(decoded: &mut BTreeMap<String, Value>, mut timestamp: BTreeMap<String, Value>) -> Result<()> {
+    let Some(timestamp) = timestamp.remove("timestamp") else {
+        return Ok(());
+    };
+    let differs = match decoded.get("timestamp") {
+        Some(value) => !same_timestamp(value, &timestamp),
+        None => false,
+    };
+    if differs {
+        return Err(Error::Invalid("stored telemetry timestamp differs from its payload"));
+    }
+    decoded.insert("timestamp".to_owned(), timestamp);
+    Ok(())
+}
+
+fn values_definition(graph: &Schema) -> Result<usize> {
+    let root = graph.definitions.get(graph.root).ok_or(Error::Invalid("telemetry schema root is absent"))?;
+    let values = root
+        .iter()
+        .find(|field| field.name == "values" && field.tag == 2)
+        .ok_or(Error::Invalid("telemetry schema values root is absent"))?;
+    let Kind::Message { definition } = values.kind else {
+        return Err(Error::Invalid("telemetry values schema is not a message"));
+    };
+    Ok(definition)
+}
+
+fn as_array<T: Array + 'static>(column: &arrow_array::ArrayRef) -> Option<&T> {
+    column.as_any().downcast_ref::<T>()
+}
+
+fn check_schema_encoding(batch: &arrow_array::RecordBatch, row: usize, field: &str, expected: &str) -> Result<()> {
+    let values =
+        batch.column_by_name(field).and_then(as_array::<StringArray>).ok_or(Error::Invalid("telemetry schema encoding is absent"))?;
+    if values.is_null(row) || values.value(row) != expected {
+        return Err(Error::Invalid("telemetry schema encoding is unsupported"));
+    }
+    Ok(())
+}
+
+fn encode_metadata(metadata: Metadata, payload: &[u8], length: usize) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let allocation = bytes.try_reserve_exact(length);
+    let allocation_failed = Error::Invalid("typed telemetry allocation failed");
+    allocation.map_err(|_| allocation_failed)?;
+    metadata.encode_into(&mut bytes);
+    bytes.extend_from_slice(payload);
+    Ok(bytes)
+}
+
 // A row may carry its timestamp as RFC 3339 text that values hold as a datetime.
 fn same_timestamp(payload: &Value, stored: &Value) -> bool {
     match (payload, stored) {
         (Value::Text(text), Value::Datetime(instant)) | (Value::Datetime(instant), Value::Text(text)) => {
-            dokime_domain::model::time::Timestamp::new(text.as_str()).to_datetime().is_ok_and(|parsed| parsed == *instant)
+            let timestamp = dokime_domain::model::time::Timestamp::new(text.as_str());
+            timestamp.to_datetime().is_ok_and(|parsed| parsed == *instant)
         }
         _ => payload == stored,
     }
@@ -301,97 +619,103 @@ fn same_timestamp(payload: &Value, stored: &Value) -> bool {
 fn envelope_text<'a>(storage: &'a StructArray, field: &str, row: usize) -> Result<Option<&'a str>> {
     let array = storage
         .column_by_name(field)
-        .and_then(|array| array.as_any().downcast_ref::<StringArray>())
+        .and_then(as_array::<StringArray>)
         .ok_or(Error::Invalid("telemetry storage envelope string field is missing"))?;
-    Ok((!array.is_null(row)).then(|| array.value(row)))
+    if array.is_null(row) {
+        return Ok(None);
+    }
+    let value = array.value(row);
+    Ok(Some(value))
 }
+
 fn check_envelope(codec: &TypedCodec, storage: &StructArray, row: usize, entry: &TelemetryEntry) -> Result<()> {
     if storage.is_null(row) {
         return Err(Error::Invalid("telemetry storage envelope is null"));
     }
     let sequence = storage
         .column_by_name("sequence")
-        .and_then(|column| column.as_any().downcast_ref::<UInt64Array>())
+        .and_then(as_array::<UInt64Array>)
         .ok_or(Error::Invalid("telemetry storage sequence is missing"))?;
     let version = storage
         .column_by_name("schema_version")
-        .and_then(|column| column.as_any().downcast_ref::<UInt32Array>())
+        .and_then(as_array::<UInt32Array>)
         .ok_or(Error::Invalid("telemetry storage schema version is missing"))?;
     let time = storage
         .column_by_name("source_time")
-        .and_then(|column| column.as_any().downcast_ref::<TimestampNanosecondArray>())
+        .and_then(as_array::<TimestampNanosecondArray>)
         .ok_or(Error::Invalid("telemetry storage source time is missing"))?;
     let sample = &entry.sample;
-    let scope = sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str());
-    let timestamp = sample.timestamp.to_datetime()?.unix_timestamp_nanos();
-    if envelope_text(storage, "stream", row)? != Some(sample.stream.as_str())
+    let execution_scope = sample.scope.as_ref().map(|scope| &scope.test_execution_id);
+    let scope = match execution_scope {
+        Some(Some(id)) => Some(id.as_str()),
+        _ => None,
+    };
+    let timestamp = sample.timestamp.to_datetime()?;
+    let timestamp = timestamp.unix_timestamp_nanos();
+
+    // Preserve The Envelope's Short-Circuit Validation Order
+    let identity_differs = envelope_text(storage, "stream", row)? != Some(sample.stream.as_str())
         || envelope_text(storage, "item", row)? != Some(sample.sample_id.as_str())
-        || envelope_text(storage, "source", row)? != Some(entry.epoch.as_str())
-        || envelope_text(storage, "scope", row)? != scope
-        || envelope_text(storage, "schema_id", row)? != Some(codec.schema().id.as_str())
-        || sequence.is_null(row)
-        || sequence.value(row) != entry.ordinal
-        || version.is_null(row)
-        || version.value(row) != codec.schema().version.get()
-        || time.is_null(row)
-        || i128::from(time.value(row)) != timestamp
-    {
+        || envelope_text(storage, "source", row)? != Some(entry.epoch.as_str());
+    if identity_differs {
+        return Err(Error::Invalid("typed telemetry row differs from storage envelope"));
+    }
+    let schema_id = codec.schema().id.as_str();
+    let scope_or_schema_differs =
+        envelope_text(storage, "scope", row)? != scope || envelope_text(storage, "schema_id", row)? != Some(schema_id);
+    if scope_or_schema_differs {
+        return Err(Error::Invalid("typed telemetry row differs from storage envelope"));
+    }
+    let sequence_differs = sequence.is_null(row) || sequence.value(row) != entry.ordinal;
+    if sequence_differs {
+        return Err(Error::Invalid("typed telemetry row differs from storage envelope"));
+    }
+    let version_differs = version.is_null(row) || version.value(row) != codec.schema().version.get();
+    if version_differs {
+        return Err(Error::Invalid("typed telemetry row differs from storage envelope"));
+    }
+    let source_time_differs = time.is_null(row) || i128::from(time.value(row)) != timestamp;
+    if source_time_differs {
         return Err(Error::Invalid("typed telemetry row differs from storage envelope"));
     }
     Ok(())
 }
 
-fn projection_memory(validator: &Validator, bytes: &[u8]) -> Result<usize> {
-    let mut memory = std::mem::size_of::<BTreeMap<String, Value>>();
-    validator
-        .visit(bytes, |path, event| {
-            let owned = match event {
-                Event::Scalar(Scalar::String(value)) => value.len(),
-                Event::Scalar(Scalar::Bytes(value)) => value
-                    .len()
-                    .checked_mul(std::mem::size_of::<Value>() * 2)
-                    .ok_or(Error::Invalid("telemetry byte projection memory overflows"))?,
-                _ => 0,
-            };
-            let field = match path.last() {
-                Some(PathElement::Field { name, .. }) => name.len(),
-                _ => 0,
-            };
-            memory = memory
-                .checked_add(owned)
-                .and_then(|memory| memory.checked_add(field))
-                .and_then(|memory| memory.checked_add(8 * std::mem::size_of::<Value>() + 256))
-                .ok_or(Error::Invalid("telemetry projection memory overflows"))?;
-            Ok::<(), Error>(())
-        })
-        .map_err(|_| Error::Invalid("telemetry payload is invalid or exceeds projection memory"))?;
-    Ok(memory)
-}
 fn projected_values(validator: &Validator, bytes: &[u8]) -> std::result::Result<BTreeMap<String, Value>, String> {
     let mut containers = Vec::new();
     let mut root = None;
-    validator
-        .visit(bytes, |path, event| {
-            match event {
-                Event::BeginMessage => containers.push(Value::Object(BTreeMap::new())),
-                Event::BeginRepeated { .. } => containers.push(Value::Array(Vec::new())),
-                Event::EndMessage | Event::EndRepeated => {
-                    let value = containers.pop().ok_or("missing telemetry container")?;
-                    if containers.is_empty() {
-                        root = Some(value);
-                    } else {
-                        attach(&mut containers, path, value)?;
-                    }
-                }
-                Event::Optional { present: false } => {
-                    attach(&mut containers, path, Value::Null)?;
-                }
-                Event::Scalar(scalar) => attach(&mut containers, path, value(scalar))?,
-                Event::Optional { present: true } | Event::Variant { .. } => {}
+    let visit = validator.visit(bytes, |path, event| {
+        match event {
+            Event::BeginMessage => {
+                let fields = BTreeMap::new();
+                containers.push(Value::Object(fields));
             }
-            Ok::<(), String>(())
-        })
-        .map_err(|error| error.to_string())?;
+            Event::BeginRepeated { .. } => {
+                let items = Vec::new();
+                containers.push(Value::Array(items));
+            }
+            Event::EndMessage | Event::EndRepeated => {
+                let value = containers.pop().ok_or("missing telemetry container")?;
+                if containers.is_empty() {
+                    root = Some(value);
+                    return Ok(());
+                }
+                attach(&mut containers, path, value)?;
+            }
+            Event::Optional { present: false } => {
+                attach(&mut containers, path, Value::Null)?;
+            }
+            Event::Scalar(scalar) => {
+                let value = value(scalar);
+                attach(&mut containers, path, value)?;
+            }
+            Event::Optional { present: true } | Event::Variant { .. } => {}
+        }
+        Ok::<(), String>(())
+    });
+    if let Err(error) = visit {
+        return Err(error.to_string());
+    }
     match root {
         Some(Value::Object(values)) if containers.is_empty() => Ok(values),
         _ => Err("telemetry root is not a complete message".into()),
@@ -421,8 +745,55 @@ fn value(value: Scalar<'_>) -> Value {
         Scalar::F32(value) => Value::Number(f64::from(value)),
         Scalar::F64(value) => Value::Number(value),
         Scalar::String(value) => Value::Text(value.to_owned()),
-        Scalar::Bytes(value) => Value::Array(value.iter().map(|byte| Value::Integer(i64::from(*byte))).collect()),
+        Scalar::Bytes(value) => {
+            let integer = |byte: &u8| {
+                let integer = i64::from(*byte);
+                Value::Integer(integer)
+            };
+            let values = value.iter().map(integer).collect();
+            Value::Array(values)
+        }
     }
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[harmos::message]
+    #[derive(Clone, PartialEq)]
+    struct Reading {
+        value: f64,
+    }
+
+    #[harmos::message]
+    #[derive(Clone, PartialEq)]
+    struct Renamed {
+        label: String,
+    }
+
+    #[test]
+    fn cache_reuses_codecs_until_the_graph_changes() {
+        let cache = CodecCache::default();
+        let settings = harmos::config::SchemaSettings::default();
+        let contract = TelemetryContract::declared("cache.fixture", "Cache").typed::<Reading>();
+
+        let first = cache.codec(&contract, &settings).unwrap();
+        let reused = cache.codec(&contract, &settings).unwrap();
+        assert!(Arc::ptr_eq(&first, &reused));
+        assert!(cache.unregistered(&contract, &settings).unwrap().is_some());
+        cache.mark_registered(&contract, &first);
+        assert!(cache.unregistered(&contract, &settings).unwrap().is_none());
+
+        // A Redefined Graph Under The Same Version Builds And Registers Afresh
+        let mut redefined = TelemetryContract::declared("cache.fixture", "Cache").typed::<Renamed>();
+        redefined.schema_version = contract.schema_version;
+        let rebuilt = cache.codec(&redefined, &settings).unwrap();
+        assert!(!Arc::ptr_eq(&first, &rebuilt));
+        // An Old Registration Completing After Redefinition Cannot Mark The New Graph Saved.
+        cache.mark_registered(&contract, &first);
+        assert!(cache.unregistered(&redefined, &settings).unwrap().is_some());
+    }
+}

@@ -8,13 +8,16 @@
  */
 
 /* === Modules === */
+
 pub mod contract;
 pub mod declared;
 pub mod host;
 pub mod inbox;
 pub mod route;
+pub mod view;
 
 /* === Re-Exports === */
+
 pub use crate::values::{FieldError, FieldValue, field};
 pub use contract::{
     BuiltinRecordType, PRODUCT_CALIBRATION_KINDS, PRODUCT_CALIBRATION_PHASES, PRODUCT_CONNECTION_STATES, PRODUCT_READINESS_STATES,
@@ -29,9 +32,11 @@ pub use inbox::{Deliveries, RecordSource};
 pub use route::{RECORD_PUBLICATION_VERSION, RecordPublication};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
+
 // Local Imports
 
 /* === Constants === */
@@ -49,6 +54,7 @@ pub use route::{RECORD_PUBLICATION_VERSION, RecordPublication};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 /* === Private Functions === */
 
 /* === Tests === */

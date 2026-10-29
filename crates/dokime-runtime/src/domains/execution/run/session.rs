@@ -12,11 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+
 // Third Party Imports
+use tokio_util::sync::CancellationToken;
+
 // Local Imports
 use super::artifacts::ArtifactBridge;
 use super::{
@@ -32,13 +33,13 @@ use crate::transport::{
 use dokime_domain::model::execution::result::TestExecution;
 
 /* === Constants === */
-const ANSWER_POLL: Duration = Duration::from_millis(100);
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Opened {
     pub context: ExecutionFixtureContext,
     pub execution: TestExecution,
@@ -46,7 +47,6 @@ pub(super) struct Opened {
     pub source: String,
     pub target: Target,
     pub prompts: PromptBridge,
-    pub record_subscription_after: u64,
     pub phase: PhaseTracker,
 }
 
@@ -58,17 +58,18 @@ pub(crate) struct Session {
     pub(super) target: Target,
     pub(super) prompts: tokio::sync::Mutex<PromptBridge>,
     pub(super) step_leases: StepLeaseBridge,
-    record_subscription_after: u64,
     pages: tokio::sync::Mutex<Pages>,
     replayed: tokio::sync::Mutex<bool>,
-    cancelling: AtomicBool,
+    record_delivery: tokio::sync::Mutex<()>,
+    cancelling: CancellationToken,
     refusal: tokio::sync::Mutex<Option<ProviderExecutionFailure>>,
+    changed: tokio::sync::watch::Sender<()>,
+    command_admitted: std::sync::atomic::AtomicBool,
 }
 
 struct Pages {
     cursor: u64,
     settled: bool,
-    replayed: BTreeMap<harmos::Identifier, u64>,
     stream_log: StreamLog,
     artifacts: ArtifactBridge,
     phase: PhaseTracker,
@@ -79,6 +80,7 @@ struct Pages {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Session {
     pub(super) fn new(opened: Opened) -> Self {
         let spill = opened.context.runtime.config().storage_root.clone();
@@ -90,18 +92,19 @@ impl Session {
             target: opened.target,
             prompts: tokio::sync::Mutex::new(opened.prompts),
             step_leases: StepLeaseBridge::default(),
-            record_subscription_after: opened.record_subscription_after,
             pages: tokio::sync::Mutex::new(Pages {
                 cursor: 0,
                 settled: false,
-                replayed: BTreeMap::new(),
                 stream_log: StreamLog::default(),
                 artifacts: ArtifactBridge::new(spill),
                 phase: opened.phase,
             }),
             replayed: tokio::sync::Mutex::new(false),
-            cancelling: AtomicBool::new(false),
+            record_delivery: tokio::sync::Mutex::new(()),
+            cancelling: CancellationToken::new(),
             refusal: tokio::sync::Mutex::new(None),
+            changed: tokio::sync::watch::channel(()).0,
+            command_admitted: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -115,9 +118,13 @@ impl Session {
         let settling = batch.record_subscriptions_settling && !pages.settled;
         if batch.cursor <= pages.cursor && !settling {
             // The run repeated a page whose receipt it never saw.
-            return EvidenceReceipt { admitted: Vec::new(), settled: pages.settled };
+            return EvidenceReceipt {
+                admitted: Vec::new(),
+                settled: pages.settled,
+            };
         }
         let begins = batch.step_begins.clone();
+        let batch_settling = batch.record_subscriptions_settling;
         // Once one page was refused the case is over: nothing later is
         // admitted as evidence, every step it asks to begin is refused, and
         // the run is released to wind down.
@@ -140,9 +147,15 @@ impl Session {
                         .filter_map(|encoded| {
                             serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok()
                         })
-                        .map(|start| StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: false, message: message.clone() })
+                        .map(|start| StepAdmission {
+                            attempt_id: start.attempt_id.to_string(),
+                            accepted: false,
+                            message: message.clone(),
+                        })
                         .collect(),
-                    settled: false,
+                    // Nothing more reaches a refused case, so its inputs are closed: a settling page is
+                    // answered settled and the run concludes now rather than waiting out the stop budget.
+                    settled: batch_settling || pages.settled,
                 }
             }
         }
@@ -156,36 +169,31 @@ impl Session {
             .request(&self.context, &self.execution.scope, &question.prompt_json)
             .await
             .map_err(|refusal| refusal.message)?;
-        loop {
-            if let Some(response) = self.context.runtime.prompt_response(&prompt_id).await {
-                self.prompts.lock().await.outstanding.remove(&prompt_id);
-                return serde_json::to_string(&response)
-                    .map(|response_json| OperatorAnswer { response_json })
-                    .map_err(|error| error.to_string());
-            }
-            // A stop settles the question in its own transaction, before the
-            // watch loop cancels the run: the run is being stopped, so the
-            // question ends as a cancellation rather than a refused answer.
-            let settled = self.context.runtime.prompt_settled_at(&prompt_id).await;
-            if settled.is_some() {
-                self.prompts.lock().await.outstanding.remove(&prompt_id);
-            }
-            if self.cancelling.load(Ordering::Acquire) || settled.is_some() {
-                return Err("the execution was stopped while the question was outstanding".into());
-            }
-            tokio::time::sleep(ANSWER_POLL).await;
+        let response = self.context.runtime.wait_for_prompt_response_for_cycle(prompt_id.clone(), self.execution.test_cycle_id.clone());
+        let answered = tokio::select! {
+            biased;
+            answer = response => answer.map_err(|error| error.to_string()),
+            () = self.cancelling.cancelled() => Err("the execution was stopped while the question was outstanding".into()),
+        };
+        if answered.is_ok() || self.context.runtime.prompt_settled_at(&prompt_id).await.is_some() {
+            self.prompts.lock().await.outstanding.remove(&prompt_id);
         }
+        let answered = answered?;
+        serde_json::to_string(&answered).map(|response_json| OperatorAnswer { response_json }).map_err(|error| error.to_string())
     }
 
     pub(crate) async fn lease(&self, ask: LeaseAsk) -> LeaseResolution {
         match serde_json::from_str::<crate::telemetry::LeaseRequest>(&ask.lease_json) {
             Ok(request) => self.step_leases.request(&self.context, &self.execution, &self.source, request).await,
-            Err(error) => LeaseResolution { granted: false, message: format!("the lease request could not be read: {error}") },
+            Err(error) => LeaseResolution {
+                granted: false,
+                message: format!("the lease request could not be read: {error}"),
+            },
         }
     }
 
     pub(super) async fn cancel(&self) {
-        self.cancelling.store(true, Ordering::Release);
+        self.cancelling.cancel();
         self.prompts.lock().await.settle_on_cancel(&self.context).await;
     }
 
@@ -193,11 +201,34 @@ impl Session {
         self.refusal.lock().await.is_some()
     }
 
+    pub(super) fn watch_changes(&self) -> tokio::sync::watch::Receiver<()> {
+        self.changed.subscribe()
+    }
+
+    pub(super) fn signal_change(&self) {
+        self.changed.send_replace(());
+    }
+
+    pub(super) fn signal_command(&self) {
+        self.command_admitted.store(true, std::sync::atomic::Ordering::Release);
+        self.signal_change();
+    }
+
+    pub(super) fn take_command_admitted(&self) -> bool {
+        self.command_admitted.swap(false, std::sync::atomic::Ordering::AcqRel)
+    }
+
     fn release_run(&self) {
         let target = self.target.clone();
         let execution_token = self.execution.test_execution_id.to_string();
         tokio::spawn(async move {
-            let cancelled = target.signal(ExecutionSignal { execution_token, cancel: true, ..ExecutionSignal::default() }).await;
+            let cancelled = target
+                .signal(ExecutionSignal {
+                    execution_token,
+                    cancel: true,
+                    ..ExecutionSignal::default()
+                })
+                .await;
             if let Err(error) = cancelled {
                 tracing::debug!(detail = %error.message, "a refused run did not take its cancellation");
             }
@@ -208,6 +239,7 @@ impl Session {
         let mut kept = self.refusal.lock().await;
         if kept.is_none() {
             *kept = Some(refusal);
+            self.signal_change();
         }
     }
 
@@ -236,12 +268,13 @@ impl Session {
     pub(super) async fn conclude(
         &self, case: &TestCase, outcome: SidecarExecutionOutcome, cancelled: bool, criteria: &[CriterionDefinition],
     ) -> Result<CaseResult, ProviderExecutionFailure> {
-        let reconciled = commands::reconcile(&self.context, &self.target, &self.execution, true, cancelled).await;
+        let mut pending = commands::Pending::default();
+        let reconciled = commands::reconcile(&self.context, &self.target, &self.execution, &mut pending, true, cancelled).await;
         match reconciled {
             Err(error) if !cancelled => return Err(error),
             Err(error) => tracing::warn!(detail = %error.message,
                 "cancelled command receipt did not reconcile"),
-            Ok(()) => {}
+            Ok(_) => {}
         }
         let mut pages = self.pages.lock().await;
         let pages = &mut *pages;
@@ -256,6 +289,9 @@ impl Session {
             DropReason::Incomplete,
         )
         .await;
+        if let Some(message) = pages.stream_log.failure() {
+            return Err(failure("execution_log_capture", message));
+        }
         let decided = criterion_outcomes(&outcome.criteria, criteria);
         if cancelled {
             // A cancelled run still has a verdict to give: its criteria are
@@ -289,7 +325,7 @@ impl Session {
     async fn admit(&self, pages: &mut Pages, mut batch: EvidenceBatch) -> Result<EvidenceReceipt, ProviderExecutionFailure> {
         let context = &self.context;
         let execution = &self.execution;
-        let cancelling = self.cancelling.load(Ordering::Acquire);
+        let cancelling = self.cancelling.is_cancelled();
         validate_cursor(pages.cursor, &batch)?;
         // Rows the run published reach the host on their own calls, ahead of
         // this page; they are stamped with the phase current when they are
@@ -300,6 +336,9 @@ impl Session {
             context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_samples", error.to_string()))?;
         }
         pages.stream_log.append(context, execution, &self.workflow, &self.source, &batch.diagnostics).await;
+        if let Some(message) = pages.stream_log.failure() {
+            return Err(failure("execution_log_capture", message));
+        }
         let abandoned = pages.artifacts.accept(context, &execution.scope, std::mem::take(&mut batch.artifact_chunks)).await?;
         report_dropped(context, execution, &self.workflow, &self.source, &mut pages.stream_log, &abandoned, DropReason::Abandoned).await;
         // A cycle that is stopping admits no live phase transactions; the
@@ -309,11 +348,15 @@ impl Session {
         let observed =
             pages.phase.observe(context, &execution.scope, &batch.phase, execution, !cancelling && !context.is_cancelled()).await;
         if let Err(refusal) = observed
-            && !(context.is_cancelled() || self.cancelling.load(Ordering::Acquire))
+            && !(context.is_cancelled() || self.cancelling.is_cancelled())
         {
             return Err(refusal);
         }
         let admitted = self.admit_steps(&batch).await?;
+        if !batch.step_attempts.is_empty() {
+            // A Finished Attempt Is The Evidence An Open Command Waits On.
+            self.signal_change();
+        }
         if !cancelling {
             publish_progress(context, execution, &batch)?;
         }
@@ -342,7 +385,7 @@ impl Session {
         }
         self.step_leases.release(context, &batch.lease_releases).await?;
         if batch.record_subscriptions_settling && !pages.settled {
-            self.settle_records(Some(&mut pages.replayed)).await?;
+            self.settle_records(true).await?;
             pages.settled = true;
         }
         pages.cursor = pages.cursor.max(batch.cursor);
@@ -389,36 +432,33 @@ impl Session {
             return;
         }
         *replayed = true;
-        if let Err(refusal) = self.settle_records(None).await {
+        if let Err(refusal) = self.settle_records(false).await {
             self.refuse(refusal).await;
         }
     }
 
-    async fn settle_records(&self, replayed: Option<&mut BTreeMap<harmos::Identifier, u64>>) -> Result<(), ProviderExecutionFailure> {
-        let close = replayed.is_some();
+    async fn settle_records(&self, close: bool) -> Result<(), ProviderExecutionFailure> {
         let context = &self.context;
         let execution = &self.execution;
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement flushing publications");
         context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
-        let cycle_id = execution.test_cycle_id.clone();
-        let execution_id = execution.test_execution_id.clone();
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement publications flushed");
         if close {
             close_record_subscriptions(context, execution).await?;
         }
-        let ids = context
-            .runtime
-            .state_manager
-            .state()
-            .read(move |state| {
-                state
-                    .executions
-                    .get(&execution_id)
-                    .filter(|execution| execution.test_cycle_id == cycle_id)
-                    .map(|execution| execution.records.subscribed_records().clone())
-            })
-            .await
-            .map_err(|error| failure("sidecar_records", error.to_string()))?
-            .value
-            .ok_or_else(|| failure("sidecar_records", "record subscription execution disappeared"))?;
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement subscriptions closed");
+        self.deliver_records().await?;
+        if close {
+            tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");
+            super::replay_sample_inputs(context, &self.target, execution).await?;
+        }
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement finished");
+        Ok(())
+    }
+    pub(crate) async fn deliver_records(&self) -> Result<(), ProviderExecutionFailure> {
+        let _delivery = self.record_delivery.lock().await;
+        let context = &self.context;
+        let execution = &self.execution;
         let through = context.runtime.state_manager.applied().0;
         context
             .runtime
@@ -426,46 +466,50 @@ impl Session {
             .wait_through(&context.runtime.state_manager, through)
             .await
             .map_err(|error| failure("sidecar_records", error.to_string()))?;
-        let mut remaining = ids;
-        if !remaining.is_empty() {
-            let mut reader = context
+        let at = context.runtime.saved_through(through).await.map_err(|error| failure("sidecar_records", error.to_string()))?;
+        let acknowledged = self
+            .target
+            .signal(ExecutionSignal {
+                execution_token: execution.test_execution_id.to_string(),
+                ..Default::default()
+            })
+            .await?;
+        let mut after = acknowledged.record_ordinal;
+        loop {
+            let rows = context
                 .runtime
-                .record_source
-                .history(&context.runtime.state_manager, 0, through)
+                .local_storage
+                .captured_record_page(at.clone(), execution.test_execution_id.to_string(), after)
                 .await
                 .map_err(|error| failure("sidecar_records", error.to_string()))?;
-            loop {
-                let record = reader.next().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
-                let Some(record) = record else {
-                    break;
-                };
-                if record.sequence <= self.record_subscription_after {
-                    continue;
-                }
-                let Some(captured) = remaining.remove(&record.record_id) else {
-                    continue;
+            if rows.is_empty() {
+                break;
+            }
+            for row in rows {
+                let record = crate::storage::records::RecordRow::decode_entry(&row.payload)
+                    .map_err(|error| failure("sidecar_records", error.to_string()))?;
+                let Some(captured) = record.captured_scope(&execution.test_execution_id) else {
+                    return Err(failure("sidecar_records", "capture index differs from immutable evidence"));
                 };
                 let record_json = serde_json::to_string(&record.record).map_err(|error| failure("sidecar_records", error.to_string()))?;
-                self.target
+                let acknowledged = self
+                    .target
                     .signal(ExecutionSignal {
                         execution_token: execution.test_execution_id.to_string(),
                         record: Some(crate::transport::DeliverRecordRequest {
+                            ordinal: record.ordinal,
                             record_json,
-                            captured_scopes: vec![serde_json::to_string(&captured).expect("captured scope serializes")],
+                            captured_scopes: vec![serde_json::to_string(captured).expect("captured scope serializes")],
                         }),
                         ..ExecutionSignal::default()
                     })
                     .await?;
-                if remaining.is_empty() {
-                    break;
+                if acknowledged.record_ordinal != record.ordinal {
+                    return Err(failure("sidecar_records", "record signal did not acknowledge its ordinal"));
                 }
+                after = record.ordinal;
             }
-            if !remaining.is_empty() {
-                return Err(failure("sidecar_records", "captured subscription records are missing from the state history"));
-            }
-        }
-        if let Some(replayed) = replayed {
-            super::replay_sample_inputs(context, &self.target, execution, replayed).await?;
+            tokio::task::yield_now().await;
         }
         Ok(())
     }

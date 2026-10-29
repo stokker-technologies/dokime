@@ -12,28 +12,36 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::Path;
+
 // Third Party Imports
 use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+
 // Local Imports
 use crate::host::{Error, Result};
 
 /* === Constants === */
-const LOG_FORMAT_ENV: &str = "DOKIME_LOG_FORMAT";
 
-const KEEP_LOG_FILES: usize = 14;
+const SERVER_RETAINED_LOG_FILES: u64 = 14;
+
+const LOG_FORMAT_ENV: &str = "DOKIME_LOG_FORMAT";
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(crate) type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 
 /* === Structs === */
+
 pub struct LoggingGuards {
+    journal: std::sync::Arc<crate::trace::Journal>,
     _appender: tracing_appender::non_blocking::WorkerGuard,
     _file_appender: tracing_appender::non_blocking::WorkerGuard,
     _hub_log_appender: tracing_appender::non_blocking::WorkerGuard,
+
     #[cfg(debug_assertions)]
     _profile: Option<super::profiles::DevProfileGuards>,
 }
@@ -51,6 +59,7 @@ struct ConsoleFields {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LogFormat {
     Pretty,
@@ -60,6 +69,7 @@ enum LogFormat {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl LogFormat {
     fn from_env() -> Self {
         match std::env::var(LOG_FORMAT_ENV) {
@@ -96,7 +106,7 @@ where
     ) -> std::fmt::Result {
         let mut fields = ConsoleFields::default();
         event.record(&mut fields);
-        let timestamp = fields.timestamp.filter(|value| !value.is_empty()).unwrap_or_else(dokime_runtime::execution::log::timestamp);
+        let timestamp = fields.timestamp.filter(|value| !value.is_empty()).unwrap_or_else(dokime::execution::log::timestamp);
         let time = timestamp.get(11..23).unwrap_or(&timestamp);
         let plugin = fields.plugin.as_deref().unwrap_or("host");
         let location = match fields.execution.as_deref() {
@@ -130,13 +140,21 @@ where
     }
 }
 
+impl LoggingGuards {
+    pub fn journal(&self) -> std::sync::Arc<crate::trace::Journal> {
+        self.journal.clone()
+    }
+}
+
 /* === Public Functions === */
+
 pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
+    let journal = crate::trace::Journal::new(crate::trace::Limits::default());
     let (layer, appender_guard) = stderr_fmt_layer(ansi)?;
     let (file_layer, file_appender_guard) = file_fmt_layer(root)?;
     let (hub_log_layer, hub_log_appender_guard) = super::hub_log::hub_log_layer(root)?;
     #[cfg_attr(not(debug_assertions), allow(unused_mut))]
-    let mut layers: Vec<BoxedLayer> = vec![layer, file_layer, hub_log_layer, crate::trace::layer(crate::trace::Journal::global().clone())];
+    let mut layers: Vec<BoxedLayer> = vec![layer, file_layer, hub_log_layer, crate::trace::layer(journal.clone())];
 
     #[cfg(debug_assertions)]
     let profile = match super::profiles::dev_profile_layers(root)? {
@@ -150,7 +168,7 @@ pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
     Registry::default()
         .with(layers)
         // Not a logging layer: `ErrorLayer` is what lets a captured
-        // `dokime_runtime::plugin::Diagnostic` read back the spans it happened inside.
+        // `dokime::plugin::Diagnostic` read back the spans it happened inside.
         // Without it in this subscriber every host-side span trace is empty, and
         // nothing says so.
         .with(tracing_error::ErrorLayer::default())
@@ -158,6 +176,7 @@ pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
         .map_err(|error| Error::Setup(format!("failed to install tracing subscriber: {error}")))?;
 
     Ok(LoggingGuards {
+        journal,
         _appender: appender_guard,
         _file_appender: file_appender_guard,
         _hub_log_appender: hub_log_appender_guard,
@@ -167,6 +186,7 @@ pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
 }
 
 /* === Private Functions === */
+
 fn stderr_fmt_layer(ansi: bool) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
     let (writer, guard) = tracing_appender::non_blocking(std::io::stderr());
     Ok((fmt_layer(LogFormat::from_env(), writer, ansi)?, guard))
@@ -180,7 +200,7 @@ fn file_fmt_layer(root: &Path) -> Result<(BoxedLayer, tracing_appender::non_bloc
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("dokime-serve")
         .filename_suffix("log")
-        .max_log_files(KEEP_LOG_FILES)
+        .max_log_files(usize::try_from(SERVER_RETAINED_LOG_FILES).expect("validated log retention count"))
         .build(&directory)
         .map_err(|error| Error::Setup(format!("failed to open a log file under {}: {error}", directory.display())))?;
     let (writer, guard) = tracing_appender::non_blocking(appender);

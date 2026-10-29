@@ -10,11 +10,13 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::definition::SuiteRegistry;
 pub use crate::definition::SuiteSnapshot;
 pub(crate) use crate::transactions::{RemoveSuiteSet, SetSuiteSet};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +38,7 @@ use crate::{RuntimeHandle, runtime::Error, unavailable_rejection};
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn set_suites(&self, source: impl Into<String>, suites: SuiteSet) -> std::result::Result<(), Error> {
         let source = source.into();
@@ -44,10 +47,14 @@ impl RuntimeHandle {
         tokio::spawn(async move {
             let _permit = permit;
             let _admission = runtime.plugin_admission.lock().await;
+            let session = runtime.storage().clone();
             for registration in &suites.suites {
-                crate::storage::objects::suite::Suite::new(&registration.suite_id, &registration.suite)
+                let validation = crate::storage::objects::suite::Suite::new(&registration.suite_id, &registration.suite)
                     .map_err(|error| unavailable_rejection(error.to_string()))?;
+                // Validation Settles Before Independent Admission And State Commit.
+                drop(validation);
             }
+            drop(session);
             crate::prompts::admission::validate_suites(&source, &suites).map_err(unavailable_rejection)?;
             let transaction = SetSuiteSet { source: source.clone(), catalog: suites };
             runtime.state_manager.commit(transaction).await.map_err(|error| unavailable_rejection(error.to_string()))?;
@@ -61,29 +68,38 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn capture_suite_objects(&self, source: &str) -> crate::runtime::Result<()> {
-        let source = source.to_owned();
-        let ids = self
-            .state_manager
-            .state()
-            .read(move |state| {
-                state.suites.suites().filter(|suite| suite.source == source).map(|suite| suite.suite_id.clone()).collect::<Vec<_>>()
-            })
-            .await
-            .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?
-            .value;
+        use crate::storage::{Error as StorageError, objects::suite::Suite};
+        use harmos::MemorySize;
 
-        for id in ids {
-            let registered = self
-                .state_manager
-                .state()
-                .read(move |state| state.suites.get(&id).map(|suite| (suite.suite_id.clone(), suite.suite.clone())))
-                .await
-                .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?
-                .value
-                .ok_or_else(|| crate::runtime::Error::Operation("admitted suite is absent".into()))?;
-            let stored = crate::storage::objects::suite::Suite::new(&registered.0, &registered.1)
-                .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
-            self.storage().write_object(&stored).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+        // One Borrowed Catalog Cut Owns Both Selection And Per-Suite Preparation.
+        let catalog = self.watch_state().latest();
+        for registered in catalog.state().suites.suites().filter(|suite| suite.source == source) {
+            let (stored, typed) = {
+                let stored = Suite::new(&registered.suite_id, &registered.suite)?;
+                let contracts = || registered.telemetry_contracts.iter().filter(|contract| contract.storage_schema.is_some());
+                let mut peak = 0usize;
+                let mut count = 0usize;
+                for contract in contracts() {
+                    let memory = contract.memory_size();
+                    if memory == usize::MAX {
+                        return Err(StorageError::Invalid("suite schema memory overflows").into());
+                    }
+                    peak = peak.checked_add(memory).ok_or(StorageError::Invalid("suite schema memory overflows"))?;
+                    count += 1;
+                }
+                let seed = harmos::storage::ReadBatch::new(());
+                let typed = seed.try_map(|_| -> crate::storage::Result<_> {
+                    let mut typed = Vec::new();
+                    typed.try_reserve_exact(count).map_err(|_| StorageError::Invalid("suite schemas allocation failed"))?;
+                    for contract in contracts() {
+                        typed.push(contract.clone());
+                    }
+                    Ok(typed)
+                })?;
+                (stored, typed)
+            };
+            self.execution_storage.register_schemas(&typed).await?;
+            self.storage().write_object(&*stored).await?;
         }
         Ok(())
     }

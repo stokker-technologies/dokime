@@ -16,13 +16,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 
 // Local Imports
 use super::files;
-use dokime_runtime::ExecutionFileContent;
+use crate::grpc::transcode::Transcode;
+use dokime::ExecutionFileContent;
 
 /* === Constants === */
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -36,28 +37,18 @@ use dokime_runtime::ExecutionFileContent;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn project(
-    content: &ExecutionFileContent, maximum: usize,
-) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileWindow> {
-    let wire = dokime_domain::model::content::wire::ExecutionFileWindow {
-        relative_path: text(&content.relative_path)?,
-        content_type: content.content_type.as_deref().map(text).transpose()?,
-        kind: files::kind(&content.content_kind),
-        state: files::state(&content.stream_state),
-        offset: content.offset,
-        observed_size_bytes: content.size_bytes,
-        data: bytes(&content.bytes)?,
-    };
-    if wire.wire_len()? > maximum {
-        return Err(exhausted());
-    }
-    Ok(wire)
-}
 
 pub(in crate::grpc) fn owned(
+    content: dokime::harmos::storage::ReadBatch<ExecutionFileContent>, maximum: usize,
+) -> dokime::harmos::Result<dokime::harmos::operations::Response<dokime::domain::model::content::wire::ExecutionFileWindow>> {
+    let response = content.try_map(|content| project(content, maximum))?;
+    Ok(dokime::harmos::operations::Response::from_owner(response.owner()))
+}
+
+pub(in crate::grpc) fn project(
     content: ExecutionFileContent, maximum: usize,
-) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileWindow> {
-    let response = dokime_domain::model::content::wire::ExecutionFileWindow {
+) -> dokime::harmos::Result<dokime::domain::model::content::wire::ExecutionFileWindow> {
+    let mut response = dokime::domain::model::content::wire::ExecutionFileWindow {
         kind: files::kind(&content.content_kind),
         state: files::state(&content.stream_state),
         relative_path: content.relative_path,
@@ -66,35 +57,23 @@ pub(in crate::grpc) fn owned(
         observed_size_bytes: content.size_bytes,
         data: content.bytes,
     };
-    if response.wire_len()? > maximum {
-        return Err(exhausted());
+    loop {
+        let encoded = response.wire_len()?;
+        if encoded <= maximum {
+            break;
+        }
+        let retained = response.data.len().checked_sub(encoded - maximum).filter(|length| *length > 0).ok_or_else(exhausted)?;
+        response.data.truncate(retained);
     }
     Ok(response)
 }
 
 /* === Private Functions === */
-fn text(source: &str) -> harmos::Result<String> {
-    let mut target = String::new();
-    target.try_reserve_exact(source.len()).map_err(|_| exhausted())?;
-    if target.capacity() > source.len() {
-        return Err(exhausted());
-    }
-    target.push_str(source);
-    Ok(target)
-}
 
-fn bytes(source: &[u8]) -> harmos::Result<Vec<u8>> {
-    let mut target = Vec::new();
-    target.try_reserve_exact(source.len()).map_err(|_| exhausted())?;
-    if target.capacity() > source.len() {
-        return Err(exhausted());
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted {
+        resource: "canonical file window projection",
     }
-    target.extend_from_slice(source);
-    Ok(target)
-}
-
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical file window projection" }
 }
 
 /* === Tests === */

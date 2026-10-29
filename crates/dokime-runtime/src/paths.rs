@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{env, path::PathBuf};
+
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
+
 pub const DEFAULT_APPLICATION_ID: &str = "com.stokker.dokime";
 
 /* === Macros === */
@@ -26,6 +29,7 @@ pub const DEFAULT_APPLICATION_ID: &str = "com.stokker.dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApplicationPaths {
     pub root: PathBuf,
@@ -36,6 +40,7 @@ pub struct ApplicationPaths {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ApplicationPaths {
     pub fn resolve(application_id: &str) -> std::io::Result<Self> {
         Self::resolve_with(application_id, cfg!(windows), |key| env::var_os(key).map(PathBuf::from))
@@ -43,10 +48,6 @@ impl ApplicationPaths {
 
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
-    }
-
-    pub fn settings(&self) -> PathBuf {
-        self.root.join("settings.json")
     }
 
     pub fn logs(&self) -> PathBuf {

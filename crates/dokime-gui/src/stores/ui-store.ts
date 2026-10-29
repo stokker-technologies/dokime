@@ -69,6 +69,10 @@ type UiStoreState = {
   clearDialogOpen: boolean;
   clearingCycle: boolean;
   density: DensityPreference;
+  /** The open cycle the Library adds cases to; checked against the open cycles on every read. */
+  activeCycleId: string | null;
+  /** Whether the active cycle picker is open; one picker serves the shell and the template dialog. */
+  activeCyclePickerOpen: boolean;
   desktopUpdateDialogOpen: boolean;
   leftRailCollapsed: boolean;
   noteText: string;
@@ -82,6 +86,8 @@ type UiStoreState = {
    * room: the choice made at one density must not follow them to the other.
    */
   sidebarCollapsed: Partial<Record<DensityPreference, boolean>>;
+  sidebarWidth: number;
+  showAdvancedSettings: boolean;
   themeFamily: string | null;
   traceabilityLocation: string;
   traceabilityLocationDraft: string;
@@ -97,6 +103,8 @@ type UiStore = UiStoreState & {
 };
 
 /* === Constants === */
+
+const GUI_TOAST_ITEMS = 50;
 
 export const INITIAL_CONSOLE_STATE: ConsoleState = {
   follow: true,
@@ -117,6 +125,8 @@ const initialUiStoreState: UiStoreState = {
   clearDialogOpen: false,
   clearingCycle: false,
   density: "comfortable",
+  activeCycleId: null,
+  activeCyclePickerOpen: false,
   desktopUpdateDialogOpen: false,
   leftRailCollapsed: false,
   noteText: "",
@@ -124,6 +134,8 @@ const initialUiStoreState: UiStoreState = {
   rightRailCollapsed: false,
   railCollapseMode: "auto",
   sidebarCollapsed: {},
+  sidebarWidth: 256,
+  showAdvancedSettings: false,
   themeFamily: null,
   traceabilityLocation: "",
   traceabilityLocationDraft: "",
@@ -148,6 +160,8 @@ const persistedUiStateSchema = z.object({
     scope: INITIAL_CONSOLE_STATE.scope,
   }),
   density: z.enum(["comfortable", "compact", "touch"]).catch("comfortable"),
+  activeCycleId: z.string().min(1).nullable().catch(null).default(null),
+  sidebarWidth: z.number().min(200).max(360).catch(256).default(256),
   sidebarCollapsed: z
     .object({
       comfortable: z.boolean().optional(),
@@ -156,6 +170,7 @@ const persistedUiStateSchema = z.object({
     })
     .catch({})
     .default({}),
+  showAdvancedSettings: z.boolean().catch(false),
   themeFamily: z.string().nullable().optional(),
 });
 
@@ -168,15 +183,6 @@ function storageKey(name: string): string {
 
 /* === Public Functions === */
 
-/** The operator's choice wins; without one, a touch surface or a narrow window starts collapsed. */
-export function sidebarStartsCollapsed(
-  collapsed: Partial<Record<DensityPreference, boolean>>,
-  density: DensityPreference,
-  narrow: boolean,
-): boolean {
-  return collapsed[density] ?? (density === "touch" || narrow);
-}
-
 export const useUiStore = create<UiStore>()(
   persist(
     (set) => ({
@@ -188,7 +194,7 @@ export const useUiStore = create<UiStore>()(
           notificationLog: [
             ...state.notificationLog.filter((item) => item.id !== notification.id),
             { at: Date.now(), ...notification },
-          ].slice(-50),
+          ].slice(-GUI_TOAST_ITEMS),
         })),
       removeNotification: (id) =>
         set((state) => ({
@@ -198,6 +204,7 @@ export const useUiStore = create<UiStore>()(
         set((state) => ({
           ...initialUiStoreState,
           density: state.density,
+          showAdvancedSettings: state.showAdvancedSettings,
           themeFamily: state.themeFamily,
         })),
       setUiState: (patch) => set((state) => ({ ...state, ...patch })),
@@ -216,7 +223,10 @@ export const useUiStore = create<UiStore>()(
           ...current,
           console: { ...INITIAL_CONSOLE_STATE, ...parsed.data.console },
           density: desktop ? current.density : parsed.data.density,
+          activeCycleId: parsed.data.activeCycleId,
           sidebarCollapsed: parsed.data.sidebarCollapsed,
+          sidebarWidth: parsed.data.sidebarWidth,
+          showAdvancedSettings: parsed.data.showAdvancedSettings,
           themeFamily: desktop ? current.themeFamily : (parsed.data.themeFamily ?? null),
         };
       },
@@ -228,12 +238,15 @@ export const useUiStore = create<UiStore>()(
           scope: state.console.scope,
         },
         density: state.density,
+        activeCycleId: state.activeCycleId,
         sidebarCollapsed: state.sidebarCollapsed,
+        sidebarWidth: state.sidebarWidth,
+        showAdvancedSettings: state.showAdvancedSettings,
         themeFamily: state.themeFamily,
       }),
       /* Desktop settings own density and the theme family, so under Tauri the
-         WebView keeps only what has no backend home: the sidebar and the
-         console drawer's geometry. In a browser
+         WebView keeps only what has no backend home: the sidebar, the
+         console drawer's geometry and the active cycle. In a browser
          there is no other home for any of it, so the whole slice is kept. */
       storage: createJSONStorage(() => ({
         getItem: (name) => window.localStorage.getItem(storageKey(name)),
@@ -249,7 +262,10 @@ export const useUiStore = create<UiStore>()(
             JSON.stringify({
               state: {
                 console: state?.console ?? INITIAL_CONSOLE_STATE,
+                activeCycleId: state?.activeCycleId ?? null,
                 sidebarCollapsed: state?.sidebarCollapsed ?? {},
+                sidebarWidth: state?.sidebarWidth ?? 256,
+                showAdvancedSettings: state?.showAdvancedSettings ?? false,
               },
             }),
           );

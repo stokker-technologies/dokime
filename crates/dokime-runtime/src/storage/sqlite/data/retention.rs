@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 use std::result::Result;
+
 // Third Party Imports
 use harmos::{catalog::Projection, storage::*};
 use rusqlite::params;
+
 // Local Imports
 use super::super::{Error, State};
 use super::{position, saved};
@@ -35,6 +38,7 @@ use super::{position, saved};
 /* === Traits === */
 
 /* === Implementations === */
+
 impl State {
     pub(crate) async fn data_release_object_history(
         &self, schema: SchemaKey, item: ObjectKey, through: StorageCursor,
@@ -64,30 +68,34 @@ impl State {
                 "UPDATE storage_data_head SET retention_generation=?1 WHERE singleton=1",
                 [position(generation)],
             )?;
-            transaction.commit()?;
+            super::super::commit(transaction)?;
             Ok(())
         })())).await?
     }
     pub(crate) async fn data_prune<C: ObjectCatalog>(
         &self, through: StorageCursor, after: u64, oldest_pin_generation: Option<u64>, maximum: NonZeroUsize,
+        retention: fn(&SchemaKey) -> harmos::domain::Result<ObjectRetention>,
     ) -> Result<(bool, bool), Error> {
+        let maximum = maximum.get();
+        i64::try_from(maximum).map_err(|_| Error::Data("retention count exceeds SQLite range"))?;
         let mut policies = Vec::with_capacity(C::definition_count());
         C::definitions().try_for_each(|definition| {
             let schema = definition.schema()?;
-            let (keep, released) = match definition.retention() {
+            let (keep, released) = match retention(&schema)? {
                 ObjectRetention::UntilReleased => (1, true),
                 policy => (i64::try_from(policy.versions().get()).map_err(|_| Error::Data("retention count exceeds SQLite range"))?, false),
             };
             policies.push((schema.id.to_string(), keep, released));
             Ok::<(), Error>(())
         })?;
-        let maximum = maximum.get();
-        i64::try_from(maximum).map_err(|_| Error::Data("retention count exceeds SQLite range"))?;
+
         self.call(move |connection| Ok((|| {
             let transaction = connection.transaction()?;
             let mut head = saved(&transaction)?;
             head.history.check(&through.history)?;
             if through.sequence > head.sequence { return Err(Error::Data("retention exceeds saved frontier")); }
+            // Identity-Only Stores Have No Data Tables Or Retention Work Yet.
+            if head.sequence == 0 { return Ok((true, true)); }
             let mut retired = Vec::with_capacity(maximum);
             for (schema, keep, released) in &policies {
                 if retired.len() == maximum { break; }
@@ -95,7 +103,7 @@ impl State {
                 // File And Evidence Saves Still Reclaim Rows Released By Old Pins.
                 let changed: bool = transaction.query_row(
                     "SELECT EXISTS(SELECT 1 FROM storage_data_entries
-                     INDEXED BY storage_data_live_object_position WHERE kind='object'
+                     INDEXED BY storage_data_live_object_position_covering WHERE kind='object'
                      AND retired_at IS NULL AND schema_id=?1 AND position>?2 AND position<=?3)",
                     params![schema,position(after),position(through.sequence)],
                     |row| row.get(0),
@@ -105,17 +113,17 @@ impl State {
                 // The Newer-Key Index Stops At The Policy's Keep Count.
                 let mut statement = transaction.prepare(
                     "SELECT entries.position FROM storage_data_entries AS entries
-                     INDEXED BY storage_data_live_object_key WHERE entries.kind='object'
+                     INDEXED BY storage_data_live_object_key_covering WHERE entries.kind='object'
                      AND entries.schema_id=?1 AND entries.position<=?2 AND entries.retired_at IS NULL
                      AND (?6=0 OR EXISTS(SELECT 1 FROM storage_object_releases AS released
                          WHERE released.schema_id=entries.schema_id AND released.item=entries.item
                          AND entries.position<=released.through))
                      AND entries.item IN (SELECT changed.item FROM storage_data_entries AS changed
-                         INDEXED BY storage_data_live_object_position WHERE changed.kind='object'
+                         INDEXED BY storage_data_live_object_position_covering WHERE changed.kind='object'
                          AND changed.retired_at IS NULL AND changed.schema_id=?1
                          AND changed.position>?5 AND changed.position<=?2)
                      AND (SELECT COUNT(*) FROM (SELECT 1 FROM storage_data_entries AS newer
-                         INDEXED BY storage_data_live_object_key
+                         INDEXED BY storage_data_live_object_key_covering
                          WHERE newer.kind='object' AND newer.schema_id=entries.schema_id
                          AND newer.item=entries.item AND newer.position>entries.position
                          AND newer.position<=?2 AND newer.retired_at IS NULL LIMIT ?3)) >= ?3
@@ -141,7 +149,7 @@ impl State {
             for value in removable {
                 transaction.execute("DELETE FROM storage_data_entries WHERE position=?1",[value])?;
             }
-            transaction.commit()?;
+            super::super::commit(transaction)?;
             // Continue After Either Logical Or Physical Removal Progress.
             // Pins Can Retain Bytes Without Requiring A Busy Maintenance Loop.
             Ok((retired.len() < maximum, retired.is_empty() && reclaimed == 0))

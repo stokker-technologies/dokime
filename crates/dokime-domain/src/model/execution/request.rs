@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::model::execution::StepCommand;
 
 /* === Imports === */
@@ -36,6 +37,7 @@ use crate::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RunSummary {
     pub mode: super::ExecutionMode,
@@ -87,6 +89,7 @@ pub struct StepCommandReceipt {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunPhase {
@@ -115,6 +118,7 @@ pub enum StepCommandPhase {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for RunSummary {
     fn memory_size(&self) -> usize {
         let fields = [

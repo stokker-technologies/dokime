@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::{intern, resolve};
 use crate::definition::TestSuite;
@@ -33,12 +36,14 @@ use dokime_domain::model::plugins::InstalledPlugin;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(super) type Plugins = BTreeMap<String, InstalledPlugin>;
 pub(super) type Records = BTreeMap<Identifier, RecordContract>;
 pub(super) type History = BTreeMap<Identifier, BTreeMap<u32, RecordContract>>;
 pub(super) type Telemetry = BTreeMap<Identifier, TelemetryContract>;
 
 /* === Structs === */
+
 // Plugin catalogs reach state more than once: an installed plugin lists its
 // suites and contracts, the suite registry copies each suite with its
 // contracts, and record history repeats every current record definition. The
@@ -97,6 +102,7 @@ pub(super) struct Registry<'a> {
     suites: BTreeMap<&'a String, Snapshot>,
     cases: &'a BTreeMap<CaseId, TestCase>,
     registrations: &'a BTreeMap<CommandId, Vec<CaseId>>,
+    case_revisions: &'a BTreeMap<CaseId, String>,
 }
 
 #[derive(Deserialize)]
@@ -105,6 +111,7 @@ pub(super) struct DecodedRegistry {
     suites: BTreeMap<String, Snapshot>,
     cases: BTreeMap<CaseId, TestCase>,
     registrations: BTreeMap<CommandId, Vec<CaseId>>,
+    case_revisions: BTreeMap<CaseId, String>,
 }
 
 /* === Enums === */
@@ -112,6 +119,7 @@ pub(super) struct DecodedRegistry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> Pool<'a> {
     pub(super) fn plugins(&mut self, plugins: &'a Plugins) -> BTreeMap<&'a String, Plugin> {
         plugins
@@ -154,11 +162,19 @@ impl<'a> Pool<'a> {
                     suite: intern(&mut self.suites, &snapshot.suite),
                     contracts: self.contracts(&snapshot.record_contracts, &snapshot.telemetry_contracts),
                 };
-                let encoded = Snapshot { source: snapshot.source.clone(), definition };
+                let encoded = Snapshot {
+                    source: snapshot.source.clone(),
+                    definition,
+                };
                 (id, encoded)
             })
             .collect();
-        Registry { suites, cases: registry.cases(), registrations: registry.registrations() }
+        Registry {
+            suites,
+            cases: registry.cases(),
+            registrations: registry.registrations(),
+            case_revisions: registry.case_revisions(),
+        }
     }
 
     pub(super) fn records(&mut self, records: &'a Records) -> BTreeMap<&'a Identifier, u32> {
@@ -205,7 +221,12 @@ impl DecodedPool {
     }
 
     pub(super) fn registry(&self, registry: DecodedRegistry) -> Result<SuiteRegistry, String> {
-        let DecodedRegistry { suites, cases, registrations } = registry;
+        let DecodedRegistry {
+            suites,
+            cases,
+            registrations,
+            case_revisions,
+        } = registry;
         let suites = suites
             .into_iter()
             .map(|(id, encoded)| {
@@ -222,7 +243,7 @@ impl DecodedPool {
                 Ok((id, snapshot))
             })
             .collect::<Result<_, String>>()?;
-        Ok(SuiteRegistry::from_parts(suites, cases, registrations))
+        Ok(SuiteRegistry::from_parts(suites, cases, registrations, case_revisions))
     }
 
     pub(super) fn records(&self, records: BTreeMap<Identifier, u32>) -> Result<Records, String> {
@@ -255,10 +276,23 @@ impl DecodedPool {
     }
 
     fn definition(&self, definition: Definition) -> Result<TestSuiteDefinition, String> {
-        let Definition { suite_id, tags, workflow, suite, contracts } = definition;
+        let Definition {
+            suite_id,
+            tags,
+            workflow,
+            suite,
+            contracts,
+        } = definition;
         let suite = resolve(&self.suites, suite, "suite")?;
         let (records, telemetry) = self.contracts(contracts)?;
-        Ok(TestSuiteDefinition { suite_id, tags, workflow, suite, record_contracts: records, telemetry_contracts: telemetry })
+        Ok(TestSuiteDefinition {
+            suite_id,
+            tags,
+            workflow,
+            suite,
+            record_contracts: records,
+            telemetry_contracts: telemetry,
+        })
     }
 }
 

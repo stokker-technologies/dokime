@@ -12,6 +12,8 @@ import { create, type DescMessage, fromBinary, type MessageInitShape, type Messa
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 /* === Local Imports === */
+
+import { FRAME_BYTES as DESKTOP_FRAME_BYTES, STREAM_CREDIT as DESKTOP_STREAM_CREDIT } from "@generated/desktop-protocol";
 import type { RpcError } from "../desktop/rpc";
 import { isReportBuild } from "../ui-mode";
 import { normalizeRpcError } from "./errors";
@@ -28,10 +30,14 @@ interface Call {
 }
 
 /* === Constants === */
-const maxFrameBytes = 4 * 1024 * 1024;
-/** Mirrors `STREAM_CREDIT` in `src-tauri/src/rpc/calls.rs`. */
-const streamCredit = 32;
-const acknowledgeEvery = streamCredit / 2;
+
+const DESKTOP_STREAM_TIMEOUT_MS = 86_400_000;
+const DESKTOP_UNARY_TIMEOUT_MS = 10_000;
+
+const maxFrameBytes = DESKTOP_FRAME_BYTES;
+/** Native And WebView Delivery Share One Local Admission Policy. */
+const streamCredit = DESKTOP_STREAM_CREDIT;
+const acknowledgeEvery = Math.max(1, Math.floor(streamCredit / 2));
 const frameMessage = 0;
 const frameEnd = 1;
 const frameError = 2;
@@ -91,7 +97,7 @@ export async function unary<I extends DescMessage, O extends DescMessage>(
   output: O,
   session: SessionIdentity,
   request: MessageInitShape<I>,
-  timeoutMs = 10_000,
+  timeoutMs = DESKTOP_UNARY_TIMEOUT_MS,
 ): Promise<MessageShape<O>> {
   const reply = await invokeOwned<ArrayBuffer>(session, "rpc", requestBytes(session, toBinary(input, create(input, request))), {
     [headers.path]: path,
@@ -107,7 +113,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
   session: SessionIdentity,
   request: MessageInitShape<I>,
   envelope?: DescMessage,
-  timeoutMs = 86_400_000,
+  timeoutMs = DESKTOP_STREAM_TIMEOUT_MS,
 ): Promise<NativeStream<MessageShape<O>>> {
   const call = await openCall(path, session, toBinary(input, create(input, request)), false, timeoutMs);
   let ended = false;
@@ -170,7 +176,7 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
   session: SessionIdentity,
   request: MessageInitShape<I>,
   envelope: DescMessage,
-  timeoutMs = 300_000,
+  timeoutMs: number,
 ): Promise<NativeClientStream<I, O>> {
   /* A client-streaming operation opens with its request, then carries items;
      the generated client sends a default request and hands the first item

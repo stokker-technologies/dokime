@@ -38,6 +38,7 @@ use crate::runtime::Result;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // Captures the desktop through the screenshot portal as PNG bytes.
 #[cfg(all(feature = "media-native", target_os = "linux"))]
 pub(super) async fn capture_png(display: Option<u32>) -> Result<Vec<u8>> {
@@ -82,6 +83,7 @@ pub(super) async fn capture_png(_display: Option<u32>) -> Result<Vec<u8>> {
 }
 
 /* === Private Functions === */
+
 #[cfg(all(feature = "media-native", not(target_os = "linux")))]
 fn capture_monitor(display: Option<u32>) -> Result<Vec<u8>> {
     use super::unavailable;

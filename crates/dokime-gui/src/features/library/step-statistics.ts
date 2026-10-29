@@ -65,7 +65,6 @@ export function useTemplateStepStatistics(templateId: string): TemplateStepStati
   const query = useQuery({
     queryFn: () => fetchNativeStepDurations(session.identity, templateId),
     queryKey: [...stepStatisticsQueryKeys.template(templateId), session.identity.generation],
-    staleTime: 60_000,
   });
   return query.data ?? NO_STATISTICS;
 }

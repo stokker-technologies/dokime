@@ -15,8 +15,7 @@
 
 /* === External Imports === */
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
@@ -30,9 +29,8 @@ import { StepRecordList } from "@/components/document/StepRecordsCard";
 import { MediaGalleryView } from "@/components/MediaGalleryView";
 import type { MediaGalleryArtifact } from "@/components/media-gallery-model";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable } from "@/components/data-table/DataTable";
+import { dataTableColumns } from "@/components/data-table/data-table-model";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { formatValue } from "@/lib/dashboard";
 import { isStatedGroup } from "@/lib/traceability";
@@ -50,7 +48,7 @@ import type {
   TraceabilitySnapshot,
 } from "@/lib/types";
 import { PlotInteractionProvider } from "@/plots/interaction";
-import type { LivePlotStateMap } from "@/plots/live-frames";
+import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 
 /* === Types === */
 
@@ -98,8 +96,6 @@ export type DocumentCardContentProps = LiveDocumentSurfaceProps | ReportDocument
 
 /* === Constants === */
 
-const TABLE_PAGE_SIZES = [10, 25, 50, 100] as const;
-
 /* === Public Functions === */
 
 export function DocumentCardContentView(props: DocumentCardContentProps) {
@@ -137,6 +133,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
       <div className="plot-grid grid gap-3">
         <PlotInteractionProvider zoom>
           <LivePlotGroupGrid
+            {...plotMarkers(props.records)}
             documentPlots={props.card.plots}
             liveStates={reportPlotStates(props.card.plots, props.reportPlots)}
             parameters={props.plotParameterContext}
@@ -151,6 +148,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
     ) : (
       <div className="plot-grid grid gap-3">
         <LivePlotGroupGrid
+          {...plotMarkers(props.records)}
           documentPlots={props.card.plots}
           liveStates={props.livePlotStates}
           onPlotSettingsChange={props.onPlotSettingsChange}
@@ -225,95 +223,12 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
 /** A long table pages inside its own card: the document stays one ordered
     surface, so nothing here touches routing or hides rows behind a tab. */
 export function DocumentTableContent({ rows }: { rows: DocumentViewTableRow[] }) {
-  const [pageSize, setPageSize] = useState<number>(TABLE_PAGE_SIZES[0]);
-  const [page, setPage] = useState(0);
-  const columns = tableColumns(rows);
-  const maxPage = Math.max(0, Math.ceil(rows.length / pageSize) - 1);
-  const currentPage = Math.min(page, maxPage);
-  const pagedRows = rows.slice(currentPage * pageSize, currentPage * pageSize + pageSize);
-
-  if (!columns.length) {
-    return <DocumentEmbeddedEmptyState>No table rows recorded.</DocumentEmbeddedEmptyState>;
-  }
-
-  return (
-    <div className="grid min-w-0 gap-2">
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {columns.map((column) => (
-                <TableHead key={column}>{column}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pagedRows.map((row) => (
-              <TableRow key={row.row_id}>
-                {columns.map((column) => (
-                  <TableCell key={column}>{row.cells[column] ?? "-"}</TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      {rows.length > TABLE_PAGE_SIZES[0] ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span>
-              {currentPage * pageSize + 1}-{currentPage * pageSize + pagedRows.length} of {rows.length} rows
-            </span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(value) => {
-                setPageSize(Number(value));
-                setPage(0);
-              }}
-            >
-              <SelectTrigger aria-label="Rows per page" className="h-7 bg-background" size="sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {TABLE_PAGE_SIZES.map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size} per page
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              disabled={currentPage === 0}
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={() => setPage((value) => Math.max(0, value - 1))}
-            >
-              <ChevronLeft data-icon="inline-start" />
-              Previous
-            </Button>
-            <span>
-              Page {currentPage + 1} / {maxPage + 1}
-            </span>
-            <Button
-              disabled={currentPage >= maxPage}
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={() => setPage((value) => Math.min(maxPage, value + 1))}
-            >
-              Next
-              <ChevronRight data-icon="inline-end" />
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </div>
+  const column = dataTableColumns<DocumentViewTableRow>();
+  const names = tableColumns(rows);
+  const columns = (names.length ? names : ["Value"]).map((name) =>
+    column.accessor((row) => row.cells[name] ?? "-", { id: name, header: name, meta: { filter: "text" } }),
   );
+  return <DataTable columns={columns} data={rows} getRowId={(row) => row.row_id} emptyText="No table rows recorded." />;
 }
 
 export function TraceabilityDocumentContent({ traceability }: { traceability: TraceabilitySnapshot | null | undefined }) {
@@ -328,15 +243,12 @@ export function TraceabilityDocumentContent({ traceability }: { traceability: Tr
             </strong>
             {group.summary ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{group.summary}</p> : null}
           </div>
-          <dl className="grid min-w-0 gap-1.5">
+          <dl className="grid min-w-0 gap-2">
             {/* A stated section is shown whole: the author chose its rows, so
                 cutting it at an arbitrary count would drop evidence on
                 purpose. A derived group is a projection and stays capped. */}
             {(isStatedGroup(group) ? group.items : group.items.slice(0, 8)).map((item) => (
-              <div
-                className="grid min-w-0 grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-2"
-                key={String(item.details?.identifier ?? item.label)}
-              >
+              <div className="grid min-w-0 grid-cols-2 gap-2" key={String(item.details?.identifier ?? item.label)}>
                 <dt className="truncate text-xs text-muted-foreground" title={item.label}>
                   {item.label}
                 </dt>
@@ -391,7 +303,7 @@ export function HealthDocumentContent({ health }: { health: HealthItem[] }) {
         <DocumentEmbeddedBlock as="article" className="gap-1" key={item.health_id}>
           <div className="flex items-center justify-between gap-3">
             <strong className="[overflow-wrap:anywhere]">{item.title}</strong>
-            <span className="rounded-md border bg-muted/40 px-2 py-0.5 text-xs capitalize text-muted-foreground">{item.level}</span>
+            <span className="rounded-lg border bg-muted/40 px-2 py-1 text-xs capitalize text-muted-foreground">{item.level}</span>
           </div>
           {item.message ? <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{item.message}</p> : null}
         </DocumentEmbeddedBlock>
@@ -407,6 +319,15 @@ export function RecordListContent({ live = true, records }: { live?: boolean; re
 }
 
 /* === Private Functions === */
+
+/**
+ * The records the plots mark, prompts among them. Spread rather than named,
+ * so this view passes them whether or not the grid it is built against
+ * declares the prop yet.
+ */
+function plotMarkers(records: HubRecord[]): { records: HubRecord[] } {
+  return { records };
+}
 
 /** Columns are the union of the row keys in first-appearance order, so a row
     that omits a field does not reorder or drop a column. */
@@ -432,14 +353,9 @@ function reportPlotStates(documentPlots: DocumentViewPlot[], reportPlots: Record
         [
           plot.plot_id,
           {
+            ...emptyLivePlotState(),
             payload,
-            cursor: null,
-            diagnostics: null,
-            revision: 0,
             status: "live" as const,
-            error: null,
-            droppedBatches: 0,
-            summaryInFlight: false,
           },
         ],
       ];

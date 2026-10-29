@@ -131,14 +131,11 @@ export function editorRow(definition: ParameterDefinition, raw: string): EditorP
 export function seedEditorRows(template: SuiteTemplateEntry, overrides: ParameterOverrides[string] | undefined): EditorParameterRow[] {
   return template.parameter_definitions.map((definition) => {
     const override = overrides?.[definition.parameter_id];
-    const row = editorRow(definition, typeof override === "string" ? override : (override?.raw ?? registeredParameterRaw(definition)));
-    if (
-      override !== undefined &&
-      (typeof override === "string" || override.valueType !== parameterValueType(definition) || override.unit !== (definition.unit ?? null))
-    ) {
+    const row = editorRow(definition, override?.raw ?? registeredParameterRaw(definition));
+    if (override !== undefined && (override.valueType !== parameterValueType(definition) || override.unit !== (definition.unit ?? null))) {
       row.parsed = {
         ok: false,
-        error: "Review this remembered value: its type or unit changed or was not recorded. Edit it or reset to the default.",
+        error: "Review this remembered value: its type or unit changed. Edit it or reset to the default.",
       };
     }
     return row;

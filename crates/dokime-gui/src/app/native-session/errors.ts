@@ -1,21 +1,30 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import type { BackendDiagnostics } from "@/lib/desktop/session";
-import { backupFailure } from "./storage-backup-model";
 
-/** Never stringify arbitrary request objects: they may contain credentials. */
+/** Never stringify arbitrary request objects: they may contain secrets. */
 export function connectionError(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message;
+  if (typeof error === "string") {
+    const kind = error.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+    if (/^[a-z]+(?:_[a-z]+)+$/.test(kind)) return connectionError({ kind });
+    return error;
+  }
+  if (error instanceof Error) return connectionError(error.message);
   if (!error || typeof error !== "object" || !("kind" in error)) return "The backend could not be reached.";
-  if ((error.kind === "connection" || error.kind === "archived") && "error" in error) return connectionError(error.error);
-  if ("message" in error && typeof error.message === "string") return error.message;
+  if (error.kind === "connection" && "error" in error) return connectionError(error.error);
+  if ("message" in error && typeof error.message === "string") return connectionError(error.message);
   switch (error.kind) {
+    case "backend_unavailable":
+      return "The backend is unavailable. Check that it is running and try again.";
+    case "not_connected":
+      return "Connect to a backend to continue.";
+    case "generation_exhausted":
+      return "Restart the desktop to establish a new connection.";
     case "local_backend_unavailable":
       return "This desktop session attaches to a backend another process started. Enter its endpoint below.";
     case "authentication_required":
     case "unauthenticated":
       return "The backend requires a valid access token.";
-    case "credentials_unavailable":
+    case "secrets_unavailable":
       return "No saved access token is available. Enter a token to connect.";
     case "permission_denied":
       return "This account does not have permission to use the backend.";
@@ -32,35 +41,14 @@ export function connectionError(error: unknown): string {
     case "superseded":
       return "The connection request was replaced.";
     default:
-      return "The backend could not be reached. Check the endpoint and credentials.";
+      return "The backend could not be reached. Check the endpoint and secrets.";
   }
 }
 
 /** The diagnostics a failed owned-backend start carries, or `null` for every
  * other error. */
 export function startupDiagnostics(error: unknown): BackendDiagnostics | null {
-  const backup = backupFailure(error);
-  if (backup) return startupDiagnostics(backup.error);
   if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "startup") return null;
   if (!("diagnostics" in error) || !error.diagnostics || typeof error.diagnostics !== "object") return null;
   return error.diagnostics as BackendDiagnostics;
-}
-
-/**
- * What a backend exit code means, from the server's process contract
- * (`dokime-server` `host/error.rs`), or `null` for a code it does not define.
- */
-export function backendExitMeaning(code: number | null): string | null {
-  switch (code) {
-    case 0:
-      return "Clean stop";
-    case 2:
-      return "Invalid input: arguments, environment file, plugin bundles";
-    case 3:
-      return "Runtime failure: I/O, runtime, transport or cleanup";
-    case 4:
-      return "Incompatible storage: the data root holds data this build cannot open";
-    default:
-      return null;
-  }
 }

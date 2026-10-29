@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 pub mod aggregate;
 pub(crate) mod artifacts;
 pub mod cases;
 pub mod checkpoint_records;
 pub mod checkpoint_telemetry;
+pub mod cycle_history;
 pub mod cycles;
 pub(crate) mod documents;
 pub mod execution_history;
@@ -30,6 +32,7 @@ pub(crate) mod runtime;
 pub(crate) mod telemetry;
 
 /* === Re-Exports === */
+
 pub use crate::execution_runtime::outputs::{ExecutionFileContent, ExecutionFileEntry};
 pub use artifacts::{
     ExecutionFileContentKind, ExecutionFileStreamState, RecordScope, RuntimeArtifactFrame, RuntimeExecutionFileFrame,
@@ -37,28 +40,31 @@ pub use artifacts::{
 };
 pub use cases::{CaseActions, CaseProjection, CaseStatus, CaseTally, case_projection, case_tally, historical_case_projection};
 pub use cycles::{CycleFilter, CycleOrder, CycleOrderKey, CyclePageError, cycle_page, select_cycles};
-pub use documents::{RuntimeDocumentFrame, RuntimeDocumentRecord, RuntimeResolvedDocumentFrame};
+pub use documents::{RuntimeDocumentFrame, RuntimeDocumentRecord, RuntimeResolvedDocumentFrame, RuntimeResolvedDocumentRead};
 pub use executions::{ExecutionControls, ExecutionFilter, ExecutionOrder, ExecutionOrderKey, execution_controls};
 pub use frame::{RuntimeListFrame, RuntimeOverviewFrame, RuntimeViewFrame, RuntimeViewPayload};
 pub use installed_plugins::{RuntimeInstalledPluginFrame, RuntimeInstalledPluginRecord};
 pub use plots::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
-    PlotPayloadCursor, PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries,
-    PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode, RuntimePlotStreamBatch, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
-    WifiChannelCount, WifiScan, matching_plot_payload_request, merge_plot_payload_cursor, plot_payload_request_for_descriptor,
-    plot_payload_stream_envelope_visible, plot_payload_stream_kind,
+    PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries, PlotSeriesSummary,
+    PlotWatchKeys, PlotWindow, RuntimePlotQueryMode, RuntimePlotStreamBatch, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
+    WifiChannelCount, WifiScan, declared_plot_request, matching_plot_payload_request, plot_payload_request_for_descriptor,
+    plot_payload_stream_kind, reduce_plot_payload,
 };
-pub use projections::{RuntimeHealthFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeResourceFrame, RuntimeTraceabilityFrame};
+pub use projections::{
+    RuntimeHealthFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeResourceFrame, RuntimeTraceabilityFrame, RuntimeTraceabilityRead,
+};
 pub use records::RuntimeRecordFrame;
 pub use request::{RuntimeCursor, RuntimeResolution, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow};
 pub use runtime::{
     RuntimeChange, RuntimeCycleSummary, RuntimeExecutionSummary, RuntimeOverviewSnapshot, RuntimeRetentionDiagnostics, RuntimeStateNotice,
     RuntimeStateSnapshot,
 };
-pub use telemetry::{RuntimeTelemetryFrame, RuntimeTelemetryStreamFrame};
+pub use telemetry::{RuntimeTelemetryFrame, RuntimeTelemetryRead, RuntimeTelemetryStreamFrame};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

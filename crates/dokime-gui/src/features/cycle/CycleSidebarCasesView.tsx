@@ -24,7 +24,9 @@
  * the cycle itself (`view: "cycle"`); a row selects its execution, or its case
  * while the runtime has none. The rows read the same query the workspace
  * reads, so the tree and the document never disagree. The running execution
- * carries a marker while Follow Active is following it.
+ * carries a marker while Follow Active is following it, and an execution whose
+ * prompt waits for an answer shows the input-needed glyph: the prompt itself
+ * is answered on that execution's page.
  *
  * With `live={false}` the same tree is the frozen report's outline: the same
  * grid and glyphs, no menus and no commands, and selection is handed back to
@@ -37,8 +39,6 @@
 
 // Third Party Imports
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import {
   BellRing,
@@ -50,7 +50,6 @@ import {
   LoaderCircle,
   type LucideIcon,
   Minus,
-  Pause,
   Play,
   RotateCcw,
   Square,
@@ -59,10 +58,10 @@ import {
   Unplug,
   X,
 } from "lucide-react";
-import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type RefObject, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/* === Local Imports === */
+// Local Imports
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -73,9 +72,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { TestCyclePlan, TestExecution } from "@/lib/types";
+import { useRowWindow } from "@/lib/use-row-window";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
-import type { TestCyclePlan, TestExecution } from "@/lib/types";
 import {
   buildCycleCases,
   buildCycleExecutionRows,
@@ -85,7 +85,7 @@ import {
   caseActionTooltip,
   caseStatusLabel,
   cycleRowSelection,
-  cycleStatusLabel,
+  cycleState,
   executionStatusLabel,
   finishedCaseCount,
   isFollowing,
@@ -93,6 +93,30 @@ import {
   rowOffersRunAgain,
   selectedCycleRow,
 } from "./cycle-workspace-model";
+
+/* === Re-Exports === */
+
+/* === Constants === */
+
+const GUI_LONG_PRESS_MS = 500;
+
+/**
+ * The one row grid: chevron, glyph, label, Run Again, ordinal, menu. Every
+ * row uses it, so every trailing column sits on the same x.
+ */
+const ROW_GRID =
+  "grid h-[var(--tree-row-height)] min-w-0 grid-cols-[--spacing(5)_--spacing(5)_minmax(0,1fr)_var(--tree-action-width)_--spacing(11)_var(--tree-action-width)] items-center gap-x-1 rounded-lg pr-1";
+
+const TONE_CLASS: Record<GlyphTone, string> = {
+  danger: "text-destructive",
+  muted: "text-muted-foreground",
+  running: "text-primary",
+  success: "text-success",
+  warning: "text-warning",
+};
+
+/** How long a touch must rest on a row before its menu opens. */
+const LONG_PRESS_MS = GUI_LONG_PRESS_MS;
 
 /* === Types === */
 
@@ -105,7 +129,7 @@ export type CycleSidebarState = {
 
 export type CycleSidebarActions = {
   rerunCase: (caseId: string) => Promise<string | null | undefined>;
-  runCase: (executionId: string) => Promise<unknown>;
+  startExecution: (executionId: string) => Promise<unknown>;
   deleteCase: (caseId: string) => Promise<unknown>;
 };
 
@@ -114,35 +138,25 @@ export type CycleSidebarCasesViewProps = {
   actions?: CycleSidebarActions;
   cycleId: string;
   selection: CycleSelection;
+  /** The executions a pending prompt waits on. */
+  inputNeeded?: ReadonlySet<string>;
 } & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
 
 type GlyphTone = "running" | "success" | "danger" | "warning" | "muted";
 
 type Glyph = { icon: LucideIcon; tone: GlyphTone; spin?: boolean; label: string };
 
-/* === Constants === */
-
-/**
- * The one row grid: chevron, glyph, label, Run Again, ordinal, menu. Every
- * row uses it, so every trailing column sits on the same x.
- */
-const ROW_GRID =
-  "grid h-[var(--tree-row-height)] min-w-0 grid-cols-[1.25rem_1.25rem_minmax(0,1fr)_var(--tree-action-width)_2.75rem_var(--tree-action-width)] items-center gap-x-1 rounded-md pr-1";
-
-const TONE_CLASS: Record<GlyphTone, string> = {
-  danger: "text-destructive",
-  muted: "text-muted-foreground",
-  running: "text-primary",
-  success: "text-success",
-  warning: "text-warning",
-};
-
-/** How long a touch must rest on a row before its menu opens. */
-const LONG_PRESS_MS = 500;
-
 /* === Components === */
 
-export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = true, onSelect, selection }: CycleSidebarCasesViewProps) {
+export function CycleSidebarCasesView({
+  cycleId,
+  detailQuery,
+  actions,
+  inputNeeded,
+  live = true,
+  onSelect,
+  selection,
+}: CycleSidebarCasesViewProps) {
   const navigate = useNavigate();
   const followActive = useSelectionStore((state) => state.followActive);
   const [pendingDelete, setPendingDelete] = useState<CycleExecutionRow | null>(null);
@@ -153,6 +167,8 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
   const executions = useMemo(() => detailQuery.data?.executions ?? [], [detailQuery.data]);
   const cases = useMemo(() => buildCycleCases(plan), [plan]);
   const rows = useMemo(() => buildCycleExecutionRows(cases, executions), [cases, executions]);
+  // A long cycle renders only the rows in view (`useRowWindow`); every row is one height.
+  const rowWindow = useRowWindow(rows.length);
   /* A stale selection selects the cycle, so exactly one row is ever selected. */
   const selectedKey = selectedCycleRow(rows, selection)?.key ?? null;
   const activeExecutionId =
@@ -212,7 +228,10 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
           move(items[0]);
           break;
         case "End":
-          move(items.at(-1));
+          /* The last row may sit outside the rendered window; bring it in first. */
+          event.preventDefault();
+          if (rows.length) rowWindow.focusIndex(rows.length - 1, (row) => row.focus());
+          else move(items.at(-1));
           break;
         case "ArrowRight":
           if (isCycle && !expanded) {
@@ -234,7 +253,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
         default:
       }
     },
-    [expanded],
+    [expanded, rowWindow.focusIndex, rows.length],
   );
 
   const total = cases.length;
@@ -254,7 +273,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
         {plan ? (
           <li
             aria-expanded={expanded}
-            aria-label={`${plan.test_cycle.title}, ${cycleStatusLabel(plan.test_cycle.status)}`}
+            aria-label={`${plan.test_cycle.title}, ${cycleState(plan.test_cycle.phase, plan.test_cycle.status, false).label}`}
             aria-level={1}
             aria-selected={cycleSelected}
             className="grid min-w-0 gap-px outline-none [&:focus-visible>div]:ring-2 [&:focus-visible>div]:ring-ring"
@@ -265,14 +284,16 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
             <div className={cn(ROW_GRID, rowTone(cycleSelected))}>
               <button
                 aria-label={expanded ? "Collapse Executions" : "Expand Executions"}
-                className="grid size-5 place-items-center rounded-sm text-muted-foreground hover:text-foreground"
+                className="grid size-5 place-items-center rounded-lg text-muted-foreground hover:text-foreground"
                 onClick={() => setExpanded((open) => !open)}
                 tabIndex={-1}
                 type="button"
               >
                 {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
               </button>
-              <StatusGlyph glyph={cycleGlyph(plan.test_cycle.status)} />
+              <StatusGlyph
+                glyph={cycleGlyph(plan.test_cycle.phase, plan.test_cycle.status, inputNeeded !== undefined && inputNeeded.size > 0)}
+              />
               <button
                 className="min-w-0 truncate text-left text-sm font-medium"
                 data-tree-select
@@ -292,7 +313,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
 
             {expanded ? (
               // biome-ignore lint/a11y/useSemanticElements: a tree node's children are an ARIA group, which no native element expresses.
-              <ul className="grid min-w-0 gap-px" role="group">
+              <ul className="grid min-w-0 gap-px" ref={rowWindow.anchor as RefObject<HTMLUListElement | null>} role="group">
                 {detailQuery.isError ? (
                   <TreeNotice
                     action={{ label: "Try Again", onClick: () => void detailQuery.refetch?.() }}
@@ -313,32 +334,39 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
                     title="No Cases"
                   />
                 ) : (
-                  rows.map((row) => (
-                    <ExecutionTreeRow
-                      following={following && row.execution !== null && row.execution.test_execution_id === activeExecutionId}
-                      key={row.key}
-                      live={live}
-                      onDelete={setPendingDelete}
-                      onRerun={() =>
-                        report({ done: "Case Re-Run Started", failed: "Case Re-Run Failed" }, async () => {
-                          const created = await liveActions(actions).rerunCase(row.case.caseId);
-                          if (created) select({ executionId: created });
-                        })
-                      }
-                      onRun={() =>
-                        report({ done: "Execution Started", failed: "Execution Could Not Start" }, () => {
-                          const execution = row.execution;
-                          if (!execution || !isPlannedExecution(execution.status)) {
-                            throw new Error("No unstarted execution is available.");
-                          }
-                          return liveActions(actions).runCase(execution.test_execution_id);
-                        })
-                      }
-                      onSelect={() => select(cycleRowSelection(row))}
-                      row={row}
-                      selected={row.key === selectedKey}
-                    />
-                  ))
+                  <>
+                    {rowWindow.window.before ? <li aria-hidden role="none" style={{ height: `${rowWindow.window.before}px` }} /> : null}
+                    {rows.slice(rowWindow.window.first, rowWindow.window.last).map((row, offset) => (
+                      <ExecutionTreeRow
+                        active={plan?.test_cycle.phase === "active"}
+                        following={following && row.execution !== null && row.execution.test_execution_id === activeExecutionId}
+                        inputNeeded={row.execution !== null && inputNeeded?.has(row.execution.test_execution_id) === true}
+                        key={row.key}
+                        live={live}
+                        onDelete={setPendingDelete}
+                        onRerun={() =>
+                          report({ done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" }, async () => {
+                            const created = await liveActions(actions).rerunCase(row.case.caseId);
+                            if (created) select({ executionId: created });
+                          })
+                        }
+                        onRun={() =>
+                          report({ done: "Execution Started", failed: "Execution Could Not Start" }, () => {
+                            const execution = row.execution;
+                            if (!execution || !isPlannedExecution(execution.status)) {
+                              throw new Error("No unstarted execution is available.");
+                            }
+                            return liveActions(actions).startExecution(execution.test_execution_id);
+                          })
+                        }
+                        onSelect={() => select(cycleRowSelection(row))}
+                        row={row}
+                        selected={row.key === selectedKey}
+                        windowIndex={rowWindow.window.first + offset}
+                      />
+                    ))}
+                    {rowWindow.window.after ? <li aria-hidden role="none" style={{ height: `${rowWindow.window.after}px` }} /> : null}
+                  </>
                 )}
               </ul>
             ) : null}
@@ -390,10 +418,11 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
   );
 }
 
-/* === Private Components === */
-
 function ExecutionTreeRow({
+  active,
   following,
+  inputNeeded,
+  windowIndex,
   live,
   onDelete,
   onRerun,
@@ -402,7 +431,9 @@ function ExecutionTreeRow({
   row,
   selected,
 }: {
+  active: boolean;
   following: boolean;
+  inputNeeded: boolean;
   live: boolean;
   onDelete: (row: CycleExecutionRow) => void;
   onRerun: () => void;
@@ -410,6 +441,8 @@ function ExecutionTreeRow({
   onSelect: () => void;
   row: CycleExecutionRow;
   selected: boolean;
+  /** The row's position in the whole list, which windowing reads back. */
+  windowIndex: number;
 }) {
   /* Eligibility is the runtime's, not a guess from the row's own status: the
      projection computes it from the checks each mutation enforces, and its
@@ -419,8 +452,9 @@ function ExecutionTreeRow({
      execution is history, and acting on the case from it would be ambiguous. */
   const actions = row.case.actions;
   const reason = caseActionTooltip(row.case);
-  const allowed = (key: "delete" | "run" | "schedule_rerun") => actions === null || actions[key];
-  const glyph = rowGlyph(row);
+  const deleteAllowed = actions === null || actions.delete;
+  const startAllowed = active && row.execution !== null && isPlannedExecution(row.execution.status);
+  const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Waiting For Input", tone: "warning" } : rowGlyph(row);
   const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run Of #${row.rerunOf}`;
   const [menuOpen, setMenuOpen] = useState(false);
   const press = useLongPress(() => setMenuOpen(true));
@@ -436,6 +470,7 @@ function ExecutionTreeRow({
       data-following={following || undefined}
       data-level="case"
       data-rerun-of={row.rerunOf ?? undefined}
+      data-window-row={windowIndex}
       role="treeitem"
       tabIndex={selected ? 0 : -1}
       {...(menu ? press : {})}
@@ -462,11 +497,11 @@ function ExecutionTreeRow({
           <Button
             aria-label={`Run Again ${row.case.label}`}
             className="size-[var(--tree-action-width)]"
-            disabled={!allowed("schedule_rerun")}
+            disabled={!active}
             onClick={onRerun}
             size="icon-sm"
             tabIndex={-1}
-            title={allowed("schedule_rerun") ? "Run Again" : reason}
+            title={active ? "Append New Attempt" : "Only Active Cycles Accept New Attempts"}
             variant="ghost"
           >
             <RotateCcw />
@@ -494,15 +529,19 @@ function ExecutionTreeRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48" side="right">
-              <DropdownMenuItem disabled={!allowed("run")} onSelect={onRun} title={allowed("run") ? undefined : reason}>
+              <DropdownMenuItem
+                disabled={!startAllowed}
+                onSelect={onRun}
+                title={startAllowed ? undefined : "Select An Unstarted Execution In An Active Cycle"}
+              >
                 <Play />
-                Run Case
+                Start Execution
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                disabled={!allowed("delete")}
+                disabled={!deleteAllowed}
                 onSelect={() => onDelete(row)}
-                title={allowed("delete") ? undefined : reason}
+                title={deleteAllowed ? undefined : reason}
                 variant="destructive"
               >
                 <Trash2 />
@@ -528,7 +567,7 @@ function StatusGlyph({ glyph }: { glyph: Glyph }) {
         aria-hidden
         className={cn(
           TONE_CLASS[glyph.tone],
-          dot ? "size-2 fill-current [[data-density=touch]_&]:size-2.5" : "size-3.5 [[data-density=touch]_&]:size-4.5",
+          dot ? "size-2 fill-current [[data-density=touch]_&]:size-2.5" : "size-4 [[data-density=touch]_&]:size-4.5",
           glyph.spin && "animate-spin",
         )}
       />
@@ -539,7 +578,7 @@ function StatusGlyph({ glyph }: { glyph: Glyph }) {
 
 function TreeNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (
-    <li className="grid gap-1.5 py-3 pr-2 pl-[calc(2.5rem+var(--tree-indent))]" role="none">
+    <li className="grid gap-2 py-3 pr-2 pl-[calc(--spacing(10)+var(--tree-indent))]" role="none">
       <p className="font-heading text-xs font-semibold">{title}</p>
       <p className="text-xs leading-snug text-muted-foreground">{message}</p>
       {action ? (
@@ -552,6 +591,10 @@ function TreeNotice({ action, message, title }: { action?: { label: string; onCl
     </li>
   );
 }
+
+/* === Hooks === */
+
+/* === Public Functions === */
 
 /* === Private Functions === */
 
@@ -634,25 +677,20 @@ function rowGlyph(row: CycleExecutionRow): Glyph {
   }
 }
 
-function cycleGlyph(status: CycleLifecycle): Glyph {
-  const label = cycleStatusLabel(status);
-  switch (status) {
-    case "running":
+/** The cycle's own state as a glyph: never an execution's outcome. */
+function cycleGlyph(phase: TestCyclePlan["test_cycle"]["phase"], status: CycleLifecycle, waiting: boolean): Glyph {
+  const { label } = cycleState(phase, status, waiting);
+  switch (label) {
+    case "Active · Running":
       return { icon: LoaderCircle, label, spin: true, tone: "running" };
-    case "stopping":
+    case "Active · Waiting":
+      return { icon: BellRing, label, tone: "warning" };
+    case "Sealing":
       return { icon: LoaderCircle, label, spin: true, tone: "warning" };
-    case "paused":
-      return { icon: Pause, label, tone: "warning" };
-    case "completed":
-      return { icon: Check, label, tone: "success" };
-    case "failed":
-      return { icon: X, label, tone: "danger" };
-    case "stopped":
-      return { icon: Square, label, tone: "muted" };
-    case "planned":
-      return { icon: Circle, label, tone: "muted" };
+    case "Sealed":
+      return { icon: Check, label, tone: "muted" };
     default:
-      return { icon: Minus, label, tone: "muted" };
+      return { icon: Circle, label, tone: "muted" };
   }
 }
 
@@ -660,14 +698,6 @@ function cycleGlyph(status: CycleLifecycle): Glyph {
 function caseExecutionCount(rows: readonly CycleExecutionRow[], caseId: string): number {
   return rows.filter((row) => row.case.caseId === caseId && row.execution !== null).length;
 }
-
-/* === Re-Exports === */
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function liveActions(actions: CycleSidebarActions | undefined): CycleSidebarActions {
   if (!actions) throw new Error("Cycle commands require a live workspace.");

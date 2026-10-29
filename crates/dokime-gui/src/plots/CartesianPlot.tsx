@@ -28,17 +28,22 @@ import type {
   ValueFormat,
 } from "@/lib/types";
 import { isNumber } from "@/lib/utils";
-import { formatElapsedTick, xValue } from "@/plots/axis";
+import { formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
+import { type PromptMarker, promptMarkerLabel } from "@/plots/prompt-markers";
+import { windowIndices } from "@/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
 import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Constants === */
 
-const MAX_RENDERED_SERIES = 48;
+const GUI_POINT_MARK_THRESHOLD = 600;
+const GUI_RENDERED_SERIES = 48;
+
+const MAX_RENDERED_SERIES = GUI_RENDERED_SERIES;
 const MIN_CHART_WIDTH = 160;
 /* Tick marks (10px) plus the label gap (5px) plus a little breathing room. */
 const Y_AXIS_LABEL_PADDING = 19;
@@ -55,19 +60,28 @@ const AXIS_LINE_GAP = 1.5;
 const X_AXIS_MIN_RIGHT_PAD = 25;
 /* Axis text is canvas-drawn; the touch rules in styles.css cannot reach it. */
 const TOUCH_PLOT_FONT_SCALE = 1.3;
-const POINT_MARK_RENDER_LIMIT = 600;
+const POINT_MARK_RENDER_LIMIT = GUI_POINT_MARK_THRESHOLD;
 const DENSE_POINT_MARK_SIZE = 3;
 const DEFAULT_POINT_MARK_SIZE = 5;
 const EMPTY_TRACES: ReadonlySet<string> = new Set();
+const NO_PROMPTS: PromptMarker[] = [];
+/* How near the pointer must come to a prompt marker, in CSS pixels, to read it. */
+const PROMPT_HOVER_PX = 5;
+/* The cap glyph drawn atop each prompt marker, in CSS pixels. */
+const PROMPT_CAP_PX = 4;
 
 /* === Types === */
 
 type CartesianPlotProps = {
   title: string;
+  /** The heading above already prints the title, so the card shows it to assistive tech only. */
+  titleRepeated?: boolean;
   cartesian?: PlotCartesianFrame | null;
   description?: string | null;
   series: PlotSeries[];
   markers?: PlotMarker[];
+  /** Prompt lifecycle moments, drawn as quiet vertical lines the header can hide. */
+  promptMarkers?: PromptMarker[];
   referenceLines?: DocumentReferenceLine[];
   referenceBands?: DocumentReferenceBand[];
   style?: DocumentPlotStyle;
@@ -113,6 +127,13 @@ type IntervalRange = {
   high: number;
 };
 
+/** Where the pointer sits on x, and what the visible window spans. */
+type PlotCursor = {
+  x: number;
+  span: number;
+  widthPx: number;
+};
+
 type ChartFrame = {
   data: uPlot.AlignedData;
   mode: PlotCartesianFrame["mode"];
@@ -125,6 +146,18 @@ export type PlotViewportRange = {
   max: number;
 };
 
+/**
+ * What the canvas currently draws from the full frame: the frame itself, the
+ * x range it was reduced for (`null` for the whole extent), and whether the
+ * reduction kept every sample, in which case it serves any range.
+ */
+type DrawnWindow = {
+  source: uPlot.AlignedData | null;
+  aligned: boolean;
+  range: PlotViewportRange | null;
+  everySample: boolean;
+};
+
 type UPlotConstructor = typeof uPlot;
 
 /* === State === */
@@ -135,10 +168,12 @@ let uPlotPromise: Promise<UPlotConstructor> | null = null;
 
 export const CartesianPlot = memo(function CartesianPlot({
   title,
+  titleRepeated = false,
   cartesian,
   description,
   series,
   markers = [],
+  promptMarkers = NO_PROMPTS,
   referenceLines = [],
   referenceBands = [],
   style = "line",
@@ -168,7 +203,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const { zoom } = usePlotInteraction();
   const [hiddenTraces, setHiddenTraces] = useState<ReadonlySet<string>>(EMPTY_TRACES);
   const [traceColors, setTraceColors] = useState<string[]>([]);
-  const [cursorX, setCursorX] = useState<number | null>(null);
+  const [cursor, setCursor] = useState<PlotCursor | null>(null);
   const cursorFrameRef = useRef<number | null>(null);
   const hiddenTracesRef = useRef<ReadonlySet<string>>(hiddenTraces);
   hiddenTracesRef.current = hiddenTraces;
@@ -180,10 +215,15 @@ export const CartesianPlot = memo(function CartesianPlot({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
   const markersRef = useRef<PlotMarker[]>(markers);
+  const [showPrompts, setShowPrompts] = useState(true);
+  const [hoveredPrompt, setHoveredPrompt] = useState<{ marker: PromptMarker; left: number } | null>(null);
+  const shownPrompts = showPrompts ? promptMarkers : NO_PROMPTS;
+  const promptsRef = useRef<PromptMarker[]>(shownPrompts);
   const referenceLinesRef = useRef<DocumentReferenceLine[]>(referenceLines);
   const referenceBandsRef = useRef<DocumentReferenceBand[]>(referenceBands);
   const intervalRangesRef = useRef<IntervalRange[]>([]);
   const dataSignatureRef = useRef<string | null>(null);
+  const drawnRef = useRef<DrawnWindow>({ source: null, aligned: true, range: null, everySample: true });
   const resetKeyRef = useRef<string | undefined>(resetKey);
   const viewportModeRef = useRef<PlotViewportMode>(viewportMode);
   const resizeFrameRef = useRef<number | null>(null);
@@ -202,7 +242,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const backendCartesian = useMemo(() => usableCartesianFrame(cartesian, renderedSeries, series), [cartesian, renderedSeries, series]);
   const chartFrame = useMemo(() => (backendCartesian ? chartFrameFromCartesian(backendCartesian) : null), [backendCartesian]);
   const seriesKey = useMemo(
-    () => renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}`).join("|"),
+    () => renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}:${item.downsampled ? 1 : 0}`).join("|"),
     [renderedSeries, series],
   );
   const colorsKey = colors.join("|");
@@ -324,6 +364,25 @@ export const CartesianPlot = memo(function CartesianPlot({
       mode: faceted ? 2 : 1,
       pxAlign: 0,
       hooks: {
+        // Every zoom, pan or follow step resamples the visible window from
+        // the full frame, so a zoom never stretches a reduction made for the
+        // whole run.
+        setScale: [
+          (plot, key) => {
+            if (key !== "x") return;
+            const { min, max } = plot.scales.x;
+            if (min == null || max == null) return;
+            const range = { min, max };
+            if (windowServes(drawnRef.current, range)) return;
+            queueMicrotask(() => {
+              if (plotRef.current !== plot) return;
+              plot.setData(drawnData(drawnRef.current, range, plot.over.clientWidth), false);
+              plot.setScale("x", range);
+              const heldY = heldRangeRef.current?.y;
+              if (heldY) plot.setScale("y", heldY);
+            });
+          },
+        ],
         setSelect: [
           (plot) => {
             const held = heldViewport(plot.select, { width: plot.over.clientWidth, height: plot.over.clientHeight }, (position, axis) =>
@@ -340,14 +399,25 @@ export const CartesianPlot = memo(function CartesianPlot({
         setCursor: [
           (plot) => {
             const left = plot.cursor.left;
+            const prompt = left != null && left >= 0 ? nearestPrompt(plot, promptsRef.current, left) : null;
+            setHoveredPrompt((current) => {
+              if (!prompt) return current ? null : current;
+              const offset = plot.over.getBoundingClientRect().left - root.getBoundingClientRect().left;
+              const next = { marker: prompt.marker, left: offset + prompt.left };
+              return current?.marker === next.marker && current.left === next.left ? current : next;
+            });
             if (!tableLegend || left == null || left < 0) return;
-            const x = plot.posToVal(left, "x");
+            const next = {
+              x: plot.posToVal(left, "x"),
+              span: (plot.scales.x.max ?? 0) - (plot.scales.x.min ?? 0),
+              widthPx: plot.over.clientWidth,
+            };
             if (cursorFrameRef.current !== null) {
               window.cancelAnimationFrame(cursorFrameRef.current);
             }
             cursorFrameRef.current = window.requestAnimationFrame(() => {
               cursorFrameRef.current = null;
-              setCursorX(x);
+              setCursor(next);
             });
           },
         ],
@@ -360,6 +430,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           (plot) => {
             drawIntervalRanges(plot, intervalRangesRef.current, resolvedSeriesColors[0] ?? fallbackSeriesColor);
             drawMarkers(plot, markersRef.current, root, themeColors.foreground);
+            drawPromptMarkers(plot, promptsRef.current, themeColors.mutedForeground);
             drawReferenceLines(plot, referenceLinesRef.current, root, themeColors.foreground);
           },
         ],
@@ -435,6 +506,10 @@ export const CartesianPlot = memo(function CartesianPlot({
               ]
             : undefined,
           label: item.label,
+          // A reduced report frame reduces each trace on its own, so the
+          // shared x leaves holes no sample ever had; only a full frame's
+          // gaps are real.
+          spanGaps: item.downsampled === true,
           value: seriesLegendValue(item.format ?? yFormat),
           pxAlign: 0,
           stroke: resolvedSeriesColors[index] ?? fallbackSeriesColor,
@@ -454,7 +529,8 @@ export const CartesianPlot = memo(function CartesianPlot({
     // the boundary. This card reports the failure and stays alone in it.
     let plot: uPlot;
     try {
-      plot = new uPlotConstructor(options, chartFrame.data, root);
+      drawnRef.current = { source: chartFrame.data, aligned: !faceted, range: null, everySample: true };
+      plot = new uPlotConstructor(options, drawnData(drawnRef.current, null, measuredChartWidth(root)), root);
     } catch (error) {
       setPlotLoadError(plotFailureMessage(error));
       return;
@@ -465,7 +541,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       onViewportChangeRef.current?.(null);
     }
     if (heldRangeRef.current) {
-      applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () => setLiveXScale(plot, liveXRange, xScale, timeAxis));
+      applyHeldViewport(plot, heldRangeRef.current, drawnData(drawnRef.current, null, plot.over.clientWidth), () =>
+        setLiveXScale(plot, liveXRange, xScale, timeAxis),
+      );
     }
     renderedSeries.forEach((item, index) => {
       if (hiddenTracesRef.current.has(item.key)) plot.setSeries(index + 1, { show: false });
@@ -575,9 +653,20 @@ export const CartesianPlot = memo(function CartesianPlot({
   const legendRows = useMemo(() => {
     if (!legend) return null;
     const frame = backendCartesian;
-    const cursorPoints = cursorX !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursorX)) : null;
+    const cursorPoints = cursor !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursor.x)) : null;
+    const firstPointSeconds = frame?.series[0]?.x[0];
+    const fallbackOrigin = Number.isFinite(firstPointSeconds) ? firstPointSeconds : null;
+    const axis = {
+      timeAxis,
+      xFormat,
+      xElapsedUnit,
+      origin: { runStart: runStartedAt ?? fallbackOrigin, cycleStart: cycleStartedAt ?? fallbackOrigin },
+      span: cursor?.span ?? 0,
+      widthPx: cursor?.widthPx ?? 0,
+    };
     return seriesLegendRows({
       cursorPoints,
+      formatX: (x) => formatCursorX(x, axis),
       hidden: hiddenTraces,
       summaries: legend.summaries,
       traces: renderedSeries.map((item, index) => ({
@@ -586,11 +675,26 @@ export const CartesianPlot = memo(function CartesianPlot({
         color: traceColors[index] ?? colors[series.indexOf(item)] ?? "currentColor",
       })),
     });
-  }, [backendCartesian, colors, cursorX, hiddenTraces, legend, renderedSeries, series, traceColors]);
+  }, [
+    backendCartesian,
+    colors,
+    cursor,
+    cycleStartedAt,
+    hiddenTraces,
+    legend,
+    renderedSeries,
+    runStartedAt,
+    series,
+    timeAxis,
+    traceColors,
+    xElapsedUnit,
+    xFormat,
+  ]);
   const legendColumns = useMemo(() => seriesLegendColumns(unit), [unit]);
 
   useEffect(() => {
     markersRef.current = markers;
+    promptsRef.current = shownPrompts;
     referenceLinesRef.current = referenceLines;
     referenceBandsRef.current = referenceBands;
     intervalRangesRef.current = intervalRanges;
@@ -604,7 +708,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         plot.redraw(true, true);
       }
     });
-  }, [intervalRanges, markers, referenceBands, referenceLines]);
+  }, [intervalRanges, markers, referenceBands, referenceLines, shownPrompts]);
 
   useEffect(() => {
     const plot = plotRef.current;
@@ -617,11 +721,13 @@ export const CartesianPlot = memo(function CartesianPlot({
     }
     updateFrameRef.current = window.requestAnimationFrame(() => {
       updateFrameRef.current = null;
+      drawnRef.current.source = chartFrame.data;
+      const fullRange = () => drawnData(drawnRef.current, null, plot.over.clientWidth);
       const resetChanged = resetKeyRef.current !== resetKey;
       const viewportModeChanged = viewportModeRef.current !== viewportMode;
       try {
         if (heldRangeRef.current && !resetChanged && !viewportModeChanged) {
-          applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () => {
+          applyHeldViewport(plot, heldRangeRef.current, fullRange(), () => {
             if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
           });
           dataSignatureRef.current = dataSignature;
@@ -634,10 +740,10 @@ export const CartesianPlot = memo(function CartesianPlot({
           return;
         }
         if (viewportMode === "live") {
-          plot.setData(chartFrame.data, false);
+          plot.setData(fullRange(), false);
           setLiveXScale(plot, liveXRange, xScale, timeAxis);
         } else {
-          plot.setData(chartFrame.data, true);
+          plot.setData(fullRange(), true);
         }
       } catch (error) {
         setPlotLoadError(plotFailureMessage(error));
@@ -665,25 +771,39 @@ export const CartesianPlot = memo(function CartesianPlot({
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <strong className="block truncate">{title}</strong>
-          {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
-          {contextSummary ? <p className="mt-0.5 text-xs text-muted-foreground">{contextSummary}</p> : null}
+          <strong className={titleRepeated ? "sr-only" : "block truncate"}>{title}</strong>
+          {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+          {contextSummary ? <p className="mt-1 text-xs text-muted-foreground">{contextSummary}</p> : null}
         </div>
         <div className="flex items-center gap-2">
           {actions}
           {!placeholder ? (
             <>
+              {promptMarkers.length ? (
+                <button
+                  type="button"
+                  aria-pressed={showPrompts}
+                  className="plot-prompts rounded-lg border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-[pressed=false]:text-muted-foreground"
+                  onClick={() => {
+                    setShowPrompts((current) => !current);
+                    setHoveredPrompt(null);
+                  }}
+                  title="Show when the operator was asked and answered"
+                >
+                  Prompts
+                </button>
+              ) : null}
               <button
                 type="button"
                 aria-pressed={following}
-                className="plot-follow rounded-md border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                className="plot-follow rounded-lg border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
                 onClick={() => {
                   heldRangeRef.current = null;
                   setFollowing(true);
                   onViewportChangeRef.current?.(null);
                   const plot = plotRef.current;
                   if (plot && chartFrame) {
-                    plot.setData(chartFrame.data, true);
+                    plot.setData(drawnData(drawnRef.current, null, plot.over.clientWidth), true);
                     if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
                   }
                 }}
@@ -705,7 +825,18 @@ export const CartesianPlot = memo(function CartesianPlot({
       {placeholder ? (
         <PlotPlaceholder {...placeholder} />
       ) : (
-        <div ref={rootRef} className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
+        <div className="relative min-w-0 max-w-full">
+          <div ref={rootRef} className="min-h-60 min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
+          {hoveredPrompt && showPrompts ? (
+            <div
+              className="pointer-events-none absolute top-1 z-10 max-w-64 -translate-x-1/2 truncate rounded-lg border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm"
+              role="tooltip"
+              style={{ left: `${hoveredPrompt.left}px` }}
+            >
+              {promptMarkerLabel(hoveredPrompt.marker)}
+            </div>
+          ) : null}
+        </div>
       )}
       {!placeholder && legend && legendRows ? (
         <StatsSummaryTable
@@ -935,6 +1066,40 @@ function isUsableSpan(min: number, max: number): boolean {
   }
   const scale = Math.max(Math.abs(min), Math.abs(max), Number.MIN_VALUE);
   return max - min > scale * 1e-9;
+}
+
+/**
+ * The data the canvas draws for the x `range` (`null` for the whole extent),
+ * reduced to four samples per pixel column of a `columns`-wide plot and
+ * recorded as what is now drawn. A faceted frame is drawn whole.
+ */
+function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number): uPlot.AlignedData {
+  const source = drawn.source ?? ([[]] as unknown as uPlot.AlignedData);
+  drawn.range = range;
+  if (!drawn.aligned) {
+    drawn.everySample = true;
+    return source;
+  }
+
+  const [x, ...traces] = source as unknown as [number[], ...(number | null | undefined)[][]];
+  const indices = windowIndices(x, traces, range, columns);
+  drawn.everySample = indices === null;
+  if (!indices) return source;
+
+  return [indices.map((index) => x[index]), ...traces.map((trace) => indices.map((index) => trace[index] ?? null))] as uPlot.AlignedData;
+}
+
+/** Whether what is drawn already resolves the visible x `range`. */
+function windowServes(drawn: DrawnWindow, range: PlotViewportRange): boolean {
+  if (drawn.everySample) return true;
+  const drawnRange = drawn.range;
+  if (drawnRange) {
+    const tolerance = Math.max(Math.abs(range.max - range.min), Number.MIN_VALUE) * 1e-9;
+    return Math.abs(drawnRange.min - range.min) <= tolerance && Math.abs(drawnRange.max - range.max) <= tolerance;
+  }
+  // The whole-extent reduction serves only a view of the whole extent.
+  const x = (drawn.source?.[0] ?? []) as number[];
+  return x.length === 0 || (range.min <= x[0] && range.max >= x[x.length - 1]);
 }
 
 function plotFailureMessage(error: unknown): string {
@@ -1193,6 +1358,62 @@ function drawMarkers(plot: uPlot, markers: PlotMarker[], element: Element, fallb
     ctx.stroke();
   });
   ctx.restore();
+}
+
+/**
+ * Prompt markers: a vertical line per moment, quieter than declared markers.
+ * An asked prompt is dashed under a hollow cap, an answer solid under a
+ * filled one, both in the muted axis colour.
+ */
+function drawPromptMarkers(plot: uPlot, markers: PromptMarker[], color: string) {
+  if (!markers.length) {
+    return;
+  }
+  const { ctx, bbox } = plot;
+  const ratio = plotPixelRatio();
+  const cap = PROMPT_CAP_PX * ratio;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = ratio;
+  ctx.globalAlpha *= 0.7;
+  markers.forEach((marker) => {
+    const left = Math.round(plot.valToPos(marker.x, "x", true)) + 0.5;
+    if (!Number.isFinite(left) || left < bbox.left || left > bbox.left + bbox.width) {
+      return;
+    }
+    const asked = marker.kind === "asked";
+    ctx.setLineDash(asked ? [3 * ratio, 3 * ratio] : []);
+    ctx.beginPath();
+    ctx.moveTo(left, bbox.top + cap);
+    ctx.lineTo(left, bbox.top + bbox.height);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(left - cap, bbox.top);
+    ctx.lineTo(left + cap, bbox.top);
+    ctx.lineTo(left, bbox.top + cap);
+    ctx.closePath();
+    if (asked) ctx.stroke();
+    else ctx.fill();
+  });
+  ctx.restore();
+}
+
+/** The prompt marker within reach of the pointer at `left` (CSS pixels over the plot), if any. */
+function nearestPrompt(plot: uPlot, markers: PromptMarker[], left: number): { marker: PromptMarker; left: number } | null {
+  let best: { marker: PromptMarker; left: number } | null = null;
+  let distance = PROMPT_HOVER_PX + 1;
+  for (const marker of markers) {
+    const position = plot.valToPos(marker.x, "x");
+    const gap = Math.abs(position - left);
+    if (Number.isFinite(position) && gap < distance) {
+      best = { marker, left: position };
+      distance = gap;
+    }
+  }
+  return best;
 }
 
 function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element: Element, fallbackColor: string) {

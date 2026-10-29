@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::definition::TestSuite;
 use crate::model::plugins::TestSuiteDefinition;
@@ -30,6 +32,7 @@ use crate::model::telemetry::TelemetryContract;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SuiteSet {
     #[serde(default)]
@@ -52,6 +55,7 @@ pub struct SuiteSnapshot {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SuiteSet {
     pub fn new(suites: impl IntoIterator<Item = TestSuiteDefinition>) -> Self {
         Self { suites: suites.into_iter().collect() }

@@ -8,19 +8,23 @@
  */
 
 /* === Modules === */
+
 pub(super) mod lifecycle;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::PathBuf,
     sync::Arc,
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use super::{Runtime, progress::Operation};
 use crate::domains::installed_plugins::contributions::decode_registrations;
@@ -36,9 +40,10 @@ use crate::{
 };
 
 /* === Constants === */
+
 const PLUGIN_LOG_VARIABLE: &str = "DOKIME_PLUGIN_LOG";
 
-/* === Extraction Cache === */
+// Extraction Cache
 const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
 
 /* === Macros === */
@@ -46,6 +51,7 @@ const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Package {
     input: PluginBundle,
     catalog: BundleCatalog,
@@ -97,6 +103,7 @@ struct ExtractionMarker {
 }
 
 /* === Enums === */
+
 enum Extraction {
     Ephemeral(tempfile::TempDir),
     Cached(std::path::PathBuf),
@@ -106,6 +113,7 @@ enum Extraction {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Extraction {
     fn path(&self) -> &std::path::Path {
         match self {
@@ -137,26 +145,6 @@ impl Extraction {
         }
         result
     }
-}
-
-async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
-    #[cfg(windows)]
-    let delays = [0, 10, 25, 50, 100, 200, 400, 800];
-    #[cfg(not(windows))]
-    let delays = [0];
-
-    for (attempt, delay) in delays.into_iter().enumerate() {
-        if delay != 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-        }
-        match tokio::fs::remove_dir_all(path).await {
-            Ok(()) => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && attempt + 1 < delays.len() => {}
-            Err(error) => return Err(error),
-        }
-    }
-    unreachable!("the final removal attempt returns its result")
 }
 
 impl StagedPackages {
@@ -207,12 +195,12 @@ impl Runtime {
     async fn install_plugins_with(&mut self, progress: &Operation) -> Result<()> {
         let config = self.handle.config();
         let store = self.handle.plugin_store();
-        store.sweep().map_err(operation)?;
+        store.sweep().await.map_err(operation)?;
         let mut inputs = config.plugins.clone();
         if let Some(directory) = &config.plugin_lookup {
             inputs.extend(lookup_bundles(directory)?);
         }
-        inputs.extend(store.installed().map_err(operation)?);
+        inputs.extend(store.installed().await.map_err(operation)?);
         for input in &inputs {
             if let PluginProvenance::Installed { install_id, .. } = input.provenance {
                 self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, false);
@@ -231,14 +219,19 @@ impl Runtime {
                 PluginProvenance::Installed { sha256, .. } => Some(sha256.clone()),
                 PluginProvenance::Configured => None,
             });
-            let prepared = match read_bundle(input.clone(), cached_digest.as_deref()) {
+            let prepared = match read_bundle(
+                input.clone(),
+                cached_digest.as_deref(),
+                usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
+                    .expect("validated server plugin bundle limit fits native address space"),
+            ) {
                 Ok(bundle) => prepare(bundle, &extraction, reuse, &self.handle).await,
                 Err(error) => Err(error),
             };
             match prepared {
                 Ok(package) => packages.push(package),
                 Err(error) => {
-                    if let Err(failure) = failed(&store, &input, &error.to_string()) {
+                    if let Err(failure) = failed(&store, &input, &error.to_string()).await {
                         self.pending_plugins.extend(packages);
                         return Err(failure);
                     }
@@ -264,7 +257,7 @@ impl Runtime {
         );
         let embedded_plugins: Vec<_> = self.embedded.values().map(|provider| provider.definition.clone()).collect();
         let embedded_catalogs: Vec<_> = self.embedded.values().map(|provider| provider.catalog.clone()).collect();
-        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins) {
+        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins).await {
             Ok(plan) => plan,
             Err(error) => {
                 self.pending_plugins.extend(packages);
@@ -300,7 +293,7 @@ impl Runtime {
             let Some((index, reason)) = refused else {
                 break;
             };
-            if let Err(error) = prune(&store, &packages.iter().collect::<Vec<_>>(), &mut removed, index, &reason) {
+            if let Err(error) = prune(&store, &packages.iter().collect::<Vec<_>>(), &mut removed, index, &reason).await {
                 self.pending_plugins.extend(packages);
                 return Err(error);
             }
@@ -325,8 +318,14 @@ impl Runtime {
             if removed.contains(&index) {
                 self.pending_plugins.extend(vec![package]);
             } else {
-                self.plugins
-                    .insert(package.catalog.package.clone(), ActivePackage { package, running: Vec::new(), telemetry: BTreeMap::new() });
+                self.plugins.insert(
+                    package.catalog.package.clone(),
+                    ActivePackage {
+                        package,
+                        running: Vec::new(),
+                        telemetry: BTreeMap::new(),
+                    },
+                );
             }
         }
         let candidate = graph(self.plugins.values().flat_map(|active| &active.package.programs), self.embedded.values(), [])?;
@@ -367,7 +366,7 @@ impl Runtime {
                         .enumerate()
                         .filter_map(|(index, package)| excluded.contains(&package.catalog.package).then_some(index))
                         .collect();
-                    prune(&self.handle.plugin_store(), &packages, &mut removed, initial, &source.to_string())?;
+                    prune(&self.handle.plugin_store(), &packages, &mut removed, initial, &source.to_string()).await?;
                     excluded.extend(removed.iter().map(|index| packages[*index].catalog.package.clone()));
                     next = Some(graph(
                         self.plugins.iter().filter(|(name, _)| !excluded.contains(*name)).flat_map(|(_, active)| &active.package.programs),
@@ -392,12 +391,14 @@ impl Runtime {
         if reconcile && let Err(error) = self.handle.commit(ReconcileProviders { providers }).await {
             return Err(operation(error));
         }
+        self.capture_ready_catalogs().await?;
         self.recover_plugin_executions().await?;
-        for active in self.plugins.values() {
-            if let PluginProvenance::Installed { install_id, .. } = active.package.input.provenance {
+        let inputs: Vec<_> = self.plugins.values().map(|active| active.package.input.clone()).collect();
+        for input in inputs {
+            if let PluginProvenance::Installed { install_id, .. } = input.provenance {
                 self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, true);
             }
-            record(&store, &active.package.input, None);
+            record(&store, &input, None).await;
         }
         self.expose_plugins()?;
         Ok(())
@@ -421,6 +422,18 @@ impl Runtime {
             .collect()
     }
 
+    async fn capture_ready_catalogs(&mut self) -> Result<()> {
+        let ready: Vec<_> = self.plugin_manager.as_ref().expect("manager is initialized").ready().map(str::to_owned).collect();
+        // Catalog Reconciliation Must Precede Schema Capture And Recovery.
+        let contracts = self.handle.state_read().telemetry_contracts();
+        self.handle.execution_storage.register_schemas(&contracts).await?;
+        for source in ready {
+            self.handle.capture_suite_objects(&source).await?;
+        }
+        self.handle.storage().flush().await?;
+        Ok(())
+    }
+
     fn expose_plugins(&mut self) -> Result<()> {
         let ready: BTreeSet<_> = self.plugin_manager.as_ref().expect("manager is initialized").ready().map(str::to_owned).collect();
         for active in self.plugins.values_mut() {
@@ -429,7 +442,7 @@ impl Runtime {
                     continue;
                 }
                 let id = crate::Identifier::new(&live.source).map_err(operation)?;
-                let dispatcher = Arc::new(live.bindings.clone().attach(self.handle.operations.clone()));
+                let dispatcher = Arc::new(live.bindings.clone().attach(&live.source, self.handle.operations.clone()));
                 self.handle.set_action_dispatcher(id.clone(), Arc::clone(&dispatcher) as _);
                 let handle = self.handle.clone();
                 tokio::spawn(async move {
@@ -450,7 +463,7 @@ impl Runtime {
     }
 
     pub async fn register(&mut self, provider: Arc<dyn super::EmbeddedProvider>) -> Result<()> {
-        let candidate = super::embedded::Active::prepare(provider)?;
+        let candidate = super::embedded::Active::prepare(provider, self.handle.schema_settings())?;
         let source = candidate.definition.id.clone();
         let catalogs: Vec<ProviderCatalog> = self
             .plugins
@@ -486,6 +499,7 @@ impl Runtime {
         }
 
         self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: source }).await.map_err(operation)?;
+        self.capture_ready_catalogs().await?;
         self.expose_plugins()?;
         Ok(())
     }
@@ -540,7 +554,12 @@ impl Runtime {
         // specifically to pick up bytes that just changed. The extraction
         // cache only ever applies to `Installed` bundles (see
         // `reusable_extraction`), never to this path.
-        let bundle = read_bundle(input, None)?;
+        let bundle = read_bundle(
+            input,
+            None,
+            usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
+                .expect("validated server plugin bundle limit fits native address space"),
+        )?;
         if !matches!(bundle.input.provenance, PluginProvenance::Configured) {
             return Err(operation("only explicitly configured development plugins can be reloaded"));
         }
@@ -620,7 +639,11 @@ impl Runtime {
         let definitions = graph(programs.iter().copied(), self.embedded.values(), rebuilt)?;
         let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
-        let mut desired = ActivePackage { package: candidate, running: Vec::new(), telemetry: BTreeMap::new() };
+        let mut desired = ActivePackage {
+            package: candidate,
+            running: Vec::new(),
+            telemetry: BTreeMap::new(),
+        };
         if let Some(previous) = self.plugins.remove(&name) {
             // Manager backends retain old physical generations and their files.
             // These entries are only the domain projections for exposure.
@@ -642,7 +665,14 @@ impl Runtime {
             }
             return Err(error.into());
         }
-        self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: name.clone() }).await.map_err(operation)?;
+        self.handle
+            .commit(ReloadProviderCatalog {
+                providers: catalogs,
+                provider: name.clone(),
+            })
+            .await
+            .map_err(operation)?;
+        self.capture_ready_catalogs().await?;
         self.expose_plugins()?;
         std::mem::take(&mut self.pending_plugins).close().await.map_err(operation)?;
         for (record, version) in redefined {
@@ -675,7 +705,11 @@ impl Runtime {
             let current = self.handle.state_read().execution_identity(&previous.source);
             if current.as_ref() != Some(&previous) {
                 self.handle
-                    .commit(crate::transactions::InvalidateExecutions { previous, current, invalidated_at: crate::model::time::now_utc() })
+                    .commit(crate::transactions::InvalidateExecutions {
+                        previous,
+                        current,
+                        invalidated_at: crate::model::time::now_utc(),
+                    })
                     .await
                     .map_err(operation)?;
             }
@@ -686,6 +720,15 @@ impl Runtime {
                 .await
                 .map_err(operation)?;
         }
+        let cycles = self.handle.state_read().cycles.keys().cloned().collect::<Vec<_>>();
+        if cycles.is_empty() {
+            return Ok(());
+        }
+        for cycle in cycles {
+            self.handle.seal_cycle_inner(cycle, crate::CommandContext::default()).await?;
+        }
+        // The Stop Left These Active; Once Sealed They Are Served From Native History Like Any Earlier Session's.
+        self.handle.commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() }).await.map_err(operation)?;
         Ok(())
     }
 }
@@ -693,6 +736,27 @@ impl Runtime {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let delays = [0, 10, 25, 50, 100, 200, 400, 800];
+    #[cfg(not(windows))]
+    let delays = [0];
+
+    for (attempt, delay) in delays.into_iter().enumerate() {
+        if delay != 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+        }
+        match tokio::fs::remove_dir_all(path).await {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && attempt + 1 < delays.len() => {}
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("the final removal attempt returns its result")
+}
+
 fn start_failure(error: &harmos::Error) -> Option<(&str, &harmos::Error, &[harmos::plugin::PluginCleanupFailure])> {
     match error {
         harmos::Error::PluginLifecycle { source } => match source.as_ref() {
@@ -742,8 +806,8 @@ fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {
     Ok(paths.into_iter().map(PluginBundle::new).collect())
 }
 
-fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadBundle> {
-    let bytes = read_bounded(&input.path, harmos_packaging::bundle::Limits::default().archive_bytes).map_err(operation)?;
+fn read_bundle(input: PluginBundle, cached_digest: Option<&str>, archive_bytes: usize) -> Result<ReadBundle> {
+    let bytes = read_bounded(&input.path, archive_bytes).map_err(operation)?;
     let content_digest = match cached_digest {
         Some(digest) => digest.to_owned(),
         None => digest(&bytes),
@@ -761,7 +825,13 @@ fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadB
 
 async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<PathBuf>, handle: &super::RuntimeHandle) -> Result<Package> {
     let ReadBundle { input, bytes, content_digest } = read;
-    let (bundle, metadata) = crate::plugins::inspect(&bytes).map_err(operation)?;
+    let (bundle, metadata) = crate::plugins::inspect_with_archive_limit(
+        &bytes,
+        handle.schema_settings(),
+        usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
+            .expect("validated server plugin bundle limit fits native address space"),
+    )
+    .map_err(operation)?;
     let selected = selected_files(&bundle).map_err(operation)?;
     if let Some(owner) = input.programs.keys().find(|owner| !metadata.owners.contains(owner)) {
         return Err(operation(format!("plugin `{}` configuration names unknown executable `{owner}`", input.path.display())));
@@ -792,8 +862,9 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
         dokime_domain::model::identity::Identifier::new(id).map_err(operation)?;
         let registrations = file.executable.as_ref().expect("selected executable").registrations.clone();
         let plugin = decode_registrations(id, &version.to_string(), description, &registrations)?;
-        super::native_telemetry::validate(&plugin, &declaration.streams).map_err(operation)?;
-        crate::plugins::dispatch::validate_analyses(&plugin, &declaration.contracts.provides).map_err(operation)?;
+        super::native_telemetry::validate(&plugin, &declaration.streams, handle.schema_settings()).map_err(operation)?;
+        crate::plugins::dispatch::validate_analyses(&plugin, &declaration.contracts.provides, handle.schema_settings())
+            .map_err(operation)?;
         let bindings = crate::plugins::dispatch::Bindings::inspect(&plugin, operations).map_err(operation)?;
         plugins.push(plugin.clone());
         let mut executable = harmos::sidecar::Executable::at(directory.path().join(&file.path)).map_err(operation)?;
@@ -840,7 +911,13 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
             },
         };
 
-        programs.push(Program { plugin, executable: Executable(executable), definition, bindings, configured });
+        programs.push(Program {
+            plugin,
+            executable: Executable(executable),
+            definition,
+            bindings,
+            configured,
+        });
     }
     let installation = match &input.provenance {
         PluginProvenance::Configured => None,
@@ -849,7 +926,13 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
     let path = input.path.to_string_lossy().into_owned();
     Ok(Package {
         input,
-        catalog: BundleCatalog { package: metadata.identity.name, path, content_digest, installation, plugins },
+        catalog: BundleCatalog {
+            package: metadata.identity.name,
+            path,
+            content_digest,
+            installation,
+            plugins,
+        },
         programs,
         _directory: Arc::new(directory),
     })
@@ -886,7 +969,11 @@ fn persist_extraction(
     }
     std::fs::rename(staged.path(), target)?;
     let stat = std::fs::metadata(bundle_path)?;
-    let marker = ExtractionMarker { sha256: content_digest.to_owned(), size: stat.len(), mtime_unix_ms: mtime_unix_ms(&stat).unwrap_or(0) };
+    let marker = ExtractionMarker {
+        sha256: content_digest.to_owned(),
+        size: stat.len(),
+        mtime_unix_ms: mtime_unix_ms(&stat).unwrap_or(0),
+    };
     harmos::filesystem::publication::write(
         &target.join(EXTRACTION_MARKER_FILE),
         &serde_json::to_vec(&marker).map_err(std::io::Error::other)?,
@@ -934,8 +1021,16 @@ fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::plugin::PluginD
     packages.iter().map(|package| package.programs.iter().map(|program| program.definition.clone()).collect()).collect()
 }
 
-fn plan(store: &PluginStore, packages: &[&Package], embedded: &[harmos::plugin::PluginDefinition]) -> Result<BTreeSet<usize>> {
-    plan_graph(&package_definitions(packages), embedded, |index, reason| failed(store, &packages[index].input, reason))
+async fn plan(store: &PluginStore, packages: &[&Package], embedded: &[harmos::plugin::PluginDefinition]) -> Result<BTreeSet<usize>> {
+    let mut refusals = Vec::new();
+    let result = plan_graph(&package_definitions(packages), embedded, |index, reason| {
+        refusals.push((index, reason.to_owned()));
+        Ok(())
+    });
+    for (index, reason) in refusals {
+        failed(store, &packages[index].input, &reason).await?;
+    }
+    result
 }
 
 fn plan_graph(
@@ -961,9 +1056,7 @@ fn plan_graph(
                         return Err(operation(error));
                     }
                     harmos::plugin::Error::Definition { artifact: plugin, .. } => plugin,
-                    harmos::plugin::Error::StreamConflict { second, .. } | harmos::plugin::Error::OperationConflict { second, .. } => {
-                        second
-                    }
+                    harmos::plugin::Error::StreamConflict { second, .. } => second,
                     harmos::plugin::Error::Duplicate { id } => id,
                     harmos::plugin::Error::Missing { artifact: plugin, .. }
                     | harmos::plugin::Error::Incompatible { artifact: plugin, .. }
@@ -983,9 +1076,9 @@ fn plan_graph(
     }
 }
 
-fn prune(store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize, reason: &str) -> Result<()> {
+async fn prune(store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize, reason: &str) -> Result<()> {
     for index in prune_graph(&package_definitions(packages), removed, initial) {
-        failed(store, &packages[index].input, reason)?;
+        failed(store, &packages[index].input, reason).await?;
     }
     Ok(())
 }
@@ -1019,7 +1112,7 @@ fn prune_graph(packages: &[Vec<harmos::plugin::PluginDefinition>], removed: &mut
     newly_removed
 }
 
-fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Result<()> {
+async fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Result<()> {
     let PluginProvenance::Installed { install_id, .. } = &input.provenance else {
         return Err(operation(format!("configured plugin `{}` failed: {reason}", input.path.display())));
     };
@@ -1029,13 +1122,13 @@ fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Result<()>
         reason,
         "plugin was not admitted"
     );
-    record(store, input, Some(reason.to_owned()));
+    record(store, input, Some(reason.to_owned())).await;
     Ok(())
 }
 
-fn record(store: &PluginStore, input: &PluginBundle, error: Option<String>) {
+async fn record(store: &PluginStore, input: &PluginBundle, error: Option<String>) {
     if let PluginProvenance::Installed { install_id, .. } = &input.provenance
-        && let Err(error) = store.record_boot(*install_id, error)
+        && let Err(error) = store.record_boot(*install_id, error).await
     {
         tracing::warn!(%install_id, %error, "could not record plugin boot outcome");
     }

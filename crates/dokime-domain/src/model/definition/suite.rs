@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::definition::ParameterDefinition;
 use crate::model::definition::ParameterGroup;
@@ -36,13 +39,17 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestSuite {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub tags: Vec<String>,
+
     #[serde(default)]
     pub parameter_groups: Vec<ParameterGroup>,
+
     #[serde(default)]
     pub test_case_templates: Vec<TestCaseTemplate>,
 }
@@ -52,25 +59,33 @@ pub struct TestSuite {
 pub struct TestCaseTemplate {
     pub test_case_template_id: TemplateId,
     pub metadata: Metadata,
+
     #[serde(default)]
     pub tags: Vec<String>,
+
     #[serde(default)]
     pub parameter_groups: Vec<ParameterGroup>,
+
     pub parameters: Vec<ParameterDefinition>,
+
     #[serde(default)]
     pub files: Vec<FileDefinition>,
+
     #[serde(default)]
     pub document: Option<DocumentDefinition>,
+
     #[serde(default)]
     pub phases: Vec<ExecutionPhaseDefinition>,
+
     #[serde(default)]
     pub criteria: Vec<CriterionDefinition>,
-    #[serde(default)]
-    pub continue_on_failure: bool,
+
     #[serde(default)]
     pub prompt_definitions: Vec<crate::model::prompts::PromptDefinition>,
+
     #[serde(default)]
     pub subscriptions: Vec<Subscription>,
+
     #[serde(default)]
     pub attributes: BTreeMap<String, Value>,
 }
@@ -81,12 +96,16 @@ pub struct TestCase {
     pub test_case_id: CaseId,
     pub test_case_template_id: TemplateId,
     pub metadata: Metadata,
+
     #[serde(default)]
     pub suite: Option<Metadata>,
+
     #[serde(default)]
     pub parameters: BTreeMap<String, Value>,
+
     #[serde(default)]
     pub generation_index: u64,
+
     #[serde(default)]
     pub label_number: u64,
 }
@@ -94,12 +113,16 @@ pub struct TestCase {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FileDefinition {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub default: Option<String>,
+
     #[serde(default)]
     pub required: bool,
+
     #[serde(default)]
     pub media_types: Vec<String>,
+
     #[serde(default)]
     pub attributes: BTreeMap<String, Value>,
 }
@@ -107,8 +130,10 @@ pub struct FileDefinition {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionPhaseDefinition {
     pub step_id: StepId,
+
     #[serde(default)]
     pub repeatable: bool,
+
     pub metadata: Metadata,
 }
 
@@ -120,6 +145,7 @@ pub struct CriterionDefinition {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "identifier", rename_all = "snake_case")]
 pub enum Subscription {
@@ -137,6 +163,7 @@ pub enum TemplateIdentifierRefusal {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for TestCaseTemplate {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -283,6 +310,7 @@ pub const fn template_identifier(suite: &str, template: &str) -> Result<(), Temp
 }
 
 /* === Private Functions === */
+
 const fn template_segment(identifier: &[u8], start: usize) -> Result<(), TemplateIdentifierRefusal> {
     if start >= identifier.len() || !identifier[start].is_ascii_lowercase() {
         return Err(TemplateIdentifierRefusal::InvalidSegment);

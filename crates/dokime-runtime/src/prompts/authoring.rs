@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod private {
     pub trait Number {}
     impl Number for i64 {}
@@ -17,11 +18,14 @@ mod private {
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
+
 // Third Party Imports
 use serde::de::DeserializeOwned;
+
 // Local Imports
 use super::*;
 use crate::records::RecordSeverity;
@@ -39,6 +43,7 @@ use dokime_domain::model::values::ValueType;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct FormPrompt<T> {
     definition: PromptDefinition,
     response: PhantomData<fn() -> T>,
@@ -69,6 +74,7 @@ pub struct MultipleChoicePrompt<T> {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait Prompt: Send {
     type Response;
 
@@ -96,9 +102,13 @@ pub trait PromptNumber: private::Number + DeserializeOwned + Into<Value> + Copy 
 }
 
 /* === Implementations === */
+
 impl<T> FormPrompt<T> {
     pub fn new(id: &str, label: impl Into<String>) -> Self {
-        Self { definition: definition(id, label.into(), PromptArchetype::FormPrompt), response: PhantomData }
+        Self {
+            definition: definition(id, label.into(), PromptArchetype::FormPrompt),
+            response: PhantomData,
+        }
     }
 
     pub fn field(mut self, field: PromptField) -> Self {
@@ -163,7 +173,9 @@ impl<T: DeserializeOwned> Prompt for FormPrompt<T> {
 impl TextPrompt {
     pub fn new(id: &str, label: impl Into<String>) -> Self {
         let label = label.into();
-        Self { form: FormPrompt::new(id, label.clone()).field(field(id, label, PromptFieldKind::Text, ValueType::Text)) }
+        Self {
+            form: FormPrompt::new(id, label.clone()).field(field(id, label, PromptFieldKind::Text, ValueType::Text)),
+        }
     }
     pub fn length(mut self, minimum: usize, maximum: usize) -> Self {
         self.form.definition.fields[0].validation.min_length = Some(minimum);
@@ -217,7 +229,9 @@ impl PromptNumber for f64 {
 impl<T: PromptNumber> NumberPrompt<T> {
     pub fn new(id: &str, label: impl Into<String>) -> Self {
         let label = label.into();
-        Self { form: FormPrompt::new(id, label.clone()).field(field(id, label, T::field_kind(), T::value_type())) }
+        Self {
+            form: FormPrompt::new(id, label.clone()).field(field(id, label, T::field_kind(), T::value_type())),
+        }
     }
     pub fn bounds(mut self, minimum: T, maximum: T) -> Self {
         self.form.definition.fields[0].validation.minimum = Some(minimum.into());
@@ -353,6 +367,7 @@ impl<T: Clone + Send> Prompt for MultipleChoicePrompt<T> {
 }
 
 /* === Public Functions === */
+
 pub(super) fn definition(id: &str, label: String, archetype: PromptArchetype) -> PromptDefinition {
     PromptDefinition {
         prompt_type: Identifier::new(id).expect("a prompt identifier is valid"),
@@ -388,7 +403,12 @@ pub(super) fn field(id: &str, label: String, kind: PromptFieldKind, value_type: 
 }
 
 pub(super) fn action(id: &str, label: &str, emphasis: PromptActionEmphasis) -> PromptAction {
-    PromptAction { id: id.to_owned(), label: label.to_owned(), emphasis, requires_condition: false }
+    PromptAction {
+        id: id.to_owned(),
+        label: label.to_owned(),
+        emphasis,
+        requires_condition: false,
+    }
 }
 
 pub(super) fn validate_response(definition: &PromptDefinition, response: &PromptResponse) -> Result<(), crate::Error> {
@@ -409,6 +429,7 @@ pub(super) fn validate_response(definition: &PromptDefinition, response: &Prompt
 }
 
 /* === Private Functions === */
+
 fn refused(error: impl std::fmt::Display) -> crate::Error {
     crate::Error::PromptRefused(error.to_string())
 }

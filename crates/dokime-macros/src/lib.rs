@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod arguments;
 mod catalog;
 mod facade;
@@ -26,10 +27,12 @@ mod template;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use proc_macro::TokenStream;
+
 // Local Imports
 
 /* === Constants === */
@@ -47,6 +50,7 @@ use proc_macro::TokenStream;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 #[proc_macro_attribute]
 pub fn parameters(attribute: TokenStream, item: TokenStream) -> TokenStream {
     parameters::parameters(attribute.into(), item.into()).into()
@@ -89,7 +93,7 @@ pub fn observer(attribute: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn catalog(attribute: TokenStream, item: TokenStream) -> TokenStream {
-    facade::harmos_attribute("catalog", attribute.into(), item.into()).into()
+    catalog::catalog(attribute.into(), item.into()).into()
 }
 
 #[proc_macro_attribute]

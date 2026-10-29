@@ -89,14 +89,15 @@ export default defineConfig(() => ({
     tanstackRouter({
       target: "react",
       autoCodeSplitting: true,
-      routeFileIgnorePattern: "route-state(\\.test)?\\.ts$",
     }),
     react(),
     tailwindcss(),
   ],
   resolve: {
+    dedupe: ["@bufbuild/protobuf"],
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@generated": fileURLToPath(new URL("../../target/generated/typescript", import.meta.url)),
     },
   },
   server: {
@@ -130,20 +131,15 @@ export default defineConfig(() => ({
         pluginTimings: false,
       },
       output: {
-        manualChunks(id) {
-          if (id.includes("node_modules")) {
-            if (id.includes("d3-") || id.includes("uplot")) {
-              return "plot-vendor";
-            }
-            if (id.includes("@tauri-apps")) {
-              return "tauri-vendor";
-            }
-            return undefined;
-          }
-          if (id.includes("/src/features/report/") || id.includes("/src/components/document/") || id.includes("/src/plots/")) {
-            return "document-surface";
-          }
-          return undefined;
+        strictExecutionOrder: true,
+        codeSplitting: {
+          maxSize: 800_000,
+          groups: [
+            { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
+            { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
+            { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
+            { name: "document-surface", test: /\/src\/(?:components\/document|plots)\// },
+          ],
         },
       },
     },

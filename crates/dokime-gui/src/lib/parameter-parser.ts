@@ -14,12 +14,14 @@ import { numericValue } from "@/lib/utils";
 
 import type { ParameterDefinition, ParameterListDefinition } from "./types";
 
+const GUI_RANGE_ITEMS = 10_000;
+
 export type ParseResult = { ok: true; values: unknown[] } | { ok: false; error: string };
 
 const NUMERIC_TYPES = new Set(["int", "integer", "float", "number"]);
 const BOOL_TYPES = new Set(["bool", "boolean"]);
 
-const RANGE_HARD_CAP = 10_000;
+const RANGE_HARD_CAP = GUI_RANGE_ITEMS;
 
 /* === Public === */
 

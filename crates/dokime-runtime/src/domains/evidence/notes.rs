@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::AddOperatorNote;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -20,10 +22,8 @@ pub(crate) use crate::transactions::AddOperatorNote;
 // Local Imports
 use crate::RuntimeHandle;
 use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
-use dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES;
 use dokime_domain::model::execution::notes::NOTE_EDIT_NOT_AUTHOR;
 use dokime_domain::model::execution::notes::NOTE_OWNER_SEALED;
-use dokime_domain::model::execution::notes::NOTE_TEXT_BYTES;
 use dokime_domain::model::execution::notes::NoteAdmission;
 use dokime_domain::model::execution::notes::NoteOwner;
 use dokime_domain::model::execution::notes::OperatorNote;
@@ -40,6 +40,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct CreateNote {
     pub epoch: SessionId,
@@ -65,6 +66,7 @@ pub struct NoteCreation {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NotePublication {
     NoExistingDatasets,
@@ -76,20 +78,28 @@ pub enum NotePublication {
 pub enum NoteError {
     #[error("{0}")]
     Invalid(String),
+
     #[error("{0}")]
     Owner(String),
+
     #[error("note epoch changed; resynchronize before creating")]
     Epoch,
+
     #[error("note mutation identity was reused with different input")]
     Conflict,
+
     #[error("note creation capacity exhausted")]
     Overloaded,
+
     #[error("{NOTE_OWNER_SEALED}")]
     Sealed,
+
     #[error("note is absent from current evidence")]
     Absent,
+
     #[error("{NOTE_EDIT_NOT_AUTHOR}")]
     NotAuthor,
+
     #[error("{0}")]
     Unavailable(String),
 }
@@ -97,12 +107,13 @@ pub enum NoteError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn create_current_note(&self, request: CreateNote) -> Result<NoteCreation, NoteError> {
         if request.actor.is_empty()
-            || request.actor.len() > NOTE_ACTOR_BYTES
+            || request.actor.len() > crate::state::notes::NOTE_ACTOR_BYTES
             || request.message.trim().is_empty()
-            || request.message.len() > NOTE_TEXT_BYTES
+            || request.message.len() > crate::state::notes::NOTE_TEXT_BYTES
         {
             return Err(NoteError::Invalid("note actor/text exceeds bounds or is empty".into()));
         }
@@ -134,11 +145,8 @@ impl RuntimeHandle {
                 return Err(NoteError::Sealed);
             }
         }
-        // Save native membership before selecting the annotation targets.
-        self.execution_storage
-            .save_cycle(request.owner.cycle_id().clone())
-            .await
-            .map_err(|error| NoteError::Unavailable(error.to_string()))?;
+        // Create And Append Already Persist Membership. The Note's Journal Commit
+        // And Selected Checkpoints Own Its Durability; Do Not Rewrite The Cycle.
         let state = self.state_read();
         if state.process_epoch() != &request.epoch {
             return Err(NoteError::Epoch);
@@ -193,11 +201,15 @@ impl RuntimeHandle {
             tracing::warn!(%error, note_id=%id, "committed note checkpoint publication failed");
         }
         let publication = self.note_publication(&admission).await;
-        Ok(NoteCreation { epoch: request.epoch, admission, publication })
+        Ok(NoteCreation {
+            epoch: request.epoch,
+            admission,
+            publication,
+        })
     }
 
     pub async fn edit_current_note(&self, request: EditNote) -> Result<OperatorNote, NoteError> {
-        if request.message.trim().is_empty() || request.message.len() > NOTE_TEXT_BYTES {
+        if request.message.trim().is_empty() || request.message.len() > crate::state::notes::NOTE_TEXT_BYTES {
             return Err(NoteError::Invalid("note text exceeds bounds or is empty".into()));
         }
         if self.is_shutting_down() {
@@ -248,7 +260,11 @@ impl RuntimeHandle {
             return Ok(None);
         };
         let publication = self.note_publication(&admission).await;
-        Ok(Some(NoteCreation { epoch: epoch.clone(), admission, publication }))
+        Ok(Some(NoteCreation {
+            epoch: epoch.clone(),
+            admission,
+            publication,
+        }))
     }
 
     async fn read_note_admission(&self, epoch: &SessionId, id: &NoteId) -> Result<Option<NoteAdmission>, NoteError> {

@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
+
 // Third Party Imports
 // Third-Party Imports
 use serde::de::DeserializeOwned;
+
 // Local Imports
 use super::context::{Cleanup, CriterionContext, Initialize, Step, Traceability, TraceabilityContext};
 use super::document::DocumentIndex;
@@ -37,24 +40,31 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Environment<'a, C = (), O = (), I = ()> {
     parameters: &'a I,
     raw: &'a BTreeMap<String, Value>,
     bindings: &'a crate::plugin::Configuration,
     calls: std::marker::PhantomData<fn() -> C>,
+
     #[cfg(feature = "native")]
     caller: super::Caller,
+
     #[cfg(feature = "native")]
     binding: Option<Arc<dyn std::any::Any + Send + Sync>>,
+
     own: Option<Arc<O>>,
     artifacts: Artifacts,
     streams: Streams,
     deliveries: Deliveries,
     document: Arc<std::sync::Mutex<DocumentIndex>>,
+
     #[cfg(feature = "native")]
     callbacks: super::Callbacks,
+
     #[cfg(feature = "native")]
     identity: Arc<super::ExecutionIdentity>,
+
     #[cfg(feature = "native")]
     handles: super::instances::Handles,
 }
@@ -64,6 +74,7 @@ pub struct Environment<'a, C = (), O = (), I = ()> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a, C, O, I> Environment<'a, C, O, I> {
     pub fn new(
         parameters: &'a I, raw: &'a BTreeMap<String, Value>, bindings: &'a crate::plugin::Configuration, artifacts: Artifacts,
@@ -88,7 +99,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             #[cfg(feature = "native")]
             identity: Arc::default(),
             #[cfg(feature = "native")]
-            handles: super::instances::Handles::default(),
+            handles: super::instances::Handles::new(),
         }
     }
 
@@ -139,6 +150,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             .expect("a bound workflow is run against the binding it was built from")
     }
 
+    #[cfg(feature = "native")]
     #[must_use]
     pub(crate) fn declaring(mut self, document: Arc<std::sync::Mutex<DocumentIndex>>) -> Self {
         self.document = document;
@@ -237,8 +249,12 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
 }
 
 /* === Public Functions === */
+
 pub(super) fn parameter<C: DeserializeOwned>(values: &BTreeMap<String, Value>, id: &str) -> crate::Result<C> {
-    let failure = |reason: &str| crate::Error::Parameter { name: id.to_owned(), reason: reason.to_owned() };
+    let failure = |reason: &str| crate::Error::Parameter {
+        name: id.to_owned(),
+        reason: reason.to_owned(),
+    };
     let value = values.get(id).ok_or_else(|| failure("unknown parameter"))?;
     let json = value.to_plain_json().map_err(|_| failure("parameter cannot be represented as JSON"))?;
     serde_json::from_value(json).map_err(|_| failure("parameter has the wrong type"))

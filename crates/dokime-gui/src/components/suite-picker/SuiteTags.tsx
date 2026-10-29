@@ -29,7 +29,7 @@ const TAG_COLUMN_BUDGET = 44;
 const OVERFLOW_BUDGET = 5;
 
 /** Fixed column width so suite and template rows share one tag column. */
-export const TAG_COLUMN_WIDTH = "w-[240px] xl:w-[320px]";
+export const TAG_COLUMN_WIDTH = "w-60 xl:w-80";
 
 /* === Components === */
 
@@ -46,7 +46,7 @@ export function SuiteTags({ className, tags }: { className?: string; tags: strin
           <TooltipTrigger asChild>
             <button
               aria-label={`${hidden.length} more tags: ${hidden.map(formatTagLabel).join(", ")}`}
-              className="shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="shrink-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
             >
               <TagChip label={`+${hidden.length}`} />
@@ -66,7 +66,7 @@ export function TagChip({ className, label, title }: { className?: string; label
   return (
     <span
       className={cn(
-        "inline-flex h-5 shrink-0 items-center rounded-sm border px-1.5 text-[11px] leading-none whitespace-nowrap text-muted-foreground [[data-density=touch]_&]:h-6",
+        "inline-flex h-5 shrink-0 items-center rounded-lg border px-2 text-xs leading-none whitespace-nowrap text-muted-foreground [[data-density=touch]_&]:h-6",
         className,
       )}
       title={title}

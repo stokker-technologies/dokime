@@ -26,7 +26,6 @@ use crate::telemetry::{TelemetryCondition, TelemetryConditionOperator};
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
-const MAX_NODES: usize = 4096;
 const MAX_DEPTH: usize = 64;
 
 /* === Macros === */
@@ -66,8 +65,8 @@ impl Condition {
     }
 
     pub(super) fn projection_memory(&self) -> Result<usize> {
-        if self.nodes.is_empty() || self.nodes.len() > MAX_NODES {
-            return Err(Error::Invalid("condition exceeds node limit or is empty"));
+        if self.nodes.is_empty() {
+            return Err(Error::Invalid("condition is empty"));
         }
         let mut at = 0;
         let bound = condition_memory(&self.nodes, &mut at, 0)?;
@@ -123,10 +122,10 @@ impl<'de> Deserialize<'de> for Condition {
 
 /* === Private Functions === */
 fn encoding_memory(value: &RuntimeCondition, depth: usize, count: &mut usize) -> Result<usize> {
-    if depth > MAX_DEPTH || *count >= MAX_NODES {
-        return Err(Error::Invalid("condition exceeds node or depth limit"));
+    if depth > MAX_DEPTH {
+        return Err(Error::Invalid("condition exceeds depth limit"));
     }
-    *count += 1;
+    *count = (*count).checked_add(1).ok_or(Error::Invalid("condition node count overflows"))?;
     let mut bytes = std::mem::size_of::<Node>();
     match value {
         RuntimeCondition::Record { condition } => {
@@ -312,3 +311,32 @@ fn telemetry_operator(operator: &str) -> Result<TelemetryConditionOperator> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn leaf() -> RuntimeCondition {
+        RuntimeCondition::Telemetry {
+            condition: TelemetryCondition {
+                stream: Identifier::new("stream").unwrap(),
+                field: "value".into(),
+                operator: TelemetryConditionOperator::Exists,
+                target: None,
+                tolerance: None,
+            },
+        }
+    }
+
+    #[test]
+    fn admits_a_valid_condition_tree_above_the_former_node_limit() {
+        let conditions = (0..4096).map(|_| leaf()).collect();
+        let source = RuntimeCondition::All { conditions };
+        let row = Condition::try_from(&source).unwrap();
+        assert_eq!(row.nodes.len(), 4097);
+        let projected_memory = row.projection_memory().unwrap();
+        assert!(projected_memory > std::mem::size_of::<RuntimeCondition>());
+        let decoded = RuntimeCondition::try_from(row).unwrap();
+        assert_eq!(decoded, source);
+    }
+}

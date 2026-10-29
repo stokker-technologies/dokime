@@ -42,9 +42,10 @@ use obc_plugin::ObcPlugin;
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[tokio::test]
 async fn resources_share_allocation() {
-    use dokime_runtime::__harmos::Plugin;
+    use dokime::__harmos::Plugin;
 
     let mut plugin = <ObcPlugin as Plugin>::prepare(Default::default()).unwrap();
     let first = Plugin::resources(&plugin);
@@ -60,12 +61,10 @@ async fn resources_share_allocation() {
 
 #[test]
 fn executable_declares_routes() {
-    let declared = dokime_runtime::__harmos::sidecar::Executable::at(executable())
-        .expect("the obc-plugin executable declares itself")
-        .declaration()
-        .clone();
+    let declared =
+        dokime::__harmos::sidecar::Executable::at(executable()).expect("the obc-plugin executable declares itself").declaration().clone();
 
-    assert_eq!(declared.id, "obc-plugin");
+    assert_eq!(declared.id, "obc");
     assert_eq!(declared.version.to_string(), "0.1.0");
     let operations =
         declared.operations.iter().map(|operation| operation.id.as_str().to_owned()).collect::<std::collections::BTreeSet<_>>();
@@ -74,12 +73,14 @@ fn executable_declares_routes() {
         std::collections::BTreeSet::from(
             [
                 // The bench's own operations and its connection listener.
-                "obc-plugin.check_readiness",
-                "obc-plugin.connection",
-                "obc-plugin.get_status",
-                "obc-plugin.list_connections",
+                "obc.bench.check_readiness",
+                "obc.bench.connection",
+                "obc.bench.get_status",
+                "obc.bench.list_connections",
+                "obc.device.read",
+                "obc.device.set_power",
                 // The ripple analysis the plugin contributes is an operation too.
-                "obc-plugin.ripple",
+                "obc.analysis.ripple",
                 // Every template of every suite serves a run and a signal.
                 "obc.charger.protection.overcurrent.run",
                 "obc.charger.protection.overcurrent.signal",
@@ -99,7 +100,6 @@ fn executable_declares_routes() {
     assert_eq!(
         streams,
         [
-            "obc-plugin.system",
             "obc.charger.protection.samples",
             "obc.charger.recovery.samples",
             "obc.charger.startup.log",
@@ -107,9 +107,10 @@ fn executable_declares_routes() {
             "obc.charger.steady.events",
             "obc.charger.steady.samples",
             "obc.pulse",
+            "obc.system",
         ]
     );
-    assert_eq!("obc-plugin", declared.id);
+    assert_eq!("obc", declared.id);
 }
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.

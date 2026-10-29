@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
+
 // Local Imports
 use crate::runtime::storage::execution::ExecutionView;
 use crate::transactions::{ArchiveSubject, SetArchived};
@@ -36,6 +38,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn set_cycle_archived(&self, test_cycle_id: TestCycleId, archived: bool, context: CommandContext) -> Result<(), Error> {
         let live = self.state_read().cycles.contains_key(&test_cycle_id);
@@ -67,7 +70,7 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn stored_cycle_exists(&self, id: &TestCycleId) -> Result<bool, Error> {
-        Ok(crate::storage::objects::cycle::read(self.storage(), id, harmos::storage::ObjectVersion::Latest).await?.is_some())
+        Ok(crate::storage::objects::cycle::read(&self.storage().clone(), id, harmos::storage::ObjectVersion::Latest).await?.is_some())
     }
 
     pub(crate) async fn stored_execution_exists(&self, id: &TestExecutionId) -> Result<bool, Error> {

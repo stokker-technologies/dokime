@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::marker::PhantomData;
 
@@ -30,6 +31,7 @@ use crate::plugin::settings::PluginSettings;
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! section {
     ($namespace:expr, $payload:literal) => {
         Section::new($namespace, $payload)
@@ -39,6 +41,7 @@ macro_rules! section {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Suites<S>(PhantomData<fn() -> S>);
 
 pub struct Records<R, L = ()>(PhantomData<fn() -> (R, L)>);
@@ -52,6 +55,7 @@ pub struct Settings<S>(PhantomData<fn() -> S>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<S> harmos::plugin::Contribution for Suites<S>
 where
     S: Catalog<catalog::Suites> + 'static,
@@ -154,12 +158,16 @@ where
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn register<T: serde::Serialize>(registrar: &mut Registrar, namespace: &str, value: &T) -> Result<(), RegistrationError> {
     registrar.register(namespace, domain_schema(namespace), value)
 }
 
 fn invalid(namespace: &str, error: impl std::fmt::Display) -> RegistrationError {
-    RegistrationError::Encode { namespace: namespace.into(), source: <serde_json::Error as serde::ser::Error>::custom(error.to_string()) }
+    RegistrationError::Encode {
+        namespace: namespace.into(),
+        source: <serde_json::Error as serde::ser::Error>::custom(error.to_string()),
+    }
 }
 
 /* === Tests === */

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,12 +20,13 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Error, Expr, Ident, LitStr, Type};
+
 // Local Imports
 use crate::arguments::Arguments;
 
 /* === Constants === */
-const FIELD_ARGUMENTS: &[&str] = &["label", "unit", "format", "message", "description"];
 
+const FIELD_ARGUMENTS: &[&str] = &["label", "unit", "format", "message", "description"];
 const SEVERITIES: &[(&str, &str)] = &[("debug", "Debug"), ("info", "Info"), ("warning", "Warning"), ("error", "Error")];
 
 /* === Macros === */
@@ -32,6 +34,7 @@ const SEVERITIES: &[(&str, &str)] = &[("debug", "Debug"), ("info", "Info"), ("wa
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct RecordFieldDeclaration {
     name: Ident,
     ty: Type,
@@ -58,6 +61,7 @@ struct FieldArguments {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn implementation(attribute: TokenStream, input: &DeriveInput) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a record", &["id", "label", "severity", "description"])?;
@@ -192,7 +196,12 @@ pub(crate) fn declared_severity(value: &Expr, subject: &str) -> Result<TokenStre
     Ok(quote!(#sdk::records::RecordSeverity::#variant))
 }
 
+pub(crate) fn stripped(input: &DeriveInput) -> DeriveInput {
+    crate::arguments::stripped(input, "record")
+}
+
 /* === Private Functions === */
+
 fn handles(fields: &[RecordFieldDeclaration], identifier: &Expr) -> TokenStream {
     let sdk = crate::facade::root();
     let accessors = fields.iter().map(|field| {
@@ -326,10 +335,6 @@ fn read(field: &RecordFieldDeclaration) -> TokenStream {
     let identifier = LitStr::new(&name.to_string(), name.span());
 
     quote!(#name: #sdk::records::field(values, #identifier)?)
-}
-
-pub(crate) fn stripped(input: &DeriveInput) -> DeriveInput {
-    crate::arguments::stripped(input, "record")
 }
 
 /* === Tests === */

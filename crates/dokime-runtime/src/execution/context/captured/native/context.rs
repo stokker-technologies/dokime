@@ -40,9 +40,12 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Context {
+    appearance_logo_bytes: u64,
+    appearance_css_depth: u64,
     scope: Option<native::Scope>,
     session_id: String,
     cycle: Option<Cycle>,
@@ -54,12 +57,14 @@ pub(crate) struct Context {
     traceability: Vec<Traceability>,
     appearance: Option<Appearance>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Document {
     key: String,
     definition: Option<native::DocumentDefinition>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Traceability {
@@ -69,6 +74,7 @@ pub(super) struct Traceability {
     metadata: Option<native::Metadata>,
     entries: Vec<Entry>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Entry {
@@ -84,16 +90,19 @@ struct Entry {
 
 /* === Implementations === */
 
-impl Context {}
-
 impl TryFrom<&ExecutionContext> for Context {
     type Error = Error;
     fn try_from(value: &ExecutionContext) -> Result<Self> {
         let mut execution_documents = slots(value.execution_documents.len())?;
         for (key, definition) in &value.execution_documents {
-            execution_documents.push(Document { key: key.as_str().to_owned(), definition: Some(definition.try_into()?) });
+            execution_documents.push(Document {
+                key: key.as_str().to_owned(),
+                definition: Some(definition.try_into()?),
+            });
         }
         Ok(Self {
+            appearance_logo_bytes: value.appearance_policy.logo_bytes,
+            appearance_css_depth: value.appearance_policy.css_depth,
             scope: Some((&value.scope).into()),
             session_id: value.session_id.as_str().to_owned(),
             cycle: Some(Cycle::from_view(&value.cycle.cycle, &value.cycle.execution_order)?),
@@ -117,13 +126,14 @@ impl TryFrom<Context> for ExecutionContext {
             test_cycle_id: cycle.test_cycle_id,
             session_id: cycle.session_id,
             metadata: cycle.metadata,
+            phase: cycle.phase,
             lifecycle: cycle.lifecycle,
             created_at: cycle.created_at,
             started_at: cycle.started_at,
             updated_at: cycle.updated_at,
             test_executions: Vec::new(),
             records: cycle.records,
-            continue_on_failure: cycle.continue_on_failure,
+            continue_automatically: cycle.continue_automatically,
             result: cycle.result,
         };
         let mut documents = BTreeMap::new();
@@ -132,7 +142,13 @@ impl TryFrom<Context> for ExecutionContext {
             let definition = item.definition.ok_or_else(|| invalid("context document is missing"))?.try_into()?;
             documents.insert(key, definition);
         }
-        Ok(Self {
+        let appearance_policy = crate::execution::context::captured::AppearancePolicy {
+            logo_bytes: value.appearance_logo_bytes,
+            css_depth: value.appearance_css_depth,
+        };
+        let appearance = value.appearance.ok_or_else(|| invalid("context appearance is missing"))?.into_frame(&appearance_policy)?;
+        let result = Self {
+            appearance_policy,
             scope: value.scope.ok_or_else(|| invalid("context scope is missing"))?.try_into()?,
             session_id: SessionId::from_uuid(value.session_id).map_err(crate::storage::Error::from)?,
             cycle: ExecutionCycleContext {
@@ -145,13 +161,12 @@ impl TryFrom<Context> for ExecutionContext {
             health: convert(value.health, |item| Ok(item.try_into()?))?,
             notes: convert(value.notes, |item| Ok(item.try_into()?))?,
             traceability: convert(value.traceability, TraceabilitySnapshot::try_from)?,
-            appearance: value.appearance.ok_or_else(|| invalid("context appearance is missing"))?.try_into()?,
-        })
+            appearance,
+        };
+        Ok(result)
     }
 }
 
-impl Traceability {}
-impl Entry {}
 impl TryFrom<&TraceabilitySnapshot> for Traceability {
     type Error = Error;
     fn try_from(value: &TraceabilitySnapshot) -> Result<Self> {
@@ -164,6 +179,7 @@ impl TryFrom<&TraceabilitySnapshot> for Traceability {
         })
     }
 }
+
 impl TryFrom<Traceability> for TraceabilitySnapshot {
     type Error = Error;
     fn try_from(value: Traceability) -> Result<Self> {
@@ -176,6 +192,7 @@ impl TryFrom<Traceability> for TraceabilitySnapshot {
         })
     }
 }
+
 impl TryFrom<&TraceabilityEntry> for Entry {
     type Error = Error;
     fn try_from(value: &TraceabilityEntry) -> Result<Self> {
@@ -187,6 +204,7 @@ impl TryFrom<&TraceabilityEntry> for Entry {
         })
     }
 }
+
 impl TryFrom<Entry> for TraceabilityEntry {
     type Error = Error;
     fn try_from(value: Entry) -> Result<Self> {
@@ -202,9 +220,11 @@ impl TryFrom<Entry> for TraceabilityEntry {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
+
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| invalid("context collection allocation failed"))?;
@@ -213,6 +233,7 @@ fn slots<T>(count: usize) -> Result<Vec<T>> {
     }
     Ok(values)
 }
+
 fn convert<T, U, I: IntoIterator<Item = T>>(items: I, mut map: impl FnMut(T) -> Result<U>) -> Result<Vec<U>>
 where
     I::IntoIter: ExactSizeIterator,

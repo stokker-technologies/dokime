@@ -13,41 +13,25 @@
 
 /* === Local Imports === */
 
-import type { ArtifactSource, DeliveryAction, DesktopSaveDocument, DesktopSaveKind } from "@/lib/desktop/delivery";
+import { commands } from "@/lib/desktop/commands";
+import type { ArtifactSource, Delivered, DeliveryAction, DesktopSaveDocument, DesktopSaveKind } from "@/lib/desktop/delivery";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import { normalizeDeliveryError } from "@/lib/rpc/errors";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { NativeApiUnsupportedError } from "./native-values";
 
+const GUI_DOCUMENT_BYTES = 33_554_432;
+
 /* === Limits and public types === */
 
-/** Native HTML reports are bounded before crossing the Tauri IPC boundary. */
-export const NATIVE_HTML_DOCUMENT_BYTES = 32 * 1024 * 1024;
+/** Documents assembled in the WebView remain bounded before crossing IPC. */
+export const NATIVE_DOCUMENT_BYTES = GUI_DOCUMENT_BYTES;
 
 export type NativeDeliveryRequest = {
   kind: DesktopSaveKind;
   filename: string;
   bytes: Uint8Array;
 };
-
-/**
- * Open verified bytes through the main-window native cache and OS opener.
- *
- * The desktop command owns filename sanitization, encoded-size preflight,
- * private filesystem publication, and generation checks. This adapter repeats
- * the byte bound to stop an oversized request before base64 encoding and IPC
- * allocation.
- */
-export async function openNativeDocument(session: SessionIdentity, request: NativeDeliveryRequest): Promise<boolean> {
-  if (!isTauriDesktop()) {
-    throw new NativeApiUnsupportedError("Open native document", "desktop_open_document (native document cache)");
-  }
-  const document = prepareNativeDocument(session, request);
-  const { commands } = await import("@/lib/desktop/commands");
-  await commands.desktopOpenDocument(session.generation, document);
-  assertCurrent(session);
-  return true;
-}
 
 /**
  * Save verified bytes through the main-window native picker, and say where
@@ -62,7 +46,6 @@ export async function saveNativeDocument(session: SessionIdentity, request: Nati
     throw new NativeApiUnsupportedError("Save native document", "desktop_save_document (native file picker)");
   }
   const document = prepareNativeDocument(session, request);
-  const { commands } = await import("@/lib/desktop/commands");
   const saved = await commands.desktopSaveDocument(session.generation, document);
   assertCurrent(session);
   return saved;
@@ -74,8 +57,8 @@ export async function saveNativeDocument(session: SessionIdentity, request: Nati
  *
  * The archive is assembled in the webview from `Backend.CollectDiagnostics`
  * frames, so it has no artifact, execution-file or cycle id for the verified
- * server pull to address; it crosses inline under the same 32 MiB bound as an
- * HTML report. Its own command, rather than `desktop_save_document`, because
+ * server pull to address; it crosses inline under the 32 MiB document bound.
+ * Its own command, rather than `desktop_save_document`, because
  * this is the one save whose *path* the caller needs: the row offers the
  * folder the operator chose, and only the shell knows what that was.
  */
@@ -90,7 +73,6 @@ export async function saveNativeDiagnosticsBundle(session: SessionIdentity, requ
     throw new Error(`The diagnostics bundle must be saved as a .zip archive; the backend named it "${request.filename}".`);
   }
   const document = prepareNativeDocument(session, { ...request, kind: "diagnostics_bundle" });
-  const { commands } = await import("@/lib/desktop/commands");
   const path = await commands.desktopSaveDiagnosticsBundle(session.generation, document);
   assertCurrent(session);
   return path;
@@ -104,21 +86,23 @@ export type NativeArtifactDeliveryRequest = {
 };
 
 /**
- * Stream one verified artifact, execution output, or cycle bundle to a
+ * Stream one verified artifact, execution output, or sealed evidence bundle to a
  * native destination (the save dialog or the OS opener) without routing its
- * bytes through the webview. Unlike `saveNativeDocument`/`openNativeDocument`,
- * there is no client-side byte bound to preflight: `content::fetch_verified`
- * pulls the content straight from the server, scaling to the full 2 GiB
- * artifact/cycle-bundle bound instead of the 32 MiB base64 JSON cap.
+ * bytes through the webview. The native client verifies the server pull;
+ * evidence follows the backend's declared archive limit. Inline document
+ * byte limits do not apply to this file-backed transfer.
  */
 export async function deliverNativeArtifact(session: SessionIdentity, request: NativeArtifactDeliveryRequest): Promise<boolean> {
+  return (await deliverNativeContent(session, request)) !== null;
+}
+
+export async function deliverNativeContent(session: SessionIdentity, request: NativeArtifactDeliveryRequest): Promise<Delivered | null> {
   if (!isTauriDesktop()) {
     throw new NativeApiUnsupportedError("Deliver native artifact", "desktop_artifact_deliver (native verified content delivery)");
   }
   const filename = request.filename.trim();
   if (!filename) throw new Error("Native artifact delivery requires a filename.");
   assertCurrent(session);
-  const { commands } = await import("@/lib/desktop/commands");
   const delivered = await commands
     .desktopArtifactDeliver(session.generation, {
       source: request.source,
@@ -143,7 +127,6 @@ export async function prepareNativeMedia(session: SessionIdentity, source: Artif
     throw new NativeApiUnsupportedError("Prepare native media preview", "desktop_media_prepare (native media preview cache)");
   }
   assertCurrent(session);
-  const { commands } = await import("@/lib/desktop/commands");
   const path = await commands.desktopMediaPrepare(session.generation, source);
   assertCurrent(session);
   return path;
@@ -156,7 +139,6 @@ export async function prepareNativeMedia(session: SessionIdentity, source: Artif
  */
 export async function releaseNativeMedia(generation: string): Promise<void> {
   if (!isTauriDesktop()) return;
-  const { commands } = await import("@/lib/desktop/commands");
   await commands.desktopMediaRelease(generation).catch(() => undefined);
 }
 
@@ -165,8 +147,8 @@ export async function releaseNativeMedia(generation: string): Promise<void> {
 function prepareNativeDocument(session: SessionIdentity, request: NativeDeliveryRequest): DesktopSaveDocument {
   const filename = request.filename.trim();
   if (!filename) throw new Error("Native document delivery requires a filename.");
-  if (request.bytes.byteLength > NATIVE_HTML_DOCUMENT_BYTES) {
-    throw new Error(`Native document delivery exceeds ${NATIVE_HTML_DOCUMENT_BYTES} bytes.`);
+  if (request.bytes.byteLength > NATIVE_DOCUMENT_BYTES) {
+    throw new Error(`Native document delivery exceeds ${NATIVE_DOCUMENT_BYTES} bytes.`);
   }
   assertCurrent(session);
   return {

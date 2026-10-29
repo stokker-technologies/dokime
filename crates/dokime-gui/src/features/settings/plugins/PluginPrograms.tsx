@@ -17,14 +17,9 @@
 
 /* === External Imports === */
 
-import { useNavigate } from "@tanstack/react-router";
-
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
-import { useSettingsSections } from "@/features/settings/use-settings-sections";
-import { useBrand } from "@/lib/brand";
 
 /* === Public Functions === */
 
@@ -52,29 +47,4 @@ export function programSource(program: RuntimeInstalledPluginRecord, brandLabel:
           : "Unclassified";
   const version = program.version.trim();
   return version ? `${origin} · v${version}` : origin;
-}
-
-/* === Components === */
-
-export function PluginPrograms({ programs }: { programs: RuntimeInstalledPluginRecord[] }) {
-  const brand = useBrand();
-  const navigate = useNavigate();
-  const settings = useSettingsSections();
-
-  const sectionOf = (program: RuntimeInstalledPluginRecord): string | null =>
-    (settings.frame?.sections ?? []).find(
-      (candidate) => candidate.owner.kind === "installed_plugin" && candidate.owner.plugin_id === program.plugin_id,
-    )?.section_id ?? null;
-
-  const rows = programs.map((program): PluginTableRow => {
-    const pluginId = sectionOf(program);
-    return {
-      key: programKey(program),
-      name: program.label,
-      onOpenSettings: pluginId ? () => void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" }) : undefined,
-      source: programSource(program, brand.label),
-    };
-  });
-
-  return <PluginTable label="Plugin Programs" rows={rows} />;
 }

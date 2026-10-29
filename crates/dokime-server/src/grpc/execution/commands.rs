@@ -12,25 +12,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-// Standard Library Imports
 
-// Third Party Imports
+// Standard Library Imports
 use std::sync::Arc;
 
-use harmos::operations::{Context, Operation};
+// Third Party Imports
+use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
+
 // Local Imports
 use super::loan;
-use super::{requests, value};
-use crate::grpc::access::{Principal, Role};
 use crate::grpc::value::canonical;
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use dokime_domain::model::identity::CommandId;
-use dokime_domain::model::identity::StepId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::execution as wire;
-use dokime_runtime::domains::execution::requests::{RunReceipt, StepCommand, StepCommandPhase, StepCommandReceipt};
-use dokime_runtime::{RuntimeHandle, runtime::Error};
+use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::domain::model::identity::CommandId;
+use dokime::domain::model::identity::StepId;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domains::execution::requests::{Receipt, StepCommand, StepCommandPhase, StepCommandReceipt};
+use dokime::operations::execution as wire;
+use dokime::operations::hosting::{Host, Serve, Served};
+use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -39,78 +39,58 @@ use dokime_runtime::{RuntimeHandle, runtime::Error};
 /* === Type Aliases === */
 
 /* === Structs === */
-struct Submit {
-    resources: Arc<super::Resources>,
-}
-struct Lookup {
-    resources: Arc<super::Resources>,
-}
 
 /* === Enums === */
-#[harmos::catalog]
-enum Operations {
-    Submit(Submit),
-    Lookup(Lookup),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
-impl Operation for Submit {
-    type Declaration = wire::SubmitExecutionCommand;
-    type Resources = super::Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut wire::SubmitExecutionCommand, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
-        submit(&self.resources, requests::principal(&context)?, request).await
+
+impl Serve<wire::SubmitExecutionCommand> for super::Resources {
+    fn serve<'a>(
+        &'a self, request: wire::SubmitExecutionCommand, _: Context<'a, wire::SubmitExecutionCommand>,
+    ) -> Served<'a, dokime::domain::model::execution::wire::ExecutionCommandReceipt> {
+        Box::pin(async move { submit(self, &request).await })
     }
 }
 
-impl Operation for Lookup {
-    type Declaration = wire::GetExecutionCommand;
-    type Resources = super::Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut wire::GetExecutionCommand, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
-        get(&self.resources, requests::principal(&context)?, request).await
+impl Serve<wire::GetExecutionCommand> for super::Resources {
+    fn serve<'a>(
+        &'a self, request: wire::GetExecutionCommand, _: Context<'a, wire::GetExecutionCommand>,
+    ) -> Served<'a, dokime::domain::model::execution::wire::ExecutionCommandReceipt> {
+        Box::pin(async move { get(self, &request).await })
     }
 }
 
 /* === Public Functions === */
-pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operations::<Operations, super::Resources>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        Arc::new(super::Resources { runtime: runtime.clone(), max_message_bytes }),
-    )?;
+
+pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(super::Resources {
+        runtime: runtime.clone(),
+        max_message_bytes,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::SubmitExecutionCommand>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::GetExecutionCommand>::new(served))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<wire::SubmitExecutionCommand>()
+        .operation::<wire::GetExecutionCommand>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
+/* === Private Functions === */
+
 async fn submit(
-    resources: &super::Resources, principal: &Principal, request: &wire::SubmitExecutionCommand,
-) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
+    resources: &super::Resources, request: &wire::SubmitExecutionCommand,
+) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
     let runtime = &resources.runtime;
-    if principal.role() < Role::Control {
-        return Err(Status::permission_denied("control permission is required"));
-    }
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
     let execution_id =
         TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     let action = action(request.action, request.step_id.as_deref())?;
-    owned(runtime, principal, &request_id).await?;
+    receipt(runtime, &request_id).await?;
     let receipt = runtime.admit_execution_command(&request_id, command_id, execution_id, action).await.map_err(|error| match error {
         Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message),
         error => {
@@ -121,38 +101,34 @@ async fn submit(
 }
 
 async fn get(
-    resources: &super::Resources, principal: &Principal, request: &wire::GetExecutionCommand,
-) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
+    resources: &super::Resources, request: &wire::GetExecutionCommand,
+) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
     let runtime = &resources.runtime;
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
-    let receipt = owned(runtime, principal, &request_id).await?;
+    let receipt = receipt(runtime, &request_id).await?;
     let command = receipt.commands.get(&command_id).ok_or_else(|| Status::not_found("execution command not found"))?;
     charged_project(resources, &request_id, command)
 }
 
-/* === Private Functions === */
-async fn owned(runtime: &RuntimeHandle, principal: &Principal, request_id: &CommandId) -> Result<std::sync::Arc<RunReceipt>, Status> {
+async fn receipt(runtime: &RuntimeHandle, request_id: &CommandId) -> Result<Receipt, Status> {
     let receipt = runtime
         .run_request(request_id)
         .await
         .map_err(|error| super::super::error::detailed(Status::unavailable("cannot resolve primary run receipt; retry lookup"), &error))?
         .ok_or_else(|| Status::not_found("run request not found"))?;
-    requests::authorize(principal, &receipt)?;
     Ok(receipt)
 }
 
 fn command_id(id: &str) -> Result<CommandId, Status> {
-    value::text(id)?;
     CommandId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid command UUID"))
 }
 
-fn action(action: dokime_domain::model::execution::wire::ExecutionCommandAction, step_id: Option<&str>) -> Result<StepCommand, Status> {
+fn action(action: dokime::domain::model::execution::wire::ExecutionCommandAction, step_id: Option<&str>) -> Result<StepCommand, Status> {
     match (action, step_id) {
-        (dokime_domain::model::execution::wire::ExecutionCommandAction::Next, None) => Ok(StepCommand::Next),
-        (dokime_domain::model::execution::wire::ExecutionCommandAction::Finish, None) => Ok(StepCommand::Finish),
-        (dokime_domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(id)) => {
-            value::text(id)?;
+        (dokime::domain::model::execution::wire::ExecutionCommandAction::Next, None) => Ok(StepCommand::Next),
+        (dokime::domain::model::execution::wire::ExecutionCommandAction::Finish, None) => Ok(StepCommand::Finish),
+        (dokime::domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(id)) => {
             let step_id = StepId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid frozen step UUID"))?;
             Ok(StepCommand::RunStep { step_id })
         }
@@ -162,7 +138,7 @@ fn action(action: dokime_domain::model::execution::wire::ExecutionCommandAction,
 
 fn charged_project(
     resources: &super::Resources, request_id: &CommandId, receipt: &StepCommandReceipt,
-) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
+) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
     let output = project(request_id, receipt)?;
     loan::response_limit(&output, resources.max_message_bytes)?;
     Ok(output.into())
@@ -170,31 +146,28 @@ fn charged_project(
 
 fn project(
     request_id: &CommandId, receipt: &StepCommandReceipt,
-) -> Result<dokime_domain::model::execution::wire::ExecutionCommandReceipt, Status> {
+) -> Result<dokime::domain::model::execution::wire::ExecutionCommandReceipt, Status> {
     let (action, step_id) = match &receipt.action {
-        StepCommand::Next => (dokime_domain::model::execution::wire::ExecutionCommandAction::Next, None),
+        StepCommand::Next => (dokime::domain::model::execution::wire::ExecutionCommandAction::Next, None),
         StepCommand::RunStep { step_id } => {
-            (dokime_domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(step_id.as_str().to_owned()))
+            (dokime::domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(step_id.as_str().to_owned()))
         }
-        StepCommand::Finish => (dokime_domain::model::execution::wire::ExecutionCommandAction::Finish, None),
+        StepCommand::Finish => (dokime::domain::model::execution::wire::ExecutionCommandAction::Finish, None),
     };
-    if let Some(detail) = &receipt.detail {
-        value::text(detail)?;
-    }
-    Ok(dokime_domain::model::execution::wire::ExecutionCommandReceipt {
+    Ok(dokime::domain::model::execution::wire::ExecutionCommandReceipt {
         request_id: request_id.as_str().to_owned(),
         command_id: receipt.command_id.as_str().to_owned(),
         execution_id: receipt.execution_id.as_str().to_owned(),
         action,
         step_id,
         phase: match receipt.phase {
-            StepCommandPhase::Accepted => dokime_domain::model::execution::wire::ExecutionCommandPhase::Accepted,
-            StepCommandPhase::Dispatching => dokime_domain::model::execution::wire::ExecutionCommandPhase::Dispatching,
-            StepCommandPhase::Running => dokime_domain::model::execution::wire::ExecutionCommandPhase::Running,
-            StepCommandPhase::Completed => dokime_domain::model::execution::wire::ExecutionCommandPhase::Completed,
-            StepCommandPhase::Refused => dokime_domain::model::execution::wire::ExecutionCommandPhase::Refused,
-            StepCommandPhase::Failed => dokime_domain::model::execution::wire::ExecutionCommandPhase::Failed,
-            StepCommandPhase::Interrupted => dokime_domain::model::execution::wire::ExecutionCommandPhase::Interrupted,
+            StepCommandPhase::Accepted => dokime::domain::model::execution::wire::ExecutionCommandPhase::Accepted,
+            StepCommandPhase::Dispatching => dokime::domain::model::execution::wire::ExecutionCommandPhase::Dispatching,
+            StepCommandPhase::Running => dokime::domain::model::execution::wire::ExecutionCommandPhase::Running,
+            StepCommandPhase::Completed => dokime::domain::model::execution::wire::ExecutionCommandPhase::Completed,
+            StepCommandPhase::Refused => dokime::domain::model::execution::wire::ExecutionCommandPhase::Refused,
+            StepCommandPhase::Failed => dokime::domain::model::execution::wire::ExecutionCommandPhase::Failed,
+            StepCommandPhase::Interrupted => dokime::domain::model::execution::wire::ExecutionCommandPhase::Interrupted,
         },
         attempt_id: receipt.attempt_id.as_ref().map(|id| id.as_str().to_owned()),
         accepted_at: Some(canonical::timestamp(&receipt.accepted_at)?),

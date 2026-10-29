@@ -48,7 +48,7 @@ export function RunCommandPanel({ onPause, onRerun, onRestart, onResume, onStart
 
   if (state.kind === "running") {
     return (
-      <fieldset className="control-buttons grid w-full gap-2 sm:grid-cols-[1fr_1fr_1fr]">
+      <fieldset className="control-buttons grid w-full gap-2 sm:grid-cols-3">
         <legend className="sr-only">Run controls</legend>
         <Button className="h-10 w-full" onClick={onStop} variant="danger">
           <Square data-icon="inline-start" />
@@ -68,7 +68,7 @@ export function RunCommandPanel({ onPause, onRerun, onRestart, onResume, onStart
 
   if (state.kind === "stopping") {
     return (
-      <fieldset className="control-buttons grid w-full gap-2 sm:grid-cols-[1fr_1fr_1fr]">
+      <fieldset className="control-buttons grid w-full gap-2 sm:grid-cols-3">
         <legend className="sr-only">Run controls</legend>
         <Button className="h-10 w-full" disabled onClick={onStop} variant="danger">
           <Square data-icon="inline-start" />

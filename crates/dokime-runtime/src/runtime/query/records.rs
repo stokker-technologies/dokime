@@ -12,16 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::collections::BTreeSet;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use dokime_domain::model::execution::EvidenceOrigin;
 use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::scope_visible_in;
+
 use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
@@ -31,6 +32,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeRecordFrame {
     pub records: Vec<RecordEntry>,
@@ -44,11 +46,12 @@ pub struct RuntimeRecordFrame {
 /* === Traits === */
 
 /* === Implementations === */
+
 /* === Public Functions === */
 
-pub(crate) fn record_frame<'a, 'b>(
+pub(crate) fn record_frame<'a>(
     records: impl Iterator<Item = &'a RecordEntry>, window: &RuntimeWindow, resolution: &RuntimeResolution,
-    captured: impl Fn(&RecordEntry) -> Option<&'b RecordScope>,
+    captured: impl Fn(&'a RecordEntry) -> Option<&'a RecordScope>,
 ) -> RuntimeRecordFrame {
     let mut records = records
         .map(|record| {
@@ -65,7 +68,12 @@ pub(crate) fn record_frame<'a, 'b>(
     let mut returned = records.returned;
     returned.reverse();
 
-    RuntimeRecordFrame { records: returned, total_records: records.total, returned_records, truncated: returned_records < records.total }
+    RuntimeRecordFrame {
+        records: returned,
+        total_records: records.total,
+        returned_records,
+        truncated: returned_records < records.total,
+    }
 }
 
 pub(crate) fn execution_capture<'a>(
@@ -80,36 +88,17 @@ pub(crate) fn view_filter<'a>(
     snapshot: &'a crate::queries::RuntimeStateSnapshot, scope: Option<&'a RecordScope>,
     captured: Option<&'a dokime_domain::state::records::set::TestRecordSet>,
 ) -> impl Fn(&RecordEntry) -> bool + 'a {
-    let visible = snapshot
-        .state()
-        .records
-        .record_visibility
-        .iter()
-        .map(|record| &record.record_id)
-        .chain(snapshot.state().executions.values().flat_map(|execution| execution.records.subscribed_records().keys()))
-        .collect::<BTreeSet<_>>();
     let selected = scope.filter(|scope| !scope.is_empty());
-    // An Override Replaces Native Scope, Even When It Does Not Match.
-    let (replaced, overrides) = match (selected, captured) {
-        (Some(scope), Some(captured)) => (
-            captured.subscribed_records().keys().collect::<BTreeSet<_>>(),
-            captured
-                .subscribed_records()
-                .iter()
-                .filter(|(_, override_scope)| scope_visible_in(Some(override_scope), scope))
-                .map(|(id, _)| id)
-                .collect::<BTreeSet<_>>(),
-        ),
-        _ => (BTreeSet::new(), BTreeSet::new()),
-    };
     move |record| {
-        let native = selected.is_none_or(|scope| native_match(record.scope.as_ref(), scope)) && !replaced.contains(&record.record_id);
-        let context = record.scope.as_ref().is_none_or(|scope| scope.test_cycle_id.is_none() && scope.test_execution_id.is_none());
-        (native && (visible.contains(&record.record_id) || context)) || overrides.contains(&record.record_id)
+        let projected = captured.and_then(|captures| captures.captured_scope(record)).or(record.scope.as_ref());
+        let visible = snapshot.state().executions.values().any(|execution| execution.records.captured_scope(record).is_some())
+            || projected.is_none_or(|scope| scope.test_cycle_id.as_ref().is_none_or(|id| snapshot.state().cycles.contains_key(id)));
+        visible && selected.is_none_or(|scope| native_match(projected, scope))
     }
 }
 
 /* === Private Functions === */
+
 // Every Selected Owner Field Equals The Record's; A Default Origin Selects Any Origin.
 fn native_match(record: Option<&RecordScope>, selected: &RecordScope) -> bool {
     let Some(record) = record else {

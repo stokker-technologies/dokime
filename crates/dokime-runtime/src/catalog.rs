@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use harmos::catalog::{Catalog, Contains, InertCatalog, Member, Node, Visitor};
 
 /* === Imports === */
+
 // Standard Library Imports
 #[cfg(feature = "native")]
 use std::marker::PhantomData;
@@ -22,6 +24,7 @@ use std::marker::PhantomData;
 // Local Imports
 #[cfg(feature = "native")]
 use crate::definition::DeclaredTemplate;
+
 #[cfg(feature = "native")]
 use crate::execution::SidecarTemplate;
 use crate::records::{DeclaredRecord, RecordContract};
@@ -29,9 +32,20 @@ use crate::telemetry::{TelemetryContract, TelemetryStream};
 
 /* === Constants === */
 
+#[cfg(feature = "native")]
+const UNSET: Publication = Publication {
+    id: "",
+    metadata_json: "",
+    row_metadata_json: "[]",
+    schema: 0,
+    window: 0,
+    row: harmos::schema::declaration::Definition::of::<()>(),
+};
+
 /* === Macros === */
 
 /* === Type Aliases === */
+
 #[cfg(feature = "native")]
 pub type Publication = harmos::sidecar::inventory::publications::Entry;
 
@@ -46,13 +60,11 @@ pub type Publish = for<'a> fn(
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
 #[cfg(feature = "native")]
-pub type Bind = fn(
-    &mut harmos::sidecar::operations::WireTable<harmos::sidecar::Supervisor>,
-    &str,
-    &[RecordContract],
-) -> Result<(), harmos::sidecar::operations::ServingError>;
+pub type Bind =
+    fn(&mut harmos::sidecar::operations::WireTable, &str, &[RecordContract]) -> Result<(), harmos::sidecar::operations::ServingError>;
 
 /* === Structs === */
+
 #[cfg(feature = "native")]
 pub struct Streams;
 
@@ -76,6 +88,18 @@ pub struct Templates;
 
 #[cfg(feature = "native")]
 pub struct TemplateIdentifiers;
+
+#[cfg(feature = "native")]
+pub struct TemplateIdentifierNodes;
+
+#[cfg(feature = "native")]
+pub struct SuiteTemplateIdentifiers;
+
+pub struct SuiteIdentifiers;
+
+pub struct RecordIdentifiers;
+
+pub struct StreamIdentifiers;
 
 pub struct Suites;
 
@@ -125,7 +149,16 @@ pub struct ListenerEntry {
 
 /* === Traits === */
 
+pub trait IdentifierCatalog<V: Visitor<Entry = Node<&'static str>>> {
+    const IDENTIFIERS: &'static [Node<&'static str>];
+}
+
 /* === Implementations === */
+
+impl<V: Visitor<Entry = Node<&'static str>>> IdentifierCatalog<V> for () {
+    const IDENTIFIERS: &'static [Node<&'static str>] = &[];
+}
+
 #[cfg(feature = "native")]
 impl Visitor for Streams {
     type Entry = Node<Publication>;
@@ -227,6 +260,50 @@ impl<T: DeclaredTemplate> Member<T> for TemplateIdentifiers {
 }
 
 #[cfg(feature = "native")]
+impl Visitor for TemplateIdentifierNodes {
+    type Entry = Node<&'static str>;
+}
+
+#[cfg(feature = "native")]
+impl<T: DeclaredTemplate> Member<T> for TemplateIdentifierNodes {
+    const ENTRY: Self::Entry = Node::Leaf(T::IDENTIFIER);
+}
+
+#[cfg(feature = "native")]
+impl Visitor for SuiteTemplateIdentifiers {
+    type Entry = Node<&'static str>;
+}
+
+#[cfg(feature = "native")]
+impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteTemplateIdentifiers {
+    const ENTRY: Self::Entry = Node::Nested(T::TEMPLATE_IDENTIFIERS);
+}
+
+impl Visitor for SuiteIdentifiers {
+    type Entry = Node<&'static str>;
+}
+
+impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteIdentifiers {
+    const ENTRY: Self::Entry = Node::Leaf(T::ID);
+}
+
+impl Visitor for RecordIdentifiers {
+    type Entry = Node<&'static str>;
+}
+
+impl<T: DeclaredRecord> Member<T> for RecordIdentifiers {
+    const ENTRY: Self::Entry = Node::Leaf(T::RECORD_TYPE);
+}
+
+impl Visitor for StreamIdentifiers {
+    type Entry = Node<&'static str>;
+}
+
+impl<T: TelemetryStream> Member<T> for StreamIdentifiers {
+    const ENTRY: Self::Entry = Node::Leaf(T::ID);
+}
+
+#[cfg(feature = "native")]
 impl<P> Visitor for TemplateBindings<P> {
     type Entry = Bind;
 }
@@ -320,10 +397,14 @@ impl Visitor for Listeners {
 
 #[cfg(feature = "native")]
 impl<T: crate::plugin::Listener> Member<T> for Listeners {
-    const ENTRY: Self::Entry = ListenerEntry { operation: T::ID, record: <T::Record as DeclaredRecord>::RECORD_TYPE };
+    const ENTRY: Self::Entry = ListenerEntry {
+        operation: T::ID,
+        record: <T::Record as DeclaredRecord>::RECORD_TYPE,
+    };
 }
 
 /* === Public Functions === */
+
 pub fn entries<C, V>() -> Vec<V::Entry>
 where
     C: Catalog<V>,
@@ -414,6 +495,20 @@ pub const fn distinct_publications(declared: &[Publication]) -> usize {
     distinct
 }
 
+pub const fn assert_unique(identifiers: &[&str]) {
+    let mut index = 0;
+    while index < identifiers.len() {
+        let mut earlier = 0;
+        while earlier < index {
+            if same(identifiers[earlier], identifiers[index]) {
+                panic!("{}", identifiers[index]);
+            }
+            earlier += 1;
+        }
+        index += 1;
+    }
+}
+
 #[cfg(feature = "native")]
 pub const fn deduplicated<const N: usize>(declared: &[Publication]) -> [Publication; N] {
     let mut distinct = [UNSET; N];
@@ -431,6 +526,7 @@ pub const fn deduplicated<const N: usize>(declared: &[Publication]) -> [Publicat
 }
 
 /* === Private Functions === */
+
 const fn granted_id(granted: &[Node<harmos::catalog::RequirementEntry>], id: &str) -> bool {
     let mut index = 0;
     while index < granted.len() {
@@ -462,16 +558,6 @@ const fn provided_privately(provided: &[Node<harmos::operations::WireDeclaration
     }
     false
 }
-
-#[cfg(feature = "native")]
-const UNSET: Publication = Publication {
-    id: "",
-    metadata_json: "",
-    row_metadata_json: "[]",
-    schema: 0,
-    window: 0,
-    row: harmos::schema::declaration::Definition::of::<()>(),
-};
 
 #[cfg(feature = "native")]
 const fn observed_count(observers: &[Node<Observer>]) -> usize {
@@ -574,22 +660,13 @@ where
     Box::pin(async move {
         let publisher = host.publisher::<P>();
         let mut batch = publisher.batch::<T>();
-        // A row that cannot be encoded refuses itself and every row after it;
-        // the rows before it are still published, as a refusal at the host
-        // would leave them.
-        let mut refused = None;
+        // Each Row Travels As The Bytes Its Producer Encoded Once; The Host
+        // Validates Them Against The Stream Schema At Its Ingest Boundary.
         for row in rows {
             let bytes = row.storage_payload.as_ref().ok_or_else(|| "typed stream publication requires original row bytes".to_owned())?;
-            match <T::Row as harmos::Message>::decode(bytes) {
-                Ok(encoded) => batch.push_at(encoded, row.published_unix_micros),
-                Err(error) => {
-                    refused = Some(error.to_string());
-                    break;
-                }
-            }
+            batch.push_encoded_at(bytes.clone(), row.published_unix_micros);
         }
-        publisher.publish_batch_on_context::<T>(&batch, Some(token)).await.map_err(|error| error.to_string())?;
-        refused.map_or(Ok(()), Err)
+        publisher.publish_batch_on_context::<T>(&batch, Some(token)).await.map_err(|error| error.to_string())
     })
 }
 

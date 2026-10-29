@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
@@ -31,6 +30,7 @@ use dokime_domain::model::execution::saved::ExecutionOutput;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Renderer;
 
@@ -39,13 +39,26 @@ pub struct Renderer;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Renderer {
     pub fn execution(
-        &self, captured: Arc<CapturedExecutionReportInput>, outputs: Vec<ExecutionOutput>, saved: &harmos::storage::StorageCursor,
+        &self, captured: harmos::storage::ReadBatch<CapturedExecutionReportInput>, outputs: Vec<ExecutionOutput>,
+        saved: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<PreparedExecutionReport> {
-        let source = Arc::new(captured.source(&outputs));
-        let html = HtmlReport::from_capture(captured, source)?;
-        PreparedExecutionReport::prepare_html(html, outputs, saved)
+        let outputs = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::runtime::Error>(outputs))?;
+        self.execution_with_outputs(captured, std::sync::Arc::new(outputs), saved)
+    }
+
+    pub(crate) fn execution_with_outputs(
+        &self, captured: harmos::storage::ReadBatch<CapturedExecutionReportInput>,
+        outputs: std::sync::Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>, saved: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<PreparedExecutionReport> {
+        let _span = tracing::info_span!("report.render.execution").entered();
+        let source = tracing::info_span!("report.render.source").in_scope(|| {
+            harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::runtime::Error>(captured.source(outputs.as_slice())))
+        })?;
+        let html = tracing::info_span!("report.render.index").in_scope(|| HtmlReport::from_capture(captured, source))?;
+        tracing::info_span!("report.render.html").in_scope(|| PreparedExecutionReport::prepare_html(html, outputs, saved))
     }
 }
 

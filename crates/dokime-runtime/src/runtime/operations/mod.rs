@@ -8,13 +8,16 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod provider;
 pub(crate) mod reports;
 pub(crate) mod runtime;
+pub(crate) mod secrets;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

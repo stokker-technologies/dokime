@@ -14,12 +14,12 @@ pub(super) mod documents;
 mod expressions;
 mod layout;
 pub(super) mod prompts;
+mod suite;
 
 /* === Re-Exports === */
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 
@@ -36,16 +36,11 @@ use dokime_domain::model::values::UnitFamily;
 
 /* === Structs === */
 #[harmos::message]
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, PartialEq)]
 pub(super) struct Definition {
-    #[serde(default)]
     metadata: Option<metadata::Row>,
-    #[serde(default)]
     tags: Vec<String>,
-    #[serde(default)]
     parameter_groups: Vec<Group>,
-    #[serde(default)]
     test_case_templates: Vec<Template>,
 }
 
@@ -71,8 +66,6 @@ pub(super) struct Template {
     phases: Vec<Phase>,
     #[serde(default)]
     criteria: Vec<Criterion>,
-    #[serde(default)]
-    continue_on_failure: bool,
     #[serde(default)]
     prompt_definitions: Vec<prompts::Prompt>,
     #[serde(default)]
@@ -371,7 +364,6 @@ impl TryFrom<&crate::definition::TestCaseTemplate> for Template {
             document: value.document.as_ref().map(documents::Document::try_from).transpose()?,
             phases,
             criteria,
-            continue_on_failure: value.continue_on_failure,
             prompt_definitions,
             subscriptions,
             attributes: Map::try_from(&value.attributes)?,
@@ -435,7 +427,6 @@ impl TryFrom<Template> for crate::definition::TestCaseTemplate {
             document: row.document.map(TryInto::try_into).transpose()?,
             phases,
             criteria,
-            continue_on_failure: row.continue_on_failure,
             prompt_definitions,
             subscriptions,
             attributes: row.attributes.try_into()?,
@@ -639,7 +630,10 @@ impl TryFrom<&crate::definition::Subscription> for Subscription {
             Subscription::Stream(id) => ("stream", id),
             Subscription::Record(id) => ("record", id),
         };
-        Ok(Self { kind: kind.to_owned(), identifier: identifier.as_str().to_owned() })
+        Ok(Self {
+            kind: kind.to_owned(),
+            identifier: identifier.as_str().to_owned(),
+        })
     }
 }
 
@@ -807,7 +801,9 @@ impl TryFrom<Expansion> for crate::definition::ParameterExpansion {
         match row.kind.as_str() {
             "single" => Ok(Self::Single),
             "cartesian" => Ok(Self::Cartesian),
-            "zip" => Ok(Self::Zip { group: dokime_domain::model::identity::Identifier::new(row.group.unwrap())? }),
+            "zip" => Ok(Self::Zip {
+                group: dokime_domain::model::identity::Identifier::new(row.group.unwrap())?,
+            }),
             _ => Err(Error::Invalid("invalid parameter expansion")),
         }
     }
@@ -936,7 +932,10 @@ impl TryFrom<&crate::definition::ParameterGroup> for Group {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("parameter group encoding memory overflows"));
         }
-        Ok(Self { group_id: value.group_id.as_str().to_owned(), metadata: Some(metadata::Row::try_from(&value.metadata)?) })
+        Ok(Self {
+            group_id: value.group_id.as_str().to_owned(),
+            metadata: Some(metadata::Row::try_from(&value.metadata)?),
+        })
     }
 }
 
@@ -1012,7 +1011,11 @@ impl TryFrom<Unit> for dokime_domain::model::values::MeasurementUnit {
             "custom" => UnitFamily::Custom,
             _ => return Err(Error::Invalid("invalid unit family")),
         };
-        Ok(Self { metadata: row.metadata.ok_or(Error::Invalid("unit metadata is missing"))?.try_into()?, family, symbol: row.symbol })
+        Ok(Self {
+            metadata: row.metadata.ok_or(Error::Invalid("unit metadata is missing"))?.try_into()?,
+            family,
+            symbol: row.symbol,
+        })
     }
 }
 
@@ -1028,9 +1031,7 @@ impl TryFrom<&dokime_domain::model::values::Value> for Value {
 impl TryFrom<Value> for dokime_domain::model::values::Value {
     type Error = Error;
     fn try_from(value: Value) -> Result<Self> {
-        let bound = value.projection_memory()?;
-        let allowance = NonZeroUsize::new(bound).ok_or(Error::Invalid("scalar projection is empty"))?;
-        let mut values = values::decode_owned(value.cells, allowance)?;
+        let mut values = values::decode_owned(value.cells)?;
         if values.len() != 1 {
             return Err(Error::Invalid("scalar value must have one member"));
         }
@@ -1073,15 +1074,13 @@ impl TryFrom<Map> for std::collections::BTreeMap<String, dokime_domain::model::v
     type Error = Error;
 
     fn try_from(map: Map) -> Result<Self> {
-        let bound = map.projection_memory()?;
-        let allowance = NonZeroUsize::new(bound).ok_or(Error::Invalid("map projection is empty"))?;
-        values::decode_owned(map.cells, allowance)
+        values::decode_owned(map.cells)
     }
 }
 
 impl serde::Serialize for Value {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let value: dokime_domain::model::values::Value = self.clone().try_into().map_err(serde::ser::Error::custom)?;
+        let value = values::decode_value(&self.cells).map_err(serde::ser::Error::custom)?;
         value.serialize(serializer)
     }
 }
@@ -1093,9 +1092,7 @@ impl<'de> serde::Deserialize<'de> for Value {
 }
 impl serde::Serialize for Map {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let values: std::collections::BTreeMap<String, dokime_domain::model::values::Value> =
-            self.clone().try_into().map_err(serde::ser::Error::custom)?;
-        values.serialize(serializer)
+        values::map::serialize(&self.cells, serializer)
     }
 }
 impl<'de> serde::Deserialize<'de> for Map {
@@ -1108,21 +1105,6 @@ impl<'de> serde::Deserialize<'de> for Map {
 }
 
 /* === Public Functions === */
-pub(super) fn normalize_document(document: &mut crate::document::DocumentDefinition) {
-    let cards = document.cards.iter_mut().map(|card| &mut card.body);
-    let section_cards = document.sections.iter_mut().flat_map(|section| &mut section.cards).map(|card| &mut card.body);
-    for body in cards.chain(section_cards) {
-        if let crate::document::DocumentCardBody::Plot { plot } = body {
-            // This Builder Flag Is Excluded From The Portable Contract
-            plot.automatic_id = false;
-        }
-    }
-}
-
-pub(super) fn convert<T: serde::Serialize, U: serde::de::DeserializeOwned>(source: &T) -> Result<U> {
-    let value = serde_json::to_value(source)?;
-    Ok(serde_json::from_value(value)?)
-}
 
 /* === Private Functions === */
 fn value_type_name(value: &dokime_domain::model::values::ValueType) -> &'static str {
@@ -1137,6 +1119,12 @@ fn value_type_name(value: &dokime_domain::model::values::ValueType) -> &'static 
         ValueType::Object => "object",
         ValueType::Array => "array",
     }
+}
+
+fn exact_slots<T>(length: usize) -> Result<Vec<T>> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(length).map_err(|_| Error::Invalid("suite allocation failed"))?;
+    Ok(values)
 }
 
 fn copied_strings(values: &[String]) -> Result<Vec<String>> {
@@ -1178,3 +1166,67 @@ fn value_type(value: &str) -> Result<dokime_domain::model::values::ValueType> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn suite_definition() -> Definition {
+        use dokime_domain::model::identity::{Identifier, Metadata};
+        let source = crate::definition::TestSuite {
+            metadata: Metadata::new(Identifier::new("fixture.suite").unwrap(), "Fixture", None),
+            tags: vec!["second".into(), "first".into()],
+            parameter_groups: Vec::new(),
+            test_case_templates: Vec::new(),
+        };
+        Definition::try_from(&source).unwrap()
+    }
+
+    #[test]
+    fn stored_suite_rejects_missing_metadata_and_noncanonical_time() {
+        let mut missing = suite_definition();
+        missing.metadata = None;
+        assert!(missing.projection_memory().is_err());
+
+        let mut invalid = suite_definition();
+        invalid.metadata.as_mut().unwrap().created_at = Some("2026-10-01T03:00:00+03:00".into());
+        assert!(invalid.projection_memory().is_err());
+    }
+
+    #[test]
+    fn stored_suite_rejects_duplicate_metadata_tags() {
+        let mut invalid = suite_definition();
+        invalid.metadata.as_mut().unwrap().tags = vec!["same".into(), "same".into()];
+        assert!(crate::definition::TestSuite::try_from(invalid).is_err());
+    }
+
+    #[test]
+    fn cell_adapters_preserve_native_tagged_serde_format() {
+        use dokime_domain::model::values::Value as DomainValue;
+        let datetime = time::OffsetDateTime::parse("1999-12-31T23:59:59.123Z", &time::format_description::well_known::Rfc3339).unwrap();
+        let entries = std::collections::BTreeMap::from([
+            ("array".into(), DomainValue::Array(vec![DomainValue::Null, DomainValue::Bool(true), DomainValue::Number(-0.0)])),
+            ("integer".into(), DomainValue::Integer(i64::MIN)),
+            ("unsigned".into(), DomainValue::Unsigned(u64::MAX)),
+            ("datetime".into(), DomainValue::Datetime(datetime)),
+            ("text".into(), DomainValue::Text("payload".into())),
+            ("empty".into(), DomainValue::Object(std::collections::BTreeMap::new())),
+        ]);
+        let map = Map::try_from(&entries).unwrap();
+        let encoded = serde_json::to_string(&map).unwrap();
+        assert_eq!(encoded, serde_json::to_string(&entries).unwrap());
+        let restored: Map = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(restored.cells, map.cells);
+
+        for value in entries.values() {
+            let row = Value::try_from(value).unwrap();
+            let encoded = serde_json::to_string(&row).unwrap();
+            assert_eq!(encoded, serde_json::to_string(value).unwrap());
+            let restored: Value = serde_json::from_str(&encoded).unwrap();
+            assert_eq!(restored.cells, row.cells);
+        }
+        let mut invalid = Value::try_from(&DomainValue::Null).unwrap();
+        invalid.cells[1].name = Some("other".into());
+        assert!(serde_json::to_string(&invalid).is_err());
+    }
+}

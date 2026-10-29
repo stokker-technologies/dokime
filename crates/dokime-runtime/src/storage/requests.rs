@@ -17,9 +17,8 @@
 
 // Third Party Imports
 use harmos::{
-    DefinitionId, Identified, Message,
-    schema::Described,
-    storage::{ObjectRetention, SchemaKey, StoredObject},
+    DefinitionId, Identified,
+    storage::{ObjectRetention, StoredObject},
 };
 
 // Local Imports
@@ -47,6 +46,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone)]
 pub struct Request {
@@ -103,6 +103,7 @@ pub struct Command {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Identified for Request {
     fn definition() -> (DefinitionId, u32) {
         (DefinitionId::new("dokime.object.request"), 1)
@@ -119,12 +120,6 @@ impl StoredObject for Request {
 }
 
 impl Request {
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        let memory = <Self as Message>::decoding_memory(bytes)?;
-        reject_embedded_commands(bytes)?;
-        Ok(memory)
-    }
-
     pub fn new(receipt: &RunReceipt) -> Result<Self> {
         if Self::encoding_memory(receipt)? == usize::MAX {
             return Err(Error::Invalid("request encoding memory overflows"));
@@ -206,10 +201,6 @@ impl StoredObject for Command {
 }
 
 impl Command {
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        Ok(<Self as Message>::decoding_memory(bytes)?)
-    }
-
     pub fn new(request_id: &CommandId, receipt: &StepCommandReceipt) -> Result<Self> {
         if Self::encoding_memory(request_id, receipt)? == usize::MAX {
             return Err(Error::Invalid("command encoding memory overflows"));
@@ -434,85 +425,18 @@ impl TryFrom<Request> for RunReceipt {
                 .transpose()?,
             interruption: row.interruption,
             commands: {
-                if row.commands.len() > 4097 {
-                    return Err(Error::Invalid("stored command capacity exceeded"));
+                if !row.commands.is_empty() {
+                    return Err(Error::Invalid("request parent must not embed commands"));
                 }
-                let mut commands = std::collections::BTreeMap::new();
-                for row in row.commands {
-                    let command = StepCommandReceipt::try_from(row)?;
-                    if commands.insert(command.command_id.clone(), command).is_some() {
-                        return Err(Error::Invalid("duplicate stored command identity"));
-                    }
-                }
-                commands
+                std::collections::BTreeMap::new()
             },
         })
     }
 }
 
 /* === Public Functions === */
-pub fn schema() -> SchemaKey {
-    SchemaKey {
-        payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
-        id: dokime_domain::model::identity::Identifier::new("dokime.execution.request").unwrap(),
-        version: 1.try_into().unwrap(),
-    }
-}
-
-pub fn encode(receipt: &RunReceipt, max_bytes: usize) -> Result<Vec<u8>> {
-    receipt.summary.accepted_at.to_datetime()?;
-    if let Some(timestamp) = &receipt.summary.provider_started_at {
-        timestamp.to_datetime()?;
-    }
-    if let Some(timestamp) = &receipt.summary.finished_at {
-        timestamp.to_datetime()?;
-    }
-    if receipt.commands.len() > 4097 {
-        return Err(Error::Invalid("command receipt capacity exceeded"));
-    }
-    for (id, command) in &receipt.commands {
-        if id != &command.command_id {
-            return Err(Error::Invalid("command receipt key differs from identity"));
-        }
-        command.accepted_at.to_datetime()?;
-        command.updated_at.to_datetime()?;
-    }
-    let mut row = Request::from(receipt);
-    row.commands = receipt.commands.values().map(Command::row).collect();
-    if row.encoded_len() > max_bytes {
-        return Err(Error::Invalid("request receipt exceeds byte bound"));
-    }
-    Ok(row.encode_to_vec())
-}
-
-pub fn decode(bytes: &[u8], max_bytes: usize) -> Result<RunReceipt> {
-    if bytes.len() > max_bytes {
-        return Err(Error::Invalid("request receipt exceeds byte bound"));
-    }
-    let row = Request::decode(bytes)?;
-    if row.encode_to_vec() != bytes {
-        return Err(Error::Invalid("noncanonical request receipt"));
-    }
-    row.try_into()
-}
 
 /* === Private Functions === */
-fn reject_embedded_commands(bytes: &[u8]) -> Result<()> {
-    // The Generated Schema Owns Field Order; Inspect Only The Parent Prefix.
-    let prefix = ["request_id", "node_id", "cycle_id", "phase", "mode", "commands"];
-    if !Request::FIELDS.iter().map(|field| field.name.as_ref()).take(prefix.len()).eq(prefix) {
-        return Err(Error::Invalid("request command prefix differs from its schema"));
-    }
-    let mut input = harmos::message::postcard::Reader::new(bytes);
-    for _ in 0..5 {
-        let _: &str = input.value()?;
-    }
-    let commands: usize = input.value()?;
-    if commands != 0 {
-        return Err(Error::Invalid("parent object embeds command history"));
-    }
-    Ok(())
-}
 
 fn run_phase_text(value: &RunPhase) -> &'static str {
     match value {

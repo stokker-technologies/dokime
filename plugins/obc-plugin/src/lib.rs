@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod analyses;
 pub mod domain;
 pub mod error;
@@ -19,11 +20,13 @@ pub mod settings;
 pub mod suites;
 
 /* === Re-Exports === */
+
 pub use error::Error;
 pub use settings::BenchSettings;
 pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
@@ -31,29 +34,31 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
-use dokime_runtime::harmos::plugin::{Attachment, Declared};
-use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
-use dokime_runtime::prelude::*;
+use dokime::harmos::Dependencies;
+use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::plugin::{Attachment, Declared};
+use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
+use dokime::prelude::*;
 use obc_runtime::app;
 use obc_runtime::{Stop, Testbench};
 
 /* === Constants === */
-pub const SOURCE: &str = <ObcPlugin as Declared>::ID;
 
+pub const SOURCE: &str = <ObcPlugin as Declared>::ID;
 const LIFECYCLE: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Observing = ObserverAttachment<Resources, Publisher<ObcPlugin>>;
 
 /* === Structs === */
+
 pub struct Resources {
     app: OnceLock<obc_runtime::Client>,
     connections: Mutex<Vec<String>>,
@@ -67,12 +72,14 @@ pub struct ObcPlugin {
 }
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Records {}
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Resources {
     pub fn app(&self) -> &obc_runtime::Client {
         self.app.get().expect("the bench runtime launches before any operation is bound")
@@ -87,20 +94,20 @@ impl Resources {
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for ObcPlugin {
+impl dokime::harmos::builtins::lifecycle::Policy for ObcPlugin {
     const INITIALIZATION_POLICY: OperationPolicy = LIFECYCLE;
     const SHUTDOWN_POLICY: OperationPolicy = LIFECYCLE;
 }
 
-#[dokime_runtime::plugin(
-    id = "obc-plugin",
+#[dokime::plugin(
+    id = "obc",
     provides = operations::Operations,
     requires(),
     contributions(
-        dokime_runtime::Suites<suites::Suites>,
-        dokime_runtime::Records<Records, listeners::Listeners>,
-        dokime_runtime::Evidence<observers::system::Streams, analyses::Analyses>,
-        dokime_runtime::Settings<BenchSettings>,
+        dokime::Suites<suites::Suites>,
+        dokime::Records<Records, listeners::Listeners>,
+        dokime::Evidence<observers::system::Streams, analyses::Analyses>,
+        dokime::Settings<BenchSettings>,
     ),
     observers = observers::Observers,
     restart(
@@ -110,23 +117,27 @@ impl dokime_runtime::harmos::operations::lifecycle::Policy for ObcPlugin {
         backoff_cap_ms = 10_000
     )
 , description = "Supervised plugin hosting Dokime's charger testbench workflows.")]
-impl dokime_runtime::Plugin for ObcPlugin {
+impl dokime::Plugin for ObcPlugin {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
     type Resources = Resources;
 
     fn prepare(config: Configuration) -> Result<Self, Refusal> {
-        let settings = dokime_runtime::plugin::refusal(config.settings::<BenchSettings>())?;
+        let settings = dokime::plugin::refusal(config.settings::<BenchSettings>())?;
         Ok(Self {
             runtime: None,
-            resources: Arc::new(Resources { app: OnceLock::new(), connections: Mutex::default(), settings }),
+            resources: Arc::new(Resources {
+                app: OnceLock::new(),
+                connections: Mutex::default(),
+                settings,
+            }),
             observers: None,
         })
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        let runtime = dokime_runtime::plugin::refusal(app::launch(Testbench::default()).await)?;
+        let runtime = dokime::plugin::refusal(app::launch(Testbench::default()).await)?;
         let _ = self.resources.app.set(obc_runtime::Client::new(runtime.handle()));
         self.runtime = Some(runtime);
         self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(self.resources(), <Self as Declared>::STREAMS)?);
@@ -137,11 +148,13 @@ impl dokime_runtime::Plugin for ObcPlugin {
         Arc::clone(&self.resources)
     }
 
-    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<operations::Implemented, _>(self.resources())?;
-        table.bind_operations::<analyses::Implemented, _>(self.resources())?;
-        table.bind_operations::<listeners::Listeners, _>(self.resources())?;
-        dokime_runtime::execution::serve::<Self, suites::Suites>(table)?;
+    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
+        // Operations reach the bench through the resources they declare.
+        let mut dependencies = Dependencies::new();
+        dependencies.insert(self.resources()).expect("each dependency is inserted once");
+        table.register(operations::Operations::registration(dependencies.clone()))?;
+        table.register(listeners::Listeners::registration(dependencies))?;
+        dokime::execution::serve::<Self, suites::Suites>(table)?;
         self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
 
@@ -150,7 +163,7 @@ impl dokime_runtime::Plugin for ObcPlugin {
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        dokime_runtime::execution::interrupt().await;
+        dokime::execution::interrupt().await;
         if let Some(runtime) = &self.runtime
             && let Err(error) = runtime.state.commit(Stop).await
         {

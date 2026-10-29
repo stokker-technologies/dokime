@@ -37,11 +37,14 @@ use super::{Client, Error, Result};
 
 /* === Constants === */
 
+const STREAM_BUFFER_ITEMS: u64 = 1;
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ResponseStream<T> {
     inner: Arc<Response<T>>,
 }
@@ -64,7 +67,8 @@ pub struct RequestStream<T, R> {
 
 struct Upload<T, R> {
     max_frame_bytes: usize,
-    sender: Mutex<Option<mpsc::Sender<T>>>,
+    prepare: fn(&T, usize) -> std::result::Result<harmos::grpc::PreparedFrame, tonic::Status>,
+    sender: Mutex<Option<mpsc::Sender<harmos::grpc::PreparedFrame>>>,
     cancellation: CancellationToken,
     worker: Mutex<Option<JoinHandle<Result<R>>>>,
 }
@@ -79,14 +83,18 @@ pub(super) struct Input<S> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<T: Send + 'static> ResponseStream<T> {
     pub(super) fn new<S>(client: &Client, stream: S) -> Result<Self>
     where
         S: Stream<Item = std::result::Result<T, tonic::Status>> + Send + 'static,
     {
-        let demand = Arc::new(Demand { requested: AtomicBool::new(false), ready: Notify::new() });
+        let demand = Arc::new(Demand {
+            requested: AtomicBool::new(false),
+            ready: Notify::new(),
+        });
         let credit = demand.clone();
-        Self::start(client, Some(demand), move |sender| async move {
+        Self::start(client, STREAM_BUFFER_ITEMS as usize, Some(demand), move |sender| async move {
             let mut stream = std::pin::pin!(stream);
             loop {
                 credit.ready.notified().await;
@@ -101,15 +109,36 @@ impl<T: Send + 'static> ResponseStream<T> {
         })
     }
 
+    pub(super) fn prefetched<S>(client: &Client, stream: S, frame_bytes: usize) -> Result<Self>
+    where
+        S: Stream<Item = std::result::Result<T, tonic::Status>> + Send + 'static,
+    {
+        // Reserve Before Decoding; Include The Consumer In Both Transfer Bounds.
+        let capacity = (4_194_304 / frame_bytes).saturating_sub(1).clamp(1, 3);
+        Self::start(client, capacity, None, move |sender| async move {
+            let mut stream = std::pin::pin!(stream);
+            while let Ok(slot) = sender.reserve().await {
+                let Some(row) = stream.next().await else {
+                    break;
+                };
+                let terminal = row.is_err();
+                slot.send(row.map_err(Error::Rpc));
+                if terminal {
+                    break;
+                }
+            }
+        })
+    }
+
     pub(super) fn spawn<F, Fut>(client: &Client, read: F) -> Result<Self>
     where
         F: FnOnce(mpsc::Sender<Result<T>>) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        Self::start(client, None, read)
+        Self::start(client, STREAM_BUFFER_ITEMS as usize, None, read)
     }
 
-    fn start<F, Fut>(client: &Client, demand: Option<Arc<Demand>>, read: F) -> Result<Self>
+    fn start<F, Fut>(client: &Client, capacity: usize, demand: Option<Arc<Demand>>, read: F) -> Result<Self>
     where
         F: FnOnce(mpsc::Sender<Result<T>>) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
@@ -122,7 +151,7 @@ impl<T: Send + 'static> ResponseStream<T> {
         }
         let cancellation = client.inner.cancellation.child_token();
         let stopped = cancellation.clone();
-        let (sender, receiver) = mpsc::channel(1);
+        let (sender, receiver) = mpsc::channel(capacity);
         let worker = client.inner.readers.spawn(async move {
             tokio::select! {
                 biased;
@@ -131,7 +160,14 @@ impl<T: Send + 'static> ResponseStream<T> {
             }
         });
 
-        Ok(Self { inner: Arc::new(Response { receiver: Mutex::new(receiver), cancellation, worker: Mutex::new(Some(worker)), demand }) })
+        Ok(Self {
+            inner: Arc::new(Response {
+                receiver: Mutex::new(receiver),
+                cancellation,
+                worker: Mutex::new(Some(worker)),
+                demand,
+            }),
+        })
     }
 
     pub async fn message(&self) -> Result<Option<T>> {
@@ -200,9 +236,11 @@ impl<T> Drop for Response<T> {
 }
 
 impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStream<T, R> {
-    pub(super) fn new<F, Fut>(client: &Client, operation: F) -> Result<Self>
+    pub(super) fn new<F, Fut>(
+        client: &Client, prepare: fn(&T, usize) -> std::result::Result<harmos::grpc::PreparedFrame, tonic::Status>, operation: F,
+    ) -> Result<Self>
     where
-        F: FnOnce(tokio_stream::wrappers::ReceiverStream<T>) -> Fut + Send + 'static,
+        F: FnOnce(tokio_stream::wrappers::ReceiverStream<harmos::grpc::PreparedFrame>) -> Fut + Send + 'static,
         Fut: Future<Output = Result<R>> + Send + 'static,
     {
         // Registration and client close share the same fence as response readers.
@@ -224,6 +262,7 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
         Ok(Self {
             inner: Arc::new(Upload {
                 max_frame_bytes: client.request_limit(),
+                prepare,
                 sender: Mutex::new(Some(sender)),
                 cancellation,
                 worker: Mutex::new(Some(worker)),
@@ -232,12 +271,14 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
     }
 
     pub async fn send(&self, frame: T) -> Result<()> {
-        let mut encoded = Vec::new();
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::encode(&frame, &mut encoded)
-            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
-        if encoded.len() > self.inner.max_frame_bytes {
-            return Err(Error::Rpc(tonic::Status::out_of_range("upload frame exceeds the negotiated request limit")));
-        }
+        let encoded = (self.inner.prepare)(&frame, self.inner.max_frame_bytes).map_err(|error| {
+            if error.code() == tonic::Code::ResourceExhausted {
+                Error::Rpc(tonic::Status::out_of_range("upload frame exceeds the negotiated request limit"))
+            } else {
+                Error::Rpc(tonic::Status::invalid_argument(error.to_string()))
+            }
+        })?;
+        drop(frame);
 
         let sender = tokio::select! {
             biased;
@@ -248,7 +289,7 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
         tokio::select! {
             biased;
             _ = self.inner.cancellation.cancelled() => Err(Error::Closed),
-            sent = sender.send(frame) => sent.map_err(|_| Error::Closed),
+            sent = sender.send(encoded) => sent.map_err(|_| Error::Closed),
         }
     }
 
@@ -317,7 +358,10 @@ impl<T, R> Drop for Upload<T, R> {
 
 impl<S> Input<S> {
     pub(super) fn new(inner: S, cancellation: CancellationToken) -> Self {
-        Self { inner: Box::pin(inner), cancellation: Box::pin(cancellation.cancelled_owned()) }
+        Self {
+            inner: Box::pin(inner),
+            cancellation: Box::pin(cancellation.cancelled_owned()),
+        }
     }
 }
 

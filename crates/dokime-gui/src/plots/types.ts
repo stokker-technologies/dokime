@@ -26,6 +26,7 @@ import type {
   ValueFormat,
 } from "@/lib/types";
 import type { HistogramAxes } from "@/plots/histogram-axes";
+import type { PromptMarker } from "@/plots/prompt-markers";
 
 /* === Types === */
 
@@ -33,12 +34,16 @@ export type PlotCardSpec = {
   key: string;
   stream: string;
   title: string;
+  /** The heading above already prints this title; the card keeps it for assistive tech only. */
+  titleRepeated?: boolean;
   description?: string | null;
   series: PlotSeries[];
   cartesian?: PlotCartesianFrame | null;
   analysis?: PlotAnalysis | null;
   computed?: EvidenceAnalysisResult | null;
   markers: PlotMarker[];
+  /** When the execution asked and the operator answered; time series only. */
+  promptMarkers?: PromptMarker[];
   plotType: DocumentPlotType;
   style: DocumentPlotStyle;
   xScale: DocumentAxisScale;

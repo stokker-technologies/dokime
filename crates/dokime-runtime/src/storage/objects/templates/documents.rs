@@ -583,7 +583,12 @@ impl TryFrom<&crate::document::DocumentCardDefinition> for CardDefinition {
             filters.push(Filter::try_from(filter)?);
         }
         let (kind, data) = encode_body(&value.body)?;
-        Ok(Self { metadata: Some(metadata::Row::try_from(&value.metadata)?), filters, kind, data })
+        Ok(Self {
+            metadata: Some(metadata::Row::try_from(&value.metadata)?),
+            filters,
+            kind,
+            data,
+        })
     }
 }
 
@@ -651,7 +656,13 @@ impl TryFrom<&crate::document::DocumentCard> for Card {
             filters.push(Filter::try_from(filter)?);
         }
         let (kind, data) = encode_body(&value.body)?;
-        Ok(Self { metadata: Some(metadata::Row::try_from(&value.metadata)?), layout: value.layout.clone().into(), filters, kind, data })
+        Ok(Self {
+            metadata: Some(metadata::Row::try_from(&value.metadata)?),
+            layout: value.layout.clone().into(),
+            filters,
+            kind,
+            data,
+        })
     }
 }
 
@@ -1072,7 +1083,11 @@ impl TryFrom<&crate::document::SigmaIntervalOptions> for Interval {
 
     fn try_from(value: &crate::document::SigmaIntervalOptions) -> Result<Self> {
         Self::encoding_memory(value)?;
-        Ok(Self { bin_width: value.bin_width, sigma: value.sigma, clip_to_observed: value.clip_to_observed })
+        Ok(Self {
+            bin_width: value.bin_width,
+            sigma: value.sigma,
+            clip_to_observed: value.clip_to_observed,
+        })
     }
 }
 
@@ -1081,7 +1096,11 @@ impl TryFrom<Interval> for crate::document::SigmaIntervalOptions {
 
     fn try_from(row: Interval) -> Result<Self> {
         row.validate()?;
-        Ok(Self { bin_width: row.bin_width, sigma: row.sigma, clip_to_observed: row.clip_to_observed })
+        Ok(Self {
+            bin_width: row.bin_width,
+            sigma: row.sigma,
+            clip_to_observed: row.clip_to_observed,
+        })
     }
 }
 
@@ -1115,7 +1134,10 @@ impl TryFrom<Histogram> for crate::document::HistogramOptions {
     type Error = Error;
 
     fn try_from(row: Histogram) -> Result<Self> {
-        Ok(Self { bins: usize::try_from(row.bins).map_err(|_| Error::Invalid("histogram bins overflow"))?, unit: row.unit })
+        Ok(Self {
+            bins: usize::try_from(row.bins).map_err(|_| Error::Invalid("histogram bins overflow"))?,
+            unit: row.unit,
+        })
     }
 }
 
@@ -1303,7 +1325,10 @@ impl TryFrom<&dokime_domain::model::values::ValueFormat> for Format {
         if Self::encoding_memory(value) == usize::MAX {
             return Err(Error::Invalid("value format encoding memory overflows"));
         }
-        let mut format = Self { kind: format_name(value).to_owned(), ..Default::default() };
+        let mut format = Self {
+            kind: format_name(value).to_owned(),
+            ..Default::default()
+        };
         match value {
             ValueFormat::Normal { max_fraction_digits } => format.max_fraction_digits = max_fraction_digits.map(u32::from),
             ValueFormat::Fixed { decimals } => format.decimals = Some(u32::from(*decimals)),
@@ -1325,14 +1350,28 @@ impl TryFrom<Format> for dokime_domain::model::values::ValueFormat {
     fn try_from(row: Format) -> Result<Self> {
         row.projection_memory()?;
         match row.kind.as_str() {
-            "normal" => Ok(Self::Normal { max_fraction_digits: row.max_fraction_digits.map(format_digits).transpose()? }),
-            "fixed" => Ok(Self::Fixed { decimals: format_digits(row.decimals.unwrap())? }),
-            "scientific" => Ok(Self::Scientific { significant_digits: format_digits(row.significant_digits.unwrap())? }),
-            "engineering" => Ok(Self::Engineering { significant_digits: format_digits(row.significant_digits.unwrap())? }),
-            "si_prefix" => Ok(Self::SiPrefix { significant_digits: format_digits(row.significant_digits.unwrap())? }),
+            "normal" => Ok(Self::Normal {
+                max_fraction_digits: row.max_fraction_digits.map(format_digits).transpose()?,
+            }),
+            "fixed" => Ok(Self::Fixed {
+                decimals: format_digits(row.decimals.unwrap())?,
+            }),
+            "scientific" => Ok(Self::Scientific {
+                significant_digits: format_digits(row.significant_digits.unwrap())?,
+            }),
+            "engineering" => Ok(Self::Engineering {
+                significant_digits: format_digits(row.significant_digits.unwrap())?,
+            }),
+            "si_prefix" => Ok(Self::SiPrefix {
+                significant_digits: format_digits(row.significant_digits.unwrap())?,
+            }),
             "absolute_time" => Ok(Self::AbsoluteTime { pattern: row.pattern.unwrap() }),
-            "elapsed_since_run" => Ok(Self::ElapsedSinceRun { unit: elapsed_unit(row.unit.as_deref().unwrap())? }),
-            "elapsed_since_cycle" => Ok(Self::ElapsedSinceCycle { unit: elapsed_unit(row.unit.as_deref().unwrap())? }),
+            "elapsed_since_run" => Ok(Self::ElapsedSinceRun {
+                unit: elapsed_unit(row.unit.as_deref().unwrap())?,
+            }),
+            "elapsed_since_cycle" => Ok(Self::ElapsedSinceCycle {
+                unit: elapsed_unit(row.unit.as_deref().unwrap())?,
+            }),
             _ => Err(Error::Invalid("invalid value format")),
         }
     }
@@ -1367,7 +1406,10 @@ impl TryFrom<&crate::document::PlotAxisKind> for Axis {
         }
         Ok(match value {
             PlotAxisKind::WallTime => Self { kind: "wall_time".into(), unit: None },
-            PlotAxisKind::Elapsed { unit } => Self { kind: "elapsed".into(), unit: Some(unit.as_str().to_owned()) },
+            PlotAxisKind::Elapsed { unit } => Self {
+                kind: "elapsed".into(),
+                unit: Some(unit.as_str().to_owned()),
+            },
         })
     }
 }
@@ -1470,7 +1512,10 @@ impl TryFrom<&crate::document::TelemetrySummaryGroupDefinition> for SummaryGroup
         for tile in &value.tiles {
             tiles.push(Tile::try_from(tile)?);
         }
-        Ok(Self { metadata: Some(metadata::Row::try_from(&value.metadata)?), tiles })
+        Ok(Self {
+            metadata: Some(metadata::Row::try_from(&value.metadata)?),
+            tiles,
+        })
     }
 }
 
@@ -1486,7 +1531,10 @@ impl TryFrom<SummaryGroup> for crate::document::TelemetrySummaryGroupDefinition 
         for tile in row.tiles {
             tiles.push(tile.try_into()?);
         }
-        Ok(Self { metadata: row.metadata.ok_or(Error::Invalid("summary group metadata is missing"))?.try_into()?, tiles })
+        Ok(Self {
+            metadata: row.metadata.ok_or(Error::Invalid("summary group metadata is missing"))?.try_into()?,
+            tiles,
+        })
     }
 }
 
@@ -1637,7 +1685,11 @@ impl TryFrom<TileCondition> for crate::document::TelemetrySummaryCondition {
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("summary condition projection memory overflows"));
         }
-        Ok(Self { operator: filter_operator(&row.operator)?, value: row.value.try_into()?, state: summary_state(&row.state)? })
+        Ok(Self {
+            operator: filter_operator(&row.operator)?,
+            value: row.value.try_into()?,
+            state: summary_state(&row.state)?,
+        })
     }
 }
 
@@ -1679,7 +1731,11 @@ impl TryFrom<&DataExpression> for Data {
         for transform in &value.transforms {
             transforms.push(Transform::try_from(transform)?);
         }
-        Ok(Self { label: value.label.as_deref().map(str::to_owned), source: DataSource::try_from(&value.source)?, transforms })
+        Ok(Self {
+            label: value.label.as_deref().map(str::to_owned),
+            source: DataSource::try_from(&value.source)?,
+            transforms,
+        })
     }
 }
 
@@ -1695,7 +1751,11 @@ impl TryFrom<Data> for DataExpression {
         for transform in row.transforms {
             transforms.push(transform.try_into()?);
         }
-        Ok(Self { label: row.label, source: row.source.try_into()?, transforms })
+        Ok(Self {
+            label: row.label,
+            source: row.source.try_into()?,
+            transforms,
+        })
     }
 }
 
@@ -1774,7 +1834,10 @@ impl TryFrom<DataSource> for DomainSource {
     fn try_from(row: DataSource) -> Result<Self> {
         row.projection_memory()?;
         match row.kind.as_str() {
-            "telemetry" => Ok(Self::Telemetry { stream: row.stream.unwrap(), field: row.field.unwrap() }),
+            "telemetry" => Ok(Self::Telemetry {
+                stream: row.stream.unwrap(),
+                field: row.field.unwrap(),
+            }),
             "parameter" => Ok(Self::Parameter { name: row.name.unwrap() }),
             "dimension" => Ok(Self::Dimension { name: row.name.unwrap() }),
             "record" => Ok(Self::Record { record_type: row.record_type.unwrap() }),
@@ -1824,7 +1887,10 @@ impl TryFrom<&DataTransform> for Transform {
         if Self::encoding_memory(value) == usize::MAX {
             return Err(Error::Invalid("data transform encoding memory overflows"));
         }
-        let mut transform = Self { kind: transform_name(value).to_owned(), ..Default::default() };
+        let mut transform = Self {
+            kind: transform_name(value).to_owned(),
+            ..Default::default()
+        };
         match value {
             DataTransform::TimeBetween { previous_record_type } => {
                 transform.previous_record_type = Some(previous_record_type.as_str().to_owned())
@@ -1853,8 +1919,13 @@ impl TryFrom<Transform> for DataTransform {
                 .and_then(harmos::Aggregate::parse)
                 .map(Self::Aggregate)
                 .ok_or(Error::Invalid("invalid data transform aggregate")),
-            "time_between" => Ok(Self::TimeBetween { previous_record_type: row.previous_record_type.unwrap() }),
-            "telemetry_at_or_before" => Ok(Self::TelemetryAtOrBefore { stream: row.stream.unwrap(), field: row.field.unwrap() }),
+            "time_between" => Ok(Self::TimeBetween {
+                previous_record_type: row.previous_record_type.unwrap(),
+            }),
+            "telemetry_at_or_before" => Ok(Self::TelemetryAtOrBefore {
+                stream: row.stream.unwrap(),
+                field: row.field.unwrap(),
+            }),
             "detail" => Ok(Self::Detail { name: row.name.unwrap() }),
             "per_case" => Ok(Self::PerCase),
             _ => Err(Error::Invalid("invalid data transform")),
@@ -2068,7 +2139,10 @@ impl TryFrom<&crate::document::DocumentCardPlacement> for Placement {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("document placement encoding memory overflows"));
         }
-        Ok(Self { card_id: value.card_id.as_str().to_owned(), layout: value.layout.clone().into() })
+        Ok(Self {
+            card_id: value.card_id.as_str().to_owned(),
+            layout: value.layout.clone().into(),
+        })
     }
 }
 
@@ -2079,7 +2153,10 @@ impl TryFrom<Placement> for crate::document::DocumentCardPlacement {
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("document placement projection memory overflows"));
         }
-        Ok(Self { card_id: dokime_domain::model::identity::Identifier::new(row.card_id)?, layout: row.layout.try_into()? })
+        Ok(Self {
+            card_id: dokime_domain::model::identity::Identifier::new(row.card_id)?,
+            layout: row.layout.try_into()?,
+        })
     }
 }
 
@@ -2157,11 +2234,18 @@ fn encode_body(value: &crate::document::DocumentCardBody) -> Result<(String, Opt
         return Err(Error::Invalid("document body encoding memory overflows"));
     }
     let data = match value {
-        DocumentCardBody::Text { markdown } => Some(CardData { markdown: Some(markdown.as_str().to_owned()), ..Default::default() }),
-        DocumentCardBody::TelemetrySummary { summary } => {
-            Some(CardData { summary: Some(Summary::try_from(summary)?), ..Default::default() })
-        }
-        DocumentCardBody::Plot { plot } => Some(CardData { plot: Some(Plot::try_from(plot.as_ref())?), ..Default::default() }),
+        DocumentCardBody::Text { markdown } => Some(CardData {
+            markdown: Some(markdown.as_str().to_owned()),
+            ..Default::default()
+        }),
+        DocumentCardBody::TelemetrySummary { summary } => Some(CardData {
+            summary: Some(Summary::try_from(summary)?),
+            ..Default::default()
+        }),
+        DocumentCardBody::Plot { plot } => Some(CardData {
+            plot: Some(Plot::try_from(plot.as_ref())?),
+            ..Default::default()
+        }),
         DocumentCardBody::Table { rows } => {
             let mut native = Vec::new();
             native.try_reserve_exact(rows.len()).map_err(|_| Error::Invalid("document table rows allocation failed"))?;
@@ -2409,9 +2493,15 @@ fn consume_body(kind: String, data: Option<CardData>) -> Result<crate::document:
         return Err(Error::Invalid("document card body projection memory overflows"));
     }
     Ok(match kind.as_str() {
-        "text" => DocumentCardBody::Text { markdown: data.unwrap().markdown.unwrap() },
-        "telemetry_summary" => DocumentCardBody::TelemetrySummary { summary: data.unwrap().summary.unwrap().try_into()? },
-        "plot" => DocumentCardBody::Plot { plot: Box::new(data.unwrap().plot.unwrap().try_into()?) },
+        "text" => DocumentCardBody::Text {
+            markdown: data.unwrap().markdown.unwrap(),
+        },
+        "telemetry_summary" => DocumentCardBody::TelemetrySummary {
+            summary: data.unwrap().summary.unwrap().try_into()?,
+        },
+        "plot" => DocumentCardBody::Plot {
+            plot: Box::new(data.unwrap().plot.unwrap().try_into()?),
+        },
         "table" => {
             let data = data.unwrap();
             let mut rows = Vec::new();

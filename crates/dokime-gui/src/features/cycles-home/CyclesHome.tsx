@@ -11,19 +11,19 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArchiveRestore } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
-import { DataTable } from "@/components/data-table/DataTable";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
   applyFrozenOrder,
   archivedCycleGroups,
@@ -31,12 +31,21 @@ import {
   type CycleRow,
   cycleRows,
   groupCycleRows,
+  promptCountsByCycle,
 } from "@/features/cycles-home/cycles-model";
 import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
-import { compactAgeLabel } from "@/lib/time-format";
-import { usePageChrome } from "@/shell/page-chrome";
+import { PageNotice, PageShell } from "@/shell/PageShell";
+
+/* === Constants === */
+
+const GUI_FILTER_DEBOUNCE_MS = 250;
+
+/* The Status track, in the pill's own type size so it follows every density:
+   room for the longest state label (16 characters at under 0.7em each), the
+   pill's padding and the cell's. */
+const STATUS_COLUMN_WIDTH = "w-[calc(var(--pill-text)_*_11_+_2_*_var(--pill-pad-x)_+_--spacing(6))]";
 
 /* === Components === */
 
@@ -63,15 +72,9 @@ export function CyclesHome() {
   const prompts = usePendingPromptsQuery();
   const [frozenIds, setFrozenIds] = useState<readonly string[]>([]);
   const frozen = useRef(false);
-  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const handle = window.setInterval(() => setNow(Date.now()), 15_000);
-    return () => window.clearInterval(handle);
-  }, []);
-
-  useEffect(() => {
-    const handle = window.setTimeout(() => setSelection(filter), 250);
+    const handle = window.setTimeout(() => setSelection(filter), GUI_FILTER_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
   }, [filter]);
 
@@ -83,18 +86,8 @@ export function CyclesHome() {
     ),
     [],
   );
-  usePageChrome({ actions, title: "Cycles" });
 
-  const attentionByCycleId = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const prompt of prompts.data ?? []) {
-      const cycleId = prompt.scope?.test_cycle_id;
-      if (cycleId) {
-        counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
-      }
-    }
-    return counts;
-  }, [prompts.data]);
+  const attentionByCycleId = useMemo(() => promptCountsByCycle(prompts.data ?? []), [prompts.data]);
 
   const rows = useMemo(() => cycleRows(cycles.data ?? [], attentionByCycleId), [attentionByCycleId, cycles.data]);
   const groups = useMemo(() => {
@@ -119,40 +112,22 @@ export function CyclesHome() {
   }, []);
 
   return (
-    <div className="grid content-start gap-6 p-[var(--shell-inset)]" onPointerCancel={release} onPointerDown={freeze} onPointerUp={release}>
-      {/* A toolbar row: its controls are centred with the bar's own air above
-          and below, and the same 12px gap every other bar uses. */}
-      <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)]">
-        <Input
-          aria-label="Filter Cycles"
-          className="h-[var(--bar-control-height)] w-full sm:w-80"
-          onChange={(event) => setFilter(event.target.value)}
-          placeholder="Filter Cycles"
-          value={filter}
-        />
-        <Button
-          aria-pressed={showArchived}
-          className="h-[var(--bar-control-height)]"
-          onClick={() => setShowArchived((current) => !current)}
-          type="button"
-          variant={showArchived ? "secondary" : "outline"}
-        >
-          Archived
-        </Button>
-      </div>
-
+    <PageShell actions={actions} onPointerCancel={release} onPointerDown={freeze} onPointerUp={release} trail={["Cycles"]}>
       {cycles.isError ? (
-        <p className="text-destructive" role="alert">
-          The cycle list could not be read. Check the backend connection in the status bar.
-        </p>
+        <PageNotice tone="alert">The cycle list could not be read. Check the backend connection in the status bar.</PageNotice>
       ) : null}
 
       {groups.map((group) => (
         <CycleGroupSection
           group={group}
+          search={{ label: "Filter Cycles", value: filter, onChange: setFilter }}
+          actions={
+            <Button aria-pressed={showArchived} variant="outline" onClick={() => setShowArchived((current) => !current)}>
+              Archived
+            </Button>
+          }
           key={group.id}
           loading={cycles.isPending}
-          now={now}
           onOpen={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
           onUnarchive={
             showArchived
@@ -175,28 +150,29 @@ export function CyclesHome() {
         onOpenChange={setCreating}
         open={creating}
       />
-    </div>
+    </PageShell>
   );
 }
 
 function CycleGroupSection({
   group,
+  search,
+  actions,
   loading,
-  now,
   onOpen,
   onUnarchive,
 }: {
   group: CycleGroup;
+  search: import("@/components/data-table/data-table-model").DataTableSearch;
+  actions: import("react").ReactNode;
   loading: boolean;
-  now: number;
   onOpen: (cycleId: string) => void;
   /** Present in the Archived view: each row offers Unarchive. */
   onUnarchive: ((cycleId: string) => void) | null;
 }) {
-  const columns = useMemo(() => cycleColumns(now, onUnarchive), [now, onUnarchive]);
+  const columns = useMemo(() => cycleColumns(onOpen, onUnarchive), [onOpen, onUnarchive]);
 
-  // Every group heads with one row — title and count at the start, the empty
-  // statement at the end — so the three headings align whatever they hold.
+  // Section Counts Stay Outside The Table Card.
   const heading = (
     <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-[var(--bar-gap)]">
       <p className="flex items-baseline gap-2">
@@ -205,34 +181,23 @@ function CycleGroupSection({
         </span>
         <span className="font-mono text-sm tabular-nums text-muted-foreground">{group.rows.length}</span>
       </p>
-      {group.rows.length ? null : (
-        <span className="truncate text-right text-sm text-muted-foreground">{loading ? "Loading Cycles" : group.emptyText}</span>
-      )}
     </div>
   );
 
-  if (!group.rows.length) {
-    return (
-      <section aria-labelledby={`cycle-group-${group.id}`} className="grid">
-        {heading}
-      </section>
-    );
-  }
-
-  // The table bleeds to the page edges so a row's hover spans the page while
-  // its text, carried by the table inset, stays on the heading's line.
   return (
-    <section aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
+    <section id={group.id} aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
       {heading}
-      <DataTable
-        className="-mx-[var(--shell-inset)]"
-        columns={columns}
-        data={group.rows}
-        emptyText={group.emptyText}
-        getRowId={rowId}
-        onRowClick={(row) => onOpen(row.cycleId)}
-        stickyHeader={false}
-      />
+      <div className="min-w-0">
+        <DataTable
+          search={search}
+          actions={actions}
+          columns={columns}
+          data={group.rows}
+          emptyText={loading ? "Loading Cycles" : group.emptyText}
+          getRowId={rowId}
+          onRowClick={(row) => onOpen(row.cycleId)}
+        />
+      </div>
     </section>
   );
 }
@@ -249,34 +214,9 @@ function rowId(row: CycleRow): string {
   return row.cycleId;
 }
 
-/** The five columns every group shares; `now` ages the Updated column. The
-    Archived view adds Unarchive as the last column. */
-function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | null): DataTableColumns<CycleRow> {
+/** The five columns every group shares. The Archived view adds Unarchive. */
+function cycleColumns(onOpen: (id: string) => void, onUnarchive: ((cycleId: string) => void) | null): DataTableColumns<CycleRow> {
   const column = dataTableColumns<CycleRow>();
-  const unarchive = onUnarchive
-    ? [
-        column.display({
-          cell: ({ row }) => (
-            <Button
-              className="h-[var(--control-height)]"
-              onClick={(event) => {
-                event.stopPropagation();
-                onUnarchive(row.original.cycleId);
-              }}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <ArchiveRestore data-icon="inline-start" />
-              Unarchive
-            </Button>
-          ),
-          header: "",
-          id: "unarchive",
-          meta: { align: "end", label: "Unarchive", width: "w-36" },
-        }),
-      ]
-    : [];
   return column.columns([
     column.accessor("label", {
       cell: ({ row }) => <CycleTitle row={row.original} />,
@@ -294,13 +234,9 @@ function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | nu
       meta: { label: "Attention", width: "w-32" },
     }),
     column.accessor("statusLabel", {
-      cell: ({ row }) => (
-        <Badge className={LIST_STATUS_PILL_CLASS} variant={badgeVariant(row.original.statusTone)}>
-          {row.original.statusLabel}
-        </Badge>
-      ),
+      cell: ({ row }) => <CycleStatusPill label={row.original.statusLabel} tone={row.original.statusTone} />,
       header: "Status",
-      meta: { filter: "facet", label: "Status", width: "w-36" },
+      meta: { filter: "facet", label: "Status", width: STATUS_COLUMN_WIDTH },
     }),
     column.accessor("finishedCount", {
       cell: ({ row }) => (
@@ -314,46 +250,31 @@ function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | nu
     column.accessor((row) => row.updatedAtMs ?? undefined, {
       cell: ({ row }) => (
         <span className="font-mono text-xs tabular-nums text-muted-foreground" title={instantsLabel(row.original)}>
-          {relativeUpdatedLabel(row.original.updatedAtIso, now)}
+          {row.original.updatedAtIso ? new Date(row.original.updatedAtIso).toLocaleString() : "-"}
         </span>
       ),
       header: "Updated",
       id: "updated",
-      meta: { align: "end", label: "Updated", width: "w-28" },
+      meta: { align: "end", label: "Updated", width: "w-44" },
     }),
-    ...unarchive,
+    column.display({
+      id: "actions",
+      header: "Actions",
+      meta: { width: "w-36", align: "end" },
+      cell: ({ row }) => (
+        <DataTableRowActions label={row.original.label} primary={{ label: "Open", onSelect: () => onOpen(row.original.cycleId) }}>
+          {onUnarchive ? <DropdownMenuItem onSelect={() => onUnarchive(row.original.cycleId)}>Unarchive</DropdownMenuItem> : null}
+        </DataTableRowActions>
+      ),
+    }),
   ]);
 }
 
-/**
- * How long ago the cycle last moved.
- *
- * "5s" alone reads as a duration; "5s Ago" says which way it points. The
- * absolute instant stays available on the cell's title.
- */
-/** The absolute instants behind the relative age: updated, then created. */
+/** The absolute update and creation instants. */
 function instantsLabel(row: CycleRow): string | undefined {
   const instants = [
     row.updatedAtIso ? `Updated ${new Date(row.updatedAtIso).toLocaleString()}` : null,
     row.createdAtIso ? `Created ${new Date(row.createdAtIso).toLocaleString()}` : null,
   ].filter(Boolean);
   return instants.length ? instants.join("\n") : undefined;
-}
-
-function relativeUpdatedLabel(updatedAtIso: string | null, now: number): string {
-  const age = compactAgeLabel(updatedAtIso, now);
-  return age === "-" ? age : `${age} Ago`;
-}
-
-function badgeVariant(tone: CycleRow["statusTone"]) {
-  switch (tone) {
-    case "good":
-      return "success" as const;
-    case "warn":
-      return "warning" as const;
-    case "bad":
-      return "destructive" as const;
-    default:
-      return "outline" as const;
-  }
 }

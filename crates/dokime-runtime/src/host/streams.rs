@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -25,6 +27,7 @@ use dokime_domain::model::values::Value;
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! host_rows {
     (
         $(
@@ -98,6 +101,7 @@ macro_rules! host_rows {
                 const PUBLISHED: bool = false;
 
                 fn contract() -> TelemetryContract {
+                    // Static Authoring Has No Runtime Instance; Boot Applies Effective Cadence.
                     host_telemetry_contract(HostTelemetryStream::$stream).typed::<Self>()
                 }
             }
@@ -126,7 +130,7 @@ macro_rules! host_rows {
     };
 }
 
-/* === Expansions === */
+// Expansions
 
 dokime_domain::host_streams!(host_rows);
 
@@ -145,6 +149,7 @@ dokime_domain::host_streams!(host_rows);
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,14 +170,16 @@ mod tests {
                 if let Some(list) = &list {
                     values.insert(field.to_owned(), list.clone());
                 }
-                let bytes = dokime_domain::model::telemetry::host_telemetry_payload(stream, &values).expect("encode host row");
+                let bytes = dokime_domain::model::telemetry::host::prepare_host_telemetry_payload(stream, &values)
+                    .expect("prepare host row")
+                    .into_bytes();
                 validator.validate(&bytes).expect("payload matches storage schema");
                 let row = T::decode(&bytes).expect("decode typed host row");
-                assert_eq!(row.encode_to_vec(), bytes);
+                assert_eq!(row.encode(), bytes);
                 let projected = row.into_row();
                 assert_eq!(projected.get(field), Some(&list.unwrap_or(Value::Null)));
                 assert_eq!(projected.get("timestamp"), Some(&timestamp));
-                #[cfg(feature = "native")]
+                #[cfg(feature = "storage")]
                 {
                     let mut stored = crate::storage::telemetry::decode_values(&validator, &bytes).expect("project stored host payload");
                     dokime_domain::model::telemetry::host::contracts::project_host_values(stream, &mut stored)

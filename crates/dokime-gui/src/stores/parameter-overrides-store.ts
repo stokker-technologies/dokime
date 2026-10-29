@@ -31,11 +31,11 @@ export const PARAMETER_OVERRIDES_STORAGE_KEY = "dokime.parameter-overrides";
 
 const parameterOverridesSchema = z.record(
   z.string(),
-  z.record(z.string(), z.union([z.string(), z.object({ raw: z.string(), valueType: z.string(), unit: z.string().nullable() })])),
+  z.record(z.string(), z.object({ raw: z.string(), valueType: z.string(), unit: z.string().nullable() })),
 );
 
 const persistedParameterOverridesSchema = z.object({
-  overrides: parameterOverridesSchema.catch({}),
+  overrides: parameterOverridesSchema,
 });
 
 const initialParameterOverridesState: ParameterOverridesStoreState = {
@@ -67,20 +67,16 @@ export const useParameterOverridesStatus = create<{ ready: boolean; error: strin
 
 /* === Public Functions === */
 
-/**
- * Read a persisted payload, discarding anything that is not the override map.
- * Corrupt storage yields an empty map rather than a throw, so a bad write from
- * an older build cannot keep the dialog from opening.
- */
+/** Refuse Unsupported Stored Values Without Replacing The Operator's Inputs. */
 export function readPersistedParameterOverrides(value: unknown): ParameterOverrides {
-  const parsed = persistedParameterOverridesSchema.safeParse(value ?? {});
-  return parsed.success ? parsed.data.overrides : {};
+  if (value === undefined) return {};
+  return persistedParameterOverridesSchema.parse(value).overrides;
 }
 
 /** The override for one parameter, or `null` when the default still applies. */
 export function parameterOverride(overrides: ParameterOverrides, templateId: string, parameterId: string): string | null {
   const raw = overrides[templateId]?.[parameterId];
-  return typeof raw === "string" ? raw : (raw?.raw ?? null);
+  return raw?.raw ?? null;
 }
 
 export const useParameterOverridesStore = create<ParameterOverridesStore>()(
@@ -138,10 +134,10 @@ export const useParameterOverridesStore = create<ParameterOverridesStore>()(
         overrides: readPersistedParameterOverrides(persisted),
       }),
       name: PARAMETER_OVERRIDES_STORAGE_KEY,
-      // Authored names cannot identify an override after a parameter rename.
-      // Retire the old name-keyed preference map instead of guessing identities.
       version: 1,
-      migrate: () => ({ ...initialParameterOverridesState }),
+      migrate: () => {
+        throw new Error("Unsupported remembered parameter version. Select fresh storage before editing.");
+      },
       partialize: (state) => ({ overrides: state.overrides }),
       storage: createJSONStorage(parameterStorage),
       onRehydrateStorage: () => {
@@ -149,7 +145,7 @@ export const useParameterOverridesStore = create<ParameterOverridesStore>()(
         return (_state, error) => {
           useParameterOverridesStatus.setState({
             ready: !error,
-            error: error ? "Could not load remembered parameters. Retry before editing." : null,
+            error: error ? `Could not load remembered parameters: ${String(error)}. Editing is disabled.` : null,
           });
         };
       },
@@ -184,17 +180,26 @@ function parameterStorage(): StateStorage {
   if (isReportBuild()) {
     return { getItem: () => null, setItem: () => undefined, removeItem: () => undefined };
   }
-  if (!isTauriDesktop()) return window.localStorage;
+  if (!isTauriDesktop()) {
+    return {
+      getItem: (name) => window.localStorage.getItem(name),
+      setItem: (name, value) => {
+        if (useParameterOverridesStatus.getState().ready) window.localStorage.setItem(name, value);
+      },
+      removeItem: (name) => {
+        if (useParameterOverridesStatus.getState().ready) window.localStorage.removeItem(name);
+      },
+    };
+  }
   return {
     getItem: async () => {
       // Distinguish An Absent Native File From An Intentionally Empty Map.
-      let values = await commands.desktopParametersRead();
+      const values = await commands.desktopParametersRead();
       if (values === null) {
-        const stored = window.localStorage.getItem(PARAMETER_OVERRIDES_STORAGE_KEY);
-        const previous = stored ? JSON.parse(stored) : null;
-        values = previous?.version === 1 ? readPersistedParameterOverrides(previous.state) : {};
-        // Publish The Native Copy Before Enabling Edits.
-        await commands.desktopParametersWrite(values);
+        if (window.localStorage.getItem(PARAMETER_OVERRIDES_STORAGE_KEY) !== null) {
+          throw new Error("Unsupported browser-owned remembered parameters. Select fresh storage before editing.");
+        }
+        return null;
       }
       return JSON.stringify({ state: { overrides: values }, version: 1 });
     },

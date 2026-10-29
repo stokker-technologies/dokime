@@ -24,7 +24,7 @@ use std::sync::Arc;
 // Local Imports
 use super::content::UploadGate;
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use {
     contracts::files::FileWatch, model::files::wire::FileRule, model::files::wire::FileRuleAction, model::files::wire::FileWatchFrame,
     model::files::wire::FileWatchFramePayload, model::files::wire::FileWatchPhase, model::files::wire::FileWatchPolicy,
@@ -46,6 +46,7 @@ use {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 #[tokio::test]
 async fn file_watch_artifacts() {
     let root = tempfile::tempdir().unwrap();
@@ -58,12 +59,7 @@ async fn file_watch_artifacts() {
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(
-        owner.handle(),
-        Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap().with_max_message_bytes(1024 * 1024),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(owner.handle(), Config::local().with_max_message_bytes(1024 * 1024)).await.unwrap();
     let client = connect(&server).await;
     let scope = super::media::running_execution(&owner, &client, &gate).await;
     let execution = scope.execution_id.clone().unwrap();
@@ -74,11 +70,18 @@ async fn file_watch_artifacts() {
     let request = |output: &str, maximum_seconds: Option<u32>| FileWatch {
         execution_id: Some(execution.clone()),
         source: Some(FileWatchSource {
-            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: tree.path().to_str().unwrap().to_owned() })),
+            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+                root: tree.path().to_str().unwrap().to_owned(),
+            })),
         }),
-        rules: vec![FileRule { glob: "**/*.log".into(), action: FileRuleAction::Include }],
+        rules: vec![FileRule {
+            glob: "**/*.log".into(),
+            action: FileRuleAction::Include,
+        }],
         output: output.to_owned(),
         policy: FileWatchPolicy::Stream,
+        selection: dokime::domain::model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: Some(50),
         maximum_seconds,
         maximum_files: None,
@@ -86,11 +89,43 @@ async fn file_watch_artifacts() {
     };
 
     // A Watch Without An Execution Is Refused Before Any Source Opens
-    let unscoped = watch(&client, FileWatch { execution_id: None, ..request("capture", Some(1)) }).await.unwrap_err();
+    let unscoped = watch(
+        &client,
+        FileWatch {
+            execution_id: None,
+            ..request("capture", Some(1))
+        },
+    )
+    .await
+    .unwrap_err();
     assert_eq!(unscoped.code(), Code::InvalidArgument, "{unscoped:?}");
+
+    // Refused Initial Admission Must Not Advertise Armed Readiness
+    let extra = tree.path().join("logs/second.log");
+    std::fs::write(&extra, b"second\n").unwrap();
+    let mut refused = watch(
+        &client,
+        FileWatch {
+            maximum_files: Some(1),
+            ..request("refused", Some(1))
+        },
+    )
+    .await
+    .unwrap();
+    let failure = loop {
+        match refused.message().await {
+            Ok(Some(frame)) => assert!(!matches!(frame.payload, Some(FileWatchFramePayload::Armed(_)))),
+            Err(error) => break error,
+            Ok(None) => panic!("initial admission unexpectedly succeeded"),
+        }
+    };
+    assert_eq!(failure.code(), Code::ResourceExhausted);
+    std::fs::remove_file(extra).unwrap();
 
     // A Bounded Watch Reports Progress, Seals, Then Completes
     let mut frames = watch(&client, request("capture", Some(2))).await.unwrap();
+    let armed = next(&mut frames).await;
+    assert!(matches!(armed.payload, Some(FileWatchFramePayload::Armed(ref ready)) if ready.baseline == ["logs/charger.log"]));
     let baseline = next(&mut frames).await;
     assert!(
         matches!(
@@ -148,7 +183,7 @@ async fn file_watch_artifacts() {
         None
     })
     .await;
-    assert_eq!(stored.status, dokime_runtime::artifacts::ArtifactStatus::Complete);
+    assert_eq!(stored.status, dokime::artifacts::ArtifactStatus::Complete);
     assert_eq!(stored.size_bytes, 7);
 
     gate.release.notify_one();
@@ -157,6 +192,7 @@ async fn file_watch_artifacts() {
 }
 
 /* === Private Functions === */
+
 async fn watch(client: &WireClient, request: FileWatch) -> Result<WireStream<FileWatchFrame>, tonic::Status> {
     let mut frames = client.download::<contracts::files::FileWatch>(authenticated(request)).await?.into_inner();
 

@@ -12,8 +12,8 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
@@ -21,7 +21,8 @@ use std::sync::Arc;
 use crate::Resources;
 use crate::domain::model::readiness::Readiness;
 use crate::domain::operations::AskReadiness;
-use dokime_runtime::prelude::*;
+use dokime::harmos::{Context, Operation, Response};
+use dokime::prelude::Refusal;
 
 /* === Constants === */
 
@@ -30,23 +31,19 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub struct ReadinessProbe {
-    resources: Arc<Resources>,
-}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation]
-impl ReadinessProbe {
-    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
-        Self { resources }
-    }
 
-    async fn run(&mut self, _: &Supervisor, _: &mut AskReadiness) -> Result<Readiness, Refusal> {
-        Ok(Readiness { stopped: dokime_runtime::plugin::refusal(self.resources.app().stopped().await)? })
+impl Operation for AskReadiness {
+    type Error = Refusal;
+
+    async fn run(self, ctx: Context<'_, Self>) -> Result<Response<Readiness>, Refusal> {
+        let stopped = dokime::plugin::refusal(ctx.resource::<Resources>().app().stopped().await)?;
+        Ok(Response::new(Readiness { stopped }))
     }
 }
 

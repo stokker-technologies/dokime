@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod bluetooth;
 pub mod command;
 pub mod wifi;
@@ -15,6 +16,7 @@ pub mod wifi;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

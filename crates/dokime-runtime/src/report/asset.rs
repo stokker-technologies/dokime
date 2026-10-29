@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,6 +20,7 @@
 // Local Imports
 
 /* === Constants === */
+
 pub const REPORT_APP_TEMPLATE: &str = include_str!(concat!(env!("OUT_DIR"), "/report-template.html"));
 
 /* === Macros === */

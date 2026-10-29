@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::cmp::Ordering;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::execution::storage::ExecutionMetadata;
 use crate::state::RuntimeState;
@@ -32,9 +35,10 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExecutionControls {
-    pub request_id: CommandId,
+    pub request_id: Option<CommandId>,
     pub mode: dokime_domain::model::execution::ExecutionMode,
     pub paused: bool,
     pub stop_requested: bool,
@@ -61,11 +65,13 @@ pub struct ExecutionOrder {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArchiveScope {
     #[default]
     Unarchived,
+
     Archived,
     All,
 }
@@ -75,6 +81,7 @@ pub enum ArchiveScope {
 pub enum ExecutionOrderKey {
     #[default]
     StartedAt,
+
     FinishedAt,
     Title,
 }
@@ -82,6 +89,7 @@ pub enum ExecutionOrderKey {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ArchiveScope {
     pub fn admits(self, archived: bool) -> bool {
         match self {
@@ -99,23 +107,34 @@ impl ExecutionFilter {
 }
 
 /* === Public Functions === */
+
 pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<ExecutionControls> {
-    if state.executions.get(id)?.finished_at.is_some() {
+    let execution = state.executions.get(id)?;
+    if execution.saved.is_some() {
         return None;
     }
-    let request = ControlExecution::owning_request(state, id)?;
+    let request = ControlExecution::owning_request(state, id);
+    if state.cycles.get(&execution.test_cycle_id)?.phase != dokime_domain::model::execution::result::CyclePhase::Active {
+        return None;
+    }
     let accepts = |action| {
-        ControlExecution { test_execution_id: id.clone(), action, occurred_at: crate::model::time::now_utc() }.request(state).is_ok()
+        ControlExecution {
+            test_execution_id: id.clone(),
+            action,
+            occurred_at: crate::model::time::now_utc(),
+        }
+        .request(state)
+        .is_ok()
     };
 
     Some(ExecutionControls {
-        request_id: request.summary.request_id.clone(),
-        mode: request.summary.mode,
-        paused: request.summary.paused,
-        stop_requested: request.summary.stop_requested || request.stopped_execution_ids.contains(id),
+        request_id: request.map(|request| request.summary.request_id.clone()),
+        mode: request.map_or(execution.mode, |request| request.summary.mode),
+        paused: request.is_some_and(|request| request.summary.paused),
+        stop_requested: request.is_some_and(|request| request.summary.stop_requested),
         can_pause: accepts(CycleControlAction::Pause),
         can_resume: accepts(CycleControlAction::Resume),
-        can_stop: accepts(CycleControlAction::Stop),
+        can_stop: !state.shutting_down,
     })
 }
 

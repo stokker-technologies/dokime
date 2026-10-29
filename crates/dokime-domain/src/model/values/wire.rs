@@ -9,7 +9,11 @@
 
 /* === Modules === */
 
+mod construction;
+
 /* === Re-Exports === */
+
+pub(crate) use construction::{slots, text};
 
 /* === Imports === */
 
@@ -26,6 +30,7 @@ use crate::model::identity::wire::Timestamp;
 use crate::model::values::Value as Core;
 
 /* === Constants === */
+
 // Nesting deeper than this is refused when a wire value is rebuilt.
 pub const MAX_DEPTH: usize = 64;
 
@@ -34,6 +39,7 @@ pub const MAX_DEPTH: usize = 64;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // A dynamic value flattened into its nodes, so its schema stays small and its
 // nesting is bounded by data rather than by the protobuf descriptor.
 //
@@ -74,6 +80,7 @@ pub struct ValueField {
 }
 
 /* === Enums === */
+
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValueKind {
@@ -91,18 +98,30 @@ pub enum ValueKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ValueError {
+    #[error("value construction exceeds supported capacity")]
+    Capacity,
+
+    #[error("value construction allocation failed")]
+    Allocation,
+
     #[error("value has no root node")]
     Empty,
+
     #[error("value node {0} has no kind")]
     Unset(usize),
+
     #[error("value member index {0} is out of order or out of range")]
     Member(usize),
+
     #[error("value node {0} is not a member of exactly one container")]
     Shared(usize),
+
     #[error("value nests deeper than {MAX_DEPTH} levels")]
     Depth,
+
     #[error("value timestamp is out of range")]
     Timestamp,
+
     #[error("value object repeats a key")]
     Duplicate,
 }
@@ -110,11 +129,8 @@ pub enum ValueError {
 /* === Traits === */
 
 /* === Implementations === */
-impl Value {
-    pub fn null() -> Self {
-        Self::from(&crate::model::values::Value::Null)
-    }
 
+impl Value {
     pub fn to_core(&self) -> Result<crate::model::values::Value, ValueError> {
         if self.nodes.is_empty() {
             return Err(ValueError::Empty);
@@ -172,49 +188,26 @@ impl Value {
             }
         })
     }
+}
 
-    fn push(&mut self, value: &crate::model::values::Value) -> u32 {
-        let index = self.nodes.len();
-        self.nodes.push(ValueNode { kind: None });
-        let kind = match value {
-            Core::Null => ValueKind::Null,
-            Core::Bool(value) => ValueKind::Bool(*value),
-            Core::Integer(value) => ValueKind::Integer(*value),
-            Core::Unsigned(value) => ValueKind::Unsigned(*value),
-            Core::Number(value) => ValueKind::Number(*value),
-            Core::Text(value) => ValueKind::Text(value.clone()),
-            Core::Datetime(value) => ValueKind::Datetime(Timestamp::from(*value)),
-            Core::Array(values) => ValueKind::Array(ValueItems { items: values.iter().map(|value| self.push(value)).collect() }),
-            Core::Object(entries) => ValueKind::Object(ValueFields {
-                fields: entries.iter().map(|(key, value)| ValueField { key: key.clone(), value: self.push(value) }).collect(),
-            }),
-        };
-        self.nodes[index].kind = Some(kind);
-        u32::try_from(index).expect("a value never exceeds u32 nodes")
+impl TryFrom<&Core> for Value {
+    type Error = ValueError;
+    fn try_from(value: &Core) -> Result<Self, Self::Error> {
+        construction::value(value)
     }
 }
 
-impl From<&crate::model::values::Value> for Value {
-    fn from(value: &crate::model::values::Value) -> Self {
-        let mut wire = Self::default();
-        wire.push(value);
-        wire
+impl TryFrom<&BTreeMap<String, Core>> for Value {
+    type Error = ValueError;
+    fn try_from(values: &BTreeMap<String, Core>) -> Result<Self, Self::Error> {
+        construction::object(values)
     }
 }
 
-impl From<&BTreeMap<String, crate::model::values::Value>> for Value {
-    fn from(entries: &BTreeMap<String, crate::model::values::Value>) -> Self {
-        let mut wire = Self::default();
-        wire.nodes.push(ValueNode { kind: None });
-        let fields = entries.iter().map(|(key, value)| ValueField { key: key.clone(), value: wire.push(value) }).collect();
-        wire.nodes[0].kind = Some(ValueKind::Object(ValueFields { fields }));
-        wire
-    }
-}
-
-impl From<crate::model::values::Value> for Value {
-    fn from(value: crate::model::values::Value) -> Self {
-        Self::from(&value)
+impl TryFrom<Core> for Value {
+    type Error = ValueError;
+    fn try_from(value: Core) -> Result<Self, Self::Error> {
+        construction::value(&value)
     }
 }
 
@@ -228,7 +221,10 @@ impl TryFrom<&Value> for crate::model::values::Value {
 
 impl From<OffsetDateTime> for Timestamp {
     fn from(value: OffsetDateTime) -> Self {
-        Self { seconds: value.unix_timestamp(), nanos: value.nanosecond() as i32 }
+        Self {
+            seconds: value.unix_timestamp(),
+            nanos: value.nanosecond() as i32,
+        }
     }
 }
 

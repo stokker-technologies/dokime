@@ -16,7 +16,7 @@ import { useMemo } from "react";
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import type { SeriesLegendColumn, SeriesLegendRow, StatsSummary, StatsSummaryRow } from "@/lib/statistics";
-import { formatStatValue, statsSummaryCells } from "@/lib/statistics";
+import { formatStatValue, seriesLegendColumnWidth, statsSummaryCells } from "@/lib/statistics";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -33,7 +33,14 @@ export type SeriesLegend = {
   onToggle?: (key: string) => void;
 };
 
-type StatsSummaryTableProps = { rows: StatsSummaryRow[]; legend?: undefined } | { legend: SeriesLegend; rows?: undefined };
+type StatsSummaryTableProps =
+  | {
+      rows: StatsSummaryRow[];
+      legend?: undefined;
+      /** `false` when the card around the statistics already names them. */
+      titled?: boolean;
+    }
+  | { legend: SeriesLegend; rows?: undefined; titled?: undefined };
 
 type DescribedRow = { count: number; label: string; stats: StatsSummary; unit?: string };
 
@@ -53,26 +60,30 @@ const column = dataTableColumns<DescribedRow>();
 const COLUMNS: DataTableColumns<DescribedRow> = [
   column.accessor("label", {
     header: "Metric",
-    meta: { label: "Metric", truncate: true },
+    meta: { label: "Metric", truncate: true, width: "w-44" },
   }),
   ...STATISTICS.map(([key, title]) =>
     column.accessor((row) => row.stats[key], {
       cell: ({ row }) => formatStatValue(row.original.stats[key], row.original.unit),
       header: title,
       id: key,
-      meta: { align: "end", label: title, truncate: true, width: "w-24" },
+      meta: { align: "end", label: title, truncate: true, width: "w-32" },
     }),
   ),
   column.accessor("count", {
     header: "Count",
-    meta: { align: "end", label: "Count", width: "w-20" },
+    meta: { align: "end", label: "Count", width: "w-32" },
   }),
 ];
 
 /* === Components === */
 
 export function StatsSummaryTable(props: StatsSummaryTableProps) {
-  return props.legend ? <SeriesLegendTable legend={props.legend} /> : <DescribedStatsTable rows={props.rows} />;
+  return props.legend ? (
+    <SeriesLegendTable legend={props.legend} />
+  ) : (
+    <DescribedStatsTable rows={props.rows} titled={props.titled ?? true} />
+  );
 }
 
 /* === Private Functions === */
@@ -87,30 +98,29 @@ function legendRowKey(row: SeriesLegendRow): string {
 
 function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLegendRow> {
   const legend = dataTableColumns<SeriesLegendRow>();
-  return columns.map(({ header, id }) => {
+  return columns.map(({ header, id, title, unit }) => {
+    const heading = () => <LegendHeader title={title} unit={unit} />;
     if (id === "trace") {
       return legend.accessor("label", {
         cell: ({ row }) => <TraceCell row={row.original} />,
-        enableSorting: false,
-        header,
+        header: heading,
         id,
-        meta: { label: header, primary: true },
+        meta: { label: header, primary: true, width: "w-44" },
       });
     }
     const read = (row: SeriesLegendRow) => (id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id]);
     return legend.accessor(read, {
       cell: ({ getValue, row }) => <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>{getValue()}</span>,
-      enableSorting: false,
-      header,
+      header: heading,
       id,
-      meta: { align: "end", label: header, truncate: true, width: "w-24" },
+      meta: { align: "end", label: header, truncate: true, width: seriesLegendColumnWidth(id) },
     });
   }) as DataTableColumns<SeriesLegendRow>;
 }
 
 /* === Private Components === */
 
-function DescribedStatsTable({ rows }: { rows: StatsSummaryRow[] }) {
+function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled: boolean }) {
   const described = useMemo(
     () =>
       rows.map((row) => ({
@@ -123,20 +133,10 @@ function DescribedStatsTable({ rows }: { rows: StatsSummaryRow[] }) {
   );
 
   if (rows.length === 1) {
-    return <StatsSummaryGrid row={rows[0]} />;
+    return <StatsSummaryGrid row={rows[0]} titled={titled} />;
   }
 
-  return (
-    <DataTable
-      className="rounded-md bg-muted/20 [--table-surface:transparent]"
-      columns={COLUMNS}
-      data={described}
-      emptyText="No statistics recorded."
-      getRowId={rowLabel}
-      inset="cell"
-      stickyHeader={false}
-    />
-  );
+  return <DataTable columns={COLUMNS} data={described} emptyText="No statistics recorded." getRowId={rowLabel} />;
 }
 
 function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
@@ -145,15 +145,27 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
   return (
     <DataTable
       aria-label="Trace statistics"
-      className={cn("rounded-md bg-muted/20 [--table-surface:transparent] transition-opacity", legend.pending && "opacity-50")}
+      className={cn("transition-opacity", legend.pending && "opacity-50")}
       columns={columns}
       data={legend.rows}
       emptyText="No traces recorded."
       getRowId={legendRowKey}
-      inset="cell"
       onRowClick={onToggle ? (row) => onToggle(row.key) : undefined}
-      stickyHeader={false}
     />
+  );
+}
+
+/**
+ * A legend header on two lines: the name, then its unit. Every header keeps
+ * the second line, blank without a unit, so the names share one baseline and
+ * the columns keep one width whatever the unit is.
+ */
+function LegendHeader({ title, unit }: { title: string; unit: string | null }) {
+  return (
+    <span className="grid leading-tight">
+      <span>{title}</span>
+      <span className="font-normal whitespace-normal text-muted-foreground [overflow-wrap:anywhere]">{unit ? `(${unit})` : "\u00a0"}</span>
+    </span>
   );
 }
 
@@ -174,20 +186,20 @@ function TraceCell({ row }: { row: SeriesLegendRow }) {
   );
 }
 
-function StatsSummaryGrid({ row }: { row: StatsSummaryRow }) {
+function StatsSummaryGrid({ row, titled }: { row: StatsSummaryRow; titled: boolean }) {
   const items = statsSummaryCells(row);
 
   return (
     <section
       aria-label={`${row.label} statistics`}
-      className="grid min-w-0 max-w-full overflow-hidden gap-2 rounded-md bg-muted/20 p-3"
+      className="grid min-w-0 max-w-full overflow-hidden gap-2 rounded-lg bg-muted/20 p-3"
       data-testid="stats-summary-grid"
     >
-      <strong className="text-sm [overflow-wrap:anywhere]">{row.label}</strong>
+      {titled ? <strong className="text-sm [overflow-wrap:anywhere]">{row.label}</strong> : null}
       <dl className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,6.5rem),1fr))]">
         {items.map(([label, value]) => (
-          <div className="min-w-0 rounded-md bg-muted/35 p-2" key={label}>
-            <dt className="text-[0.68rem] font-bold uppercase text-muted-foreground">{label}</dt>
+          <div className="min-w-0 rounded-lg bg-muted/35 p-2" key={label}>
+            <dt className="text-xs font-bold uppercase text-muted-foreground">{label}</dt>
             <dd className="mt-1 truncate text-sm font-semibold tabular-nums" title={value}>
               {value}
             </dd>

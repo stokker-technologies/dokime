@@ -30,6 +30,7 @@ use crate::model::values::wire::ValueError;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Authored identity and description of a Dokime object.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -39,9 +40,11 @@ pub struct Metadata {
     pub label: String,
     pub description: Option<String>,
     pub tags: Vec<String>,
+
     // In key order; keys are unique.
     #[row(description = "In key order; keys are unique.")]
     pub attributes: Vec<MetadataAttribute>,
+
     pub created_at: Option<Timestamp>,
     pub updated_at: Option<Timestamp>,
 }
@@ -94,6 +97,7 @@ pub struct TraceabilitySnapshot {
     pub scope: Option<EvidenceScope>,
     pub created_at: Option<Timestamp>,
     pub entries: Vec<TraceabilityEntry>,
+
     // What this group is, when something said so. A template states its
     // traceability as labelled sections and a section is a group, so the label
     // travels with it; the groups the runtime derives on its own carry none.
@@ -109,6 +113,7 @@ pub struct TraceabilityEntry {
     pub metadata: Option<Metadata>,
     pub value: Option<Value>,
     pub source: Option<String>,
+
     // The unit the value is stated in, for a value that has one.
     #[row(description = "The unit the value is stated in, for a value that has one.")]
     pub unit: Option<String>,
@@ -129,14 +134,18 @@ pub struct Diagnostic {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataError {
     #[error("metadata identifier is invalid")]
     Identifier,
+
     #[error("metadata attribute is missing or repeated")]
     Attribute,
+
     #[error("metadata timestamp is out of range")]
     Timestamp,
+
     #[error(transparent)]
     Value(#[from] ValueError),
 }
@@ -164,21 +173,32 @@ pub enum EvidenceOriginKind {
 /* === Traits === */
 
 /* === Implementations === */
-impl From<&crate::model::identity::Metadata> for Metadata {
-    fn from(metadata: &crate::model::identity::Metadata) -> Self {
-        Self {
-            identifier: metadata.identifier.to_string(),
-            label: metadata.label.clone(),
-            description: metadata.description.clone(),
-            tags: metadata.tags.clone(),
-            attributes: metadata
-                .attributes
-                .iter()
-                .map(|(key, value)| MetadataAttribute { key: key.clone(), value: Some(Value::from(value)) })
-                .collect(),
+
+impl TryFrom<&crate::model::identity::Metadata> for Metadata {
+    type Error = ValueError;
+
+    fn try_from(metadata: &crate::model::identity::Metadata) -> Result<Self, Self::Error> {
+        use crate::model::values::wire::{slots, text};
+        let mut tags = slots(metadata.tags.len())?;
+        for tag in &metadata.tags {
+            tags.push(text(tag)?);
+        }
+        let mut attributes = slots(metadata.attributes.len())?;
+        for (key, value) in &metadata.attributes {
+            attributes.push(MetadataAttribute {
+                key: text(key)?,
+                value: Some(Value::try_from(value)?),
+            });
+        }
+        Ok(Self {
+            identifier: text(metadata.identifier.as_str())?,
+            label: text(&metadata.label)?,
+            description: metadata.description.as_deref().map(text).transpose()?,
+            tags,
+            attributes,
             created_at: metadata.created_at.map(Timestamp::from),
             updated_at: metadata.updated_at.map(Timestamp::from),
-        }
+        })
     }
 }
 

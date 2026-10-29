@@ -12,33 +12,32 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 // Third Party Imports
+use futures_util::FutureExt;
 use tokio::sync::Notify;
 use tonic::{
     Request,
     transport::{Channel, Endpoint},
 };
 // Local Imports
-use dokime_client::contracts;
-use dokime_domain::model;
-use dokime_runtime::domains::ExecutionProviderTarget;
-use dokime_server::grpc::{
-    Server,
-    access::{BearerGrant, Role},
-};
+use dokime::client::contracts;
+use dokime::domain::model;
+use dokime::domains::ExecutionProviderTarget;
+use dokime_server::grpc::{Config, Server};
 use {
-    dokime_domain::model::execution::result::CycleView, dokime_domain::model::execution::result::ExecutionStatus,
-    dokime_runtime::ExecutionFixture, dokime_runtime::ExecutionFixtureContext, dokime_runtime::ExecutionFixtureFuture,
-    dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime, dokime_runtime::transport::ProviderCycleOutcome,
-    dokime_runtime::transport::ProviderExecutionOutcome, dokime_runtime::transport::ProviderStatusOutcome,
+    dokime::ExecutionFixture, dokime::ExecutionFixtureContext, dokime::ExecutionFixtureFuture, dokime::Identifier, dokime::Metadata,
+    dokime::Runtime, dokime::domain::model::execution::result::CycleView, dokime::domain::model::execution::result::ExecutionStatus,
+    dokime::transport::ProviderCycleOutcome, dokime::transport::ProviderExecutionOutcome, dokime::transport::ProviderStatusOutcome,
 };
 
 /* === Constants === */
+
 pub const TOKEN: &str = "fixture-token-012345678901234567890123456789";
 
 /* === Macros === */
@@ -46,12 +45,25 @@ pub const TOKEN: &str = "fixture-token-012345678901234567890123456789";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Keep Per-Request Metadata Available For Wire Authorization Scenarios.
 #[derive(Clone, Debug)]
 pub struct WireClient {
     pub channel: Channel,
     pub decoding: usize,
     pub encoding: usize,
+}
+
+pub struct SelectionAppend {
+    pub cycle_id: String,
+    pub plan: Option<model::planning::wire::SelectionPlan>,
+    pub context: Option<model::execution::wire::MutationContext>,
+}
+
+pub struct CaseSelection {
+    pub cycle_id: String,
+    pub case_id: String,
+    pub context: Option<model::execution::wire::MutationContext>,
 }
 
 pub struct WireBytes<C> {
@@ -65,6 +77,7 @@ pub struct WireStream<T> {
 }
 
 pub struct Gate {
+    pub calls: AtomicUsize,
     pub started: Notify,
     pub release: Notify,
     pub returned: AtomicBool,
@@ -74,28 +87,134 @@ pub struct Gate {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait WireMessage: Sized {
     fn wire_bytes(&self) -> Vec<u8>;
 
-    fn from_wire(bytes: &[u8]) -> Result<Self, harmos::MessageError>;
+    fn from_wire(bytes: &[u8]) -> Result<dokime::harmos::operations::StreamItem<Self>, tonic::Status>;
 }
 
-impl<T: harmos::domain::Portable> WireMessage for T {
+impl<T: dokime::harmos::domain::Portable> WireMessage for T {
     fn wire_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::encode(self, &mut bytes).expect("a story message transcodes");
+        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<T>>::encode(self, &mut bytes).expect("a story message transcodes");
         bytes
     }
 
-    fn from_wire(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::decode(harmos_sdk::grpc::DecodeInput::new(bytes))
+    fn from_wire(bytes: &[u8]) -> Result<dokime::harmos::operations::StreamItem<Self>, tonic::Status> {
+        let message_bytes = 16 * 1024 * 1024;
+        if bytes.len() > message_bytes {
+            return Err(tonic::Status::resource_exhausted("fixture message exceeds wire ceiling"));
+        }
+        let retained = 64 * 1024 * 1024;
+        let budget = Arc::new(tokio::sync::Semaphore::new(retained));
+        let (value, claim) = <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<T>>::decode_admitted(
+            harmos_sdk::grpc::DecodeInput::new(bytes),
+            |memory| {
+                let memory = memory.max(std::mem::size_of::<T>()).max(1);
+                let permits =
+                    u32::try_from(memory).map_err(|_| tonic::Status::resource_exhausted("fixture decode exceeds permit capacity"))?;
+                if memory > retained {
+                    return Err(tonic::Status::resource_exhausted("fixture decoded message exceeds byte ceiling"));
+                }
+                budget
+                    .try_acquire_many_owned(permits)
+                    .map_err(|_| tonic::Status::resource_exhausted("fixture decoded message retains byte capacity"))
+            },
+        )?;
+        dokime::harmos::operations::StreamItem::charged(value, claim).map_err(|error| tonic::Status::internal(error.to_string()))
     }
 }
 
 /* === Implementations === */
+
 impl WireClient {
+    pub async fn start_first(
+        &self, request: impl tonic::IntoRequest<contracts::execution::GetCycle>,
+    ) -> Result<tonic::Response<model::execution::wire::RunReply>, tonic::Status> {
+        let (metadata, _, request) = request.into_request().into_parts();
+        let list = contracts::execution::ListExecutions {
+            cycle_id: request.cycle_id,
+            ..Default::default()
+        };
+        let response =
+            self.unary::<contracts::execution::ListExecutions>(Request::from_parts(metadata.clone(), Default::default(), list)).await?;
+        let executions = response.into_inner().executions;
+        let execution = executions.first().ok_or_else(|| tonic::Status::not_found("execution not found"))?;
+        let start = contracts::execution::StartExecution {
+            execution_id: execution.execution_id.clone(),
+            mode: model::execution::wire::ExecutionMode::Automatic,
+        };
+        self.unary::<contracts::execution::StartExecution>(Request::from_parts(metadata, Default::default(), start)).await
+    }
+
+    pub async fn start_case(
+        &self, request: impl tonic::IntoRequest<CaseSelection>,
+    ) -> Result<tonic::Response<model::execution::wire::RunReply>, tonic::Status> {
+        let (metadata, _, request) = request.into_request().into_parts();
+        let list = contracts::execution::ListExecutions {
+            cycle_id: request.cycle_id,
+            ..Default::default()
+        };
+        let response =
+            self.unary::<contracts::execution::ListExecutions>(Request::from_parts(metadata.clone(), Default::default(), list)).await?;
+        let executions = response.into_inner().executions;
+        let execution = executions
+            .iter()
+            .rev()
+            .find(|execution| execution.case_id == request.case_id)
+            .ok_or_else(|| tonic::Status::not_found("execution not found"))?;
+        let start = contracts::execution::StartExecution {
+            execution_id: execution.execution_id.clone(),
+            mode: model::execution::wire::ExecutionMode::Automatic,
+        };
+        self.unary::<contracts::execution::StartExecution>(Request::from_parts(metadata, Default::default(), start)).await
+    }
+
+    pub async fn append_selection(
+        &self, request: impl tonic::IntoRequest<SelectionAppend>,
+    ) -> Result<tonic::Response<model::execution::wire::AppendCasesReply>, tonic::Status> {
+        let (metadata, _, request) = request.into_request().into_parts();
+        let mut plan = request.plan.ok_or_else(|| tonic::Status::invalid_argument("selection plan is required"))?;
+        if plan.case_ids.is_empty() {
+            if plan.cycle_id.is_empty() {
+                plan.cycle_id.clone_from(&request.cycle_id);
+            } else if plan.cycle_id != request.cycle_id {
+                return Err(tonic::Status::invalid_argument("selection plan numbers a different cycle"));
+            }
+        }
+        let preview = if plan.case_ids.is_empty() {
+            let register = contracts::planning::RegisterSelection {
+                plan: Some(plan),
+                idempotency_key: uuid::Uuid::now_v7().to_string(),
+            };
+            let request = Request::from_parts(metadata.clone(), Default::default(), register);
+            let response = self.unary::<contracts::planning::RegisterSelection>(request).await?;
+            response.into_inner()
+        } else {
+            let preview = contracts::planning::PreviewSelection { plan: Some(plan) };
+            self.unary::<contracts::planning::PreviewSelection>(Request::from_parts(metadata.clone(), Default::default(), preview))
+                .await?
+                .into_inner()
+        };
+        let executions = preview
+            .cases
+            .into_iter()
+            .map(|case| contracts::execution::ExecutionBinding {
+                execution_id: uuid::Uuid::now_v7().to_string(),
+                case_id: case.case_id,
+            })
+            .collect();
+        let append = contracts::execution::AppendExecutions { cycle_id: request.cycle_id, executions };
+        self.unary::<contracts::execution::AppendExecutions>(Request::from_parts(metadata, Default::default(), append)).await
+    }
+
     pub fn new(channel: Channel) -> Self {
-        Self { channel, decoding: 4 * 1024 * 1024, encoding: u32::MAX as usize }
+        Self {
+            channel,
+            decoding: 4 * 1024 * 1024,
+            encoding: u32::MAX as usize,
+        }
     }
 
     pub async fn connect(endpoint: String) -> Result<Self, tonic::transport::Error> {
@@ -113,19 +232,21 @@ impl WireClient {
         self
     }
 
-    pub fn codec<D, E>(&self) -> Result<harmos::grpc::Codec<harmos::grpc::Transcoded, D, harmos::operations::Response<E>>, tonic::Status>
+    pub fn codec<D, E>(
+        &self,
+    ) -> Result<dokime::harmos::grpc::Codec<dokime::harmos::grpc::Transcoded, D, dokime::harmos::operations::Response<E>>, tonic::Status>
     where
-        harmos::grpc::Transcoded: harmos::grpc::Wire<D> + harmos::grpc::Wire<E>,
-        D: harmos::MemorySize + Send + 'static,
+        dokime::harmos::grpc::Transcoded: dokime::harmos::grpc::Wire<D> + dokime::harmos::grpc::Wire<E>,
+        D: dokime::harmos::MemorySize + Send + 'static,
         E: Send + Sync + 'static,
     {
         use std::num::NonZeroUsize;
-        harmos::grpc::Codec::new(
-            harmos::grpc::DecodeSettings {
+        dokime::harmos::grpc::Codec::new(
+            dokime::harmos::grpc::DecodeSettings {
                 message_bytes: NonZeroUsize::new(self.decoding).unwrap(),
                 retained_bytes: NonZeroUsize::new(self.decoding.saturating_mul(4)).unwrap(),
             },
-            harmos::grpc::EncodeSettings {
+            dokime::harmos::grpc::EncodeSettings {
                 message_bytes: NonZeroUsize::new(self.encoding).unwrap(),
                 buffer_bytes: NonZeroUsize::new(self.encoding.min(8192)).unwrap(),
             },
@@ -143,10 +264,10 @@ impl WireClient {
     pub async fn unary<O>(&self, request: impl tonic::IntoRequest<O>) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::domain::Portable + Sync,
-        O::Response: harmos::domain::Portable + harmos::MemorySize,
+        O: dokime::harmos::domain::Portable + Sync,
+        O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
     {
-        let request = request.into_request().map(harmos::operations::Response::new);
+        let request = request.into_request().map(dokime::harmos::operations::Response::new);
         let codec = self.codec::<O::Response, O>()?;
         let response = self.grpc().await?.unary(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
@@ -160,12 +281,12 @@ impl WireClient {
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::domain::Portable + harmos::schema::Described + Sync,
-        O::Response: harmos::domain::Portable + harmos::MemorySize,
-        E: harmos::schema::Described,
+        O: dokime::harmos::domain::Portable + dokime::harmos::schema::Described + Sync,
+        O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
+        E: dokime::harmos::schema::Described,
     {
         use prost::encoding::{DecodeContext, WireType, decode_key, encode_key, encode_varint, skip_field};
-        let tag = <O as harmos::schema::Described>::FIELDS
+        let tag = <O as dokime::harmos::schema::Described>::FIELDS
             .iter()
             .find(|entry| entry.name == field)
             .expect("canonical request declares the enum field")
@@ -208,17 +329,17 @@ impl WireClient {
 
     pub async fn download<O>(
         &self, request: impl tonic::IntoRequest<O>,
-    ) -> Result<tonic::Response<WireStream<<O::Output as harmos::operations::Direction>::Item>>, tonic::Status>
+    ) -> Result<tonic::Response<WireStream<<O::Output as dokime::harmos::operations::Direction>::Item>>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::domain::Portable + Sync,
-        O::Response: harmos::domain::Portable + harmos::MemorySize,
-        <O::Output as harmos::operations::Direction>::Item: harmos::domain::Portable + harmos::MemorySize,
+        O: dokime::harmos::domain::Portable + Sync,
+        O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
+        <O::Output as dokime::harmos::operations::Direction>::Item: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
     {
+        use dokime::harmos::grpc::OutputEnvelope;
         use futures_util::StreamExt;
-        use harmos::grpc::OutputEnvelope;
-        let request = request.into_request().map(harmos::operations::Response::new);
-        let codec = self.codec::<OutputEnvelope<<O::Output as harmos::operations::Direction>::Item, O::Response>, O>()?;
+        let request = request.into_request().map(dokime::harmos::operations::Response::new);
+        let codec = self.codec::<OutputEnvelope<<O::Output as dokime::harmos::operations::Direction>::Item, O::Response>, O>()?;
         let response = self.grpc().await?.server_streaming(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, incoming, extensions) = response.into_parts();
         let frames = futures_util::stream::unfold(Some(incoming), |state| async move {
@@ -245,22 +366,22 @@ impl WireClient {
     }
 
     pub async fn upload<O>(
-        &self, request: impl tonic::IntoStreamingRequest<Message = <O::Input as harmos::operations::Direction>::Item>,
+        &self, request: impl tonic::IntoStreamingRequest<Message = <O::Input as dokime::harmos::operations::Direction>::Item>,
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::domain::Portable + Sync + Default,
-        O::Response: harmos::domain::Portable + harmos::MemorySize,
-        <O::Input as harmos::operations::Direction>::Item: harmos::domain::Portable + Sync,
+        O: dokime::harmos::domain::Portable + Sync + Default,
+        O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
+        <O::Input as dokime::harmos::operations::Direction>::Item: dokime::harmos::domain::Portable + Sync,
     {
+        use dokime::harmos::grpc::InputEnvelope;
+        use dokime::harmos::operations::Response;
         use futures_util::StreamExt;
-        use harmos::grpc::InputEnvelope;
-        use harmos::operations::Response;
         let request = request.into_streaming_request().map(|items| {
             let opening = futures_util::stream::once(async { Response::new(InputEnvelope::Request(O::default())) });
             opening.chain(items.map(|item| Response::new(InputEnvelope::Item(item))))
         });
-        let codec = self.codec::<O::Response, InputEnvelope<O, <O::Input as harmos::operations::Direction>::Item>>()?;
+        let codec = self.codec::<O::Response, InputEnvelope<O, <O::Input as dokime::harmos::operations::Direction>::Item>>()?;
         let response = self.grpc().await?.client_streaming(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
         let (value, _claims) = value.into_request().map_err(|error| tonic::Status::data_loss(error.to_string()))?;
@@ -314,7 +435,13 @@ impl Default for Gate {
 
 impl Gate {
     pub fn reporting(outcome: fn(&CycleView) -> ProviderCycleOutcome) -> Self {
-        Self { started: Notify::new(), release: Notify::new(), returned: AtomicBool::new(false), outcome }
+        Self {
+            calls: AtomicUsize::new(0),
+            started: Notify::new(),
+            release: Notify::new(),
+            returned: AtomicBool::new(false),
+            outcome,
+        }
     }
 }
 
@@ -323,13 +450,14 @@ impl ExecutionFixture for Gate {
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
             self.started.notify_one();
             let released = self.release.notified();
             tokio::pin!(released);
             tokio::select! {
                 _ = &mut released => {},
                 () = context.cancelled() => {
-                    return Err(dokime_runtime::transport::ProviderExecutionFailure::new(
+                    return Err(dokime::transport::ProviderExecutionFailure::new(
                         "cancel", "fixture acknowledged cancellation",
                     ));
                 }
@@ -342,13 +470,14 @@ impl ExecutionFixture for Gate {
 }
 
 /* === Public Functions === */
+
 pub async fn runtime(root: &std::path::Path) -> Runtime {
     let config = super::budgets::runtime_config(root, Metadata::new(Identifier::new("grpc.fixture").unwrap(), "gRPC fixture", None));
-    Runtime::start(config).await.unwrap()
+    Runtime::start(config).boxed_local().await.unwrap()
 }
 
-pub fn grant(role: Role) -> BearerGrant {
-    BearerGrant::new("fixture".into(), role, TOKEN).unwrap()
+pub fn keyed() -> Config {
+    Config::remote("127.0.0.1:0".parse().unwrap(), None, Some(TOKEN)).unwrap()
 }
 
 pub fn auth<T>(message: T, token: &str) -> Request<T> {
@@ -431,6 +560,7 @@ pub async fn fixture_with_provider(root: &std::path::Path, provider: Arc<dyn Exe
         "fixture",
         provider,
     )
+    .boxed_local()
     .await
     .unwrap();
     super::register_fixture_execution(&owner.handle(), super::fixture_suite(&["passed"])).await;
@@ -456,13 +586,6 @@ pub fn accepted(reply: model::execution::wire::RunReply) -> model::execution::wi
             panic!("run rejected: {rejection:?}")
         }
     }
-}
-
-pub async fn lookup(client: &mut WireClient, id: &str, token: &str) -> Result<model::execution::wire::RunRequestReceipt, tonic::Status> {
-    client
-        .unary::<contracts::execution::GetRunRequest>(auth(contracts::execution::GetRunRequest { request_id: id.into() }, token))
-        .await
-        .map(|response| response.into_inner())
 }
 
 /* === Private Functions === */

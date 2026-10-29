@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod native;
 pub(crate) mod read;
 pub(crate) mod source;
@@ -17,7 +18,6 @@ pub(crate) mod source;
 /* === Imports === */
 
 // Standard Library Imports
-
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
@@ -42,7 +42,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
 
 /* === Constants === */
-const MAX_LOGO_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
 
@@ -53,6 +52,7 @@ const MAX_LOGO_BYTES: usize = 1024 * 1024;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionContext {
+    pub appearance_policy: AppearancePolicy,
     pub scope: RecordScope,
     pub session_id: SessionId,
     pub cycle: ExecutionCycleContext,
@@ -62,6 +62,13 @@ pub struct ExecutionContext {
     pub notes: Vec<OperatorNote>,
     pub traceability: Vec<TraceabilitySnapshot>,
     pub appearance: RuntimeAppearanceFrame,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppearancePolicy {
+    pub logo_bytes: u64,
+    pub css_depth: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -78,51 +85,24 @@ pub struct ExecutionCycleContext {
 
 /* === Implementations === */
 
-impl harmos::MemorySize for ExecutionContext {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
-            (harmos::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
-            (harmos::MemorySize::memory_size(&self.cycle), std::mem::size_of_val(&self.cycle)),
-            (harmos::MemorySize::memory_size(&self.execution_documents), std::mem::size_of_val(&self.execution_documents)),
-            (harmos::MemorySize::memory_size(&self.prompts), std::mem::size_of_val(&self.prompts)),
-            (harmos::MemorySize::memory_size(&self.health), std::mem::size_of_val(&self.health)),
-            (harmos::MemorySize::memory_size(&self.notes), std::mem::size_of_val(&self.notes)),
-            (harmos::MemorySize::memory_size(&self.traceability), std::mem::size_of_val(&self.traceability)),
-            (harmos::MemorySize::memory_size(&self.appearance), std::mem::size_of_val(&self.appearance)),
-        ];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-        })
+impl AppearancePolicy {
+    pub fn capture() -> Self {
+        Self { logo_bytes: 1_048_576, css_depth: 64 }
     }
-}
 
-impl harmos::MemorySize for ExecutionCycleContext {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (harmos::MemorySize::memory_size(&self.cycle), std::mem::size_of_val(&self.cycle)),
-            (harmos::MemorySize::memory_size(&self.cases), std::mem::size_of_val(&self.cases)),
-            (harmos::MemorySize::memory_size(&self.execution_order), std::mem::size_of_val(&self.execution_order)),
-        ];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
-        })
+    fn validate(&self) -> Result<()> {
+        if self.logo_bytes == 0
+            || self.css_depth == 0
+            || usize::try_from(self.logo_bytes).is_err()
+            || usize::try_from(self.css_depth).is_err()
+        {
+            return Err(invalid("captured appearance policy is invalid"));
+        }
+        Ok(())
     }
 }
 
 impl ExecutionContext {
-    pub fn validation_memory(&self) -> usize {
-        harmos::btree_map_memory::<&dokime_domain::model::identity::NoteId, ()>(self.notes.len())
-            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::PromptId, ()>(self.prompts.len()))
-            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::HealthItemId, ()>(self.health.len()))
-            .saturating_add(harmos::btree_map_memory::<&TestExecutionId, ()>(self.cycle.execution_order.len()))
-            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::CaseId, ()>(self.cycle.cases.len()))
-            .saturating_add(appearance_validation_memory(
-                self.appearance.themes.iter().flat_map(css_values),
-                self.appearance.themes.iter().map(|theme| theme.theme_id.as_str().len()).max().unwrap_or(0),
-            ))
-    }
-
     pub fn validate(&self, execution: &TestExecution) -> Result<()> {
         if self.scope != execution.scope || self.cycle.cycle.test_cycle_id != execution.test_cycle_id {
             return Err(invalid("captured context differs from its execution owner"));
@@ -158,7 +138,7 @@ impl ExecutionContext {
         {
             return Err(invalid("captured navigation differs from frozen membership"));
         }
-        validate_appearance(&self.appearance)
+        validate_appearance(&self.appearance, &self.appearance_policy)
     }
 }
 
@@ -179,16 +159,24 @@ pub(crate) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> b
         || owns_projection(scope, execution)
 }
 
-/* === Private Functions === */
+pub(crate) fn validate_appearance(appearance: &RuntimeAppearanceFrame, policy: &AppearancePolicy) -> Result<()> {
+    policy.validate()?;
+    validate_css_appearance(appearance, policy)?;
+    for (index, logo) in appearance.logos.iter().enumerate() {
+        if appearance.logos[..index].iter().any(|other| other.variant == logo.variant) {
+            return Err(invalid("captured appearance has duplicate logo categories"));
+        }
+        validate_logo(&logo.url, policy.logo_bytes)?;
+    }
+    Ok(())
+}
 
-pub(crate) fn validate_appearance(appearance: &RuntimeAppearanceFrame) -> Result<()> {
+pub(crate) fn validate_css_appearance(appearance: &RuntimeAppearanceFrame, policy: &AppearancePolicy) -> Result<()> {
+    policy.validate()?;
     for theme in &appearance.themes {
         for value in css_values(theme) {
-            validate_css(value).map_err(|reason| invalid(&format!("captured theme {}: {reason}", theme.theme_id)))?;
+            validate_css(value, policy.css_depth).map_err(|reason| invalid(&format!("captured theme {}: {reason}", theme.theme_id)))?;
         }
-    }
-    if let Some(logo) = &appearance.logo {
-        validate_logo(&logo.url)?;
     }
     Ok(())
 }
@@ -219,30 +207,15 @@ pub(crate) fn css_values(theme: &crate::installed_plugins::RuntimeThemeFamily) -
             .flatten(),
         )
 }
+/* === Private Functions === */
 
-pub(crate) fn appearance_validation_memory<'a>(values: impl Iterator<Item = &'a str>, max_label_bytes: usize) -> usize {
-    // Lexer Escape Buffers Grow Geometrically; Retained Nested Token Text Uses
-    // Disjoint Source Slices. NUL And Zero Escapes Can Emit Three-Byte Replacements.
-    let text = values
-        .map(|value| {
-            value.len().saturating_add(value.chars().filter(|c| *c == '\0' || *c == '0').count().saturating_mul(2)).saturating_mul(3).max(8)
-        })
-        .max()
-        .unwrap_or(0);
-    // The Scanner Refuses Depth Above 64. Rc<String> Stores Two Counts Plus Text.
-    let tokens = 66usize.saturating_mul(std::mem::size_of::<String>() + 2 * std::mem::size_of::<usize>());
-    let parsers = 66usize.saturating_mul(std::mem::size_of::<Parser<'_>>());
-    let error = max_label_bytes.saturating_add(256).saturating_mul(3);
-    text.saturating_add(tokens).saturating_add(parsers).saturating_add(error)
-}
-
-fn validate_css(css: &str) -> std::result::Result<(), &'static str> {
+fn validate_css(css: &str, maximum: u64) -> std::result::Result<(), &'static str> {
     let mut input = Parser::new(css);
-    scan(&mut input, 0).map_err(|_| "CSS must use embedded data URLs or document fragments; imports, dynamic resource functions and malformed tokens are unsupported")
+    scan(&mut input, 0, maximum).map_err(|_| "CSS must use embedded data URLs or document fragments; imports, dynamic resource functions and malformed tokens are unsupported")
 }
 
-fn scan<'i>(input: &mut Parser<'i>, depth: usize) -> std::result::Result<(), cssparser::ParseError<()>> {
-    if depth > 64 {
+fn scan<'i>(input: &mut Parser<'i>, depth: u64, maximum: u64) -> std::result::Result<(), cssparser::ParseError<()>> {
+    if depth > maximum {
         return Err(cssparser::ParseError::custom(()));
     }
     while !input.is_exhausted() {
@@ -276,7 +249,7 @@ fn scan<'i>(input: &mut Parser<'i>, depth: usize) -> std::result::Result<(), css
                 return Err(cssparser::ParseError::custom(()));
             }
             Token::Function(_) | Token::ParenthesisBlock | Token::SquareBracketBlock | Token::CurlyBracketBlock => {
-                input.parse_nested_block(|input| scan(input, depth + 1))?;
+                input.parse_nested_block(|input| scan(input, depth.saturating_add(1), maximum))?;
             }
             Token::BadUrl(_) | Token::BadString(_) | Token::CloseParenthesis | Token::CloseSquareBracket | Token::CloseCurlyBracket => {
                 return Err(cssparser::ParseError::custom(()));
@@ -291,7 +264,7 @@ fn portable_url(url: &str) -> bool {
     url.starts_with('#') || url.get(..5).is_some_and(|prefix| prefix.eq_ignore_ascii_case("data:"))
 }
 
-fn validate_logo(url: &str) -> Result<()> {
+fn validate_logo(url: &str, maximum: u64) -> Result<()> {
     let (media, payload) = url
         .strip_prefix("data:")
         .and_then(|value| value.split_once(";base64,"))
@@ -302,23 +275,23 @@ fn validate_logo(url: &str) -> Result<()> {
     ) {
         return Err(invalid("captured logo MIME type is unsupported"));
     }
-    if payload.is_empty() || payload.len() % 4 != 0 || payload.len() > MAX_LOGO_BYTES.div_ceil(3) * 4 {
+    if payload.is_empty() || payload.len() % 4 != 0 || payload.len() as u128 > u128::from(maximum).div_ceil(3) * 4 {
         return Err(invalid("captured logo exceeds its original byte limit"));
     }
     let mut length = 0usize;
-    let mut decoded = [0u8; 3];
-    let chunks = payload.as_bytes().as_chunks::<4>().0.iter();
+    let mut decoded = [0u8; 3072];
+    let chunks = payload.as_bytes().chunks(4096);
     let count = chunks.len();
     for (index, chunk) in chunks.enumerate() {
         let bytes = base64::engine::general_purpose::STANDARD
             .decode_slice(chunk, &mut decoded)
             .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
-        if bytes != 3 && index + 1 != count {
+        if bytes != chunk.len() / 4 * 3 && index + 1 != count {
             return Err(invalid("captured logo base64 padding precedes the end"));
         }
         length += bytes;
     }
-    if length == 0 || length > MAX_LOGO_BYTES {
+    if length == 0 || length as u64 > maximum {
         return Err(invalid("captured logo exceeds its original byte limit"));
     }
     Ok(())
@@ -329,3 +302,36 @@ fn invalid(message: &str) -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_css, validate_logo};
+
+    #[test]
+    fn logo_admission_uses_captured_bytes() {
+        let logo = "data:image/png;base64,YWJj";
+        assert!(validate_logo(logo, 2).is_err());
+        assert!(validate_logo(logo, 3).is_ok());
+        assert!(validate_logo("data:image/png;base64,YQ==", 1).is_ok());
+    }
+
+    #[test]
+    fn logo_validation_keeps_chunk_and_padding_bounds() {
+        use base64::Engine;
+        let bytes = vec![42; 3073];
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let logo = format!("data:image/png;base64,{encoded}");
+        assert!(validate_logo(&logo, 3073).is_ok());
+        assert!(validate_logo(&logo, 3072).is_err());
+        let invalid = format!("data:image/png;base64,{}YQ==YWJj", "YWJj".repeat(1023));
+        assert!(validate_logo(&invalid, 4096).is_err());
+        assert!(validate_logo("data:image/png;base64,YR==", 1).is_err());
+    }
+
+    #[test]
+    fn css_admission_uses_captured_depth() {
+        assert!(validate_css("calc(calc(1))", 1).is_err());
+        assert!(validate_css("calc(calc(1))", 2).is_ok());
+        assert!(validate_css("url(https://example.invalid/image)", 2).is_err());
+    }
+}

@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use harmos::sidecar::Refusal;
+
 // Local Imports
 use crate::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, TestCaseTemplate, materialize_template_cases, parameter_name,
@@ -43,20 +46,20 @@ use dokime_domain::model::traceability::TraceabilitySection;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 const HOST_SOURCE: &str = "dokime.harness";
-
 const RESPONDER: &str = "dokime.harness";
-
 const CANCEL: &str = "cancel";
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type ParameterValues = BTreeMap<String, Value>;
 
 /* === Structs === */
+
 pub struct Harness {
     template: String,
     parameters: BTreeMap<String, Value>,
@@ -131,6 +134,7 @@ struct Transfer {
 }
 
 /* === Enums === */
+
 #[derive(Debug)]
 pub enum HarnessError {
     UnknownTemplate(String),
@@ -145,6 +149,7 @@ pub enum HarnessError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Harness {
     pub fn template(identifier: impl Into<String>) -> Self {
         Self {
@@ -163,7 +168,7 @@ impl Harness {
     #[must_use]
     pub fn answering<O, F>(mut self, answer: F) -> Self
     where
-        O: harmos::operations::OperationDeclaration,
+        O: harmos::operations::OperationDeclaration<Request = O> + harmos::Portable,
         F: Fn(O) -> O::Response + Send + Sync + 'static,
     {
         let answer = std::sync::Arc::new(answer);
@@ -172,8 +177,8 @@ impl Harness {
             std::sync::Arc::new(move |payload: Vec<u8>| {
                 let answer = std::sync::Arc::clone(&answer);
                 Box::pin(async move {
-                    let request = <O as harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
-                    Ok(harmos::Message::encode_to_vec(&answer(request)))
+                    let request = <O::Request as harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
+                    Ok(<O::Response as harmos::Message>::encode(&answer(request)))
                 }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
             }),
         );
@@ -223,7 +228,10 @@ impl Harness {
     ) -> Self {
         self.answers.insert(
             prompt_type.into(),
-            Answer { action: action.into(), values: values.into_iter().map(|(name, value)| (name.into(), value.into())).collect() },
+            Answer {
+                action: action.into(),
+                values: values.into_iter().map(|(name, value)| (name.into(), value.into())).collect(),
+            },
         );
         self
     }
@@ -410,7 +418,10 @@ impl Harness {
 impl Host {
     fn lease(&self, ask: &LeaseAsk) -> LeaseResolution {
         let Ok(request) = serde_json::from_str::<crate::telemetry::LeaseRequest>(&ask.lease_json) else {
-            return LeaseResolution { granted: false, message: "the lease request could not be read".into() };
+            return LeaseResolution {
+                granted: false,
+                message: "the lease request could not be read".into(),
+            };
         };
         let granted = self.measured.contains(request.stream.as_str());
         LeaseResolution {
@@ -433,7 +444,11 @@ impl ExecutionHost for Host {
             .step_begins
             .iter()
             .filter_map(|encoded| serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok())
-            .map(|start| StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() })
+            .map(|start| StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            })
             .collect();
         let settled = batch.record_subscriptions_settling;
         self.pages.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take(batch);
@@ -441,9 +456,10 @@ impl ExecutionHost for Host {
     }
 
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        let answered = serde_json::from_str::<PromptRequest>(&question.prompt_json).map_err(|error| error.to_string()).map(|request| {
-            OperatorAnswer { response_json: serde_json::to_string(&self.respond(&request)).expect("an operator answer serializes") }
-        });
+        let answered =
+            serde_json::from_str::<PromptRequest>(&question.prompt_json).map_err(|error| error.to_string()).map(|request| OperatorAnswer {
+                response_json: serde_json::to_string(&self.respond(&request)).expect("an operator answer serializes"),
+            });
         Box::pin(std::future::ready(answered))
     }
 
@@ -485,7 +501,12 @@ impl Pages {
                 self.transfers.push(Transfer {
                     transfer_id: chunk.transfer_id.clone(),
                     next: 0,
-                    artifact: Artifact { name: chunk.name.clone(), media_type: chunk.mime.clone(), bytes: Vec::new(), abandoned: false },
+                    artifact: Artifact {
+                        name: chunk.name.clone(),
+                        media_type: chunk.mime.clone(),
+                        bytes: Vec::new(),
+                        abandoned: false,
+                    },
                 });
                 self.transfers.last_mut().expect("the transfer was pushed")
             }
@@ -756,6 +777,9 @@ impl std::error::Error for HarnessError {
 }
 
 /* === Public Functions === */
+
+/* === Private Functions === */
+
 fn deliveries(
     measured: &BTreeMap<String, Vec<BTreeMap<String, Value>>>, published: &[Record], execution_id: &str,
     scope: &dokime_domain::model::execution::RecordScope,
@@ -791,10 +815,11 @@ fn deliveries(
             ..ExecutionSignal::default()
         });
     }
-    for delivered in published {
+    for (index, delivered) in published.iter().enumerate() {
         signals.push(ExecutionSignal {
             execution_token: execution_id.to_owned(),
             record: Some(DeliverRecordRequest {
+                ordinal: index as u64 + 1,
                 record_json: serde_json::to_string(delivered).expect("a host-filed record serializes"),
                 captured_scopes: vec![serde_json::to_string(scope).expect("capture scope serializes")],
             }),
@@ -803,7 +828,5 @@ fn deliveries(
     }
     signals
 }
-
-/* === Private Functions === */
 
 /* === Tests === */

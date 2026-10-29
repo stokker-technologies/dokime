@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
 
 /* === Public Functions === */
@@ -19,7 +20,6 @@ export async function setDesktopWindowTitle(title: string): Promise<boolean> {
     return false;
   }
   try {
-    const { commands } = await import("@/lib/desktop/commands");
     await commands.desktopSetTitle(trimmed);
     return true;
   } catch {

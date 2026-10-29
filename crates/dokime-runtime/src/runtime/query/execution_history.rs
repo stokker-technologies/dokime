@@ -10,14 +10,18 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::execution::saved::ExecutionCheckpoint;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::storage::ObjectRevision;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::execution::storage::{ExecutionDocument, ExecutionMetadata};
 use crate::runtime::query::executions::{self, ExecutionFilter, ExecutionOrder};
@@ -37,6 +41,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ExecutionBrowseQuery {
     pub after: Option<TestExecutionId>,
@@ -45,9 +50,9 @@ pub struct ExecutionBrowseQuery {
     pub order: ExecutionOrder,
 }
 
-struct Archived {
-    cycles: std::collections::BTreeSet<TestCycleId>,
-    executions: std::collections::BTreeSet<TestExecutionId>,
+struct Archived<'a> {
+    cycles: &'a std::collections::BTreeSet<TestCycleId>,
+    executions: &'a std::collections::BTreeSet<TestExecutionId>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -81,6 +86,7 @@ pub struct ExecutionBrowsePage {
 pub struct ExecutionBrowseCycle {
     pub cycle_id: TestCycleId,
     pub label: Option<String>,
+    pub phase: Option<dokime_domain::model::execution::result::CyclePhase>,
     pub lifecycle: ExecutionBrowseLifecycle,
     pub result_status: Option<ResultStatus>,
     pub case_count: usize,
@@ -109,6 +115,10 @@ struct CycleFold<'a> {
     uncheckpointed: bool,
     started_at: Option<&'a Timestamp>,
     finished_at: Option<&'a Timestamp>,
+}
+
+pub struct ExecutionCheckpointOutputs {
+    view: crate::runtime::storage::execution::ExecutionView,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -142,6 +152,7 @@ pub struct ExecutionCheckpointContext {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionBrowseLifecycle {
@@ -164,7 +175,26 @@ pub enum ExecutionAvailability {
 /* === Traits === */
 
 /* === Implementations === */
-impl Archived {
+
+impl std::ops::Deref for ExecutionCheckpointOutputs {
+    type Target = [dokime_domain::model::execution::saved::ExecutionOutput];
+
+    fn deref(&self) -> &Self::Target {
+        self.view.outputs().expect("checkpoint outputs were validated before retaining the view")
+    }
+}
+
+impl ExecutionCheckpointOutputs {
+    pub fn project<T>(
+        self, project: impl FnOnce(&[dokime_domain::model::execution::saved::ExecutionOutput]) -> Result<T>,
+    ) -> Result<harmos::storage::ReadBatch<T>> {
+        self.view.project_revision(|revision| {
+            let seal = revision.value.saved.as_ref().expect("checkpoint outputs were validated before retaining the view");
+            project(&seal.source.outputs)
+        })
+    }
+}
+impl Archived<'_> {
     fn covers(&self, metadata: &ExecutionMetadata) -> bool {
         self.executions.contains(&metadata.execution_id) || self.cycles.contains(&metadata.cycle_id)
     }
@@ -194,6 +224,7 @@ impl CycleFold<'_> {
         ExecutionBrowseCycle {
             cycle_id: cycle_id.clone(),
             label: None,
+            phase: None,
             lifecycle,
             result_status,
             case_count: self.cases.len(),
@@ -235,121 +266,169 @@ impl RuntimeHandle {
             .checkpoint()
     }
 
-    pub async fn browse_executions(&self, query: ExecutionBrowseQuery) -> Result<ExecutionBrowsePage> {
-        let limit = query.limit.unwrap_or(100);
-        if !(1..=1000).contains(&limit) {
-            return Err(error("execution page limit must be 1..=1000"));
+    pub async fn browse_executions(&self, query: ExecutionBrowseQuery) -> Result<harmos::storage::ReadBatch<ExecutionBrowsePage>> {
+        let default_limit = 100;
+        let limit = query.limit.unwrap_or(default_limit);
+        if limit == 0 || limit as u64 > 1000 {
+            return Err(error("execution page exceeds the configured limit"));
         }
-        let stored = stored_rows(crate::runtime::storage::history::executions(self.storage()).await?);
-        let active = self.execution_storage.active_ids()?;
-        let live = {
+        let session = self.storage().clone();
+        let stored = stored_rows(crate::runtime::storage::history::executions(&session, self.storage().cursor_saved()).await?)?;
+        let mut page = {
             let state = self.state_read();
-            let mut live = Vec::new();
-            for cycle in state.cycles.values() {
-                for execution in state.executions_for_cycle(cycle) {
-                    live.push(ExecutionBrowseEntry {
-                        metadata: ExecutionMetadata::new(execution),
-                        checkpoint: None,
-                        availability: if active.binary_search(&execution.test_execution_id).is_ok() {
-                            ExecutionAvailability::Live
-                        } else {
-                            ExecutionAvailability::Uncheckpointed
-                        },
-                        archived: false,
-                    });
+            self.execution_storage.with_active_membership(|active| {
+                let live_count = state.cycles.values().map(|cycle| state.executions_for_cycle(cycle).count()).sum();
+                stored.try_map(|stored| {
+                    let mut live = Vec::new();
+                    live.try_reserve_exact(live_count).map_err(|_| error("history projection allocation failed"))?;
+                    for cycle in state.cycles.values() {
+                        for execution in state.executions_for_cycle(cycle) {
+                            let mut metadata = ExecutionMetadata::new(execution);
+                            let queued = state
+                                .run_requests
+                                .values()
+                                .any(|request| !request.summary.phase.terminal() && request.pending.contains(&execution.test_execution_id));
+                            if queued {
+                                metadata.status = ExecutionStatus::Pending;
+                            }
+                            live.push(ExecutionBrowseEntry {
+                                metadata,
+                                checkpoint: None,
+                                availability: if queued || active(&execution.test_execution_id) {
+                                    ExecutionAvailability::Live
+                                } else {
+                                    ExecutionAvailability::Uncheckpointed
+                                },
+                                archived: false,
+                            });
+                        }
+                    }
+                    let archived = Archived {
+                        cycles: &state.archived_cycles,
+                        executions: &state.archived_executions,
+                    };
+                    browse_page(stored.iter().flat_map(|page| page.iter()), &live, &query, &archived, limit)
+                })
+            })?
+        };
+        // Keep Label Reads In The Same Admission Group As The Retained Response.
+        for index in 0..page.cycles.len() {
+            let from_live = {
+                let state = self.state_read();
+                if let Some(header) = state.cycles.get(&page.cycles[index].cycle_id) {
+                    page = page.try_map(|mut page| -> Result<_> {
+                        page.cycles[index].label = Some(header.metadata.label.clone());
+                        page.cycles[index].phase = Some(header.phase);
+                        Ok(page)
+                    })?;
+                    true
+                } else {
+                    false
                 }
-            }
-            live
-        };
-        let archived = {
-            let state = self.state_read();
-            Archived { cycles: state.archived_cycles.clone(), executions: state.archived_executions.clone() }
-        };
-        let mut page = browse_page(&stored, &live, &query, &archived, limit)?;
-        // Each Group Is Titled By Its Own Cycle, Live Or Sealed In History.
-        for cycle in &mut page.cycles {
-            let live = self.state_read().cycles.get(&cycle.cycle_id).map(|header| header.metadata.label.clone());
-            cycle.label = match live {
-                Some(label) => Some(label),
-                None => crate::storage::objects::cycle::read(self.storage(), &cycle.cycle_id, harmos::storage::ObjectVersion::Latest)
-                    .await?
-                    .map(|revision| revision.value.metadata.label),
             };
+            if from_live {
+                continue;
+            }
+            if let Some(header) =
+                crate::storage::objects::cycle::read(&session, &page.cycles[index].cycle_id, harmos::storage::ObjectVersion::Latest).await?
+            {
+                page = page.try_map_with(header, |mut page, header| -> Result<_> {
+                    page.cycles[index].label = Some(header.value.metadata.label);
+                    page.cycles[index].phase = Some(header.value.phase);
+                    Ok(page)
+                })?;
+            }
         }
         Ok(page)
     }
-
-    pub async fn execution_checkpoint_context(&self, checkpoint: ExecutionCheckpoint) -> Result<ExecutionCheckpointContext> {
-        let view = self.checkpoint_execution(&checkpoint).await?.snapshot().await?;
-        let context = view.context()?.clone();
-        Ok(ExecutionCheckpointContext {
-            checkpoint,
-            scope: context.scope,
-            session_id: context.session_id,
-            cycle: context.cycle,
-            execution_documents: context.execution_documents,
-            prompts: context.prompts,
-            health: context.health,
-            notes: context.notes,
-            traceability: context.traceability,
-            appearance: context.appearance,
-        })
-    }
-
-    pub async fn execution_checkpoint_outputs(
+    pub async fn execution_checkpoint_context(
         &self, checkpoint: ExecutionCheckpoint,
-    ) -> Result<Vec<dokime_domain::model::execution::saved::ExecutionOutput>> {
-        let view = self.checkpoint_execution(&checkpoint).await?;
-        Ok(view.outputs()?.to_vec())
-    }
-
-    pub async fn execution_checkpoint_evidence(&self, checkpoint: ExecutionCheckpoint) -> Result<ExecutionCheckpointEvidence> {
-        let view = self.checkpoint_execution(&checkpoint).await?.snapshot().await?;
-        let outputs = view.outputs()?;
-        let captured = view.source_snapshot()?;
-        Ok(ExecutionCheckpointEvidence {
-            outputs: outputs
-                .iter()
-                .map(|output| crate::domains::documents::saved::entry(&checkpoint.execution_id, output))
-                .collect::<harmos::Result<Vec<_>>>()?,
-            artifacts: outputs
-                .iter()
-                .filter_map(|output| match &output.content {
-                    dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } => {
-                        Some(record.as_ref().clone())
-                    }
-                    _ => None,
-                })
-                .collect(),
-            record_contracts: captured.record_contracts.values().flat_map(|versions| versions.values().cloned()).collect(),
-            telemetry: captured
-                .telemetry_contracts
-                .values()
-                .flat_map(|versions| versions.values())
-                .map(|contract| super::checkpoint_telemetry::ExecutionTelemetryTable {
-                    table: contract.stream.to_string(),
-                    contract: contract.clone(),
-                })
-                .collect(),
-            checkpoint,
+    ) -> Result<harmos::storage::ReadBatch<ExecutionCheckpointContext>> {
+        let view = self.checkpoint_execution(&checkpoint).await?.into_snapshot().await?;
+        view.project_captured(|_, captured| {
+            let context = captured.context;
+            Ok(ExecutionCheckpointContext {
+                checkpoint,
+                scope: context.scope,
+                session_id: context.session_id,
+                cycle: context.cycle,
+                execution_documents: context.execution_documents,
+                prompts: context.prompts,
+                health: context.health,
+                notes: context.notes,
+                traceability: context.traceability,
+                appearance: context.appearance,
+            })
         })
     }
 
-    pub async fn execution_checkpoint_document(&self, checkpoint: ExecutionCheckpoint) -> Result<ExecutionCheckpointDocument> {
-        let view = self.checkpoint_execution(&checkpoint).await?.snapshot().await?;
-        let cycle = &view.context()?.cycle.cycle;
-        let mut execution = view.execution().clone();
-        execution.saved = None;
-        Ok(ExecutionCheckpointDocument {
-            checkpoint,
-            document: ExecutionDocument {
-                cycle: crate::execution::storage::ExecutionCycle {
-                    cycle_id: cycle.test_cycle_id.clone(),
-                    metadata: cycle.metadata.clone(),
+    pub async fn execution_checkpoint_outputs(&self, checkpoint: &ExecutionCheckpoint) -> Result<ExecutionCheckpointOutputs> {
+        let view = self.checkpoint_execution(checkpoint).await?;
+        view.outputs()?;
+        Ok(ExecutionCheckpointOutputs { view })
+    }
+
+    pub async fn execution_checkpoint_evidence(
+        &self, checkpoint: ExecutionCheckpoint,
+    ) -> Result<harmos::storage::ReadBatch<ExecutionCheckpointEvidence>> {
+        let view = self.checkpoint_execution(&checkpoint).await?.into_snapshot().await?;
+        view.project_captured(|_, captured| {
+            let record_count = contract_count(&captured.record_contracts)?;
+            let telemetry_count = contract_count(&captured.telemetry_contracts)?;
+            let mut record_contracts = projection_slots(record_count)?;
+            let mut telemetry = projection_slots(telemetry_count)?;
+            for versions in captured.record_contracts.into_values() {
+                record_contracts.extend(versions.into_values());
+            }
+            for versions in captured.telemetry_contracts.into_values() {
+                for contract in versions.into_values() {
+                    telemetry.push(super::checkpoint_telemetry::ExecutionTelemetryTable {
+                        table: contract.stream.as_str().to_owned(),
+                        contract,
+                    });
+                }
+            }
+            let mut outputs = projection_slots(captured.outputs.len())?;
+            let artifacts_count = captured
+                .outputs
+                .iter()
+                .filter(|output| matches!(output.content, dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { .. }))
+                .count();
+            let mut artifacts = projection_slots(artifacts_count)?;
+            for output in captured.outputs {
+                outputs.push(crate::domains::documents::saved::entry(&checkpoint.execution_id, &output)?);
+                if let dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } = output.content {
+                    artifacts.push(*record);
+                }
+            }
+            Ok(ExecutionCheckpointEvidence {
+                checkpoint,
+                outputs,
+                artifacts,
+                record_contracts,
+                telemetry,
+            })
+        })
+    }
+
+    pub async fn execution_checkpoint_document(
+        &self, checkpoint: ExecutionCheckpoint,
+    ) -> Result<harmos::storage::ReadBatch<ExecutionCheckpointDocument>> {
+        let view = self.checkpoint_execution(&checkpoint).await?.into_snapshot().await?;
+        view.project_captured(|mut revision, captured| {
+            let cycle = captured.context.cycle.cycle;
+            revision.value.saved = None;
+            Ok(ExecutionCheckpointDocument {
+                checkpoint,
+                document: ExecutionDocument {
+                    cycle: crate::execution::storage::ExecutionCycle {
+                        cycle_id: cycle.test_cycle_id,
+                        metadata: cycle.metadata,
+                    },
+                    execution: revision.value,
                 },
-                execution,
-            },
-            acquisition_finished: true,
+                acquisition_finished: true,
+            })
         })
     }
 }
@@ -357,27 +436,40 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn stored_rows(rows: Vec<ObjectRevision<dokime_domain::model::execution::result::TestExecution>>) -> Vec<ExecutionBrowseEntry> {
-    rows.into_iter()
-        .map(|row| {
-            let checkpoint = row.value.saved.as_ref().map(|seal| ExecutionCheckpoint {
-                execution_id: row.value.test_execution_id.clone(),
-                position: row.position.clone(),
-                version: row.version.clone(),
-                evidence_through: seal.source.evidence_through.clone(),
-            });
-            ExecutionBrowseEntry {
-                metadata: ExecutionMetadata::new(&row.value),
-                availability: if checkpoint.is_some() { ExecutionAvailability::Stored } else { ExecutionAvailability::Interrupted },
-                checkpoint,
-                archived: false,
-            }
-        })
-        .collect()
+
+fn contract_count<T>(contracts: &BTreeMap<dokime_domain::model::identity::Identifier, BTreeMap<u32, T>>) -> Result<usize> {
+    contracts.values().try_fold(0usize, |count, versions| {
+        count.checked_add(versions.len()).ok_or_else(|| Error::Operation("checkpoint contract count overflows".into()))
+    })
 }
 
-fn browse_page(
-    stored: &[ExecutionBrowseEntry], live: &[ExecutionBrowseEntry], query: &ExecutionBrowseQuery, archived: &Archived, limit: usize,
+fn projection_slots<T>(count: usize) -> Result<Vec<T>> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|_| Error::Operation("checkpoint projection allocation failed".into()))?;
+    Ok(values)
+}
+
+fn stored_rows(
+    rows: crate::storage::projection::Pages<ObjectRevision<dokime_domain::model::execution::result::TestExecution>>,
+) -> Result<crate::storage::projection::Pages<ExecutionBrowseEntry>> {
+    Ok(crate::storage::projection::pages(rows, |row| {
+        let checkpoint = row.value.saved.as_ref().map(|seal| ExecutionCheckpoint {
+            execution_id: row.value.test_execution_id.clone(),
+            position: row.position.clone(),
+            version: row.version.clone(),
+            evidence_through: seal.source.evidence_through.clone(),
+        });
+        Ok(ExecutionBrowseEntry {
+            metadata: ExecutionMetadata::new(&row.value),
+            availability: if checkpoint.is_some() { ExecutionAvailability::Stored } else { ExecutionAvailability::Interrupted },
+            checkpoint,
+            archived: false,
+        })
+    })?)
+}
+fn browse_page<'a>(
+    stored: impl Iterator<Item = &'a ExecutionBrowseEntry>, live: &'a [ExecutionBrowseEntry], query: &ExecutionBrowseQuery,
+    archived: &Archived<'_>, limit: usize,
 ) -> Result<ExecutionBrowsePage> {
     let admitted = |row: &ExecutionBrowseEntry| {
         executions::matches(&row.metadata, &query.filter) && query.filter.archive.admits(archived.covers(&row.metadata))

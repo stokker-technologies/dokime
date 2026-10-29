@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,8 +37,9 @@ use obc_plugin::ObcPlugin;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> std::io::Result<()> {
-    dokime_runtime::plugin::run::<ObcPlugin>()
+    dokime::plugin::run::<ObcPlugin>()
 }
 
 /* === Tests === */

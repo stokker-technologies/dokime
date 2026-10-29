@@ -15,12 +15,12 @@
 /** Attaching to a caller-owned listener never starts a runtime. */
 export type ConnectionTarget = { kind: "local"; endpoint: string } | { kind: "remote"; endpoint: string; caCertificatePem: string | null };
 
-/** Input-only credentials. Secrets never appear in a connection snapshot. */
-export type ConnectionCredentials = { kind: "none" } | { kind: "saved" } | { kind: "bearer"; token: string; remember: boolean };
+/** Input-only secrets. Secrets never appear in a connection snapshot. */
+export type ConnectionSecrets = { kind: "none" } | { kind: "saved" } | { kind: "bearer"; token: string; remember: boolean };
 
 export type ConnectRequest = {
   target: ConnectionTarget;
-  credentials: ConnectionCredentials;
+  secrets: ConnectionSecrets;
   expectedBackendId: string | null;
 };
 
@@ -30,6 +30,7 @@ export type BackendLimits = {
   maxRequestBytes: string;
   maxResponseBytes: string;
   maxContentBytes: string | null;
+  maxEvidenceBytes: string | null;
   maxChunkBytes: number | null;
   maxPageItems: number | null;
   maxStreamBufferItems: number | null;
@@ -40,6 +41,7 @@ export type BackendSnapshot = {
   epoch: string;
   displayName: string;
   productVersion: string;
+  target: string;
   apiVersion: string;
   descriptorSha256: string;
   methods: string[];
@@ -57,8 +59,9 @@ export type ConnectionSnapshot = {
 };
 
 export type ConnectionError =
+  | { kind: "registry"; message: string }
   | { kind: "invalid_target"; message: string }
-  | { kind: "credentials_unavailable" }
+  | { kind: "secrets_unavailable" }
   | { kind: "authentication_required" }
   | { kind: "unauthenticated" }
   | { kind: "permission_denied" }
@@ -76,16 +79,3 @@ export type ConnectionError =
   | { kind: "superseded" }
   | { kind: "not_connected" }
   | { kind: "generation_exhausted" };
-
-/** Secret-Free Shared Profile Document. */
-export type BackendProfiles = {
-  version: 1;
-  default: string | null;
-  profiles: {
-    name: string;
-    endpoint: string;
-    expected_backend_id: string | null;
-    ca_certificate_pem: string | null;
-    credential: "none" | "keyring";
-  }[];
-};

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::ValidationMode;
 use crate::records::validate_record;
@@ -37,7 +39,8 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "dokime.evidence.health.record", version = 1, irreversible)]
+
+#[harmos::transaction(id = "dokime.evidence.health.record", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordHealth {
     pub scope: RecordScope,
@@ -48,14 +51,14 @@ pub struct RecordHealth {
     pub observed_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.evidence.record_subscriptions.close", version = 1, irreversible)]
+#[harmos::transaction(id = "dokime.evidence.record_subscriptions.close", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CloseRecordSubscriptions {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub test_execution_id: dokime_domain::model::identity::TestExecutionId,
 }
 
-#[harmos::transaction(id = "dokime.evidence.event.publish", version = 2, irreversible)]
+#[harmos::transaction(id = "dokime.evidence.event.publish", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PublishRecord {
     pub request: RecordPublishRequest,
@@ -65,6 +68,7 @@ pub struct PublishRecord {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum PublicationSource {
@@ -76,6 +80,7 @@ enum PublicationSource {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for RecordHealth {
     type Error = String;
 
@@ -122,15 +127,30 @@ impl Transaction<RuntimeState> for CloseRecordSubscriptions {
 
 impl PublishRecord {
     pub fn host(request: RecordPublishRequest, occurred_at: Timestamp) -> Self {
-        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Host }
+        Self {
+            request,
+            received_at: occurred_at.clone(),
+            occurred_at,
+            source: PublicationSource::Host,
+        }
     }
 
     pub fn undeclared(request: RecordPublishRequest, occurred_at: Timestamp) -> Self {
-        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Undeclared }
+        Self {
+            request,
+            received_at: occurred_at.clone(),
+            occurred_at,
+            source: PublicationSource::Undeclared,
+        }
     }
 
     pub fn sidecar(request: RecordPublishRequest, owner: String, occurred_at: Timestamp) -> Self {
-        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Sidecar { owner } }
+        Self {
+            request,
+            received_at: occurred_at.clone(),
+            occurred_at,
+            source: PublicationSource::Sidecar { owner },
+        }
     }
 }
 
@@ -155,6 +175,7 @@ impl Transaction<RuntimeState> for PublishRecord {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn prepare_record(state: &RuntimeState, publish: &PublishRecord) -> Result<crate::transactions::records::draft::Drafts, Error> {
     match &publish.source {
         PublicationSource::Host => {
@@ -214,7 +235,11 @@ fn validation_rejection(message: impl Into<String>, path: impl Into<String>, exp
     Error::validation(
         "validation_failed",
         message,
-        vec![ValidationIssue { path: path.into(), message: "producer payload failed validation".to_owned(), expected }],
+        vec![ValidationIssue {
+            path: path.into(),
+            message: "producer payload failed validation".to_owned(),
+            expected,
+        }],
     )
 }
 

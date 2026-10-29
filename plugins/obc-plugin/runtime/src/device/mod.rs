@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::Error;
 
@@ -28,6 +30,7 @@ use crate::Error;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Supply {
     pub voltage_rms_v: f64,
@@ -56,6 +59,7 @@ pub struct Device {
     pub supply: Supply,
     pub power: Power,
     pub fault: Option<Fault>,
+
     // The file the charger appends one status line to per sample, the way a
     // real unit writes its own log.
     #[serde(skip)]
@@ -63,11 +67,13 @@ pub struct Device {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Power {
     #[default]
     Off,
+
     Running,
     Faulted,
 }
@@ -82,9 +88,16 @@ pub enum Fault {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for Supply {
     fn default() -> Self {
-        Self { voltage_rms_v: 230.0, load_ohm: 100.0, frequency_hz: 50.0, phase_deg: 15.0, current_limit_a: 5.0 }
+        Self {
+            voltage_rms_v: 230.0,
+            load_ohm: 100.0,
+            frequency_hz: 50.0,
+            phase_deg: 15.0,
+            current_limit_a: 5.0,
+        }
     }
 }
 
@@ -116,6 +129,11 @@ impl Device {
             return Err(Error::FaultLatched);
         }
         self.power = Power::Running;
+        // A powered unit has its log open, so a watch started now takes it as its baseline.
+        let opened = self.log.as_ref().map(|log| std::fs::OpenOptions::new().create(true).append(true).open(log));
+        if let Some(Err(error)) = opened {
+            tracing::warn!(%error, "the charger log was not opened");
+        }
         Ok(())
     }
 

@@ -23,7 +23,6 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
-    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -31,12 +30,9 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Type Aliases === */
 
 /* === Structs === */
-#[sdk::message]
-#[derive(Clone, PartialEq)]
-#[sdk::operation(id = "mismatched.read_voltage", version = 1, description = "Reads.", policy = POLICY, response = ())]
+#[sdk::operation(id = "mismatched.read_voltage", description = "Reads.", policy = POLICY, response = ())]
+#[derive(PartialEq)]
 struct ReadVoltage {}
-
-struct ReadVoltageHandler;
 
 struct Probe;
 
@@ -66,14 +62,11 @@ enum NoOperations {}
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation]
-impl ReadVoltageHandler {
-    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
-        Self
-    }
+impl sdk::Operation for ReadVoltage {
+    type Error = sdk::Refusal;
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &mut ReadVoltage) -> Result<(), sdk::Refusal> {
-        Ok(())
+    async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
+        Ok(().into())
     }
 }
 
@@ -94,7 +87,7 @@ impl Probe {
 #[sdk::suite(id = "mismatched.checks", label = "Checks", templates = ChecksTemplates)]
 impl Checks {}
 
-impl sdk::harmos::operations::lifecycle::Policy for Plugin {
+impl sdk::harmos::builtins::lifecycle::Policy for Plugin {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
 }
@@ -112,7 +105,7 @@ impl sdk::Plugin for Plugin {
     type Context = sdk::Supervisor;
     type Resources = ();
 
-    fn prepare(_: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
+    fn prepare(config: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
         Ok(Self)
     }
 
@@ -125,7 +118,7 @@ impl sdk::Plugin for Plugin {
     }
 
     fn bind_operations(
-        &self, table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        &self, table: &mut sdk::harmos::operations::WireTable,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         sdk::execution::serve::<Self, PluginSuites>(table)
     }

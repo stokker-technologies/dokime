@@ -18,7 +18,6 @@ import type { ReactNode } from "react";
 
 import { useNativeSession } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,12 +27,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
 import { useRecordsQuery } from "@/features/cycle/server-state";
-import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { ActiveCyclePicker, ActiveCycleSummary } from "@/features/library/ActiveCycle";
+import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
+import { useDesktopStopping } from "@/lib/desktop/stopping";
 import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
 import { consoleAttentionCount } from "@/shell/ConsoleDrawerView";
@@ -45,16 +45,29 @@ import {
   operationsCountLabel,
   summarizeOperations,
 } from "@/shell/status-bar-operations";
-import { FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
+import { RunIndicator } from "./RunIndicator";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
+import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
+
+/* === Constants === */
+
+const statusItemClassName =
+  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+const CONNECTION_LABEL = {
+  connected: "Connected",
+  disconnected: "Disconnected",
+  reconnecting: "Reconnecting",
+  unknown: "Unknown",
+} as const;
 
 /* === Types === */
 
 export type StatusBarProps =
   | { live?: true }
   | {
-      frozen: { generatedAt: string | null; status: CycleLifecycle };
+      frozen: { generatedAt: string | null; status: FrozenCycleStatus };
       live: false;
     };
 
@@ -65,45 +78,25 @@ type AttentionEntry = {
   open: () => void;
 };
 
-/* === Constants === */
-
-const ACTIVE_CYCLE_STATUSES = ["Running", "Paused", "Stopping"];
-
-const statusItemClassName =
-  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-const CONNECTION_LABEL = {
-  connected: "Connected",
-  disconnected: "Disconnected",
-  reconnecting: "Reconnecting",
-  unknown: "Unknown",
-} as const;
-
 /* === Components === */
 
-/**
- * The bar across the whole window, on the shell's two columns.
- *
- * Its first cell is the sidebar's column and carries the one collapse toggle,
- * at the bar's own height — so the sidebar simply ends where this bar begins
- * and nothing stands taller than the band beside it. The remaining column
- * holds its facts in two groups on one baseline: what the backend is and
- * what it stores from the left inset; what the backend is busy with, what
- * needs the operator and what is running from the right.
- */
+/** Live Execution Focus Followed By Backend And Operator Attention. */
 export function StatusBar(props: StatusBarProps) {
   if (props.live === false) return <FrozenStatusBar status={props.frozen.status} />;
   return (
     <StatusBarFrame>
-      <div className="flex min-w-0 items-stretch justify-between gap-6 px-[var(--shell-inset)]">
-        <div className="flex min-w-0 items-stretch gap-6">
+      <div className="flex w-full min-w-0 items-stretch justify-between gap-2 px-4">
+        <RunIndicator />
+        <div className="hidden min-w-0 items-stretch gap-4 lg:flex">
           <BackendItem />
           <StorageItem />
         </div>
-        <div className="flex min-w-0 items-stretch gap-6">
-          <OperationsItem />
-          <AttentionItem />
-          <ActivityItem />
+        <div className="flex min-w-0 items-stretch gap-2">
+          <div className="hidden items-stretch gap-4 tablet:flex">
+            <OperationsItem />
+            <AttentionItem />
+            <ActiveCycleItem />
+          </div>
           <ConsoleItem />
         </div>
       </div>
@@ -131,14 +124,14 @@ function ConsoleItem() {
   return (
     <button
       aria-label={drawer.open ? "Close Console" : "Open Console"}
-      className={cn(statusItemClassName, "gap-1.5", unseen > 0 ? "text-warning" : null)}
+      className={cn(statusItemClassName, "gap-2", unseen > 0 ? "text-warning" : null)}
       onClick={() => setConsoleState(drawer.open ? { open: false } : { lastOpenedAt: Date.now(), open: true })}
       type="button"
     >
-      <SquareTerminal className="size-3.5" />
+      <SquareTerminal className="size-4" />
       Console
       {unseen > 0 ? (
-        <Badge className="h-4 px-1 text-[0.65rem]" variant="warning">
+        <Badge className="h-4 px-1 text-xs" variant="warning">
           {unseen}
         </Badge>
       ) : null}
@@ -168,7 +161,7 @@ export function OperationsItem() {
         aria-label={`${label}: ${operationPhaseLabel(shown)}`}
         className={cn(
           statusItemClassName,
-          "grid min-w-0 grid-cols-[auto_minmax(0,auto)_4rem] gap-2",
+          "grid min-w-0 grid-cols-[auto_minmax(0,auto)_--spacing(16)] gap-2",
           shown.status === "failed" ? "text-destructive" : null,
         )}
         data-testid="status-operations"
@@ -227,7 +220,11 @@ function OperationBar({ operation }: { operation: BackendOperation }) {
 
 function BackendItem() {
   const status = useBackendStatus();
+  const stopping = useDesktopStopping();
   const label = status.label ?? "Backend";
+  if (stopping === "visible") {
+    return <StatusReadout title={`${label} is stopping`} tone="warn" value={`${label} · Stopping…`} />;
+  }
   const tone =
     status.connection === "connected"
       ? "good"
@@ -251,7 +248,6 @@ function StorageItem() {
   const sources = useQuery({
     queryFn: () => fetchStorageSources(session.identity),
     queryKey: ["shell", "storage-sources", session.identity.generation],
-    staleTime: 30_000,
   });
   if (sources.isError) {
     return <StatusReadout tone="warn" value="Storage Unknown" />;
@@ -305,7 +301,7 @@ function AttentionItem() {
         <DropdownMenuSeparator />
         {entries.map((entry) => (
           <DropdownMenuItem key={entry.id} onSelect={entry.open}>
-            <span className="grid min-w-0 gap-0.5">
+            <span className="grid min-w-0 gap-1">
               <span className="truncate font-medium">{entry.label}</span>
               <span className="truncate text-xs text-muted-foreground">{entry.detail}</span>
             </span>
@@ -316,26 +312,29 @@ function AttentionItem() {
   );
 }
 
-function ActivityItem() {
-  const navigate = useNavigate();
-  const cycles = useCyclesQuery();
-  const active = (cycles.data ?? []).filter((cycle) => ACTIVE_CYCLE_STATUSES.includes(cycle.status?.HarmosVariant.case ?? ""));
-
-  if (!active.length) {
-    return <StatusReadout tone="neutral" value="No Active Cycles" />;
-  }
-
+/**
+ * The active cycle, the bar's last fact before the console: name, short
+ * identifier and state. It opens the picker, the one way it changes.
+ */
+export function ActiveCycleItem() {
+  const active = useActiveCycle();
   return (
-    <button
-      className={cn(statusItemClassName, "text-success")}
-      onClick={() => {
-        const only = active.length === 1 ? active[0] : undefined;
-        void (only ? navigate({ params: { cycleId: only.cycleId }, to: "/cycles/$cycleId" }) : navigate({ to: "/cycles" }));
-      }}
-      type="button"
-    >
-      {active.length} Active
-    </button>
+    <>
+      <button
+        aria-label={active.cycle ? `Active Cycle: ${active.cycle.label}, ${active.cycle.statusLabel}` : "Choose Active Cycle"}
+        className={cn(statusItemClassName, "min-w-0 max-w-96 gap-2")}
+        data-testid="status-active-cycle"
+        onClick={active.openPicker}
+        type="button"
+      >
+        {active.cycle ? (
+          <ActiveCycleSummary cycle={active.cycle} />
+        ) : (
+          <span>{active.cycles.length ? "Choose Active Cycle" : "No Open Cycles"}</span>
+        )}
+      </button>
+      <ActiveCyclePicker />
+    </>
   );
 }
 

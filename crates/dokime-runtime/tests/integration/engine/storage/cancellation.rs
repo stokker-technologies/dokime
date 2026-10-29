@@ -21,7 +21,7 @@
 use harmos::storage::*;
 
 // Local Imports
-use super::sqlite::storage::{Store, write_batch};
+use super::sqlite::storage::Store;
 
 /* === Constants === */
 
@@ -47,7 +47,7 @@ async fn cancellation() {
     let root = tempfile::tempdir().unwrap();
     let store = Store::<()>::open(root.path()).await;
     let backend = &store.backend;
-    backend.write(write_batch(&[StoragePart::Schemas(&[store.schema()])])).await.unwrap();
+    backend.write_schemas(store.batch(vec![store.schema()])).await.unwrap();
 
     // Hold The Real SQLite Worker At A Deterministic Boundary
     let control = backend.local_state();
@@ -65,8 +65,8 @@ async fn cancellation() {
     });
     entered_rx.await.unwrap();
     let records = (2..66).map(|sequence| store.record(sequence)).collect::<Vec<_>>();
-    let parts = [StoragePart::Records(&records)];
-    let mut writing = backend.write(write_batch(&parts));
+    let batch = store.batch(records.clone());
+    let mut writing = backend.write_records(batch.clone());
     assert!(futures_util::poll!(writing.as_mut()).is_pending());
     drop(writing);
     release_tx.send(()).unwrap();
@@ -75,7 +75,7 @@ async fn cancellation() {
     // Cancellation Before Dispatch Leaves No Hidden Write To Overtake A Retry
     assert_eq!(backend.cursor_saved().await.unwrap(), store.at(1));
     assert!(store.records(1).await.is_empty());
-    let saved = backend.write(write_batch(&parts)).await.unwrap();
+    let saved = backend.write_records(batch).await.unwrap();
     assert_eq!(saved, store.at(65));
     assert_eq!(store.records(65).await, records);
     backend.close().await.unwrap();

@@ -11,22 +11,22 @@
 
 /* === External Imports === */
 
-import type { Value as SerializedValue } from "@/lib/document-contracts";
-import { isDatetimeValue } from "@/lib/record-display";
-import type { Wire } from "@/lib/rpc/canonical";
-import type { ElapsedUnit, JsonObject, RecordScope, Severity, ValueFormat } from "@/lib/types";
 import type {
   Row107 as NativeElapsed,
   Row19 as NativeFormat,
   Row4 as NativeSeverity,
   Row16 as NativeValueType,
-} from "../../../.generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb";
+} from "@generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb";
 import type {
   Row6 as NativeMetadata,
   Row11 as NativeTimestamp,
   Row19 as NativeValue,
-} from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row4 as NativeScope } from "../../../.generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
+} from "@generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row4 as NativeScope } from "@generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
+import type { Value as SerializedValue } from "@/lib/document-contracts";
+import { isDatetimeValue } from "@/lib/record-display";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { ElapsedUnit, JsonObject, RecordScope, Severity, ValueFormat } from "@/lib/types";
 
 type Value = Wire<NativeValue>;
 type Metadata = Wire<NativeMetadata>;
@@ -38,12 +38,24 @@ type NativeElapsedUnit = Wire<NativeElapsed>;
 
 /* === Constants === */
 
+const DOCUMENTS_VALUE_DEPTH = 128;
+const GUI_CASE_ITEMS = 1_000;
+const GUI_CONCURRENT_READS = 4;
+const GUI_MAXIMUM_PAGES = 100;
+const GUI_NATIVE_VALUE_DEPTH = 64;
+const GUI_NUMBER_TEXT_CHARS = 1_024;
+const GUI_PAGE_ITEMS = 500;
+const GUI_SMALL_PAGE_ITEMS = 100;
+
 /** The native planning contract rejects selections above this bound. */
-export const NATIVE_CASE_LIMIT = 1_000;
-export const NATIVE_PAGE_SIZE = 100;
-export const NATIVE_MAX_PAGES = 100;
+export const NATIVE_CASE_LIMIT = GUI_CASE_ITEMS;
+/** Local Page Budget For Cursor-Paged Lists. */
+export const NATIVE_PAGE_SIZE = GUI_PAGE_ITEMS;
+/** The annotation and plugin lists keep their own cap of 100 items per page. */
+export const NATIVE_SMALL_PAGE_SIZE = GUI_SMALL_PAGE_ITEMS;
+export const NATIVE_MAX_PAGES = GUI_MAXIMUM_PAGES;
 /** Keep aggregate reads below the bridge's in-flight call limit. */
-export const NATIVE_MAX_CONCURRENT_READS = 4;
+export const NATIVE_MAX_CONCURRENT_READS = GUI_CONCURRENT_READS;
 
 /* === Errors === */
 
@@ -203,7 +215,7 @@ export function nativeValueToJson(value?: Value): unknown {
   if (!nodes.length) throw new Error("Native value has no root node.");
   const members = new Set<number>();
   function rebuild(index: number, depth: number): unknown {
-    if (depth > 64) throw new Error("Native value exceeds 64 levels.");
+    if (depth > GUI_NATIVE_VALUE_DEPTH) throw new Error("Native value exceeds the configured nesting bound.");
     const kind = nodes[index]?.kind?.HarmosVariant;
     if (!kind?.case) throw new Error(`Native value node ${index} has no kind.`);
     function child(member: number): unknown {
@@ -270,7 +282,7 @@ export function serializedValueObjectToJson(values: Record<string, SerializedVal
 }
 
 function serializedValue(value: SerializedValue, depth: number): unknown {
-  if (depth > 128) throw new Error("Stored value nesting exceeds the portable value limit.");
+  if (depth > DOCUMENTS_VALUE_DEPTH) throw new Error("Stored value nesting exceeds the portable value limit.");
   switch (value.type) {
     case "null":
       return null;
@@ -292,7 +304,7 @@ function serializedValue(value: SerializedValue, depth: number): unknown {
     case "number": {
       const text = value.value;
       const special = ["nan", "inf", "-inf"].includes(text);
-      if (text.length > 1024 || (!special && !/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))) {
+      if (text.length > GUI_NUMBER_TEXT_CHARS || (!special && !/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))) {
         throw new Error("Invalid stored number.");
       }
       const number = text === "nan" ? NaN : text === "inf" ? Infinity : text === "-inf" ? -Infinity : Number(text);

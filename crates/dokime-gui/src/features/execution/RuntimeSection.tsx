@@ -9,36 +9,36 @@
 
 /* === External Imports === */
 
-import { Activity, Clock3, Cpu, RadioTower } from "lucide-react";
+import { Activity, Clock3, RadioTower } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
 /* === Local Imports === */
 
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { Badge } from "@/components/ui/badge";
-import { formatBytes } from "@/lib/format";
-import { durationLabel, elapsedLabel } from "@/lib/time-format";
-import type { DiagnosticsSnapshot, DocumentCardLayout, HubLiveState } from "@/lib/types";
+import { formatDuration } from "@/lib/format";
+import { elapsedLabel } from "@/lib/time-format";
+import type { DocumentCardLayout, HubLiveState } from "@/lib/types";
 import { useHubStore } from "@/stores/hub-store";
+
+const GUI_ELAPSED_TICK_MS = 1_000;
 
 /* === Types === */
 
 type RuntimeSectionProps = {
   connection: "connecting" | "connected" | "reconnecting";
-  diagnostics: DiagnosticsSnapshot | null;
   layout?: DocumentCardLayout;
   snapshot: HubLiveState | null;
 };
 
 /* === Components === */
 
-export function RuntimeSection({ connection, diagnostics, layout, snapshot }: RuntimeSectionProps) {
-  const now = useNow(1000);
+export function RuntimeSection({ connection, layout, snapshot }: RuntimeSectionProps) {
+  const now = useNow(GUI_ELAPSED_TICK_MS);
   const artifacts = snapshot?.installed_plugins ?? [];
   const readyArtifacts = artifacts.filter((artifact) => artifact.ready).length;
   const failedArtifacts = artifacts.filter((artifact) => artifact.status === "failed").length;
   const artifactSummary = artifacts.length ? `${readyArtifacts}/${artifacts.length} artifacts ready` : "Artifacts ready";
-  const process = diagnostics?.server.process;
   const runStartedAt = snapshot?.run.started_at ?? null;
   const runFinishedAt = snapshot?.run.finished_at ?? null;
   const lastStreamFrameAt = useHubStore.getState().lastStreamFrameAt;
@@ -60,23 +60,11 @@ export function RuntimeSection({ connection, diagnostics, layout, snapshot }: Ru
           value={elapsedLabel(runStartedAt, now, runFinishedAt)}
           detail={
             lastStreamFrameAt !== null
-              ? `Live frame ${durationLabel(Math.max(0, Math.floor((now - lastStreamFrameAt) / 1000)))} ago`
+              ? `Live frame ${formatDuration(Math.max(0, Math.floor((now - lastStreamFrameAt) / 1000)))} ago`
               : "No live frames yet"
           }
         />
-        <RuntimeMetric
-          icon={<RadioTower />}
-          label="Connection"
-          value={connection}
-          detail={`Doctor ${diagnostics?.runtime.startup_doctor.status ?? "unknown"}`}
-          tone={connection === "connected" ? "good" : "bad"}
-        />
-        <RuntimeMetric
-          icon={<Cpu />}
-          label="Process"
-          value={`CPU ${formatPercentValue(process?.cpu_percent)}`}
-          detail={`Mem ${formatBytes(process?.memory_bytes)}`}
-        />
+        <RuntimeMetric icon={<RadioTower />} label="Connection" value={connection} tone={connection === "connected" ? "good" : "bad"} />
       </div>
 
       <section className="grid gap-2">
@@ -89,7 +77,7 @@ export function RuntimeSection({ connection, diagnostics, layout, snapshot }: Ru
         <div className="grid gap-2 sm:grid-cols-2">
           {artifacts.length ? (
             artifacts.map((artifact) => (
-              <div className="grid gap-1 rounded-md border bg-muted/20 p-3 text-sm" key={artifact.artifact_id}>
+              <div className="grid gap-1 rounded-lg border bg-muted/20 p-3 text-sm" key={artifact.artifact_id}>
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <strong className="truncate">{artifact.artifact_id}</strong>
                   <Badge variant={artifact.ready ? "outline" : "secondary"}>{artifact.status}</Badge>
@@ -117,14 +105,14 @@ function RuntimeMetric({
   tone,
   value,
 }: {
-  detail: string;
+  detail?: string;
   icon: ReactNode;
   label: string;
   tone?: "good" | "warn" | "bad";
   value: string;
 }) {
   return (
-    <div className="grid gap-2 rounded-md border bg-muted/25 p-3">
+    <div className="grid gap-2 rounded-lg border bg-muted/25 p-3">
       <div className="flex items-center justify-between gap-2 text-muted-foreground">
         <span className="text-xs font-bold uppercase">{label}</span>
         {icon}
@@ -146,11 +134,4 @@ function useNow(intervalMs: number): number {
   }, [intervalMs]);
 
   return now;
-}
-
-function formatPercentValue(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
-  }
-  return `${value.toFixed(1)}%`;
 }

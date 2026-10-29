@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{path::Path, time::Duration};
 
@@ -22,9 +23,10 @@ use criterion::{BenchmarkId, Criterion, SamplingMode};
 
 // Local Imports
 use super::server::{Server, plugin_bundle};
-use dokime_client::{Client, Target};
+use dokime::client::{Client, Target};
 
 /* === Constants === */
+
 const SETTLE: Duration = Duration::from_secs(2);
 
 /* === Macros === */
@@ -40,6 +42,7 @@ const SETTLE: Duration = Duration::from_secs(2);
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn benchmark(criterion: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let plugin = plugin_bundle();
@@ -60,6 +63,7 @@ pub fn benchmark(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
+
 fn idle_shutdown(runtime: &tokio::runtime::Runtime, connected: bool, watching: bool, plugin: Option<&Path>) -> Duration {
     let server = Server::start(plugin);
     let target = || Target::local(server.endpoint()).unwrap();

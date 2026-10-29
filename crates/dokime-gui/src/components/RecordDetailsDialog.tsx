@@ -53,7 +53,7 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
       <DialogContent className="grid max-h-[92vh] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-4xl">
         <header className="grid gap-3 border-b p-4">
           <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3">
-            <RecordGlyph className="mt-0.5" display={record.display} />
+            <RecordGlyph className="mt-1" display={record.display} />
             <div className="min-w-0">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Badge
@@ -62,7 +62,7 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
                 >
                   {record.level}
                 </Badge>
-                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                   <Clock size={13} />
                   {recordTime(record)}
                 </span>
@@ -80,7 +80,7 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
           <div className="grid min-w-0 gap-4">
             {record.level === "error" ? (
               <div className="flex min-w-0 gap-2 rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 shrink-0" size={16} />
+                <AlertTriangle className="mt-1 shrink-0" size={16} />
                 <p className="[overflow-wrap:anywhere]">{title}</p>
               </div>
             ) : null}
@@ -117,7 +117,7 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
 
 function RecordMeta({ label, rawValue, value }: { label: string; rawValue?: unknown; value: string }) {
   return (
-    <div className="grid min-w-0 gap-1.5 rounded-md border bg-muted/20 p-2">
+    <div className="grid min-w-0 gap-2 rounded-lg border bg-muted/20 p-2">
       <dt className="truncate text-xs font-semibold uppercase text-muted-foreground">{label}</dt>
       <dd className="text-sm [overflow-wrap:anywhere]">
         <ValueDisplay label={label} value={rawValue ?? value} />
@@ -143,7 +143,7 @@ function RawBlock({ label, value }: { label: string; value: string }) {
           Copy
         </Button>
       </div>
-      <pre className="max-h-[min(24rem,38vh)] min-h-32 max-w-full overflow-auto rounded-lg border bg-muted/35 p-3 text-xs leading-relaxed">
+      <pre className="max-h-[min(--spacing(96),38vh)] min-h-32 max-w-full overflow-auto rounded-lg border bg-muted/35 p-3 text-xs leading-relaxed">
         <code>{value}</code>
       </pre>
     </section>

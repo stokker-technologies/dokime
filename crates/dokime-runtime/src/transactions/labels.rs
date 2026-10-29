@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::{BuiltinRecordType, RecordSeverity};
 use crate::state::RuntimeState;
@@ -34,7 +37,8 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "dokime.execution.label.rename", version = 1, irreversible)]
+
+#[harmos::transaction(id = "dokime.execution.label.rename", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RenameLabel {
     pub subject: LabelSubject,
@@ -43,6 +47,7 @@ pub struct RenameLabel {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "id")]
 pub enum LabelSubject {
@@ -53,6 +58,7 @@ pub enum LabelSubject {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for RenameLabel {
     type Error = String;
 
@@ -63,18 +69,15 @@ impl Transaction<RuntimeState> for RenameLabel {
         match &self.subject {
             LabelSubject::Cycle(id) => {
                 let cycle = state.cycles.get(id).ok_or("cycle not found")?;
-                if cycle.saved.is_some() {
-                    return Err("cycle is sealed; its report keeps the label it froze".to_owned());
-                }
+                cycle.ensure_active().map_err(str::to_owned)?;
                 if state.archived_cycles.contains(id) {
                     return Err("cycle is archived; unarchive it before renaming".to_owned());
                 }
                 Ok(())
             }
             LabelSubject::Execution(id) => {
-                if !state.executions.contains_key(id) {
-                    return Err("execution not found".to_owned());
-                }
+                let execution = state.executions.get(id).ok_or("execution not found")?;
+                state.cycles.get(&execution.test_cycle_id).ok_or("execution cycle not found")?.ensure_active().map_err(str::to_owned)?;
                 if case_attempts(state, id)
                     .iter()
                     .any(|attempt| state.executions.get(attempt).is_some_and(|execution| execution.saved.is_some()))
@@ -145,6 +148,7 @@ impl RenameLabel {
 }
 
 /* === Public Functions === */
+
 pub fn case_attempts(state: &RuntimeState, id: &TestExecutionId) -> Vec<TestExecutionId> {
     let Some(execution) = state.executions.get(id) else {
         return Vec::new();

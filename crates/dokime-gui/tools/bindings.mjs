@@ -48,9 +48,52 @@ if (generated.status !== 0) throw new Error(generated.stderr.toString());
 const response = fromBinary(CodeGeneratorResponseSchema, generated.stdout);
 if (response.error) throw new Error(response.error);
 // The Ignored Message Modules Are Always Regenerated; --check Compares Only The Tracked Client.
-const output = resolve(gui, ".generated");
+const output = resolve(gui, "../../target/generated/typescript");
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
+writeFileSync(resolve(output, "application-settings.json"), readFileSync(resolve(root, "application-settings.json")));
+writeFileSync(resolve(output, "application-settings.ts"), readFileSync(resolve(root, "application-settings.ts")));
+const protocolSource = readFileSync(resolve(gui, "src-tauri/src/rpc/protocol.rs"), "utf8");
+const protocolConstants = [...protocolSource.matchAll(/^pub const ([A-Z_]+): u64 = ([0-9_]+);$/gm)];
+if (protocolConstants.length !== 3) throw new Error("Native IPC protocol constants are incomplete.");
+writeFileSync(
+  resolve(output, "desktop-protocol.ts"),
+  "// Generated From The Native IPC Protocol Owner. Do Not Edit.\n" +
+    protocolConstants.map(([, name, value]) => `export const ${name} = ${value};`).join("\n") +
+    "\n",
+);
+const nativeSource = readFileSync(resolve(gui, "src-tauri/src/bindings/mod.rs"), "utf8");
+const nativePattern =
+  /async\s+(desktop_(?:backends_list|backend_add|backend_import_pairing|backend_remove|backend_use|settings_read|settings_update))\s*\[[\s\S]*?\]\s*\(([\s\S]*?)\)\s*->\s*Result<([^,]+),/g;
+const nativeBindings = [...nativeSource.matchAll(nativePattern)];
+if (nativeBindings.length !== 7) throw new Error("Native preferences command inventory is incomplete.");
+const nativeType = (rust) => {
+  const type = rust.trim();
+  if (type.startsWith("Option<") && type.endsWith(">")) return `${nativeType(type.slice(7, -1))} | null`;
+  return type === "String" ? "string" : type.split("::").at(-1);
+};
+const nativeLines = [
+  "// Generated From The Native Command Inventory. Do Not Edit.",
+  'import type { Document, Profile, SettingsScope, SettingsSnapshot, UpdateSettings } from "./application-settings";',
+  'import type { ConnectionSnapshot } from "@/lib/desktop/connection";',
+  "export function createPreferencesCommands(invoke: <T>(command: string, args?: Record<string, unknown>) => Promise<T>) {",
+  "  return {",
+];
+for (const [, command, parameters, result] of nativeBindings) {
+  const args = parameters
+    .split(",")
+    .filter((value) => value.trim())
+    .map((value) => {
+      const colon = value.indexOf(":");
+      return { name: value.slice(0, colon).trim(), type: nativeType(value.slice(colon + 1)) };
+    });
+  const name = command.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  nativeLines.push(
+    `    ${name}: (${args.map((arg) => `${arg.name}: ${arg.type}`).join(", ")}) => invoke<${nativeType(result)}>(${JSON.stringify(command)}${args.length ? `, { ${args.map((arg) => arg.name).join(", ")} }` : ""}),`,
+  );
+}
+nativeLines.push("  };", "}");
+writeFileSync(resolve(output, "native-preferences.ts"), `${nativeLines.join("\n")}\n`);
 for (const file of response.file) {
   const path = resolve(output, file.name);
   const child = relative(output, path);
@@ -76,9 +119,7 @@ for (const file of set.file) {
 function schema(type, alias, lines) {
   const owner = messages.get(type);
   if (!owner) throw new Error(`Missing generated descriptor ${type}`);
-  lines.push(
-    `import { ${owner.message.name}Schema as ${alias} } from "../../../../.generated/${owner.file.name.replace(/\.proto$/, "_pb.js")}";`,
-  );
+  lines.push(`import { ${owner.message.name}Schema as ${alias} } from "@generated/${owner.file.name.replace(/\.proto$/, "_pb.js")}";`);
   return alias;
 }
 function fieldType(type, name) {
@@ -131,7 +172,7 @@ function exported(path) {
   for (const line of readFileSync(path, "utf8").split("\n")) {
     if (!line.trim()) continue;
     const event = JSON.parse(line);
-    if (event.reason === "compiler-artifact" && event.target.name === "dokime-server" && event.target.kind.includes("bin"))
+    if (event.reason === "compiler-artifact" && event.target.name === "dokime_server" && event.target.kind.includes("lib"))
       servers.add(event.package_id);
     else if (event.reason === "build-script-executed")
       scripts.set(event.package_id, [...(scripts.get(event.package_id) ?? []), event.out_dir]);

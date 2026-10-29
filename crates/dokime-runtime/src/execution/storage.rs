@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::MemorySize;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
@@ -29,6 +31,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 pub const DOCUMENT_SCHEMA: &str = "dokime.execution.document";
 
 /* === Macros === */
@@ -36,6 +39,7 @@ pub const DOCUMENT_SCHEMA: &str = "dokime.execution.document";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionMetadata {
@@ -70,6 +74,7 @@ pub struct ExecutionCycle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl MemorySize for ExecutionMetadata {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -124,21 +129,6 @@ impl MemorySize for ExecutionDocument {
 }
 
 impl ExecutionMetadata {
-    pub fn construction_memory(execution: &TestExecution) -> usize {
-        let case = execution.snapshot.case();
-        let fields = [
-            execution.test_execution_id.as_str().len(),
-            execution.test_cycle_id.as_str().len(),
-            execution.test_case_id.as_str().len(),
-            case.metadata.label.len(),
-            execution.started_at.as_ref().map_or(0, |at| at.as_str().len()),
-            execution.finished_at.as_ref().map_or(0, |at| at.as_str().len()),
-            case.test_case_template_id.as_str().len(),
-            execution.snapshot.suite().map_or(0, |suite| suite.label.len()),
-        ];
-        fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add)
-    }
-
     pub fn new(execution: &TestExecution) -> Self {
         Self {
             execution_id: execution.test_execution_id.clone(),
@@ -161,7 +151,10 @@ impl ExecutionDocument {
             return Err(crate::runtime::Error::Operation("execution document belongs to another cycle".into()));
         }
         Ok(Self {
-            cycle: ExecutionCycle { cycle_id: cycle.test_cycle_id.clone(), metadata: cycle.metadata.clone() },
+            cycle: ExecutionCycle {
+                cycle_id: cycle.test_cycle_id.clone(),
+                metadata: cycle.metadata.clone(),
+            },
             execution: execution.clone(),
         })
     }

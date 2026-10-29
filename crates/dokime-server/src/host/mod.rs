@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod args;
 mod error;
 mod hub_log;
@@ -19,34 +20,54 @@ pub mod version;
 mod profiles;
 
 /* === Re-Exports === */
+
 pub use args::{Args, NetworkArgs};
 pub use error::{Error, Result};
-// The subscriber install is part of the shell's surface, not just `run`'s
-// internals: it is a process-global side effect, so anything hosting this
-// backend installs it exactly once and holds the guards for the process.
+
+// Applications install tracing once and retain its guards for their process.
 pub use logging::{LoggingGuards, init as install_logging};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
-    io::Write,
     net::SocketAddr,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
+
 // Third Party Imports
+use futures_util::future::BoxFuture;
 
 // Local Imports
-use dokime_domain::DEV_PROTOCOL;
-use dokime_domain::READINESS_PROTOCOL;
-use dokime_runtime::config::ApplicationOptions;
 
 /* === Constants === */
+
+// The run's settle budget plus the final checkpoint; the desktop waits ten seconds longer.
+const SERVER_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
+const STOP_BUDGET: std::time::Duration = std::time::Duration::from_secs(dokime::operations::STOP_SETTLEMENT.timeout.as_secs() + 20);
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
+pub struct Session {
+    executor: tokio::runtime::Handle,
+    resources: Option<Resources>,
+    draining: Option<tokio::task::JoinHandle<(Resources, Result<()>)>>,
+    stage: Arc<Mutex<&'static str>>,
+    task_failure: Option<String>,
+    plugins: Vec<PathBuf>,
+    expected: Vec<ExpectedPlugin>,
+}
+
+struct Resources {
+    runtime: Option<dokime::Runtime>,
+    server: Option<crate::grpc::Server>,
+}
+
 struct ExpectedPlugin {
     package: String,
     digest: String,
@@ -59,139 +80,177 @@ struct ExpectedPlugin {
 
 /* === Implementations === */
 
-/* === Public Functions === */
-pub async fn run(args: Args, server_config: crate::grpc::Config, terminal: dokime::terminal::Terminal) -> Result<()> {
-    let mut config = ApplicationOptions {
-        application_root: args.application_root.clone(),
-        storage_root: args.output_root.clone(),
-        plugins_root: args.plugins_root.clone(),
-    }
-    .resolve()?;
-    let application_root = config.application_root.clone().expect("resolved options name an application root");
-    let storage_root = config.output_root.clone();
-    let _log_guards = logging::init(&application_root, terminal.color_enabled())?;
-    if let Some(title) = &args.title {
-        config.title = title.clone();
-    }
-    config.label = args.label.clone();
-    config.seed_plugins = !args.no_seed_validation_artifact;
-    config.explicit_plugins = if args.dev_control { Vec::new() } else { args.plugins.clone() };
-    let expected = expected_plugins(&args.plugins)?;
-    emit_phase(args.dev_control, "storage");
-    let mut runtime = dokime_runtime::app::launch(config).await.map_err(|error| Error::launch(error, storage_root.clone()))?;
-    emit_phase(args.dev_control, "plugins");
-    if let Err(error) = verify_plugins(&runtime.handle(), if args.dev_control { &[] } else { &expected }).await {
-        if let Err(cleanup) = runtime.shutdown().await {
-            return Err(crate::host::Error::Input(format!("{error}; runtime shutdown also failed: {cleanup}")));
+impl Session {
+    pub async fn start(
+        args: &Args, mut config: dokime::config::Config, server_config: crate::grpc::Config, mut on_phase: impl FnMut(&str) + Send,
+    ) -> Result<Self> {
+        let config_root = config.output_root.clone();
+        if let Some(title) = &args.title {
+            config.title = title.clone();
         }
-        return Err(error);
-    }
-    emit_phase(args.dev_control, "requests");
-    let server = match crate::grpc::Server::start(runtime.handle(), server_config).await {
-        Ok(server) => server,
-        Err(error) => {
-            let cleanup = runtime.shutdown().await.map(|_| ());
-            return Err(crate::host::Error::startup(error, cleanup));
+        config.label = args.label.clone();
+        config.seed_plugins = !args.no_seed_validation_artifact;
+        config.explicit_plugins = if args.dev_control { Vec::new() } else { args.plugins.clone() };
+        let expected = expected_plugins(&args.plugins, SERVER_PLUGIN_BUNDLE_BYTES, &config.schema)?;
+        on_phase("storage");
+        let runtime = dokime::app::launch(config).await.map_err(|error| Error::launch(error, config_root.clone()))?;
+        let mut session = Self {
+            executor: tokio::runtime::Handle::current(),
+            resources: Some(Resources { runtime: Some(runtime), server: None }),
+            draining: None,
+            stage: Arc::new(Mutex::new("starting")),
+            task_failure: None,
+            plugins: args.plugins.clone(),
+            expected,
+        };
+        on_phase("plugins");
+        let runtime = session.resources.as_ref().unwrap().runtime.as_ref().expect("session owns runtime");
+        if let Err(error) = verify_plugins(&runtime.handle(), if args.dev_control { &[] } else { &session.expected }).await {
+            return match session.shutdown().await {
+                Ok(()) => Err(error),
+                Err(cleanup) => Err(Error::StartupCleanup {
+                    source: Box::new(error),
+                    cleanup: Box::new(cleanup),
+                }),
+            };
         }
-    };
-    let local_addr = server.address();
-    let local_url = server.local_endpoint();
-    if args.dev_control {
-        use std::io::Write;
-        let ready = serde_json::json!({
-            "event": "ready",
-            "protocol": READINESS_PROTOCOL,
-            "endpoint": local_url,
-            "transport": "grpc",
-            "version": env!("CARGO_PKG_VERSION"),
-            "dev_protocol": DEV_PROTOCOL,
-        });
-        let result = writeln!(std::io::stdout().lock(), "{ready}");
-        if let Err(error) = result {
-            let server_result = server.shutdown().await;
-            let runtime_result = runtime.shutdown().await.map(|_| ());
-            crate::host::Error::shutdown(server_result, runtime_result)?;
-            return Err(error.into());
-        }
-    } else {
-        print_startup(&terminal, &application_root, &storage_root, local_addr, &local_url);
-    }
-
-    if args.dev_control {
-        development_control(&mut runtime, &args.plugins, &expected).await;
-    } else {
-        shutdown_signal(args.shutdown_stdin).await;
-    }
-    arm_force_quit();
-    let server_result = server.shutdown().await;
-    let runtime_result = runtime.shutdown().await.map(|_| ());
-    crate::host::Error::shutdown(server_result, runtime_result)
-}
-
-/* === Private Functions === */
-async fn development_control(runtime: &mut dokime_runtime::Runtime, paths: &[PathBuf], expected: &[ExpectedPlugin]) {
-    use std::io::{BufRead, Write};
-    let allowed: Vec<_> = paths.iter().map(|path| path.canonicalize().ok()).collect();
-    let (send, mut commands) = tokio::sync::mpsc::channel(8);
-    std::thread::spawn(move || {
-        let mut input = std::io::stdin().lock();
-        loop {
-            let mut line = String::new();
-            // Bound each request independently; EOF still owns host shutdown.
-            match std::io::Read::take(&mut input, 16 * 1024 + 1).read_line(&mut line) {
-                Ok(0) | Err(_) => break,
-                Ok(_) if line.len() > 16 * 1024 || !line.ends_with('\n') => break,
-                Ok(_) => {
-                    if send.blocking_send(line).is_err() {
-                        break;
-                    }
+        on_phase("requests");
+        let runtime = session.resources.as_ref().unwrap().runtime.as_ref().expect("session owns runtime");
+        match crate::grpc::Server::start(runtime.handle(), server_config).await {
+            Ok(server) => {
+                session.resources.as_mut().unwrap().server = Some(server);
+                Ok(session)
+            }
+            Err(error) => {
+                let cleanup = session.shutdown().await;
+                match cleanup {
+                    Ok(()) => Err(error.into()),
+                    Err(cleanup) => Err(Error::StartupCleanup {
+                        source: Box::new(error.into()),
+                        cleanup: Box::new(cleanup),
+                    }),
                 }
             }
         }
-    });
-    loop {
-        let line = tokio::select! {
-            _ = stop_signal() => break,
-            line = commands.recv() => match line { Some(line) => line, None => break },
-        };
-        let result = async {
-            let request: serde_json::Value = serde_json::from_str(&line)?;
-            if request["command"] != "reload" {
-                return Err(crate::host::Error::Input("unsupported development command".into()));
+    }
+
+    pub fn endpoint(&self) -> String {
+        self.resources.as_ref().and_then(|resources| resources.server.as_ref()).expect("ready session owns listener").local_endpoint()
+    }
+
+    pub fn address(&self) -> SocketAddr {
+        self.resources.as_ref().and_then(|resources| resources.server.as_ref()).expect("ready session owns listener").address()
+    }
+
+    pub async fn reload(&mut self, path: &Path, rerun: bool) -> Result<Option<String>> {
+        let path = path.canonicalize()?;
+        let index = self
+            .plugins
+            .iter()
+            .position(|allowed| allowed.canonicalize().ok().as_ref() == Some(&path))
+            .ok_or_else(|| Error::Input("bundle path was not selected for this development session".into()))?;
+        let handle = self.resources.as_ref().and_then(|resources| resources.runtime.as_ref()).expect("session owns runtime").handle();
+        let candidate = expected_plugins(std::slice::from_ref(&path), SERVER_PLUGIN_BUNDLE_BYTES, handle.schema_settings())?;
+        if candidate[0].package != self.expected[index].package {
+            return Err(Error::Input("package name changed; restart the development command".into()));
+        }
+        let runtime = self.resources.as_mut().and_then(|resources| resources.runtime.as_mut()).expect("session owns runtime");
+        runtime.reload_plugin(dokime::plugins::PluginBundle::new(path)).await?;
+        verify_plugins(&runtime.handle(), &candidate).await?;
+        if rerun { Ok(Some(rerun_latest_case(&runtime.handle(), &candidate[0].owners).await)) } else { Ok(None) }
+    }
+
+    pub fn shutdown(&mut self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async move {
+            if let Some(message) = &self.task_failure {
+                return Err(Error::Setup(message.clone()));
             }
-            let path = request["path"].as_str().ok_or_else(|| crate::host::Error::Input("reload path is required".into()))?;
-            let path = PathBuf::from(path).canonicalize()?;
-            let index = allowed
-                .iter()
-                .position(|allowed| allowed.as_ref() == Some(&path))
-                .ok_or_else(|| crate::host::Error::Input("bundle path was not selected for this development session".into()))?;
-            let candidate = expected_plugins(std::slice::from_ref(&path))?;
-            if candidate[0].package != expected[index].package {
-                return Err(crate::host::Error::Input("package name changed; restart the development command".into()));
+            if self.draining.is_none() {
+                let Some(mut resources) = self.resources.take() else { return Ok(()) };
+                let stage = self.stage.clone();
+                self.draining = Some(self.executor.spawn(async move {
+                    let outcome = resources.drain(&stage).await;
+                    (resources, outcome)
+                }));
             }
-            runtime.reload_plugin(dokime_runtime::plugins::PluginBundle::new(path)).await?;
-            verify_plugins(&runtime.handle(), &candidate).await?;
-            let rerun = if request["rerun"].as_bool() == Some(true) {
-                Some(rerun_latest_case(&runtime.handle(), &candidate[0].owners).await)
-            } else {
-                None
+            let waiting = self.draining.as_mut().expect("one retained drain");
+            let result = match tokio::time::timeout(STOP_BUDGET, waiting).await {
+                Err(_) => {
+                    let stage = *self.stage.lock().expect("shutdown stage poisoned");
+                    return Err(Error::StopIncomplete { stage, budget_s: STOP_BUDGET.as_secs() });
+                }
+                Ok(result) => result,
             };
-            Ok::<_, crate::host::Error>(rerun)
-        }
-        .await;
-        let reply = match result {
-            Ok(rerun) => {
-                serde_json::json!({"event":"reloaded", "rerun_message":rerun})
+            self.draining = None;
+            match result {
+                Ok((resources, outcome)) => {
+                    if outcome.is_err() {
+                        self.resources = Some(resources);
+                    }
+                    outcome
+                }
+                Err(error) => {
+                    let message = format!("server shutdown task failed: {error}");
+                    self.task_failure = Some(message.clone());
+                    Err(Error::Setup(message))
+                }
             }
-            Err(error) => serde_json::json!({"event":"reload_failed", "message":error.to_string()}),
-        };
-        if writeln!(std::io::stdout().lock(), "{reply}").is_err() {
-            break;
-        }
+        })
     }
 }
 
-async fn rerun_latest_case(handle: &dokime_runtime::RuntimeHandle, owners: &[String]) -> String {
+impl Resources {
+    async fn drain(&mut self, stage: &Mutex<&'static str>) -> Result<()> {
+        *stage.lock().expect("shutdown stage poisoned") = "stopping listeners";
+        let server_result = match self.server.as_mut() {
+            Some(server) => server.drain().await,
+            None => Ok(()),
+        };
+        if server_result.is_ok() {
+            self.server = None;
+        }
+        *stage.lock().expect("shutdown stage poisoned") = "stopping runtime";
+        let runtime_result = match self.runtime.as_mut() {
+            Some(runtime) => runtime.shutdown().await.map(|_| ()),
+            None => Ok(()),
+        };
+        if runtime_result.is_ok() {
+            // Runtime Completion Includes Every Registered gRPC Generation And Storage.
+            // A Prior Detach Failure Is Resolved Only By That Authoritative Completion.
+            self.server = None;
+            self.runtime = None;
+        }
+        Error::shutdown(server_result, runtime_result)
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        let resources = self.resources.take();
+        let draining = self.draining.take();
+        if resources.is_none() && draining.is_none() {
+            return;
+        }
+        let stage = self.stage.clone();
+        self.executor.spawn(async move {
+            if let Some(draining) = draining {
+                if let Ok((_, Err(error))) = draining.await {
+                    tracing::error!(%error, "server session cleanup failed");
+                }
+            } else if let Some(mut resources) = resources
+                && let Err(error) = resources.drain(&stage).await
+            {
+                tracing::error!(%error, "cancelled server session cleanup failed");
+            }
+        });
+    }
+}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+async fn rerun_latest_case(handle: &dokime::RuntimeHandle, owners: &[String]) -> String {
     let cycles = handle.cycles().await;
     let latest = cycles
         .iter()
@@ -209,53 +268,38 @@ async fn rerun_latest_case(handle: &dokime_runtime::RuntimeHandle, owners: &[Str
     let Some((cycle, execution)) = latest else {
         return "Run a case in the desktop GUI to select it for automatic re-run.".into();
     };
-    if let Err(error) = handle.rerun_cycle_case(cycle.test_cycle_id.clone(), execution.test_case_id.clone(), Default::default()).await {
+    let execution_id: dokime::TestExecutionId = dokime::model::identity::new_id();
+    let binding = (execution_id.clone(), execution.test_case_id.clone());
+    if let Err(error) = handle.append_executions(cycle.test_cycle_id.clone(), vec![binding]).await {
         return format!("Automatic re-run unavailable: {error}");
     }
-    let receipt = handle.run_cycle_case(cycle.test_cycle_id.clone(), execution.test_case_id.clone(), Default::default()).await;
+    let receipt = handle.start_execution(execution_id, execution.mode, Default::default()).await;
     match receipt.rejection {
         Some(error) => format!("Automatic re-run refused: {}", error.message),
         None => "Re-running the latest case with its retained inputs.".into(),
     }
 }
 
-fn emit_phase(dev_control: bool, name: &str) {
-    if !dev_control {
-        return;
-    }
-    let phase = serde_json::json!({ "event": "phase", "name": name });
-    let _ = writeln!(std::io::stdout().lock(), "{phase}");
-}
-
-fn print_startup(
-    terminal: &dokime::terminal::Terminal, application_root: &Path, storage_root: &Path, bind_addr: SocketAddr, local_url: &str,
-) {
-    terminal.header("dokime-server", env!("CARGO_PKG_VERSION"), "Server");
-    terminal.field("Bind", bind_addr);
-    terminal.field("Application", application_root.display());
-    terminal.field("Data", storage_root.display());
-    terminal.field("Transport", "gRPC");
-    terminal.success(local_url);
-    terminal.hint("Press Ctrl-C to stop");
-}
-
-fn expected_plugins(paths: &[PathBuf]) -> crate::host::Result<Vec<ExpectedPlugin>> {
+fn expected_plugins(
+    paths: &[PathBuf], maximum: u64, schema: &dokime::harmos::config::SchemaSettings,
+) -> crate::host::Result<Vec<ExpectedPlugin>> {
     use sha2::{Digest, Sha256};
     paths
         .iter()
         .map(|path| {
             // Match the runtime's bundle input bound before allocation.
             use std::io::Read;
-            const MAX_BYTES: u64 = 272 * 1024 * 1024;
             if !std::fs::symlink_metadata(path)?.file_type().is_file() {
                 return Err(crate::host::Error::Input("plugin bundle must be a regular file".into()));
             }
             let mut bytes = Vec::new();
-            std::fs::File::open(path)?.take(MAX_BYTES + 1).read_to_end(&mut bytes)?;
-            if bytes.len() as u64 > MAX_BYTES {
+            std::fs::File::open(path)?.take(maximum.saturating_add(1)).read_to_end(&mut bytes)?;
+            if bytes.len() as u64 > maximum {
                 return Err(crate::host::Error::Input(format!("plugin bundle too large: {}", path.display())));
             }
-            let (_, metadata) = dokime_runtime::plugins::inspect(&bytes).map_err(|error| crate::host::Error::Input(error.to_string()))?;
+            let archive_bytes = usize::try_from(maximum).expect("validated server plugin bundle limit fits native address space");
+            let (_, metadata) = dokime::plugins::inspect_with_archive_limit(&bytes, schema, archive_bytes)
+                .map_err(|error| crate::host::Error::Input(error.to_string()))?;
             Ok(ExpectedPlugin {
                 package: metadata.identity.name,
                 digest: Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
@@ -265,8 +309,8 @@ fn expected_plugins(paths: &[PathBuf]) -> crate::host::Result<Vec<ExpectedPlugin
         .collect()
 }
 
-async fn verify_plugins(handle: &dokime_runtime::RuntimeHandle, expected: &[ExpectedPlugin]) -> crate::host::Result<()> {
-    use dokime_runtime::runtime::query::{RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow};
+async fn verify_plugins(handle: &dokime::RuntimeHandle, expected: &[ExpectedPlugin]) -> crate::host::Result<()> {
+    use dokime::runtime::query::{RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow};
     if expected.is_empty() {
         return Ok(());
     }
@@ -288,7 +332,7 @@ async fn verify_plugins(handle: &dokime_runtime::RuntimeHandle, expected: &[Expe
                 artifact.enabled
                     && artifact.plugin_id.as_str() == owner
                     && matches!(&artifact.owner,
-                        Some(dokime_runtime::state::PluginOwner::Bundle { package, content_digest, installation: None, .. })
+                        Some(dokime::state::PluginOwner::Bundle { package, content_digest, installation: None, .. })
                         if package == &plugin.package && content_digest == &plugin.digest)
             });
             if !admitted {
@@ -302,97 +346,70 @@ async fn verify_plugins(handle: &dokime_runtime::RuntimeHandle, expected: &[Expe
     Ok(())
 }
 
-async fn shutdown_signal(stdin: bool) {
-    if !stdin {
-        stop_signal().await;
-        return;
-    }
-    let (closed, eof) = tokio::sync::oneshot::channel();
-    // A dedicated thread cannot hold Tokio's blocking pool open on Ctrl-C.
-    std::thread::spawn(move || {
-        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
-        let _ = closed.send(());
-    });
-    tokio::select! {
-        _ = stop_signal() => {}
-        _ = eof => {}
-    }
-}
-
-async fn stop_signal() {
-    #[cfg(unix)]
-    {
-        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-            Ok(mut terminate) => {
-                tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {},
-                    _ = terminate.recv() => {},
-                }
-            }
-            Err(error) => {
-                tracing::error!(%error, "could not install SIGTERM handler");
-                let _ = tokio::signal::ctrl_c().await;
-            }
-        }
-    }
-    #[cfg(not(unix))]
-    let _ = tokio::signal::ctrl_c().await;
-}
-
-fn arm_force_quit() {
-    eprintln!("Stopping Dokime. Press Ctrl-C again to exit without finishing.");
-
-    let interrupt = tokio::signal::ctrl_c();
-    let exit = |code| std::process::exit(code);
-    let quit = force_quit(interrupt, exit);
-    tokio::spawn(quit);
-}
-
-async fn force_quit(signal: impl std::future::Future<Output = std::io::Result<()>>, exit: impl FnOnce(i32)) {
-    if let Err(error) = signal.await {
-        tracing::debug!(%error, "force-quit listener unavailable");
-        return;
-    }
-    eprintln!("Interrupted again: exiting without finishing the orderly stop.");
-    exit(130);
-}
-
 /* === Tests === */
 
 #[cfg(test)]
-#[tokio::test]
-async fn force_quit_error() {
-    let exit = std::cell::Cell::new(None);
-    let record_exit = |code| {
-        let status = Some(code);
-        exit.set(status);
-    };
-    let error = std::io::Error::other("signal listener unavailable");
-    let unavailable = std::future::ready(Err(error));
-    force_quit(unavailable, record_exit).await;
-    assert_eq!(exit.get(), None, "a listener error must preserve orderly shutdown");
+mod tests {
+    use super::*;
+    use futures_util::FutureExt;
 
-    let interrupt = std::future::ready(Ok(()));
-    force_quit(interrupt, record_exit).await;
-    assert_eq!(exit.get(), Some(130), "a second interrupt must still force exit");
-}
+    fn arguments(root: &Path) -> Args {
+        Args {
+            shutdown_stdin: false,
+            dev_control: false,
+            network: NetworkArgs {
+                host: std::net::Ipv4Addr::LOCALHOST.into(),
+                port: Some(0),
+                message_limit_mib: Some(2),
+                grpc_web: false,
+                allowed_origins: Vec::new(),
+            },
+            title: None,
+            label: None,
+            output_root: Some(root.join("store")),
+            application_root: Some(root.join("application")),
+            env_file: None,
+            plugins: Vec::new(),
+            plugins_root: None,
+            no_seed_validation_artifact: true,
+        }
+    }
 
-#[cfg(all(test, unix))]
-#[test]
-fn force_quit_shutdown() {
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-    let handle = runtime.handle().clone();
-    drop(runtime);
+    async fn reacquire(args: &Args) -> Session {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                match Session::start(args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await {
+                    Ok(session) => break session,
+                    Err(_) => tokio::time::sleep(std::time::Duration::from_millis(10)).await,
+                }
+            }
+        })
+        .await
+        .expect("cancelled startup releases its execution store")
+    }
 
-    let _entered = handle.enter();
-    let exit = std::cell::Cell::new(None);
-    let record_exit = |code| {
-        let status = Some(code);
-        exit.set(status);
-    };
-    let interrupt = tokio::signal::ctrl_c();
-    let quit = force_quit(interrupt, record_exit);
-    let outcome = futures_util::FutureExt::now_or_never(quit);
-    assert_eq!(outcome, Some(()));
-    assert_eq!(exit.get(), None, "runtime teardown is not another Ctrl-C");
+    #[tokio::test]
+    async fn startup_unwind_drains() {
+        let root = tempfile::tempdir().unwrap();
+        let args = arguments(root.path());
+        let startup = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |phase| {
+            if phase == "plugins" {
+                panic!("deliberate startup cancellation");
+            }
+        });
+        assert!(std::panic::AssertUnwindSafe(startup).catch_unwind().await.is_err());
+        reacquire(&args).await.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn session_drop_drains() {
+        let root = tempfile::tempdir().unwrap();
+        let args = arguments(root.path());
+        let session = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await.unwrap();
+        let address = session.address();
+        drop(session);
+        let mut replacement = reacquire(&args).await;
+        assert!(tokio::net::TcpStream::connect(address).await.is_err(), "the dropped session releases its listener");
+        replacement.shutdown().await.unwrap();
+    }
 }

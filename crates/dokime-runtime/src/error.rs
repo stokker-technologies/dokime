@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::fmt;
+
 // Third Party Imports
 #[cfg(feature = "native")]
 use tokio_stream::Elapsed;
+
 // Local Imports
 use crate::document::DocumentFailure;
 use crate::values::FieldError;
@@ -28,11 +31,13 @@ use dokime_domain::model::records::error::RecordFailure;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -41,12 +46,16 @@ pub enum Error {
 
     #[error("setting {0:?} is not available in this context")]
     UnknownSetting(String),
+
     #[error("setting {0:?} requires secret() access")]
     SecretSetting(String),
+
     #[error("setting {0:?} does not have the requested type")]
     SettingType(String),
+
     #[error("secret {0:?} is not declared in this context")]
     UnknownSecret(String),
+
     #[error("secret {0:?} has no available binding")]
     UnavailableSecret(String),
 
@@ -55,11 +64,13 @@ pub enum Error {
 
     #[error("the run was cancelled while the question was outstanding")]
     PromptCancelled,
+
     #[error("the operator question was refused: {0}")]
     PromptRefused(String),
 
     #[error("the stream could not be leased: {0}")]
     LeaseRefused(String),
+
     #[error("the execution ended before the stream lease was granted")]
     LeaseCancelled,
 
@@ -113,13 +124,20 @@ pub enum TelemetryFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Error {
     pub fn record_mismatched(wanted: &'static str, found: &Identifier) -> Self {
-        Self::RecordDecode { record: found.to_string(), reason: format!("is not a {wanted:?}") }
+        Self::RecordDecode {
+            record: found.to_string(),
+            reason: format!("is not a {wanted:?}"),
+        }
     }
 
     pub fn record_field(record_type: &'static str, field: FieldError) -> Self {
-        Self::RecordDecode { record: record_type.to_owned(), reason: field.to_string() }
+        Self::RecordDecode {
+            record: record_type.to_owned(),
+            reason: field.to_string(),
+        }
     }
 }
 
@@ -201,14 +219,14 @@ impl From<std::io::Error> for Error {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
 impl From<dokime_domain::model::execution::snapshot::SnapshotError> for Error {
     fn from(source: dokime_domain::model::execution::snapshot::SnapshotError) -> Self {
         Self::Parameter { name: source.name, reason: source.reason }
     }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

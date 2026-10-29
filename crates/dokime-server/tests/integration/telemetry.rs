@@ -12,17 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use {
-    dokime_runtime::Identifier, dokime_runtime::Timestamp, dokime_runtime::Value, dokime_runtime::telemetry::TelemetryBatch,
-    dokime_runtime::telemetry::TelemetrySample,
-};
+use dokime::domain::model;
+use {dokime::Identifier, dokime::Timestamp, dokime::Value, dokime::telemetry::TelemetryBatch, dokime::telemetry::TelemetrySample};
 
 /* === Constants === */
 
@@ -41,6 +39,7 @@ use {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn sequences(reply: &model::telemetry::wire::TelemetrySamplesReply) -> Vec<u64> {
     reply.samples.iter().map(|sample| sample.sequence).collect()
 }
@@ -72,22 +71,45 @@ async fn telemetry_pages_window() {
     let samples = (0..5)
         .map(|index| {
             let mut sample = TelemetrySample::new(
-                dokime_runtime::model::identity::new_id(),
+                dokime::model::identity::new_id(),
                 id.clone(),
                 index,
                 Timestamp::new("2026-09-13T00:00:00Z"),
                 "fixture",
             );
             sample.values.insert("progress".into(), Value::Number(index as f64));
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
+            sample.with_storage_payload(dokime::harmos::Message::encode(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
-    handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
 
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let stream = dokime_runtime::domains::telemetry::telemetry_stream_id(None, &id);
-    let base = contracts::telemetry::ListSamples { streams: vec![id.to_string()], limit: 2, ..Default::default() };
+    let stream = dokime::domains::telemetry::telemetry_stream_id(None, &id);
+    let base = contracts::telemetry::ListSamples {
+        streams: vec!["fixture.*".into(), "fixture.progres?".into(), "missing.*".into()],
+        limit: 2,
+        ..Default::default()
+    };
+
+    let excluded = client
+        .unary::<contracts::telemetry::ListSamples>(authenticated(contracts::telemetry::ListSamples {
+            streams: vec!["missing.*".into()],
+            ..base.clone()
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(excluded.samples.is_empty());
+
+    let malformed = client
+        .unary::<contracts::telemetry::ListSamples>(authenticated(contracts::telemetry::ListSamples {
+            streams: vec!["fixture.[ab]".into()],
+            ..base.clone()
+        }))
+        .await
+        .unwrap_err();
+    assert_eq!(malformed.code(), Code::InvalidArgument);
 
     let first = client.unary::<contracts::telemetry::ListSamples>(authenticated(base.clone())).await.unwrap().into_inner();
     assert_eq!(sequences(&first), [1, 2]);

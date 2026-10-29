@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::SuiteSet;
 use crate::state::RuntimeState;
@@ -28,14 +30,15 @@ use crate::state::RuntimeState;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "dokime.execution.catalog.set", version = 2, irreversible)]
+
+#[harmos::transaction(id = "dokime.execution.catalog.set", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SetSuiteSet {
     pub source: String,
     pub catalog: SuiteSet,
 }
 
-#[harmos::transaction(id = "dokime.execution.catalog.unregister-source", version = 2, irreversible)]
+#[harmos::transaction(id = "dokime.execution.catalog.unregister-source", irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RemoveSuiteSet {
     pub source: String,
@@ -46,6 +49,7 @@ pub struct RemoveSuiteSet {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for SetSuiteSet {
     type Error = String;
 
@@ -53,7 +57,7 @@ impl Transaction<RuntimeState> for SetSuiteSet {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        let mut projected = state.clone();
+        let mut projected = state.catalog_candidate();
         set_suites(&mut projected, &self.source, &self.catalog)
     }
 
@@ -69,7 +73,7 @@ impl Transaction<RuntimeState> for RemoveSuiteSet {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        let mut projected = state.clone();
+        let mut projected = state.catalog_candidate();
         remove_suites(&mut projected, &self.source)
     }
 
@@ -81,6 +85,7 @@ impl Transaction<RuntimeState> for RemoveSuiteSet {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn ensure_host_source(state: &RuntimeState, source: &str) -> Result<(), String> {
     if matches!(
         state.plugin_owners.get(source),

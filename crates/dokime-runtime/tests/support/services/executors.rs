@@ -54,8 +54,8 @@ pub struct MemberStopExecutor {
 }
 
 #[derive(Default)]
-pub struct SecondGroupHoldExecutor {
-    groups: std::sync::atomic::AtomicUsize,
+pub struct SecondExecutionHoldExecutor {
+    executions: std::sync::atomic::AtomicUsize,
     entered: Entered,
     released: tokio::sync::watch::Sender<bool>,
 }
@@ -78,11 +78,17 @@ pub struct TrackingTransitionExecutor;
 /* === Implementations === */
 impl FakePythonExecutor {
     pub fn fixed(status: &str) -> Self {
-        Self { status: status.to_owned(), case_parameter_status: false }
+        Self {
+            status: status.to_owned(),
+            case_parameter_status: false,
+        }
     }
 
     pub fn case_parameter() -> Self {
-        Self { status: "passed".to_owned(), case_parameter_status: true }
+        Self {
+            status: "passed".to_owned(),
+            case_parameter_status: true,
+        }
     }
 }
 
@@ -125,7 +131,7 @@ impl BlockingErrorExecutor {
     }
 }
 
-impl SecondGroupHoldExecutor {
+impl SecondExecutionHoldExecutor {
     pub async fn wait_until_entered(&self) {
         self.entered.wait().await;
     }
@@ -181,17 +187,17 @@ impl ExecutionFixture for BlockingPublishingExecutor {
     }
 }
 
-impl ExecutionFixture for SecondGroupHoldExecutor {
+impl ExecutionFixture for SecondExecutionHoldExecutor {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
-            let group = self.groups.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let ordinal = self.executions.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             for execution in runnable_executions(cycle) {
                 activate_fixture_execution(&context, execution).await;
             }
-            if group > 0 {
+            if ordinal > 0 {
                 let mut released = self.released.subscribe();
                 self.entered.signal();
                 tokio::select! {

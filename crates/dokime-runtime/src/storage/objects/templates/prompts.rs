@@ -399,7 +399,12 @@ impl TryFrom<Action> for PromptAction {
     type Error = Error;
 
     fn try_from(row: Action) -> Result<Self> {
-        Ok(Self { id: row.id, label: row.label, emphasis: emphasis(&row.emphasis)?, requires_condition: row.requires_condition })
+        Ok(Self {
+            id: row.id,
+            label: row.label,
+            emphasis: emphasis(&row.emphasis)?,
+            requires_condition: row.requires_condition,
+        })
     }
 }
 
@@ -426,7 +431,10 @@ impl TryFrom<&PromptRule> for Rule {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("prompt rule encoding memory overflows"));
         }
-        Ok(Self { predicate: expressions::Boolean::try_from(&value.predicate)?, message: value.message.as_str().to_owned() })
+        Ok(Self {
+            predicate: expressions::Boolean::try_from(&value.predicate)?,
+            message: value.message.as_str().to_owned(),
+        })
     }
 }
 
@@ -434,7 +442,10 @@ impl TryFrom<Rule> for PromptRule {
     type Error = Error;
 
     fn try_from(row: Rule) -> Result<Self> {
-        Ok(Self { predicate: row.predicate.try_into()?, message: row.message })
+        Ok(Self {
+            predicate: row.predicate.try_into()?,
+            message: row.message,
+        })
     }
 }
 
@@ -593,3 +604,27 @@ fn emphasis(value: &str) -> Result<PromptActionEmphasis> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::Prompt as PromptRow;
+    use crate::prompts::{ConfirmationPrompt, Prompt, PromptDefinition};
+    use crate::records::RecordSeverity;
+
+    #[test]
+    fn prompt_level_rows() {
+        let expected = ConfirmationPrompt::new("fixture.level", "Raised").level(RecordSeverity::Warning);
+        let expected = Prompt::definition(&expected);
+        let row = PromptRow::try_from(&expected).unwrap();
+        let restored = PromptDefinition::try_from(row.clone()).unwrap();
+
+        let mut baseline = serde_json::to_value(&row).unwrap();
+        baseline.as_object_mut().unwrap().remove("level");
+        let baseline: PromptRow = serde_json::from_value(baseline).unwrap();
+        let defaulted = PromptDefinition::try_from(baseline).unwrap();
+
+        assert_eq!(restored, expected);
+        assert_eq!(restored.level, RecordSeverity::Warning);
+        assert_eq!(defaulted.level, RecordSeverity::Info);
+    }
+}

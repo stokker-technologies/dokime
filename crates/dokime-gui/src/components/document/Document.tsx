@@ -40,7 +40,7 @@ type DocumentGridProps = {
 
 export function Document({ children, className, description, title }: DocumentProps) {
   return (
-    <article className={cn("document grid min-w-0 gap-5", className)}>
+    <article className={cn("document grid min-w-0 gap-4", className)}>
       {title || description ? (
         <header className="grid min-w-0 gap-1">
           {title ? <h2 className="truncate text-xl font-semibold">{title}</h2> : null}
@@ -55,7 +55,7 @@ export function Document({ children, className, description, title }: DocumentPr
 export function DocumentSection({ children, className, description, title }: DocumentSectionProps) {
   return (
     <section className={cn("document-section grid min-w-0 gap-3", className)}>
-      <header className="grid min-w-0 gap-0.5">
+      <header className="grid min-w-0 gap-1">
         <h3 className="truncate text-base font-semibold">{title}</h3>
         {description ? <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{description}</p> : null}
       </header>

@@ -11,39 +11,29 @@
 
 /* === Re-Exports === */
 
+pub use crate::operations::execution::transport::ExecutionProgress;
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::iter::FusedIterator;
 use std::sync::Arc;
 use std::time::Instant;
+
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
-const ETA_WARMUP_ITEMS: u64 = 3;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[derive(Clone, PartialEq)]
-pub struct ExecutionProgress {
-    #[row(description = "Author-facing description of the bounded operation.")]
-    pub phase: String,
-    #[row(description = "Work units whose loop bodies completed.")]
-    pub completed: u64,
-    #[row(description = "Work units the iterator contained when progress tracking began.")]
-    pub total: u64,
-    #[row(description = "Monotonic time since this operation began.")]
-    pub elapsed_ms: u64,
-    #[row(description = "Estimated monotonic time left, absent during estimator warm-up.")]
-    pub remaining_ms: Option<u64>,
-}
 
 pub struct Progress<I> {
+    warmup: u64,
     iterator: I,
     sink: Arc<dyn ProgressSink>,
     phase: String,
@@ -63,11 +53,22 @@ pub trait ProgressSink: Send + Sync {
 }
 
 /* === Implementations === */
+
 impl<I: ExactSizeIterator> Progress<I> {
-    pub fn new(phase: impl Into<String>, iterator: I, sink: Arc<dyn ProgressSink>) -> Self {
+    pub fn new(phase: impl Into<String>, iterator: I, sink: Arc<dyn ProgressSink>, warmup: u64) -> Self {
         let phase = phase.into();
         let total = u64::try_from(iterator.len()).unwrap_or(u64::MAX);
-        let progress = Self { iterator, sink, phase, started: Instant::now(), completed: 0, total, pending: false, finished: false };
+        let progress = Self {
+            iterator,
+            sink,
+            phase,
+            started: Instant::now(),
+            completed: 0,
+            total,
+            pending: false,
+            finished: false,
+            warmup,
+        };
         progress.report();
 
         progress
@@ -86,7 +87,7 @@ impl<I: ExactSizeIterator> Progress<I> {
         let elapsed = self.started.elapsed();
         let remaining_ms = if self.completed >= self.total {
             Some(0)
-        } else if self.completed >= ETA_WARMUP_ITEMS {
+        } else if self.completed >= self.warmup {
             let elapsed_ms = elapsed.as_millis();
             let remaining = u128::from(self.total.saturating_sub(self.completed));
             Some(saturating_u64(elapsed_ms.saturating_mul(remaining) / u128::from(self.completed)))
@@ -140,6 +141,7 @@ impl<I: ExactSizeIterator> FusedIterator for Progress<I> {}
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn saturating_u64(value: u128) -> u64 {
     u64::try_from(value).unwrap_or(u64::MAX)
 }

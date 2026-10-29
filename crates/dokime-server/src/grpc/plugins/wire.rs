@@ -12,17 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
+use tonic::Status;
 
 // Local Imports
 use super::super::value::canonical;
-use super::value;
-use dokime_domain::model::plugins::wire as plugins_model;
-use dokime_runtime::plugins::{PluginEntry, PluginLastBoot, PluginState};
-use tonic::Status;
+use crate::grpc::transcode::Transcode;
+use dokime::domain::model::plugins::wire as plugins_model;
+use dokime::plugins::{PluginEntry, PluginLastBoot, PluginState};
 
 /* === Constants === */
 
@@ -39,6 +39,7 @@ use tonic::Status;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_model::PluginInstallation, Status> {
     normalize(&mut entry, limit)?;
     let installation = entry.installation;
@@ -50,15 +51,6 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
         }),
         owners: metadata.owners,
         size_bytes: metadata.size_bytes,
-        environment_references: metadata
-            .environment_references
-            .into_iter()
-            .map(|reference| plugins_model::PluginEnvironmentReference {
-                owner: reference.owner,
-                setting: reference.setting,
-                variable: reference.variable,
-            })
-            .collect(),
     });
     let last_boot = installation
         .last_boot
@@ -67,16 +59,17 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
                 PluginLastBoot::Loaded { at } => (at, plugins_model::PluginLastBootResult::Loaded(true)),
                 PluginLastBoot::Failed { error, at } => (at, plugins_model::PluginLastBootResult::Error(error)),
             };
-            Ok::<_, Status>(plugins_model::PluginLastBoot { at: Some(canonical::timestamp(&at)?), result: Some(result) })
+            Ok::<_, Status>(plugins_model::PluginLastBoot {
+                at: Some(canonical::timestamp(&at)?),
+                result: Some(result),
+            })
         })
         .transpose()?;
     let result = plugins_model::PluginInstallation {
         install_id: installation.install_id.to_string(),
         sha256: installation.sha256,
-        staged_at: Some(canonical::timestamp(&installation.staged_at)?),
-        consented_at: installation.consented_at.as_ref().map(canonical::timestamp).transpose()?,
+        installed_at: Some(canonical::timestamp(&installation.installed_at)?),
         state: match installation.state {
-            PluginState::Staged => plugins_model::PluginInstallationState::Staged,
             PluginState::Installed => plugins_model::PluginInstallationState::Installed,
             PluginState::Disabled => plugins_model::PluginInstallationState::Disabled,
             PluginState::RemovalPending => plugins_model::PluginInstallationState::RemovalPending,
@@ -94,60 +87,23 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
     Ok(result)
 }
 
-pub(super) fn disclosure(entry: &PluginEntry, limit: usize) -> Result<(), Status> {
+fn metadata_budget(entry: &PluginEntry, limit: usize) -> Result<(), Status> {
     if entry.metadata.is_none() {
-        return Err(Status::failed_precondition("verified permission metadata is unavailable; consent refused"));
+        return Err(Status::failed_precondition("verified plugin metadata is unavailable"));
     }
-    dokime_runtime::document::bounded::document_size(entry, limit / 2, 32)
-        .map_err(|_| Status::resource_exhausted("complete permission metadata exceeds response budget; consent refused"))?;
+    dokime::document::bounded::document_size(entry, limit, 32)
+        .map_err(|_| Status::resource_exhausted("plugin metadata exceeds response budget"))?;
     Ok(())
 }
 
 pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Status> {
-    if entry.metadata.is_some() && disclosure(entry, limit).is_err() {
+    if entry.metadata.is_some() && metadata_budget(entry, limit).is_err() {
         entry.metadata = None;
-        entry.error = Some("Verified permission metadata exceeds response budget; consent is unavailable. Installation identity and state remain accessible.".into());
+        entry.error = Some("Plugin metadata exceeds response budget. Installation identity and state remain accessible.".into());
     }
-    dokime_runtime::document::bounded::document_size(&entry, limit / 2, 32)
+    dokime::document::bounded::document_size(&entry, limit, 32)
         .map_err(|_| Status::resource_exhausted("plugin installation state exceeds response budget"))?;
     Ok(())
-}
-pub(super) fn memory(entry: &PluginEntry) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<plugins_model::PluginInstallation>() + 36;
-    let mut add = |text: &str| -> Result<(), Status> {
-        value::text(text)?;
-        bytes = bytes.saturating_add(text.len());
-        Ok(())
-    };
-    add(&entry.installation.sha256)?;
-    if let Some(text) = &entry.error {
-        add(text)?;
-    }
-    if let Some(text) = &entry.boot_error {
-        add(text)?;
-    }
-    if let Some(PluginLastBoot::Failed { error, .. }) = &entry.installation.last_boot {
-        add(error)?;
-    }
-    if let Some(metadata) = &entry.metadata {
-        for text in [&metadata.identity.name, &metadata.identity.version, &metadata.identity.description] {
-            add(text)?;
-        }
-        for text in &metadata.owners {
-            add(text)?;
-        }
-        for reference in &metadata.environment_references {
-            for text in [&reference.owner, &reference.setting, &reference.variable] {
-                add(text)?;
-            }
-        }
-    }
-    if let Some(metadata) = &entry.metadata {
-        bytes = bytes.saturating_add(metadata.owners.len().saturating_mul(4 * std::mem::size_of::<String>())).saturating_add(
-            metadata.environment_references.len().saturating_mul(4 * std::mem::size_of::<plugins_model::PluginEnvironmentReference>()),
-        );
-    }
-    Ok(bytes)
 }
 
 /* === Private Functions === */

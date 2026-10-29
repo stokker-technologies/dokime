@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,6 +26,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // The struct is the question and the answer at once: its fields are the
 // form's fields, the attribute is the title and the actions, and what the
 // operator submits decodes into this type. The template names it once in
@@ -34,8 +36,8 @@
 //
 // A step whose default depends on what it just measured asks through the
 // struct instance: `SoakCheckpoint { note: seen, ..Default::default() }`.
-#[dokime_runtime::prompt(
-    id = "{{owner}}.soak.checkpoint",
+#[dokime::prompt(
+    id = "{{crate}}.soak.checkpoint",
     label = "Sign off the soak",
     submit = "Sign off",
     description = "Check the chamber and the unit, then record what you saw."

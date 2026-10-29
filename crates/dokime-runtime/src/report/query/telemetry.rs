@@ -12,25 +12,22 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
-use harmos::{
-    operations::Context,
-    storage::{
-        StorageCursor,
-        operations::Query,
-        query::{RowSlice, Source, StreamSelection, transform::Transform},
-    },
+use harmos::storage::{
+    Query, StorageCursor,
+    query::{RowSlice, Source, StreamSelection, transform::Transform},
 };
+
 // Local Imports
 use super::invalid;
 use crate::runtime::Result;
 use crate::storage::telemetry::TypedCodec;
-use crate::storage::telemetry::codec;
-use crate::storage::telemetry::encode_batch;
+use crate::storage::telemetry::decode_positioned;
 use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
-use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -47,6 +44,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn plan(at: &StorageCursor, scope: &str, codec: &TypedCodec, transforms: Vec<Transform>) -> Result<Query> {
     Ok(Query {
         at: at.clone(),
@@ -64,42 +62,80 @@ pub(super) fn plan(at: &StorageCursor, scope: &str, codec: &TypedCodec, transfor
     })
 }
 
-pub(in crate::report) async fn read(
-    ctx: &Context<'_>, settings: &crate::config::StorageSettings, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
-    transforms: Vec<Transform>,
-) -> Result<Vec<TelemetrySample>> {
-    let codec = codec(contract)?;
-    let query = plan(at, scope, &codec, transforms)?;
-    let mut samples = Vec::new();
-    for batch in super::batches(ctx, settings, query).await? {
-        for row in encode_batch(&codec, &batch)? {
-            samples.push(codec.decode(&row, usize::MAX)?.sample);
+pub(in crate::report) async fn visit(
+    ctx: &crate::report::Scope, session: &crate::storage::Manager, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
+    mut visit: impl FnMut(&TelemetrySample) -> Result<()>,
+) -> Result<()> {
+    let codec = saved_codec(ctx, session, at, contract).await?;
+    let query = plan(at, scope, &codec, Vec::new())?;
+    super::visit_batches(session, at, query, |batch| {
+        let entries = decode_positioned(&codec, batch)?;
+        for (_, entry) in entries.iter() {
+            visit(&entry.sample)?;
         }
-    }
-    sort(&mut samples);
-    Ok(samples)
-}
-
-pub(super) async fn streams(
-    ctx: &Context<'_>, settings: &crate::config::StorageSettings, at: &StorageCursor, scope: &str,
-    contracts: &std::collections::BTreeMap<Identifier, std::collections::BTreeMap<u32, TelemetryContract>>, selected: &[String],
-) -> Result<Vec<TelemetrySample>> {
-    let mut samples = Vec::new();
-    for (stream, versions) in contracts {
-        if !selected.iter().any(|name| crate::plot::stream_matches_alias(stream.as_str(), name)) {
-            continue;
-        }
-        for contract in versions.values() {
-            samples.extend(read(ctx, settings, at, scope, contract, Vec::new()).await?);
-        }
-    }
-    sort(&mut samples);
-    Ok(samples)
+        Ok(())
+    })
+    .await
 }
 
 /* === Private Functions === */
-fn sort(samples: &mut [TelemetrySample]) {
-    samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
-}
 
+pub(in crate::report) async fn saved_codec(
+    ctx: &crate::report::Scope, session: &crate::storage::Manager, at: &StorageCursor, contract: &TelemetryContract,
+) -> Result<harmos::storage::ReadBatch<TypedCodec>> {
+    let identifier_bytes = "dokime.telemetry."
+        .len()
+        .checked_add(contract.stream.as_str().len())
+        .ok_or_else(|| invalid("report schema identifier size overflows"))?;
+    let mut identifier = String::new();
+    identifier.try_reserve_exact(identifier_bytes).map_err(|_| invalid("report schema identifier allocation failed"))?;
+    identifier.push_str("dokime.telemetry.");
+    identifier.push_str(contract.stream.as_str());
+    let schema = harmos::storage::SchemaKey {
+        id: harmos::Identifier::new(identifier).map_err(|_| invalid("invalid report schema identifier"))?,
+        version: std::num::NonZeroU32::new(contract.schema_version).ok_or_else(|| invalid("invalid report schema version"))?,
+        payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
+    };
+    let codecs =
+        crate::runtime::storage::telemetry::saved_codecs(session, at, Some(&schema), &ctx.resources().schema_settings, |id, version| {
+            id.strip_prefix("dokime.telemetry.") == Some(contract.stream.as_str()) && version == contract.schema_version
+        })
+        .await?;
+    codecs.try_map(|mut codecs| {
+        if codecs.len() != 1 {
+            return Err(invalid("captured report schema is missing or ambiguous"));
+        }
+        Ok(codecs.pop().expect("one report codec"))
+    })
+}
+pub(in crate::report) fn sort(
+    samples: harmos::storage::ReadBatch<Vec<TelemetrySample>>,
+) -> Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
+    samples.try_map(|mut samples| {
+        let mut order = Vec::new();
+        order.try_reserve_exact(samples.len()).map_err(|_| invalid("report ordering allocation failed"))?;
+        order.extend(0..samples.len());
+        order.sort_unstable_by(|left, right| {
+            samples[*left]
+                .timestamp
+                .cmp(&samples[*right].timestamp)
+                .then(samples[*left].sequence.cmp(&samples[*right].sequence))
+                .then(left.cmp(right))
+        });
+        let mut destinations = Vec::new();
+        destinations.try_reserve_exact(samples.len()).map_err(|_| invalid("report ordering allocation failed"))?;
+        destinations.resize(samples.len(), 0);
+        for (destination, source) in order.into_iter().enumerate() {
+            destinations[source] = destination;
+        }
+        for index in 0..samples.len() {
+            while destinations[index] != index {
+                let destination = destinations[index];
+                samples.swap(index, destination);
+                destinations.swap(index, destination);
+            }
+        }
+        Ok(samples)
+    })
+}
 /* === Tests === */

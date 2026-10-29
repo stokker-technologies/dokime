@@ -30,14 +30,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useReportDefaults } from "@/lib/application-settings";
 import type { DocumentDownsampleTechnique } from "@/lib/types";
-import type { PlotSettingsButtonProps } from "./plot-settings";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
+import type { PlotSettingsButtonProps } from "./plot-settings";
 
 /* === Constants === */
-
-/** Fewer points than this cannot show a waveform; the host default stays reachable by clearing the field. */
-const MIN_DISPLAY_POINTS = 50;
-const DISPLAY_POINTS_STEP = 50;
 
 export const TECHNIQUE_OPTIONS: Array<{ value: DocumentDownsampleTechnique; label: string }> = [
   { value: "auto", label: "Auto" },
@@ -116,7 +112,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
 
         {/* Label and control share one column pair per row so the two fields
             line up whatever their label length. */}
-        <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] items-center gap-x-3 gap-y-3">
+        <div className="grid grid-cols-[minmax(0,--spacing(36))_minmax(0,1fr)] items-center gap-x-3 gap-y-3">
           <Label htmlFor={`${id}-points`}>Display Points</Label>
           <Input
             aria-invalid={invalid || undefined}
@@ -126,7 +122,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             min={0}
             onChange={(event) => setPointsRaw(event.target.value)}
             placeholder={`Default (${defaults.plotPoints.toLocaleString()})`}
-            step={DISPLAY_POINTS_STEP}
+            step={1}
             type="number"
             value={pointsRaw}
           />
@@ -147,7 +143,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
 
         <p className="text-xs text-muted-foreground">
           {invalid
-            ? `Enter between ${MIN_DISPLAY_POINTS} and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, use 0 for every sample, or leave empty for the default.`
+            ? `Enter between 1 and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, use 0 for every sample, or leave empty for the default.`
             : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} samples per trace.`}
         </p>
         {error ? (
@@ -179,6 +175,6 @@ function parseDisplayPoints(raw: string): number | null | undefined {
   if (!text) return null;
   const value = Number(text);
   if (!Number.isSafeInteger(value)) return undefined;
-  if (value !== 0 && (value < MIN_DISPLAY_POINTS || value > NATIVE_PLOT_MAX_POINTS)) return undefined;
+  if (value < 0 || value > NATIVE_PLOT_MAX_POINTS) return undefined;
   return value;
 }

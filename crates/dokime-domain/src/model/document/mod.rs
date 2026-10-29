@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod addition;
 pub mod column;
 pub mod definition;
@@ -16,12 +17,12 @@ pub mod host;
 pub mod validation;
 
 /* === Re-Exports === */
+
 pub use addition::DocumentAddition;
 pub use column::Column;
 pub use definition::AxisScale;
 pub use definition::Band;
 pub use definition::Card;
-pub use definition::DEFAULT_PLOT_MAX_POINTS;
 pub use definition::DURATION_UNIT_SYMBOLS;
 pub use definition::Document;
 pub use definition::DocumentCard;
@@ -77,6 +78,7 @@ pub use definition::validate_plot_definition;
 pub use validation::validate_document_definition;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

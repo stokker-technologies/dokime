@@ -12,27 +12,31 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::StreamOutput;
+use dokime::harmos::{Context, RegistrationExt, Response};
 use tonic::Status;
+
 // Local Imports
 use super::chunked;
+use super::error::detailed;
 use super::value::canonical;
-use super::{error::detailed, value};
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::reports as wire;
-use dokime_runtime::OpenedReport;
-use dokime_runtime::ReportOrigin;
-use dokime_runtime::RuntimeHandle;
+use dokime::OpenedReport;
+use dokime::ReportOrigin;
+use dokime::RuntimeHandle;
+use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::domain::model::identity::Identifier;
+use dokime::domain::model::identity::TestCycleId;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::operations::hosting::{Host, Serve, Served};
+use dokime::operations::reports as wire;
 
 /* === Constants === */
-const HTML_CHUNK_BYTES: usize = 64 * 1024;
+
 const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
 
 /* === Macros === */
@@ -40,76 +44,61 @@ const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
 }
 
-struct HtmlFrames(Response<dokime_domain::model::reports::wire::ReportHtmlFrame>);
-struct Download {
-    resources: Arc<Resources>,
-}
-struct Execution {
-    resources: Arc<Resources>,
-}
+struct HtmlFrames(Response<dokime::domain::model::reports::wire::ReportHtmlFrame>);
 
 /* === Enums === */
-#[harmos::catalog]
-enum Operations {
-    Download(Download),
-    Execution(Execution),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
-impl Operation for Download {
-    type Declaration = wire::DownloadCycleReport;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::DownloadCycleReport, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        value::text(&request.cycle_id)?;
-        let cycle = TestCycleId::from_uuid(request.cycle_id.clone()).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
-        let identifier = report_identifier(&request.identifier)?;
-        let report = self.resources.runtime.open_cycle_report(&cycle).await.map_err(report_failure)?;
-        deliver(&self.resources, report, &identifier, output).await
+
+impl Serve<wire::DownloadCycleReport> for Resources {
+    fn serve<'a>(&'a self, request: wire::DownloadCycleReport, ctx: Context<'a, wire::DownloadCycleReport>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let cycle = TestCycleId::from_uuid(request.cycle_id.clone()).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
+                let identifier = report_identifier(&request.identifier)?;
+                let report = self.runtime.open_cycle_report(&cycle).await.map_err(report_failure)?;
+                deliver(self, report, &identifier, output).await
+            })
+            .await
+        })
     }
 }
 
-impl Operation for Execution {
-    type Declaration = wire::DownloadExecutionReport;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>;
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::DownloadExecutionReport, output: &mut Self::Endpoints,
-    ) -> Result<Response<()>, Status> {
-        value::text(&request.execution_id)?;
-        let execution =
-            TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-        let identifier =
-            Identifier::new(EXECUTION_REPORT_IDENTIFIER).map_err(|_| Status::internal("execution report identifier is invalid"))?;
-        let report = self.resources.runtime.open_execution_report(&execution).await.map_err(report_failure)?;
-        deliver(&self.resources, report, &identifier, output).await
+impl Serve<wire::DownloadExecutionReport> for Resources {
+    fn serve<'a>(&'a self, request: wire::DownloadExecutionReport, ctx: Context<'a, wire::DownloadExecutionReport>) -> Served<'a, ()> {
+        Box::pin(async move {
+            let call_context = ctx.call();
+            let output = ctx.streams();
+            let revoked = crate::grpc::access::revocation(call_context);
+            crate::grpc::access::during(revoked, async {
+                let execution = TestExecutionId::from_uuid(request.execution_id.clone())
+                    .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+                let identifier =
+                    Identifier::new(EXECUTION_REPORT_IDENTIFIER).map_err(|_| Status::internal("execution report identifier is invalid"))?;
+                let report = self.runtime.open_execution_report(&execution).await.map_err(report_failure)?;
+                deliver(self, report, &identifier, output).await
+            })
+            .await
+        })
     }
 }
 
 impl chunked::Frames for HtmlFrames {
-    type Frame = dokime_domain::model::reports::wire::ReportHtmlFrame;
+    type Frame = dokime::domain::model::reports::wire::ReportHtmlFrame;
 
     fn metadata(&self) -> Self::Frame {
-        dokime_domain::model::reports::wire::ReportHtmlFrame { payload: self.0.payload.clone() }
+        dokime::domain::model::reports::wire::ReportHtmlFrame { payload: self.0.payload.clone() }
     }
 
     fn metadata_owned(&self) -> Option<Response<Self::Frame>> {
@@ -117,66 +106,83 @@ impl chunked::Frames for HtmlFrames {
     }
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Chunk(
-                dokime_domain::model::reports::wire::ReportHtmlChunk { offset, data },
+        dokime::domain::model::reports::wire::ReportHtmlFrame {
+            payload: Some(dokime::domain::model::reports::wire::ReportHtmlFramePayload::Chunk(
+                dokime::domain::model::reports::wire::ReportHtmlChunk { offset, data },
             )),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Complete(
-                dokime_domain::model::reports::wire::ReportHtmlCompletion { size_bytes, sha256 },
+        dokime::domain::model::reports::wire::ReportHtmlFrame {
+            payload: Some(dokime::domain::model::reports::wire::ReportHtmlFramePayload::Complete(
+                dokime::domain::model::reports::wire::ReportHtmlCompletion { size_bytes, sha256 },
             )),
         }
     }
 }
 
 /* === Public Functions === */
-pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
-    runtime.operations().register_wire_operations::<Operations, Resources>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
-    )?;
+
+pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
+    let served = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes,
+    });
+    let mut dependencies = dokime::harmos::Dependencies::new();
+    dependencies.insert(Host::<wire::DownloadCycleReport>::new(served.clone()))?;
+    dependencies.insert(Host::<wire::DownloadExecutionReport>::new(served.clone()))?;
+    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
+        .operation::<wire::DownloadCycleReport>()
+        .operation::<wire::DownloadExecutionReport>();
+    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
     Ok(())
 }
 
 /* === Private Functions === */
+
 async fn deliver(
     resources: &Resources, report: OpenedReport, identifier: &Identifier,
-    output: &mut StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>,
+    output: &StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>,
 ) -> Result<Response<()>, Status> {
-    let OpenedReport { test_cycle_id, test_execution_id, metadata, generated_at, origin, html } = report;
-    let frame = dokime_domain::model::reports::wire::ReportHtmlFrame {
-        payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
-            dokime_domain::model::reports::wire::ReportMetadata {
+    let OpenedReport {
+        test_cycle_id,
+        test_execution_id,
+        metadata,
+        generated_at,
+        origin,
+        file,
+        reader,
+    } = report;
+    let frame = dokime::domain::model::reports::wire::ReportHtmlFrame {
+        payload: Some(dokime::domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
+            dokime::domain::model::reports::wire::ReportMetadata {
                 test_cycle_id: test_cycle_id.to_string(),
                 test_execution_id: test_execution_id.map(|id| id.to_string()),
                 identifier: identifier.to_string(),
                 metadata: metadata.as_ref().map(canonical::metadata).transpose()?,
                 generated_at: Some(canonical::timestamp(&generated_at)?),
                 origin: match origin {
-                    ReportOrigin::Sealed => dokime_domain::model::reports::wire::ReportOrigin::Sealed,
-                    ReportOrigin::Current => dokime_domain::model::reports::wire::ReportOrigin::Current,
+                    ReportOrigin::Sealed => dokime::domain::model::reports::wire::ReportOrigin::Sealed,
+                    ReportOrigin::Current => dokime::domain::model::reports::wire::ReportOrigin::Current,
                 },
                 warnings: Vec::new(),
             },
         ))),
     };
-    if frame.wire_len()? > resources.max_message_bytes {
+    if super::content::output_frame_len(&frame)? > resources.max_message_bytes {
         return Err(Status::resource_exhausted("report metadata exceeds the message limit"));
     }
-    let size_bytes = html.len() as u64;
+    let size_bytes = file.length;
+    let sha256: String = file.sha256.iter().map(|byte| format!("{byte:02x}")).collect();
     chunked::Download {
         frames: HtmlFrames(frame.into()),
-        source: chunked::Source::bytes(html),
+        source: chunked::Source::opened(reader),
         size_bytes,
-        sha256: None,
+        sha256: Some(sha256),
         noun: "report HTML",
         read_failure: "report HTML could not be read",
-        chunk_bytes: HTML_CHUNK_BYTES.min(resources.max_message_bytes.saturating_sub(256)),
+        chunk_bytes: 1_048_576,
         message_limit: resources.max_message_bytes,
     }
     .run(output)
@@ -184,11 +190,11 @@ async fn deliver(
     Ok(().into())
 }
 
-fn report_failure(error: dokime_runtime::runtime::Error) -> Status {
-    if let dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
+fn report_failure(error: dokime::runtime::Error) -> Status {
+    if let dokime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
         return Status::not_found(message.clone());
     }
-    let status = if matches!(&error, dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+    let status = if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
         Status::resource_exhausted(format!("report operation failed: {error}"))
     } else {
         Status::failed_precondition(format!("report operation failed: {error}"))
@@ -205,8 +211,79 @@ fn report_identifier(value: &str) -> Result<Identifier, Status> {
 }
 
 fn required_identifier(value: &str) -> Result<Identifier, Status> {
-    value::text(value)?;
     Identifier::new(value.to_owned()).map_err(|_| Status::invalid_argument("invalid report identifier"))
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::grpc::chunked::Frames as _;
+
+    #[test]
+    fn report_chunks_fit_the_full_envelope() {
+        let frames = HtmlFrames(dokime::domain::model::reports::wire::ReportHtmlFrame { payload: None }.into());
+        for offset in [0, 127, 128, 16_384, u64::MAX] {
+            let template = frames.chunk(offset, Vec::new());
+            let maximum = 1_048_576;
+            let length = crate::grpc::content::output_chunk_bytes(&template, maximum, maximum).unwrap();
+            let frame = frames.chunk(offset, vec![0; length]);
+            assert!(crate::grpc::content::output_frame_len(&frame).unwrap() <= maximum);
+            let overflow = frames.chunk(offset, vec![0; length + 1]);
+            assert!(crate::grpc::content::output_frame_len(&overflow).unwrap() > maximum);
+        }
+    }
+
+    #[tokio::test]
+    async fn download_delivers_contiguous_chunks_and_verified_digest() {
+        use dokime::domain::model::reports::wire::ReportHtmlFramePayload;
+        use dokime::harmos::operations::{StreamSettings, stream};
+        use std::num::NonZeroUsize;
+        let (output, input) = stream(StreamSettings {
+            items: NonZeroUsize::new(4).unwrap(),
+            bytes: NonZeroUsize::new(4 * 1_048_576).unwrap(),
+        })
+        .unwrap();
+        let length = 2 * 1_048_576 + 13;
+        let digest = "ab".repeat(32);
+        let expected = digest.clone();
+        let download = chunked::Download {
+            frames: HtmlFrames(dokime::domain::model::reports::wire::ReportHtmlFrame { payload: None }.into()),
+            source: chunked::Source::bytes(vec![42; length].into()),
+            size_bytes: length as u64,
+            sha256: Some(digest),
+            noun: "report HTML",
+            read_failure: "report read failed",
+            chunk_bytes: 1_048_576,
+            message_limit: 1_048_576,
+        };
+        let producer = async move { download.run(&output).await };
+        let consumer = async move {
+            let mut offset = 0;
+            let mut complete = false;
+            while let Some(frame) = input.recv().await {
+                match &frame.payload {
+                    Some(ReportHtmlFramePayload::Chunk(chunk)) => {
+                        assert!(!complete);
+                        assert_eq!(chunk.offset, offset);
+                        assert!(chunk.data.iter().all(|byte| *byte == 42));
+                        offset += chunk.data.len() as u64;
+                        assert!(crate::grpc::content::output_frame_len(&*frame).unwrap() <= 1_048_576);
+                    }
+                    Some(ReportHtmlFramePayload::Complete(completion)) => {
+                        assert!(!complete);
+                        assert_eq!(completion.size_bytes, offset);
+                        assert_eq!(completion.sha256, expected);
+                        complete = true;
+                    }
+                    _ => {}
+                }
+            }
+            assert!(complete);
+            assert_eq!(offset, length as u64);
+        };
+        let (result, ()) = tokio::join!(producer, consumer);
+        result.unwrap();
+    }
+}

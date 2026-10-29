@@ -9,8 +9,7 @@
 
 /* === External Imports === */
 
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 
 /* === Local Imports === */
 
@@ -25,9 +24,5 @@ export const Route = createFileRoute("/settings")({
 /* === Components === */
 
 function SettingsRoute() {
-  const router = useRouter();
-  const close = useCallback(() => {
-    void router.navigate({ to: "/cycles" });
-  }, [router]);
-  return <SettingsSurface close={close} />;
+  return <SettingsSurface />;
 }

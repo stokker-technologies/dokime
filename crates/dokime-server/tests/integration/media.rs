@@ -24,7 +24,7 @@ use std::sync::Arc;
 // Local Imports
 use super::content::UploadGate;
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -41,6 +41,7 @@ use dokime_domain::model;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 #[tokio::test]
 async fn media_capture_artifacts() {
     let root = tempfile::tempdir().unwrap();
@@ -53,12 +54,7 @@ async fn media_capture_artifacts() {
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(
-        owner.handle(),
-        Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap().with_max_message_bytes(1024 * 1024),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(owner.handle(), Config::local().with_max_message_bytes(1024 * 1024)).await.unwrap();
     let client = connect(&server).await;
     let scope = running_execution(&owner, &client, &gate).await;
 
@@ -71,15 +67,24 @@ async fn media_capture_artifacts() {
         .await
         .unwrap_err();
     assert_eq!(unscoped.code(), Code::InvalidArgument);
-    let unbounded =
-        recording(&client, contracts::media::AudioRecording { scope: Some(scope.clone()), input: None, maximum_seconds: Some(0) })
-            .await
-            .unwrap_err();
+    let unbounded = recording(
+        &client,
+        contracts::media::AudioRecording {
+            scope: Some(scope.clone()),
+            input: None,
+            maximum_seconds: Some(0),
+        },
+    )
+    .await
+    .unwrap_err();
     assert_eq!(unbounded.code(), Code::InvalidArgument);
 
     // Stills Land Under Their Media Folders
     let screenshot = client
-        .unary::<contracts::media::Screenshot>(authenticated(contracts::media::Screenshot { scope: Some(scope.clone()), display: None }))
+        .unary::<contracts::media::Screenshot>(authenticated(contracts::media::Screenshot {
+            scope: Some(scope.clone()),
+            display: None,
+        }))
         .await;
     captured(screenshot.map(|response| response.into_inner()), "screenshots/", ".png", "image/png", "display");
     let photo =
@@ -87,17 +92,26 @@ async fn media_capture_artifacts() {
     captured(photo.map(|response| response.into_inner()), "photos/", ".jpg", "image/jpeg", "camera");
 
     // A Bounded Recording Reports Progress, Then Its Sealed Artifact
-    let bounded =
-        recording(&client, contracts::media::AudioRecording { scope: Some(scope.clone()), input: None, maximum_seconds: Some(1) }).await;
+    let bounded = recording(
+        &client,
+        contracts::media::AudioRecording {
+            scope: Some(scope.clone()),
+            input: None,
+            maximum_seconds: Some(1),
+        },
+    )
+    .await;
     let live_audio = match bounded {
         Ok(mut frames) => {
             let mut progress = 0;
             let completed = loop {
                 match frames.message().await.unwrap().expect("a completed frame") {
-                    model::media::wire::RecordingFrame { payload: Some(model::media::wire::RecordingFramePayload::Progress(_)) } => {
-                        progress += 1
-                    }
-                    model::media::wire::RecordingFrame { payload: Some(model::media::wire::RecordingFramePayload::Completed(record)) } => {
+                    model::media::wire::RecordingFrame {
+                        payload: Some(model::media::wire::RecordingFramePayload::Progress(_)),
+                    } => progress += 1,
+                    model::media::wire::RecordingFrame {
+                        payload: Some(model::media::wire::RecordingFramePayload::Completed(record)),
+                    } => {
                         break *record;
                     }
                     other => panic!("unexpected recording frame {other:?}"),
@@ -116,10 +130,16 @@ async fn media_capture_artifacts() {
 
     // A Cancelled Recording Is Still Sealed
     if live_audio {
-        let mut frames =
-            recording(&client, contracts::media::AudioRecording { scope: Some(scope.clone()), input: None, maximum_seconds: Some(60) })
-                .await
-                .unwrap();
+        let mut frames = recording(
+            &client,
+            contracts::media::AudioRecording {
+                scope: Some(scope.clone()),
+                input: None,
+                maximum_seconds: Some(60),
+            },
+        )
+        .await
+        .unwrap();
         frames.message().await.unwrap().expect("a progress frame");
         drop(frames);
         // A Cancelled Recording Seals Its Artifact
@@ -131,7 +151,7 @@ async fn media_capture_artifacts() {
                 .expect("artifact query succeeds")
                 .iter()
                 .filter(|record| record.filename.starts_with("audio/"))
-                .filter(|record| record.status == dokime_runtime::artifacts::ArtifactStatus::Complete)
+                .filter(|record| record.status == dokime::artifacts::ArtifactStatus::Complete)
                 .count();
             (audio == 2).then_some(())
         })
@@ -140,16 +160,24 @@ async fn media_capture_artifacts() {
 
     // An Execution Sealing Mid-Recording Seals The Recording Into It
     if live_audio {
-        let mut frames =
-            recording(&client, contracts::media::AudioRecording { scope: Some(scope.clone()), input: None, maximum_seconds: Some(60) })
-                .await
-                .unwrap();
+        let mut frames = recording(
+            &client,
+            contracts::media::AudioRecording {
+                scope: Some(scope.clone()),
+                input: None,
+                maximum_seconds: Some(60),
+            },
+        )
+        .await
+        .unwrap();
         frames.message().await.unwrap().expect("a progress frame");
         gate.release.notify_one();
         let completed = {
             loop {
                 match frames.message().await.unwrap().expect("a completed frame") {
-                    model::media::wire::RecordingFrame { payload: Some(model::media::wire::RecordingFramePayload::Completed(record)) } => {
+                    model::media::wire::RecordingFrame {
+                        payload: Some(model::media::wire::RecordingFramePayload::Completed(record)),
+                    } => {
                         break *record;
                     }
                     _ => continue,
@@ -175,7 +203,12 @@ async fn media_capture_artifacts() {
     .await;
     let camera = recording_refusal::<contracts::media::CameraRecording>(
         &client,
-        contracts::media::CameraRecording { scope: Some(scope), camera: None, audio: None, maximum_seconds: None },
+        contracts::media::CameraRecording {
+            scope: Some(scope),
+            camera: None,
+            audio: None,
+            maximum_seconds: None,
+        },
     )
     .await;
     for status in [screen, camera] {
@@ -188,6 +221,7 @@ async fn media_capture_artifacts() {
 }
 
 /* === Private Functions === */
+
 pub(super) async fn running_execution(owner: &Runtime, client: &WireClient, gate: &UploadGate) -> model::content::wire::ArtifactScope {
     let cycle_id = support::planned_cycle(
         client,
@@ -204,14 +238,7 @@ pub(super) async fn running_execution(owner: &Runtime, client: &WireClient, gate
     )
     .await
     .unwrap();
-    client
-        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
-        .await
-        .unwrap();
+    client.start_first(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() })).await.unwrap();
     gate.started.notified().await;
     let execution_id = client
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -225,7 +252,11 @@ pub(super) async fn running_execution(owner: &Runtime, client: &WireClient, gate
         .executions
         .remove(0)
         .execution_id;
-    model::content::wire::ArtifactScope { cycle_id: Some(cycle_id), case_id: None, execution_id: Some(execution_id) }
+    model::content::wire::ArtifactScope {
+        cycle_id: Some(cycle_id),
+        case_id: None,
+        execution_id: Some(execution_id),
+    }
 }
 
 async fn recording(
@@ -242,9 +273,9 @@ async fn recording(
 
 async fn recording_refusal<O>(client: &WireClient, request: O) -> tonic::Status
 where
-    O: contracts::Endpoint<Output = harmos::operations::Stream<model::media::wire::RecordingFrame>>,
-    O: harmos::domain::Portable + Sync,
-    O::Response: harmos::domain::Portable + harmos::MemorySize,
+    O: contracts::Endpoint<Output = dokime::harmos::operations::Stream<model::media::wire::RecordingFrame>>,
+    O: dokime::harmos::domain::Portable + Sync,
+    O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
 {
     match client.download::<O>(authenticated(request)).await {
         Err(status) => status,

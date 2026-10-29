@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::ActorId;
 use crate::model::identity::NodeId;
@@ -29,6 +31,7 @@ use crate::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DokimeIdentity {
     pub node: DokimeNodeIdentity,
@@ -59,6 +62,7 @@ pub struct ExternalIdentityMapping {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "provider")]
 pub enum ExternalIdentityProvider {
@@ -70,6 +74,7 @@ pub enum ExternalIdentityProvider {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DokimeIdentity {
     pub fn node_only(node: DokimeNodeIdentity) -> Self {
         Self { node, actor: None }
@@ -78,13 +83,21 @@ impl DokimeIdentity {
 
 impl DokimeNodeIdentity {
     pub fn new(node_id: NodeId, hostname_label: Option<String>, timestamp: Timestamp) -> Self {
-        Self { node_id, hostname_label, created_at: timestamp.clone(), updated_at: timestamp }
+        Self {
+            node_id,
+            hostname_label,
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
+        }
     }
 }
 
 impl DokimeActorIdentity {
     pub fn local(actor_id: ActorId, display_name: impl Into<String>) -> Self {
-        Self { actor_id, display_name: display_name.into() }
+        Self {
+            actor_id,
+            display_name: display_name.into(),
+        }
     }
 }
 

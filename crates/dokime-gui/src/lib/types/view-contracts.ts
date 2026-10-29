@@ -6,24 +6,20 @@
  * server API types.
  */
 
+import type { Row13 as GeneratedNativeExecutionCheckpoint } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
-import type {
-  Row13 as GeneratedNativeExecutionCheckpoint,
-  Row35 as GeneratedNativeStorageCursor,
-  Row53 as GeneratedNativeStoreHistory,
-} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { ValueFormat } from "./format";
 
-type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;
-type NativeStoreHistory = Wire<GeneratedNativeStoreHistory>;
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
+type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
+type NativeStoreHistory = NonNullable<NativeStorageCursor["history"]>;
 
 export type ActorId = string;
 
 export type ArtifactId = string;
 
-export type PluginRuntimeCredentialBindings = {
-  bindings?: { [key in string]: RedactedCredentialBinding };
+export type PluginRuntimeSecretBindings = {
+  bindings?: { [key in string]: RedactedSecretBinding };
   missing_required?: string[];
 };
 
@@ -41,7 +37,7 @@ export type Choice = {
   title: string;
 };
 
-export type CredentialBackendKind = "os_keyring" | "memory" | "local_file";
+export type SecretBackendKind = "os_keyring";
 
 export type CriterionId = string;
 
@@ -49,6 +45,7 @@ export type CycleHistorySummary = {
   test_cycle_id: TestCycleId;
   session_id: string | null;
   title: string;
+  phase: "active" | "sealing" | "sealed" | null;
   lifecycle: string;
   result_status: string | null;
   case_count: number;
@@ -66,61 +63,6 @@ export type CycleHistorySummary = {
 };
 
 export type DebugLevel = "debug" | "info" | "warning" | "error";
-
-export type DiagnosticCheckStatus = "ok" | "warning" | "failed";
-
-export type DiagnosticFileFormat = "json" | "jsonl" | "zip";
-
-export type DiagnosticPathConvention = {
-  key: DiagnosticPathKey;
-  scope: DiagnosticPathScope;
-  format: DiagnosticFileFormat;
-  relative_path: string;
-  absolute_path: string | null;
-};
-
-export type DiagnosticPathKey =
-  | "hub_log"
-  | "startup_doctor"
-  | "diagnostics_snapshot"
-  | "collect_bundle"
-  | "cycle_log_pattern"
-  | "execution_log_pattern";
-
-export type DiagnosticPathScope = "root" | "cycle_pattern" | "execution_pattern";
-
-export type DiagnosticsCounts = {
-  test_suites: number;
-  cycles: number;
-  installed_plugin_errors: number;
-  /**
-   *  Content-bearing runtime collections whose growth must be visible before
-   *  retention and eviction policy can be changed safely.
-   */
-  state_cycles: number;
-  state_executions_total: number;
-  state_record_count: number;
-  telemetry_cursor_entries: number;
-};
-
-export type DiagnosticsResponse = {
-  server: ServerDiagnostics;
-  runtime: DiagnosticsSnapshot;
-};
-
-export type DiagnosticsSnapshot = {
-  captured_at: Timestamp;
-  session_id: SessionId;
-  identity: DokimeIdentity;
-  revision: number;
-  shutting_down: boolean;
-  storage_root: string;
-  hub_metadata: Metadata;
-  startup_doctor: StartupDoctorSnapshot;
-  path_conventions: DiagnosticPathConvention[];
-  counts: DiagnosticsCounts;
-  installed_plugin_errors: InstalledPluginErrorRecord[];
-};
 
 export type DokimeActorIdentity = {
   actor_id: ActorId;
@@ -160,6 +102,7 @@ export type ExecutionBrowseCycle = {
   cycle_id: TestCycleId;
   /** The cycle's own label; null once its header is no longer readable. */
   label: string | null;
+  phase: "active" | "sealing" | "sealed" | null;
   lifecycle: "running" | "interrupted" | "pending" | "uncheckpointed" | "completed";
   result_status: "pending" | "passed" | "failed" | "blocked" | "cancelled" | null;
   case_count: number;
@@ -191,6 +134,16 @@ export type ExecutionBrowsePage = {
   omitted_issues: number;
   /** Totals of every cycle the entries belong to, over the whole selection. */
   cycles: ExecutionBrowseCycle[];
+};
+
+export type SavedCycleSummary = {
+  cycle_id: string;
+  label: string;
+  phase: "sealed";
+  created_at: string;
+  updated_at: string;
+  execution_count: number;
+  archived: boolean;
 };
 
 export type ExecutionCheckpoint = Pick<NativeExecutionCheckpoint, "executionIdentifier" | "version"> & {
@@ -258,8 +211,7 @@ export type Identifier = string;
 export type Installation = {
   install_id: string;
   sha256: string;
-  staged_at: Timestamp;
-  consented_at: Timestamp | null;
+  installed_at: Timestamp;
   state: PluginState;
   last_boot: PluginLastBoot | null;
 };
@@ -358,17 +310,11 @@ export type PlotMarker = {
   color: string;
 };
 
-export type PlotPayloadCursor = {
-  telemetry_streams?: { [key in string]: number };
-  record_sequence?: number | null;
-};
-
 export type PlotPayloadDiagnostics = {
   series_count: number;
   point_count: number;
   raw_point_count: number;
   downsampled: boolean;
-  delta: boolean;
   max_points: number;
   window_s: number | null;
 };
@@ -376,13 +322,14 @@ export type PlotPayloadDiagnostics = {
 export type PlotPayloadEnvelope_Serialize = {
   plot_id: string;
   revision: number;
-  cursor: PlotPayloadCursor;
+  epoch: string;
+  selection: string;
   payload: PlotPayload_Serialize;
   diagnostics: PlotPayloadDiagnostics;
   warnings: string[];
 };
 
-export type PlotPayloadStreamKind = "snapshot" | "append" | "replace" | "error";
+export type PlotPayloadStreamKind = "snapshot" | "replace" | "error";
 
 export type PlotPayload_Serialize = {
   stream: string;
@@ -427,12 +374,6 @@ export type PluginEntry = {
   boot_error?: string | null;
 } & Installation;
 
-export type PluginEnvironmentReference = {
-  owner: string;
-  setting: string;
-  variable: string;
-};
-
 export type PluginIdentity = {
   name: string;
   version: string;
@@ -445,10 +386,9 @@ export type PluginMetadata = {
   identity: PluginIdentity;
   owners: string[];
   size_bytes: number;
-  environment_references: PluginEnvironmentReference[];
 };
 
-export type PluginState = "staged" | "installed" | "disabled" | "removal_pending";
+export type PluginState = "installed" | "disabled" | "removal_pending";
 
 export type RecordScope = {
   session_id?: SessionId | null;
@@ -461,9 +401,9 @@ export type RecordScope = {
   suite_id?: SuiteId | null;
 };
 
-export type RedactedCredentialBinding = {
-  credential_id: string;
-  backend: CredentialBackendKind;
+export type RedactedSecretBinding = {
+  secret_id: string;
+  backend: SecretBackendKind;
   configured: boolean;
 };
 
@@ -478,6 +418,7 @@ export type ResultSummary = {
 };
 
 export type RuntimeAppLogo = {
+  variant: "transparent_on_light" | "transparent_on_dark" | "contained_on_light" | "contained_on_dark";
   plugin_id: Identifier;
   asset_id: Identifier;
   url: string;
@@ -488,7 +429,7 @@ export type RuntimeAppearanceFrame = {
   app_name: string;
   organization?: OrganizationIdentity | null;
   title_template?: string | null;
-  logo?: RuntimeAppLogo | null;
+  logos: RuntimeAppLogo[];
   themes?: RuntimeThemeFamily[];
   active_theme?: Identifier | null;
   theme_family_locked: boolean;
@@ -507,7 +448,7 @@ export type RuntimePluginSettings = {
    * a `Discovered` marker and no run uses it until it is saved.
    */
   discovered?: { [key in string]: Value };
-  credential_bindings: PluginRuntimeCredentialBindings;
+  secret_bindings: PluginRuntimeSecretBindings;
 };
 
 export type RuntimeSettingsCard = {
@@ -525,6 +466,7 @@ export type RuntimeSettingsCard = {
 export type RuntimeSettingsCardState = "ready" | "disabled" | "disconnected" | "stale" | "error" | "permission_denied";
 
 export type RuntimeSettingsFrame = {
+  bootstrap_paths: { application: string; storage: string; plugins: string; logs: string } | null;
   sections: RuntimeSettingsSection[];
   cards: RuntimeSettingsCard[];
 };
@@ -551,7 +493,7 @@ export type RuntimeThemeFamily = {
   dark: ThemeVariant;
 };
 
-export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_credential"; credential_id: string };
+export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_secret"; secret_id: string };
 
 export type SecretSetting = {
   id: string;
@@ -559,23 +501,6 @@ export type SecretSetting = {
   description: string | null;
   default: SecretReference | null;
   required?: boolean;
-};
-
-export type ServerDiagnostics = {
-  bind_addr: string;
-  body_limit_bytes: number;
-  auth: string;
-  allowed_origins: string[];
-  heartbeat_interval_ms: number;
-  version: string;
-  process: ServerProcessDiagnostics;
-};
-
-export type ServerProcessDiagnostics = {
-  pid: number;
-  cpu_percent: number | null;
-  memory_bytes: number | null;
-  virtual_memory_bytes: number | null;
 };
 
 export type SessionId = string;
@@ -605,21 +530,6 @@ export type SettingsEntry =
   | ({
       kind: "secret_reference";
     } & SecretSetting);
-
-export type StartupDoctorCheck = {
-  key: StartupDoctorCheckKey;
-  status: DiagnosticCheckStatus;
-  message: string;
-  detail: string | null;
-};
-
-export type StartupDoctorCheckKey = "storage_root" | "shutdown_state";
-
-export type StartupDoctorSnapshot = {
-  checked_at: Timestamp;
-  status: DiagnosticCheckStatus;
-  checks: StartupDoctorCheck[];
-};
 
 export type StepId = string;
 

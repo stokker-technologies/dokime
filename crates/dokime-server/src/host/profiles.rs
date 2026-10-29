@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     fs::File,
@@ -19,22 +20,26 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+
 // Third Party Imports
 use tracing_subscriber::Layer;
+
 // Local Imports
 use super::logging::BoxedLayer;
 use crate::host::{Error, Result};
 
 /* === Constants === */
-const DEV_PROFILE_ENV: &str = "DOKIME_DEV_PROFILE";
 
-const KEEP_PROFILE_DIRS: usize = 3;
+const SERVER_RETAINED_PROFILES: u64 = 3;
+
+const DEV_PROFILE_ENV: &str = "DOKIME_DEV_PROFILE";
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct DevProfileGuards {
     _chrome: tracing_chrome::FlushGuard,
     _flame: tracing_flame::FlushGuard<BufWriter<File>>,
@@ -47,6 +52,7 @@ pub(crate) struct DevProfileGuards {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn dev_profile_layers(root: &Path) -> Result<Option<(Vec<BoxedLayer>, DevProfileGuards)>> {
     if !dev_profile_enabled() {
         return Ok(None);
@@ -55,7 +61,7 @@ pub(crate) fn dev_profile_layers(root: &Path) -> Result<Option<(Vec<BoxedLayer>,
     let profiles_root = profiles_root(root);
     let profile_dir = profiles_root.join(format!("dev-{}", current_epoch_millis()));
     std::fs::create_dir_all(&profile_dir)?;
-    prune_stale_profile_dirs(&profiles_root);
+    prune_stale_profile_dirs(&profiles_root, usize::try_from(SERVER_RETAINED_PROFILES).expect("validated profile retention count"));
 
     let (chrome_layer, chrome_guard) =
         tracing_chrome::ChromeLayerBuilder::new().file(profile_dir.join("server.trace.json")).include_args(true).build();
@@ -63,11 +69,15 @@ pub(crate) fn dev_profile_layers(root: &Path) -> Result<Option<(Vec<BoxedLayer>,
         .map_err(|error| Error::Setup(format!("failed to start flame profiling: {error}")))?;
 
     let layers: Vec<BoxedLayer> = vec![chrome_layer.boxed(), flame_layer.boxed()];
-    let guards = DevProfileGuards { _chrome: chrome_guard, _flame: flame_guard };
+    let guards = DevProfileGuards {
+        _chrome: chrome_guard,
+        _flame: flame_guard,
+    };
     Ok(Some((layers, guards)))
 }
 
 /* === Private Functions === */
+
 fn dev_profile_enabled() -> bool {
     profile_enabled(std::env::var(DEV_PROFILE_ENV).ok().as_deref())
 }
@@ -87,7 +97,7 @@ fn current_epoch_millis() -> u128 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|value| value.as_millis()).unwrap_or_default()
 }
 
-fn prune_stale_profile_dirs(profiles_root: &Path) {
+fn prune_stale_profile_dirs(profiles_root: &Path, maximum: usize) {
     let Ok(entries) = std::fs::read_dir(profiles_root) else {
         return;
     };
@@ -104,7 +114,7 @@ fn prune_stale_profile_dirs(profiles_root: &Path) {
 
     dirs.sort_unstable_by_key(|(stamp, _)| std::cmp::Reverse(*stamp));
 
-    for (_, stale_dir) in dirs.into_iter().skip(KEEP_PROFILE_DIRS) {
+    for (_, stale_dir) in dirs.into_iter().skip(maximum) {
         let _ = std::fs::remove_dir_all(stale_dir);
     }
 }

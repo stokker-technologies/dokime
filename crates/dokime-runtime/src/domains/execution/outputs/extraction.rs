@@ -12,25 +12,28 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::Path;
+
 // Third Party Imports
-use regex::Regex;
+use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{execution_runtime::authoring::FileRegexMatch, runtime::Error, runtime::Result};
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const REGEX_SCAN_LIMIT_BYTES: usize = 2 * 1024 * 1024;
-pub(crate) const MAX_ARTIFACT_READ_BYTES: usize = 1024 * 1024;
-pub(crate) const MAX_EXECUTION_FILE_SNAPSHOT_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionFileEntry {
     pub artifact_id: String,
@@ -54,6 +57,7 @@ pub struct ExecutionFileContent {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionFileContentKind {
@@ -74,6 +78,7 @@ pub enum ExecutionFileStreamState {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFileContentKind {
     pub fn from_metadata(path: &str, content_type: Option<&str>) -> Self {
         if let Some(content_type) = content_type {
@@ -119,11 +124,18 @@ impl harmos::MemorySize for ExecutionFileContent {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn regex_matches(content: &ExecutionFileContent, pattern: &str, first_only: bool) -> Result<Vec<FileRegexMatch>> {
     if content.offset != 0 || content.bytes.len() > REGEX_SCAN_LIMIT_BYTES {
         return Err(Error::Operation("execution output regex reads must start at zero and stay within 2 MiB".to_owned()));
     }
-    let regex = Regex::new(pattern).map_err(|error| Error::Operation(format!("invalid regex pattern: {error}")))?;
+    if pattern.len() as u64 > 1024 {
+        return Err(Error::Operation("regex pattern exceeds configured byte limit".into()));
+    }
+    let regex = RegexBuilder::new(pattern)
+        .size_limit(1 << 20)
+        .build()
+        .map_err(|error| Error::Operation(format!("invalid regex pattern: {error}")))?;
     let text = std::str::from_utf8(&content.bytes)
         .map_err(|error| Error::Operation(format!("execution output {} is not valid UTF-8: {error}", content.relative_path)))?;
     let mut matches = Vec::new();
@@ -177,6 +189,7 @@ pub(crate) fn media_type_for_path(path: &str) -> Option<&'static str> {
 }
 
 /* === Private Functions === */
+
 fn extension(path: &str) -> &str {
     Path::new(path).extension().and_then(|extension| extension.to_str()).unwrap_or_default()
 }

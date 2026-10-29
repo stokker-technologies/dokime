@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod contract;
 pub mod evidence;
 pub mod host;
@@ -17,6 +18,7 @@ pub mod stream;
 pub mod wire;
 
 /* === Re-Exports === */
+
 pub use crate::model::validation::CompatibilityStatus;
 pub use crate::model::validation::ValidationMode;
 pub use contract::TelemetryColumn;
@@ -34,7 +36,6 @@ pub use host::UnknownHostStream;
 pub use host::host_stream_identifiers;
 pub use host::host_telemetry_contract;
 pub use host::host_telemetry_contracts;
-pub use host::host_telemetry_payload;
 pub use row::TelemetryRow;
 pub use sampling::SamplingScope;
 pub use sampling::TelemetryCaptureLease;
@@ -45,6 +46,7 @@ pub use sampling::TelemetrySourceKind;
 pub use stream::TelemetryStream;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

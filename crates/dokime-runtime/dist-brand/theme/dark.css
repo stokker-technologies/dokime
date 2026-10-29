@@ -1,0 +1,37 @@
+/* Warm ink and gilt for low-light work. */
+
+.dark {
+  color-scheme: dark;
+  --background: #1b1915;
+  --foreground: #e9e1d2;
+  --card: #24211b;
+  --card-foreground: #e9e1d2;
+  --popover: #24211b;
+  --popover-foreground: #e9e1d2;
+  --primary: #d0aa63;
+  --primary-foreground: #251d11;
+  --secondary: #302c24;
+  --secondary-foreground: #e9e1d2;
+  --muted: #2b2821;
+  --muted-foreground: #aaa192;
+  --accent: #3d3323;
+  --accent-foreground: #f0e5d2;
+  --destructive: #dc7770;
+  --success: #a7b178;
+  --success-foreground: #1b1915;
+  --warning: #d0aa63;
+  --warning-foreground: #1b1915;
+  --info: #b7ae9a;
+  --info-foreground: #1b1915;
+  --border: #413a2f;
+  --input: #4a4235;
+  --ring: #d0aa63;
+  --chart-1: #d0aa63;
+  --chart-2: #a7b178;
+  --chart-3: #b99ab4;
+  --chart-4: #b7ae9a;
+  --chart-5: #c5aa73;
+  --chart-6: #8faa91;
+  --chart-7: #c0a184;
+  --chart-8: #9b96a8;
+}

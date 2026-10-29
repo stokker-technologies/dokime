@@ -33,7 +33,7 @@ const SCROLLING_STEP_COUNT = 8;
 /* The connector is drawn per cell as two half segments so it stops at the
    node's edge instead of running under the circle. The inset is the node's
    radius; the touch node is larger, so it takes a larger inset. */
-const CONNECTOR = "pointer-events-none absolute top-[1.5rem] border-t [[data-density=touch]_&]:top-[1.625rem]";
+const CONNECTOR = "pointer-events-none absolute top-6 border-t [[data-density=touch]_&]:top-6";
 
 /* === Components === */
 
@@ -69,14 +69,14 @@ export function StepDiagram({
             const active = step.key === selected?.key;
             return (
               <li className="relative grid min-w-[var(--step-node-min,0)] justify-items-center" key={step.key}>
-                {index > 0 ? <span aria-hidden className={cn(CONNECTOR, "right-1/2 left-0 mr-3 [[data-density=touch]_&]:mr-3.5")} /> : null}
+                {index > 0 ? <span aria-hidden className={cn(CONNECTOR, "right-1/2 left-0 mr-3 [[data-density=touch]_&]:mr-3")} /> : null}
                 {index < steps.length - 1 ? (
-                  <span aria-hidden className={cn(CONNECTOR, "right-0 left-1/2 ml-3 [[data-density=touch]_&]:ml-3.5")} />
+                  <span aria-hidden className={cn(CONNECTOR, "right-0 left-1/2 ml-3 [[data-density=touch]_&]:ml-3")} />
                 ) : null}
                 <button
                   aria-current={active ? "step" : undefined}
                   className={cn(
-                    "relative z-10 grid size-6 place-items-center rounded-full border bg-background text-[11px] font-semibold tabular-nums transition-colors [[data-density=touch]_&]:size-7",
+                    "relative z-10 grid size-6 place-items-center rounded-full border bg-background text-xs font-semibold tabular-nums transition-colors [[data-density=touch]_&]:size-7",
                     active
                       ? "border-primary bg-primary text-primary-foreground ring-2 ring-primary/40"
                       : "border-border text-muted-foreground hover:border-primary/60",
@@ -99,9 +99,7 @@ export function StepDiagram({
                 {/* The line is reserved whether or not the template has ever
                     passed, so a suite that gains its first statistic does not
                     shift every other timeline on the page. */}
-                <span className="mt-0.5 h-4 text-[0.6875rem] leading-4 text-muted-foreground tabular-nums">
-                  {durations?.[step.key] ?? "\u00A0"}
-                </span>
+                <span className="mt-1 h-4 text-xs leading-4 text-muted-foreground tabular-nums">{durations?.[step.key] ?? "\u00A0"}</span>
               </li>
             );
           })}
@@ -110,7 +108,7 @@ export function StepDiagram({
 
       {/* Description left, template facts right; the panel is only as tall as
           the description makes it and the facts align to its top. */}
-      <div className="grid min-h-12 items-start gap-4 rounded-md bg-muted/20 px-3 py-2 md:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="grid min-h-12 items-start gap-4 rounded-lg bg-muted/20 px-3 py-2 md:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0 max-w-[var(--prose-measure)] text-sm text-muted-foreground [&_li]:leading-[1.5] [&_p]:leading-[1.5]">
           {description ? <MarkdownText text={flowSoftBreaks(description)} /> : <p className="text-sm">This step has no description.</p>}
         </div>
@@ -128,10 +126,9 @@ function TemplateFacts({ selectedIndex, stepCount, template }: { selectedIndex: 
     ["Steps", `${selectedIndex + 1} of ${stepCount}`],
     ["Parameters", String(template.parameter_definitions.length)],
     ["Files", String(template.file_definitions.length)],
-    ["Continue On Failure", template.continue_on_failure ? "Yes" : "No"],
   ];
   return (
-    <dl className="grid grid-cols-[auto_auto] items-baseline gap-x-4 gap-y-0.5 text-xs md:min-w-48">
+    <dl className="grid grid-cols-[auto_auto] items-baseline gap-x-4 gap-y-1 text-xs md:min-w-48">
       {facts.map(([label, value]) => (
         <div className="contents" key={label}>
           <dt className="text-muted-foreground">{label}</dt>

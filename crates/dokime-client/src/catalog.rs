@@ -19,8 +19,8 @@
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result};
-use dokime_domain::operations::Endpoint;
-use dokime_domain::operations::catalog;
+use dokime_operations::Endpoint;
+use dokime_operations::catalog;
 
 /* === Constants === */
 
@@ -35,12 +35,17 @@ use dokime_domain::operations::catalog;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub fn suites(&self) -> Result<ResponseStream<dokime_domain::model::catalog::wire::SuiteDefinition>> {
         let client = self.clone();
         ResponseStream::spawn(self, move |sender| async move {
             let read = async {
-                let mut request = catalog::ListSuites { limit: 100, after_suite_id: String::new(), cursor: None };
+                let mut request = catalog::ListSuites {
+                    limit: 100,
+                    after_suite_id: String::new(),
+                    cursor: None,
+                };
                 loop {
                     let page = client.suite_page(&request).await?;
                     for identity in page.suites {
@@ -91,7 +96,11 @@ impl Client {
             Err(Error::Rpc(status)) if status.code() == tonic::Code::NotFound => {}
             Err(error) => return Err(error),
         }
-        let mut request = catalog::ListSuites { limit: 100, after_suite_id: String::new(), cursor: None };
+        let mut request = catalog::ListSuites {
+            limit: 100,
+            after_suite_id: String::new(),
+            cursor: None,
+        };
         let mut matched = None;
         loop {
             let page = self.suite_page(&request).await?;
@@ -134,13 +143,13 @@ impl Client {
 }
 
 /* === Public Functions === */
+
 // The suite a readable template id names, when the id is well formed.
 pub fn template_suite(identifier: &str) -> Option<&str> {
     let (suite, _) = identifier.rsplit_once('.')?;
     dokime_domain::model::definition::template_identifier(suite, identifier).ok().map(|()| suite)
 }
 
-/* === Private Functions === */
 pub(crate) fn registered_template<'a>(
     suite: &'a dokime_domain::model::catalog::wire::SuiteDefinition, identifier: &str,
 ) -> Result<&'a dokime_domain::model::catalog::wire::TemplateDefinition> {
@@ -158,6 +167,8 @@ pub(crate) fn registered_template<'a>(
         .map_err(|_| invalid("template has an invalid identity"))?;
     Ok(selected)
 }
+
+/* === Private Functions === */
 
 fn validate_listed_identity(
     identity: &dokime_domain::model::catalog::wire::SuiteIdentity, suite: &dokime_domain::model::catalog::wire::SuiteDefinition,

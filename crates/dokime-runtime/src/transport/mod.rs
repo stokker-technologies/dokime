@@ -8,8 +8,10 @@
  */
 
 /* === Modules === */
+
 #[cfg(feature = "native")]
 pub(crate) mod buffer;
+
 #[cfg(feature = "native")]
 pub(crate) mod control;
 
@@ -20,6 +22,7 @@ pub mod provider;
 pub mod recording;
 
 /* === Re-Exports === */
+
 pub(crate) use protocol::templated;
 pub use protocol::{
     ArtifactChunk, CommandExecutionReply, CommandExecutionRequest, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch,
@@ -34,9 +37,11 @@ pub use provider::{
 };
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
+
 // Third Party Imports
 
 // Local Imports
@@ -51,6 +56,7 @@ use dokime_domain::model::records::publication::RecordPublishRequest;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type TransportFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /* === Structs === */
@@ -58,6 +64,7 @@ pub type TransportFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /* === Enums === */
 
 /* === Traits === */
+
 // An owned handle on the execution's log and records, for work that outlives
 // the borrow of its stage: a process's output, a watch's markers.
 pub trait Journal: Send + Sync {
@@ -76,6 +83,15 @@ pub trait ExecutionTransport: Send + Sync {
     fn lease<'a>(&'a mut self, request: LeaseRequest) -> TransportFuture<'a, crate::Result<LeaseHold>>;
 
     fn gaps(&self) -> Vec<LeaseGap>;
+
+    // Exact Gap Count Per Stream; `gaps` May Retain Only Bounded Examples Of A Long Run's Gaps.
+    fn gap_counts(&self) -> std::collections::BTreeMap<String, u64> {
+        let mut counts = std::collections::BTreeMap::new();
+        for gap in self.gaps() {
+            *counts.entry(gap.stream.to_string()).or_default() += 1;
+        }
+        counts
+    }
 
     fn emit(&mut self, record: RecordPublishRequest);
 

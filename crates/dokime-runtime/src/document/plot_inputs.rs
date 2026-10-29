@@ -12,8 +12,9 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::collections::BTreeSet;
+
 // Third Party Imports
 
 // Local Imports
@@ -38,21 +39,18 @@ use dokime_domain::model::identity::Metadata;
 /* === Implementations === */
 
 /* === Public Functions === */
-/* === Functions === */
 
 pub fn plot_input_for_definition(
     plot: &PlotDefinition, telemetry: &[TelemetrySample], marker_count: usize, selection: &DocumentSelection,
 ) -> PlotInput {
-    let matching_streams =
-        telemetry.iter().filter(|sample| sample_has_plot_fields(sample, plot)).map(|sample| &sample.stream).collect::<BTreeSet<_>>();
-    let available_streams: Vec<Identifier> = if matching_streams.is_empty() && plot_uses_telemetry(plot) {
-        telemetry.iter().map(|sample| &sample.stream).collect::<BTreeSet<_>>()
-    } else {
-        matching_streams
+    let mut matching = Vec::with_capacity(telemetry.len());
+    matching.extend(telemetry.iter().filter(|sample| sample_has_plot_fields(sample, plot)).map(|sample| &sample.stream));
+    if matching.is_empty() && plot_uses_telemetry(plot) {
+        matching.extend(telemetry.iter().map(|sample| &sample.stream));
     }
-    .into_iter()
-    .cloned()
-    .collect();
+    matching.sort_unstable();
+    matching.dedup();
+    let available_streams: Vec<Identifier> = matching.into_iter().cloned().collect();
     let stream = plot.stream.as_ref().map(|stream| resolved_plot_stream(stream, &available_streams));
 
     PlotInput {
@@ -93,7 +91,12 @@ pub fn plot_input_for_definition(
 }
 
 pub fn plot_descriptor_for_definition(input: PlotInput, metadata: Metadata) -> PlotDescriptor {
-    PlotDescriptor { plot_id: input.plot_id.clone(), metadata, plot_type: input.plot_type.clone(), input }
+    PlotDescriptor {
+        plot_id: input.plot_id.clone(),
+        metadata,
+        plot_type: input.plot_type.clone(),
+        input,
+    }
 }
 
 pub(crate) fn stream_matches_alias(actual: &str, declared: &str) -> bool {
@@ -101,6 +104,7 @@ pub(crate) fn stream_matches_alias(actual: &str, declared: &str) -> bool {
 }
 
 /* === Private Functions === */
+
 fn sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
     if plot.stream.as_ref().is_some_and(|stream| !stream_matches_alias(sample.stream.as_str(), stream)) {
         return false;

@@ -28,19 +28,22 @@ import {
 } from "./document-presentation";
 import type { DocumentPlotType, DocumentViewCard, DocumentViewPayload } from "./types";
 
+const DOCUMENTS_ENCODED_DEPTH = 32;
+const DOCUMENTS_EXPANDED_NODES = 4_096;
+
 export type { DocumentCapture_Serialize as DocumentCapturePayload } from "./document-contracts";
 
 /* === Public Functions === */
 
 export function mapDocumentCapture(document: DocumentCapturePayload): DocumentViewPayload {
-  if (document.definition.cards.length > 4096 || document.cards.length > 4096)
+  if (document.definition.cards.length > DOCUMENTS_EXPANDED_NODES || document.cards.length > DOCUMENTS_EXPANDED_NODES)
     throw new Error("Captured document sources or bindings exceed their contract");
   const sources = new Map(document.definition.cards.map((card) => [card.metadata.identifier, card]));
   let declared = 0;
   const nodes = (source: DocumentNode[], depth = 1): DeclaredNode[] => {
-    if (depth > 32 && source.length > 0) throw new Error("Captured document depth exceeds its budget");
+    if (depth > DOCUMENTS_ENCODED_DEPTH && source.length > 0) throw new Error("Captured document depth exceeds its budget");
     return source.map((node) => {
-      if (++declared > 4096) throw new Error("Captured document declarations exceed their budget");
+      if (++declared > DOCUMENTS_EXPANDED_NODES) throw new Error("Captured document declarations exceed their budget");
       return node.type === "card"
         ? { type: "card", card_id: node.data.card_id, layout: documentCardLayout(node.data.layout) }
         : {

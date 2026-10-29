@@ -29,9 +29,9 @@ export function ProgressCard({
   const percent = progress ? (progress.total === 0 ? 100 : Math.max(0, Math.min(100, (progress.completed / progress.total) * 100))) : null;
 
   return (
-    <div className={cn("grid gap-3 rounded-md border bg-muted/20 p-3", className)}>
+    <div className={cn("grid gap-3 rounded-lg border bg-muted/20 p-3", className)}>
       <div className="flex items-center justify-between gap-3">
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-bold uppercase text-muted-foreground">
+        <span className="inline-flex min-w-0 items-center gap-2 text-xs font-bold uppercase text-muted-foreground">
           <Activity className="shrink-0" size={14} />
           <span className="truncate">Progress</span>
         </span>
@@ -51,7 +51,7 @@ export function ProgressCard({
             <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${percent ?? 0}%` }} />
           </div>
           <div className="grid gap-1 text-sm">
-            <strong className="inline-flex min-w-0 items-center gap-1.5" title={progress.phase}>
+            <strong className="inline-flex min-w-0 items-center gap-2" title={progress.phase}>
               {(percent ?? 0) < 100 && !runFinished ? <LoaderCircle className="shrink-0 animate-spin" size={14} /> : null}
               <span className="truncate">{progress.phase}</span>
             </strong>

@@ -1,6 +1,5 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { createRoot, type Root } from "react-dom/client";
-import { AppRoot } from "@/app/AppRoot";
 import { defaultBrand } from "@/lib/brand";
 import "@/styles.css";
 
@@ -13,4 +12,9 @@ const element = document.getElementById("root");
 if (!element) throw new Error(`Missing ${defaultBrand.label} root element.`);
 const root = window.__dokimeLiveRoot__ ?? createRoot(element);
 window.__dokimeLiveRoot__ = root;
-root.render(<AppRoot />);
+void (async () => {
+  const { AppRoot } = await import("@/app/AppRoot");
+  root.render(<AppRoot />);
+})().catch((error: unknown) => {
+  root.render(<p role="alert">{error instanceof Error ? error.message : String(error)}</p>);
+});

@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -47,6 +48,7 @@ use crate::model::values::value_matches_type;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn validate_fields(fields: &[PromptField], values: &BTreeMap<String, Value>) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     for name in values.keys() {
@@ -203,6 +205,7 @@ pub fn collect_definitions<'a>(
 }
 
 /* === Private Functions === */
+
 fn validate_item(field: &PromptField, value: &Value, name: &str, issues: &mut Vec<ValidationIssue>) {
     // The field's value type describes each item, not the collection envelope.
     if !value_matches_type(value, &field.value_type) {
@@ -234,15 +237,27 @@ fn validate_item(field: &PromptField, value: &Value, name: &str, issues: &mut Ve
 }
 
 fn issue(issues: &mut Vec<ValidationIssue>, name: &str, message: &str) {
-    issues.push(ValidationIssue { path: format!("values.{name}"), message: message.to_owned(), expected: None });
+    issues.push(ValidationIssue {
+        path: format!("values.{name}"),
+        message: message.to_owned(),
+        expected: None,
+    });
 }
 
 fn declaration_issue(issues: &mut Vec<ValidationIssue>, path: &str, message: &str) {
-    issues.push(ValidationIssue { path: path.into(), message: message.into(), expected: None });
+    issues.push(ValidationIssue {
+        path: path.into(),
+        message: message.into(),
+        expected: None,
+    });
 }
 
 fn rule_issue(index: usize, message: &str) -> ValidationIssue {
-    ValidationIssue { path: format!("rules.{index}"), message: message.into(), expected: None }
+    ValidationIssue {
+        path: format!("rules.{index}"),
+        message: message.into(),
+        expected: None,
+    }
 }
 
 /* === Tests === */

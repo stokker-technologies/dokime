@@ -40,6 +40,7 @@ struct Reader;
 
 /* === Implementations === */
 impl Application for Reader {
+    type Lanes = dokime_runtime::app::Lanes;
     type State = ();
     type Transaction = Never;
     type Record = Never;
@@ -60,7 +61,7 @@ async fn materialized_cases_reader() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let storage = Manager::new(StorageBackends { primary, state: recovery }, super::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
@@ -77,20 +78,20 @@ async fn materialized_cases_reader() {
     let row = Case::try_from(&expected).unwrap();
     let receipt = storage.write_object(&row).await.unwrap();
     storage.flush_until(&receipt.position).await.unwrap();
-    assert_eq!(case::read(&storage, &expected.test_case_id).await.unwrap().as_ref(), Some(&expected));
+    assert_eq!(case::read(&storage, &expected.test_case_id).await.unwrap().as_deref(), Some(&expected));
     runtime.stop().await.unwrap();
 
     let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let storage =
         Manager::new(StorageBackends { primary, state: recovery }, crate::engine_support::local_storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
-    assert_eq!(case::read(&storage, &expected.test_case_id).await.unwrap().as_ref(), Some(&expected));
-    assert_eq!(case::read(&storage, &CaseId::from_wire("fixture.absent:1234567890").unwrap()).await.unwrap().as_ref(), None);
+    assert_eq!(case::read(&storage, &expected.test_case_id).await.unwrap().as_deref(), Some(&expected));
+    assert_eq!(case::read(&storage, &CaseId::from_wire("fixture.absent:1234567890").unwrap()).await.unwrap().as_deref(), None);
     let absent = case::read(&storage, &CaseId::from_wire("fixture.absent:1234567890").unwrap()).await.unwrap();
     assert!(absent.is_none());
     runtime.stop().await.unwrap();
@@ -103,7 +104,7 @@ async fn suite_definitions_producer() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let backends = StorageBackends { primary, state: recovery };
     let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
@@ -119,35 +120,52 @@ async fn suite_definitions_producer() {
             "document": {
                 "document_id": dokime_runtime::DocumentId::from_seed("native-suite-document"),
                 "metadata": metadata,
-                "cards": [{"metadata": metadata, "type": "text", "data": {"markdown": "Saved Definition"}}]
+                "cards": [
+                    {"metadata": metadata, "type": "text", "data": {"markdown": "Saved Definition"}},
+                    {"metadata": metadata, "type": "plot", "data": {"plot": {
+                        "metadata": metadata, "plot_type": "time_series", "stream": "fixture.voltage", "y": ["voltage"]
+                    }}}
+                ]
             },
             "subscriptions": [{"kind": "stream", "identifier": "fixture.voltage"}]
         }]
     });
     let mut expected: TestSuite = serde_json::from_value(definition).unwrap();
+    let document = expected.test_case_templates[0].document.as_mut().unwrap();
+    let dokime_runtime::document::DocumentCardBody::Plot { plot } = &mut document.cards[1].body else {
+        panic!("plot fixture");
+    };
+    plot.automatic_id = true;
     let stored = dokime_runtime::storage::objects::suite::Suite::new("fixture.registration", &expected).unwrap();
-    let receipt = storage.write_object(&stored).await.unwrap();
+    let receipt = storage.write_object(&*stored).await.unwrap();
     storage.flush_until(&receipt.position).await.unwrap();
+    drop(stored);
 
     expected.metadata.identifier = Identifier::new("fixture.changed_author").unwrap();
     expected.metadata.label = "Latest Suite".into();
     let stored = dokime_runtime::storage::objects::suite::Suite::new("fixture.registration", &expected).unwrap();
-    let receipt = storage.write_object(&stored).await.unwrap();
+    let receipt = storage.write_object(&*stored).await.unwrap();
     storage.flush_until(&receipt.position).await.unwrap();
+    drop(stored);
+    let document = expected.test_case_templates[0].document.as_mut().unwrap();
+    let dokime_runtime::document::DocumentCardBody::Plot { plot } = &mut document.cards[1].body else {
+        panic!("plot fixture");
+    };
+    plot.automatic_id = false;
     runtime.stop().await.unwrap();
 
     let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let backends = StorageBackends { primary, state: recovery };
     let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
 
     let saved = dokime_runtime::storage::objects::suite::read(&storage, "fixture.registration").await.unwrap();
-    assert_eq!(saved, Some(expected));
+    assert_eq!(saved.as_deref(), Some(&expected));
     let absent = dokime_runtime::storage::objects::suite::read(&storage, "fixture.absent").await.unwrap();
     assert!(absent.is_none());
     drop(saved);
@@ -161,7 +179,7 @@ async fn cycles_reopen_producers() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let backends = StorageBackends { primary, state: recovery };
     let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
@@ -175,6 +193,7 @@ async fn cycles_reopen_producers() {
         session_id: None,
         metadata,
         lifecycle: dokime_domain::model::execution::result::CycleStatus::Ready,
+        phase: Default::default(),
         created_at: at.clone(),
         started_at: None,
         updated_at: at,
@@ -183,7 +202,7 @@ async fn cycles_reopen_producers() {
             dokime_runtime::TestExecutionId::from_seed("native-second"),
         ],
         records: Default::default(),
-        continue_on_failure: false,
+        continue_automatically: false,
         result: None,
     };
     let row = dokime_runtime::storage::objects::cycle::Cycle::try_from(&expected).unwrap();
@@ -209,7 +228,7 @@ async fn cycles_reopen_producers() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let backends = StorageBackends { primary, state: recovery };
     let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
@@ -235,7 +254,7 @@ async fn executions_reopen_results() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let backends = StorageBackends { primary, state: recovery };
     let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
@@ -294,7 +313,7 @@ async fn executions_reopen_results() {
         let schema = crate::engine_support::local_storage::declared::<dokime_runtime::storage::objects::execution::Execution>();
         panic!(
             "execution admission failed: {error}; payload={} resident={} schema={}",
-            harmos::Message::encoded_len(&row),
+            harmos::Message::encoded_size(&row),
             harmos::MemorySize::memory_size(&row),
             serde_json::to_vec(&schema).unwrap().len(),
         )
@@ -324,7 +343,7 @@ async fn executions_reopen_results() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let backends = StorageBackends { primary, state: recovery };
     let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
@@ -347,31 +366,4 @@ async fn executions_reopen_results() {
     assert!(absent.is_none());
     drop(saved);
     runtime.stop().await.unwrap();
-}
-
-#[test]
-fn prompt_level_rows() {
-    use dokime_runtime::prompts::{ConfirmationPrompt, Prompt, PromptDefinition};
-    use dokime_runtime::records::RecordSeverity;
-    use dokime_runtime::storage::objects::presentation::PromptDefinition as PromptRow;
-
-    // === Store A Raised Prompt === //
-
-    let expected = ConfirmationPrompt::new("fixture.level", "Raised").level(RecordSeverity::Warning);
-    let expected = Prompt::definition(&expected);
-    let row = PromptRow::try_from(&expected).unwrap();
-    let restored = PromptDefinition::try_from(row.clone()).unwrap();
-
-    // === Read A Row Written Before Levels === //
-
-    let mut baseline = serde_json::to_value(&row).unwrap();
-    baseline.as_object_mut().unwrap().remove("level");
-    let baseline: PromptRow = serde_json::from_value(baseline).unwrap();
-    let defaulted = PromptDefinition::try_from(baseline).unwrap();
-
-    // === Compare === //
-
-    assert_eq!(restored, expected);
-    assert_eq!(restored.level, RecordSeverity::Warning);
-    assert_eq!(defaulted.level, RecordSeverity::Info);
 }

@@ -23,7 +23,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::storage::operations::Query;
+use harmos::storage::Query;
 use harmos::storage::query::{
     ObjectSelection, ObjectVersions, QueryArrow, RecordSelection, RowSlice, Source, StreamSelection,
     scalar::ScalarValue,
@@ -37,7 +37,7 @@ use harmos::{Application, DefinitionId, Identified, Message, Runtime, state::Nev
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use super::sqlite::storage::{declared, id, page, rows, write_batch};
+use super::sqlite::storage::{Store, declared, id, page, rows};
 use dokime_runtime::storage::sqlite::Backend;
 use {
     dokime_domain::model::telemetry::evidence::TelemetrySample, dokime_runtime::SessionId, dokime_runtime::Timestamp,
@@ -91,6 +91,7 @@ enum Objects {
 
 /* === Implementations === */
 impl Application for App {
+    type Lanes = dokime_runtime::app::Lanes;
     type State = ();
     type Transaction = Never;
     type Record = ();
@@ -117,16 +118,25 @@ impl StoredObject for Subject {
 
 /* === Private Functions === */
 
+fn retention(schema: &SchemaKey) -> harmos::domain::Result<ObjectRetention> {
+    let definition = harmos::domain::model::storage::catalog::definition::<Objects>(schema)?;
+    Ok(definition.retention())
+}
+
 /* === Tests === */
 #[tokio::test]
 async fn nominal() {
     // Configure And Start The Production SQLite Adapter
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<Objects>::primary(root.path().to_owned()).await.unwrap();
+    let store = Store::<Objects>::open(root.path()).await;
+    let backend = &store.backend;
     let history = backend.history().clone();
     let at = |sequence| StorageCursor { history: history.clone(), sequence };
-    let waveform_schema =
-        SchemaKey { id: id("story.waveform"), version: std::num::NonZeroU32::MIN, payload_encoding: PayloadEncoding::PostcardV1 };
+    let waveform_schema = SchemaKey {
+        id: id("story.waveform"),
+        version: std::num::NonZeroU32::MIN,
+        payload_encoding: PayloadEncoding::PostcardV1,
+    };
     let subject_schema =
         Objects::encode(&Subject { id: "execution".into(), stopped: false }, NonZeroUsize::new(MAX_BYTES).unwrap()).unwrap().schema;
     let typed_stream = id("typed-voltage");
@@ -136,7 +146,7 @@ async fn nominal() {
         StorageSchema::new(at(2), subject_schema.clone(), declared::<Subject>()),
         StorageSchema::new(at(3), codec.schema().clone(), codec.graph().clone()),
     ];
-    backend.write(write_batch(&[StoragePart::Schemas(&schemas)])).await.unwrap();
+    backend.write_schemas(store.batch(schemas.to_vec())).await.unwrap();
 
     // Generate Three Balanced Phases Over An Integer Number Of Periods
     let samples = 256usize;
@@ -144,8 +154,11 @@ async fn nominal() {
     let mut waves = Vec::with_capacity(samples);
     for index in 0..samples {
         let phase = TAU * index as f64 / 64.0;
-        let waveform =
-            Waveform { a: amplitude * phase.sin(), b: amplitude * (phase - TAU / 3.0).sin(), c: amplitude * (phase + TAU / 3.0).sin() };
+        let waveform = Waveform {
+            a: amplitude * phase.sin(),
+            b: amplitude * (phase - TAU / 3.0).sin(),
+            c: amplitude * (phase + TAU / 3.0).sin(),
+        };
         waves.push(StoredRow {
             record: StoredRecord {
                 position: at(index as u64 + 4),
@@ -154,13 +167,13 @@ async fn nominal() {
                 item: id(&format!("sample-{index}")),
                 source: Some(id("three-phase-meter")),
                 source_time: Some(UNIX_EPOCH + Duration::from_millis(index as u64)),
-                payload: waveform.encode_to_vec(),
+                payload: waveform.encode(),
             },
             stream: id("voltage"),
             sequence: index as u64,
         });
     }
-    backend.write(write_batch(&[StoragePart::Stream(&waves)])).await.unwrap();
+    backend.write_stream(store.batch(waves.clone())).await.unwrap();
     let record = StoredRecord {
         position: at(samples as u64 + 4),
         schema: waveform_schema.clone(),
@@ -168,26 +181,32 @@ async fn nominal() {
         item: id("calibration"),
         source: None,
         source_time: None,
-        payload: Waveform { a: amplitude, b: amplitude, c: amplitude }.encode_to_vec(),
+        payload: Waveform { a: amplitude, b: amplitude, c: amplitude }.encode(),
     };
-    backend.write(write_batch(&[StoragePart::Records(std::slice::from_ref(&record))])).await.unwrap();
+    backend.write_records(store.batch(vec![record.clone()])).await.unwrap();
     let object_position = samples as u64 + 5;
     let subject = ObjectEntry {
         position: at(object_position),
         version: serde_json::from_value(serde_json::json!({"history": history, "revision": object_position})).unwrap(),
         value: Objects::encode(&Subject { id: "execution".into(), stopped: false }, NonZeroUsize::new(MAX_BYTES).unwrap()).unwrap(),
     };
-    backend.write(write_batch(&[StoragePart::Objects(std::slice::from_ref(&subject))])).await.unwrap();
+    backend.write_objects(store.batch(vec![subject.clone()])).await.unwrap();
 
     let stopped = ObjectEntry {
         position: at(object_position + 1),
         version: serde_json::from_value(serde_json::json!({"history": history, "revision": object_position + 1})).unwrap(),
         value: Objects::encode(&Subject { id: "execution".into(), stopped: true }, NonZeroUsize::new(MAX_BYTES).unwrap()).unwrap(),
     };
-    backend.write(write_batch(&[StoragePart::Objects(std::slice::from_ref(&stopped))])).await.unwrap();
+    backend.write_objects(store.batch(vec![stopped.clone()])).await.unwrap();
 
     // Persist Original Typed Rows With Nested Schema And Complete Sample Metadata
-    let typed = TypedWave { rms: amplitude / 2.0f64.sqrt(), details: Details { label: "meter-A".into(), samples: vec![1.0, 2.0, 3.0] } };
+    let typed = TypedWave {
+        rms: amplitude / 2.0f64.sqrt(),
+        details: Details {
+            label: "meter-A".into(),
+            samples: vec![1.0, 2.0, 3.0],
+        },
+    };
     let mut sample = TelemetrySample::new(
         dokime_runtime::model::identity::new_id(),
         typed_stream.clone(),
@@ -195,10 +214,14 @@ async fn nominal() {
         Timestamp::new("2026-10-15T10:00:00Z"),
         "typed-meter",
     )
-    .with_storage_payload(typed.encode_to_vec());
+    .with_storage_payload(typed.encode());
     sample.summary.insert("health".into(), Value::Text("ok".into()));
     sample.metadata.insert("operator".into(), Value::Text("lab".into()));
-    let typed_entry = TelemetryEntry { epoch: SessionId::from_seed("nominal"), ordinal: 0, sample };
+    let typed_entry = TelemetryEntry {
+        epoch: SessionId::from_seed("nominal"),
+        ordinal: 0,
+        sample,
+    };
     let typed_row = StoredRow {
         record: StoredRecord {
             position: at(object_position + 2),
@@ -217,7 +240,7 @@ async fn nominal() {
         stream: typed_stream.clone(),
         sequence: 0,
     };
-    backend.write(write_batch(&[StoragePart::Stream(std::slice::from_ref(&typed_row))])).await.unwrap();
+    backend.write_stream(store.batch(vec![typed_row.clone()])).await.unwrap();
 
     // Publish Deterministic Empty, Small And Multi-Batch Finished Files
     let mut files = Vec::new();
@@ -233,14 +256,14 @@ async fn nominal() {
         };
         let stage = backend.create_file(&metadata).await.unwrap();
         for (batch, bytes) in bytes.chunks(128 * 1024).enumerate() {
-            backend.write_file(&stage, (batch * 128 * 1024) as u64, bytes).await.unwrap();
+            backend.write_file(&stage, (batch * 128 * 1024) as u64, store.batch(bytes.to_vec())).await.unwrap();
         }
         let reference = backend.finish_file(&stage, &at(object_position + index as u64 + 3), size as u64, digest).await.unwrap();
-        backend.write(write_batch(&[StoragePart::Files(std::slice::from_ref(&reference))])).await.unwrap();
+        backend.write_files(store.batch(vec![reference.clone()])).await.unwrap();
         files.push((reference, bytes));
     }
     let durable = backend.cursor_saved().await.unwrap();
-    assert!(backend.prune_objects(&durable, NonZeroUsize::new(64).unwrap()).await.unwrap());
+    assert!(backend.prune_objects(&durable, NonZeroUsize::new(64).unwrap(), retention).await.unwrap());
     backend.close().await.unwrap();
 
     // Reopen And Read All Evidence At The Durable Boundary
@@ -251,7 +274,7 @@ async fn nominal() {
             state: std::sync::Arc::new(harmos::storage::state::file::FileBackend::new(
                 root.path().to_owned(),
                 backend.history().clone(),
-                dokime_runtime::storage::state_settings(),
+                dokime_runtime::config::storage_state_defaults(),
             )),
         },
         super::sqlite::storage::storage_settings(),
@@ -336,9 +359,9 @@ async fn nominal() {
     let mut typed_count = 0;
     while let Some(output) = typed_query.next().await.unwrap() {
         if let QueryArrow::Batch(batch) = output {
-            let entries = dokime_runtime::storage::telemetry::decode_batch(&codec, &batch).unwrap();
+            let entries = dokime_runtime::storage::telemetry::decode_positioned(&codec, batch).unwrap();
             assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].sample.storage_payload, typed_entry.sample.storage_payload);
+            assert_eq!(entries[0].1.sample.storage_payload, typed_entry.sample.storage_payload);
             typed_count += entries.len();
         }
     }
@@ -418,7 +441,11 @@ async fn nominal() {
                 after: 0,
             }),
             transforms: vec![Transform::Sort(Sort {
-                keys: vec![SortKey { field: "payload.a".into(), descending: true, nulls_first: false }],
+                keys: vec![SortKey {
+                    field: "payload.a".into(),
+                    descending: true,
+                    nulls_first: false,
+                }],
             })],
             slice: RowSlice { offset: 5, limit: Some(17) },
         })
@@ -442,13 +469,23 @@ async fn nominal() {
     let records = backend
         .read_records(
             &view,
-            &RecordSelection { schema: waveform_schema.clone(), scope: None, item: None, source_start: None, source_end: None },
+            &RecordSelection {
+                schema: waveform_schema.clone(),
+                scope: None,
+                item: None,
+                source_start: None,
+                source_end: None,
+            },
             page(0, rows(8)),
         )
         .await
         .unwrap();
     assert_eq!(records, [record]);
-    let revisions = ObjectSelection { schema: None, key: None, versions: ObjectVersions::Revisions };
+    let revisions = ObjectSelection {
+        schema: None,
+        key: None,
+        versions: ObjectVersions::Revisions,
+    };
     let objects = backend.read_objects(&view, &revisions, page(0, rows(8))).await.unwrap();
     assert_eq!(objects, [subject.clone(), stopped.clone()]);
     for (file, expected) in files {
@@ -464,7 +501,7 @@ async fn nominal() {
     }
     // Release Only After The Subject Is Sealed; Existing Reads Keep Their History
     backend.release_object_history(&subject_schema, &subject.value.item, &durable).await.unwrap();
-    while !backend.prune_objects(&durable, NonZeroUsize::new(64).unwrap()).await.unwrap() {}
+    while !backend.prune_objects(&durable, NonZeroUsize::new(64).unwrap(), retention).await.unwrap() {}
     let pinned = backend.read_objects(&view, &revisions, page(0, rows(8))).await.unwrap();
     assert_eq!(pinned, [subject, stopped.clone()], "a pinned snapshot keeps history");
     backend.release_snapshot(&view).await.unwrap();
@@ -472,7 +509,7 @@ async fn nominal() {
 
     // The Lifecycle Release Survives Restart And Reclaims Unpinned Revisions
     let backend = std::sync::Arc::new(Backend::<Objects>::primary(root.path().to_owned()).await.unwrap());
-    while !backend.prune_objects(&durable, NonZeroUsize::new(64).unwrap()).await.unwrap() {}
+    while !backend.prune_objects(&durable, NonZeroUsize::new(64).unwrap(), retention).await.unwrap() {}
     let current = backend.open_snapshot(&durable).await.unwrap();
     let objects = backend.read_objects(&current, &revisions, page(0, rows(8))).await.unwrap();
     assert_eq!(objects, [stopped]);

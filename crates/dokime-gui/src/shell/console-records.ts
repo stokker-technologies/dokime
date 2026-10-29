@@ -21,9 +21,12 @@ import { useStore } from "zustand";
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
-import { consoleBufferKey, consoleRecordsStore, type ConsoleRecords, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
+import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
 
 /* === Constants === */
+
+const GUI_CONSOLE_RECONNECT_MAX_MS = 30_000;
+const GUI_RECONNECT_MS = 1_000;
 
 /* === Hooks === */
 export function useConsoleRecords({
@@ -56,7 +59,7 @@ export function useConsoleRecords({
     let stream: Awaited<ReturnType<typeof openTraceStream>> | undefined;
     let afterSequence = held.afterSequence;
     let epoch = held.epoch;
-    let reconnectDelay = 1_000;
+    let reconnectDelay = GUI_RECONNECT_MS;
     let priorDropped = held.dropped;
     let streamDropped = 0n;
 
@@ -83,7 +86,7 @@ export function useConsoleRecords({
           afterSequence = page.nextSequence;
           epoch = page.epoch;
           streamDropped = page.dropped;
-          reconnectDelay = 1_000;
+          reconnectDelay = GUI_RECONNECT_MS;
           store().receive(key, page, priorDropped + streamDropped);
         }
         if (active) store().setError(key, "Trace stream ended; reconnecting.");
@@ -112,7 +115,7 @@ export function useConsoleRecords({
         await closing?.cancel().catch(() => undefined);
         if (reconnect && active && session.identity.isCurrent()) {
           retry = window.setTimeout(() => void connect(), reconnectDelay);
-          reconnectDelay = Math.min(30_000, reconnectDelay * 2);
+          reconnectDelay = Math.min(GUI_CONSOLE_RECONNECT_MAX_MS, reconnectDelay * 2);
         }
       }
     };

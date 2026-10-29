@@ -12,21 +12,28 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
+use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State, WebviewWindow, http};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
 // Local Imports
 use super::content;
 use super::desktop::{ArtifactSource, ensure_generation_token, ensure_main_window, ensure_private_directory, set_private_file};
 use crate::connection::ConnectionSession;
 
 /* === Constants === */
+
+const DESKTOP_MEDIA_CACHE_BYTES: u64 = 4_294_967_296;
+const DESKTOP_MEDIA_RANGE_BYTES: u64 = 4_194_304;
+
 pub const MEDIA_SCHEME: &str = "dokime-media";
-const MAX_MEDIA_CACHE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
-const MEDIA_RANGE_BYTES: u64 = 4 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -35,6 +42,7 @@ const MEDIA_RANGE_BYTES: u64 = 4 * 1024 * 1024;
 /* === Structs === */
 
 /* === Enums === */
+
 enum RangeOutcome {
     Full,
     Partial { start: u64, end: u64 },
@@ -46,6 +54,7 @@ enum RangeOutcome {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn register(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.register_asynchronous_uri_scheme_protocol(
         MEDIA_SCHEME,
@@ -77,12 +86,14 @@ pub async fn desktop_media_prepare(
         .map_err(|error| error.to_string())??;
     let destination = cache_dir.join(&key);
     if !tokio::fs::try_exists(&destination).await.unwrap_or(false) {
-        let verified = content::fetch_verified(&lease, &source, &destination).await.map_err(|error| error.to_string())?;
+        let verified = content::fetch_verified(&lease, &source, &destination, DESKTOP_FRAME_BYTES as usize)
+            .await
+            .map_err(|error| error.to_string())?;
         write_content_type(&destination, verified.content_type.as_deref()).await?;
         let private_path = destination.clone();
         tauri::async_runtime::spawn_blocking(move || set_private_file(&private_path)).await.map_err(|error| error.to_string())??;
     }
-    evict_lru(&cache_dir, MAX_MEDIA_CACHE_BYTES).await?;
+    evict_lru(&cache_dir, DESKTOP_MEDIA_CACHE_BYTES).await?;
     Ok(format!("{generation}/{key}"))
 }
 
@@ -98,6 +109,7 @@ pub(crate) async fn release_all(app: &AppHandle) {
 }
 
 /* === Private Functions === */
+
 fn media_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app.path().app_cache_dir().map_err(|error| error.to_string())?.join("media"))
 }
@@ -119,13 +131,19 @@ where
 
 fn cache_key(source: &ArtifactSource) -> Result<String, String> {
     match source {
+        ArtifactSource::ExecutionEvidence { .. } | ArtifactSource::CycleEvidence { .. } => {
+            Err("evidence bundles must be saved, not previewed as media".into())
+        }
+        ArtifactSource::CycleReport { .. } | ArtifactSource::ExecutionReport { .. } => {
+            Err("reports are saved or opened, not previewed as media".into())
+        }
         ArtifactSource::Artifact { artifact_id } => {
-            let id = dokime_domain::model::identity::ArtifactId::from_uuid(artifact_id.clone())
+            let id = dokime::domain::model::identity::ArtifactId::from_uuid(artifact_id.clone())
                 .map_err(|_| "invalid artifact id".to_string())?;
             Ok(format!("art-{id}"))
         }
         ArtifactSource::ExecutionFile { execution_id, relative_path } => {
-            let id = dokime_domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
+            let id = dokime::domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
                 .map_err(|_| "invalid execution id".to_string())?;
             let digest = Sha256::digest(relative_path.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             Ok(format!("exec-{id}-{digest}"))
@@ -135,13 +153,13 @@ fn cache_key(source: &ArtifactSource) -> Result<String, String> {
 
 fn parse_cache_key(key: &str) -> Result<String, String> {
     if let Some(id) = key.strip_prefix("art-") {
-        let id = dokime_domain::model::identity::ArtifactId::from_uuid(id.to_string()).map_err(|_| "invalid artifact id".to_string())?;
+        let id = dokime::domain::model::identity::ArtifactId::from_uuid(id.to_string()).map_err(|_| "invalid artifact id".to_string())?;
         return Ok(format!("art-{id}"));
     }
     if let Some(rest) = key.strip_prefix("exec-") {
         let (id, digest) = rest.rsplit_once('-').ok_or_else(|| "invalid media key".to_string())?;
         let id =
-            dokime_domain::model::identity::TestExecutionId::from_uuid(id.to_string()).map_err(|_| "invalid execution id".to_string())?;
+            dokime::domain::model::identity::TestExecutionId::from_uuid(id.to_string()).map_err(|_| "invalid execution id".to_string())?;
         if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err("invalid media key digest".into());
         }
@@ -207,12 +225,15 @@ where
     }
 }
 
-fn resolve_range(range_header: Option<&str>, len: u64) -> RangeOutcome {
+fn resolve_range(range_header: Option<&str>, len: u64, maximum: u64) -> RangeOutcome {
     let Some(value) = range_header else {
-        return if len <= MEDIA_RANGE_BYTES {
+        return if len <= maximum {
             RangeOutcome::Full
         } else {
-            RangeOutcome::Partial { start: 0, end: MEDIA_RANGE_BYTES.saturating_sub(1).min(len.saturating_sub(1)) }
+            RangeOutcome::Partial {
+                start: 0,
+                end: maximum.saturating_sub(1).min(len.saturating_sub(1)),
+            }
         };
     };
     let Some(spec) = value.strip_prefix("bytes=") else {
@@ -235,8 +256,11 @@ fn resolve_range(range_header: Option<&str>, len: u64) -> RangeOutcome {
             Err(_) => return RangeOutcome::Unsatisfiable,
         }
     };
-    let max_end = start.saturating_add(MEDIA_RANGE_BYTES - 1);
-    RangeOutcome::Partial { start, end: requested_end.min(len - 1).min(max_end) }
+    let max_end = start.saturating_add(maximum - 1);
+    RangeOutcome::Partial {
+        start,
+        end: requested_end.min(len - 1).min(max_end),
+    }
 }
 
 async fn read_range(path: &Path, start: u64, end: u64) -> std::io::Result<Vec<u8>> {
@@ -274,7 +298,7 @@ async fn try_respond(app: &AppHandle, request: &http::Request<Vec<u8>>) -> Resul
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "application/octet-stream".into());
     let range_header = request.headers().get(http::header::RANGE).and_then(|value| value.to_str().ok());
-    match resolve_range(range_header, len) {
+    match resolve_range(range_header, len, DESKTOP_MEDIA_RANGE_BYTES) {
         RangeOutcome::Unsatisfiable => http::Response::builder()
             .status(http::StatusCode::RANGE_NOT_SATISFIABLE)
             .header(http::header::CONTENT_RANGE, format!("bytes */{len}"))

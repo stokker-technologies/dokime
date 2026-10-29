@@ -12,16 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
-use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility};
+use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
 use harmos::sidecar::operations::{ServingError, WireTable};
 use harmos::sidecar::{Refusal, Supervisor};
+use harmos::{Dependencies, RegistrationBatch};
 
 // Local Imports
 use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
@@ -33,20 +34,28 @@ use crate::transport::{
 };
 
 /* === Constants === */
-const IDLE: Duration = Duration::from_millis(250);
 
-const PUSH_RETRIES: usize = 5;
-
-const RUN_POLICY: OperationPolicy =
-    OperationPolicy { timeout: RUN_BOUND, attempt_timeout: RUN_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
-
-pub const SIGNAL_POLICY: OperationPolicy =
-    OperationPolicy { timeout: SIGNAL_BOUND, attempt_timeout: SIGNAL_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
+const RUN_POLICY: OperationPolicy = OperationPolicy {
+    timeout: RUN_BOUND,
+    attempt_timeout: RUN_BOUND,
+    retries: RetryPolicy::Never,
+};
+pub const SIGNAL_POLICY: OperationPolicy = OperationPolicy {
+    timeout: SIGNAL_BOUND,
+    attempt_timeout: SIGNAL_BOUND,
+    retries: RetryPolicy::Never,
+};
 
 /* === Macros === */
+
+templated!(Run, RunExecution);
+
+templated!(Signal, ExecutionSignal);
+
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // One template's run operation: the request is the portable `RunExecution`;
 // the type parameter only selects the template's operation identity.
 pub struct Run<T>(pub RunExecution, PhantomData<fn() -> T>);
@@ -54,17 +63,35 @@ pub struct Run<T>(pub RunExecution, PhantomData<fn() -> T>);
 // One template's signal operation over the portable `ExecutionSignal`.
 pub struct Signal<T>(pub ExecutionSignal, PhantomData<fn() -> T>);
 
-pub struct Running<T: SidecarTemplate>(Arc<Workflow<T>>);
+// The resource the generic template pair reads; see `EmbeddedRegistry`.
+#[derive(Clone)]
+pub struct EmbeddedTemplates(pub Arc<dyn EmbeddedRegistry>);
 
-pub struct Signalling<T: SidecarTemplate>(Arc<Workflow<T>>);
+struct InputAdmission {
+    executions: crate::transport::buffer::Executions,
+    token: String,
+    changed: Arc<tokio::sync::Notify>,
+}
 
 /* === Enums === */
+
 enum Answered {
     Prompt { prompt_id: String, answer: Result<OperatorAnswer, String> },
     Lease { lease_token: String, resolution: Result<LeaseResolution, String> },
 }
 
 /* === Traits === */
+
+// The host's embedded template registry behind the generic
+// `dokime.template.run`/`dokime.template.signal` pair (`Run<()>`/`Signal<()>`):
+// the host inserts `EmbeddedTemplates(Arc<dyn EmbeddedRegistry>)` as the
+// registration resource and routes each request to its embedded template.
+pub trait EmbeddedRegistry: Send + Sync + 'static {
+    fn run(&self, request: RunExecution) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>>;
+
+    fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>>;
+}
+
 pub trait ExecutionHost: Send + Sync + 'static {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>>;
 
@@ -100,9 +127,16 @@ pub trait Runnable: Send + Sync + 'static {
 }
 
 /* === Implementations === */
-templated!(Run, RunExecution);
 
-templated!(Signal, ExecutionSignal);
+impl Drop for InputAdmission {
+    fn drop(&mut self) {
+        if let Some(state) = lock(&self.executions).get_mut(&self.token)
+            && Arc::ptr_eq(&state.changed, &self.changed)
+        {
+            state.settle_operation();
+        }
+    }
+}
 
 // The host's embedded runner serves the generic template identities.
 impl Served for () {
@@ -116,77 +150,106 @@ impl<T: SidecarTemplate> Served for T {
 }
 
 impl<T: Served> OperationDeclaration for Run<T> {
+    type Request = Self;
     type Response = SidecarExecutionOutcome;
     type Input = NoStream;
     type Output = NoStream;
     const ID: &'static str = T::RUN;
-    const VERSION: u32 = 1;
     const DESCRIPTION: &'static str = "Runs one case of this template to its outcome.";
     const POLICY: OperationPolicy = RUN_POLICY;
     const VISIBILITY: Visibility = Visibility::Host;
 }
 
 impl<T: Served> OperationDeclaration for Signal<T> {
+    type Request = Self;
     type Response = SignalReply;
     type Input = NoStream;
     type Output = NoStream;
     const ID: &'static str = T::SIGNAL;
-    const VERSION: u32 = 1;
     const DESCRIPTION: &'static str = "Reaches one running case of this template.";
     const POLICY: OperationPolicy = T::SIGNAL_POLICY;
     const VISIBILITY: Visibility = Visibility::Host;
 }
 
-impl<T: SidecarTemplate> harmos::operations::Operation for Running<T> {
-    type Declaration = Run<T>;
-    type Resources = Workflow<T>;
+// A template's run and signal operations read the template's workflow as a
+// declared resource; the run also reads the attempt's own host, so evidence,
+// questions, leases and step calls travel under this attempt's call context.
+impl<T: SidecarTemplate> Requires<Workflow<T>> for Run<T> {}
+
+impl<T: SidecarTemplate> Requires<Supervisor> for Run<T> {}
+
+impl<T: SidecarTemplate> Requires<Workflow<T>> for Signal<T> {}
+
+impl<T: SidecarTemplate> harmos::Dependent for Run<T> {
+    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<Workflow<T>>(), harmos::Resource::of::<Supervisor>()];
+}
+
+impl<T: SidecarTemplate> harmos::Dependent for Signal<T> {
+    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<Workflow<T>>()];
+}
+
+impl<T: SidecarTemplate> harmos::Operation for Run<T> {
     type Error = Refusal;
-    type Context<'a> = &'a Supervisor;
-    type Endpoints = ();
 
-    async fn initialize<'ctx>(workflow: Arc<Workflow<T>>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
-        Ok(Self(workflow))
-    }
-
-    async fn run<'ctx>(
-        &mut self, host: Self::Context<'ctx>, request: &mut Run<T>, _: &mut (),
-    ) -> Result<harmos::operations::Response<SidecarExecutionOutcome>, Refusal> {
-        let request = std::mem::take(&mut request.0);
-        let outcome =
-            self.0.execute(request, Arc::new(host.clone()), Some(SampleOutput::Host(host.clone())), Caller::host(host.clone())).await?;
+    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SidecarExecutionOutcome>, Refusal> {
+        let workflow = ctx.resource::<Workflow<T>>();
+        let host = Supervisor::clone(&ctx.resource::<Supervisor>());
+        let outcome = workflow.execute(self.0, Arc::new(host.clone()), Some(SampleOutput::Host(host.clone())), Caller::host(host)).await?;
         Ok(outcome.into())
     }
 }
 
-impl<T: SidecarTemplate> harmos::operations::Operation for Signalling<T> {
-    type Declaration = Signal<T>;
-    type Resources = Workflow<T>;
+impl<T: SidecarTemplate> harmos::Operation for Signal<T> {
     type Error = Refusal;
-    type Context<'a> = &'a Supervisor;
-    type Endpoints = ();
 
-    async fn initialize<'ctx>(workflow: Arc<Workflow<T>>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
-        Ok(Self(workflow))
+    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Refusal> {
+        ctx.resource::<Workflow<T>>().signal(self.0).map(Into::into)
     }
+}
 
-    async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, signal: &mut Signal<T>, _: &mut (),
-    ) -> Result<harmos::operations::Response<SignalReply>, Refusal> {
-        self.0.signal(std::mem::take(&mut signal.0)).map(Into::into)
+impl Requires<EmbeddedTemplates> for Run<()> {}
+
+impl Requires<EmbeddedTemplates> for Signal<()> {}
+
+impl harmos::Dependent for Run<()> {
+    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<EmbeddedTemplates>()];
+}
+
+impl harmos::Dependent for Signal<()> {
+    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<EmbeddedTemplates>()];
+}
+
+impl harmos::Operation for Run<()> {
+    type Error = Refusal;
+
+    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SidecarExecutionOutcome>, Refusal> {
+        ctx.resource::<EmbeddedTemplates>().0.run(self.0).await.map(Into::into)
+    }
+}
+
+impl harmos::Operation for Signal<()> {
+    type Error = Refusal;
+
+    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Refusal> {
+        ctx.resource::<EmbeddedTemplates>().0.signal(self.0).await.map(Into::into)
     }
 }
 
 impl ExecutionHost for Supervisor {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
-        Box::pin(async move { self.call(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(
+            async move { self.call::<EvidenceBatch>(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) },
+        )
     }
 
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        Box::pin(async move { self.call(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(async move {
+            self.call::<OperatorQuestion>(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
+        })
     }
 
     fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {
-        Box::pin(async move { self.call(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(async move { self.call::<LeaseAsk>(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
     }
 }
 
@@ -200,6 +263,11 @@ impl<T: SidecarTemplate> Workflow<T> {
             .get(&token)
             .map(|state| Arc::clone(&state.changed))
             .ok_or_else(|| Refusal::of("the started execution is not retained"))?;
+        let _admission = InputAdmission {
+            executions: Arc::clone(&self.executions),
+            token: token.clone(),
+            changed: Arc::clone(&changed),
+        };
         let mut cursor = 0;
         let mut settling = false;
         let mut asked = BTreeSet::new();
@@ -218,7 +286,8 @@ impl<T: SidecarTemplate> Workflow<T> {
                 let settled = batch.cleanup_settled;
                 let prompts = batch.prompt_requests.clone();
                 let leases = batch.lease_requests.clone();
-                let receipt = push(host.as_ref(), batch).await?;
+                let receipt =
+                    host.push(batch).await.map_err(|reason| Refusal::of(format!("the host did not admit the run's evidence: {reason}")))?;
                 cursor = next;
                 settling |= settle;
                 for admission in &receipt.admitted {
@@ -248,7 +317,6 @@ impl<T: SidecarTemplate> Workflow<T> {
                         self.answered(&token, answered);
                     }
                 }
-                () = tokio::time::sleep(IDLE) => {}
             }
         }
     }
@@ -268,17 +336,20 @@ impl<T: SidecarTemplate> Workflow<T> {
                         .map_err(|error| Refusal::of(error.to_string()))?,
                 );
             }
-            self.deliver_captured(&record, &self.source, &scopes);
+            self.deliver_captured(delivery.ordinal, &record, &self.source, &scopes);
         }
         if let Some(samples) = &signal.samples {
             let scope: dokime_domain::model::execution::RecordScope =
                 serde_json::from_str(&samples.scope_json).map_err(|error| Refusal::of(format!("invalid sample scope JSON: {error}")))?;
-            let rows = samples
+            let mut rows = samples
                 .samples
                 .iter()
                 .map(|encoded| serde_json::from_str(encoded))
                 .collect::<Result<Vec<crate::telemetry::TelemetrySample>, _>>()
                 .map_err(|error| Refusal::of(format!("invalid delivered sample JSON: {error}")))?;
+            for row in &mut rows {
+                row.scope = Some(delivery_scope(row.scope.take(), &scope));
+            }
             let gaps = samples
                 .gaps
                 .iter()
@@ -291,7 +362,9 @@ impl<T: SidecarTemplate> Workflow<T> {
             Some(command) => Some(self.command(command)?),
             None => None,
         };
-        Ok(SignalReply { command })
+        let samples = crate::transport::buffer::lock(&self.executions).get(token).map(|state| state.sample_receipts()).unwrap_or_default();
+        let record_ordinal = crate::transport::buffer::lock(&self.executions).get(token).map_or(0, |state| state.record_ordinal);
+        Ok(SignalReply { command, samples, record_ordinal })
     }
 
     fn answered(&self, token: &str, answered: Answered) {
@@ -345,22 +418,39 @@ impl<T: SidecarTemplate> Runnable for Workflow<T> {
     }
 }
 
+/* === Public Functions === */
+
 pub fn contracts(template: &str) -> Result<[harmos::operations::Contract; 2], harmos::operations::ContractError> {
-    let named = |wire: harmos::operations::WireDeclaration, suffix: &str| {
-        let contract = wire.contract()?;
+    contracts_with_settings(template, &harmos::config::SchemaSettings::default())
+}
+
+pub fn contracts_with_settings(
+    template: &str, settings: &harmos::config::SchemaSettings,
+) -> Result<[harmos::operations::Contract; 2], harmos::operations::ContractError> {
+    // The identity fingerprint covers the operation id, so a renamed contract
+    // carries the fingerprint of its own id over the shared request and response.
+    fn named<O: OperationDeclaration>(
+        template: &str, suffix: &str, settings: &harmos::config::SchemaSettings,
+    ) -> Result<harmos::operations::Contract, harmos::operations::ContractError> {
+        use harmos::Portable;
+        let contract = harmos::operations::WireDeclaration::of::<O>().contract_with_settings(settings)?;
         let mut operation = contract.operation().clone();
         operation.id = harmos::Identifier::new(format!("{template}.{suffix}"))
             .map_err(|source| harmos::operations::ContractError::Operation(source.into()))?;
-        harmos::operations::Contract::new(operation, contract.version(), contract.codec(), contract.schema().clone())
-    };
-    Ok([
-        named(harmos::operations::WireDeclaration::of::<Run<()>>(), "run")?,
-        named(harmos::operations::WireDeclaration::of::<Signal<()>>(), "signal")?,
-    ])
+        let fingerprint = harmos::schema::identity::operation(
+            operation.id.as_str(),
+            <O::Request as Portable>::fingerprint(),
+            <O::Response as Portable>::fingerprint(),
+            None,
+            None,
+        );
+        operation.fingerprint = fingerprint;
+        harmos::operations::Contract::new_with_settings(operation, fingerprint, contract.codec(), contract.schema().clone(), settings)
+    }
+    Ok([named::<Run<()>>(template, "run", settings)?, named::<Signal<()>>(template, "signal", settings)?])
 }
 
-/* === Public Functions === */
-pub fn serve<P, S>(table: &mut WireTable<Supervisor>) -> Result<(), ServingError>
+pub fn serve<P, S>(table: &mut WireTable) -> Result<(), ServingError>
 where
     P: harmos::plugin::Declared,
     S: crate::catalog::Catalog<crate::catalog::SuiteBindings<P>>,
@@ -385,33 +475,26 @@ pub fn runner<T: SidecarTemplate>(workflow: &str, records: &[crate::records::Rec
     Arc::new(Workflow::<T>::new(workflow, "").with_records(records))
 }
 
-pub fn bind<T, P>(table: &mut WireTable<Supervisor>, workflow: &str, records: &[crate::records::RecordContract]) -> Result<(), ServingError>
+pub fn bind<T, P>(table: &mut WireTable, workflow: &str, records: &[crate::records::RecordContract]) -> Result<(), ServingError>
 where
     T: SidecarTemplate,
     P: harmos::plugin::Declared,
 {
     let workflow = Arc::new(Workflow::<T>::new(workflow, P::ID).with_records(records).with_publisher(T::publish_sample::<P>));
     registry().lock().unwrap_or_else(PoisonError::into_inner).push(Arc::clone(&workflow) as Arc<dyn Runnable>);
-    table.bind_operation::<Running<T>>(Arc::clone(&workflow))?;
-    table.bind_operation::<Signalling<T>>(workflow)
+    let mut dependencies = Dependencies::new();
+    dependencies.insert(workflow).map_err(|_| ServingError::Resource {
+        operation: T::RUN.to_owned(),
+        resource: std::any::type_name::<Workflow<T>>(),
+    })?;
+    table.register(RegistrationBatch::new(dependencies).operation::<Run<T>>().operation::<Signal<T>>())
 }
 
 /* === Private Functions === */
+
 fn registry() -> &'static Mutex<Vec<Arc<dyn Runnable>>> {
     static SERVED: OnceLock<Mutex<Vec<Arc<dyn Runnable>>>> = OnceLock::new();
     SERVED.get_or_init(Mutex::default)
-}
-
-async fn push(host: &dyn ExecutionHost, batch: EvidenceBatch) -> Result<EvidenceReceipt, Refusal> {
-    let mut failure = String::new();
-    for attempt in 0..PUSH_RETRIES {
-        match host.push(batch.clone()).await {
-            Ok(receipt) => return Ok(receipt),
-            Err(reason) => failure = reason,
-        }
-        tokio::time::sleep(Duration::from_millis(50 << attempt)).await;
-    }
-    Err(Refusal::of(format!("the host did not admit the run's evidence: {failure}")))
 }
 
 fn ask(host: &Arc<dyn ExecutionHost>, waiting: &mut tokio::task::JoinSet<Answered>, asked: &mut BTreeSet<String>, prompt_json: String) {
@@ -448,4 +531,75 @@ fn request_lease(
     });
 }
 
+// One Delivered Frame Serves Every Leaseholder, So Each Run Stamps Rows With The Scope Its Request
+// Names, Keeping The Producer's Own Scope Only For Rows That Execution Captured Itself.
+fn delivery_scope(
+    source: Option<dokime_domain::model::execution::RecordScope>, holder: &dokime_domain::model::execution::RecordScope,
+) -> dokime_domain::model::execution::RecordScope {
+    source
+        .filter(|source| source.test_execution_id.is_some() && source.test_execution_id == holder.test_execution_id)
+        .unwrap_or_else(|| holder.clone())
+}
+
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::delivery_scope;
+    use dokime_domain::model::execution::EvidenceOrigin;
+    use dokime_domain::model::execution::RecordScope;
+    use dokime_domain::model::identity::TestExecutionId;
+
+    #[tokio::test(start_paused = true)]
+    async fn receipt_admission_closes_at_operation_policy_expiry() {
+        use crate::transport::buffer::{ExecutionState, lock};
+        use harmos::operations::OperationDeclaration;
+        use std::sync::{Arc, Mutex};
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let state = ExecutionState::new(Default::default(), cancel);
+        let changed = Arc::clone(&state.changed);
+        let executions = Arc::new(Mutex::new(std::collections::BTreeMap::from([("fixture".into(), state)])));
+        let admission = super::InputAdmission {
+            executions: Arc::clone(&executions),
+            token: "fixture".into(),
+            changed,
+        };
+        let policy = crate::transport::EvidenceBatch::POLICY.timeout;
+        let operation = tokio::spawn(async move {
+            tokio::time::timeout(policy, async move {
+                let _admission = admission;
+                std::future::pending::<()>().await;
+            })
+            .await
+        });
+        tokio::task::yield_now().await;
+        tokio::time::advance(policy / 2).await;
+        assert!(lock(&executions)["fixture"].samples_open());
+        tokio::time::advance(policy - policy / 2).await;
+        assert!(operation.await.unwrap().is_err());
+        let states = lock(&executions);
+        let state = &states["fixture"];
+        assert!(state.record_inputs_closed());
+        assert!(!state.samples_open());
+        assert!(state.cancelled());
+    }
+
+    #[test]
+    fn delivery_preserves_producer_origin_for_its_execution() {
+        let holder = RecordScope {
+            test_execution_id: Some(TestExecutionId::from_seed("delivery-holder")),
+            ..Default::default()
+        };
+        let source = RecordScope {
+            origin: EvidenceOrigin::Initialization,
+            ..holder.clone()
+        };
+        assert_eq!(delivery_scope(Some(source.clone()), &holder), source);
+        assert_eq!(delivery_scope(None, &holder), holder);
+        let other = RecordScope {
+            test_execution_id: Some(TestExecutionId::from_seed("delivery-other")),
+            ..Default::default()
+        };
+        assert_eq!(delivery_scope(Some(source), &other), other);
+    }
+}

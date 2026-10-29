@@ -97,7 +97,7 @@ impl RunOnce {
     async fn run(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let exit = ctx
             .host()
-            .call(
+            .call::<RunProcess>(
                 shell("printf 'alpha\\nbeta\\n'; echo \"template=$DOKIME_TEMPLATE_ID\" >&2")
                     .stdout(Output::Artifact("logs/tool.log".into())),
             )
@@ -120,7 +120,7 @@ impl SpawnCancel {
     async fn spawn(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let ready = std::path::PathBuf::from(&ctx.parameters().ready);
         let script = shell("echo started; : > \"$1\"; exec sleep 30").args(["sh", ready.to_str().unwrap()]);
-        let running = ctx.host().submit(script).await?;
+        let running = ctx.host().submit::<RunProcess>(script).await?;
 
         // The shell writes its marker after its first line, then waits on its
         // own lifetime until the cancellation ends it.

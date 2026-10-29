@@ -8,20 +8,19 @@
  */
 
 /* === Modules === */
-mod cards;
-mod normalization;
-mod repetition;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::Write;
+
 // Third Party Imports
-use harmos::MemorySize;
 use serde::Serialize;
+
 // Local Imports
-use super::input::BorrowedInput;
+use super::input::{BorrowedData, BorrowedInput, DocumentSelection};
 use super::{DocumentDefinition, DocumentNode, DocumentPayload, DocumentResolveInput};
 
 /* === Constants === */
@@ -31,6 +30,7 @@ use super::{DocumentDefinition, DocumentNode, DocumentPayload, DocumentResolveIn
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug)]
 pub struct DocumentLimits {
     pub source_bytes: usize,
@@ -38,24 +38,39 @@ pub struct DocumentLimits {
     pub expanded_nodes: usize,
     pub materialized_bytes: usize,
     pub evaluation_work: usize,
+    pub layout_depth: usize,
+    pub unavailable_reason_bytes: usize,
+    pub maximum_plot_points: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DocumentLimit;
+
+pub(crate) struct SharedBindings<'a> {
+    selection: &'a DocumentSelection,
+    data: BorrowedData<'a>,
+    bytes: usize,
+    rows: usize,
+    limits: DocumentLimits,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for DocumentLimits {
     fn default() -> Self {
         Self {
-            source_bytes: 16 * 1024 * 1024,
+            source_bytes: 16777216,
             depth: 32,
             expanded_nodes: 4096,
-            materialized_bytes: 32 * 1024 * 1024,
-            evaluation_work: 256_000_000,
+            materialized_bytes: 33554432,
+            evaluation_work: 256000000,
+            layout_depth: 12,
+            unavailable_reason_bytes: 512,
+            maximum_plot_points: 100000,
         }
     }
 }
@@ -68,7 +83,60 @@ impl std::fmt::Display for DocumentLimit {
 
 impl std::error::Error for DocumentLimit {}
 
+impl<'a> SharedBindings<'a> {
+    pub(crate) fn new(selection: &'a DocumentSelection, data: BorrowedData<'a>, limits: DocumentLimits) -> crate::Result<Self> {
+        #[derive(Serialize)]
+        struct Shared<'a> {
+            selection: &'a DocumentSelection,
+            data: BorrowedData<'a>,
+        }
+        let bytes =
+            document_size(&Shared { selection, data }, limits.source_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
+        let rows =
+            data.telemetry.len().saturating_add(data.context.len()).saturating_add(data.records.len()).saturating_add(data.artifacts.len());
+        Ok(Self { selection, data, bytes, rows, limits })
+    }
+
+    pub(crate) fn accounting(&self) -> (usize, usize) {
+        (self.bytes, self.rows)
+    }
+
+    pub(crate) fn validated(
+        selection: &'a DocumentSelection, data: BorrowedData<'a>, limits: DocumentLimits, bytes: usize, rows: usize,
+    ) -> Self {
+        Self { selection, data, bytes, rows, limits }
+    }
+
+    fn validate(&self, definition: &DocumentDefinition) -> crate::Result<()> {
+        let bytes = document_size(definition, self.limits.source_bytes, self.limits.depth.saturating_sub(1))
+            .map_err(|_| super::DocumentFailure::Limit)?;
+        let total = self.bytes.checked_add(b",\"definition\":".len()).and_then(|total| total.checked_add(bytes));
+        if total.is_none_or(|total| total > self.limits.source_bytes) {
+            return Err(super::DocumentFailure::Limit.into());
+        }
+        preflight_definition(definition, self.rows, self.limits, bytes).map_err(|_| super::DocumentFailure::Limit)?;
+        let context_work = bytes.checked_mul(self.data.context.len()).and_then(|work| work.checked_mul(self.rows.max(1)));
+        if context_work.is_none_or(|work| work > self.limits.evaluation_work) {
+            return Err(super::DocumentFailure::Limit.into());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn capture(&self, definition: &'a DocumentDefinition) -> crate::Result<crate::document::capture::Capture> {
+        self.validate(definition)?;
+        let input = BorrowedInput {
+            definition,
+            selection: self.selection,
+            data: self.data,
+        };
+        let captured = super::resolve::capture_borrowed(input, self.limits)?;
+        document_size(&captured, self.limits.materialized_bytes, self.limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
+        Ok(captured)
+    }
+}
+
 /* === Public Functions === */
+
 pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_depth: usize) -> Result<usize, DocumentLimit> {
     struct Counter {
         bytes: usize,
@@ -116,7 +184,14 @@ pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_dep
     fn refusal() -> std::io::Error {
         std::io::Error::other(DocumentLimit)
     }
-    let mut counter = Counter { bytes: 0, depth: 0, max_bytes, max_depth, quoted: false, escaped: false };
+    let mut counter = Counter {
+        bytes: 0,
+        depth: 0,
+        max_bytes,
+        max_depth,
+        quoted: false,
+        escaped: false,
+    };
     serde_json::to_writer(&mut counter, value).map_err(|_| DocumentLimit)?;
     Ok(counter.bytes)
 }
@@ -125,9 +200,32 @@ pub fn preflight_document(definition: &DocumentDefinition, telemetry_rows: usize
     // Encoded Inspection Bounds Depth And Evaluation Work; Native Graph Admission
     // Accounts Actual Capacities, Typed Slots And Nested Field Allocations.
     let bytes = document_size(definition, limits.source_bytes, limits.depth)?;
-    if definition.memory_size() > limits.source_bytes {
-        return Err(DocumentLimit);
-    }
+    preflight_definition(definition, telemetry_rows, limits, bytes)
+}
+
+pub(crate) fn validate_native_resolution(input: &BorrowedInput<'_>, limits: DocumentLimits) -> crate::Result<()> {
+    SharedBindings::new(input.selection, input.data, limits)?.validate(input.definition)
+}
+
+pub(super) fn resolve_bounded(
+    input: DocumentResolveInput, limits: DocumentLimits, materialize_plots: bool,
+) -> crate::Result<DocumentPayload> {
+    validate_native_resolution(&input.borrowed(), limits)?;
+    let payload = super::resolve::resolve(input, materialize_plots, limits)?;
+    check_payload(payload, limits)
+}
+
+pub(crate) fn capture_document_borrowed(
+    input: BorrowedInput<'_>, limits: DocumentLimits,
+) -> crate::Result<crate::document::capture::Capture> {
+    SharedBindings::new(input.selection, input.data, limits)?.capture(input.definition)
+}
+
+/* === Private Functions === */
+
+fn preflight_definition(
+    definition: &DocumentDefinition, telemetry_rows: usize, limits: DocumentLimits, bytes: usize,
+) -> Result<usize, DocumentLimit> {
     fn nodes(items: &[DocumentNode], samples: usize, depth: usize, limit: usize) -> Result<(usize, usize), DocumentLimit> {
         if depth == 0 {
             return Err(DocumentLimit);
@@ -183,21 +281,9 @@ pub fn preflight_document(definition: &DocumentDefinition, telemetry_rows: usize
         count = count.checked_add(definition.cards.len()).ok_or(DocumentLimit)?;
     }
     if count > limits.expanded_nodes
-        // One normalized graph plus at most one graph-sized clone per expanded
-        // node. Label substitution and evidence-dependent payloads are admitted
-        // separately below, before materialization.
-        || normalization::memory(definition)
-            .checked_mul(count.saturating_add(1))
-            .is_none_or(|n| n > limits.materialized_bytes)
         || bytes
             .checked_mul(telemetry_rows.max(1))
-            .and_then(|work| {
-                work.checked_add(super::binding::evaluation_work(
-                    definition,
-                    telemetry_rows,
-                    count,
-                ))
-            })
+            .and_then(|work| work.checked_add(super::binding::evaluation_work(definition, telemetry_rows, count)))
             .and_then(|work| work.checked_add(super::binding::correlation_work(definition, telemetry_rows, count)))
             .is_none_or(|n| n > limits.evaluation_work)
         || (repeats
@@ -212,223 +298,10 @@ pub fn preflight_document(definition: &DocumentDefinition, telemetry_rows: usize
 }
 
 pub fn resolve_document_bounded(input: DocumentResolveInput, limits: DocumentLimits) -> crate::Result<DocumentPayload> {
-    preflight_input(&input.borrowed(), limits, false)?;
-    if input.memory_size() > limits.source_bytes {
-        return Err(super::DocumentFailure::Limit.into());
-    }
-    let payload = super::resolve::resolve_current(input)?;
-    check_payload(payload, limits)
+    resolve_bounded(input, limits, false)
 }
 
-pub(crate) fn capture_document_borrowed(
-    input: BorrowedInput<'_>, limits: DocumentLimits,
-) -> crate::Result<crate::document::capture::Capture> {
-    capture_memory(&input, limits)?;
-    let captured = super::resolve::capture_borrowed(input)?;
-    if captured.memory_size() > limits.materialized_bytes {
-        return Err(super::DocumentFailure::Limit.into());
-    }
-    document_size(&captured, limits.materialized_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
-    Ok(captured)
-}
-
-pub(crate) fn capture_memory(input: &BorrowedInput<'_>, limits: DocumentLimits) -> crate::Result<usize> {
-    let construction = preflight_input(input, limits, true)?;
-    let count = preflight_document(
-        input.definition,
-        input
-            .data
-            .telemetry
-            .len()
-            .saturating_add(input.data.context.len())
-            .saturating_add(input.data.records.len())
-            .saturating_add(input.data.artifacts.len()),
-        limits,
-    )
-    .map_err(|_| super::DocumentFailure::Limit)?;
-    let declared =
-        input.definition.cards.len().saturating_add(input.definition.sections.iter().map(|section| section.cards.len()).sum::<usize>());
-    // Construction Bounds Captured Strings, Filters, Results And Declaration.
-    // Explicit Registries Include Unplaced Sources And Pruned Repeat Selections.
-    let registries = harmos::btree_map_memory::<dokime_domain::model::identity::Identifier, dokime_domain::model::identity::Identifier>(
-        count.saturating_add(declared),
-    )
-    .saturating_add(harmos::btree_map_memory::<dokime_domain::model::identity::Identifier, Vec<crate::document::capture::RepeatInstance>>(
-        count,
-    ))
-    .saturating_add(harmos::btree_map_memory::<dokime_domain::model::identity::Identifier, super::capture::SectionBinding>(count))
-    .saturating_add(
-        count.saturating_mul(
-            std::mem::size_of::<crate::document::capture::RepeatInstance>()
-                .saturating_add(std::mem::size_of::<crate::document::capture::CardBinding>()),
-        ),
-    );
-    // Construction Already Covers Every Owned Copy The Resolver Makes; Capture
-    // Adds Only Its Declaration And Registries, Not A Second Construction.
-    construction
-        .checked_add(input.definition.memory_size())
-        .and_then(|bytes| bytes.checked_add(registries))
-        .and_then(|bytes| count.checked_mul(super::payload::MAX_UNAVAILABLE_REASON_BYTES).and_then(|sections| bytes.checked_add(sections)))
-        .and_then(|bytes| {
-            bytes.checked_add(super::binding::scratch_memory(
-                input.definition,
-                input
-                    .data
-                    .telemetry
-                    .len()
-                    .saturating_add(input.data.context.len())
-                    .saturating_add(input.data.records.len())
-                    .saturating_add(input.data.artifacts.len()),
-            ))
-        })
-        .filter(|bytes| *bytes <= limits.materialized_bytes)
-        .ok_or(super::DocumentFailure::Limit.into())
-}
-
-/* === Private Functions === */
-fn preflight_input(input: &BorrowedInput<'_>, limits: DocumentLimits, borrowed: bool) -> crate::Result<usize> {
-    let source_bytes = document_size(input, limits.source_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
-    if input.memory_size() > limits.source_bytes {
-        return Err(super::DocumentFailure::Limit.into());
-    }
-    let source_copies = if borrowed {
-        // Definitions And Selection Are Owned; Scoped Evidence Stays Borrowed.
-        input.definition.memory_size().saturating_add(input.selection.memory_size())
-    } else {
-        source_bytes.saturating_mul(3)
-    };
-    let count = preflight_document(
-        input.definition,
-        input
-            .data
-            .telemetry
-            .len()
-            .saturating_add(input.data.context.len())
-            .saturating_add(input.data.records.len())
-            .saturating_add(input.data.artifacts.len()),
-        limits,
-    )
-    .map_err(|_| super::DocumentFailure::Limit)?;
-    let context_work = document_size(input.definition, limits.source_bytes, limits.depth)
-        .map_err(|_| super::DocumentFailure::Limit)?
-        .saturating_mul(input.data.context.len())
-        .saturating_mul(
-            input
-                .data
-                .telemetry
-                .len()
-                .saturating_add(input.data.context.len())
-                .saturating_add(input.data.records.len())
-                .saturating_add(input.data.artifacts.len())
-                .max(1),
-        );
-    if context_work > limits.evaluation_work {
-        return Err(super::DocumentFailure::Limit.into());
-    }
-    // Current Plot Inputs Use An Empty Sample Slice; Summary Values Are Counted Below.
-    let normalized_bytes = normalization::memory(input.definition);
-    let largest_value = input
-        .data
-        .telemetry
-        .iter()
-        .flat_map(|sample| sample.values.values())
-        .map(MemorySize::memory_size)
-        .max()
-        .unwrap_or(std::mem::size_of::<dokime_domain::model::values::Value>())
-        .max(input.data.context.largest_value())
-        .max(
-            input
-                .data
-                .records
-                .iter()
-                .map(|record| record.entry.details.memory_size().saturating_add(std::mem::size_of::<dokime_domain::model::values::Value>()))
-                .max()
-                .unwrap_or(0),
-        )
-        .max(
-            input
-                .data
-                .artifacts
-                .iter()
-                .map(|artifact| artifact.memory_size().saturating_add(std::mem::size_of::<dokime_domain::model::values::Value>()))
-                .max()
-                .unwrap_or(0),
-        );
-    let (largest_card, declared_cards) = input
-        .definition
-        .cards
-        .iter()
-        .map(|card| cards::memory(&card.metadata, &card.filters, &card.body, &input.selection.scope, largest_value))
-        .chain(
-            input
-                .definition
-                .sections
-                .iter()
-                .flat_map(|section| section.cards.iter())
-                .map(|card| cards::memory(&card.metadata, &card.filters, &card.body, &input.selection.scope, largest_value)),
-        )
-        .fold((0usize, 0usize), |(largest, total), bytes| (largest.max(bytes), total.saturating_add(bytes)));
-    // Both Registries Retain At Most One Entry Per Constructed Card.
-    let registries = harmos::btree_map_memory::<dokime_domain::model::identity::Identifier, super::DocumentCardDefinition>(count)
-        .checked_add(harmos::btree_map_memory::<dokime_domain::model::identity::Identifier, usize>(count))
-        .ok_or(super::DocumentFailure::Limit)?;
-    let repeats = input.definition.sections.iter().any(|section| section.repeat.is_some()) || has_repeat(&input.definition.layout.nodes);
-    // Static Card Payloads Are Cached Once Per ID; Repeats Create New IDs.
-    let graph = if repeats {
-        normalized_bytes.checked_add(largest_card).and_then(|bytes| bytes.checked_mul(count.saturating_add(1)))
-    } else {
-        normalized_bytes.checked_add(declared_cards)
-    };
-    let construction = graph
-        .and_then(|bytes| bytes.checked_mul(8))
-        .and_then(|bytes| bytes.checked_add(source_copies))
-        .and_then(|bytes| bytes.checked_add(registries))
-        .and_then(|bytes| {
-            bytes.checked_add(super::binding::scratch_memory(
-                input.definition,
-                input
-                    .data
-                    .telemetry
-                    .len()
-                    .saturating_add(input.data.context.len())
-                    .saturating_add(input.data.records.len())
-                    .saturating_add(input.data.artifacts.len()),
-            ))
-        })
-        .and_then(|bytes| {
-            bytes.checked_add(repetition::memory(
-                input.definition,
-                super::binding::Evidence {
-                    records: input.data.records,
-                    artifacts: input.data.artifacts,
-                    telemetry: input.data.telemetry,
-                    context: input.data.context,
-                    selection: Some(input.selection),
-                },
-                count,
-            ))
-        })
-        .and_then(|bytes| {
-            let markers = if borrowed {
-                // Capture Carries Only The Count; Owned Resolution Builds Markers.
-                0
-            } else {
-                super::markers::selection_memory(input.data.records, input.selection)
-            };
-            bytes.checked_add(markers)
-        })
-        .filter(|bytes| *bytes <= limits.materialized_bytes)
-        .ok_or(super::DocumentFailure::Limit)?;
-    if construction > limits.materialized_bytes {
-        return Err(super::DocumentFailure::Limit.into());
-    }
-    Ok(construction)
-}
-
-fn check_payload(payload: DocumentPayload, limits: DocumentLimits) -> crate::Result<DocumentPayload> {
-    if payload.memory_size() > limits.materialized_bytes {
-        return Err(super::DocumentFailure::Limit.into());
-    }
+pub(crate) fn check_payload(payload: DocumentPayload, limits: DocumentLimits) -> crate::Result<DocumentPayload> {
     document_size(&payload, limits.materialized_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
     Ok(payload)
 }
@@ -441,3 +314,47 @@ fn has_repeat(nodes: &[DocumentNode]) -> bool {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_bindings_preserve_the_exact_source_boundary() {
+        let input = DocumentResolveInput {
+            definition: DocumentDefinition::new("bindings.boundary", "Boundary"),
+            selection: DocumentSelection::default(),
+            data: Default::default(),
+        };
+        let borrowed = input.borrowed();
+        let length = document_size(&borrowed, usize::MAX, 32).unwrap();
+        for source_bytes in [length - 1, length] {
+            let limits = DocumentLimits { source_bytes, ..Default::default() };
+            let result =
+                SharedBindings::new(borrowed.selection, borrowed.data, limits).and_then(|bindings| bindings.validate(borrowed.definition));
+            assert_eq!(result.is_ok(), source_bytes == length);
+        }
+    }
+
+    #[test]
+    fn normalization_preserves_placements() {
+        use crate::document::{DocumentCard, DocumentSection};
+        let mut definition = DocumentDefinition::new("normalization", "Normalization");
+        definition.cards.push(DocumentCard::text("shared", "Original", "before").into());
+        let mut section = DocumentSection::new("Legacy");
+        section.cards.push(DocumentCard::text("shared", "Replacement", "after"));
+        section.cards.push(DocumentCard::text("added", "Added", "body"));
+        let replacement = crate::document::DocumentCardDefinition::from(section.cards[0].clone());
+        definition.sections.push(section);
+
+        let (cards, layout) = definition.normalized_parts();
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0], replacement);
+        assert_eq!(cards[1].metadata.identifier.as_str(), "added");
+        assert_eq!(layout.nodes.len(), 1);
+
+        definition.sections.clear();
+        let (cards, layout) = definition.normalized_parts();
+        assert_eq!(layout.nodes.len(), cards.len());
+    }
+}

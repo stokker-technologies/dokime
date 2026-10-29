@@ -39,8 +39,86 @@ use dokime_runtime::{Metadata, ParameterId, TemplateId, TestCycleId, Value, Valu
 /* === Enums === */
 
 /* === Traits === */
+pub(crate) trait ExecutionFixtureStart {
+    async fn append_fixture_cases(
+        &self, cycle: TestCycleId, cases: Vec<TestCase>, context: CommandContext,
+    ) -> dokime_runtime::runtime::Result<Vec<dokime_runtime::TestExecutionId>>;
+    async fn start_next_execution(&self, cycle: TestCycleId, context: CommandContext) -> dokime_runtime::runtime::command::CommandReceipt;
+    async fn start_case_execution(
+        &self, cycle: TestCycleId, case: dokime_runtime::CaseId, context: CommandContext,
+    ) -> dokime_runtime::runtime::command::CommandReceipt;
+}
 
 /* === Implementations === */
+impl ExecutionFixtureStart for RuntimeHandle {
+    async fn append_fixture_cases(
+        &self, cycle: TestCycleId, cases: Vec<TestCase>, context: CommandContext,
+    ) -> dokime_runtime::runtime::Result<Vec<dokime_runtime::TestExecutionId>> {
+        let registration = dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>();
+        let admission = context.idempotency_key.unwrap_or_else(|| registration.to_string());
+        let executions = cases
+            .iter()
+            .enumerate()
+            .map(|(ordinal, case)| {
+                let id = dokime_runtime::TestExecutionId::from_seed(format!("fixture-append:{cycle}:{admission}:{ordinal}"));
+                (id, case.test_case_id.clone())
+            })
+            .collect::<Vec<_>>();
+        let ids = executions.iter().map(|(id, _)| id.clone()).collect();
+        let cases = cases.into_iter().map(|case| (case.test_case_id.clone(), case)).collect::<BTreeMap<_, _>>();
+        self.register_cases(registration, cases.into_values().collect()).await?;
+        self.append_executions(cycle, executions).await?;
+        Ok(ids)
+    }
+
+    async fn start_next_execution(&self, cycle: TestCycleId, context: CommandContext) -> dokime_runtime::runtime::command::CommandReceipt {
+        let state = self.watch_state().latest();
+        let case = state.state().cycles.get(&cycle).and_then(|cycle| {
+            cycle
+                .execution_ids
+                .iter()
+                .find(|id| {
+                    let execution = &state.state().executions[*id];
+                    execution.started_at.is_none()
+                        && execution.finished_at.is_none()
+                        && !state.state().run_requests.values().any(|request| request.selected_execution_ids.contains(*id))
+                })
+                .map(|id| state.state().executions[id].test_case_id.clone())
+        });
+        drop(state);
+        if let Some(case) = case {
+            return self.start_case_execution(cycle, case, context).await;
+        }
+        let id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
+        self.start_execution(id, dokime_domain::model::execution::ExecutionMode::Automatic, context).await
+    }
+
+    async fn start_case_execution(
+        &self, cycle: TestCycleId, case: dokime_runtime::CaseId, context: CommandContext,
+    ) -> dokime_runtime::runtime::command::CommandReceipt {
+        let state = self.watch_state().latest();
+        let id = state
+            .state()
+            .cycles
+            .get(&cycle)
+            .and_then(|cycle| {
+                cycle
+                    .execution_ids
+                    .iter()
+                    .find(|id| {
+                        let execution = &state.state().executions[*id];
+                        execution.test_case_id == case
+                            && execution.started_at.is_none()
+                            && execution.finished_at.is_none()
+                            && !state.state().run_requests.values().any(|request| request.selected_execution_ids.contains(*id))
+                    })
+                    .cloned()
+            })
+            .unwrap_or_else(dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>);
+        drop(state);
+        self.start_execution(id, dokime_domain::model::execution::ExecutionMode::Automatic, context).await
+    }
+}
 
 /* === Public Functions === */
 pub fn empty_suite() -> TestSuite {
@@ -110,8 +188,9 @@ pub async fn register_custom_suite(runtime: &RuntimeHandle, suite: TestSuite) {
     .await;
 }
 
+// A template id serves operations under its own segments, which start with a letter.
 pub fn case_template(index: usize, result: &str) -> TestCaseTemplate {
-    case_template_with_identifier(&format!("fixture.template.{index}"), &format!("Fixture Template {index}"), result)
+    case_template_with_identifier(&format!("fixture.template.t{index}"), &format!("Fixture Template {index}"), result)
 }
 
 pub fn case_template_with_identifier(identifier: &str, label: &str, result: &str) -> TestCaseTemplate {
@@ -147,7 +226,6 @@ pub fn case_template_with_identifier(identifier: &str, label: &str, result: &str
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],
-        continue_on_failure: false,
         prompt_definitions: Vec::new(),
         subscriptions: Vec::new(),
         document: None,
@@ -212,7 +290,7 @@ pub fn materialized_case(suite_id: &str, suite: Option<&TestSuite>, identifier: 
 pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
     let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
-        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        max_cases: usize::try_from(1_000).unwrap(),
         registration_id: dokime_runtime::model::identity::new_id(),
         first_label_number: 1,
     };
@@ -232,20 +310,21 @@ pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
         .collect()
 }
 
-pub async fn start_cycle(runtime: &RuntimeHandle, suite: TestSuite, continue_on_failure: bool) -> TestCycleId {
+pub async fn start_cycle(runtime: &RuntimeHandle, suite: TestSuite) -> TestCycleId {
     let cases = if suite.test_case_templates.is_empty() {
         Vec::new()
     } else {
         let registration = runtime.test_suites().await.into_iter().find(|entry| entry.suite == suite).expect("fixture suite is installed");
         materialize_cases(&registration.suite_id, &registration.suite)
     };
-    start_cases(runtime, metadata("cycle.start", "Start Cycle"), cases, continue_on_failure).await
+    start_cases(runtime, metadata("cycle.start", "Start Cycle"), cases).await
 }
 
-pub async fn start_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>, continue_on_failure: bool) -> TestCycleId {
-    let cycle_id = runtime.create_cycle(CycleDefinition { metadata, continue_on_failure }, CommandContext::default()).await.unwrap();
+pub async fn start_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>) -> TestCycleId {
+    let cycle_id =
+        runtime.create_cycle(CycleDefinition { metadata, continue_automatically: true }, CommandContext::default()).await.unwrap();
     if !cases.is_empty() {
-        runtime.append_cycle_cases(cycle_id.clone(), cases, CommandContext::default()).await.unwrap();
+        runtime.append_fixture_cases(cycle_id.clone(), cases, CommandContext::default()).await.unwrap();
     }
     cycle_id
 }
@@ -287,7 +366,6 @@ pub fn custom_suite() -> TestSuite {
                 metadata: metadata("custom.criterion", "Custom Criterion"),
                 expected: Some(Value::from("passed")),
             }],
-            continue_on_failure: false,
             prompt_definitions: Vec::new(),
             subscriptions: Vec::new(),
             document: None,

@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 name = "dokime-server"
 edition.workspace = true
@@ -15,33 +17,38 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+# === Package Targets === #
+
+# === Features === #
+
 [features]
 default = []
+fault-injection = ["dokime/fault-injection"]
 # Host screenshot, camera and audio capture, enabled by the release server build;
 # see dokime-runtime for the system packages it links.
-media-native = ["dokime-runtime/media-native"]
+media-native = ["dokime/media-native"]
+
+# === Dependencies === #
 
 [dependencies]
 # Local
-dokime-runtime = { path = "../dokime-runtime", features = ["host", "fft"] }
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime = { path = "../dokime" }
+dokime = { workspace = true, features = ["host", "fft", "diagnostics", "terminal", "client"] }
 
 # Git
-harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true }
 
 # Logging
+tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-chrome = { workspace = true }
 tracing-error = { workspace = true }
 tracing-flame = { workspace = true }
 tracing-subscriber = { workspace = true }
-tracing = { workspace = true }
 
 # Utilities
+rand = { workspace = true }
 sha2 = { workspace = true }
 subtle = { workspace = true }
 sysinfo = { workspace = true }
@@ -57,11 +64,14 @@ serde_json = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
-dotenv = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
 zip = { workspace = true }
+
+# Parsing
+
+# Concurrency
 
 # Async
 futures-util = { workspace = true }
@@ -70,48 +80,150 @@ tokio-stream = { workspace = true, features = ["net"] }
 tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
+rcgen = { workspace = true }
 rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["server", "tls-ring"] }
-tonic-prost = { workspace = true }
 tonic-types = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
 
 [build-dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain" }
+dokime = { workspace = true }
+dokime-packaging = { workspace = true }
 
 # Git
-harmos = { workspace = true }
+
+# Error Handling
+
+# Logging
+
+# Utilities
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
+
+# Serialization
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Dev Dependencies === #
 
 [dev-dependencies]
 # Local
-dokime-client = { path = "../dokime-client" }
-dokime-host = { path = "../dokime-host" }
+dokime-cli = { path = "../dokime-cli" }
 
 # Git
-harmos-packaging = { workspace = true }
-harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 anyhow = { workspace = true }
+
+# Logging
+
+# Utilities
+harmos-packaging = { workspace = true }
+harmos-sdk = { workspace = true, features = ["grpc"] }
+keyring-core = { workspace = true }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
 
 # Async
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["process", "test-util"] }
 
 # Networking
-rcgen = { workspace = true }
 tonic = { workspace = true, features = ["channel"] }
+
+# Storage
+rusqlite = { workspace = true }
+
+# UI
+anstream = { workspace = true }
+portable-pty = { workspace = true }
 
 # Testing
 criterion = { workspace = true }
+
+# === Target Dependencies === #
+
+[target.'cfg(windows)'.dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+windows-sys = { workspace = true, features = ["Win32_System_Console"] }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Test Targets === #
+
+# === Bench Targets === #
 
 [[bench]]
 name = "system-server"
 path = "benches/system/main.rs"
 harness = false
 
-[[bin]]
-name = "dokime-server"
-path = "src/main.rs"
-doc = false
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

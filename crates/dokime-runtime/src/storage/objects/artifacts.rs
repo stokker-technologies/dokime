@@ -34,13 +34,16 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Content {
     kind: String,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     record: Option<Record>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<metadata::Row>,
 }
@@ -65,6 +68,7 @@ struct Record {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Content {
     pub(super) fn is_artifact(&self) -> bool {
         self.kind == "artifact"
@@ -111,7 +115,11 @@ impl TryFrom<&ExecutionOutputContent> for Content {
             return Err(Error::Invalid("saved output content encoding memory overflow"));
         }
         match value {
-            ExecutionOutputContent::File => Ok(Self { kind: "file".into(), record: None, metadata: None }),
+            ExecutionOutputContent::File => Ok(Self {
+                kind: "file".into(),
+                record: None,
+                metadata: None,
+            }),
             ExecutionOutputContent::Artifact { record, metadata } => Ok(Self {
                 kind: "artifact".into(),
                 record: Some(Record::try_from(record.as_ref())?),
@@ -130,9 +138,10 @@ impl TryFrom<Content> for ExecutionOutputContent {
         }
         match (value.kind.as_str(), value.record, value.metadata) {
             ("file", None, None) => Ok(Self::File),
-            ("artifact", Some(record), Some(metadata)) => {
-                Ok(Self::Artifact { record: Box::new(record.try_into()?), metadata: metadata.try_into()? })
-            }
+            ("artifact", Some(record), Some(metadata)) => Ok(Self::Artifact {
+                record: Box::new(record.try_into()?),
+                metadata: metadata.try_into()?,
+            }),
             _ => Err(Error::Invalid("invalid saved output content descriptor")),
         }
     }
@@ -233,6 +242,7 @@ impl TryFrom<Record> for ArtifactRecord {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn status(value: &ArtifactStatus) -> &'static str {
     match value {
         ArtifactStatus::Staged => "staged",

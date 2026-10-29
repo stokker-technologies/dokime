@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -18,7 +16,8 @@
 // Standard Library Imports
 use std::result::Result;
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
+    io::{Read, Seek, SeekFrom},
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
@@ -41,9 +40,6 @@ use super::{Entry, Scan, entry::key};
 
 /* === Constants === */
 
-const METADATA_BYTES: usize = 16 * 1024;
-const RECEIPT_BYTES: usize = 32 * 1024;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -55,21 +51,28 @@ pub struct Backend<C: ObjectCatalog> {
     root: PathBuf,
     history: StoreHistory,
     state: State,
-    snapshots: std::sync::Mutex<HashMap<Vec<u8>, Arc<Pin>>>,
+    snapshots: std::sync::Mutex<Box<[Arc<Pin>]>>,
     retention_through: Mutex<u64>,
 }
 
 // One Pinned Cut: Reads Filter Retired Rows Newer Than Its Generation, And
 // Pruning Keeps Rows This Generation Can Still See Until Release Settles.
 struct Pin {
+    token: [u8; 16],
     at: u64,
     generation: u64,
     released: AtomicBool,
     reads: AtomicUsize,
     settled: Notify,
+    files: Mutex<BTreeMap<harmos::Identifier, OpenedFile>>,
 }
 
 struct ActiveRead(Arc<Pin>);
+
+struct OpenedFile {
+    reference: FileReference,
+    handle: Arc<std::sync::Mutex<std::fs::File>>,
+}
 
 /* === Enums === */
 
@@ -86,19 +89,24 @@ impl Drop for ActiveRead {
 }
 
 impl<C: ObjectCatalog> Backend<C> {
+    #[cfg(feature = "configuration")]
     pub async fn primary(root: PathBuf) -> harmos::storage::Result<Self> {
+        Self::primary_with(root, crate::config::local_storage_defaults()).await
+    }
+
+    pub async fn primary_with(root: PathBuf, settings: super::super::Settings) -> harmos::storage::Result<Self> {
         C::validate()?;
-        let state = State::open(&root).await.map_err(|error| failure("open SQLite", error))?;
-        let cut = state.data_open(None).await.map_err(|error| failure("initialize SQLite", error))?;
+        let state = State::open_with(&root, settings).await.map_err(|error| failure("open SQLite", error))?;
+        let history = state.data_history().await.map_err(|error| failure("initialize SQLite identity", error))?;
         let root = root
             .canonicalize()
             .map_err(|error| harmos::storage::Error::backend("resolve SQLite root", BackendFailure::Permanent, error))?;
         Ok(Self {
             catalog: std::marker::PhantomData,
             root,
-            history: cut.history,
+            history,
             state,
-            snapshots: std::sync::Mutex::new(HashMap::new()),
+            snapshots: std::sync::Mutex::new(Box::default()),
             retention_through: Mutex::new(0),
         })
     }
@@ -111,7 +119,8 @@ impl<C: ObjectCatalog> Backend<C> {
         self.history.check(&snapshot.at.history)?;
         let snapshots = self.snapshots.lock().unwrap();
         let pin = snapshots
-            .get(&snapshot.token)
+            .iter()
+            .find(|pin| pin.token.as_slice() == snapshot.token.as_slice())
             .filter(|pin| !pin.released.load(Ordering::Acquire) && pin.at == snapshot.at.sequence)
             .ok_or(harmos::storage::Error::NotReady { domain: "SQLite snapshot view" })?
             .clone();
@@ -138,15 +147,22 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
 
     fn open(&self) -> StorageFuture<'_, StorageCursor> {
         Box::pin(async move {
-            let cut = self.state.data_open(Some(self.history.clone())).await.map_err(|error| failure("open SQLite", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            let history = self.history.clone();
+            let cut = self.state.data_open(Some(history)).await.map_err(|error| failure("open SQLite", error))?;
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
     fn cursor_saved(&self) -> StorageFuture<'_, StorageCursor> {
         Box::pin(async move {
             let cut = self.state.data_saved().await.map_err(|error| failure("read SQLite saved frontier", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
@@ -154,11 +170,58 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move { self.state.close().await.map_err(|error| failure("close SQLite", error)) })
     }
 
-    fn write<'a>(&'a self, batch: StorageBatch<'a>) -> StorageFuture<'a, StorageCursor> {
+    fn write_schemas(&self, batch: StorageBatch<StorageSchema>) -> StorageFuture<'_, StorageCursor> {
         Box::pin(async move {
-            self.history.check(&batch.first().history)?;
-            let cut = self.state.data_write(&self.root, batch).await.map_err(|error| failure("write SQLite batch", error))?;
-            Ok(StorageCursor { history: cut.history, sequence: cut.sequence })
+            let root = self.root.clone();
+            let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite schemas", error))?;
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
+        })
+    }
+
+    fn write_objects(&self, batch: StorageBatch<ObjectEntry>) -> StorageFuture<'_, StorageCursor> {
+        Box::pin(async move {
+            let root = self.root.clone();
+            let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite objects", error))?;
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
+        })
+    }
+
+    fn write_records(&self, batch: StorageBatch<StoredRecord>) -> StorageFuture<'_, StorageCursor> {
+        Box::pin(async move {
+            let root = self.root.clone();
+            let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite records", error))?;
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
+        })
+    }
+
+    fn write_stream(&self, batch: StorageBatch<StoredRow>) -> StorageFuture<'_, StorageCursor> {
+        Box::pin(async move {
+            let root = self.root.clone();
+            let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite stream", error))?;
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
+        })
+    }
+
+    fn write_files(&self, batch: StorageBatch<FileReference>) -> StorageFuture<'_, StorageCursor> {
+        Box::pin(async move {
+            let root = self.root.clone();
+            let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite files", error))?;
+            Ok(StorageCursor {
+                history: cut.history,
+                sequence: cut.sequence,
+            })
         })
     }
 
@@ -169,24 +232,33 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             if at.sequence > cut.sequence {
                 return Err(invalid("snapshot exceeds saved frontier"));
             }
-            let token = uuid::Uuid::now_v7().as_bytes().to_vec();
-            self.snapshots.lock().unwrap().insert(
-                token.clone(),
-                Arc::new(Pin {
-                    at: at.sequence,
-                    generation: cut.retention_generation,
-                    released: AtomicBool::new(false),
-                    reads: AtomicUsize::new(0),
-                    settled: Notify::new(),
-                }),
-            );
-            Ok(BackendSnapshot { at: at.clone(), token })
+            let generation = cut.retention_generation;
+            drop(cut);
+            let token = *uuid::Uuid::now_v7().as_bytes();
+            let mut snapshots = self.snapshots.lock().unwrap();
+            let count = snapshots.len().checked_add(1).ok_or_else(|| invalid("snapshot count overflows"))?;
+            let mut next = Vec::new();
+            next.try_reserve_exact(count).map_err(|error| failure("allocate snapshot index", std::io::Error::other(error).into()))?;
+            next.extend(snapshots.iter().cloned());
+            next.push(Arc::new(Pin {
+                token,
+                at: at.sequence,
+                generation,
+                released: AtomicBool::new(false),
+                reads: AtomicUsize::new(0),
+                settled: Notify::new(),
+                files: Mutex::new(BTreeMap::new()),
+            }));
+            drop(std::mem::take(&mut *snapshots));
+            *snapshots = next.into_boxed_slice();
+            Ok(BackendSnapshot { at: at.clone(), token: token.to_vec() })
         })
     }
 
     fn release_snapshot<'a>(&'a self, snapshot: &'a BackendSnapshot) -> StorageFuture<'a, ()> {
         Box::pin(async move {
-            let Some(pin) = self.snapshots.lock().unwrap().get(&snapshot.token).cloned() else {
+            let Some(pin) = self.snapshots.lock().unwrap().iter().find(|pin| pin.token.as_slice() == snapshot.token.as_slice()).cloned()
+            else {
                 return Ok(());
             };
             // Close Read Admission, Then Let Accepted Reads Settle Before Pruning May Reclaim.
@@ -200,7 +272,13 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 }
                 settled.await;
             }
-            self.snapshots.lock().unwrap().remove(&snapshot.token);
+            let mut snapshots = self.snapshots.lock().unwrap();
+            let count = snapshots.iter().filter(|entry| !Arc::ptr_eq(entry, &pin)).count();
+            let mut next = Vec::new();
+            next.try_reserve_exact(count).map_err(|error| failure("release snapshot index", std::io::Error::other(error).into()))?;
+            next.extend(snapshots.iter().filter(|entry| !Arc::ptr_eq(entry, &pin)).cloned());
+            drop(std::mem::take(&mut *snapshots));
+            *snapshots = next.into_boxed_slice();
             Ok(())
         })
     }
@@ -326,13 +404,57 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 return Err(invalid("file exceeds snapshot frontier"));
             }
             let read = self.read(snapshot)?;
-            let result = self
-                .state
-                .data_read_file(self.root.clone(), file.clone(), read.0.at, offset, max_bytes)
-                .await
-                .map_err(|error| failure("read SQLite file", error));
-            drop(read);
-            result
+            if offset > file.length {
+                return Err(invalid("file read exceeds its length"));
+            }
+            let handle = {
+                let mut files = read.0.files.lock().await;
+                if let Some(opened) = files.get(&file.metadata.id) {
+                    if opened.reference != *file {
+                        return Err(invalid("immutable file identity differs from the opened reference"));
+                    }
+                    opened.handle.clone()
+                } else {
+                    let handle = self
+                        .state
+                        .data_open_file(self.root.clone(), file.clone(), read.0.at, self.read(snapshot)?)
+                        .await
+                        .map_err(|error| failure("open SQLite file", error))?;
+                    let handle = Arc::new(std::sync::Mutex::new(handle));
+                    // A Snapshot Retains At Most Four Immutable Handles.
+                    if files.len() == 4 {
+                        files.pop_first();
+                    }
+                    files.insert(
+                        file.metadata.id.clone(),
+                        OpenedFile {
+                            reference: file.clone(),
+                            handle: handle.clone(),
+                        },
+                    );
+                    handle
+                }
+            };
+            let length = (file.length - offset).min(max_bytes.get() as u64) as usize;
+            let expected_length = file.length;
+            tokio::task::spawn_blocking(move || {
+                // Keep The Snapshot Read Lease Through Cancellation And Physical I/O.
+                let _read = read;
+                let mut physical = handle.lock().map_err(|_| invalid("immutable file lock is poisoned"))?;
+                if physical.metadata().map_err(|error| failure("stat SQLite file", error.into()))?.len() != expected_length {
+                    return Err(invalid("immutable file length changed"));
+                }
+                physical.seek(SeekFrom::Start(offset)).map_err(|error| failure("seek SQLite file", error.into()))?;
+                let mut bytes = Vec::new();
+                bytes
+                    .try_reserve_exact(length)
+                    .map_err(|error| failure("allocate SQLite file page", std::io::Error::other(error).into()))?;
+                bytes.resize(length, 0);
+                physical.read_exact(&mut bytes).map_err(|error| failure("read SQLite file", error.into()))?;
+                Ok(bytes)
+            })
+            .await
+            .map_err(|error| failure("read SQLite file task", error.into()))?
         })
     }
 
@@ -352,15 +474,18 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         })
     }
 
-    fn prune_objects<'a>(&'a self, through: &'a StorageCursor, max_entries: NonZeroUsize) -> StorageFuture<'a, bool> {
+    fn prune_objects<'a>(
+        &'a self, through: &'a StorageCursor, max_entries: NonZeroUsize,
+        retention_policy: fn(&SchemaKey) -> harmos::domain::Result<ObjectRetention>,
+    ) -> StorageFuture<'a, bool> {
         Box::pin(async move {
             self.history.check(&through.history)?;
             let mut retention = self.retention_through.lock().await;
-            let oldest = self.snapshots.lock().unwrap().values().map(|pin| pin.generation).min();
+            let oldest = self.snapshots.lock().unwrap().iter().map(|pin| pin.generation).min();
             let after = if *retention <= through.sequence { *retention } else { 0 };
             let (logical, complete) = self
                 .state
-                .data_prune::<C>(through.clone(), after, oldest, max_entries)
+                .data_prune::<C>(through.clone(), after, oldest, max_entries, retention_policy)
                 .await
                 .map_err(|error| failure("prune SQLite objects", error))?;
             if logical {
@@ -372,17 +497,15 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
 
     fn create_file<'a>(&'a self, metadata: &'a FileMetadata) -> StorageFuture<'a, StagedFile> {
         Box::pin(async move {
-            super::entry::check_size(metadata, METADATA_BYTES).map_err(|error| failure("validate SQLite file metadata", error))?;
             self.state.data_create_file(self.root.clone(), metadata.clone()).await.map_err(|error| failure("create SQLite file", error))
         })
     }
 
-    fn write_file<'a>(&'a self, staging: &'a StagedFile, offset: u64, bytes: &'a [u8]) -> StorageFuture<'a, ()> {
+    fn write_file<'a>(&'a self, staging: &'a StagedFile, offset: u64, bytes: FileChunk) -> StorageFuture<'a, ()> {
         Box::pin(async move {
-            self.state
-                .data_write_file(self.root.clone(), staging.clone(), offset, bytes.to_vec())
-                .await
-                .map_err(|error| failure("write SQLite file", error))
+            let root = self.root.clone();
+            let staging = staging.clone();
+            self.state.data_write_file(root, staging, offset, bytes).await.map_err(|error| failure("write SQLite file", error))
         })
     }
 
@@ -409,7 +532,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
 
     fn create_production<'a>(&'a self, metadata: &'a FileMetadata) -> StorageFuture<'a, StagedFile> {
         Box::pin(async move {
-            super::entry::check_size(metadata, METADATA_BYTES).map_err(|error| failure("validate production", error))?;
             self.state.production_create(self.root.clone(), metadata.clone()).await.map_err(|error| failure("create production", error))
         })
     }
@@ -421,10 +543,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         })
     }
 
-    fn save_production<'a>(&'a self, checkpoint: &'a FileCheckpoint) -> StorageFuture<'a, ()> {
+    fn save_production(&self, checkpoint: StorageBatch<FileCheckpoint>) -> StorageFuture<'_, ()> {
         Box::pin(async move {
-            super::entry::check_size(checkpoint, METADATA_BYTES).map_err(|error| failure("validate checkpoint", error))?;
-            self.state.production_save(self.root.clone(), checkpoint.clone()).await.map_err(|error| failure("save production", error))
+            let root = self.root.clone();
+            self.state.production_save(root, checkpoint).await.map_err(|error| failure("save production", error))
         })
     }
 
@@ -469,13 +591,8 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         true
     }
 
-    fn save_mutations<'a>(&'a self, receipts: &'a [MutationReceipt]) -> StorageFuture<'a, ()> {
-        Box::pin(async move {
-            for receipt in receipts {
-                super::entry::check_size(receipt, RECEIPT_BYTES).map_err(|error| failure("validate receipt", error))?;
-            }
-            self.state.mutations_save(receipts.to_vec()).await.map_err(|error| failure("save mutation receipts", error))
-        })
+    fn save_mutations(&self, receipts: StorageBatch<MutationReceipt>) -> StorageFuture<'_, ()> {
+        Box::pin(async move { self.state.mutations_save(receipts).await.map_err(|error| failure("save mutation receipts", error)) })
     }
 
     fn recover_mutations(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<MutationReceipt>> {

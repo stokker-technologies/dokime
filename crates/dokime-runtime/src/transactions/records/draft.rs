@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
@@ -34,6 +35,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct BuiltinDraft {
     pub record_type: BuiltinRecordType,
     pub source: String,
@@ -47,6 +49,7 @@ pub(crate) struct Drafts {
     session: dokime_domain::model::identity::SessionId,
     first: u64,
     records: Vec<(Record, Option<String>)>,
+    captures: Vec<(dokime_domain::model::identity::TestExecutionId, Vec<dokime_domain::model::identity::Identifier>, RecordScope)>,
 }
 
 /* === Enums === */
@@ -54,13 +57,44 @@ pub(crate) struct Drafts {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drafts {
     pub(crate) fn new(state: &RuntimeState) -> Self {
-        Self { session: state.record_namespace.clone(), first: state.record_count, records: Vec::new() }
+        Self {
+            session: state.record_namespace.clone(),
+            first: state.record_count,
+            records: Vec::new(),
+            captures: state
+                .executions
+                .values()
+                .filter(|execution| {
+                    !execution.records.record_subscriptions_closed()
+                        && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Running
+                })
+                .map(|execution| {
+                    (
+                        execution.test_execution_id.clone(),
+                        execution
+                            .snapshot
+                            .template()
+                            .map(|template| {
+                                template.subscriptions.iter().filter_map(crate::definition::Subscription::record).cloned().collect()
+                            })
+                            .unwrap_or_default(),
+                        execution.capture_scope(),
+                    )
+                })
+                .collect(),
+        }
     }
 
     pub(crate) fn following(&self) -> Self {
-        Self { session: self.session.clone(), first: self.first + self.records.len() as u64, records: Vec::new() }
+        Self {
+            session: self.session.clone(),
+            first: self.first + self.records.len() as u64,
+            records: Vec::new(),
+            captures: self.captures.clone(),
+        }
     }
 
     pub(crate) fn next_id(&self) -> RecordId {
@@ -100,9 +134,10 @@ impl Drafts {
     }
 
     pub(crate) fn collect(&self, out: &mut harmos::state::Records) {
-        for (record, native_owner) in &self.records {
+        for (index, (record, native_owner)) in self.records.iter().enumerate() {
+            let captured = self.captured(record, index);
             if let Some(owner) = native_owner {
-                let payload = crate::persistence::to_vec(record).expect("Record contains only JSON-compatible fields");
+                let payload = crate::persistence::to_vec(&captured).expect("Record contains only JSON-compatible fields");
                 let _ = out.push_system(harmos::state::SystemFact {
                     source: harmos::state::FactSource::Sidecar(owner.clone()),
                     name: record.record_type.to_string(),
@@ -110,14 +145,31 @@ impl Drafts {
                     payload,
                 });
             } else {
-                let _ = out.push(record.clone());
+                let _ = out.push(captured);
             }
         }
     }
 
+    fn captured(&self, record: &Record, index: usize) -> dokime_domain::state::records::CapturedRecord {
+        let scopes = self
+            .captures
+            .iter()
+            .filter(|(owner, kinds, _)| {
+                record.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()) == Some(owner)
+                    || kinds.contains(&record.record_type)
+            })
+            .map(|(_, _, scope)| scope.clone())
+            .collect();
+        dokime_domain::state::records::CapturedRecord {
+            record: record.clone(),
+            ordinal: self.first + index as u64 + 1,
+            scopes,
+        }
+    }
+
     pub(crate) fn apply(self, state: &mut RuntimeState) {
-        for record in self {
-            state.commit_record(record);
+        for (index, (record, _)) in self.records.iter().enumerate() {
+            state.commit_record(self.captured(record, index));
         }
     }
 }

@@ -33,16 +33,15 @@ struct routeless;
 /* === Traits === */
 
 /* === Implementations === */
-impl sdk::harmos::operations::lifecycle::Policy for routeless {
+impl sdk::harmos::builtins::lifecycle::Policy for routeless {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy =
         sdk::harmos::operations::OperationPolicy {
             timeout: std::time::Duration::from_secs(5),
             attempt_timeout: std::time::Duration::from_secs(5),
             retries: sdk::harmos::operations::RetryPolicy::Never,
-            restart: sdk::harmos::operations::RestartPolicy::Never,
         };
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy =
-        <Self as sdk::harmos::operations::lifecycle::Policy>::INITIALIZATION_POLICY;
+        <Self as sdk::harmos::builtins::lifecycle::Policy>::INITIALIZATION_POLICY;
 }
 
 #[sdk::plugin(id = "routeless", provides = (), requires(), restart = "never", description = "No authored operations, streams or contributions.")]
@@ -66,7 +65,7 @@ impl sdk::Plugin for routeless {
 
     fn bind_operations(
         &self,
-        _: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        _: &mut sdk::harmos::operations::WireTable,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         Ok(())
     }
@@ -83,6 +82,8 @@ impl sdk::Plugin for routeless {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn main() {}
+fn main() {
+    std::hint::black_box(<routeless as sdk::harmos::plugin::Declared>::markers()).unwrap();
+}
 
 /* === Tests === */

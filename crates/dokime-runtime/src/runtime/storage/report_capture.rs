@@ -14,16 +14,16 @@
 /* === Imports === */
 
 // Standard Library Imports
-use super::executions::{CaptureInputs, ExecutionStorage};
-use crate::execution::context::captured::source::CapturedSource;
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use harmos::storage::ObjectVersion;
 
 // Local Imports
 use super::execution::ExecutionView;
+use super::executions::{CaptureInputs, ExecutionStorage};
 use crate::RuntimeHandle;
+use crate::execution::context::captured::source::CapturedSource;
 use crate::runtime::Error;
 use crate::runtime::Result;
 use dokime_domain::model::execution::result::CycleView;
@@ -38,17 +38,30 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Structs === */
 
+pub(crate) struct ReportSource(harmos::storage::ReadBatch<CycleView>);
+
 /* === Enums === */
+
 /* === Traits === */
 
 /* === Implementations === */
+
+impl std::ops::Deref for ReportSource {
+    type Target = CycleView;
+
+    fn deref(&self) -> &CycleView {
+        &self.0
+    }
+}
+
 impl RuntimeHandle {
     pub async fn execution_snapshot(&self, execution: &dokime_domain::model::identity::TestExecutionId) -> Result<ExecutionView> {
         let identity = execution.clone();
         let runtime = self.clone();
         tokio::spawn(async move {
             let _order = runtime.execution_storage.cycle_save.lock().await;
-            let source = runtime.snapshot_source(&identity).await?;
+            let session = runtime.storage().clone();
+            let source = runtime.snapshot_source(&session, &identity).await?;
             let execution = source
                 .test_executions
                 .iter()
@@ -59,8 +72,8 @@ impl RuntimeHandle {
         .await?
     }
 
-    async fn snapshot_source(&self, execution: &TestExecutionId) -> Result<CycleView> {
-        self.execution_storage.report_source(execution).await
+    async fn snapshot_source(&self, session: &crate::storage::Manager, execution: &TestExecutionId) -> Result<ReportSource> {
+        self.execution_storage.report_source(session, execution).await
     }
 
     pub(super) async fn snapshot_member(&self, cycle: &CycleView, execution: &TestExecution) -> Result<ExecutionView> {
@@ -82,14 +95,14 @@ impl RuntimeHandle {
         if execution.saved.is_some() {
             return Err(invalid("sealed cycle member has no saved execution"));
         }
-        if let Some(snapshot) = self.execution_storage.retained_report_view(&execution.test_execution_id).await {
+        if let Some(snapshot) = self.execution_storage.published_report_view(&execution.test_execution_id).await? {
             if snapshot.execution() != execution {
                 return Err(invalid("retained snapshot differs from working execution"));
             }
             return Ok(snapshot);
         }
         let inputs = self.execution_storage.prepare_capture(cycle, execution, &self.storage().cursor_saved(), false).await?;
-        self.execution_storage.capture_execution_view(cycle, &inputs, self.settings().read(|document| document.report)).await
+        self.execution_storage.capture_execution_view(cycle, &inputs, self.read_application_settings().await?.settings.report).await
     }
 }
 
@@ -106,16 +119,14 @@ impl ExecutionStorage {
             .await?
             .value?;
         let mut frame = appearance.frame;
-        if let Some(asset) = appearance.logo {
-            let url = super::presentation::capture_logo(&asset).await?;
-            if let Some(logo) = &mut frame.logo {
-                logo.url = url;
-            }
+        for (logo, asset) in frame.logos.iter_mut().zip(appearance.logos) {
+            let asset = asset.ok_or_else(|| invalid("selected report logo is unavailable"))?;
+            logo.url = super::presentation::capture_logo(&asset, 1_048_576).await?;
         }
         Ok(frame)
     }
 
-    pub(crate) async fn report_source(&self, execution: &TestExecutionId) -> Result<CycleView> {
+    pub(crate) async fn report_source(&self, session: &crate::storage::Manager, execution: &TestExecutionId) -> Result<ReportSource> {
         let source = self
             .state_manager
             .state()
@@ -132,16 +143,29 @@ impl ExecutionStorage {
             .await?
             .value;
         let Some(lifecycle) = lifecycle else {
-            return Ok(source);
+            let source = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(source))?;
+            return Ok(ReportSource(source));
         };
         let mut source = source;
-        let member = source
+        let index = source
             .test_executions
-            .iter_mut()
-            .find(|member| member.test_execution_id == *execution)
+            .iter()
+            .position(|member| member.test_execution_id == *execution)
             .ok_or_else(|| invalid("execution is absent from cycle"))?;
-        *member = self.frozen_execution(&lifecycle.execution).await?;
-        Ok(source)
+        match self.frozen_execution(session, &lifecycle.execution).await? {
+            super::executions::FrozenExecution::Live(execution) => {
+                source.test_executions[index] = (*execution).clone();
+                let source = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(source))?;
+                Ok(ReportSource(source))
+            }
+            super::executions::FrozenExecution::Saved(execution) => {
+                let source = execution.try_map(|execution| -> Result<_> {
+                    source.test_executions[index] = execution.value;
+                    Ok(source)
+                })?;
+                Ok(ReportSource(source))
+            }
+        }
     }
 
     pub(crate) async fn capture_execution_view(
@@ -170,19 +194,22 @@ impl ExecutionStorage {
             })
             .transpose()?;
         let captured_at = crate::model::time::now_utc();
-        let (mut context, logo, owner_node_id, record_contracts, telemetry_contracts) = self
+        let (mut context, logos, owner_node_id, record_contracts, telemetry_contracts) = self
             .state_manager
             .state()
             .read(|state| {
                 let brand = self.brand.read().unwrap();
-                let captured = super::presentation::capture_prepared(state, source, &inputs.execution, brand.as_ref(), None)?;
+                let captured = super::presentation::capture(state, source, &inputs.execution, brand.as_ref())?;
                 let records = state.historical_record_contracts();
                 let telemetry = &state.telemetry_definitions;
-                let telemetry = telemetry
+                let telemetry: BTreeMap<
+                    dokime_domain::model::identity::Identifier,
+                    BTreeMap<u32, crate::telemetry::contract::TelemetryContract>,
+                > = telemetry
                     .values()
                     .map(|contract| (contract.stream.clone(), BTreeMap::from([(contract.schema_version, contract.clone())])))
                     .collect();
-                Ok::<_, Error>((captured.context, captured.logo, state.identity.node.node_id.clone(), records.clone(), telemetry))
+                Ok::<_, Error>((captured.context, captured.logos, state.identity.node.node_id.clone(), records.clone(), telemetry))
             })
             .await?
             .value?;
@@ -212,32 +239,33 @@ impl ExecutionStorage {
         for document in context.execution_documents.values_mut() {
             defaults.apply(document);
         }
-        if let Some(asset) = logo {
-            let captured = super::presentation::capture_logo(&asset).await?;
-            if let Some(logo) = &mut context.appearance.logo {
-                logo.url = captured;
-            }
+        for (logo, asset) in context.appearance.logos.iter_mut().zip(logos) {
+            logo.url = super::presentation::capture_logo(&asset, 1_048_576).await?;
         }
-        let captured = Arc::new(CapturedSource {
-            captured_at,
-            owner_node_id: owner_node_id.clone(),
-            execution_id: inputs.execution.test_execution_id.clone(),
-            execution: revision,
-            lifecycle_id: inputs.lifecycle_id.clone(),
-            lifecycle: (*inputs.execution).clone(),
-            evidence_through: through.clone(),
-            outputs: (*inputs.outputs).clone(),
-            context,
-            record_contracts,
-            telemetry_contracts,
-        });
-        ExecutionView::captured(&self.storage, captured, &owner_node_id).await
+        let captured = harmos::storage::ReadBatch::new(()).try_map(|_| {
+            Ok::<_, Error>(CapturedSource {
+                report_defaults: defaults,
+                captured_at,
+                owner_node_id: owner_node_id.clone(),
+                execution_id: inputs.execution.test_execution_id.clone(),
+                execution: revision,
+                lifecycle_id: inputs.lifecycle_id.clone(),
+                lifecycle: (*inputs.execution).clone(),
+                evidence_through: through.clone(),
+                outputs: inputs.outputs.as_slice().to_vec(),
+                context,
+                record_contracts,
+                telemetry_contracts,
+            })
+        })?;
+        ExecutionView::captured(&self.storage, captured.into(), &owner_node_id).await
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }

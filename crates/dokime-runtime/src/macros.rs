@@ -22,6 +22,7 @@
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! product_error {
     ($error:ty, $formatter:ident { $($pattern:pat => $display:expr),+ $(,)? }) => {
         impl std::fmt::Display for $error {
@@ -39,19 +40,25 @@ macro_rules! product_error {
 macro_rules! json_message {
     ($message:ty) => {
         impl harmos::Message for $message {
-            fn encode_to_vec(&self) -> Vec<u8> {
+            const CODEC: &'static str = <String as harmos::Message>::CODEC;
+
+            fn encode(&self) -> Vec<u8> {
                 let json = serde_json::to_string(self).expect("an authored payload serializes");
-                harmos::Message::encode_to_vec(&json)
+                harmos::Message::encode(&json)
             }
 
-            fn encoded_len(&self) -> usize {
+            fn encoded_size(&self) -> usize {
                 let json = serde_json::to_string(self).expect("an authored payload serializes");
-                harmos::Message::encoded_len(&json)
+                harmos::Message::encoded_size(&json)
             }
 
             fn decode(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
                 let json = <String as harmos::Message>::decode(bytes)?;
                 serde_json::from_str(&json).map_err(|_| harmos::MessageError::borrowed("invalid authored JSON payload"))
+            }
+
+            fn decoding_memory(bytes: &[u8]) -> Result<usize, harmos::MessageError> {
+                <String as harmos::Message>::decoding_memory(bytes)
             }
         }
 

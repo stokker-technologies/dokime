@@ -7,109 +7,139 @@
  * ***
  */
 
-/* The settings content column.
- *
- * The sidebar tree lists the sections, so this surface renders exactly one of
- * them and nothing else: no second navigation, no section list, no header that
- * repeats the page bar.
- */
+/* A Single Settings Panel With Shared Navigation And Viewer Preferences. */
 
 /* === External Imports === */
 
-import { useEffect } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useNavigationMode } from "@/shell/use-sidebar-state";
+import { useId, useMemo, useState } from "react";
+import { Switch } from "@/components/ui/switch";
+import { useUiStore } from "@/stores/ui-store";
 
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import { ReportDefaultsCard } from "@/features/settings/ReportDefaultsCard";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
 import { AboutSection } from "@/features/settings/sections/AboutSection";
-import { AccountUpdatesSection } from "@/features/settings/sections/AccountUpdatesSection";
-import { AppearanceSection } from "@/features/settings/sections/AppearanceSection";
 import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
-import { GeneralSection } from "@/features/settings/sections/GeneralSection";
-import { IdentitySection } from "@/features/settings/sections/IdentitySection";
-import { PluginSettingsSection } from "@/features/settings/sections/PluginSettingsSection";
+import { BootstrapPaths } from "@/features/settings/sections/BootstrapPaths";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
+import { RemoteSection } from "@/features/settings/sections/RemoteSection";
+import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
-import { DEFAULT_SETTINGS_SECTION, type SettingsSectionId } from "@/features/settings/settings-sections";
+import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
+import { PanelHeader } from "@/shell/PageShell";
+import { OrganizationPackRow } from "./sections/OrganizationPackRow";
 import { usePageChrome } from "@/shell/page-chrome";
+import { ApplicationPreferences } from "./ApplicationPreferences";
+import { BackendsTable } from "./BackendsTable";
+import { PluginSettingsCards } from "./PluginSettingsCards";
 
 /* === Types === */
 
 type SettingsSurfaceProps = {
-  close: () => void;
   section?: SettingsSectionId;
 };
 
 /* === Components === */
 
-/**
- * The selected settings section. The shell page bar carries the breadcrumb
- * title and the Back chevron, so this surface adds no second header and no
- * close action of its own: an X closes a window, not a panel.
- */
-export function SettingsSurface({ close, section = DEFAULT_SETTINGS_SECTION }: SettingsSurfaceProps) {
+/** The Selected Section Of The Shared Settings Panel. */
+export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {
+  const mode = useNavigationMode();
+  const navigate = useNavigate();
+  const section = selected ?? DEFAULT_SETTINGS_SECTION;
+  const advanced = useUiStore((state) => state.showAdvancedSettings);
   const settings = useSettingsSections();
   const frame = settings.frame;
-  const meta = settings.sections.find((entry) => entry.id === section);
 
-  usePageChrome({ title: `Settings \u203a ${meta?.label ?? section}` });
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
-        close();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [close]);
+  const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
+  usePageChrome({
+    title:
+      mode === "phone" && !selected ? "Settings" : `Settings › ${SETTINGS_SECTIONS.find((item) => item.id === section)?.label ?? section}`,
+    overflow: actions,
+  });
 
   return (
-    <div className="flex min-h-full min-w-0 flex-col">
-      {section === "plugins" ? (
-        <div className="flex min-h-0 flex-1 flex-col p-[var(--shell-inset)]">
-          <PluginsSection />
-        </div>
-      ) : (
-        /* Every section returns its cards as siblings so they land directly
-           in the one settings grid. */
-        <div className="p-[var(--shell-inset)]">
+    <div className="flex min-h-full min-w-0 flex-col tablet:flex-row">
+      {mode !== "phone" || !selected ? (
+        <nav
+          aria-label="Settings Sections"
+          className="grid shrink-0 content-start gap-2 border-b p-4 tablet:w-48 tablet:border-r tablet:border-b-0"
+        >
+          {SETTINGS_SECTIONS.map((item) => (
+            <Button
+              key={item.id}
+              variant={section === item.id && (mode !== "phone" || selected) ? "secondary" : "ghost"}
+              className="justify-start"
+              onClick={() => void navigate({ to: "/settings/$section", params: { section: item.id } })}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </nav>
+      ) : null}
+      {/* Every section returns its cards as siblings so they land directly
+          in the one settings grid. */}
+      {mode !== "phone" || selected ? (
+        <div className="min-w-0 flex-1 p-4">
           <SettingsGrid>
-            <SectionContent frame={frame} loadError={settings.error} loading={settings.loading} retry={settings.retry} section={section} />
+            <SectionContent
+              advanced={advanced}
+              frame={frame}
+              loadError={settings.error}
+              loading={settings.loading}
+              retry={settings.retry}
+              section={section}
+            />
           </SettingsGrid>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
 function SectionContent({
+  advanced,
   frame,
   loadError,
   loading,
   retry,
   section,
 }: {
+  advanced: boolean;
   frame: RuntimeSettingsFrame | null;
   loadError: string | null;
   loading: boolean;
   retry: () => void;
   section: SettingsSectionId;
 }) {
-  if (section === "general")
+  if (section === "organization")
     return (
       <>
-        <GeneralSection />
-        <ReportDefaultsCard />
+        <SettingsCard title="Organization">
+          <OrganizationPackRow />
+        </SettingsCard>
+        <PluginSettingsCards cards={frame?.cards.filter((card) => card.section_id === "identity") ?? []} />
+      </>
+    );
+  if (section === "backends") return <BackendsTable />;
+  if (section === "appearance") return <ApplicationPreferences advanced={advanced} />;
+  if (section === "remote") return <RemoteSection advanced={advanced} />;
+  if (section === "plugins") return <PluginsSection />;
+  if (section === "secrets") return <SecretsSection />;
+  if (section === "diagnostics")
+    return (
+      <>
+        <BootstrapPaths />
+        <DiagnosticsSection />
         <StorageSourcesCard />
       </>
     );
-  if (section === "appearance") return <AppearanceSection />;
+  if (section === "about") return <AboutSection />;
 
   if (loading) {
     return (
@@ -132,18 +162,59 @@ function SectionContent({
     );
   }
 
-  switch (section) {
-    case "identity":
-      return <IdentitySection frame={frame} />;
-    case "plugins":
-      return null;
-    case "account-updates":
-      return <AccountUpdatesSection />;
-    case "diagnostics":
-      return <DiagnosticsSection />;
-    case "about":
-      return <AboutSection />;
-    default:
-      return <PluginSettingsSection frame={frame} sectionId={section} />;
-  }
+  return (
+    <SettingsCard title="Settings">
+      <p role="alert" className="p-4">
+        This settings section is unavailable.
+      </p>
+    </SettingsCard>
+  );
+}
+
+/** Settings Available Before A Backend Connection Has Been Established. */
+export function SettingsAdvancedSwitch() {
+  const id = useId();
+  const advanced = useUiStore((state) => state.showAdvancedSettings);
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <label htmlFor={id}>Show advanced</label>
+      <Switch
+        id={id}
+        checked={advanced}
+        onCheckedChange={(showAdvancedSettings) => useUiStore.getState().setUiState({ showAdvancedSettings })}
+      />
+    </div>
+  );
+}
+
+export function DisconnectedSettings({ close }: { close: () => void }) {
+  const advanced = useUiStore((state) => state.showAdvancedSettings);
+  const [section, setSection] = useState(DEFAULT_SETTINGS_SECTION);
+  return (
+    <main className="flex h-dvh flex-col bg-background p-2">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
+        <PanelHeader
+          title="Settings"
+          onBack={close}
+          overflow={
+            <div className="px-2 py-1">
+              <SettingsAdvancedSwitch />
+            </div>
+          }
+        />
+        <div className="grid min-h-0 content-start gap-4 overflow-y-auto p-[var(--shell-inset)]">
+          <nav aria-label="Settings Sections" className="flex gap-2">
+            {SETTINGS_SECTIONS.filter((item) => ["backends", "appearance"].includes(item.id)).map((item) => (
+              <Button key={item.id} variant="outline" aria-pressed={section === item.id} onClick={() => setSection(item.id)}>
+                {item.label}
+              </Button>
+            ))}
+          </nav>
+          <SettingsGrid>
+            {section === "backends" ? <BackendsTable /> : <ApplicationPreferences advanced={advanced} localOnly />}
+          </SettingsGrid>
+        </div>
+      </div>
+    </main>
+  );
 }

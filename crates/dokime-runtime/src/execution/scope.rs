@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,13 +26,16 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ExecutionScope {
     #[row(description = "The host's token for the execution attempt.")]
     pub execution: String,
+
     #[row(description = "The stage inside it: a step or criterion id, or empty for the run itself.")]
     pub stage: String,
+
     #[row(description = "The operation being served, or empty where the run itself is the call.")]
     pub route: String,
 }
@@ -39,18 +43,45 @@ pub struct ExecutionScope {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IdempotencyKey(String);
 
+// Names A Host-Routed `WatchFile` Call So `AwaitFileWatchArmed` Can Find Its Readiness: The
+// Caller Sends The Same Ticket In Both, Because A Served Operation Cannot Read Its Instance Id.
+#[harmos::message]
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct WatchTicket {
+    #[row(description = "The caller's ticket naming this watch for AwaitFileWatchArmed.")]
+    pub ticket: u64,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::operations::ContextValue for ExecutionScope {
     const KEY: &'static str = "dokime.execution.scope";
 }
 
+impl harmos::operations::ContextValue for WatchTicket {
+    const KEY: &'static str = "dokime.files.watch_ticket";
+}
+
+impl WatchTicket {
+    // Random Bits Keep Tickets From Different Sidecars Apart In The Host's One Readiness Table.
+    pub fn issue() -> Self {
+        Self {
+            ticket: uuid::Uuid::now_v7().as_u64_pair().1,
+        }
+    }
+}
+
 impl ExecutionScope {
     pub fn execution(execution: impl Into<String>) -> Self {
-        Self { execution: execution.into(), stage: String::new(), route: String::new() }
+        Self {
+            execution: execution.into(),
+            stage: String::new(),
+            route: String::new(),
+        }
     }
 
     #[must_use]
@@ -65,14 +96,13 @@ impl ExecutionScope {
         self
     }
 
-    #[cfg(feature = "native")]
-    pub fn current(host: &harmos::sidecar::Supervisor) -> Option<Self> {
-        host.context().value::<Self>().ok().flatten()
+    pub fn current(call: &harmos::operations::CallContext) -> Option<Self> {
+        call.value::<Self>().ok().flatten()
     }
 
-    #[cfg(feature = "native")]
-    pub fn serving<O: harmos::operations::Declares>(host: &harmos::sidecar::Supervisor) -> Option<Self> {
-        Self::current(host).map(|scope| scope.routed(<O::Declaration as harmos::operations::OperationDeclaration>::ID))
+    // The scope an operation serves under, read from its attempt's call metadata (`ctx.call()`).
+    pub fn serving<O: harmos::operations::OperationDeclaration>(call: &harmos::operations::CallContext) -> Option<Self> {
+        Self::current(call).map(|scope| scope.routed(O::ID))
     }
 
     pub fn key(&self) -> IdempotencyKey {

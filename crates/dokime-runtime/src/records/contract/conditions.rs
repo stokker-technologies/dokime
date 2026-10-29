@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -37,6 +39,7 @@ use dokime_domain::model::values::Value;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn evaluate_record_condition(condition: &RecordCondition, records: &[RecordEntry]) -> RecordConditionEvaluation {
     for record in records.iter().rev() {
         if record.record_type != condition.record_type {
@@ -46,7 +49,11 @@ pub fn evaluate_record_condition(condition: &RecordCondition, records: &[RecordE
             continue;
         }
 
-        return RecordConditionEvaluation { satisfied: true, matched_sequence: Some(record.sequence), reason: None };
+        return RecordConditionEvaluation {
+            satisfied: true,
+            matched_sequence: Some(record.sequence),
+            reason: None,
+        };
     }
 
     RecordConditionEvaluation {
@@ -57,6 +64,7 @@ pub fn evaluate_record_condition(condition: &RecordCondition, records: &[RecordE
 }
 
 /* === Private Functions === */
+
 fn matches_fields(details: &BTreeMap<String, Value>, expected: &BTreeMap<String, Value>) -> bool {
     expected.iter().all(|(name, value)| details.get(name) == Some(value))
 }

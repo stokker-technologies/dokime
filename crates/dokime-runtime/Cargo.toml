@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 name = "dokime-runtime"
 edition.workspace = true
@@ -15,38 +17,53 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
-include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/dist-report/report.html"]
+include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/dist-report/report.html", "/dist-brand/**"]
+
+# === Package Targets === #
+
+# === Features === #
 
 [features]
 default = ["native", "derive"]
-native = ["harmos/plugin-sidecar", "dep:globset", "dep:tokio", "dep:tokio-stream", "dep:tracing-subscriber", "dep:tracing-error"]
+native = [
+  "runtime",
+  "harmos/grpc",
+  "harmos/plugin-sidecar",
+  "dep:file-id",
+  "dep:futures-util",
+  "dep:globset",
+  "dep:tempfile",
+  "dep:tokio",
+  "dep:tokio-stream",
+  "dep:tracing-subscriber",
+  "dep:tracing-error",
+]
 derive = ["dep:dokime-macros"]
+# Activates the Harmos operation resource bindings for operations this package declares.
+runtime = []
+configuration = ["dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [
+  "configuration",
   "native",
   "derive",
   "storage",
-  "dep:arrow-select",
   "dep:async-trait",
   "dep:base64",
-  "dep:blake2",
-  "dep:cssparser",
   "dep:dokime-host",
-  "dep:file-id",
   "dep:futures-util",
   "dep:keyring",
+  "dep:image",
+  "dep:keyring-core",
   "dep:rustls-platform-verifier",
-  "dep:serde_arrow",
   "dep:sha2",
   "dep:suppaftp",
-  "dep:sysinfo",
-  "dep:tempfile",
   "dep:tokio",
   "dep:tokio-util",
-  "dep:toml",
+  "dep:tonic",
   "dep:walkdir",
   "dep:zip",
-  "harmos/grpc",
+  "dep:zeroize",
   "harmos/plugin-sidecar",
 ]
 fault-injection = ["host"]
@@ -54,18 +71,20 @@ fft = ["host", "harmos/signal-fft"]
 media-native = ["host", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]
 simulation = ["host", "harmos/simulation"]
 
+# === Dependencies === #
+
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-host = { path = "../dokime-host", optional = true }
-dokime-macros = { path = "../dokime-macros", optional = true }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
+dokime-host = { version = "0.1.0", path = "../dokime-host", optional = true }
+dokime-macros = { version = "0.1.0", path = "../dokime-macros", optional = true }
+dokime-operations = { version = "0.1.0", path = "../dokime-operations", features = ["runtime"] }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "signal"] }
-harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
+tonic = { workspace = true, optional = true }
 
 # Logging
 tracing = { workspace = true }
@@ -73,26 +92,28 @@ tracing-error = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
-blake2 = { workspace = true, optional = true }
+harmos = { workspace = true, features = ["plugin", "signal"] }
+harmos-packaging = { workspace = true }
 keyring = { workspace = true, optional = true }
+keyring-core = { workspace = true, optional = true }
 regex = { workspace = true }
 sha2 = { workspace = true, optional = true }
 time = { workspace = true }
 uuid = { workspace = true, features = ["js"] }
+zeroize = { workspace = true, optional = true }
 
 # Serialization
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
-arrow-select = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true, features = ["jpeg", "png"] }
 prost = { workspace = true }
 serde = { workspace = true }
-serde_arrow = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
-sysinfo = { workspace = true, optional = true }
 toml = { workspace = true, optional = true }
+
+# Configuration
 
 # Filesystem
 globset = { workspace = true, optional = true }
@@ -102,6 +123,8 @@ zip = { workspace = true, optional = true }
 
 # Parsing
 cssparser = { workspace = true, optional = true }
+
+# Concurrency
 
 # Async
 async-trait = { workspace = true, optional = true }
@@ -113,6 +136,7 @@ tokio-util = { workspace = true, features = ["io", "rt"], optional = true }
 # Networking
 rustls-platform-verifier = { workspace = true, optional = true }
 suppaftp = { workspace = true, features = ["tokio", "tokio-rustls-ring"], optional = true }
+url = { workspace = true, optional = true }
 
 # Storage
 rusqlite = { workspace = true, optional = true }
@@ -121,39 +145,36 @@ rusqlite = { workspace = true, optional = true }
 cpal = { workspace = true, optional = true }
 nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 
-[target."cfg(unix)".dependencies]
-# Utilities
-libc = { workspace = true }
+# Testing
 
-[target.'cfg(target_os = "linux")'.dependencies]
-# Networking
-url = { workspace = true, optional = true }
+# === Build Dependencies === #
 
-# UI
-ashpd = { workspace = true, optional = true, features = ["screenshot"] }
-
-[target."cfg(windows)".dependencies]
-# Filesystem
-# Windows has no inode in std metadata; the volume serial and file index tell a rotated file from a truncated one.
-file-id = { workspace = true, optional = true }
-
-[target."cfg(any(windows, target_os = \"macos\"))".dependencies]
-# UI
-xcap = { workspace = true, optional = true }
-
+# === Dev Dependencies === #
 
 [dev-dependencies]
+# Local
+
 # Git
-harmos = { workspace = true, features = ["plugin-sidecar"] }
+
+# Error Handling
 
 # Logging
 tracing-subscriber = { workspace = true }
 
+# Utilities
+harmos = { workspace = true, features = ["plugin-sidecar"] }
+
 # Serialization
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+
+# Configuration
 
 # Filesystem
 tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
 
 # Async
 tokio = { workspace = true, features = ["test-util"] }
@@ -166,18 +187,160 @@ unftp-sbe-fs = { workspace = true }
 # Storage
 rusqlite = { workspace = true }
 
+# UI
+
 # Testing
 criterion = { workspace = true }
+
+# === Target Dependencies === #
+
+[target."cfg(unix)".dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+libc = { workspace = true }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+ashpd = { workspace = true, optional = true, features = ["screenshot"] }
+
+# Testing
+
+[target."cfg(windows)".dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+# Windows has no inode in std metadata; the volume serial and file index tell a rotated file from a truncated one.
+file-id = { workspace = true, optional = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+[target."cfg(any(windows, target_os = \"macos\"))".dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+xcap = { workspace = true, optional = true }
+
+# Testing
+
+# === Test Targets === #
 
 [[test]]
 name = "integration"
 path = "tests/integration/main.rs"
-required-features = ["host", "fault-injection"]
+required-features = ["host"]
 
 [[test]]
 name = "acceptance"
 path = "tests/acceptance/main.rs"
-required-features = ["host", "fault-injection"]
+required-features = ["host"]
+
+[[test]]
+name = "system"
+path = "tests/system/main.rs"
+required-features = ["host"]
+
+# === Bench Targets === #
 
 [[bench]]
 name = "unit-runtime"
@@ -196,3 +359,21 @@ name = "system-runtime"
 path = "benches/system/main.rs"
 harness = false
 required-features = ["host"]
+
+[[bench]]
+name = "integration-storage"
+path = "benches/storage/main.rs"
+harness = false
+required-features = ["host"]
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

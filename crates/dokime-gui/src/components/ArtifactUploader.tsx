@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { commands } from "@/lib/desktop/commands";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileUp, Image as ImageIcon, Square, Video } from "lucide-react";
 import { type MutableRefObject, useEffect, useId, useRef, useState } from "react";
@@ -40,8 +41,12 @@ type ArtifactUploaderProps = {
 
 /* === Constants === */
 
+const GUI_CAMERA_JPEG_QUALITY_PERCENT = 92;
+const GUI_RECORDING_TIMESLICE_MS = 2_000;
+const GUI_UPLOAD_PROGRESS_MS = 250;
+
 /** Bounds peak webview heap to one fragment of the recording, not the whole thing. */
-const RECORDING_TIMESLICE_MS = 2_000;
+const RECORDING_TIMESLICE_MS = GUI_RECORDING_TIMESLICE_MS;
 
 /* === Components === */
 
@@ -123,7 +128,7 @@ export function ArtifactUploader({
       setRecordingElapsedMs(Date.now() - start);
     };
     tick();
-    const handle = window.setInterval(tick, 250);
+    const handle = window.setInterval(tick, GUI_UPLOAD_PROGRESS_MS);
     return () => window.clearInterval(handle);
   }, [recordingState]);
 
@@ -324,7 +329,6 @@ export function ArtifactUploader({
       if (!recordingWroteAnyBytes.current) {
         throw new Error("Recording produced no data.");
       }
-      const { commands } = await import("@/lib/desktop/commands");
       await commands.desktopRecordingFinish(session.identity.generation, durationMs, mediaType);
       setArtifactStatus("Recording saved");
       await Promise.all([invalidateWorkflowResourceQueries(queryClient), invalidateWorkflowDocuments(queryClient)]);
@@ -369,8 +373,12 @@ export function ArtifactUploader({
     if (!video || !canvas || !resolvedScope) {
       return;
     }
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (!width || !height) {
+      setArtifactStatus("Camera frame is not ready yet.");
+      return;
+    }
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d");
@@ -381,7 +389,7 @@ export function ArtifactUploader({
     context.drawImage(video, 0, 0, width, height);
     setCameraUploading(true);
     try {
-      const blob = await canvasToBlob(canvas, "image/jpeg", 0.92);
+      const blob = await canvasToBlob(canvas, "image/jpeg", GUI_CAMERA_JPEG_QUALITY_PERCENT / 100);
       const filename = nextGeneratedFilename(existingArtifactPaths, "photo", "jpg");
       await uploadArtifactMutation.mutateAsync({
         file: blob,
@@ -437,7 +445,7 @@ export function ArtifactUploader({
   const stopBusy = recordingState === "stopping" || recordingState === "uploading";
   const recordingActive = recordingState !== "idle";
   const captureBusy = uploading || recordingActive || cameraUploading;
-  const actionButtonClassName = "min-h-11 min-w-[10.5rem] flex-1 justify-center whitespace-normal text-center text-sm font-semibold";
+  const actionButtonClassName = "min-h-11 min-w-44 flex-1 justify-center whitespace-normal text-center text-sm font-semibold";
 
   const content = (
     <>
@@ -556,12 +564,12 @@ export function ArtifactUploader({
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Take Picture</DialogTitle>
             <DialogDescription>Capture a webcam image and attach it to the selected scope.</DialogDescription>
           </DialogHeader>
-          <div className="overflow-hidden rounded-xl border bg-black">
+          <div className="overflow-hidden rounded-lg border bg-black">
             <video className="max-h-[60vh] w-full object-contain" muted playsInline ref={cameraVideo} />
             <canvas className="hidden" ref={cameraCanvas} />
           </div>

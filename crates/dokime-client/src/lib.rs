@@ -8,34 +8,42 @@
  */
 
 /* === Modules === */
+
 mod catalog;
-pub mod credentials;
 mod cycle;
 mod discovery;
 mod download;
 pub mod dynamic;
+mod error;
 mod execution;
 mod follow;
 pub mod operations;
+pub mod pairing;
+mod plugins;
 pub mod profiles;
 mod raw;
 mod rpc;
+pub mod secrets;
 mod stream;
 mod target;
 mod transport;
 mod upload;
 
 /* === Re-Exports === */
+
 pub use catalog::template_suite;
 pub use cycle::TestCycleHandle;
-pub use dokime_domain::operations as contracts;
+pub use dokime_operations as contracts;
+pub use download::validate_destination as validate_download_destination;
 pub use download::{Download, Error as DownloadError};
-pub use execution::{ExecutionRequestHandle, TestExecutionHandle};
+pub use error::Error;
+pub use execution::{RunCallbacks, RunOptions, TestExecutionHandle};
 pub use follow::FileResume;
+pub use plugins::plugin_bundle_digest;
 pub use raw::RawStreaming;
 pub use stream::{RequestStream, ResponseStream};
 pub use target::Target;
-pub use tonic::Code as RpcCode;
+pub use tonic::{Code as RpcCode, Status as RpcStatus};
 pub use upload::Error as UploadError;
 
 /* === Imports === */
@@ -60,14 +68,18 @@ use zeroize::Zeroizing;
 // Local Imports
 
 /* === Constants === */
-const MAX_MESSAGE_BYTES: u64 = 16 * 1024 * 1024;
+
+const DISCOVERY_BYTES: u64 = 1_048_576;
+const MAX_MESSAGE_BYTES: u64 = 16_777_216;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Client {
     inner: Arc<Inner>,
@@ -76,11 +88,13 @@ pub struct Client {
 }
 
 struct Inner {
+    settings: dokime_domain::model::settings::application::ClientPreferences,
     channel: Mutex<Option<Channel>>,
     authorization: Option<MetadataValue<Ascii>>,
     cancellation: CancellationToken,
     readers: TaskTracker,
     backend: Backend,
+    expected_backend_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -89,6 +103,7 @@ pub struct Backend {
     pub epoch: String,
     pub display_name: String,
     pub product_version: String,
+    pub target: String,
     pub api_version: String,
     pub descriptor_sha256: String,
     pub methods: Vec<String>,
@@ -100,40 +115,13 @@ pub struct Limits {
     pub max_request_bytes: u64,
     pub max_response_bytes: u64,
     pub max_content_bytes: Option<u64>,
+    pub max_evidence_bytes: Option<u64>,
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,
     pub max_stream_buffer_items: Option<u32>,
 }
 
 /* === Enums === */
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("invalid client target: {message}")]
-    InvalidTarget { message: &'static str },
-    #[error("a valid bearer token is required")]
-    AuthenticationRequired,
-    #[error("backend transport failed")]
-    Transport(#[source] tonic::transport::Error),
-    #[error("backend RPC failed")]
-    Rpc(#[source] tonic::Status),
-    #[error("backend API is incompatible")]
-    IncompatibleApi,
-    #[error("backend identity changed")]
-    IdentityChanged,
-    #[error("backend is not ready")]
-    BackendUnavailable,
-    #[error("client worker failed")]
-    Task(#[source] tokio::task::JoinError),
-    #[error("execution admission was rejected: {rejection:?}")]
-    ExecutionRejected { rejection: dokime_domain::model::execution::wire::Rejection },
-    #[error("request wait deadline elapsed")]
-    WaitTimedOut {
-        #[source]
-        source: tokio::time::error::Elapsed,
-    },
-    #[error("client is closed")]
-    Closed,
-}
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -151,6 +139,7 @@ pub enum ConnectionFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Error {
     pub fn connection_failure(&self) -> ConnectionFailure {
         use ConnectionFailure as Failure;
@@ -175,21 +164,24 @@ impl Error {
 
 impl Client {
     pub async fn connect(target: Target, token: Option<&str>, expected_id: Option<&str>) -> Result<Self> {
-        if target.is_remote() && token.is_none() {
-            return Err(Error::AuthenticationRequired);
-        }
         let authorization = authorization(token)?;
         let channel = target.connect().await?;
-        let backend = discovery::discover(channel.clone(), authorization.as_ref(), expected_id).await?;
+        let settings = *target.settings();
+        let negotiation = discovery::discover(channel.clone(), authorization.as_ref(), expected_id, DISCOVERY_BYTES as usize);
+        let backend = tokio::time::timeout(Duration::from_millis(settings.request_timeout_ms), negotiation)
+            .await
+            .map_err(|_| Error::Rpc(tonic::Status::deadline_exceeded("backend negotiation deadline exceeded")))??;
         Ok(Self {
-            timeout: None,
+            timeout: Some(Duration::from_millis(settings.request_timeout_ms)),
             frame_limit: MAX_MESSAGE_BYTES as usize,
             inner: Arc::new(Inner {
+                settings,
                 channel: Mutex::new(Some(channel)),
                 authorization,
                 cancellation: CancellationToken::new(),
                 readers: TaskTracker::new(),
                 backend,
+                expected_backend_id: expected_id.map(str::to_owned),
             }),
         })
     }
@@ -218,16 +210,28 @@ impl Client {
         &self.inner.backend
     }
 
+    pub fn settings(&self) -> &dokime_domain::model::settings::application::ClientPreferences {
+        &self.inner.settings
+    }
+
     pub fn channel(&self) -> Result<Channel> {
         self.inner.channel.lock().expect("client transport poisoned").clone().ok_or(Error::Closed)
     }
 
     pub fn with_timeout(&self, timeout: Duration) -> Self {
-        Self { inner: self.inner.clone(), timeout: Some(timeout), frame_limit: self.frame_limit }
+        Self {
+            inner: self.inner.clone(),
+            timeout: Some(timeout),
+            frame_limit: self.frame_limit,
+        }
     }
 
     pub fn with_frame_limit(&self, bytes: NonZeroUsize) -> Self {
-        Self { inner: self.inner.clone(), timeout: self.timeout, frame_limit: self.frame_limit.min(bytes.get()) }
+        Self {
+            inner: self.inner.clone(),
+            timeout: self.timeout,
+            frame_limit: self.frame_limit.min(bytes.get()),
+        }
     }
 
     pub fn request<T>(&self, message: T) -> tonic::Request<T> {
@@ -255,13 +259,33 @@ impl Client {
         let future = Box::pin(future);
         async move {
             let operation = async {
+                // A Channel May Reconnect Transparently; Check Identity Before Application Calls.
+                if let Some(expected) = &self.inner.expected_backend_id {
+                    let identity = transport::unary::<dokime_domain::model::backend::wire::BackendIdentity, _>(
+                        self.channel()?,
+                        self.inner.authorization.as_ref(),
+                        "/dokime.v1.Backend/GetIdentity",
+                        contracts::backend::GetIdentity {},
+                        DISCOVERY_BYTES as usize,
+                        DISCOVERY_BYTES as usize,
+                    )
+                    .await?;
+                    if transport::value(identity)?.backend_id != *expected {
+                        return Err(Error::IdentityChanged);
+                    }
+                }
+                future.await.map_err(normalize_rpc_error)
+            };
+            let operation = async {
                 if let Some(timeout) = self.timeout {
-                    tokio::time::timeout(timeout, future).await.map_err(|_| tonic::Status::deadline_exceeded("RPC deadline exceeded"))?
+                    tokio::time::timeout(timeout, operation)
+                        .await
+                        .map_err(|_| Error::Rpc(tonic::Status::deadline_exceeded("RPC deadline exceeded")))?
                 } else {
-                    future.await
+                    operation.await
                 }
             };
-            self.guard(operation).await?.map_err(normalize_rpc_error)
+            self.guard(operation).await?
         }
     }
 
@@ -295,6 +319,7 @@ impl Drop for Inner {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_observed_cursor(epoch: &str, cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>) -> Result<()> {
     validate_observed_epoch(epoch, cursor.map(|cursor| cursor.epoch.as_str()))
 }

@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 name = "dokime"
 edition.workspace = true
@@ -15,14 +17,37 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+# === Package Targets === #
+
+# === Features === #
+
+[features]
+default = []
+plugin-sidecar = ["native", "derive"]
+# Plugin Is An Alias For The Native Sidecar Authoring Surface.
+plugin = ["plugin-sidecar"]
+native = ["dokime-runtime/native"]
+derive = ["dokime-runtime/derive"]
+diagnostics = ["dokime-domain/diagnostics"]
+storage = ["dokime-runtime/storage"]
+host = ["dokime-runtime/host"]
+configuration = ["dokime-runtime/configuration"]
+fault-injection = ["dokime-runtime/fault-injection"]
+fft = ["dokime-runtime/fft"]
+media-native = ["dokime-runtime/media-native"]
+simulation = ["dokime-runtime/simulation"]
+client = ["dep:dokime-client", "dep:tokio"]
+terminal = ["diagnostics", "dep:anstream", "dep:anstyle", "dep:indicatif"]
+
+# === Dependencies === #
+
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-client = { path = "../dokime-client" }
+dokime-client = { workspace = true, optional = true }
+dokime-domain = { workspace = true }
+dokime-runtime = { workspace = true }
 
 # Git
-harmos = { workspace = true, features = ["plugin"] }
-harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -31,49 +56,82 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-sha2 = { workspace = true }
-zeroize = { workspace = true }
 
 # Serialization
-serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
 
 # Filesystem
-tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
 
 # Async
-tokio = { workspace = true }
-tokio-stream = { workspace = true }
-
-# UI
-anstream = { workspace = true }
-anstyle = { workspace = true }
-indicatif = { workspace = true }
-
-[[bin]]
-name = "dokime"
-path = "src/main.rs"
-doc = false
-
-[dev-dependencies]
-# Git
-harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
+tokio = { workspace = true, optional = true }
 
 # Networking
-tonic = { workspace = true }
 
-# Utilities
-time = { workspace = true }
-
-# Filesystem
-tempfile = { workspace = true }
-
-# Testing
-criterion = { workspace = true }
+# Storage
 
 # UI
-portable-pty = { workspace = true }
+anstream = { workspace = true, optional = true }
+anstyle = { workspace = true, optional = true }
+indicatif = { workspace = true, optional = true }
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

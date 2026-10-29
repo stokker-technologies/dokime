@@ -19,7 +19,7 @@ import * as rpc from "@/lib/rpc/generated/client";
 type CycleSummary = Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>;
 type ExecutionDetail = Wire<Awaited<ReturnType<typeof rpc.executionGetExecution>>>;
 type ExecutionStep = Wire<Awaited<ReturnType<typeof rpc.executionListExecutionSteps>>["steps"][number]>;
-type StepCriterion = Wire<Awaited<ReturnType<typeof rpc.executionListStepCriteria>>["criteria"][number]>;
+type StepCriterion = ExecutionStep["criteria"][number];
 type ParameterCursor = Parameters<typeof rpc.executionListExecutionParameters>[1]["cursor"];
 type ExecutionParameterSet = Parameters<typeof rpc.executionListExecutionParameters>[1]["set"];
 type StepPageCursor = Wire<Parameters<typeof rpc.executionListExecutionSteps>[1]["cursor"]>;
@@ -36,15 +36,14 @@ import type {
   TestExecution,
 } from "@/lib/types";
 import {
-  ensureNativeRunAccepted,
+  ensureNativeStartAccepted,
   fetchNativeTestCyclePlan,
   listNativeCases,
-  listNativeCycles,
   listNativeExecutions,
   mapCriterionStatus,
   mapNativeExecutionSummary,
   mapStepStatus,
-  type NativeRunAdmission,
+  type NativeStartAdmission,
   projectExecutionStatus,
 } from "./native-planning";
 import {
@@ -119,41 +118,12 @@ export async function fetchNativeTestCycleSteps(
     .flatMap((execution) => execution.steps);
 }
 
-/**
- * Admit the cycle's queued cases, and answer with the admission itself.
- *
- * The admission is the whole result: `command_id` is the durable
- * `GetRunRequest` identity, and a run is not a completion, so there is nothing
- * further to wait for here. It used to re-read the entire plan before
- * answering, which put a bounded multi-RPC read across the exact moment the
- * runtime is materializing attempts — a read that can fail, and whose failure
- * hid the admission that had already succeeded from the caller's own refresh.
- * The workspace refreshes on the command settling and on the runtime stream.
- */
-export async function runNativeQueuedTestCycle(session: SessionIdentity, cycleId: string): Promise<NativeRunAdmission> {
-  return ensureNativeRunAccepted(
-    await rpc.executionRunCycle(session, {
-      cycleId,
-      idempotencyKey: crypto.randomUUID(),
-    }),
-  );
-}
-
-export async function runNativeQueuedTestExecution(session: SessionIdentity, executionId: string): Promise<NativeRunAdmission> {
-  return ensureNativeRunAccepted(
-    await rpc.executionRunExecution(session, {
+/** Admit One Existing Attempt By Its Durable Execution Identity */
+export async function startNativeTestExecution(session: SessionIdentity, executionId: string): Promise<NativeStartAdmission> {
+  return ensureNativeStartAccepted(
+    await rpc.executionStartExecution(session, {
       executionId,
-      idempotencyKey: crypto.randomUUID(),
-    }),
-  );
-}
-
-export async function runNativeQueuedTestCase(session: SessionIdentity, cycleId: string, caseId: string): Promise<NativeRunAdmission> {
-  return ensureNativeRunAccepted(
-    await rpc.executionRunCase(session, {
-      cycleId,
-      caseId,
-      idempotencyKey: crypto.randomUUID(),
+      mode: { HarmosVariant: { case: "Automatic", value: {} } },
     }),
   );
 }
@@ -170,16 +140,13 @@ export async function stopNativeTestExecution(session: SessionIdentity, executio
   await rpc.executionStopExecution(session, { executionId });
 }
 
-export async function pauseNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse | null> {
-  return controlNativeCycle(session, cycleId, (id) => rpc.executionPauseCycle(session, { cycleId: id }));
+/** Skips One Unstarted Attempt; Cycle Continuation Is Unchanged */
+export async function cancelNativeTestExecution(session: SessionIdentity, executionId: string): Promise<void> {
+  await rpc.executionCancelExecution(session, { executionId });
 }
 
-export async function resumeNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse | null> {
-  return controlNativeCycle(session, cycleId, (id) => rpc.executionResumeCycle(session, { cycleId: id }));
-}
-
-export async function stopNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse | null> {
-  return controlNativeCycle(session, cycleId, (id) => rpc.executionStopCycle(session, { cycleId: id }));
+export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
+  await rpc.executionSealCycle(session, { cycleId });
 }
 
 /** Archives or unarchives a terminal cycle; its lifecycle is unchanged. */
@@ -223,45 +190,19 @@ export async function deleteNativeTestCycleCases(
 export async function updateNativeTestCyclePolicy(
   session: SessionIdentity,
   cycleId: string,
-  continueOnFailure: boolean,
+  continueAutomatically: boolean,
 ): Promise<StartTestCycleResponse> {
-  await rpc.executionUpdateCyclePolicy(session, { cycleId, continueOnFailure });
+  await rpc.executionUpdateCyclePolicy(session, { cycleId, continueAutomatically });
   const plan = await fetchNativeTestCyclePlan(session, cycleId);
   if (!plan) throw new Error("The cycle disappeared after updating its policy.");
   return { plan };
 }
 
-export async function rerunNativeTestCase(session: SessionIdentity, cycleId: string, caseId: string): Promise<NativeRunAdmission> {
-  await rpc.executionScheduleCaseRerun(session, { cycleId, caseId });
-  return runNativeQueuedTestCase(session, cycleId, caseId);
-}
-
-/**
- * Run a finished cycle again: schedule a re-run of each named case, then run
- * the cycle's queue once, so the cases run as one cycle request in plan order.
- */
-export async function rerunNativeTestCycle(
-  session: SessionIdentity,
-  cycleId: string,
-  caseIds: readonly string[],
-): Promise<NativeRunAdmission> {
-  if (caseIds.length === 0) throw new Error("No case of this cycle can be run again.");
-  for (const caseId of caseIds) {
-    await rpc.executionScheduleCaseRerun(session, { cycleId, caseId });
-  }
-  return runNativeQueuedTestCycle(session, cycleId);
-}
-
-async function controlNativeCycle(
-  session: SessionIdentity,
-  cycleId: string,
-  control: (cycleId: string) => Promise<unknown>,
-): Promise<StartTestCycleResponse | null> {
-  const cycle = (await listNativeCycles(session)).find((item) => item.cycleId === cycleId);
-  if (!cycle) return null;
-  await control(cycle.cycleId);
-  const plan = await fetchNativeTestCyclePlan(session, cycle.cycleId);
-  return plan ? { plan } : null;
+/** Append A Fresh Unstarted Attempt Without Dispatching Hardware */
+export async function appendNativeCaseAttempt(session: SessionIdentity, cycleId: string, caseId: string): Promise<string> {
+  const executionId = crypto.randomUUID();
+  await rpc.executionAppendExecutions(session, { cycleId, executions: [{ executionId, caseId }] });
+  return executionId;
 }
 
 async function loadNativeExecution(session: SessionIdentity, executionId: string): Promise<NativeExecution> {
@@ -273,11 +214,7 @@ async function loadNativeExecution(session: SessionIdentity, executionId: string
     HarmosVariant: { case: "Outputs", value: {} },
   });
   const steps = await listExecutionSteps(session, executionId);
-  const criteria = await mapBounded(steps, async (step) => ({
-    step,
-    criteria: await listStepCriteria(session, executionId, step.stepId),
-  }));
-  return { detail, inputs, outputs, steps: criteria };
+  return { detail, inputs, outputs, steps: steps.map((step) => ({ step, criteria: step.criteria })) };
 }
 
 type NativeExecution = {
@@ -330,7 +267,7 @@ function mapNativeExecution(
           current: detail.invalidation.current ? mapPluginIdentity(detail.invalidation.current) : null,
         }
       : null,
-    status: projectExecutionStatus(item.status, startedAt, summary.status),
+    status: projectExecutionStatus(item.status, startedAt, item.sealed),
     started_at: startedAt,
     finished_at: timestampIso(detail.finishedAt),
     parameters: Object.fromEntries(
@@ -452,25 +389,6 @@ async function listExecutionSteps(session: SessionIdentity, executionId: string)
     cursor = reply.nextCursor;
   }
   throw new NativeApiLimitError("Execution.ListExecutionSteps", `more than ${NATIVE_MAX_PAGES} pages`);
-}
-
-async function listStepCriteria(session: SessionIdentity, executionId: string, stepId: string) {
-  const result: StepCriterion[] = [];
-  let cursor: StepPageCursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.executionListStepCriteria(session, {
-      executionId,
-      stepId,
-      limit: NATIVE_PAGE_SIZE,
-      cursor,
-    });
-    result.push(...reply.criteria);
-    if (!reply.nextCursor) return result;
-    if (stepCursorKey(reply.nextCursor) === stepCursorKey(cursor))
-      throw new NativeApiLimitError("Execution.ListStepCriteria", "cursor did not advance");
-    cursor = reply.nextCursor;
-  }
-  throw new NativeApiLimitError("Execution.ListStepCriteria", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
 async function loadNativeExecutionsForPlan(session: SessionIdentity, cycleId: string): Promise<TestExecution[]> {

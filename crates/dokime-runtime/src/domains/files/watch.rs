@@ -23,16 +23,20 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, io::Read, time::Duration};
+use std::io::Seek;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Read,
+    time::Duration,
+};
 
 // Third Party Imports
-use std::io::Seek;
 use tempfile::TempPath;
 use tokio::{io::AsyncSeekExt, sync::oneshot};
 
 // Local Imports
 use super::source::{Entry, Listing, ReadFailure, Source};
-use super::{GapReason, Phase, Policy, Settings, capped, invalid, unreachable_source};
+use super::{GapReason, Phase, Policy, Selection, Settings, capped, invalid, unreachable_source};
 use crate::artifacts::ArtifactRecord;
 use crate::execution_runtime::outputs::media_type_for_path;
 use crate::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
@@ -48,8 +52,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 
 /* === Constants === */
-// Consecutive failed passes after which an unreachable source ends the watch.
-const FAILED_PASSES: u32 = 10;
 
 // The producer named on the rows and records line matchers publish.
 const SOURCE: &str = "dokime.files";
@@ -59,6 +61,7 @@ const SOURCE: &str = "dokime.files";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct FileWatch {
     // Taken by `Drop` to seal an abandoned watch in the background.
     state: Option<State>,
@@ -71,6 +74,15 @@ struct State {
     output: String,
     artifact: Option<String>,
     policy: Policy,
+    selection: Selection,
+    baseline: Option<BTreeSet<String>>,
+    selected: Option<String>,
+    wait_for_source: Option<Duration>,
+    waiting_since: tokio::time::Instant,
+    armed_at: Option<tokio::time::Instant>,
+    single: bool,
+    segments: BTreeMap<String, u64>,
+    names: BTreeSet<String>,
     matcher: FileMatcher,
     lines: LineMatchers,
     sequences: BTreeMap<String, u64>,
@@ -84,9 +96,8 @@ struct State {
     // Bytes held by live spools and sealed artifacts, charged to the byte cap.
     captured: u64,
     sealed: Vec<ArtifactRecord>,
-    files: usize,
     passes: u64,
-    failed_passes: u32,
+    failed_passes: u64,
     complete: bool,
     // A refused pass ends capture; sealing keeps only what was captured.
     failed: bool,
@@ -96,6 +107,7 @@ struct State {
 }
 
 struct Tracked {
+    artifact: String,
     spool: TempPath,
     // Bytes in the spool; anything past it is an interrupted write.
     written: u64,
@@ -113,8 +125,10 @@ struct Tracked {
 }
 
 /* === Enums === */
+
 #[derive(Debug)]
 pub enum WatchEvent {
+    Armed { baseline: Vec<String> },
     Progress { path: String, offset: u64, phase: Phase },
     Gap { path: String, offset: u64, reason: GapReason },
     Sealed { path: String, record: Box<ArtifactRecord> },
@@ -123,6 +137,7 @@ pub enum WatchEvent {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl FileWatch {
     pub(super) async fn open(runtime: RuntimeHandle, settings: Settings, source: Source) -> Result<Self> {
         let execution = settings.scope.test_execution_id.clone().ok_or_else(|| invalid("a file watch requires an execution"))?;
@@ -142,6 +157,15 @@ impl FileWatch {
                 output: settings.output,
                 artifact: settings.artifact,
                 policy: settings.policy,
+                selection: settings.selection,
+                baseline: None,
+                selected: None,
+                wait_for_source: settings.wait_for_source,
+                waiting_since: tokio::time::Instant::now(),
+                armed_at: None,
+                single: settings.single,
+                segments: BTreeMap::new(),
+                names: BTreeSet::new(),
                 matcher: settings.matcher,
                 lines: settings.lines,
                 sequences: BTreeMap::new(),
@@ -154,7 +178,6 @@ impl FileWatch {
                 tracked: BTreeMap::new(),
                 captured: 0,
                 sealed: Vec::new(),
-                files: 0,
                 passes: 0,
                 failed_passes: 0,
                 complete: false,
@@ -171,12 +194,18 @@ impl FileWatch {
     }
 
     pub fn poll_interval(&self) -> Duration {
-        self.state().poll_interval
+        let state = self.state();
+        if state.baseline.is_none()
+            && let Some(wait) = state.wait_for_source
+        {
+            return state.poll_interval.min(wait.saturating_sub(state.waiting_since.elapsed()));
+        }
+        state.poll_interval
     }
 
-    // The bound after which the caller seals the watch, if the request set one.
-    pub fn deadline(&self) -> Option<Duration> {
-        self.state().deadline
+    pub fn remaining(&self) -> Option<Duration> {
+        let state = self.state();
+        state.deadline.zip(state.armed_at).map(|(deadline, armed)| deadline.saturating_sub(armed.elapsed()))
     }
 
     // Whether the watch has sealed every file it will capture.
@@ -249,16 +278,31 @@ impl State {
         if self.complete || self.failed {
             return Ok(());
         }
-        let first = self.passes == 0;
+        let first = self.baseline.is_none();
+        let beginning = events.len();
         self.passes += 1;
         let polled = match self.policy {
             Policy::SnapshotAtStart if first => match self.snapshot(events).await {
-                Ok(()) => self.finish(events).await,
+                Ok(()) if self.baseline.is_some() => self.finish(events).await,
+                Ok(()) => Ok(()),
                 Err(source) => Err(source),
             },
+            Policy::SnapshotAtStop if first => self.listing().await.map(|_| ()),
             Policy::SnapshotAtStart | Policy::SnapshotAtStop | Policy::Unspecified => Ok(()),
             Policy::Stream | Policy::Mirror => self.track(first, events).await,
         };
+        if polled.is_ok()
+            && first
+            && let Some(baseline) = &self.baseline
+        {
+            self.armed_at = Some(tokio::time::Instant::now());
+            events.insert(
+                beginning,
+                WatchEvent::Armed {
+                    baseline: baseline.iter().cloned().collect(),
+                },
+            );
+        }
         self.failed |= polled.is_err();
         polled
     }
@@ -271,6 +315,7 @@ impl State {
         // Capture The Last Bytes; A Failing Source Still Seals What It Gave
         let captured = match self.policy {
             _ if self.failed => Ok(()),
+            _ if self.baseline.is_none() && self.wait_for_source.is_some() => Ok(()),
             Policy::SnapshotAtStart if self.passes == 0 => self.snapshot(events).await,
             Policy::SnapshotAtStop => self.snapshot(events).await,
             Policy::Stream | Policy::Mirror => {
@@ -312,29 +357,43 @@ impl State {
 
     // Stream and Mirror: discover, capture, and seal files that vanished.
     async fn track(&mut self, first: bool, events: &mut Vec<WatchEvent>) -> Result<()> {
-        let listing = match self.source.scan(&self.matcher).await {
-            Ok(listing) => {
-                self.failed_passes = 0;
-                listing
-            }
-            Err(source) => return self.failed_pass(source),
+        let Some(listing) = self.listing().await? else {
+            return Ok(());
         };
+
+        // Release Simultaneous Slots Before Admitting New Paths
+        let vanished = self.tracked.keys().filter(|path| !listing.contains_key(*path)).cloned().collect::<Vec<_>>();
+        for path in vanished {
+            let offset = self.tracked[&path].written;
+            events.push(WatchEvent::Gap {
+                path: path.clone(),
+                offset,
+                reason: GapReason::Vanished,
+            });
+            self.seal_file(&path, events).await?;
+        }
 
         // Capture Each Matched File From Its Baseline
         for (path, entry) in &listing {
             // A Replaced Source Seals Its Segment; The New File Starts Afresh
-            if let Some(tracked) = self.tracked.get(path)
-                && !tracked.mirrored
-                && matches!(
+            if let Some(tracked) = self.tracked.get(path) {
+                let replaced = matches!(
                     (tracked.entry.identity, entry.identity),
                     (Some(before), Some(after)) if before != after
-                )
-            {
-                events.push(WatchEvent::Gap { path: path.clone(), offset: tracked.written, reason: GapReason::Replaced });
-                self.seal_file(path, events).await?;
+                );
+                let truncated = entry.size < tracked.offset || (tracked.mirrored && entry.size < tracked.entry.size);
+                if replaced || truncated {
+                    let reason = if replaced { GapReason::Replaced } else { GapReason::Truncated };
+                    events.push(WatchEvent::Gap {
+                        path: path.clone(),
+                        offset: tracked.written,
+                        reason,
+                    });
+                    self.seal_file(path, events).await?;
+                }
             }
             if !self.tracked.contains_key(path) {
-                let baseline = if first && self.policy == Policy::Stream { entry.size } else { 0 };
+                let baseline = if first && self.policy == Policy::Stream && self.selection != Selection::New { entry.size } else { 0 };
                 self.discover(path, *entry, baseline, events).await?;
             }
             match self.capture(path, *entry, events).await {
@@ -343,22 +402,46 @@ impl State {
                 Err(source) => return Err(source),
             }
         }
-
-        // A Vanished File Is Sealed With A Gap
-        let vanished = self.tracked.keys().filter(|path| !listing.contains_key(*path)).cloned().collect::<Vec<_>>();
-        for path in vanished {
-            let offset = self.tracked[&path].written;
-            events.push(WatchEvent::Gap { path: path.clone(), offset, reason: GapReason::Vanished });
-            self.seal_file(&path, events).await?;
-        }
         Ok(())
+    }
+
+    async fn listing(&mut self) -> Result<Option<Listing>> {
+        let first = self.baseline.is_none();
+        if first && self.wait_for_source.is_some_and(|wait| self.waiting_since.elapsed() >= wait) {
+            return Err(Error::not_found("file_watch_missing", "source wait deadline elapsed before a matching file appeared"));
+        }
+        let mut listing = match self.source.scan(&self.matcher).await {
+            Ok(listing) => {
+                self.failed_passes = 0;
+                listing
+            }
+            Err(source) if first && source.code() == Some("file_watch_missing") => {
+                self.missing_source(source)?;
+                return Ok(None);
+            }
+            Err(source @ Error::Admission(AdmissionFailure::Unavailable { .. })) => {
+                self.failed_pass(source)?;
+                return Ok(None);
+            }
+            Err(source) => return Err(source),
+        };
+
+        let requires_file = self.single || (self.selection == Selection::Latest && self.wait_for_source.is_some());
+        if first && listing.is_empty() && requires_file {
+            let source = Error::not_found("file_watch_missing", "the watched source has no matching file");
+            self.missing_source(source)?;
+            return Ok(None);
+        }
+        self.select(&mut listing);
+
+        Ok(Some(listing))
     }
 
     // A source that keeps failing ends the watch; a passing glitch does not.
     fn failed_pass(&mut self, source: Error) -> Result<()> {
         self.failed_passes += 1;
         tracing::warn!(error = %source, attempt = self.failed_passes, "file watch pass failed");
-        if self.failed_passes >= FAILED_PASSES {
+        if self.failed_passes >= 10 {
             return Err(source);
         }
         Ok(())
@@ -366,32 +449,43 @@ impl State {
 
     // Starts tracking one file, refusing it explicitly past the caps.
     async fn discover(&mut self, path: &str, entry: Entry, baseline: u64, events: &mut Vec<WatchEvent>) -> Result<()> {
-        if self.artifact.is_some() && self.files >= 1 {
+        if self.artifact.is_some() && !self.tracked.is_empty() {
             return Err(capped(format!("a watch into one named artifact tracks one file; {path:?} would be a second")));
         }
-        if self.files >= self.maximum_files {
+        if self.tracked.len() >= self.maximum_files {
             return Err(capped(format!("the watch tracks at most {} files; {path:?} would exceed it", self.maximum_files)));
         }
-        let artifact = self.artifact_name(path);
+        let mut artifact = self.artifact_name(path);
+        while self.names.contains(&artifact) {
+            *self.segments.entry(path.to_owned()).or_default() += 1;
+            artifact = self.artifact_name(path);
+        }
         name::validate(&artifact).map_err(|source| invalid(format!("artifact {artifact:?}: {source}")))?;
+        self.names.insert(artifact.clone());
         let spool = tempfile::NamedTempFile::new_in(self.spools.path())
             .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?
             .into_temp_path();
-        self.files += 1;
+        let line_bytes = 64 * 1024;
+        let line_bytes = std::num::NonZeroUsize::new(line_bytes).ok_or_else(|| invalid("line byte capacity must be nonzero"))?;
         self.tracked.insert(
             path.to_owned(),
             Tracked {
+                artifact,
                 spool,
                 written: 0,
                 offset: baseline,
                 entry,
                 mirrored: self.policy == Policy::Mirror,
                 synced: false,
-                pending: LineBuffer::default(),
+                pending: LineBuffer::new(line_bytes),
                 sealable: self.policy == Policy::Stream,
             },
         );
-        events.push(WatchEvent::Progress { path: path.to_owned(), offset: 0, phase: Phase::Baseline });
+        events.push(WatchEvent::Progress {
+            path: path.to_owned(),
+            offset: 0,
+            phase: Phase::Baseline,
+        });
         Ok(())
     }
 
@@ -401,12 +495,6 @@ impl State {
             return self.mirror(path, entry, events).await;
         }
 
-        // A Truncated Source Restarts At Its First Byte
-        if entry.size < tracked.offset {
-            tracked.offset = 0;
-            tracked.pending.reset();
-            events.push(WatchEvent::Gap { path: path.to_owned(), offset: tracked.written, reason: GapReason::Truncated });
-        }
         tracked.entry = entry;
         if entry.size <= tracked.offset {
             return Ok(());
@@ -426,7 +514,11 @@ impl State {
                 if copied == 0 {
                     return Ok(());
                 }
-                events.push(WatchEvent::Progress { path: path.to_owned(), offset: tracked.written, phase: Phase::Capturing });
+                events.push(WatchEvent::Progress {
+                    path: path.to_owned(),
+                    offset: tracked.written,
+                    phase: Phase::Capturing,
+                });
                 drop(spool);
                 if self.lines.is_empty() {
                     return Ok(());
@@ -439,8 +531,18 @@ impl State {
             }
             // A Source That Cannot Resume Mirrors This File From Now On
             Err(ReadFailure::ResumeUnsupported) => {
+                events.push(WatchEvent::Gap {
+                    path: path.to_owned(),
+                    offset: tracked.written,
+                    reason: GapReason::ResumeUnsupported,
+                });
+                if !self.lines.is_empty() {
+                    return Err(Error::conflict(
+                        super::UNSUPPORTED,
+                        "FTP server refused REST resume; line extraction cannot continue. Enable REST on the server or use a resumable/local source; captured evidence will be sealed",
+                    ));
+                }
                 tracked.mirrored = true;
-                events.push(WatchEvent::Gap { path: path.to_owned(), offset: tracked.written, reason: GapReason::ResumeUnsupported });
                 self.mirror(path, entry, events).await
             }
             Err(ReadFailure::Failed(source)) => Err(source),
@@ -481,13 +583,19 @@ impl State {
         tracked.synced = true;
         tracked.sealable = true;
         self.captured = held + copied;
-        events.push(WatchEvent::Progress { path: path.to_owned(), offset: copied, phase: Phase::Synced });
+        events.push(WatchEvent::Progress {
+            path: path.to_owned(),
+            offset: copied,
+            phase: Phase::Synced,
+        });
         Ok(())
     }
 
     // Copies every matched file once, as it is now.
     async fn snapshot(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
-        let listing: Listing = self.source.scan(&self.matcher).await?;
+        let Some(listing) = self.listing().await? else {
+            return Ok(());
+        };
         for (path, entry) in listing {
             self.discover(&path, entry, 0, events).await?;
             self.tracked.get_mut(&path).expect("discovered files are tracked").mirrored = true;
@@ -510,20 +618,58 @@ impl State {
         }
         // Drop Any Interrupted Write Past The Committed Length
         open_spool(&tracked.spool, tracked.written, false).await?;
-        let artifact = self.artifact_name(path);
+        let artifact = tracked.artifact;
         let record = self
             .runtime
             .upload_artifact_file(self.scope.clone(), &tracked.spool, artifact, media_type_for_path(path).map(str::to_owned))
             .await?;
         self.sealed.push(record.clone());
-        events.push(WatchEvent::Sealed { path: path.to_owned(), record: Box::new(record) });
+        *self.segments.entry(path.to_owned()).or_default() += 1;
+        events.push(WatchEvent::Sealed {
+            path: path.to_owned(),
+            record: Box::new(record),
+        });
         Ok(())
     }
 
     fn artifact_name(&self, path: &str) -> String {
-        match &self.artifact {
+        let base = match &self.artifact {
             Some(artifact) => artifact.clone(),
+            None if self.output.is_empty() => path.to_owned(),
             None => format!("{}/{path}", self.output),
+        };
+        let base = crate::exports::storage::paths::safe_artifact_path(&base);
+        match self.segments.get(path).copied().unwrap_or_default() {
+            0 => base,
+            segment => crate::files::segment_name(&base, segment + 1),
+        }
+    }
+
+    fn missing_source(&self, source: Error) -> Result<()> {
+        match self.wait_for_source {
+            Some(wait) if self.waiting_since.elapsed() < wait => Ok(()),
+            Some(_) => Err(Error::not_found("file_watch_missing", "source wait deadline elapsed before a matching file appeared")),
+            None => Err(source),
+        }
+    }
+
+    fn select(&mut self, listing: &mut Listing) {
+        if self.baseline.is_none() {
+            let baseline = listing.keys().cloned().collect::<BTreeSet<_>>();
+            if self.selection == Selection::Latest {
+                self.selected = listing
+                    .iter()
+                    .max_by(|(left_path, left), (right_path, right)| {
+                        left.modified.cmp(&right.modified).then_with(|| right_path.cmp(left_path))
+                    })
+                    .map(|(path, _)| path.clone());
+            }
+            self.baseline = Some(baseline);
+        }
+        match self.selection {
+            Selection::All => {}
+            Selection::Latest => listing.retain(|path, _| self.selected.as_ref() == Some(path)),
+            Selection::New => listing.retain(|path, _| !self.baseline.as_ref().expect("baseline established").contains(path)),
         }
     }
 
@@ -538,7 +684,7 @@ impl State {
             for found in self.lines.matches(&line) {
                 match found {
                     LineMatch::Row { stream, values, storage_schema } => {
-                        let payload = match crate::telemetry::capture_payload(&storage_schema, &values) {
+                        let payload = match crate::telemetry::capture_payload(&storage_schema, &values, self.runtime.schema_settings()) {
                             Ok(payload) => payload,
                             Err(error) => {
                                 tracing::warn!(%error, %stream, "file matcher row was rejected");
@@ -591,6 +737,7 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn over_bytes(maximum: u64, path: &str) -> Error {
     capped(format!("the watch captures at most {maximum} bytes; {path:?} would exceed it"))
 }

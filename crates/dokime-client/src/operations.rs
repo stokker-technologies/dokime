@@ -18,47 +18,57 @@ use std::collections::BTreeSet;
 
 // Third Party Imports
 use harmos::MemorySize;
+use harmos::builtins::host::{Catalog, CatalogKind, DiscoveredOperation};
 use harmos::domain::Portable;
-use harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
 use harmos::operations::{OperationDeclaration, StreamItem};
 
 // Local Imports
 use super::{Client, Error as ClientError, Result as ClientResult};
 use dokime_domain::model::runtime::wire::Health;
 use dokime_domain::model::runtime::wire::Identity;
-use dokime_domain::operations::runtime::GetHealth;
-use dokime_domain::operations::runtime::GetIdentity;
+use dokime_operations::runtime::GetHealth;
+use dokime_operations::runtime::GetIdentity;
 
 /* === Constants === */
-pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
-const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
-const MAX_CATALOG_ROWS: usize = 4096;
-const CATALOG_PAGE_BYTES: usize = 4 * 1024 * 1024;
+
+const CATALOG_BYTES: u64 = 16_777_216;
+const CATALOG_PAGE_BYTES: u64 = 4_194_304;
+const CATALOG_PAGE_ROWS: u64 = 64;
+const CATALOG_ROWS: u64 = 4_096;
+
 const CATALOG_PATH: &str = "/harmos.host.v1.Host/Catalog";
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 pub type Description = DiscoveredOperation;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("unknown operation: {0}")]
     Unknown(String),
+
     #[error("operation {0} has multiple providers; select an owner")]
     Ambiguous(String),
+
     #[error("operation {0} has no input stream")]
     InputStream(String),
-    #[error("operation input exceeds its byte limit")]
+
+    #[error("operation input exceeds its byte or frame limit")]
     InputTooLarge,
+
     #[error("operation catalog exceeds its client limit")]
     CatalogTooLarge,
+
     #[error("operation catalog is invalid")]
     Catalog,
+
     #[error(transparent)]
     Client(#[from] ClientError),
 }
@@ -66,8 +76,11 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub async fn operations(&self) -> Result<Vec<Description>> {
+        let page_rows = CATALOG_PAGE_ROWS as usize;
+        let page_bytes = CATALOG_PAGE_BYTES as usize;
         let deadline = self.timeout.map(|timeout| tokio::time::Instant::now() + timeout);
         let mut entries = Vec::new();
         let mut keys = BTreeSet::new();
@@ -77,7 +90,13 @@ impl Client {
         loop {
             let request = self.unary::<Catalog>(
                 CATALOG_PATH,
-                Catalog { kind: CatalogKind::Operations, schema: None, after, rows: Some(64), bytes: Some(CATALOG_PAGE_BYTES) },
+                Catalog {
+                    kind: CatalogKind::Operations,
+                    schema: None,
+                    after,
+                    rows: Some(page_rows),
+                    bytes: Some(page_bytes),
+                },
             );
             let page = match deadline {
                 Some(deadline) => tokio::time::timeout_at(deadline, request)
@@ -86,11 +105,11 @@ impl Client {
                 None => request.await?,
             };
             bytes = bytes.checked_add(page.entries.len()).ok_or(Error::CatalogTooLarge)?;
-            if bytes > MAX_CATALOG_BYTES {
+            if bytes > CATALOG_BYTES as usize {
                 return Err(Error::CatalogTooLarge);
             }
             let batch: Vec<DiscoveredOperation> = serde_json::from_slice(&page.entries).map_err(|_| Error::Catalog)?;
-            if batch.len() > 64 || entries.len() + batch.len() > MAX_CATALOG_ROWS {
+            if batch.len() > page_rows || entries.len() + batch.len() > CATALOG_ROWS as usize {
                 return Err(Error::CatalogTooLarge);
             }
             if batch.is_empty() && page.next.is_some() {
@@ -105,7 +124,7 @@ impl Client {
             }
             match &page.next {
                 None => return Ok(entries),
-                Some(cursor) if cursor.is_empty() || cursor.len() > CATALOG_PAGE_BYTES => {
+                Some(cursor) if cursor.is_empty() || cursor.len() > page_bytes => {
                     return Err(Error::Catalog);
                 }
                 Some(cursor) => {
@@ -114,7 +133,7 @@ impl Client {
                     }
                     // Cursor Memory Counts Against The Same Catalog Budget.
                     bytes = bytes.checked_add(cursor.len()).ok_or(Error::CatalogTooLarge)?;
-                    if bytes > MAX_CATALOG_BYTES {
+                    if bytes > CATALOG_BYTES as usize {
                         return Err(Error::CatalogTooLarge);
                     }
                     after = Some(cursor.clone());
@@ -131,15 +150,15 @@ impl Client {
         self.unary::<GetIdentity>(GetIdentity::PATH, GetIdentity {}).await
     }
 
-    pub(super) async fn unary<O>(&self, path: &'static str, message: O) -> ClientResult<StreamItem<O::Response>>
+    pub(super) async fn unary<O>(&self, path: &'static str, message: O::Request) -> ClientResult<StreamItem<O::Response>>
     where
         O: OperationDeclaration,
-        O: Portable + Sync,
+        O::Request: Sync,
         O::Response: Portable + MemorySize,
     {
         self.require(path)?;
         self.execute(async {
-            super::transport::unary::<O::Response, O>(
+            super::transport::unary::<O::Response, O::Request>(
                 self.channel().map_err(|error| tonic::Status::cancelled(error.to_string()))?,
                 self.inner.authorization.as_ref(),
                 path,
@@ -160,4 +179,5 @@ impl Client {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 /* === Tests === */

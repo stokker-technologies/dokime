@@ -10,11 +10,14 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::domains::SettingDiscovery as Discovery;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::PathBuf;
+
 // Third Party Imports
 
 // Local Imports
@@ -26,10 +29,13 @@ use crate::values::FieldValue;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 /* === Macros === */
 
 /* === Type Aliases === */
+
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoSettings;
 
@@ -43,6 +49,7 @@ pub struct Discovered {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait SettingsSection: Sized {
     const LABEL: &'static str;
 
@@ -87,6 +94,7 @@ pub trait PluginSettings: Sized + Send + Sync + 'static {
 pub trait Answers<Answered> {}
 
 /* === Implementations === */
+
 impl PluginSettings for NoSettings {
     fn catalog() -> Settings {
         Settings { contributions: Vec::new() }
@@ -105,16 +113,13 @@ impl PluginSettings for NoSettings {
 // operation that answers something else fails as a projection mismatch and
 // rustc reports the projection rather than the message above.
 #[diagnostic::do_not_recommend]
-impl<R, Answered> Answers<Answered> for R
-where
-    R: harmos::operations::Declares,
-    R::Declaration: harmos::operations::OperationDeclaration<Response = Answered>,
-{
-}
+impl<R, Answered> Answers<Answered> for R where R: harmos::operations::OperationDeclaration<Response = Answered> {}
 
 impl Discovered {
     pub fn of(value: impl Into<Value>) -> Self {
-        Self { value_json: serde_json::to_string(&value.into()).expect("a settings value serializes") }
+        Self {
+            value_json: serde_json::to_string(&value.into()).expect("a settings value serializes"),
+        }
     }
 
     pub fn value(&self) -> Result<Value, serde_json::Error> {
@@ -129,25 +134,33 @@ pub fn option_provider(operation: &str) -> OptionProviderContribution {
         metadata: crate::domains::authoring::metadata(operation, &titled(operation), "Offered by this plugin while it is running."),
         input_schema: None,
         permissions: Vec::new(),
-        source: OptionProviderSource::Runtime { entrypoint: PluginEntrypoint { name: operation.to_owned() } },
+        source: OptionProviderSource::Runtime {
+            entrypoint: PluginEntrypoint { name: operation.to_owned() },
+        },
     }
 }
 
 pub const fn answers<R: Answers<Answered>, Answered>() {}
 
-pub fn operation_of<R: harmos::operations::Declares>() -> &'static str {
-    <R::Declaration as harmos::operations::OperationDeclaration>::ID
+pub fn operation_of<R: harmos::operations::OperationDeclaration>() -> &'static str {
+    R::ID
 }
 
 pub fn discovery(field: &str, operation: &str) -> Discovery {
-    Discovery { field: field.to_owned(), operation: operation.to_owned() }
+    Discovery {
+        field: field.to_owned(),
+        operation: operation.to_owned(),
+    }
 }
 
 pub fn choices<T: ParameterValue>() -> Vec<Choice> {
     <T as ParameterValue>::choices()
         .unwrap_or_default()
         .into_iter()
-        .map(|choice| Choice { value: text(choice.value), title: choice.label })
+        .map(|choice| Choice {
+            value: text(choice.value),
+            title: choice.label,
+        })
         .collect()
 }
 
@@ -197,6 +210,7 @@ pub fn bound_secret(configuration: &Configuration, id: &str) -> Option<Secret> {
 }
 
 /* === Private Functions === */
+
 fn titled(id: &str) -> String {
     id.split(['.', '-', '_'])
         .filter(|word| !word.is_empty())

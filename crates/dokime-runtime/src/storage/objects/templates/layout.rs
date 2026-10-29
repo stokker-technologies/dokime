@@ -22,7 +22,6 @@ use super::documents;
 use crate::storage::{Error, Result, objects::metadata};
 
 /* === Constants === */
-const MAX_NODES: usize = 4096;
 const MAX_DEPTH: usize = 64;
 
 /* === Macros === */
@@ -75,9 +74,6 @@ impl Layout {
     }
 
     fn projection(&self) -> Result<(usize, usize)> {
-        if self.nodes.len() > MAX_NODES {
-            return Err(Error::Invalid("document layout exceeds node limit"));
-        }
         let mut at = 0;
         let mut roots = 0usize;
         let mut bytes = std::mem::size_of::<crate::document::DocumentLayout>();
@@ -145,10 +141,10 @@ impl<'de> Deserialize<'de> for Layout {
 
 /* === Private Functions === */
 fn encoding_node(value: &crate::document::DocumentNode, depth: usize, count: &mut usize) -> Result<usize> {
-    if depth > MAX_DEPTH || *count >= MAX_NODES {
-        return Err(Error::Invalid("document layout exceeds node or depth limit"));
+    if depth > MAX_DEPTH {
+        return Err(Error::Invalid("document layout exceeds depth limit"));
     }
-    *count += 1;
+    *count = (*count).checked_add(1).ok_or(Error::Invalid("document layout node count overflows"))?;
     let mut bytes = std::mem::size_of::<Node>();
     match value {
         crate::document::DocumentNode::Card(card) => {
@@ -179,16 +175,21 @@ fn encoding_node(value: &crate::document::DocumentNode, depth: usize, count: &mu
 
 fn append_node(value: &crate::document::DocumentNode, nodes: &mut Vec<Node>) -> Result<()> {
     match value {
-        crate::document::DocumentNode::Card(card) => {
-            nodes.push(Node { card: Some(documents::Placement::try_from(card)?), ..Default::default() })
-        }
+        crate::document::DocumentNode::Card(card) => nodes.push(Node {
+            card: Some(documents::Placement::try_from(card)?),
+            ..Default::default()
+        }),
         crate::document::DocumentNode::Section(section) => {
             let definition = Section {
                 node_id: section.node_id.as_str().to_owned(),
                 metadata: Some(metadata::Row::try_from(&section.metadata)?),
                 repeat: section.repeat.as_ref().map(documents::Repeat::try_from).transpose()?,
             };
-            nodes.push(Node { children: section.children.len() as u32, section: Some(definition), card: None });
+            nodes.push(Node {
+                children: section.children.len() as u32,
+                section: Some(definition),
+                card: None,
+            });
             for child in &section.children {
                 append_node(child, nodes)?;
             }
@@ -255,3 +256,25 @@ fn consume_node(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result<cr
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime_domain::model::document::definition::{DocumentCardPlacement, DocumentLayout, DocumentNode};
+    use dokime_domain::model::identity::Identifier;
+
+    #[test]
+    fn admits_a_valid_layout_above_the_former_node_limit() {
+        let card_id = Identifier::new("card").unwrap();
+        let card = DocumentCardPlacement { card_id, layout: Default::default() };
+        let card = DocumentNode::Card(card);
+        let source = DocumentLayout { nodes: vec![card; 4097] };
+        let row = Layout::try_from(&source).unwrap();
+
+        assert_eq!(row.nodes.len(), 4097);
+        let projected_memory = row.projection_memory().unwrap();
+        assert!(projected_memory > std::mem::size_of::<DocumentLayout>());
+        let decoded = DocumentLayout::try_from(row).unwrap();
+        assert_eq!(decoded, source);
+    }
+}

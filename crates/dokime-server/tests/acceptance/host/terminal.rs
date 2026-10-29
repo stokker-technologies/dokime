@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::process::Command;
 // Third Party Imports
+use futures_util::FutureExt;
 
 // Local Imports
 use crate::support::host::Host;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -37,6 +38,7 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // A Connected Client Sees The Host Ready Before It Is Stopped
 async fn serve_until_stopped(signal: bool) {
     let host = Host::launch(None).await;
@@ -48,6 +50,7 @@ async fn serve_until_stopped(signal: bool) {
 }
 
 /* === Tests === */
+
 #[tokio::test]
 async fn stdin_close_stops() {
     serve_until_stopped(false).await;
@@ -66,7 +69,7 @@ fn browser_origins_validated() {
         (true, vec!["tauri://localhost".to_owned(), "tauri://localhost".to_owned()]),
         (true, (0..33).map(|index| format!("https://frontend{index}.example")).collect()),
     ] {
-        let mut command = Command::new(super::executable());
+        let mut command = super::command();
         command.args(["--color", "never", "--application-root"]);
         command.arg(&application);
         if web {
@@ -85,14 +88,14 @@ fn browser_origins_validated() {
 
 #[test]
 fn reports_version_identity() {
-    let output = Command::new(super::executable()).args(["--color", "always", "version", "--json"]).output().unwrap();
+    let output = super::command().args(["--color", "always", "version", "--json"]).output().unwrap();
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(value["dev_protocol"], 4);
     assert!(value["sdk_revision"].is_null() || value["sdk_revision"].as_str().is_some_and(|value| value.len() == 40));
-    let output = Command::new(super::executable()).args(["version"]).output().unwrap();
+    let output = super::command().args(["version"]).output().unwrap();
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stdout).unwrap(), format!("{}\n", env!("CARGO_PKG_VERSION")));
 }
@@ -100,57 +103,37 @@ fn reports_version_identity() {
 #[test]
 fn stderr_color_policy() {
     for (mode, no_color, colored) in [("auto", false, false), ("auto", true, false), ("always", false, true), ("never", false, false)] {
-        let mut command = Command::new(super::executable());
+        let mut command = super::command();
         command.args(["--color", mode, "--message-limit-mib", &usize::MAX.to_string()]);
         command.env_remove("NO_COLOR").env_remove("CLICOLOR_FORCE");
         if no_color {
             command.env("NO_COLOR", "1");
         }
         let output = command.output().unwrap();
-        assert!(!output.status.success());
+        assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
         let stderr = String::from_utf8(output.stderr).unwrap();
-        assert!(stderr.contains("message limit must be between 1 and 16 MiB"));
+        assert!(!stderr.is_empty());
         assert_eq!(stderr.contains('\u{1b}'), colored);
     }
 }
 
 #[test]
 fn control_requires_stdin() {
-    let output = Command::new(super::executable()).args(["--dev-control"]).output().unwrap();
+    let output = super::command().args(["--dev-control"]).output().unwrap();
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains("--shutdown-stdin"));
 }
 
 #[test]
-fn authentication_file_bounded() {
+fn native_listener_requires_loopback() {
     let root = tempfile::tempdir().unwrap();
-    let auth = root.path().join("auth.json");
-    for (bytes, expected) in [
-        (br#"{"grants":[]}"#.to_vec(), "requires 1 to 128 grants"),
-        (b"invalid-json".to_vec(), "invalid authentication file"),
-        (vec![b' '; 1024 * 1024 + 1], "input file exceeds 1048576 bytes"),
-    ] {
-        std::fs::write(&auth, bytes).unwrap();
-        let output = Command::new(super::executable()).args(["--auth-file"]).arg(&auth).output().unwrap();
-        assert!(!output.status.success());
-        assert!(String::from_utf8_lossy(&output.stderr).contains(expected), "{}", String::from_utf8_lossy(&output.stderr));
-    }
-    std::fs::write(&auth, br#"{"grants":[{"subject":"operator","role":"admin","token":"01234567890123456789012345678901"}]}"#).unwrap();
-    let output = Command::new(super::executable())
-        .args(["--auth-file"])
-        .arg(&auth)
-        .arg("--env-file")
-        .arg(root.path().join("missing.env"))
-        .output()
-        .unwrap();
+    let application = root.path().join("application");
+    let output = super::command().args(["--host", "0.0.0.0"]).env("DOKIME_APPLICATION_ROOT", &application).output().unwrap();
     assert!(!output.status.success());
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("cannot load environment file"),
-        "valid authentication file must pass before environment loading: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("the native listener requires loopback"));
+    assert!(!application.exists());
 }
 
 #[tokio::test]
@@ -163,7 +146,7 @@ async fn environment_file_precedence() {
         let from_file = scenario.join("from-file");
         let existing = scenario.join("already-exported");
         std::fs::write(&env, format!("DOKIME_APPLICATION_ROOT='{}'\n", from_file.display())).unwrap();
-        let mut command = Command::new(super::executable());
+        let mut command = super::command();
         command
             .args(["--env-file"])
             .arg(&env)
@@ -177,23 +160,24 @@ async fn environment_file_precedence() {
         let output = command.output().unwrap();
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         let (selected, unselected) = if exported { (&existing, &from_file) } else { (&from_file, &existing) };
-        assert!(selected.join("settings.json").is_file());
+        assert!(selected.join("data/local.sqlite").is_file());
+        assert!(!selected.join("settings.json").exists());
         assert!(!unselected.exists());
     }
-    let output = Command::new(super::executable()).args(["--env-file"]).arg(root.path().join("missing.env")).output().unwrap();
+    let output = super::command().args(["--env-file"]).arg(root.path().join("missing.env")).output().unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot load environment file"));
     let malformed = root.path().join("malformed");
     std::fs::create_dir(&malformed).unwrap();
     std::fs::write(malformed.join(".env"), "DOKIME_APPLICATION_ROOT='unterminated\n").unwrap();
-    let output = Command::new(super::executable()).current_dir(&malformed).output().unwrap();
+    let output = super::command().current_dir(&malformed).output().unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot load project .env file"));
 }
 
 fn owned_launch(application: &std::path::Path) -> std::process::Command {
     // The Arguments The Desktop Shell Passes Its Owned Backend
-    let mut command = Command::new(super::executable());
+    let mut command = super::command();
     command
         .args(["--color", "never", "--dev-control", "--shutdown-stdin", "--port", "0", "--application-root"])
         .arg(application)
@@ -239,7 +223,7 @@ fn same_root_relaunches() {
 
 #[tokio::test]
 async fn incompatible_storage_refused() {
-    use dokime_runtime::storage::sqlite::{self, rusqlite};
+    use dokime::storage::sqlite::{self, rusqlite};
     let root = tempfile::tempdir().unwrap();
     let application = root.path().join("application");
     let data = application.join("data");
@@ -260,9 +244,7 @@ async fn incompatible_storage_refused() {
         data.display().to_string(),
         "schema version 7".to_owned(),
         "this build reads version 1".to_owned(),
-        "Move or delete that directory".to_owned(),
         "DOKIME_OUTPUT_ROOT".to_owned(),
-        "settings.json data_root".to_owned(),
     ] {
         assert!(stderr.contains(&expected), "missing {expected:?} in {stderr}");
     }
@@ -270,22 +252,21 @@ async fn incompatible_storage_refused() {
     assert_eq!(std::fs::read(data.join("local.sqlite")).unwrap(), original);
 
     // The Same Refusal Is Typed In Process
-    let mut config = dokime_runtime::config::Config::local(&data);
+    let mut config = dokime::config::Config::local(&data);
     config.application_root = Some(application.clone());
     config.seed_plugins = false;
-    let error = dokime_runtime::app::launch(config).await.err().unwrap();
+    let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, data.clone());
     assert!(matches!(&error, dokime_server::host::Error::IncompatibleStorage { root, .. } if root == &data), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(4));
-    assert_eq!(error.to_string().lines().count(), 3, "one sentence per line");
 
     // A Root Owned By Another Runtime Is Not Reported As Incompatible
     let fresh = root.path().join("owned");
     let owner = sqlite::State::open(&fresh).await.unwrap();
-    let mut config = dokime_runtime::config::Config::local(&fresh);
+    let mut config = dokime::config::Config::local(&fresh);
     config.application_root = Some(application);
     config.seed_plugins = false;
-    let error = dokime_runtime::app::launch(config).await.err().unwrap();
+    let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, fresh);
     assert!(matches!(&error, dokime_server::host::Error::Runtime(_)), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(3));

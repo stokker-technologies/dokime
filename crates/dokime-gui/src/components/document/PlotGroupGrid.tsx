@@ -14,7 +14,7 @@ import { memo, type ReactNode, useMemo } from "react";
 /* === Local Imports === */
 
 import { documentPlotGroupDescription, documentPlotSpec, type PlotCardSpec } from "@/lib/document-plots";
-import type { DocumentViewPlot, JsonObject, TelemetryStream } from "@/lib/types";
+import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "@/lib/types";
 import { AnalysisResult } from "@/plots/AnalysisResult";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
@@ -27,8 +27,12 @@ import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPl
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
-import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { groupRepeatsPlotTitle } from "@/plots/grouping";
+import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
+import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
+import { plotPlaceholderText, plotUnavailableText, STREAM_ERROR } from "@/plots/plot-placeholder";
 import { type PlotDisplaySettings, usePlotSettingsEditor } from "@/plots/plot-settings";
+import { type PromptMarker, promptMarkers } from "@/plots/prompt-markers";
 import type { PlotViewportMode } from "@/plots/types";
 import { usePlotPalette } from "@/plots/use-plot-palette";
 
@@ -42,6 +46,8 @@ type LivePlotGroupGridProps = {
   /** Present only on the live surface; the sealed report reads what it persisted. */
   onPlotSettingsChange?: PlotSettingsChange;
   parameters?: JsonObject | null;
+  /** The shown scope's records; its prompts mark every time-series plot. */
+  records?: readonly HubRecord[];
   telemetry?: Record<string, TelemetryStream> | null;
   resetKey?: string;
   showGroupHeaders?: boolean;
@@ -58,6 +64,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   liveStates = EMPTY_LIVE_PLOT_STATES,
   onPlotSettingsChange,
   parameters,
+  records = EMPTY_RECORDS,
   resetKey,
   showGroupHeaders = true,
   telemetry,
@@ -65,9 +72,12 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   viewportMode = "live",
 }: LivePlotGroupGridProps) {
   const plotPalette = usePlotPalette();
+  const prompts = useMemo(() => promptMarkers(records), [records]);
+  // A lone plot titled like its group or section is already named above it.
+  const titleRepeated = groupRepeatsPlotTitle(title, documentPlots);
   if (!documentPlots.length) {
     return (
-      <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 text-center text-muted-foreground">
+      <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-lg bg-muted/20 text-center text-muted-foreground">
         <strong>Document plots are loading</strong>
         <span>The selected case document has not provided plot metadata yet.</span>
       </div>
@@ -82,7 +92,9 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
       parameters={parameters}
       plotPalette={plotPalette}
       position={position}
+      prompts={prompts}
       resetKey={resetKey}
+      titleRepeated={titleRepeated}
       state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
       telemetry={telemetry}
       title={title}
@@ -106,6 +118,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
 });
 
 const EMPTY_LIVE_PLOT_STATES: LivePlotStateMap = {};
+const EMPTY_RECORDS: readonly HubRecord[] = [];
 const EMPTY_LIVE_PLOT_STATE = emptyLivePlotState();
 
 const LivePlotCard = memo(function LivePlotCard({
@@ -114,7 +127,9 @@ const LivePlotCard = memo(function LivePlotCard({
   parameters,
   plotPalette,
   position,
+  prompts,
   resetKey,
+  titleRepeated,
   state,
   telemetry,
   title,
@@ -125,25 +140,28 @@ const LivePlotCard = memo(function LivePlotCard({
   parameters?: JsonObject | null;
   plotPalette: readonly string[];
   position: number;
+  prompts: PromptMarker[];
   resetKey?: string;
+  titleRepeated: boolean;
   state: LivePlotState;
   telemetry?: Record<string, TelemetryStream> | null;
   title: string;
   viewportMode: PlotViewportMode;
 }) {
-  const plot = useMemo(
-    () =>
-      livePlotSpec({
-        descriptor,
-        parameters,
-        plotPalette,
-        position,
-        state,
-        telemetry,
-        title,
-      }),
-    [descriptor, parameters, plotPalette, position, state, telemetry, title],
-  );
+  const plot = useMemo(() => {
+    const spec = livePlotSpec({
+      descriptor,
+      parameters,
+      plotPalette,
+      position,
+      state,
+      telemetry,
+      title,
+    });
+    // Prompt times are wall-clock instants: only a wall-time axis can place them.
+    const marked = spec.timeAxis && !spec.xElapsedUnit ? { ...spec, promptMarkers: prompts } : spec;
+    return titleRepeated ? { ...marked, titleRepeated } : marked;
+  }, [descriptor, parameters, plotPalette, position, prompts, state, telemetry, title, titleRepeated]);
   const PlotSettingsButton = usePlotSettingsEditor();
   const actions =
     onPlotSettingsChange && PlotSettingsButton ? (
@@ -165,10 +183,13 @@ function plotCardClassName(plot: PlotCardSpec): string {
   if (plot.plotType === "bar") {
     return `${baseClassName} min-h-0`;
   }
-  return plotHasNumericSamples(plot) || isChartLikePlot(plot) ? `${baseClassName} min-h-[18rem]` : `${baseClassName} min-h-44`;
+  return plotHasNumericSamples(plot) || isChartLikePlot(plot) ? `${baseClassName} min-h-72` : `${baseClassName} min-h-44`;
 }
 
 function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotViewportMode = "fit", actions?: ReactNode) {
+  if (plot.stateLabel === STREAM_ERROR) {
+    return <PlotPlaceholder title={plot.title} actions={actions} {...plotPlaceholderText(plot)} />;
+  }
   if (plot.computed)
     return (
       <AnalysisResult
@@ -180,7 +201,7 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
       />
     );
   if (plot.analysis?.kind === "error") {
-    return <p role="alert">{plot.analysis.message}</p>;
+    return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
   }
   if (plot.plotType === "wifi_channel_occupancy") {
     return <WifiChannelOccupancyPlot plot={plot} />;
@@ -245,24 +266,28 @@ function livePlotSpec({
   });
 
   const label =
-    state.status === "loading"
-      ? "Loading Plot"
-      : state.status === "stale"
-        ? "Stream Stale"
-        : state.status === "reconnecting"
-          ? "Reconnecting"
-          : state.status === "error"
-            ? "Stream Error"
-            : spec.stateLabel;
+    state.status === "waiting"
+      ? plotWaitingLabel(state)
+      : state.status === "loading"
+        ? "Loading Plot"
+        : state.status === "stale"
+          ? "Stream Stale"
+          : state.status === "reconnecting"
+            ? "Reconnecting"
+            : state.status === "error"
+              ? STREAM_ERROR
+              : spec.stateLabel;
   const detail =
     state.status === "reconnecting" && state.payload
       ? "The last samples remain visible while the plot stream reopens."
       : (state.error ??
-        (state.status === "loading"
-          ? "Waiting for the first plot payload."
-          : state.status === "stale"
-            ? "The last samples remain visible while the plot stream reconnects."
-            : spec.stateDetail));
+        (state.status === "waiting"
+          ? "The plot is subscribed; its first frame is still being read."
+          : state.status === "loading"
+            ? "Waiting for the first plot payload."
+            : state.status === "stale"
+              ? "The last samples remain visible while the plot stream reconnects."
+              : spec.stateDetail));
   // Frame sizes and compaction counts are transport diagnostics, not plot
   // context; they stay out of what an operator reads under a title.
   return {

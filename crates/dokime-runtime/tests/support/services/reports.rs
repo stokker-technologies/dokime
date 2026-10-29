@@ -37,6 +37,7 @@ use model::execution::{HealthItem, OperatorNote};
 /* === Type Aliases === */
 
 /* === Structs === */
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReportOwner;
 
 /* === Enums === */
@@ -45,6 +46,7 @@ pub struct ReportOwner;
 
 /* === Implementations === */
 impl harmos::Application for ReportOwner {
+    type Lanes = ReportOwner;
     type State = ();
     type Transaction = harmos::state::Never;
     type Record = harmos::state::Never;
@@ -53,6 +55,9 @@ impl harmos::Application for ReportOwner {
 }
 
 impl harmos::operations::Lane for ReportOwner {
+    fn default_lane() -> Self {
+        Self
+    }
     fn name(&self) -> &'static str {
         "Report Storage"
     }
@@ -69,14 +74,28 @@ pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> 
         .runtime_with_storage(manager)
         .await
         .unwrap();
-    harmos::storage::operations::register(&runtime.operations, "fixture.storage", ReportOwner, Arc::new(manager.clone())).unwrap();
+    let storage = harmos::builtin::storage_registration(Arc::new(manager.clone())).unwrap();
+    runtime.operations.register(harmos::RegistrationExt::lane(storage, ReportOwner)).await.unwrap();
     runtime
 }
 
 pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
     let bytes = dokime_runtime::storage::read_file_bytes(manager, file).await.unwrap();
     assert_eq!(bytes.len() as u64, file.length);
-    assert_eq!(sha2::Sha256::digest(&bytes).as_slice(), file.sha256.as_slice());
+    assert_eq!(sha2::Sha256::digest(bytes.as_slice()).as_slice(), file.sha256.as_slice());
+    bytes.as_slice().to_vec()
+}
+
+pub async fn opened_bytes(report: &mut dokime_runtime::OpenedReport) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    while let Some(batch) = report.reader.next().await.unwrap() {
+        assert_eq!(batch.offset(), bytes.len() as u64);
+        assert!(batch.bytes().len() <= 8 * 1024 * 1024);
+        bytes.extend_from_slice(batch.bytes());
+    }
+    report.reader.completion().unwrap();
+    assert_eq!(bytes.len() as u64, report.file.length);
+    assert_eq!(sha2::Sha256::digest(&bytes).as_slice(), report.file.sha256.as_slice());
     bytes
 }
 
@@ -106,7 +125,7 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        dokime_runtime::storage::state_settings(),
+        dokime_runtime::config::storage_state_defaults(),
     ));
     let manager = Manager::new(StorageBackends { primary, state: recovery }, settings).unwrap();
     let owner = storage_runtime(&manager).await;
@@ -124,6 +143,7 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     let mut grouping = input.cycle.clone();
     grouping.test_executions.clear();
     let context = dokime_runtime::execution::context::ExecutionContext {
+        appearance_policy: dokime_runtime::execution::context::captured::AppearancePolicy::capture(),
         scope: execution.scope.clone(),
         session_id: input.session_id.clone(),
         cycle: dokime_runtime::execution::context::ExecutionCycleContext {
@@ -158,6 +178,7 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
         telemetry_contracts.entry(sample.stream.clone()).or_default().insert(sample.schema_version, contract);
     }
     let captured = CapturedExecutionReportInput {
+        report_defaults: Default::default(),
         final_report: true,
         owner_node_id: dokime_runtime::NodeId::from_seed("fixture.report.owner"),
         execution_id: execution.test_execution_id.clone(),
@@ -175,13 +196,13 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     };
 
     // Prepare, Save, And Read Back The Stored Report
-    let captured = Arc::new(captured);
+    let captured = harmos::storage::ReadBatch::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = Vec::new();
     let mut prepared = dokime_runtime::report::Renderer.execution(captured, outputs, &manager.cursor_saved()).unwrap();
-    let seal = prepared.save_dependencies(&manager, &owner.operations, &execution.finished_at.clone().unwrap(), &revision).await.unwrap();
+    let seal = prepared.save_dependencies(&manager, &execution.finished_at.clone().unwrap(), &revision).await.unwrap();
     let html = dokime_runtime::storage::read_file_bytes(&manager, &seal.report).await.unwrap();
-    let html = String::from_utf8(html).unwrap();
+    let html = String::from_utf8(html.as_slice().to_vec()).unwrap();
     drop(prepared);
     owner.stop().await.unwrap();
     html

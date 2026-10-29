@@ -10,22 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SplatRouteImport } from './routes/$'
-import { Route as CycleRouteImport } from './routes/cycle'
 import { Route as CyclesRouteImport } from './routes/cycles'
-import { Route as ExecutionRouteImport } from './routes/execution'
-import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LibraryRouteImport } from './routes/library'
-import { Route as PlanRouteImport } from './routes/plan'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as CyclesCycleIdRouteImport } from './routes/cycles_.$cycleId'
-import { Route as ExploreCycleIdRouteImport } from './routes/explore_.$cycleId'
-import { Route as ExploreCompareRouteImport } from './routes/explore_.compare'
 import { Route as HistoryCycleIdRouteImport } from './routes/history_.$cycleId'
 import { Route as HistoryCompareRouteImport } from './routes/history_.compare'
 import { Route as SettingsSectionRouteImport } from './routes/settings_.$section'
-import { Route as ExploreExecutionsExecutionIdRouteImport } from './routes/explore_.executions.$executionId'
 import { Route as HistoryExecutionsExecutionIdRouteImport } from './routes/history_.executions.$executionId'
 import { Route as SettingsPluginsPluginIdRouteImport } from './routes/settings_.plugins.$pluginId'
 
@@ -34,29 +26,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SplatRoute = SplatRouteImport.update({
-  id: '/$',
-  path: '/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CycleRoute = CycleRouteImport.update({
-  id: '/cycle',
-  path: '/cycle',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CyclesRoute = CyclesRouteImport.update({
   id: '/cycles',
   path: '/cycles',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExecutionRoute = ExecutionRouteImport.update({
-  id: '/execution',
-  path: '/execution',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExploreRoute = ExploreRouteImport.update({
-  id: '/explore',
-  path: '/explore',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoryRoute = HistoryRouteImport.update({
@@ -69,11 +41,6 @@ const LibraryRoute = LibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlanRoute = PlanRouteImport.update({
-  id: '/plan',
-  path: '/plan',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -82,16 +49,6 @@ const SettingsRoute = SettingsRouteImport.update({
 const CyclesCycleIdRoute = CyclesCycleIdRouteImport.update({
   id: '/cycles_/$cycleId',
   path: '/cycles/$cycleId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExploreCycleIdRoute = ExploreCycleIdRouteImport.update({
-  id: '/explore_/$cycleId',
-  path: '/explore/$cycleId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExploreCompareRoute = ExploreCompareRouteImport.update({
-  id: '/explore_/compare',
-  path: '/explore/compare',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoryCycleIdRoute = HistoryCycleIdRouteImport.update({
@@ -109,12 +66,6 @@ const SettingsSectionRoute = SettingsSectionRouteImport.update({
   path: '/settings/$section',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ExploreExecutionsExecutionIdRoute =
-  ExploreExecutionsExecutionIdRouteImport.update({
-    id: '/explore_/executions/$executionId',
-    path: '/explore/executions/$executionId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const HistoryExecutionsExecutionIdRoute =
   HistoryExecutionsExecutionIdRouteImport.update({
     id: '/history_/executions/$executionId',
@@ -129,65 +80,41 @@ const SettingsPluginsPluginIdRoute = SettingsPluginsPluginIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/$': typeof SplatRoute
-  '/cycle': typeof CycleRoute
   '/cycles': typeof CyclesRoute
-  '/execution': typeof ExecutionRoute
-  '/explore': typeof ExploreRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
-  '/plan': typeof PlanRoute
   '/settings': typeof SettingsRoute
   '/cycles/$cycleId': typeof CyclesCycleIdRoute
-  '/explore/$cycleId': typeof ExploreCycleIdRoute
-  '/explore/compare': typeof ExploreCompareRoute
   '/history/$cycleId': typeof HistoryCycleIdRoute
   '/history/compare': typeof HistoryCompareRoute
   '/settings/$section': typeof SettingsSectionRoute
-  '/explore/executions/$executionId': typeof ExploreExecutionsExecutionIdRoute
   '/history/executions/$executionId': typeof HistoryExecutionsExecutionIdRoute
   '/settings/plugins/$pluginId': typeof SettingsPluginsPluginIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/$': typeof SplatRoute
-  '/cycle': typeof CycleRoute
   '/cycles': typeof CyclesRoute
-  '/execution': typeof ExecutionRoute
-  '/explore': typeof ExploreRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
-  '/plan': typeof PlanRoute
   '/settings': typeof SettingsRoute
   '/cycles/$cycleId': typeof CyclesCycleIdRoute
-  '/explore/$cycleId': typeof ExploreCycleIdRoute
-  '/explore/compare': typeof ExploreCompareRoute
   '/history/$cycleId': typeof HistoryCycleIdRoute
   '/history/compare': typeof HistoryCompareRoute
   '/settings/$section': typeof SettingsSectionRoute
-  '/explore/executions/$executionId': typeof ExploreExecutionsExecutionIdRoute
   '/history/executions/$executionId': typeof HistoryExecutionsExecutionIdRoute
   '/settings/plugins/$pluginId': typeof SettingsPluginsPluginIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/$': typeof SplatRoute
-  '/cycle': typeof CycleRoute
   '/cycles': typeof CyclesRoute
-  '/execution': typeof ExecutionRoute
-  '/explore': typeof ExploreRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
-  '/plan': typeof PlanRoute
   '/settings': typeof SettingsRoute
   '/cycles_/$cycleId': typeof CyclesCycleIdRoute
-  '/explore_/$cycleId': typeof ExploreCycleIdRoute
-  '/explore_/compare': typeof ExploreCompareRoute
   '/history_/$cycleId': typeof HistoryCycleIdRoute
   '/history_/compare': typeof HistoryCompareRoute
   '/settings_/$section': typeof SettingsSectionRoute
-  '/explore_/executions/$executionId': typeof ExploreExecutionsExecutionIdRoute
   '/history_/executions/$executionId': typeof HistoryExecutionsExecutionIdRoute
   '/settings_/plugins/$pluginId': typeof SettingsPluginsPluginIdRoute
 }
@@ -195,86 +122,54 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/$'
-    | '/cycle'
     | '/cycles'
-    | '/execution'
-    | '/explore'
     | '/history'
     | '/library'
-    | '/plan'
     | '/settings'
     | '/cycles/$cycleId'
-    | '/explore/$cycleId'
-    | '/explore/compare'
     | '/history/$cycleId'
     | '/history/compare'
     | '/settings/$section'
-    | '/explore/executions/$executionId'
     | '/history/executions/$executionId'
     | '/settings/plugins/$pluginId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/$'
-    | '/cycle'
     | '/cycles'
-    | '/execution'
-    | '/explore'
     | '/history'
     | '/library'
-    | '/plan'
     | '/settings'
     | '/cycles/$cycleId'
-    | '/explore/$cycleId'
-    | '/explore/compare'
     | '/history/$cycleId'
     | '/history/compare'
     | '/settings/$section'
-    | '/explore/executions/$executionId'
     | '/history/executions/$executionId'
     | '/settings/plugins/$pluginId'
   id:
     | '__root__'
     | '/'
-    | '/$'
-    | '/cycle'
     | '/cycles'
-    | '/execution'
-    | '/explore'
     | '/history'
     | '/library'
-    | '/plan'
     | '/settings'
     | '/cycles_/$cycleId'
-    | '/explore_/$cycleId'
-    | '/explore_/compare'
     | '/history_/$cycleId'
     | '/history_/compare'
     | '/settings_/$section'
-    | '/explore_/executions/$executionId'
     | '/history_/executions/$executionId'
     | '/settings_/plugins/$pluginId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  SplatRoute: typeof SplatRoute
-  CycleRoute: typeof CycleRoute
   CyclesRoute: typeof CyclesRoute
-  ExecutionRoute: typeof ExecutionRoute
-  ExploreRoute: typeof ExploreRoute
   HistoryRoute: typeof HistoryRoute
   LibraryRoute: typeof LibraryRoute
-  PlanRoute: typeof PlanRoute
   SettingsRoute: typeof SettingsRoute
   CyclesCycleIdRoute: typeof CyclesCycleIdRoute
-  ExploreCycleIdRoute: typeof ExploreCycleIdRoute
-  ExploreCompareRoute: typeof ExploreCompareRoute
   HistoryCycleIdRoute: typeof HistoryCycleIdRoute
   HistoryCompareRoute: typeof HistoryCompareRoute
   SettingsSectionRoute: typeof SettingsSectionRoute
-  ExploreExecutionsExecutionIdRoute: typeof ExploreExecutionsExecutionIdRoute
   HistoryExecutionsExecutionIdRoute: typeof HistoryExecutionsExecutionIdRoute
   SettingsPluginsPluginIdRoute: typeof SettingsPluginsPluginIdRoute
 }
@@ -288,39 +183,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$': {
-      id: '/$'
-      path: '/$'
-      fullPath: '/$'
-      preLoaderRoute: typeof SplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cycle': {
-      id: '/cycle'
-      path: '/cycle'
-      fullPath: '/cycle'
-      preLoaderRoute: typeof CycleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/cycles': {
       id: '/cycles'
       path: '/cycles'
       fullPath: '/cycles'
       preLoaderRoute: typeof CyclesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/execution': {
-      id: '/execution'
-      path: '/execution'
-      fullPath: '/execution'
-      preLoaderRoute: typeof ExecutionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/explore': {
-      id: '/explore'
-      path: '/explore'
-      fullPath: '/explore'
-      preLoaderRoute: typeof ExploreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/history': {
@@ -337,13 +204,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/plan': {
-      id: '/plan'
-      path: '/plan'
-      fullPath: '/plan'
-      preLoaderRoute: typeof PlanRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -356,20 +216,6 @@ declare module '@tanstack/react-router' {
       path: '/cycles/$cycleId'
       fullPath: '/cycles/$cycleId'
       preLoaderRoute: typeof CyclesCycleIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/explore_/$cycleId': {
-      id: '/explore_/$cycleId'
-      path: '/explore/$cycleId'
-      fullPath: '/explore/$cycleId'
-      preLoaderRoute: typeof ExploreCycleIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/explore_/compare': {
-      id: '/explore_/compare'
-      path: '/explore/compare'
-      fullPath: '/explore/compare'
-      preLoaderRoute: typeof ExploreCompareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/history_/$cycleId': {
@@ -393,13 +239,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSectionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/explore_/executions/$executionId': {
-      id: '/explore_/executions/$executionId'
-      path: '/explore/executions/$executionId'
-      fullPath: '/explore/executions/$executionId'
-      preLoaderRoute: typeof ExploreExecutionsExecutionIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/history_/executions/$executionId': {
       id: '/history_/executions/$executionId'
       path: '/history/executions/$executionId'
@@ -419,22 +258,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  SplatRoute: SplatRoute,
-  CycleRoute: CycleRoute,
   CyclesRoute: CyclesRoute,
-  ExecutionRoute: ExecutionRoute,
-  ExploreRoute: ExploreRoute,
   HistoryRoute: HistoryRoute,
   LibraryRoute: LibraryRoute,
-  PlanRoute: PlanRoute,
   SettingsRoute: SettingsRoute,
   CyclesCycleIdRoute: CyclesCycleIdRoute,
-  ExploreCycleIdRoute: ExploreCycleIdRoute,
-  ExploreCompareRoute: ExploreCompareRoute,
   HistoryCycleIdRoute: HistoryCycleIdRoute,
   HistoryCompareRoute: HistoryCompareRoute,
   SettingsSectionRoute: SettingsSectionRoute,
-  ExploreExecutionsExecutionIdRoute: ExploreExecutionsExecutionIdRoute,
   HistoryExecutionsExecutionIdRoute: HistoryExecutionsExecutionIdRoute,
   SettingsPluginsPluginIdRoute: SettingsPluginsPluginIdRoute,
 }

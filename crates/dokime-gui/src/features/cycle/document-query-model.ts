@@ -14,17 +14,19 @@
  * stream) is the backend asking for patience: the read is retried with capped
  * exponential backoff for as long as it is refused and the pane shows it as
  * pending, never as a failure. RESOURCE_EXHAUSTED alone is not busy: the
- * backend also answers it for fixed budgets no retry can satisfy. Any other failure is retried once, then shown with the backend's
- * own words. The module has no application imports, so a node test can load it
- * directly.
+ * backend also answers it for fixed budgets no retry can satisfy. Any other
+ * failure is retried once, then shown with the backend's own words. The module
+ * has no application imports, so a node test can load it directly.
  */
 
 /* === Constants === */
 
-const RETRY_INITIAL_MS = 1_000;
-/** The longest wait between two reads of a busy document resolver. */
-export const BUSY_RETRY_MAX_MS = 15_000;
-const RETRY_MAX_MS = 30_000;
+const GUI_RECONNECT_INITIAL_MS = 1_000;
+const GUI_RECONNECT_MAX_MS = 10_000;
+
+const RETRY_INITIAL_MS = GUI_RECONNECT_INITIAL_MS;
+/** The longest wait between reads of a document resolver or plot stream. */
+export const RECONNECT_MAX_MS = GUI_RECONNECT_MAX_MS;
 
 export const DOCUMENT_FAILED_FALLBACK = "The document could not be read from the backend.";
 export const BUSY_NOTICE = "The backend is busy; the document is read again shortly.";
@@ -51,10 +53,9 @@ export function documentRetry(failureCount: number, error: unknown): boolean {
   return isBusyRefusal(error) || failureCount < 1;
 }
 
-/** TanStack Query `retryDelay`: exponential from one second, capped lower while busy. */
-export function documentRetryDelay(attempt: number, error: unknown): number {
-  const cap = isBusyRefusal(error) ? BUSY_RETRY_MAX_MS : RETRY_MAX_MS;
-  return Math.min(RETRY_INITIAL_MS * 2 ** attempt, cap);
+/** TanStack Query `retryDelay`: exponential backoff with the shared reconnect cap. */
+export function documentRetryDelay(attempt: number, _error: unknown): number {
+  return Math.min(RETRY_INITIAL_MS * 2 ** attempt, RECONNECT_MAX_MS);
 }
 
 /**

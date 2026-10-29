@@ -7,9 +7,9 @@
  * ***
  */
 
+import { notesNewestFirst } from "@/features/cycle/operator-notes-model";
 /* === Local Imports === */
 import { useAddNoteMutation, useEditNoteMutation } from "@/features/cycle/server-state";
-import { notesNewestFirst } from "@/features/cycle/operator-notes-model";
 import type { OperatorNote, RecordScope } from "@/lib/types";
 import { EditableOperatorNotes, FrozenOperatorNotes } from "./OperatorNotesView";
 

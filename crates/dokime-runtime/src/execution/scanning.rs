@@ -12,25 +12,28 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Arc, PoisonError};
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use tokio::sync::{oneshot, watch};
+
 // Local Imports
 use super::log::Level;
 use crate::artifacts::Artifacts;
 use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock};
 
 /* === Constants === */
-const SCAN_INTERVAL: Duration = Duration::from_millis(100);
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Scanning {
     stop: watch::Sender<bool>,
     completion: oneshot::Receiver<()>,
@@ -43,7 +46,9 @@ pub(super) struct Scanning {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn start(artifacts: Artifacts, executions: &Executions, token: &str, tasks: &Tasks) -> Scanning {
+    let interval = Duration::from_millis(100);
     let (stop, mut listener) = watch::channel(false);
     let (completed, completion) = oneshot::channel();
     let owner = Arc::clone(executions);
@@ -55,7 +60,7 @@ pub(super) fn start(artifacts: Artifacts, executions: &Executions, token: &str, 
             tokio::select! {
                 biased;
                 _ = listener.wait_for(|stopped| *stopped) => break,
-                _ = tokio::time::sleep(SCAN_INTERVAL) => {}
+                _ = tokio::time::sleep(interval) => {}
             }
             let notes = scan_blocking(&artifacts).await;
             report(&owner, &owned, notes);
@@ -75,6 +80,7 @@ pub(super) async fn settle(scanning: Scanning, artifacts: &Artifacts, executions
 }
 
 /* === Private Functions === */
+
 async fn scan_blocking(artifacts: &Artifacts) -> Vec<String> {
     let artifacts = artifacts.clone();
     tokio::task::spawn_blocking(move || artifacts.scan()).await.expect("a scan tick does not panic")

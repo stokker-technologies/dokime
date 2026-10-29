@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{cmp::Ordering, collections::BTreeMap};
 
@@ -19,7 +20,7 @@ use std::{cmp::Ordering, collections::BTreeMap};
 use harmos::{
     Aggregate,
     storage::query::{
-        Accumulator, Scratch,
+        Accumulator,
         scalar::{Agg, ScalarValue},
     },
 };
@@ -31,20 +32,18 @@ use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const MAX_COLUMNS: usize = 32;
-const MAX_FILTERS: usize = 64;
-const MAX_FILTER_VALUES: usize = 1024;
-const MAX_NAME_BYTES: usize = 256;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Groups {
     entries: BTreeMap<Key, Vec<Accumulator>>,
     omitted: bool,
 }
+
 struct Key(Vec<Value>);
 
 /* === Enums === */
@@ -52,19 +51,19 @@ struct Key(Vec<Value>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Groups {
-    pub(super) fn fold(query: &AggregateQuery, rows: &[Row<'_>]) -> Result<Self> {
-        validate(query)?;
+    pub(super) fn fold<'a>(query: &AggregateQuery, rows: impl Iterator<Item = Row<'a>> + Clone) -> Result<Self> {
         let mut selected = Self { entries: BTreeMap::new(), omitted: false };
         if query.group_by.is_empty() {
             selected.entries.insert(Key(Vec::new()), reductions(query));
         }
-        let mut scratch = Scratch::new(rows.len().saturating_mul(query.aggregates.len()));
-        for (ordinal, row) in rows.iter().enumerate() {
+
+        for (ordinal, row) in rows.enumerate() {
             if row.source() != query.source {
                 return Err(invalid("aggregate row source differs from its query"));
             }
-            if !matches(row, query)? {
+            if !matches(&row, query)? {
                 continue;
             }
             let mut key = Vec::with_capacity(query.group_by.len());
@@ -78,7 +77,7 @@ impl Groups {
                 } else {
                     scalar(&row.field(&column.column)?.project()?, column.aggregate)?
                 };
-                reduction.push(ordinal as u64, &value, &mut scratch).map_err(reduction_error)?;
+                reduction.push(ordinal as u64, &value).map_err(reduction_error)?;
             }
             // Retain The First Limit+1 Groups; An Evicted Larger Key Never Returns.
             if query.limit != 0 && selected.entries.len() > query.limit + 1 {
@@ -113,12 +112,15 @@ impl PartialEq for Key {
         self.cmp(other) == Ordering::Equal
     }
 }
+
 impl Eq for Key {}
+
 impl PartialOrd for Key {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
+
 impl Ord for Key {
     fn cmp(&self, other: &Self) -> Ordering {
         compare_arrays(&self.0, &other.0)
@@ -126,12 +128,9 @@ impl Ord for Key {
 }
 
 /* === Public Functions === */
+
 pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
-    if query.group_by.len() > MAX_COLUMNS
-        || query.aggregates.is_empty()
-        || query.aggregates.len() > MAX_COLUMNS
-        || query.filters.len() > MAX_FILTERS
-    {
+    if query.aggregates.is_empty() || query.aggregates.len() as u64 > 64 || query.filters.len() as u64 > 64 {
         return Err(invalid("aggregate request exceeds its column or filter bound"));
     }
     for (index, name) in query.group_by.iter().enumerate() {
@@ -142,7 +141,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
     }
     for (index, column) in query.aggregates.iter().enumerate() {
         if column.alias.is_empty()
-            || column.alias.len() > MAX_NAME_BYTES
+            || column.alias.len() as u64 > 256
             || query.group_by.contains(&column.alias)
             || query.aggregates[..index].iter().any(|prior| prior.alias == column.alias)
         {
@@ -166,7 +165,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
             AggregateOperator::IsNull if count != 0 => {
                 return Err(invalid("is_null requires no values"));
             }
-            AggregateOperator::In if count == 0 || count > MAX_FILTER_VALUES => {
+            AggregateOperator::In if count == 0 || count as u64 > 1024 => {
                 return Err(invalid("in filter exceeds its value bound"));
             }
             AggregateOperator::IsNull | AggregateOperator::In => {}
@@ -186,6 +185,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 fn reductions(query: &AggregateQuery) -> Vec<Accumulator> {
     query.aggregates.iter().map(|column| Accumulator::new(Agg::Of(column.aggregate))).collect()
 }
@@ -272,6 +272,7 @@ fn matches(row: &Row<'_>, query: &AggregateQuery) -> Result<bool> {
     }
     Ok(true)
 }
+
 fn scalar_compare(left: &Value, right: &Value) -> Result<Ordering> {
     let compatible = match (left, right) {
         (Value::Bool(_), Value::Bool(_)) | (Value::Text(_), Value::Text(_)) | (Value::Datetime(_), Value::Datetime(_)) => true,
@@ -282,6 +283,7 @@ fn scalar_compare(left: &Value, right: &Value) -> Result<Ordering> {
     }
     Ok(compare(left, right))
 }
+
 fn compare(left: &Value, right: &Value) -> Ordering {
     use Value::*;
     match (left, right) {
@@ -310,6 +312,7 @@ fn compare(left: &Value, right: &Value) -> Ordering {
         _ => rank(left).cmp(&rank(right)),
     }
 }
+
 fn compare_arrays(left: &[Value], right: &[Value]) -> Ordering {
     for (left, right) in left.iter().zip(right) {
         let order = compare(left, right);
@@ -319,6 +322,7 @@ fn compare_arrays(left: &[Value], right: &[Value]) -> Ordering {
     }
     left.len().cmp(&right.len())
 }
+
 fn rank(value: &Value) -> u8 {
     match value {
         Value::Bool(_) => 0,
@@ -330,6 +334,7 @@ fn rank(value: &Value) -> u8 {
         Value::Null => 6,
     }
 }
+
 fn compare_float_integer(value: f64, integer: i128) -> Ordering {
     if value < i64::MIN as f64 {
         return Ordering::Less;
@@ -340,13 +345,12 @@ fn compare_float_integer(value: f64, integer: i128) -> Ordering {
     let whole = value.trunc() as i128;
     whole.cmp(&integer).then_with(|| value.partial_cmp(&(whole as f64)).expect("finite native number"))
 }
+
 fn numeric(value: &Value) -> bool {
     matches!(value, Value::Integer(_) | Value::Unsigned(_) | Value::Number(_))
 }
+
 fn column(query: &AggregateQuery, name: &str) -> Result<()> {
-    if name.len() > MAX_NAME_BYTES {
-        return Err(invalid("aggregate column name exceeds its byte bound"));
-    }
     if !fields::known(query.source, name) {
         let mut message = format!("unknown column {name}; available:");
         for column in fields::columns(query.source) {
@@ -357,6 +361,7 @@ fn column(query: &AggregateQuery, name: &str) -> Result<()> {
     }
     Ok(())
 }
+
 fn invalid(message: &'static str) -> Error {
     Error::validation("aggregate_query_invalid", message, Vec::new())
 }

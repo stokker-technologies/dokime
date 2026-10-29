@@ -25,7 +25,6 @@ use crate::storage::{Error, Result};
 
 /* === Constants === */
 const MAX_DEPTH: usize = 64;
-const MAX_NODES: usize = 4096;
 
 /* === Macros === */
 macro_rules! serde_expression {
@@ -93,8 +92,8 @@ impl Boolean {
     }
 
     pub(super) fn projection_memory(&self) -> Result<usize> {
-        if self.nodes.is_empty() || self.nodes.len() > MAX_NODES {
-            return Err(Error::Invalid("expression exceeds node limit or is empty"));
+        if self.nodes.is_empty() {
+            return Err(Error::Invalid("expression is empty"));
         }
         let mut at = 0;
         let bound = boolean_memory(&self.nodes, &mut at, 0)?;
@@ -142,8 +141,8 @@ impl Parameter {
     }
 
     pub(super) fn projection_memory(&self) -> Result<usize> {
-        if self.nodes.is_empty() || self.nodes.len() > MAX_NODES {
-            return Err(Error::Invalid("expression exceeds node limit or is empty"));
+        if self.nodes.is_empty() {
+            return Err(Error::Invalid("expression is empty"));
         }
         let mut at = 0;
         let bound = parameter_memory(&self.nodes, &mut at, 0)?;
@@ -186,10 +185,10 @@ impl TryFrom<Parameter> for ParameterExpr {
 
 /* === Private Functions === */
 fn admit_node(depth: usize, count: &mut usize) -> Result<()> {
-    if depth > MAX_DEPTH || *count >= MAX_NODES {
-        return Err(Error::Invalid("expression exceeds node or depth limit"));
+    if depth > MAX_DEPTH {
+        return Err(Error::Invalid("expression exceeds depth limit"));
     }
-    *count += 1;
+    *count = (*count).checked_add(1).ok_or(Error::Invalid("expression node count overflows"))?;
     Ok(())
 }
 
@@ -499,7 +498,10 @@ fn consume_boolean(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result
     let kind = match node.kind.as_str() {
         "literal" => ExpressionKind::Literal { value: node.literal.unwrap().try_into()? },
         "selector" => ExpressionKind::Selector { path: node.path.unwrap() },
-        "unary" => ExpressionKind::Unary { op: ExpressionUnaryOp::Not, value: Box::new(consume_boolean(nodes, depth + 1)?) },
+        "unary" => ExpressionKind::Unary {
+            op: ExpressionUnaryOp::Not,
+            value: Box::new(consume_boolean(nodes, depth + 1)?),
+        },
         "binary" => {
             let op = boolean_binary(node.op.as_deref().unwrap())?;
             let left = Box::new(consume_boolean(nodes, depth + 1)?);
@@ -633,19 +635,26 @@ fn consume_parameter(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Resu
             let fallback = if node.children == 0 { None } else { Some(Box::new(consume_parameter(nodes, depth + 1)?)) };
             ParameterExpr::DynamicDefault { key, fallback }
         }
-        "unary" => ParameterExpr::Unary { op: ParameterUnaryOp::Negate, value: Box::new(consume_parameter(nodes, depth + 1)?) },
+        "unary" => ParameterExpr::Unary {
+            op: ParameterUnaryOp::Negate,
+            value: Box::new(consume_parameter(nodes, depth + 1)?),
+        },
         "binary" => {
             let op = parameter_binary(node.op.as_deref().unwrap())?;
             let left = Box::new(consume_parameter(nodes, depth + 1)?);
             let right = Box::new(consume_parameter(nodes, depth + 1)?);
             ParameterExpr::Binary { op, left, right }
         }
-        "range" => {
-            ParameterExpr::Range { start: node.integer_start.unwrap(), stop: node.integer_stop.unwrap(), step: node.integer_step.unwrap() }
-        }
-        "arange" => {
-            ParameterExpr::Arange { start: node.number_start.unwrap(), stop: node.number_stop.unwrap(), step: node.number_step.unwrap() }
-        }
+        "range" => ParameterExpr::Range {
+            start: node.integer_start.unwrap(),
+            stop: node.integer_stop.unwrap(),
+            step: node.integer_step.unwrap(),
+        },
+        "arange" => ParameterExpr::Arange {
+            start: node.number_start.unwrap(),
+            stop: node.number_stop.unwrap(),
+            step: node.number_step.unwrap(),
+        },
         "linspace" => ParameterExpr::Linspace {
             start: node.number_start.unwrap(),
             stop: node.number_stop.unwrap(),
@@ -674,3 +683,45 @@ fn parameter_binary(op: &str) -> Result<ParameterBinaryOp> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime_domain::model::expressions::{BooleanExpression, Expression, ExpressionBinaryOp, ExpressionKind};
+
+    fn boolean_tree(leaves: usize) -> Expression {
+        if leaves == 1 {
+            return Expression {
+                kind: ExpressionKind::Selector { path: "value".into() },
+            };
+        }
+        let left_leaves = leaves / 2;
+        Expression {
+            kind: ExpressionKind::Binary {
+                op: ExpressionBinaryOp::And,
+                left: Box::new(boolean_tree(left_leaves)),
+                right: Box::new(boolean_tree(leaves - left_leaves)),
+            },
+        }
+    }
+
+    #[test]
+    fn admits_parameter_and_boolean_expressions_above_the_former_node_limit() {
+        let values = (0..4096).map(|index| ParameterExpr::Reference { parameter: format!("parameter_{index}") }).collect();
+        let parameter = ParameterExpr::Array { values };
+        let parameter_row = Parameter::try_from(&parameter).unwrap();
+        assert_eq!(parameter_row.nodes.len(), 4097);
+        let parameter_memory = parameter_row.projection_memory().unwrap();
+        assert!(parameter_memory > std::mem::size_of::<ParameterExpr>());
+        let decoded_parameter = ParameterExpr::try_from(parameter_row).unwrap();
+        assert_eq!(decoded_parameter, parameter);
+
+        let boolean = BooleanExpression { expression: boolean_tree(2049) };
+        let boolean_row = Boolean::try_from(&boolean).unwrap();
+        assert_eq!(boolean_row.nodes.len(), 4097);
+        let boolean_memory = boolean_row.projection_memory().unwrap();
+        assert!(boolean_memory > std::mem::size_of::<BooleanExpression>());
+        let decoded_boolean = BooleanExpression::try_from(boolean_row).unwrap();
+        assert_eq!(decoded_boolean, boolean);
+    }
+}

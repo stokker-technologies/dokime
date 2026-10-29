@@ -6,37 +6,33 @@
 #
 # ***
 
-
-"""Supervise Owned Desktop Development Processes"""
+"""Prepare Desktop Development Commands For The Native Owner"""
 
 # === Imports === #
 
 # Standard Library Imports
-
+import argparse
 import json
 import os
-import signal
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build.frontend import ROOT, WEB_ROOT, ensure_report
+from dokime_tools.build import configuration, outputs
+from dokime_tools.build.frontend import ROOT, WEB_ROOT
+from dokime_tools.prepare.resources import refresh
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
 # === Constants === #
 
-
 # === Types === #
 
 # === Classes === #
-
 
 # === Public Functions === #
 
@@ -54,12 +50,10 @@ def dev_plan(environment: dict[str, str], args: list[str]) -> tuple[list[str], d
     host = environment.get("DOKIME_DEV_HOST", "127.0.0.1")
     port = environment.get("DOKIME_DEV_PORT", "5173")
     url = f"http://{host}:{port}"
-    brand_path = ROOT / "branding/generated/tauri.brand.json"
-    brand = json.loads(brand_path.read_text(encoding="utf-8")) if brand_path.exists() else {}
     overlay = {"build": {"devUrl": url}, "bundle": {"externalBin": []}}
     config = merge_config(
         json.loads(environment.get("TAURI_CONFIG") or "{}"),
-        merge_config(brand, overlay),
+        overlay,
     )
     target = environment.get("DOKIME_DEV_TARGET_DIR") or (
         environment.get("CARGO_TARGET_DIR") if port == "5173" else f"target/tauri-dev-{port}"
@@ -92,111 +86,85 @@ def dev_plan(environment: dict[str, str], args: list[str]) -> tuple[list[str], d
     return command, child_env, description
 
 
-def supervise(commands: list[list[str]], *, cwd: Path, environment: dict[str, str]) -> int:
-    children: list[subprocess.Popen] = []
-    stopped = 0
-
-    def stop(signum: int, _frame: object) -> None:
-        nonlocal stopped
-        stopped = signum
-
-    signals = [signal.SIGINT, signal.SIGTERM]
-    if hasattr(signal, "SIGHUP"):
-        signals.append(signal.SIGHUP)
-    previous = {signum: signal.signal(signum, stop) for signum in signals}
-    try:
-        for command in commands:
-            children.append(subprocess.Popen(command, cwd=cwd, env=environment, start_new_session=os.name != "nt"))
-        while not stopped:
-            for index, child in enumerate(children):
-                code = child.poll()
-                if code is not None:
-                    return code if index == len(children) - 1 else code or 1
-            time.sleep(0.02)
-        return 128 + stopped
-    finally:
-        # Owned Process Groups Survive Their Leader
-        for child in children:
-            if os.name == "nt":
-                subprocess.run(
-                    ["taskkill.exe", "/pid", str(child.pid), "/t", "/f"],
-                    check=False,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            else:
-                try:
-                    os.killpg(child.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-        for child in children:
-            try:
-                child.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                if os.name != "nt":
-                    try:
-                        os.killpg(child.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                else:
-                    child.kill()
-                child.wait()
-        if os.name != "nt":
-            # A reaped leader does not imply that its owned process group has
-            # exited. Give descendants time to handle TERM, then bound cleanup
-            # even when a descendant ignores it.
-            time.sleep(0.1)
-            for child in children:
-                try:
-                    os.killpg(child.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-        for signum, handler in previous.items():
-            signal.signal(signum, handler)
+def launch(
+    commands: list[tuple[list[str], dict[str, str]]],
+    *,
+    cwd: Path,
+    environment: dict[str, str],
+    messages: Path,
+) -> None:
+    if not messages.is_file():
+        raise ValueError(f"missing native supervisor compiler record: {messages}; run the existing Rust build task first")
+    finished = [
+        event["success"]
+        for line in messages.read_text(encoding="utf-8").splitlines()
+        if line.startswith("{") and (event := json.loads(line)).get("reason") == "build-finished"
+    ]
+    if finished != [True]:
+        raise ValueError("native supervisor requires a successful selected Cargo build")
+    executable = outputs.executables(messages, ["cargo-dokime"])["cargo-dokime"]
+    if not executable.is_file():
+        raise ValueError(f"selected native supervisor is missing: {executable}; run the existing Rust build task first")
+    prepared = [
+        {
+            "arguments": command,
+            "environment": {key: value for key, value in selected.items() if environment.get(key) != value},
+            "remove_environment": [key for key in environment if key not in selected],
+        }
+        for command, selected in commands
+    ]
+    plan = json.dumps({"cwd": str(cwd), "commands": prepared}, separators=(",", ":"))
+    arguments = [str(executable), "__desktop-development", "--plan", plan]
+    if os.name == "nt":
+        # The Windows C Runtime Rejoins Replaced Arguments Without Quoting, So Supervise Through A Child Instead.
+        sys.exit(subprocess.call(arguments, env=environment))
+    os.execve(executable, arguments, environment)
 
 
 def main() -> int:
     args = sys.argv[1:]
-    if args and args[0] == "watch-report":
-        return supervise(
+    report_only = bool(args and args[0] == "watch-report")
+    if report_only:
+        args = args[1:]
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--build-json", type=Path, default=configuration.messages("dev"))
+    options, args = parser.parse_known_args(args)
+    messages = options.build_json if options.build_json.is_absolute() else ROOT / options.build_json
+    original = dict(os.environ)
+    if report_only:
+        launch(
             [
-                [
-                    "node",
-                    "./node_modules/vite/bin/vite.js",
-                    "build",
-                    "--config",
-                    "vite.report.config.ts",
-                    "--watch",
-                ]
+                (
+                    ["node", "./node_modules/vite/bin/vite.js", "build", "--config", "vite.report.config.ts", "--watch"],
+                    original,
+                )
             ],
             cwd=WEB_ROOT,
-            environment=dict(os.environ),
+            environment=original,
+            messages=messages,
         )
+        return 0
     print_config = "--print-config" in args
     args = [arg for arg in args if arg != "--print-config"]
-    command, environment, description = dev_plan(dict(os.environ), args)
+    command, environment, description = dev_plan(original, args)
     if print_config:
         print(json.dumps(description, indent=2))
         return 0
-    ensure_report()
+    refresh()
     commands = []
     if environment.get("DOKIME_DEV_REPORT_WATCH") != "0":
         commands.append(
-            [
-                "node",
-                "./node_modules/vite/bin/vite.js",
-                "build",
-                "--config",
-                "vite.report.config.ts",
-                "--watch",
-            ]
+            (
+                ["node", "./node_modules/vite/bin/vite.js", "build", "--config", "vite.report.config.ts", "--watch"],
+                original,
+            )
         )
-    commands.append(command)
-    return supervise(commands, cwd=WEB_ROOT, environment=environment)
+    commands.append((command, environment))
+    launch(commands, cwd=WEB_ROOT, environment=environment, messages=messages)
+    return 0
 
 
 # === Private Functions === #
-
 
 # === Entry Point === #
 

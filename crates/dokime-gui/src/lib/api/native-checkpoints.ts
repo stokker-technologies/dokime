@@ -13,6 +13,35 @@
 
 /* === Local Imports === */
 
+import type {
+  Row14 as GeneratedExecutionAvailability,
+  Row15 as GeneratedExecutionBrowseLifecycle,
+  Row8 as GeneratedExecutionStatus,
+  Row12 as GeneratedHistoricalExecutionMetadata,
+  Row6 as GeneratedHistoryIssue,
+  Row2 as GeneratedNativeExecutionBrowsePage,
+  Row13 as GeneratedNativeExecutionCheckpoint,
+} from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type {
+  Row3 as GeneratedArtifactFrame,
+  Row11 as GeneratedArtifactMetadata,
+  Row15 as GeneratedArtifactState,
+} from "@generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
+import type { Row2 as GeneratedCheckpointContext } from "@generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
+import type { Row2 as GeneratedCheckpointDocument } from "@generated/dokime/v1/HistoryMessages/GetCheckpointDocument/messages_pb";
+import type {
+  Row2 as GeneratedCheckpointEvidence,
+  Row15 as GeneratedExecutionFileKind,
+  Row5 as GeneratedExecutionFileMetadata,
+  Row16 as GeneratedExecutionFileState,
+} from "@generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
+import type {
+  Row7 as GeneratedCapturedRecord,
+  Row2 as GeneratedCheckpointRecordPage,
+  Row10 as GeneratedSeverity,
+} from "@generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
+import type { Row2 as GeneratedCheckpointTelemetryPage } from "@generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
+import type { Row4 as GeneratedExecutionFileWindow } from "@generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
@@ -22,42 +51,17 @@ import type {
   ExecutionBrowseEntry,
   ExecutionBrowsePage,
   ExecutionCheckpoint,
+  SavedCycleSummary,
 } from "@/lib/types/view-contracts";
-import type { Row18 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
-import type {
-  Row14 as GeneratedExecutionAvailability,
-  Row15 as GeneratedExecutionBrowseLifecycle,
-  Row8 as GeneratedExecutionStatus,
-  Row12 as GeneratedHistoricalExecutionMetadata,
-  Row6 as GeneratedHistoryIssue,
-  Row2 as GeneratedNativeExecutionBrowsePage,
-  Row13 as GeneratedNativeExecutionCheckpoint,
-  Row35 as GeneratedNativeStorageCursor,
-} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type {
-  Row3 as GeneratedArtifactFrame,
-  Row11 as GeneratedArtifactMetadata,
-  Row15 as GeneratedArtifactState,
-} from "../../../.generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
-import type { Row2 as GeneratedCheckpointContext } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
-import type { Row2 as GeneratedCheckpointDocument } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointDocument/messages_pb";
-import type {
-  Row2 as GeneratedCheckpointEvidence,
-  Row15 as GeneratedExecutionFileKind,
-  Row5 as GeneratedExecutionFileMetadata,
-  Row16 as GeneratedExecutionFileState,
-} from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type {
-  Row7 as GeneratedCapturedRecord,
-  Row2 as GeneratedCheckpointRecordPage,
-  Row10 as GeneratedSeverity,
-} from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
-import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
-import type { Row4 as GeneratedExecutionFileWindow } from "../../../.generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
+import { mapCyclePhase } from "./native-planning";
 import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
 
+const GUI_CHECKPOINT_ARTIFACT_BYTES = 33_554_432;
+const GUI_CHECKPOINT_IDENTITY_BYTES = 4_096;
+const GUI_CHECKPOINT_WINDOW_BYTES = 65_536;
+
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
-type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;
+type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
 type Severity = Wire<GeneratedSeverity>;
 type ArtifactFrame = Wire<GeneratedArtifactFrame>;
 type ArtifactMetadata = Wire<GeneratedArtifactMetadata>;
@@ -68,7 +72,7 @@ type ExecutionFileMetadata = Wire<GeneratedExecutionFileMetadata>;
 type ExecutionFileWindow = Wire<GeneratedExecutionFileWindow>;
 type CapturedRecord = Wire<GeneratedCapturedRecord>;
 type ExecutionStatus = Wire<GeneratedExecutionStatus>;
-type ResultStatus = Wire<GeneratedResultStatus>;
+type ResultStatus = NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>["result"]>["status"];
 type CheckpointContext = Wire<GeneratedCheckpointContext>;
 type CheckpointDocument = Wire<GeneratedCheckpointDocument>;
 type CheckpointEvidence = Wire<GeneratedCheckpointEvidence>;
@@ -82,8 +86,8 @@ type NativeExecutionBrowsePage = Wire<GeneratedNativeExecutionBrowsePage>;
 
 /* === Limits and session ownership === */
 
-export const NATIVE_CHECKPOINT_WINDOW_BYTES = 64 * 1024;
-export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = 32 * 1024 * 1024;
+export const NATIVE_CHECKPOINT_WINDOW_BYTES = GUI_CHECKPOINT_WINDOW_BYTES;
+export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = GUI_CHECKPOINT_ARTIFACT_BYTES;
 
 export interface NativeCheckpointSession extends SessionIdentity {
   /** Keep an artifact stream owned by the selected connection generation. */
@@ -96,10 +100,10 @@ export type CheckpointReference = ExecutionCheckpoint;
 export function checkpointKey(checkpoint: CheckpointReference | NativeExecutionCheckpoint): string {
   if (
     !checkpoint.executionIdentifier ||
-    checkpoint.executionIdentifier.length > 4096 ||
+    checkpoint.executionIdentifier.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
     !(checkpoint.version instanceof Uint8Array) ||
     checkpoint.version.length === 0 ||
-    checkpoint.version.length > 4096
+    checkpoint.version.length > GUI_CHECKPOINT_IDENTITY_BYTES
   ) {
     throw new Error("Invalid checkpoint identity or revision token.");
   }
@@ -119,8 +123,8 @@ function checkpointCursor(cursor: CheckpointReference["position"] | NativeStorag
   if (
     !cursor?.history?.store ||
     !cursor.history.epoch ||
-    cursor.history.store.length > 4096 ||
-    cursor.history.epoch.length > 4096 ||
+    cursor.history.store.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
+    cursor.history.epoch.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
     typeof cursor.sequence !== "bigint" ||
     cursor.sequence < 0n ||
     cursor.sequence > 0xffffffffffffffffn
@@ -174,6 +178,54 @@ function mapIssue(issue: HistoryIssue): {
 }
 
 /* === History discovery === */
+
+export type NativeCycleContinuation = { at: CheckpointCursor; after: bigint };
+
+export type NativeCyclePage = {
+  entries: SavedCycleSummary[];
+  next: NativeCycleContinuation | null;
+};
+
+export async function fetchNativeCyclePage(
+  session: SessionIdentity,
+  after: NativeCycleContinuation | null,
+  signal: AbortSignal | undefined,
+  filter: NonNullable<Parameters<typeof rpc.historyBrowseCycles>[1]["filter"]>,
+): Promise<NativeCyclePage> {
+  assertActive(session, signal, "History.BrowseCycles");
+  const page = await rpc.historyBrowseCycles(session, {
+    limit: NATIVE_PAGE_SIZE,
+    at: after?.at,
+    afterSequence: after?.after ?? 0n,
+    filter,
+  });
+  assertActive(session, signal, "History.BrowseCycles");
+  const at = checkpointCursor(page.at);
+  if (after && cursorKey(at).join("/") !== cursorKey(after.at).join("/")) {
+    throw new Error("History.BrowseCycles returned a different snapshot.");
+  }
+  const next = page.nextAfterSequence;
+  if (next !== undefined && (next <= (after?.after ?? 0n) || next > at.sequence)) {
+    throw new Error("History.BrowseCycles returned a continuation that did not advance within its snapshot.");
+  }
+  const entries = page.entries.map((cycle): SavedCycleSummary => {
+    const created = timestampIso(cycle.createdAt);
+    const updated = timestampIso(cycle.updatedAt);
+    if (!cycle.cycleId || !cycle.metadata || mapCyclePhase(cycle.phase) !== "sealed" || !created || !updated) {
+      throw new Error("History.BrowseCycles returned an invalid sealed cycle header.");
+    }
+    return {
+      cycle_id: cycle.cycleId,
+      label: cycle.metadata.label,
+      phase: "sealed",
+      created_at: created,
+      updated_at: updated,
+      execution_count: safeNumber(cycle.executionCount, "historical cycle execution count"),
+      archived: cycle.archived,
+    };
+  });
+  return { entries, next: next === undefined ? null : { at, after: next } };
+}
 
 /** Read one bounded immutable execution page and retain the old grouping view model. */
 /**
@@ -277,6 +329,7 @@ function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): Exe
   return {
     cycle_id: cycle.cycleId,
     label: cycle.label ?? null,
+    phase: cycle.phase ? mapCyclePhase(cycle.phase) : null,
     lifecycle: mapBrowseLifecycle(cycle.lifecycle),
     result_status: cycle.resultStatus ? mapResultStatus(cycle.resultStatus) : null,
     case_count: count(cycle.caseCount, "case"),

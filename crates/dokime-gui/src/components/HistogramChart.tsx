@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 /* === Local Imports === */
 
@@ -32,11 +32,21 @@ type HistogramChartProps = {
   /** How a bin edge prints; `null` keeps the plain number. */
   format?: ValueFormat | null;
   sampleLabel?: string;
+  /** Content the card holds under the chart, such as its statistics, under the one title. */
+  children?: ReactNode;
 };
 
 /* === Components === */
 
-export function HistogramChart({ title, distribution, unit, xTitle, format = null, sampleLabel = "samples" }: HistogramChartProps) {
+export function HistogramChart({
+  children,
+  title,
+  distribution,
+  unit,
+  xTitle,
+  format = null,
+  sampleLabel = "samples",
+}: HistogramChartProps) {
   const [activeBinIndex, setActiveBinIndex] = useState<number | null>(null);
 
   if (!distribution.count) {
@@ -48,7 +58,7 @@ export function HistogramChart({ title, distribution, unit, xTitle, format = nul
   const activeBin = activeBinIndex === null ? undefined : bins[activeBinIndex];
 
   return (
-    <section className="grid min-h-44 min-w-0 max-w-full overflow-hidden gap-3 rounded-md bg-muted/20 p-3">
+    <section className="grid min-h-44 min-w-0 max-w-full overflow-hidden gap-3 rounded-lg bg-muted/20 p-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <strong className="min-w-0 truncate text-sm">{title}</strong>
         <span className="shrink-0 text-xs text-muted-foreground">
@@ -56,15 +66,22 @@ export function HistogramChart({ title, distribution, unit, xTitle, format = nul
         </span>
       </div>
       <div className="grid min-w-0 gap-2">
-        <span className="text-[0.65rem] text-muted-foreground">{HISTOGRAM_COUNT_LABEL}</span>
+        <span className="text-xs text-muted-foreground">{HISTOGRAM_COUNT_LABEL}</span>
         <div className="relative grid h-24 items-end gap-1" style={{ gridTemplateColumns: `repeat(${bins.length}, minmax(0, 1fr))` }}>
-          {activeBinIndex !== null ? (
-            <span
-              className="pointer-events-none absolute bottom-0 top-0 w-px bg-foreground/60"
-              style={{
-                left: `${((activeBinIndex + 0.5) / Math.max(1, bins.length)) * 100}%`,
-              }}
-            />
+          {activeBinIndex !== null && activeBin ? (
+            <>
+              <span
+                className="pointer-events-none absolute bottom-0 top-0 w-px bg-foreground/60"
+                style={{ left: `${binCentre(activeBinIndex, bins.length)}%` }}
+              />
+              <span
+                className="pointer-events-none absolute top-0 z-10 max-w-full -translate-x-1/2 truncate rounded-lg border bg-popover px-2 py-1 text-xs whitespace-nowrap text-popover-foreground shadow-sm"
+                role="tooltip"
+                style={{ left: `${Math.min(85, Math.max(15, binCentre(activeBinIndex, bins.length)))}%` }}
+              >
+                {`${formatHistogramValue(activeBin.min, unit, format)} - ${formatHistogramValue(activeBin.max, unit, format)}: ${activeBin.count}`}
+              </span>
+            </>
           ) : null}
           {bins.map((bin, index) => (
             <button
@@ -75,6 +92,7 @@ export function HistogramChart({ title, distribution, unit, xTitle, format = nul
               onBlur={() => setActiveBinIndex(null)}
               onFocus={() => setActiveBinIndex(index)}
               onMouseEnter={() => setActiveBinIndex(index)}
+              onMouseLeave={() => setActiveBinIndex(null)}
             >
               <span
                 className="block w-full rounded-t bg-primary transition-colors hover:bg-primary/85"
@@ -88,7 +106,7 @@ export function HistogramChart({ title, distribution, unit, xTitle, format = nul
         <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${bins.length}, minmax(0, 1fr))` }}>
           {bins.map((bin) => (
             <span
-              className="block truncate text-center text-[0.65rem] text-muted-foreground"
+              className="block truncate text-center text-xs text-muted-foreground"
               key={`${bin.slot}-label`}
               title={formatHistogramValue(bin.min, unit, format)}
             >
@@ -96,22 +114,19 @@ export function HistogramChart({ title, distribution, unit, xTitle, format = nul
             </span>
           ))}
         </div>
-        {xTitle ? <span className="truncate text-center text-[0.65rem] text-muted-foreground">{xTitle}</span> : null}
-        <span className="min-h-5 text-xs text-muted-foreground">
-          {activeBin
-            ? `${formatHistogramValue(activeBin.min, unit, format)} - ${formatHistogramValue(
-                activeBin.max,
-                unit,
-                format,
-              )}: ${activeBin.count}`
-            : "Hover a bin for range and count."}
-        </span>
+        {xTitle ? <span className="truncate text-center text-xs text-muted-foreground">{xTitle}</span> : null}
       </div>
+      {children}
     </section>
   );
 }
 
 /* === Private Functions === */
+
+/** Where bin `index` of `count` centres along the chart, in percent. */
+function binCentre(index: number, count: number): number {
+  return ((index + 0.5) / Math.max(1, count)) * 100;
+}
 
 function formatHistogramValue(value: number | undefined, unit: string, format: ValueFormat | null): string {
   if (value === undefined || !Number.isFinite(value)) {

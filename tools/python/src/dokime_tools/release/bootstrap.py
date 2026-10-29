@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/bootstrap.py; sha256:663cf4d40ce8190639c8f7ab2feb15c17a904e128a54a5b15846644c4f7aaa76
+# Rendered by stkr project update from templates/python/release/bootstrap.py; sha256:46396e699008e985715405f9489109b3f8245484257de871053a0bfecbd6d045
 # ***
 #
 # Dokime
@@ -114,6 +114,9 @@ def bootstrap_stkr(directory: Path, document: dict) -> None:
     if not isinstance(project, str) or not project:
         raise policy.ToolError("ci.stkr.project_id must identify the release project")
     filename = f"stkr-{pin['version']}-{target}" + (".exe" if system == "windows" else "")
+    filename = pin.get("filenames", {}).get(target, filename)
+    if Path(filename).name != filename or "\\" in filename or ":" in filename or filename in {".", ".."}:
+        raise policy.ToolError("ci.stkr.filenames must name exact plain release assets")
     url = f"{base}/projects/{urllib.parse.quote(project, safe='')}/packages/generic/stkr/v{pin['version']}/{filename}"
     destination = policy.inside(directory, f"target/ci-tools/{target}")
     destination.mkdir(parents=True, exist_ok=True)
@@ -154,6 +157,7 @@ def verify_stkr(directory: Path, executable: Path, version: str) -> None:
     try:
         result = subprocess.run(
             [str(executable), "--version"],
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             cwd=directory,
             text=True,
             capture_output=True,

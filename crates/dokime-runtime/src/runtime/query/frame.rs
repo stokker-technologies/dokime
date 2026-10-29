@@ -12,17 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{
     queries::RuntimeOverviewSnapshot,
     queries::{
         RuntimeArtifactFrame, RuntimeCursor, RuntimeDocumentFrame, RuntimeExecutionFileRead, RuntimeHealthFrame,
-        RuntimeInstalledPluginFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeRecordFrame, RuntimeResolvedDocumentFrame,
-        RuntimeResourceFrame, RuntimeTelemetryFrame, RuntimeTraceabilityFrame, RuntimeWindow,
+        RuntimeInstalledPluginFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeRecordFrame, RuntimeResolvedDocumentRead,
+        RuntimeResourceFrame, RuntimeTelemetryRead, RuntimeTraceabilityRead, RuntimeWindow,
     },
 };
 
@@ -33,6 +35,7 @@ use crate::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct RuntimeViewFrame {
     pub cursor: RuntimeCursor,
@@ -44,6 +47,7 @@ pub struct RuntimeViewFrame {
 pub struct RuntimeOverviewFrame {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell: Option<RuntimeOverviewSnapshot>,
+
     pub suites: usize,
     pub cycles: usize,
     pub executions: usize,
@@ -68,6 +72,7 @@ pub struct RuntimeListFrame {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RuntimeViewPayload {
@@ -81,14 +86,14 @@ pub enum RuntimeViewPayload {
     RecordDefinitions { frame: RuntimeListFrame },
     Records { frame: Box<RuntimeRecordFrame> },
     TelemetryDefinitions { frame: RuntimeListFrame },
-    Telemetry { frame: Box<RuntimeTelemetryFrame> },
-    Document { frame: Box<RuntimeResolvedDocumentFrame> },
+    Telemetry { frame: RuntimeTelemetryRead },
+    Document { frame: RuntimeResolvedDocumentRead },
     Documents { frame: Box<RuntimeDocumentFrame> },
     Artifacts { frame: Box<RuntimeArtifactFrame> },
     Resources { frame: Box<RuntimeResourceFrame> },
     Prompts { frame: Box<RuntimePromptFrame> },
     Health { frame: Box<RuntimeHealthFrame> },
-    Traceability { frame: Box<RuntimeTraceabilityFrame> },
+    Traceability { frame: RuntimeTraceabilityRead },
     Notes { frame: Box<RuntimeNoteFrame> },
 }
 

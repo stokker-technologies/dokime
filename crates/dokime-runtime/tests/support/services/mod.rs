@@ -16,9 +16,11 @@ pub mod contracts;
 pub mod evidence;
 pub mod executors;
 pub mod native;
+pub mod plots;
 pub mod prompts;
 pub mod publication;
 pub mod reports;
+pub mod sampling;
 pub mod smoke;
 pub mod suites;
 pub mod waits;
@@ -103,7 +105,7 @@ pub fn config(root: impl Into<PathBuf>) -> RuntimeConfig {
 
 pub fn wifi_config(root: impl Into<PathBuf>) -> RuntimeConfig {
     config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
-        source: "fixture.host".to_owned(),
+        source: "fixture_host".to_owned(),
         version: "test".to_owned(),
         description: "Fixture Host".to_owned(),
         enabled: true,
@@ -158,12 +160,13 @@ pub async fn blocked_cycle(
 pub async fn blocked_cycle_with(
     config: RuntimeConfig,
 ) -> (Runtime, RuntimeHandle, dokime_runtime::TestCycleId, Arc<executors::BlockingPublishingExecutor>) {
+    use suites::ExecutionFixtureStart;
     let executor = Arc::new(executors::BlockingPublishingExecutor::new());
     let (owner, runtime) = started_with_fixture(config, executor.clone()).await;
     let suite = suites::fixture_suite(&["passed"]);
     suites::register_python_suite(&runtime, suite.clone()).await;
-    let cycle_id = suites::start_cycle(&runtime, suite, false).await;
-    let response = runtime.run_cycle_cases(cycle_id.clone(), dokime_runtime::runtime::command::CommandContext::default()).await;
+    let cycle_id = suites::start_cycle(&runtime, suite).await;
+    let response = runtime.start_next_execution(cycle_id.clone(), dokime_runtime::runtime::command::CommandContext::default()).await;
     assert_eq!(response.status, dokime_runtime::runtime::command::CommandStatus::Accepted, "{response:?}");
     executor.wait_until_entered().await;
 

@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::prompts::PromptInstance;
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
@@ -33,6 +35,7 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeResourceFrame {
     pub records: Vec<ResourceRecord>,
@@ -79,11 +82,36 @@ struct Reduced<T> {
     returned: usize,
 }
 
+#[derive(Clone)]
+pub struct RuntimeTraceabilityRead(harmos::storage::ReadBatch<RuntimeTraceabilityFrame>);
+impl std::ops::Deref for RuntimeTraceabilityRead {
+    type Target = RuntimeTraceabilityFrame;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::fmt::Debug for RuntimeTraceabilityRead {
+    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&*self.0, output)
+    }
+}
+impl PartialEq for RuntimeTraceabilityRead {
+    fn eq(&self, other: &Self) -> bool {
+        *self.0 == *other.0
+    }
+}
+impl Serialize for RuntimeTraceabilityRead {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<T> Reduced<T> {
     fn truncated(&self) -> bool {
         self.returned < self.total
@@ -92,40 +120,50 @@ impl<T> Reduced<T> {
 
 impl From<Reduced<ResourceRecord>> for RuntimeResourceFrame {
     fn from(reduced: Reduced<ResourceRecord>) -> Self {
-        Self { truncated: reduced.truncated(), records: reduced.items, total_records: reduced.total, returned_records: reduced.returned }
+        Self {
+            truncated: reduced.truncated(),
+            records: reduced.items,
+            total_records: reduced.total,
+            returned_records: reduced.returned,
+        }
     }
 }
 
 impl From<Reduced<PromptInstance>> for RuntimePromptFrame {
     fn from(reduced: Reduced<PromptInstance>) -> Self {
-        Self { truncated: reduced.truncated(), prompts: reduced.items, total_prompts: reduced.total, returned_prompts: reduced.returned }
+        Self {
+            truncated: reduced.truncated(),
+            prompts: reduced.items,
+            total_prompts: reduced.total,
+            returned_prompts: reduced.returned,
+        }
     }
 }
 
 impl From<Reduced<HealthItem>> for RuntimeHealthFrame {
     fn from(reduced: Reduced<HealthItem>) -> Self {
-        Self { truncated: reduced.truncated(), items: reduced.items, total_items: reduced.total, returned_items: reduced.returned }
-    }
-}
-
-impl From<Reduced<TraceabilitySnapshot>> for RuntimeTraceabilityFrame {
-    fn from(reduced: Reduced<TraceabilitySnapshot>) -> Self {
         Self {
             truncated: reduced.truncated(),
-            snapshots: reduced.items,
-            total_snapshots: reduced.total,
-            returned_snapshots: reduced.returned,
+            items: reduced.items,
+            total_items: reduced.total,
+            returned_items: reduced.returned,
         }
     }
 }
 
 impl From<Reduced<OperatorNote>> for RuntimeNoteFrame {
     fn from(reduced: Reduced<OperatorNote>) -> Self {
-        Self { truncated: reduced.truncated(), notes: reduced.items, total_notes: reduced.total, returned_notes: reduced.returned }
+        Self {
+            truncated: reduced.truncated(),
+            notes: reduced.items,
+            total_notes: reduced.total,
+            returned_notes: reduced.returned,
+        }
     }
 }
 
 /* === Public Functions === */
+
 pub(crate) fn resource_frame<'a>(
     records: impl Iterator<Item = &'a ResourceRecord>, scope: Option<&RecordScope>, window: &RuntimeWindow, resolution: &RuntimeResolution,
 ) -> RuntimeResourceFrame {
@@ -152,18 +190,22 @@ pub(crate) fn prompt_frame<'a>(
         .into()
 }
 
-pub(crate) fn traceability_frame<'a>(
-    snapshots: impl Iterator<Item = &'a TraceabilitySnapshot>, scope: Option<&RecordScope>, window: &RuntimeWindow,
+pub(crate) fn traceability_frame(
+    snapshots: harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>, scope: Option<&RecordScope>, window: &RuntimeWindow,
     resolution: &RuntimeResolution,
-) -> RuntimeTraceabilityFrame {
-    windowed(
-        snapshots,
-        |snapshot| scope.is_none_or(|scope| snapshot.scope.is_visible_in(scope)),
-        |snapshot| &snapshot.created_at,
-        window,
-        resolution,
-    )
-    .into()
+) -> crate::runtime::Result<RuntimeTraceabilityRead> {
+    let frame = snapshots.try_map(|mut snapshots| {
+        snapshots.retain(|snapshot| scope.is_none_or(|scope| snapshot.scope.is_visible_in(scope)));
+        let reduced = reduce_timestamped_items(snapshots, window, resolution, |snapshot| &snapshot.created_at, |_| None);
+        let returned = reduced.returned.len();
+        Ok::<_, crate::runtime::Error>(RuntimeTraceabilityFrame {
+            snapshots: reduced.returned,
+            total_snapshots: reduced.total,
+            returned_snapshots: returned,
+            truncated: returned < reduced.total,
+        })
+    })?;
+    Ok(RuntimeTraceabilityRead(frame))
 }
 
 pub(crate) fn note_frame<'a>(
@@ -173,6 +215,7 @@ pub(crate) fn note_frame<'a>(
 }
 
 /* === Private Functions === */
+
 fn windowed<'a, T: Clone + 'a>(
     items: impl Iterator<Item = &'a T>, visible: impl Fn(&T) -> bool, timestamp: impl Fn(&T) -> &Timestamp, window: &RuntimeWindow,
     resolution: &RuntimeResolution,
@@ -181,7 +224,11 @@ fn windowed<'a, T: Clone + 'a>(
     let reduced = reduce_timestamped_items(items, window, resolution, timestamp, |_| None);
     let returned = reduced.returned.len();
 
-    Reduced { items: reduced.returned, total: reduced.total, returned }
+    Reduced {
+        items: reduced.returned,
+        total: reduced.total,
+        returned,
+    }
 }
 
 /* === Tests === */

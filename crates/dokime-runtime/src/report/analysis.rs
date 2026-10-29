@@ -12,20 +12,23 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, RwLock},
 };
+
 // Third Party Imports
-use harmos::operations::Context;
+use super::Scope;
+
 // Local Imports
 use crate::domains::ActionDispatcher;
 use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
 use crate::{
     RuntimeHandle,
-    plot::{PlotPayload, PlotPayloadCursor, PlotPayloadRequest},
+    plot::{PlotPayload, PlotPayloadRequest},
     runtime::Error,
     runtime::Result,
 };
@@ -39,6 +42,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct Resources {
     pub(crate) dispatchers: Arc<RwLock<BTreeMap<Identifier, Arc<dyn ActionDispatcher>>>>,
@@ -50,13 +54,20 @@ pub(crate) struct Resources {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Resources {
     pub(crate) fn new() -> Self {
-        Self { dispatchers: Arc::new(RwLock::new(BTreeMap::new())), unavailable: Arc::new(RwLock::new(BTreeSet::new())) }
+        Self {
+            dispatchers: Arc::new(RwLock::new(BTreeMap::new())),
+            unavailable: Arc::new(RwLock::new(BTreeSet::new())),
+        }
     }
 
     pub(crate) fn from_runtime(runtime: &RuntimeHandle) -> Self {
-        Self { dispatchers: runtime.action_dispatchers.clone(), unavailable: runtime.unavailable_plugins.clone() }
+        Self {
+            dispatchers: runtime.action_dispatchers.clone(),
+            unavailable: runtime.unavailable_plugins.clone(),
+        }
     }
     pub(crate) fn available(&self, source: &str) -> bool {
         !self.unavailable.read().expect("plugin availability lock poisoned").contains(source)
@@ -82,40 +93,24 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 pub(crate) async fn materialize(
-    ctx: &Context<'_>, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: PlotPayload,
-    contract: Option<&TelemetryContract>,
-) -> Result<PlotPayload> {
-    let resources = &ctx.scope().resources::<crate::app::Dokime>().analysis;
-    let state = ctx.scope().state::<crate::app::Dokime>().state();
+    ctx: &Scope, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: harmos::storage::ReadBatch<PlotPayload>,
+    contract: Option<&TelemetryContract>, position: &harmos::storage::StorageCursor,
+) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
+    let resources = &ctx.resources().analysis;
+    let state = ctx.state().state();
     let prepared = state
-        .read(|state| {
-            crate::runtime::query::plots::analysis::Prepared::resolve_with(resources, state, request)
-                .map(|prepared| (prepared, state.process_epoch().to_string()))
-        })
+        .read(|state| crate::runtime::query::plots::analysis::Prepared::resolve_with(resources, state, request))
         .await
         .map_err(|error| Error::Operation(error.to_string()))?
         .value?;
-    let (Some(prepared), epoch) = prepared else {
+    let Some(prepared) = prepared else {
         return Ok(payload);
     };
     prepared.check_evidence(telemetry, request)?;
-    let mut cursor = PlotPayloadCursor::default();
-    for sample in telemetry.iter().filter(|sample| {
-        sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
-    }) {
-        let stream = crate::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-        let ordinal = cursor.telemetry_streams.entry(stream).or_default();
-        *ordinal = (*ordinal).max(sample.sequence);
-    }
     prepared
-        .execute_in(
-            crate::runtime::query::plots::analysis::Environment::Report { ctx, resources, epoch: &epoch },
-            request,
-            &cursor,
-            payload,
-            contract,
-        )
+        .execute_in(crate::runtime::query::plots::analysis::Environment::Report { resources }, request, position, payload, contract)
         .await
 }
 

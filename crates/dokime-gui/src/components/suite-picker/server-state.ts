@@ -18,14 +18,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import { fetchNativeSuites } from "@/lib/api/native-catalog";
-import { appendNativeTestCycle, listNativeCycles, previewNativeTestCycle } from "@/lib/api/native-planning";
+import { appendNativeTestCycle, previewNativeTestCycle } from "@/lib/api/native-planning";
 import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 
 /* === Query Keys === */
 
 export const suiteQueryKeys = {
   all: ["suite"] as const,
-  cycleLabel: (cycleId: string) => [...suiteQueryKeys.all, "cycle-label", cycleId] as const,
   preview: (request: PreviewTestCycleRequest) => [...suiteQueryKeys.all, "preview", request] as const,
   suites: () => [...suiteQueryKeys.all, "suites"] as const,
 };
@@ -37,7 +36,6 @@ export function useTestSuitesQuery() {
   return useQuery({
     queryFn: () => fetchNativeSuites(session.identity),
     queryKey: [...suiteQueryKeys.suites(), session.identity.generation],
-    staleTime: 60_000,
   });
 }
 
@@ -59,25 +57,5 @@ export function useAppendTestCycleMutation() {
     onSuccess: async () => {
       await Promise.all([invalidateWorkflowResourceQueries(queryClient), queryClient.invalidateQueries({ queryKey: suiteQueryKeys.all })]);
     },
-  });
-}
-
-/**
- * The label of the cycle the Library is appending to.
- *
- * One bounded ListCycles read; the cycle's full plan would cost a ListCases
- * and a GetCase per case for a single string.
- */
-export function useCycleLabelQuery(cycleId: string | undefined) {
-  const session = useNativeSession();
-  return useQuery({
-    enabled: Boolean(cycleId),
-    queryFn: async () => {
-      const cycles = await listNativeCycles(session.identity);
-      const summary = cycles.find((candidate) => candidate.cycleId === cycleId);
-      return summary?.metadata?.label || (cycleId ?? "");
-    },
-    queryKey: [...suiteQueryKeys.cycleLabel(cycleId ?? ""), session.identity.generation],
-    staleTime: 30_000,
   });
 }
