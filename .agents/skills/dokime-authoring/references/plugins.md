@@ -32,7 +32,7 @@ src/
       <template>.rs             Template Declaration
 ```
 
-Use unprefixed suite names and only populated modules. Keep the selected repository skeleton and all its section markers. Keep declarations explicit, with no prelude modules or placeholder suites.
+Use unprefixed suite names and only populated modules. Keep declarations explicit, with no prelude modules or placeholder suites.
 
 The host sidecar keeps one request definition per `host/<operation>/mod.rs`:
 request struct, id, policy, response and contract tests. Runtime implementations
