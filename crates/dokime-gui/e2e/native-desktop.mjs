@@ -3240,8 +3240,7 @@ async function settingsJourney(session, notes) {
         const buttons = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr button')]
           .filter(button => button.getAttribute('aria-label') === 'Settings');
         const configurable = buttons.filter(button => !button.disabled);
-        return {rows: buttons.length, configurable: configurable.length,
-          host: configurable[0]?.closest('tr')?.cells[0]?.innerText.trim().endsWith(' Host'), text: document.body.innerText};
+        return {rows: buttons.length, configurable: configurable.length, text: document.body.innerText};
       `);
       return state.rows || hasText(state.text, "Loaded from the launch configuration; managed outside the installation store.")
         ? state
@@ -3263,14 +3262,8 @@ async function settingsJourney(session, notes) {
   }
   if (plugins.configurable) {
     await session.click(await session.find("xpath", "//table[@aria-label='Plugins']//button[@aria-label='Settings' and not(@disabled)]"));
-    await until(
-      "plugin page",
-      async () =>
-        plugins.host
-          ? (await session.location()).pathname === "/settings/appearance"
-          : (await session.location()).pathname.startsWith("/settings/plugins/"),
-      120000,
-    );
+    /* Every row, the host's included, opens its plugin's own page. */
+    await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 120000);
     assert.ok(hasText(await session.text(), "Settings"), "The plugin page must carry its settings breadcrumb");
     await session.goto("/settings/plugins");
     await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 120000);
