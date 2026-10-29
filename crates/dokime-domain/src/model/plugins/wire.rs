@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -54,7 +52,6 @@ pub struct InstallationPage {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemovePluginReply {
-    // RemovalPending persists until the next boot; the active process is untouched.
     #[row(description = "RemovalPending persists until the next boot; the active process is untouched.")]
     pub installation: Option<PluginInstallation>,
 }
@@ -117,8 +114,6 @@ pub struct PluginInstallation {
     pub state: PluginInstallationState,
     pub last_boot: Option<PluginLastBoot>,
 
-    // Absent if bytes cannot be verified or full metadata exceeds the response
-    // budget; error explains why. Metadata is never truncated.
     #[row(
         description = "Absent if bytes cannot be verified or full metadata exceeds the response budget; error explains why. Metadata is never truncated."
     )]

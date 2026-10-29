@@ -37,27 +37,16 @@ const DESKTOP_UPLOAD_IDLE_MS: u64 = 30_000;
 const DESKTOP_UPLOAD_REAPER_MS: u64 = 1_000;
 
 // Recording Sink
-
 //
-
 // A screen recording is not streamed straight to the server the way an
-
 // upload is: `desktop_recording_finish` has to patch the MP4 duration atoms
-
 // in place before the bytes are hashed, so the raw timeslices first land in
-
 // a local temp file. `RecordingSinks` is therefore a much smaller registry
-
 // than `ArtifactUploads`: at most one recording per owner (the UI only ever
-
 // offers one "Stop Recording" button), no chunk framing beyond ordered
-
 // bytes (the webview queue already serializes writes one in flight), and no
-
 // tonic stream — `desktop_recording_finish` (a `bindings/mod.rs` command,
-
 // not one of these raw ones) takes the finished file out of the registry
-
 // and hands it to `content::push_verified` after patching it.
 
 /* === Macros === */

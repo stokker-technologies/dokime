@@ -58,7 +58,6 @@ where
     let stack_bytes = STACK_BYTES;
     let shutdown = std::time::Duration::from_millis(250);
 
-    // Run On A Sized Thread
     let driver = std::thread::Builder::new().name("dokime-main".to_owned()).stack_size(stack_bytes).spawn(move || {
         let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().thread_stack_size(stack_bytes).build()?;
         let outcome = runtime.block_on(future);
@@ -67,7 +66,6 @@ where
         Ok::<_, std::io::Error>(outcome)
     })?;
 
-    // Surface The Outcome
     match driver.join() {
         Ok(outcome) => outcome,
         Err(panic) => std::panic::resume_unwind(panic),

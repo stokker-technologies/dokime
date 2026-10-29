@@ -104,7 +104,6 @@ impl Serve<contract::FileWatch> for Resources {
                     }
                 }
 
-                // Seal, Then Announce Every Sealed Artifact
                 let sealed = watch.seal(&mut events).await;
                 send_events(ctx.streams(), &mut events).await?;
                 sealed.map_err(failure)?;

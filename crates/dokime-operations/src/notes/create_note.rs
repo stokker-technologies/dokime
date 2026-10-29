@@ -35,14 +35,12 @@ use super::*;
         grpc(package = "dokime.v1", service = "Notes", method = "CreateNote"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateNote {
-    // Explicit process epoch from discovery. Retry identities expire at restart.
     #[row(description = "Explicit process epoch from discovery. Retry identities expire at restart.")]
     pub epoch: String,
 
     pub mutation_id: String,
     pub owner: Option<AnnotationOwner>,
 
-    // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
     #[row(description = "nonblank, at most 16 KiB UTF-8. Actor comes from authentication.")]
     pub message: String,
 }

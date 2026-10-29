@@ -30,6 +30,7 @@ use super::*;
 
 /* === Structs === */
 
+// DeleteCase Only Removes An Unexecuted Case. Reruns Bind A New Explicit Execution Identity.
 #[harmos::operation(resources = [crate::hosting::Host<DeleteCase>], response = ControlReply, id = "dokime.execution.delete_case",
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "DeleteCase"))]

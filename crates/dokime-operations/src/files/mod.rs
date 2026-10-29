@@ -46,18 +46,6 @@ use dokime_domain::model::files::wire::*;
 
 /* === Enums === */
 
-// Watches a source for the lifetime of the stream: until the caller cancels,
-
-// the bound elapses or the execution seals. Each matched file is captured into
-
-// `<output>/<path relative to the root>` and sealed with its length and digest.
-
-// Watches one file for the calling step's execution until the instance is
-
-// cancelled, the bound elapses or the execution seals. Its bytes become the
-
-// artifact `artifact`, or `<output>/<file name>` when absent.
-
 #[harmos::catalog]
 pub enum Operations {
     FileWatch(FileWatch),

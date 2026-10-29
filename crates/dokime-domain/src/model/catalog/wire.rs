@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -121,20 +119,14 @@ pub struct ParameterSchema {
     pub expression: Option<ParameterExpression>,
     pub selection: Option<ParameterSelection>,
 
-    // Plugin-defined typed metadata retained from the registered parameter.
     #[row(description = "Plugin-defined typed metadata retained from the registered parameter.")]
     pub extensions: Vec<ParameterSchemaExtensionsEntry>,
 
-    // Present when the parameter is a list: one array value of typed elements
-    // belonging to one case, never a parameter space. `value_type` stays
-    // VALUE_TYPE_ARRAY; this carries the element type and the length bounds a
-    // list editor needs.
     #[row(
         description = "Present when the parameter is a list: one array value of typed elements belonging to one case, never a parameter space. `value_type` stays VALUE_TYPE_ARRAY; this carries the element type and the length bounds a list editor needs."
     )]
     pub list: Option<ParameterList>,
 
-    // Inclusive numeric bounds; for lists, applied to each element.
     #[row(description = "Inclusive numeric bounds; for lists, applied to each element.")]
     pub min: Option<f64>,
 
@@ -213,7 +205,6 @@ pub struct LinearSpace {
 pub struct DynamicDefault {
     pub key: DynamicDefaultKey,
 
-    // Operand index of the fallback expression.
     #[row(description = "Operand index of the fallback expression.")]
     pub fallback: Option<u32>,
 }
@@ -223,7 +214,6 @@ pub struct DynamicDefault {
 pub struct UnaryExpression {
     pub op: UnaryOperator,
 
-    // Operand index.
     #[row(description = "Operand index.")]
     pub value: u32,
 }
@@ -233,11 +223,9 @@ pub struct UnaryExpression {
 pub struct BinaryExpression {
     pub op: BinaryOperator,
 
-    // Operand index.
     #[row(description = "Operand index.")]
     pub left: u32,
 
-    // Operand index.
     #[row(description = "Operand index.")]
     pub right: u32,
 }

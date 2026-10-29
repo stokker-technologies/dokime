@@ -96,7 +96,6 @@ fn capture_monitor(display: Option<u32>) -> Result<Vec<u8>> {
     .ok_or_else(|| unavailable("no display is available at the requested index"))?;
     let image = monitor.capture_image().map_err(|source| unavailable(format!("display capture failed: {source}")))?;
 
-    // Encode PNG
     let mut bytes = std::io::Cursor::new(Vec::new());
     image
         .write_to(&mut bytes, image::ImageFormat::Png)

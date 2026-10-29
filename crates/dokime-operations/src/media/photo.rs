@@ -37,7 +37,6 @@ use super::*;
 pub struct Photo {
     pub scope: Option<ArtifactScope>,
 
-    // Zero-based camera index; absent selects the first camera.
     #[row(description = "Zero-based camera index; absent selects the first camera.")]
     pub camera: Option<u32>,
 }

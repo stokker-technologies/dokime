@@ -36,7 +36,6 @@ pub use storage::artifacts::{ArtifactReader, ArtifactUpload};
 pub use storage::report_open::{OpenedReport, ReportOrigin};
 
 // Reachable only from this crate's test targets. Kept at the root so those
-
 // targets name one path, not a private module tree.
 pub use handle::RecordSubscription;
 pub use storage::{

@@ -7,8 +7,6 @@
  * ***
  */
 
-// Atomic manual device power changes
-
 /* === Modules === */
 
 /* === Re-Exports === */

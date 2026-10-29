@@ -7,8 +7,6 @@
  * ***
  */
 
-// Wire enumerations shared across the gRPC projections.
-
 /* === Modules === */
 
 pub(super) mod canonical;

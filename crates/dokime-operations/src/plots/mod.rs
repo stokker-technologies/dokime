@@ -51,22 +51,6 @@ use dokime_domain::model::plots::wire::*;
 
 /* === Enums === */
 
-// The native bridge and server reject a request with more than 32 plots. The
-
-// reply contains repeated envelopes in one bounded message; callers must
-
-// lower max_points or split a batch on exhaustion.
-
-// Watch is server-streaming. To change the request set, cancel this stream and
-
-// open another one. Requests without a cursor receive an initial Snapshot
-
-// before the watch begins; later frames are coalesced by the server at 100 ms
-
-// only after a runtime state or telemetry watch advances.
-
-// Analysis IDs Are Open; Each Contribution Declares Its Parameters And Outputs.
-
 #[harmos::catalog]
 pub enum Operations {
     ListAnalyses(ListAnalyses),
